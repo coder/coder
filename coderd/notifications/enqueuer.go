@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"text/template"
 
 	"github.com/google/uuid"
@@ -16,14 +17,13 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+var ErrCannotEnqueueDisabledNotification = xerrors.New("user has disabled this notification")
+
 type StoreEnqueuer struct {
 	store Store
 	log   slog.Logger
 
-	// TODO: expand this to allow for each notification to have custom delivery methods, or multiple, or none.
-	// 		 For example, Larry might want email notifications for "workspace deleted" notifications, but Harry wants
-	//		 Slack notifications, and Mary doesn't want any.
-	method database.NotificationMethod
+	defaultMethod database.NotificationMethod
 	// helpers holds a map of template funcs which are used when rendering templates. These need to be passed in because
 	// the template funcs will return values which are inappropriately encapsulated in this struct.
 	helpers template.FuncMap
@@ -37,17 +37,31 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 	}
 
 	return &StoreEnqueuer{
-		store:   store,
-		log:     log,
-		method:  method,
-		helpers: helpers,
+		store:         store,
+		log:           log,
+		defaultMethod: method,
+		helpers:       helpers,
 	}, nil
 }
 
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
 func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	payload, err := s.buildPayload(ctx, userID, templateID, labels)
+	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
+		UserID:                 userID,
+		NotificationTemplateID: templateID,
+	})
+	if err != nil {
+		s.log.Warn(ctx, "failed to fetch message metadata", slog.F("template_id", templateID), slog.F("user_id", userID), slog.Error(err))
+		return nil, xerrors.Errorf("new message metadata: %w", err)
+	}
+
+	dispatchMethod := s.defaultMethod
+	if metadata.CustomMethod.Valid {
+		dispatchMethod = metadata.CustomMethod.NotificationMethod
+	}
+
+	payload, err := s.buildPayload(metadata, labels)
 	if err != nil {
 		s.log.Warn(ctx, "failed to build payload", slog.F("template_id", templateID), slog.F("user_id", userID), slog.Error(err))
 		return nil, xerrors.Errorf("enqueue notification (payload build): %w", err)
@@ -59,38 +73,53 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 	}
 
 	id := uuid.New()
-	msg, err := s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
+	err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 		ID:                     id,
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
-		Method:                 s.method,
+		Method:                 dispatchMethod,
 		Payload:                input,
 		Targets:                targets,
 		CreatedBy:              createdBy,
 	})
 	if err != nil {
+		// We have a trigger on the notification_messages table named `inhibit_enqueue_if_disabled` which prevents messages
+		// from being enqueued if the user has disabled them via notification_preferences. The trigger will fail the insertion
+		// with the message "cannot enqueue message: user has disabled this notification".
+		//
+		// This is more efficient than fetching the user's preferences for each enqueue, and centralizes the business logic.
+		if strings.Contains(err.Error(), ErrCannotEnqueueDisabledNotification.Error()) {
+			return nil, ErrCannotEnqueueDisabledNotification
+		}
+
 		s.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))
 		return nil, xerrors.Errorf("enqueue notification: %w", err)
 	}
 
-	s.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
+	s.log.Debug(ctx, "enqueued notification", slog.F("msg_id", id))
 	return &id, nil
 }
 
 // buildPayload creates the payload that the notification will for variable substitution and/or routing.
 // The payload contains information about the recipient, the event that triggered the notification, and any subsequent
 // actions which can be taken by the recipient.
-func (s *StoreEnqueuer) buildPayload(ctx context.Context, userID uuid.UUID, templateID uuid.UUID, labels map[string]string) (*types.MessagePayload, error) {
-	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
-		UserID:                 userID,
-		NotificationTemplateID: templateID,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("new message metadata: %w", err)
+func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRow, labels map[string]string) (*types.MessagePayload, error) {
+	payload := types.MessagePayload{
+		Version: "1.0",
+
+		NotificationName: metadata.NotificationName,
+
+		UserID:       metadata.UserID.String(),
+		UserEmail:    metadata.UserEmail,
+		UserName:     metadata.UserName,
+		UserUsername: metadata.UserUsername,
+
+		Labels: labels,
+		// No actions yet
 	}
 
 	// Execute any templates in actions.
-	out, err := render.GoTemplate(string(metadata.Actions), types.MessagePayload{}, s.helpers)
+	out, err := render.GoTemplate(string(metadata.Actions), payload, s.helpers)
 	if err != nil {
 		return nil, xerrors.Errorf("render actions: %w", err)
 	}
@@ -100,19 +129,8 @@ func (s *StoreEnqueuer) buildPayload(ctx context.Context, userID uuid.UUID, temp
 	if err = json.Unmarshal(metadata.Actions, &actions); err != nil {
 		return nil, xerrors.Errorf("new message metadata: parse template actions: %w", err)
 	}
-
-	return &types.MessagePayload{
-		Version: "1.0",
-
-		NotificationName: metadata.NotificationName,
-
-		UserID:    metadata.UserID.String(),
-		UserEmail: metadata.UserEmail,
-		UserName:  metadata.UserName,
-
-		Actions: actions,
-		Labels:  labels,
-	}, nil
+	payload.Actions = actions
+	return &payload, nil
 }
 
 // NoopEnqueuer implements the Enqueuer interface but performs a noop.

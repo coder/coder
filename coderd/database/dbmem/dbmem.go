@@ -65,6 +65,7 @@ func New() database.Store {
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			notificationMessages:      make([]database.NotificationMessage, 0),
+			notificationPreferences:   make([]database.NotificationPreference, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
@@ -160,6 +161,7 @@ type data struct {
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	notificationMessages          []database.NotificationMessage
+	notificationPreferences       []database.NotificationPreference
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
@@ -168,6 +170,7 @@ type data struct {
 	provisionerDaemons            []database.ProvisionerDaemon
 	provisionerJobLogs            []database.ProvisionerJobLog
 	provisionerJobs               []database.ProvisionerJob
+	provisionerKeys               []database.ProvisionerKey
 	replicas                      []database.Replica
 	templateVersions              []database.TemplateVersionTable
 	templateVersionParameters     []database.TemplateVersionParameter
@@ -199,6 +202,7 @@ type data struct {
 	lastUpdateCheck         []byte
 	announcementBanners     []byte
 	healthSettings          []byte
+	notificationsSettings   []byte
 	applicationName         string
 	logoURL                 string
 	appSecurityKey          string
@@ -265,6 +269,13 @@ func validateDatabaseType(args interface{}) error {
 		panic(fmt.Sprintf("unhandled type: %s", v.Type().Name()))
 	}
 	return nil
+}
+
+func newUniqueConstraintError(uc database.UniqueConstraint) *pq.Error {
+	newErr := *errUniqueConstraint
+	newErr.Constraint = string(uc)
+
+	return &newErr
 }
 
 func (*FakeQuerier) Ping(_ context.Context) (time.Duration, error) {
@@ -557,6 +568,8 @@ func (q *FakeQuerier) templateWithNameNoLock(tpl database.TemplateTable) databas
 	withNames.CreatedByUsername = user.Username
 	withNames.CreatedByAvatarURL = user.AvatarURL
 	withNames.OrganizationName = org.Name
+	withNames.OrganizationDisplayName = org.DisplayName
+	withNames.OrganizationIcon = org.Icon
 	return withNames
 }
 
@@ -917,6 +930,16 @@ func (q *FakeQuerier) getLatestWorkspaceAppByTemplateIDUserIDSlugNoLock(ctx cont
 	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
+// getOrganizationByIDNoLock is used by other functions in the database fake.
+func (q *FakeQuerier) getOrganizationByIDNoLock(id uuid.UUID) (database.Organization, error) {
+	for _, organization := range q.organizations {
+		if organization.ID == id {
+			return organization, nil
+		}
+	}
+	return database.Organization{}, sql.ErrNoRows
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -932,12 +955,17 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	var out []database.AcquireNotificationMessagesRow
-	for _, nm := range q.notificationMessages {
-		if len(out) >= int(arg.Count) {
-			break
-		}
+	// Shift the first "Count" notifications off the slice (FIFO).
+	sz := len(q.notificationMessages)
+	if sz > int(arg.Count) {
+		sz = int(arg.Count)
+	}
 
+	list := q.notificationMessages[:sz]
+	q.notificationMessages = q.notificationMessages[sz:]
+
+	var out []database.AcquireNotificationMessagesRow
+	for _, nm := range list {
 		acquirableStatuses := []database.NotificationMessageStatus{database.NotificationMessageStatusPending, database.NotificationMessageStatusTemporaryFailure}
 		if !slices.Contains(acquirableStatuses, nm.Status) {
 			continue
@@ -953,9 +981,9 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 			ID:            nm.ID,
 			Payload:       nm.Payload,
 			Method:        nm.Method,
-			CreatedBy:     nm.CreatedBy,
 			TitleTemplate: "This is a title with {{.Labels.variable}}",
 			BodyTemplate:  "This is a body with {{.Labels.variable}}",
+			TemplateID:    nm.NotificationTemplateID,
 		})
 	}
 
@@ -1229,7 +1257,7 @@ func (*FakeQuerier) BulkMarkNotificationMessagesFailed(_ context.Context, arg da
 	if err != nil {
 		return 0, err
 	}
-	return -1, nil
+	return int64(len(arg.IDs)), nil
 }
 
 func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
@@ -1237,7 +1265,7 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	if err != nil {
 		return 0, err
 	}
-	return -1, nil
+	return int64(len(arg.IDs)), nil
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -1351,6 +1379,35 @@ func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 
 func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteCustomRole(_ context.Context, arg database.DeleteCustomRoleParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	initial := len(q.data.customRoles)
+	q.data.customRoles = slices.DeleteFunc(q.data.customRoles, func(role database.CustomRole) bool {
+		return role.OrganizationID.UUID == arg.OrganizationID.UUID && role.Name == arg.Name
+	})
+	if initial == len(q.data.customRoles) {
+		return sql.ErrNoRows
+	}
+
+	// Emulate the trigger 'remove_organization_member_custom_role'
+	for i, mem := range q.organizationMembers {
+		if mem.OrganizationID == arg.OrganizationID.UUID {
+			mem.Roles = slices.DeleteFunc(mem.Roles, func(role string) bool {
+				return role == arg.Name
+			})
+			q.organizationMembers[i] = mem
+		}
+	}
+	return nil
 }
 
 func (q *FakeQuerier) DeleteExternalAuthLink(_ context.Context, arg database.DeleteExternalAuthLinkParams) error {
@@ -1726,6 +1783,20 @@ func (q *FakeQuerier) DeleteOrganizationMember(_ context.Context, arg database.D
 	return nil
 }
 
+func (q *FakeQuerier) DeleteProvisionerKey(_ context.Context, id uuid.UUID) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, key := range q.provisionerKeys {
+		if key.ID == id {
+			q.provisionerKeys = append(q.provisionerKeys[:i], q.provisionerKeys[i+1:]...)
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1812,10 +1883,10 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -1824,7 +1895,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 	var payload types.MessagePayload
 	err = json.Unmarshal(arg.Payload, &payload)
 	if err != nil {
-		return database.NotificationMessage{}, err
+		return err
 	}
 
 	nm := database.NotificationMessage{
@@ -1842,7 +1913,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 
 	q.notificationMessages = append(q.notificationMessages, nm)
 
-	return nm, err
+	return err
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
@@ -1864,10 +1935,21 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
+	}
+
+	user, err := q.getUserByIDNoLock(arg.UserID)
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, xerrors.Errorf("fetch user: %w", err)
+	}
+
+	// Mimic COALESCE in query
+	userName := user.Name
+	if userName == "" {
+		userName = user.Username
 	}
 
 	actions, err := json.Marshal([]types.TemplateAction{{URL: "http://xyz.com", Label: "XYZ"}})
@@ -1876,8 +1958,9 @@ func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fetc
 	}
 
 	return database.FetchNewMessageMetadataRow{
-		UserEmail:        "test@test.com",
-		UserName:         "Testy McTester",
+		UserEmail:        user.Email,
+		UserName:         userName,
+		UserUsername:     user.Username,
 		NotificationName: "Some notification",
 		Actions:          actions,
 		UserID:           arg.UserID,
@@ -2040,112 +2123,8 @@ func (q *FakeQuerier) GetApplicationName(_ context.Context) (string, error) {
 	return q.applicationName, nil
 }
 
-func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	if arg.LimitOpt == 0 {
-		// Default to 100 is set in the SQL query.
-		arg.LimitOpt = 100
-	}
-
-	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.LimitOpt)
-
-	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
-	for _, alog := range q.auditLogs {
-		if arg.OffsetOpt > 0 {
-			arg.OffsetOpt--
-			continue
-		}
-		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
-			continue
-		}
-		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
-			continue
-		}
-		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
-			continue
-		}
-		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
-			continue
-		}
-		if arg.Username != "" {
-			user, err := q.getUserByIDNoLock(alog.UserID)
-			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
-				continue
-			}
-		}
-		if arg.Email != "" {
-			user, err := q.getUserByIDNoLock(alog.UserID)
-			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
-				continue
-			}
-		}
-		if !arg.DateFrom.IsZero() {
-			if alog.Time.Before(arg.DateFrom) {
-				continue
-			}
-		}
-		if !arg.DateTo.IsZero() {
-			if alog.Time.After(arg.DateTo) {
-				continue
-			}
-		}
-		if arg.BuildReason != "" {
-			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(context.Background(), alog.ResourceID)
-			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
-				continue
-			}
-		}
-
-		user, err := q.getUserByIDNoLock(alog.UserID)
-		userValid := err == nil
-
-		logs = append(logs, database.GetAuditLogsOffsetRow{
-			ID:                     alog.ID,
-			RequestID:              alog.RequestID,
-			OrganizationID:         alog.OrganizationID,
-			Ip:                     alog.Ip,
-			UserAgent:              alog.UserAgent,
-			ResourceType:           alog.ResourceType,
-			ResourceID:             alog.ResourceID,
-			ResourceTarget:         alog.ResourceTarget,
-			ResourceIcon:           alog.ResourceIcon,
-			Action:                 alog.Action,
-			Diff:                   alog.Diff,
-			StatusCode:             alog.StatusCode,
-			AdditionalFields:       alog.AdditionalFields,
-			UserID:                 alog.UserID,
-			UserUsername:           sql.NullString{String: user.Username, Valid: userValid},
-			UserName:               sql.NullString{String: user.Name, Valid: userValid},
-			UserEmail:              sql.NullString{String: user.Email, Valid: userValid},
-			UserCreatedAt:          sql.NullTime{Time: user.CreatedAt, Valid: userValid},
-			UserUpdatedAt:          sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
-			UserLastSeenAt:         sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
-			UserLoginType:          database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
-			UserDeleted:            sql.NullBool{Bool: user.Deleted, Valid: userValid},
-			UserThemePreference:    sql.NullString{String: user.ThemePreference, Valid: userValid},
-			UserQuietHoursSchedule: sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
-			UserStatus:             database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
-			UserRoles:              user.RBACRoles,
-			Count:                  0,
-		})
-
-		if len(logs) >= int(arg.LimitOpt) {
-			break
-		}
-	}
-
-	count := int64(len(logs))
-	for i := range logs {
-		logs[i].Count = count
-	}
-
-	return logs, nil
+func (q *FakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
+	return q.GetAuthorizedAuditLogsOffset(ctx, arg, nil)
 }
 
 func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
@@ -2760,6 +2739,29 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
+func (*FakeQuerier) GetNotificationTemplateByID(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return database.NotificationTemplate{}, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetNotificationTemplatesByKind(_ context.Context, _ database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.notificationsSettings == nil {
+		return "{}", nil
+	}
+
+	return string(q.notificationsSettings), nil
+}
+
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2917,12 +2919,7 @@ func (q *FakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (data
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, organization := range q.organizations {
-		if organization.ID == id {
-			return organization, nil
-		}
-	}
-	return database.Organization{}, sql.ErrNoRows
+	return q.getOrganizationByIDNoLock(id)
 }
 
 func (q *FakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
@@ -2953,9 +2950,6 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 			UserID:          userID,
 			OrganizationIDs: userOrganizationIDs,
 		})
-	}
-	if len(getOrganizationIDsByMemberIDRows) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return getOrganizationIDsByMemberIDRows, nil
 }
@@ -3081,6 +3075,21 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return out, nil
 }
 
+func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	daemons := make([]database.ProvisionerDaemon, 0)
+	for _, daemon := range q.provisionerDaemons {
+		if daemon.OrganizationID == organizationID {
+			daemon.Tags = maps.Clone(daemon.Tags)
+			daemons = append(daemons, daemon)
+		}
+	}
+
+	return daemons, nil
+}
+
 func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3163,6 +3172,45 @@ func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 		}
 	}
 	return jobs, nil
+}
+
+func (q *FakeQuerier) GetProvisionerKeyByHashedSecret(_ context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, key := range q.provisionerKeys {
+		if bytes.Equal(key.HashedSecret, hashedSecret) {
+			return key, nil
+		}
+	}
+
+	return database.ProvisionerKey{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetProvisionerKeyByID(_ context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, key := range q.provisionerKeys {
+		if key.ID == id {
+			return key, nil
+		}
+	}
+
+	return database.ProvisionerKey{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetProvisionerKeyByName(_ context.Context, arg database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, key := range q.provisionerKeys {
+		if strings.EqualFold(key.Name, arg.Name) && key.OrganizationID == arg.OrganizationID {
+			return key, nil
+		}
+	}
+
+	return database.ProvisionerKey{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
@@ -4848,6 +4896,22 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 	return uls, nil
 }
 
+func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.NotificationPreference, 0, len(q.notificationPreferences))
+	for _, np := range q.notificationPreferences {
+		if np.UserID != userID {
+			continue
+		}
+
+		out = append(out, np)
+	}
+
+	return out, nil
+}
+
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6463,6 +6527,35 @@ func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
+func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ProvisionerKey{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, key := range q.provisionerKeys {
+		if key.ID == arg.ID || (key.OrganizationID == arg.OrganizationID && strings.EqualFold(key.Name, arg.Name)) {
+			return database.ProvisionerKey{}, newUniqueConstraintError(database.UniqueProvisionerKeysOrganizationIDNameIndex)
+		}
+	}
+
+	//nolint:gosimple
+	provisionerKey := database.ProvisionerKey{
+		ID:             arg.ID,
+		CreatedAt:      arg.CreatedAt,
+		OrganizationID: arg.OrganizationID,
+		Name:           strings.ToLower(arg.Name),
+		HashedSecret:   arg.HashedSecret,
+		Tags:           arg.Tags,
+	}
+	q.provisionerKeys = append(q.provisionerKeys, provisionerKey)
+
+	return provisionerKey, nil
+}
+
 func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Replica{}, err
@@ -7140,6 +7233,20 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
+func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.ProvisionerKey, 0)
+	for _, key := range q.provisionerKeys {
+		if key.OrganizationID == organizationID {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys, nil
+}
+
 func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -7470,6 +7577,12 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	}
 
 	return database.OrganizationMember{}, sql.ErrNoRows
+}
+
+func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return database.NotificationTemplate{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
@@ -7937,6 +8050,26 @@ func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) err
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateUserGithubComUserID(_ context.Context, arg database.UpdateUserGithubComUserIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.GithubComUserID = arg.GithubComUserID
+		q.users[i] = user
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -8044,6 +8177,57 @@ func (q *FakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 		}
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserNotificationPreferences(_ context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return 0, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var upserted int64
+	for i := range arg.NotificationTemplateIds {
+		var (
+			found      bool
+			templateID = arg.NotificationTemplateIds[i]
+			disabled   = arg.Disableds[i]
+		)
+
+		for j, np := range q.notificationPreferences {
+			if np.UserID != arg.UserID {
+				continue
+			}
+
+			if np.NotificationTemplateID != templateID {
+				continue
+			}
+
+			np.Disabled = disabled
+			np.UpdatedAt = dbtime.Now()
+			q.notificationPreferences[j] = np
+
+			upserted++
+			found = true
+			break
+		}
+
+		if !found {
+			np := database.NotificationPreference{
+				Disabled:               disabled,
+				UserID:                 arg.UserID,
+				NotificationTemplateID: templateID,
+				CreatedAt:              dbtime.Now(),
+				UpdatedAt:              dbtime.Now(),
+			}
+			q.notificationPreferences = append(q.notificationPreferences, np)
+			upserted++
+		}
+	}
+
+	return upserted, nil
 }
 
 func (q *FakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
@@ -8552,15 +8736,16 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.Workspace, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	affectedRows := []database.Workspace{}
 	for i, ws := range q.workspaces {
 		if ws.TemplateID != arg.TemplateID {
 			continue
@@ -8585,9 +8770,10 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 		}
 		ws.DeletingAt = deletingAt
 		q.workspaces[i] = ws
+		affectedRows = append(affectedRows, ws)
 	}
 
-	return nil
+	return affectedRows, nil
 }
 
 func (q *FakeQuerier) UpsertAnnouncementBanners(_ context.Context, data string) error {
@@ -8657,8 +8843,8 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 }
 
 func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	q.healthSettings = []byte(data)
 	return nil
@@ -8706,10 +8892,18 @@ func (q *FakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) erro
 }
 
 func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	q.logoURL = data
+	return nil
+}
+
+func (q *FakeQuerier) UpsertNotificationsSettings(_ context.Context, data string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.notificationsSettings = []byte(data)
 	return nil
 }
 
@@ -9912,4 +10106,120 @@ func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUs
 		filteredUsers = append(filteredUsers, user)
 	}
 	return filteredUsers, nil
+}
+
+func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	// Call this to match the same function calls as the SQL implementation.
+	// It functionally does nothing for filtering.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.AuditLogConverter(),
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if arg.LimitOpt == 0 {
+		// Default to 100 is set in the SQL query.
+		arg.LimitOpt = 100
+	}
+
+	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.LimitOpt)
+
+	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
+	for _, alog := range q.auditLogs {
+		if arg.OffsetOpt > 0 {
+			arg.OffsetOpt--
+			continue
+		}
+		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
+			continue
+		}
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+			continue
+		}
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
+			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
+		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
+				continue
+			}
+		}
+		if arg.BuildReason != "" {
+			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(context.Background(), alog.ResourceID)
+			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
+				continue
+			}
+		}
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, alog.RBACObject()) != nil {
+			continue
+		}
+
+		user, err := q.getUserByIDNoLock(alog.UserID)
+		userValid := err == nil
+
+		org, _ := q.getOrganizationByIDNoLock(alog.OrganizationID)
+
+		cpy := alog
+		logs = append(logs, database.GetAuditLogsOffsetRow{
+			AuditLog:                cpy,
+			OrganizationName:        org.Name,
+			OrganizationDisplayName: org.DisplayName,
+			OrganizationIcon:        org.Icon,
+			UserUsername:            sql.NullString{String: user.Username, Valid: userValid},
+			UserName:                sql.NullString{String: user.Name, Valid: userValid},
+			UserEmail:               sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:           sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserUpdatedAt:           sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
+			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
+			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
+			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
+			UserThemePreference:     sql.NullString{String: user.ThemePreference, Valid: userValid},
+			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
+			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
+			UserRoles:               user.RBACRoles,
+			Count:                   0,
+		})
+
+		if len(logs) >= int(arg.LimitOpt) {
+			break
+		}
+	}
+
+	count := int64(len(logs))
+	for i := range logs {
+		logs[i].Count = count
+	}
+
+	return logs, nil
 }

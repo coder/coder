@@ -88,9 +88,6 @@ func TestTemplateList(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{})
 		owner := coderdtest.CreateFirstUser(t, client)
 
-		org, err := client.Organization(context.Background(), owner.OrganizationID)
-		require.NoError(t, err)
-
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 		inv, root := clitest.New(t, "templates", "list")
@@ -110,8 +107,7 @@ func TestTemplateList(t *testing.T) {
 
 		require.NoError(t, <-errC)
 
-		pty.ExpectMatch("No templates found in")
-		pty.ExpectMatch(org.Name)
+		pty.ExpectMatch("No templates found")
 		pty.ExpectMatch("Create one:")
 	})
 }

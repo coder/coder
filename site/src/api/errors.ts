@@ -111,6 +111,10 @@ export const getValidationErrorMessage = (error: unknown): string => {
 };
 
 export const getErrorDetail = (error: unknown): string | undefined => {
+  if (error instanceof DetailedError) {
+    return error.detail;
+  }
+
   if (error instanceof Error) {
     return "Please check the developer console for more details.";
   }
@@ -125,3 +129,12 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 
   return undefined;
 };
+
+export class DetailedError extends Error {
+  constructor(
+    message: string,
+    public detail?: string,
+  ) {
+    super(message);
+  }
+}

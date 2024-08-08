@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +35,21 @@ const (
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
 
+// Weight converts the enum types to a numerical value for easier
+// comparisons. Easier than sets of if statements.
+func (e Entitlement) Weight() int {
+	switch e {
+	case EntitlementEntitled:
+		return 2
+	case EntitlementGracePeriod:
+		return 1
+	case EntitlementNotEntitled:
+		return -1
+	default:
+		return -2
+	}
+}
+
 // FeatureName represents the internal name of a feature.
 // To add a new feature, add it to this set of enums as well as the FeatureNames
 // array below.
@@ -56,6 +73,7 @@ const (
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
+	FeatureMultipleOrganizations      FeatureName = "multiple_organizations"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -77,6 +95,7 @@ var FeatureNames = []FeatureName{
 	FeatureAccessControl,
 	FeatureControlSharedPorts,
 	FeatureCustomRoles,
+	FeatureMultipleOrganizations,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -92,8 +111,11 @@ func (n FeatureName) Humanize() string {
 }
 
 // AlwaysEnable returns if the feature is always enabled if entitled.
-// Warning: We don't know if we need this functionality.
-// This method may disappear at any time.
+// This is required because some features are only enabled if they are entitled
+// and not required.
+// E.g: "multiple-organizations" is disabled by default in AGPL and enterprise
+// deployments. This feature should only be enabled for premium deployments
+// when it is entitled.
 func (n FeatureName) AlwaysEnable() bool {
 	return map[FeatureName]bool{
 		FeatureMultipleExternalAuth:       true,
@@ -102,7 +124,52 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureWorkspaceBatchActions:      true,
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
+		FeatureMultipleOrganizations:      true,
 	}[n]
+}
+
+// FeatureSet represents a grouping of features. Rather than manually
+// assigning features al-la-carte when making a license, a set can be specified.
+// Sets are dynamic in the sense a feature can be added to a set, granting the
+// feature to existing licenses out in the wild.
+// If features were granted al-la-carte, we would need to reissue the existing
+// old licenses to include the new feature.
+type FeatureSet string
+
+const (
+	FeatureSetNone       FeatureSet = ""
+	FeatureSetEnterprise FeatureSet = "enterprise"
+	FeatureSetPremium    FeatureSet = "premium"
+)
+
+func (set FeatureSet) Features() []FeatureName {
+	switch FeatureSet(strings.ToLower(string(set))) {
+	case FeatureSetEnterprise:
+		// Enterprise is the set 'AllFeatures' minus some select features.
+
+		// Copy the list of all features
+		enterpriseFeatures := make([]FeatureName, len(FeatureNames))
+		copy(enterpriseFeatures, FeatureNames)
+		// Remove the selection
+		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
+			switch f {
+			// Add all features that should be excluded in the Enterprise feature set.
+			case FeatureMultipleOrganizations:
+				return true
+			default:
+				return false
+			}
+		})
+
+		return enterpriseFeatures
+	case FeatureSetPremium:
+		premiumFeatures := make([]FeatureName, len(FeatureNames))
+		copy(premiumFeatures, FeatureNames)
+		// FeatureSetPremium is just all features.
+		return premiumFeatures
+	}
+	// By default, return an empty set.
+	return []FeatureName{}
 }
 
 type Feature struct {
@@ -110,6 +177,89 @@ type Feature struct {
 	Enabled     bool        `json:"enabled"`
 	Limit       *int64      `json:"limit,omitempty"`
 	Actual      *int64      `json:"actual,omitempty"`
+}
+
+// Compare compares two features and returns an integer representing
+// if the first feature (f) is greater than, equal to, or less than the second
+// feature (b). "Greater than" means the first feature has more functionality
+// than the second feature. It is assumed the features are for the same FeatureName.
+//
+// A feature is considered greater than another feature if:
+// 1. Graceful & capable > Entitled & not capable
+// 2. The entitlement is greater
+// 3. The limit is greater
+// 4. Enabled is greater than disabled
+// 5. The actual is greater
+func (f Feature) Compare(b Feature) int {
+	if !f.Capable() || !b.Capable() {
+		// If either is incapable, then it is possible a grace period
+		// feature can be "greater" than an entitled.
+		// If either is "NotEntitled" then we can defer to a strict entitlement
+		// check.
+		if f.Entitlement.Weight() >= 0 && b.Entitlement.Weight() >= 0 {
+			if f.Capable() && !b.Capable() {
+				return 1
+			}
+			if b.Capable() && !f.Capable() {
+				return -1
+			}
+		}
+	}
+
+	// Strict entitlement check. Higher is better
+	entitlementDifference := f.Entitlement.Weight() - b.Entitlement.Weight()
+	if entitlementDifference != 0 {
+		return entitlementDifference
+	}
+
+	// If the entitlement is the same, then we can compare the limits.
+	if f.Limit == nil && b.Limit != nil {
+		return -1
+	}
+	if f.Limit != nil && b.Limit == nil {
+		return 1
+	}
+	if f.Limit != nil && b.Limit != nil {
+		difference := *f.Limit - *b.Limit
+		if difference != 0 {
+			return int(difference)
+		}
+	}
+
+	// Enabled is better than disabled.
+	if f.Enabled && !b.Enabled {
+		return 1
+	}
+	if !f.Enabled && b.Enabled {
+		return -1
+	}
+
+	// Higher actual is better
+	if f.Actual == nil && b.Actual != nil {
+		return -1
+	}
+	if f.Actual != nil && b.Actual == nil {
+		return 1
+	}
+	if f.Actual != nil && b.Actual != nil {
+		difference := *f.Actual - *b.Actual
+		if difference != 0 {
+			return int(difference)
+		}
+	}
+
+	return 0
+}
+
+// Capable is a helper function that returns if a given feature has a limit
+// that is greater than or equal to the actual.
+// If this condition is not true, then the feature is not capable of being used
+// since the limit is not high enough.
+func (f Feature) Capable() bool {
+	if f.Limit != nil && f.Actual != nil {
+		return *f.Limit >= *f.Actual
+	}
+	return true
 }
 
 type Entitlements struct {
@@ -120,6 +270,29 @@ type Entitlements struct {
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+}
+
+// AddFeature will add the feature to the entitlements iff it expands
+// the set of features granted by the entitlements. If it does not, it will
+// be ignored and the existing feature with the same name will remain.
+//
+// All features should be added as atomic items, and not merged in any way.
+// Merging entitlements could lead to unexpected behavior, like a larger user
+// limit in grace period merging with a smaller one in an "entitled" state. This
+// could lead to the larger limit being extended as "entitled", which is not correct.
+func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
+	existing, ok := e.Features[name]
+	if !ok {
+		e.Features[name] = add
+		return
+	}
+
+	// Compare the features, keep the one that is "better"
+	comparison := add.Compare(existing)
+	if comparison > 0 {
+		e.Features[name] = add
+		return
+	}
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
@@ -350,6 +523,7 @@ type OIDCConfig struct {
 	SignInText          serpent.String                      `json:"sign_in_text" typescript:",notnull"`
 	IconURL             serpent.URL                         `json:"icon_url" typescript:",notnull"`
 	SignupsDisabledText serpent.String                      `json:"signups_disabled_text" typescript:",notnull"`
+	SkipIssuerChecks    serpent.Bool                        `json:"skip_issuer_checks" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -503,23 +677,46 @@ type NotificationsEmailConfig struct {
 	// The hostname identifying the SMTP server.
 	Hello serpent.String `json:"hello" typescript:",notnull"`
 
-	// TODO: Auth and Headers
-	//// Authentication details.
-	// Auth struct {
-	//	// Username for CRAM-MD5/LOGIN/PLAIN auth; authentication is disabled if this is left blank.
-	//	Username serpent.String `json:"username" typescript:",notnull"`
-	//	// Password to use for LOGIN/PLAIN auth.
-	//	Password serpent.String `json:"password" typescript:",notnull"`
-	//	// File from which to load the password to use for LOGIN/PLAIN auth.
-	//	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
-	//	// Secret to use for CRAM-MD5 auth.
-	//	Secret serpent.String `json:"secret" typescript:",notnull"`
-	//	// Identity used for PLAIN auth.
-	//	Identity serpent.String `json:"identity" typescript:",notnull"`
-	// } `json:"auth" typescript:",notnull"`
-	// // Additional headers to use in the SMTP request.
-	// Headers map[string]string `json:"headers" typescript:",notnull"`
-	// TODO: TLS
+	// Authentication details.
+	Auth NotificationsEmailAuthConfig `json:"auth" typescript:",notnull"`
+	// TLS details.
+	TLS NotificationsEmailTLSConfig `json:"tls" typescript:",notnull"`
+	// ForceTLS causes a TLS connection to be attempted.
+	ForceTLS serpent.Bool `json:"force_tls" typescript:",notnull"`
+}
+
+type NotificationsEmailAuthConfig struct {
+	// Identity for PLAIN auth.
+	Identity serpent.String `json:"identity" typescript:",notnull"`
+	// Username for LOGIN/PLAIN auth.
+	Username serpent.String `json:"username" typescript:",notnull"`
+	// Password for LOGIN/PLAIN auth.
+	Password serpent.String `json:"password" typescript:",notnull"`
+	// File from which to load the password for LOGIN/PLAIN auth.
+	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
+}
+
+func (c *NotificationsEmailAuthConfig) Empty() bool {
+	return reflect.ValueOf(*c).IsZero()
+}
+
+type NotificationsEmailTLSConfig struct {
+	// StartTLS attempts to upgrade plain connections to TLS.
+	StartTLS serpent.Bool `json:"start_tls" typescript:",notnull"`
+	// ServerName to verify the hostname for the targets.
+	ServerName serpent.String `json:"server_name" typescript:",notnull"`
+	// InsecureSkipVerify skips target certificate validation.
+	InsecureSkipVerify serpent.Bool `json:"insecure_skip_verify" typescript:",notnull"`
+	// CAFile specifies the location of the CA certificate to use.
+	CAFile serpent.String `json:"ca_file" typescript:",notnull"`
+	// CertFile specifies the location of the certificate to use.
+	CertFile serpent.String `json:"cert_file" typescript:",notnull"`
+	// KeyFile specifies the location of the key to use.
+	KeyFile serpent.String `json:"key_file" typescript:",notnull"`
+}
+
+func (c *NotificationsEmailTLSConfig) Empty() bool {
+	return reflect.ValueOf(*c).IsZero()
 }
 
 type NotificationsWebhookConfig struct {
@@ -673,13 +870,27 @@ when required by your organization's security policy.`,
 			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
 		}
 		deploymentGroupNotifications = serpent.Group{
-			Name: "Notifications",
-			YAML: "notifications",
+			Name:        "Notifications",
+			YAML:        "notifications",
+			Description: "Configure how notifications are processed and delivered.",
 		}
 		deploymentGroupNotificationsEmail = serpent.Group{
-			Name:   "Email",
-			Parent: &deploymentGroupNotifications,
-			YAML:   "email",
+			Name:        "Email",
+			Parent:      &deploymentGroupNotifications,
+			Description: "Configure how email notifications are sent.",
+			YAML:        "email",
+		}
+		deploymentGroupNotificationsEmailAuth = serpent.Group{
+			Name:        "Email Authentication",
+			Parent:      &deploymentGroupNotificationsEmail,
+			Description: "Configure SMTP authentication options.",
+			YAML:        "emailAuth",
+		}
+		deploymentGroupNotificationsEmailTLS = serpent.Group{
+			Name:        "Email TLS",
+			Parent:      &deploymentGroupNotificationsEmail,
+			Description: "Configure TLS for your SMTP server target.",
+			YAML:        "emailTLS",
 		}
 		deploymentGroupNotificationsWebhook = serpent.Group{
 			Name:   "Webhook",
@@ -1434,6 +1645,16 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "signupsDisabledText",
 		},
+		{
+			Name: "Skip OIDC issuer checks (not recommended)",
+			Description: "OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. " +
+				"This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.",
+			Flag:  "dangerous-oidc-skip-issuer-checks",
+			Env:   "CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS",
+			Value: &c.OIDC.SkipIssuerChecks,
+			Group: &deploymentGroupOIDC,
+			YAML:  "dangerousSkipIssuerChecks",
+		},
 		// Telemetry settings
 		{
 			Name:        "Telemetry Enable",
@@ -1756,13 +1977,14 @@ when required by your organization's security policy.`,
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
-			Name:        "Cache Directory",
-			Description: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
-			Flag:        "cache-dir",
-			Env:         "CODER_CACHE_DIRECTORY",
-			Default:     DefaultCacheDir(),
-			Value:       &c.CacheDir,
-			YAML:        "cacheDir",
+			Name: "Cache Directory",
+			Description: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. " +
+				"This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.",
+			Flag:    "cache-dir",
+			Env:     "CODER_CACHE_DIRECTORY",
+			Default: DefaultCacheDir(),
+			Value:   &c.CacheDir,
+			YAML:    "cacheDir",
 		},
 		{
 			Name:        "In Memory Database",
@@ -1867,7 +2089,7 @@ when required by your organization's security policy.`,
 			Flag:        "agent-fallback-troubleshooting-url",
 			Env:         "CODER_AGENT_FALLBACK_TROUBLESHOOTING_URL",
 			Hidden:      true,
-			Default:     "https://coder.com/docs/v2/latest/templates/troubleshooting",
+			Default:     "https://coder.com/docs/templates/troubleshooting",
 			Value:       &c.AgentFallbackTroubleshootingURL,
 			YAML:        "agentFallbackTroubleshootingURL",
 		},
@@ -2121,7 +2343,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.DispatchTimeout,
 			Default:     time.Minute.String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "dispatch-timeout",
+			YAML:        "dispatchTimeout",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
@@ -2154,13 +2376,113 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hello",
 		},
 		{
+			Name:        "Notifications: Email: Force TLS",
+			Description: "Force a TLS connection to the configured SMTP smarthost.",
+			Flag:        "notifications-email-force-tls",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_FORCE_TLS",
+			Default:     "false",
+			Value:       &c.Notifications.SMTP.ForceTLS,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "forceTLS",
+		},
+		{
+			Name:        "Notifications: Email Auth: Identity",
+			Description: "Identity to use with PLAIN authentication.",
+			Flag:        "notifications-email-auth-identity",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY",
+			Value:       &c.Notifications.SMTP.Auth.Identity,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "identity",
+		},
+		{
+			Name:        "Notifications: Email Auth: Username",
+			Description: "Username to use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-username",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME",
+			Value:       &c.Notifications.SMTP.Auth.Username,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "username",
+		},
+		{
+			Name:        "Notifications: Email Auth: Password",
+			Description: "Password to use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-password",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD",
+			Value:       &c.Notifications.SMTP.Auth.Password,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "password",
+		},
+		{
+			Name:        "Notifications: Email Auth: Password File",
+			Description: "File from which to load password for use with PLAIN/LOGIN authentication.",
+			Flag:        "notifications-email-auth-password-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE",
+			Value:       &c.Notifications.SMTP.Auth.PasswordFile,
+			Group:       &deploymentGroupNotificationsEmailAuth,
+			YAML:        "passwordFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: StartTLS",
+			Description: "Enable STARTTLS to upgrade insecure SMTP connections using TLS.",
+			Flag:        "notifications-email-tls-starttls",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS",
+			Value:       &c.Notifications.SMTP.TLS.StartTLS,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "startTLS",
+		},
+		{
+			Name:        "Notifications: Email TLS: Server Name",
+			Description: "Server name to verify against the target certificate.",
+			Flag:        "notifications-email-tls-server-name",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME",
+			Value:       &c.Notifications.SMTP.TLS.ServerName,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "serverName",
+		},
+		{
+			Name:        "Notifications: Email TLS: Skip Certificate Verification (Insecure)",
+			Description: "Skip verification of the target server's certificate (insecure).",
+			Flag:        "notifications-email-tls-skip-verify",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY",
+			Value:       &c.Notifications.SMTP.TLS.InsecureSkipVerify,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "insecureSkipVerify",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate Authority File",
+			Description: "CA certificate file to use.",
+			Flag:        "notifications-email-tls-ca-cert-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE",
+			Value:       &c.Notifications.SMTP.TLS.CAFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "caCertFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate File",
+			Description: "Certificate file to use.",
+			Flag:        "notifications-email-tls-cert-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE",
+			Value:       &c.Notifications.SMTP.TLS.CertFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "certFile",
+		},
+		{
+			Name:        "Notifications: Email TLS: Certificate Key File",
+			Description: "Certificate key file to use.",
+			Flag:        "notifications-email-tls-cert-key-file",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE",
+			Value:       &c.Notifications.SMTP.TLS.KeyFile,
+			Group:       &deploymentGroupNotificationsEmailTLS,
+			YAML:        "certKeyFile",
+		},
+		{
 			Name:        "Notifications: Webhook: Endpoint",
 			Description: "The endpoint to which to send webhooks.",
 			Flag:        "notifications-webhook-endpoint",
 			Env:         "CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT",
 			Value:       &c.Notifications.Webhook.Endpoint,
 			Group:       &deploymentGroupNotificationsWebhook,
-			YAML:        "hello",
+			YAML:        "endpoint",
 		},
 		{
 			Name:        "Notifications: Max Send Attempts",
@@ -2170,7 +2492,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.MaxSendAttempts,
 			Default:     "5",
 			Group:       &deploymentGroupNotifications,
-			YAML:        "max-send-attempts",
+			YAML:        "maxSendAttempts",
 		},
 		{
 			Name:        "Notifications: Retry Interval",
@@ -2180,7 +2502,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.RetryInterval,
 			Default:     (time.Minute * 5).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "retry-interval",
+			YAML:        "retryInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
@@ -2195,7 +2517,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.StoreSyncInterval,
 			Default:     (time.Second * 2).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "store-sync-interval",
+			YAML:        "storeSyncInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
@@ -2210,7 +2532,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:   &c.Notifications.StoreSyncBufferSize,
 			Default: "50",
 			Group:   &deploymentGroupNotifications,
-			YAML:    "store-sync-buffer-size",
+			YAML:    "storeSyncBufferSize",
 			Hidden:  true, // Hidden because most operators should not need to modify this.
 		},
 		{
@@ -2225,7 +2547,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.LeasePeriod,
 			Default:     (time.Minute * 2).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "lease-period",
+			YAML:        "leasePeriod",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
@@ -2237,7 +2559,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.LeaseCount,
 			Default:     "20",
 			Group:       &deploymentGroupNotifications,
-			YAML:        "lease-count",
+			YAML:        "leaseCount",
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
 		{
@@ -2248,7 +2570,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.FetchInterval,
 			Default:     (time.Second * 15).String(),
 			Group:       &deploymentGroupNotifications,
-			YAML:        "fetch-interval",
+			YAML:        "fetchInterval",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},

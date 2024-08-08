@@ -43,6 +43,9 @@ type Manager struct {
 
 	notifier *notifier
 	handlers map[database.NotificationMethod]Handler
+	method   database.NotificationMethod
+
+	metrics *Metrics
 
 	success, failure chan dispatchResult
 
@@ -56,7 +59,13 @@ type Manager struct {
 //
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
 // access URL etc.
-func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger) (*Manager, error) {
+func NewManager(cfg codersdk.NotificationsConfig, store Store, metrics *Metrics, log slog.Logger) (*Manager, error) {
+	// TODO(dannyk): add the ability to use multiple notification methods.
+	var method database.NotificationMethod
+	if err := method.Scan(cfg.Method.String()); err != nil {
+		return nil, xerrors.Errorf("notification method %q is invalid", cfg.Method)
+	}
+
 	// If dispatch timeout exceeds lease period, it is possible that messages can be delivered in duplicate because the
 	// lease can expire before the notifier gives up on the dispatch, which results in the message becoming eligible for
 	// being re-acquired.
@@ -77,6 +86,9 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger) 
 		// approach to this - but for now this will work fine.
 		success: make(chan dispatchResult, cfg.StoreSyncBufferSize),
 		failure: make(chan dispatchResult, cfg.StoreSyncBufferSize),
+
+		metrics: metrics,
+		method:  method,
 
 		stop: make(chan any),
 		done: make(chan any),
@@ -137,7 +149,7 @@ func (m *Manager) loop(ctx context.Context) error {
 	var eg errgroup.Group
 
 	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
-	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers)
+	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers, m.metrics)
 	eg.Go(func() error {
 		return m.notifier.run(ctx, m.success, m.failure)
 	})
@@ -171,12 +183,12 @@ func (m *Manager) loop(ctx context.Context) error {
 				if len(m.success)+len(m.failure) > 0 {
 					m.log.Warn(ctx, "flushing buffered updates before stop",
 						slog.F("success_count", len(m.success)), slog.F("failure_count", len(m.failure)))
-					m.bulkUpdate(ctx)
+					m.syncUpdates(ctx)
 					m.log.Warn(ctx, "flushing updates done")
 				}
 				return nil
 			case <-tick.C:
-				m.bulkUpdate(ctx)
+				m.syncUpdates(ctx)
 			}
 		}
 	})
@@ -194,8 +206,13 @@ func (m *Manager) BufferedUpdatesCount() (success int, failure int) {
 	return len(m.success), len(m.failure)
 }
 
-// bulkUpdate updates messages in the store based on the given successful and failed message dispatch results.
-func (m *Manager) bulkUpdate(ctx context.Context) {
+// syncUpdates updates messages in the store based on the given successful and failed message dispatch results.
+func (m *Manager) syncUpdates(ctx context.Context) {
+	// Ensure we update the metrics to reflect the current state after each invocation.
+	defer func() {
+		m.metrics.PendingUpdates.Set(float64(len(m.success) + len(m.failure)))
+	}()
+
 	select {
 	case <-ctx.Done():
 		return
@@ -204,6 +221,8 @@ func (m *Manager) bulkUpdate(ctx context.Context) {
 
 	nSuccess := len(m.success)
 	nFailure := len(m.failure)
+
+	m.metrics.PendingUpdates.Set(float64(nSuccess + nFailure))
 
 	// Nothing to do.
 	if nSuccess+nFailure == 0 {
@@ -230,15 +249,24 @@ func (m *Manager) bulkUpdate(ctx context.Context) {
 	for i := 0; i < nFailure; i++ {
 		res := <-m.failure
 
-		status := database.NotificationMessageStatusPermanentFailure
-		if res.retryable {
+		var (
+			reason string
+			status database.NotificationMessageStatus
+		)
+
+		switch {
+		case res.retryable:
 			status = database.NotificationMessageStatusTemporaryFailure
+		case res.inhibited:
+			status = database.NotificationMessageStatusInhibited
+			reason = "disabled by user"
+		default:
+			status = database.NotificationMessageStatusPermanentFailure
 		}
 
 		failureParams.IDs = append(failureParams.IDs, res.msg)
 		failureParams.FailedAts = append(failureParams.FailedAts, res.ts)
 		failureParams.Statuses = append(failureParams.Statuses, status)
-		var reason string
 		if res.err != nil {
 			reason = res.err.Error()
 		}
@@ -266,6 +294,7 @@ func (m *Manager) bulkUpdate(ctx context.Context) {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
 			return
 		}
+		m.metrics.SyncedUpdates.Add(float64(n))
 
 		logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
 	}()
@@ -289,6 +318,7 @@ func (m *Manager) bulkUpdate(ctx context.Context) {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
 			return
 		}
+		m.metrics.SyncedUpdates.Add(float64(n))
 
 		logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
 	}()
@@ -346,22 +376,5 @@ type dispatchResult struct {
 	ts        time.Time
 	err       error
 	retryable bool
-}
-
-func newSuccessfulDispatch(notifier, msg uuid.UUID) dispatchResult {
-	return dispatchResult{
-		notifier: notifier,
-		msg:      msg,
-		ts:       time.Now(),
-	}
-}
-
-func newFailedDispatch(notifier, msg uuid.UUID, err error, retryable bool) dispatchResult {
-	return dispatchResult{
-		notifier:  notifier,
-		msg:       msg,
-		ts:        time.Now(),
-		err:       err,
-		retryable: retryable,
-	}
+	inhibited bool
 }

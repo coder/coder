@@ -97,7 +97,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 
 			var varsFiles []string
 			if !uploadFlags.stdin() {
-				varsFiles, err = DiscoverVarsFiles(uploadFlags.directory)
+				varsFiles, err = codersdk.DiscoverVarsFiles(uploadFlags.directory)
 				if err != nil {
 					return err
 				}
@@ -118,7 +118,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				return err
 			}
 
-			userVariableValues, err := ParseUserVariableValues(
+			userVariableValues, err := codersdk.ParseUserVariableValues(
 				varsFiles,
 				variablesFile,
 				commandLineVariables)
@@ -160,7 +160,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				RequireActiveVersion:           requireActiveVersion,
 			}
 
-			_, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
+			template, err := client.CreateTemplate(inv.Context(), organization.ID, createReq)
 			if err != nil {
 				return err
 			}
@@ -171,7 +171,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q --org=%q [workspace name]", templateName, template.OrganizationName)))
 			_, _ = fmt.Fprintln(inv.Stdout)
 
 			return nil
@@ -244,6 +244,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 
 		cliui.SkipPromptOption(),
 	}
+	orgContext.AttachOptions(cmd)
 	cmd.Options = append(cmd.Options, uploadFlags.options()...)
 	return cmd
 }

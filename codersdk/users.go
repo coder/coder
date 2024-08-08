@@ -51,6 +51,7 @@ type ReducedUser struct {
 	Name        string    `json:"name"`
 	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
+	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at" format:"date-time"`
 
 	Status          UserStatus `json:"status" table:"status" enums:"active,suspended"`
@@ -308,7 +309,9 @@ func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	// Check for a 200 or a 204 response. 2.14.0 accidentally included a 204 response,
+	// which was a breaking change, and reverted in 2.14.1.
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil
@@ -402,14 +405,14 @@ func (c *Client) DeleteOrganizationMember(ctx context.Context, organizationID uu
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil
 }
 
 // OrganizationMembers lists all members in an organization
-func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithName, error) {
+func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithUserData, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil)
 	if err != nil {
 		return nil, err
@@ -418,7 +421,7 @@ func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UU
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var members []OrganizationMemberWithName
+	var members []OrganizationMemberWithUserData
 	return members, json.NewDecoder(res.Body).Decode(&members)
 }
 

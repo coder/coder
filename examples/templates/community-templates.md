@@ -34,6 +34,8 @@ templates.
 - [sulo1337/coder-kubevirt-template](https://github.com/sulo1337/coder-kubevirt-template) -
   Kubevirt-based development environment which provisions KVM virtual machines
   as coder workspaces on top of a Kubernetes cluster.
+- [raulsh/coder-proxmox-qemu-template](https://github.com/raulsh/coder-proxmox-qemu-template) -
+  Proxmox QEMU template with VS code server for Coder.
 
 ## Automation
 

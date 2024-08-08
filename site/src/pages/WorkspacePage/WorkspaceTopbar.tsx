@@ -23,6 +23,7 @@ import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { displayDormantDeletion } from "utils/dormant";
 import type { WorkspacePermissions } from "./permissions";
@@ -86,6 +87,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
   latestVersion,
   permissions,
 }) => {
+  const getLink = useLinks();
   const theme = useTheme();
 
   // Quota
@@ -109,6 +111,10 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
   const isImmutable =
     workspace.latest_build.status === "deleted" ||
     workspace.latest_build.status === "deleting";
+
+  const templateLink = getLink(
+    linkToTemplate(workspace.organization_name, workspace.template_name),
+  );
 
   return (
     <Topbar css={{ gridArea: "topbar" }}>
@@ -156,20 +162,14 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
             </PopoverTrigger>
 
             <HelpTooltipContent
-              anchorOrigin={{
-                vertical: "bottom",
-                horizontal: "center",
-              }}
-              transformOrigin={{
-                vertical: "top",
-                horizontal: "center",
-              }}
+              anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+              transformOrigin={{ vertical: "top", horizontal: "center" }}
             >
               <AvatarData
                 title={
                   <Link
                     component={RouterLink}
-                    to={`/templates/${workspace.template_name}`}
+                    to={templateLink}
                     css={{ color: "inherit" }}
                   >
                     {workspace.template_display_name.length > 0
@@ -180,7 +180,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
                 subtitle={
                   <Link
                     component={RouterLink}
-                    to={`/templates/${workspace.template_name}/versions/${workspace.latest_build.template_version_name}`}
+                    to={`${templateLink}/versions/${workspace.latest_build.template_version_name}`}
                     css={{ color: "inherit" }}
                   >
                     {workspace.latest_build.template_version_name}
@@ -217,7 +217,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
             </TopbarIcon>
             <Link
               component={RouterLink}
-              to={`/templates/${workspace.template_name}/settings/schedule`}
+              to={`${templateLink}/settings/schedule`}
               title="Schedule settings"
               css={{ color: "inherit" }}
             >

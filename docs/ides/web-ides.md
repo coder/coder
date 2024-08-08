@@ -144,7 +144,8 @@ command. To add VS Code web as a web IDE, you have two options.
 
    ```hcl
    module "vscode-web" {
-     source         = "https://registry.coder.com/modules/vscode-web"
+     source         = "registry.coder.com/modules/vscode-web/coder"
+     version        = "1.0.14"
      agent_id       = coder_agent.main.id
      accept_license = true
    }
@@ -223,13 +224,13 @@ resource "coder_app" "jupyter" {
 ```
 
 If you cannot enable a
-[wildcard subdomain](https://coder.com/docs/v2/latest/admin/configure#wildcard-access-url),
+[wildcard subdomain](https://coder.com/docs/admin/configure#wildcard-access-url),
 you can configure the template to run Jupyter on a path. There is however
-[security risk](https://coder.com/docs/v2/latest/cli/server#--dangerous-allow-path-app-sharing)
+[security risk](https://coder.com/docs/cli/server#--dangerous-allow-path-app-sharing)
 running an app on a path and the template code is more complicated with coder
 value substitution to recreate the path structure.
 
-[This](https://github.com/sharkymark/v2-templates/tree/main/pod-with-jupyter-path)
+[This](https://github.com/sharkymark/v2-templates/tree/main/src/pod-with-jupyter-path)
 is a community template example.
 
 ![JupyterLab in Coder](../images/jupyter.png)
@@ -270,10 +271,10 @@ resource "coder_app" "rstudio" {
 ```
 
 If you cannot enable a
-[wildcard subdomain](https://coder.com/docs/v2/latest/admin/configure#wildcard-access-url),
+[wildcard subdomain](https://coder.com/docs/admin/configure#wildcard-access-url),
 you can configure the template to run RStudio on a path using an NGINX reverse
 proxy in the template. There is however
-[security risk](https://coder.com/docs/v2/latest/cli/server#--dangerous-allow-path-app-sharing)
+[security risk](https://coder.com/docs/cli/server#--dangerous-allow-path-app-sharing)
 running an app on a path and the template code is more complicated with coder
 value substitution to recreate the path structure.
 

@@ -267,7 +267,9 @@ func (tac *tailnetAPIConnector) derpMap(client proto.DRPCTailnetClient) error {
 			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
 				return nil
 			}
-			tac.logger.Error(tac.ctx, "error receiving DERP Map", slog.Error(err))
+			if !xerrors.Is(err, io.EOF) {
+				tac.logger.Error(tac.ctx, "error receiving DERP Map", slog.Error(err))
+			}
 			return err
 		}
 		tac.logger.Debug(tac.ctx, "got new DERP Map", slog.F("derp_map", dmp))

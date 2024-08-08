@@ -16,6 +16,7 @@ import {
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { usePopover } from "components/Popover/Popover";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
 export const Language = {
   outdatedLabel: "Outdated",
@@ -25,9 +26,10 @@ export const Language = {
 };
 
 interface TooltipProps {
-  onUpdateVersion: () => void;
+  organizationName: string;
   templateName: string;
   latestVersionId: string;
+  onUpdateVersion: () => void;
   ariaLabel?: string;
 }
 
@@ -48,17 +50,23 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = (props) => {
 };
 
 export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
+  organizationName,
+  templateName,
+  latestVersionId,
   onUpdateVersion,
   ariaLabel,
-  latestVersionId,
-  templateName,
 }) => {
+  const getLink = useLinks();
+  const theme = useTheme();
   const popover = usePopover();
   const { data: activeVersion } = useQuery({
     ...templateVersion(latestVersionId),
     enabled: popover.open,
   });
-  const theme = useTheme();
+
+  const versionLink = `${getLink(
+    linkToTemplate(organizationName, templateName),
+  )}`;
 
   return (
     <HelpTooltipContent>
@@ -71,7 +79,7 @@ export const WorkspaceOutdatedTooltipContent: FC<TooltipProps> = ({
           <div>
             {activeVersion ? (
               <Link
-                href={`/templates/${templateName}/versions/${activeVersion.name}`}
+                href={`${versionLink}/versions/${activeVersion.name}`}
                 target="_blank"
                 css={{ color: theme.palette.primary.light }}
               >

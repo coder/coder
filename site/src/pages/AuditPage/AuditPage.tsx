@@ -1,18 +1,25 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Navigate, useLocation } from "react-router-dom";
 import { paginatedAudits } from "api/queries/audits";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
-import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
+import {
+  useActionFilterMenu,
+  useOrganizationsFilterMenu,
+  useResourceTypeFilterMenu,
+} from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: FC = () => {
-  const { audit_log: isAuditLogVisible } = useFeatureVisibility();
+  const feats = useFeatureVisibility();
+  const { experiments } = useDashboard();
+  const location = useLocation();
 
   /**
    * There is an implicit link between auditsQuery and filter via the
@@ -55,6 +62,24 @@ const AuditPage: FC = () => {
       }),
   });
 
+  const organizationsMenu = useOrganizationsFilterMenu({
+    value: filter.values.organization,
+    onChange: (option) =>
+      filter.update({
+        ...filter.values,
+        organization: option?.value,
+      }),
+  });
+
+  // TODO: Once multi-org is stable, we should place this redirect into the
+  //       router directly, if we still need to maintain it (for users who are
+  //       typing the old URL manually or have it bookmarked).
+  const canViewOrganizations =
+    feats.multiple_organizations && experiments.includes("multi-organization");
+  if (canViewOrganizations && location.pathname !== "/deployment/audit") {
+    return <Navigate to={`/deployment/audit${location.search}`} replace />;
+  }
+
   return (
     <>
       <Helmet>
@@ -64,9 +89,10 @@ const AuditPage: FC = () => {
       <AuditPageView
         auditLogs={auditsQuery.data?.audit_logs}
         isNonInitialPage={isNonInitialPage(searchParams)}
-        isAuditLogVisible={isAuditLogVisible}
+        isAuditLogVisible={feats.audit_log}
         auditsQuery={auditsQuery}
         error={auditsQuery.error}
+        showOrgDetails={canViewOrganizations}
         filterProps={{
           filter,
           error: auditsQuery.error,
@@ -74,6 +100,7 @@ const AuditPage: FC = () => {
             user: userMenu,
             action: actionMenu,
             resourceType: resourceTypeMenu,
+            organization: canViewOrganizations ? organizationsMenu : undefined,
           },
         }}
       />

@@ -13,12 +13,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 )
@@ -34,6 +36,8 @@ type Executor struct {
 	log                   slog.Logger
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
+	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
+	notificationsEnqueuer notifications.Enqueuer
 }
 
 // Stats contains information about one run of Executor.
@@ -44,7 +48,7 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
@@ -55,6 +59,7 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *
 		log:                   log.Named("autobuild"),
 		auditor:               auditor,
 		accessControlStore:    acs,
+		notificationsEnqueuer: enqueuer,
 	}
 	return le
 }
@@ -137,12 +142,22 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 		eg.Go(func() error {
 			err := func() error {
-				var job *database.ProvisionerJob
-				var auditLog *auditParams
+				var (
+					job                   *database.ProvisionerJob
+					auditLog              *auditParams
+					shouldNotifyDormancy  bool
+					nextBuild             *database.WorkspaceBuild
+					activeTemplateVersion database.TemplateVersion
+					ws                    database.Workspace
+					tmpl                  database.Template
+					didAutoUpdate         bool
+				)
 				err := e.db.InTx(func(tx database.Store) error {
+					var err error
+
 					// Re-check eligibility since the first check was outside the
 					// transaction and the workspace settings may have changed.
-					ws, err := tx.GetWorkspaceByID(e.ctx, wsID)
+					ws, err = tx.GetWorkspaceByID(e.ctx, wsID)
 					if err != nil {
 						return xerrors.Errorf("get workspace by id: %w", err)
 					}
@@ -168,12 +183,17 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get template scheduling options: %w", err)
 					}
 
-					template, err := tx.GetTemplateByID(e.ctx, ws.TemplateID)
+					tmpl, err = tx.GetTemplateByID(e.ctx, ws.TemplateID)
 					if err != nil {
 						return xerrors.Errorf("get template by ID: %w", err)
 					}
 
-					accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(template)
+					activeTemplateVersion, err = tx.GetTemplateVersionByID(e.ctx, tmpl.ActiveVersionID)
+					if err != nil {
+						return xerrors.Errorf("get active template version by ID: %w", err)
+					}
+
+					accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(tmpl)
 
 					nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
 					if err != nil {
@@ -195,9 +215,15 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							useActiveVersion(accessControl, ws) {
 							log.Debug(e.ctx, "autostarting with active version")
 							builder = builder.ActiveVersion()
+
+							if latestBuild.TemplateVersionID != tmpl.ActiveVersionID {
+								// control flag to know if the workspace was auto-updated,
+								// so the lifecycle executor can notify the user
+								didAutoUpdate = true
+							}
 						}
 
-						_, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						nextBuild, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
@@ -222,6 +248,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						if err != nil {
 							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 						}
+
+						shouldNotifyDormancy = true
 
 						log.Info(e.ctx, "dormant workspace",
 							slog.F("last_used_at", ws.LastUsedAt),
@@ -261,6 +289,26 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					auditLog.Success = err == nil
 					auditBuild(e.ctx, log, *e.auditor.Load(), *auditLog)
 				}
+				if didAutoUpdate && err == nil {
+					nextBuildReason := ""
+					if nextBuild != nil {
+						nextBuildReason = string(nextBuild.Reason)
+					}
+
+					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
+						map[string]string{
+							"name":                     ws.Name,
+							"initiator":                "autobuild",
+							"reason":                   nextBuildReason,
+							"template_version_name":    activeTemplateVersion.Name,
+							"template_version_message": activeTemplateVersion.Message,
+						}, "autobuild",
+						// Associate this notification with all the related entities.
+						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
+					); err != nil {
+						log.Warn(e.ctx, "failed to notify of autoupdated workspace", slog.Error(err))
+					}
+				}
 				if err != nil {
 					return xerrors.Errorf("transition workspace: %w", err)
 				}
@@ -272,6 +320,26 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					err = provisionerjobs.PostJob(e.ps, *job)
 					if err != nil {
 						return xerrors.Errorf("post provisioner job to pubsub: %w", err)
+					}
+				}
+				if shouldNotifyDormancy {
+					_, err = e.notificationsEnqueuer.Enqueue(
+						e.ctx,
+						ws.OwnerID,
+						notifications.TemplateWorkspaceDormant,
+						map[string]string{
+							"name":           ws.Name,
+							"reason":         "inactivity exceeded the dormancy threshold",
+							"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
+						},
+						"lifecycle_executor",
+						ws.ID,
+						ws.OwnerID,
+						ws.TemplateID,
+						ws.OrganizationID,
+					)
+					if err != nil {
+						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", ws.ID))
 					}
 				}
 				return nil

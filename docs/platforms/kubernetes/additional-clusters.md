@@ -99,30 +99,16 @@ Alternatively, these could also be fetched from Kubernetes secrets or even
 This guide assumes you have a `coder-workspaces` namespace on your remote
 cluster. Change the namespace accordingly.
 
-### Create a ServiceAccount
+### Create a Role and RoleBinding
 
-Run this command against your remote cluster to create a ServiceAccount, Role,
-RoleBinding, and token:
+Run this command against your remote cluster to create a Role and RoleBinding:
 
 ```shell
 kubectl apply -n coder-workspaces -f - <<EOF
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: coder-v2
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: coder-v2
-  annotations:
-    kubernetes.io/service-account.name: coder-v2
-type: kubernetes.io/service-account-token
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: coder-v2
+  name: coder-workspaces
 rules:
   - apiGroups: ["", "apps", "networking.k8s.io"]
     resources: ["persistentvolumeclaims", "pods", "deployments", "services", "secrets", "pods/exec","pods/log", "events", "networkpolicies", "serviceaccounts"]
@@ -134,13 +120,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: coder-v2
+  name: coder-workspaces
 subjects:
   - kind: ServiceAccount
-    name: coder-v2
+    name: coder
 roleRef:
   kind: Role
-  name: coder-v2
+  name: coder-workspaces
   apiGroup: rbac.authorization.k8s.io
 EOF
 ```
@@ -148,10 +134,8 @@ EOF
 The output should be similar to:
 
 ```text
-serviceaccount/coder-v2 created
-secret/coder-v2 created
-role.rbac.authorization.k8s.io/coder-v2 created
-rolebinding.rbac.authorization.k8s.io/coder-v2 created
+role.rbac.authorization.k8s.io/coder-workspaces created
+rolebinding.rbac.authorization.k8s.io/coder-workspaces created
 ```
 
 ### 2. Modify the Kubernetes template

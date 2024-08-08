@@ -84,12 +84,17 @@ CREATE TYPE notification_message_status AS ENUM (
     'sent',
     'permanent_failure',
     'temporary_failure',
-    'unknown'
+    'unknown',
+    'inhibited'
 );
 
 CREATE TYPE notification_method AS ENUM (
     'smtp',
     'webhook'
+);
+
+CREATE TYPE notification_template_kind AS ENUM (
+    'system'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -163,7 +168,9 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app',
     'oauth2_provider_app_secret',
     'custom_role',
-    'organization_member'
+    'organization_member',
+    'notifications_settings',
+    'notification_template'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -248,6 +255,23 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	-- Fail the insertion if the user has disabled this notification.
+	IF EXISTS (SELECT 1
+			   FROM notification_preferences
+			   WHERE disabled = TRUE
+				 AND user_id = NEW.user_id
+				 AND notification_template_id = NEW.notification_template_id) THEN
+		RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION insert_apikey_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -275,6 +299,26 @@ BEGIN
 		END IF;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION remove_organization_member_role() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	-- Delete the role from all organization members that have it.
+	-- TODO: When site wide custom roles are supported, if the
+	--	organization_id is null, we should remove the role from the 'users'
+	--	table instead.
+	IF OLD.organization_id IS NOT NULL THEN
+		UPDATE organization_members
+		-- this is a noop if the role is not assigned to the member
+		SET roles = array_remove(roles, OLD.name)
+		WHERE
+			-- Scope to the correct organization
+			organization_members.organization_id = OLD.organization_id;
+	END IF;
+	RETURN OLD;
 END;
 $$;
 
@@ -562,7 +606,16 @@ CREATE TABLE notification_messages (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone,
     leased_until timestamp with time zone,
-    next_retry_after timestamp with time zone
+    next_retry_after timestamp with time zone,
+    queued_seconds double precision
+);
+
+CREATE TABLE notification_preferences (
+    user_id uuid NOT NULL,
+    notification_template_id uuid NOT NULL,
+    disabled boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 CREATE TABLE notification_templates (
@@ -571,10 +624,14 @@ CREATE TABLE notification_templates (
     title_template text NOT NULL,
     body_template text NOT NULL,
     actions jsonb,
-    "group" text
+    "group" text,
+    method notification_method,
+    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL
 );
 
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';
+
+COMMENT ON COLUMN notification_templates.method IS 'NULL defers to the deployment-level method';
 
 CREATE TABLE oauth2_provider_app_codes (
     id uuid NOT NULL,
@@ -746,6 +803,15 @@ END) STORED NOT NULL
 );
 
 COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
+
+CREATE TABLE provisioner_keys (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    name character varying(64) NOT NULL,
+    hashed_secret bytea NOT NULL,
+    tags jsonb NOT NULL
+);
 
 CREATE TABLE replicas (
     id uuid NOT NULL,
@@ -963,7 +1029,8 @@ CREATE TABLE users (
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
     theme_preference text DEFAULT ''::text NOT NULL,
-    name text DEFAULT ''::text NOT NULL
+    name text DEFAULT ''::text NOT NULL,
+    github_com_user_id bigint
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
@@ -971,6 +1038,8 @@ COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with o
 COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
+
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -1086,7 +1155,9 @@ CREATE VIEW template_with_names AS
     templates.max_port_sharing_level,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
-    COALESCE(organizations.name, ''::text) AS organization_name
+    COALESCE(organizations.name, ''::text) AS organization_name,
+    COALESCE(organizations.display_name, ''::text) AS organization_display_name,
+    COALESCE(organizations.icon, ''::text) AS organization_icon
    FROM ((templates
      LEFT JOIN visible_users ON ((templates.created_by = visible_users.id)))
      LEFT JOIN organizations ON ((templates.organization_id = organizations.id)));
@@ -1520,6 +1591,9 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
+
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
 
@@ -1579,6 +1653,9 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY provisioner_keys
+    ADD CONSTRAINT provisioner_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
@@ -1715,9 +1792,9 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
+CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
-COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Allow unique provisioner daemon names by user';
+COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
@@ -1738,6 +1815,8 @@ CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btre
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
 
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
+
+CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
 
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
 
@@ -1776,6 +1855,12 @@ CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
+
+CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
+CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
+
+COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
 
 CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
 
@@ -1830,6 +1915,12 @@ ALTER TABLE ONLY notification_messages
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;
 
@@ -1862,6 +1953,9 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_keys
+    ADD CONSTRAINT provisioner_keys_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY tailnet_agents
     ADD CONSTRAINT tailnet_agents_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;

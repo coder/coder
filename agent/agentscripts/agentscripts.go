@@ -349,7 +349,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 			"This usually means a child process was started with references to stdout or stderr. As a result, this " +
 				"process may now have been terminated. Consider redirecting the output or using a separate " +
 				"\"coder_script\" for the process, see " +
-				"https://coder.com/docs/v2/latest/templates/troubleshooting#startup-script-issues for more information.",
+				"https://coder.com/docs/templates/troubleshooting#startup-script-issues for more information.",
 		)
 		// Inform the user by propagating the message via log writers.
 		_, _ = fmt.Fprintf(cmd.Stderr, "WARNING: %s. %s\n", message, details)

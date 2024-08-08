@@ -239,6 +239,8 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 			OrganizationID: defaultOrganization.ID,
 		},
 		LoginType: database.LoginTypeOIDC,
+		// Do not send notifications to user admins as SCIM endpoint might be called sequentially to all users.
+		SkipNotifications: true,
 	})
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)
@@ -272,13 +274,14 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	auditor := *api.AGPL.Auditor.Load()
-	aReq, commitAudit := audit.InitRequest[database.User](rw, &audit.RequestParams{
+	aReq, commitAudit := audit.InitRequestWithCancel[database.User](rw, &audit.RequestParams{
 		Audit:   auditor,
 		Log:     api.Logger,
 		Request: r,
 		Action:  database.AuditActionWrite,
 	})
-	defer commitAudit()
+
+	defer commitAudit(true)
 
 	id := chi.URLParam(r, "id")
 
@@ -307,23 +310,39 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 
 	var status database.UserStatus
 	if sUser.Active {
-		// The user will get transitioned to Active after logging in.
-		status = database.UserStatusDormant
+		switch dbUser.Status {
+		case database.UserStatusActive:
+			// Keep the user active
+			status = database.UserStatusActive
+		case database.UserStatusDormant, database.UserStatusSuspended:
+			// Move (or keep) as dormant
+			status = database.UserStatusDormant
+		default:
+			// If the status is unknown, just move them to dormant.
+			// The user will get transitioned to Active after logging in.
+			status = database.UserStatusDormant
+		}
 	} else {
 		status = database.UserStatusSuspended
 	}
 
-	//nolint:gocritic // needed for SCIM
-	userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
-		ID:        dbUser.ID,
-		Status:    status,
-		UpdatedAt: dbtime.Now(),
-	})
-	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
-		return
+	if dbUser.Status != status {
+		//nolint:gocritic // needed for SCIM
+		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
+			ID:        dbUser.ID,
+			Status:    status,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			_ = handlerutil.WriteError(rw, err)
+			return
+		}
+		dbUser = userNew
+	} else {
+		// Do not push an audit log if there is no change.
+		commitAudit(false)
 	}
-	aReq.New = userNew
 
+	aReq.New = dbUser
 	httpapi.Write(ctx, rw, http.StatusOK, sUser)
 }

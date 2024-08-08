@@ -102,8 +102,12 @@ resource "coder_agent" "main" {
     if [ ! -f ~/.bashrc ]; then
       cp /etc/skel/.bashrc $HOME
     fi
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3 | tee code-server-install.log
+
+    # Install the latest code-server.
+    # Append "-s -- --version x.x.x" to `sh` to install a specific version of code-server.
+    curl -fsSL https://code-server.dev/install.sh | sh | tee code-server-install.log
+
+    # Start code-server in the background.
     code-server --auth none --port 13337 | tee code-server-install.log &
   EOT
 }

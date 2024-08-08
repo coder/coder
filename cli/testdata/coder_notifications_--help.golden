@@ -1,0 +1,28 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder notifications
+
+  Manage Coder notifications
+
+  Aliases: notification
+
+  Administrators can use these commands to change notification settings.
+    - Pause Coder notifications. Administrators can temporarily stop notifiers
+  from
+  dispatching messages in case of the target outage (for example: unavailable
+  SMTP
+  server or Webhook not responding).:
+  
+       $ coder notifications pause
+  
+    - Resume Coder notifications:
+  
+       $ coder notifications resume
+
+SUBCOMMANDS:
+    pause     Pause notifications
+    resume    Resume notifications
+
+———
+Run `coder --help` for a list of global options.

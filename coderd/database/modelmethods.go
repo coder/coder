@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
@@ -100,6 +101,19 @@ func (g Group) Auditable(users []User) AuditableGroup {
 }
 
 const EveryoneGroup = "Everyone"
+
+func (w GetAuditLogsOffsetRow) RBACObject() rbac.Object {
+	return w.AuditLog.RBACObject()
+}
+
+func (w AuditLog) RBACObject() rbac.Object {
+	obj := rbac.ResourceAuditLog.WithID(w.ID)
+	if w.OrganizationID != uuid.Nil {
+		obj = obj.InOrg(w.OrganizationID)
+	}
+
+	return obj
+}
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
@@ -209,7 +223,15 @@ func (o Organization) RBACObject() rbac.Object {
 }
 
 func (p ProvisionerDaemon) RBACObject() rbac.Object {
-	return rbac.ResourceProvisionerDaemon.WithID(p.ID)
+	return rbac.ResourceProvisionerDaemon.
+		WithID(p.ID).
+		InOrg(p.OrganizationID)
+}
+
+func (p ProvisionerKey) RBACObject() rbac.Object {
+	return rbac.ResourceProvisionerKeys.
+		WithID(p.ID).
+		InOrg(p.OrganizationID)
 }
 
 func (w WorkspaceProxy) RBACObject() rbac.Object {

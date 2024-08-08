@@ -163,13 +163,14 @@ func (a *Acquirer) want(organization uuid.UUID, pt []database.ProvisionerType, t
 	if !ok {
 		ctx, cancel := context.WithCancel(a.ctx)
 		d = domain{
-			ctx:       ctx,
-			cancel:    cancel,
-			a:         a,
-			key:       dk,
-			pt:        pt,
-			tags:      tags,
-			acquirees: make(map[chan<- struct{}]*acquiree),
+			ctx:            ctx,
+			cancel:         cancel,
+			a:              a,
+			key:            dk,
+			pt:             pt,
+			tags:           tags,
+			organizationID: organization,
+			acquirees:      make(map[chan<- struct{}]*acquiree),
 		}
 		a.q[dk] = d
 		go d.poll(a.backupPollDuration)
@@ -450,16 +451,22 @@ type acquiree struct {
 // tags.  Acquirees in the same domain are restricted such that only one queries
 // the database at a time.
 type domain struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	a         *Acquirer
-	key       dKey
-	pt        []database.ProvisionerType
-	tags      Tags
-	acquirees map[chan<- struct{}]*acquiree
+	ctx            context.Context
+	cancel         context.CancelFunc
+	a              *Acquirer
+	key            dKey
+	pt             []database.ProvisionerType
+	tags           Tags
+	organizationID uuid.UUID
+	acquirees      map[chan<- struct{}]*acquiree
 }
 
 func (d domain) contains(p provisionerjobs.JobPosting) bool {
+	// If the organization ID is 'uuid.Nil', this is a legacy job posting.
+	// Ignore this check in the legacy case.
+	if p.OrganizationID != uuid.Nil && p.OrganizationID != d.organizationID {
+		return false
+	}
 	if !slices.Contains(d.pt, p.ProvisionerType) {
 		return false
 	}

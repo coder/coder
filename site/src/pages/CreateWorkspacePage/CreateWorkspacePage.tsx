@@ -16,7 +16,6 @@ import type {
   UserParameter,
   Workspace,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -34,11 +33,12 @@ export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
-  const { template: templateName } = useParams() as { template: string };
+  const { organization: organizationName = "default", template: templateName } =
+    useParams() as { organization?: string; template: string };
   const { user: me } = useAuthenticated();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { experiments, organizationId } = useDashboard();
+  const [searchParams] = useSearchParams();
+  const { experiments } = useDashboard();
 
   const customVersionId = searchParams.get("version") ?? undefined;
   const defaultName = searchParams.get("name");
@@ -53,15 +53,19 @@ const CreateWorkspacePage: FC = () => {
   );
   const createWorkspaceMutation = useMutation(createWorkspace(queryClient));
 
-  const templateQuery = useQuery(templateByName(organizationId, templateName));
-
+  const templateQuery = useQuery(
+    templateByName(organizationName, templateName),
+  );
   const permissionsQuery = useQuery(
-    checkAuthorization({
-      checks: createWorkspaceChecks(organizationId),
-    }),
+    templateQuery.data
+      ? checkAuthorization({
+          checks: createWorkspaceChecks(templateQuery.data.organization_id),
+        })
+      : { enabled: false },
   );
   const realizedVersionId =
     customVersionId ?? templateQuery.data?.active_version_id;
+  const organizationId = templateQuery.data?.organization_id;
   const richParametersQuery = useQuery({
     ...richParameters(realizedVersionId ?? ""),
     enabled: realizedVersionId !== undefined,
@@ -109,24 +113,24 @@ const CreateWorkspacePage: FC = () => {
 
   const autoCreationStartedRef = useRef(false);
   const automateWorkspaceCreation = useEffectEvent(async () => {
-    if (autoCreationStartedRef.current) {
+    if (autoCreationStartedRef.current || !organizationId) {
       return;
     }
 
     try {
       autoCreationStartedRef.current = true;
       const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
-        templateName,
         organizationId,
-        defaultBuildParameters: autofillParameters,
-        defaultName: defaultName ?? generateWorkspaceName(),
-        versionId: realizedVersionId,
+        templateName,
+        buildParameters: autofillParameters,
+        workspaceName: defaultName ?? generateWorkspaceName(),
+        templateVersionId: realizedVersionId,
+        match: searchParams.get("match"),
       });
 
       onCreateWorkspace(newWorkspace);
     } catch (err) {
-      searchParams.delete("mode");
-      setSearchParams(searchParams);
+      setMode("form");
     }
   });
 
@@ -175,7 +179,6 @@ const CreateWorkspacePage: FC = () => {
       <Helmet>
         <title>{pageTitle(title)}</title>
       </Helmet>
-      {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
       {isLoadingFormData || isLoadingExternalAuth || autoCreateReady ? (
         <Loader />
       ) : (
@@ -185,7 +188,12 @@ const CreateWorkspacePage: FC = () => {
           disabledParams={disabledParams}
           defaultOwner={me}
           autofillParameters={autofillParameters}
-          error={createWorkspaceMutation.error || autoCreateError}
+          error={
+            createWorkspaceMutation.error ||
+            autoCreateError ||
+            loadFormDataError ||
+            autoCreateWorkspaceMutation.error
+          }
           resetMutation={createWorkspaceMutation.reset}
           template={templateQuery.data!}
           versionId={realizedVersionId}
@@ -211,7 +219,6 @@ const CreateWorkspacePage: FC = () => {
             const workspace = await createWorkspaceMutation.mutateAsync({
               ...request,
               userId: owner.id,
-              organizationId,
             });
             onCreateWorkspace(workspace);
           }}

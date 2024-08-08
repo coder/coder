@@ -116,7 +116,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			if agent.Status == codersdk.WorkspaceAgentTimeout {
 				now := time.Now()
 				sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
-				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
+				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, "https://coder.com/docs/templates#agent-connection-issues"))
 				for agent.Status == codersdk.WorkspaceAgentTimeout {
 					if agent, err = fetch(); err != nil {
 						return xerrors.Errorf("fetch: %w", err)
@@ -132,11 +132,14 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			}
 
 			stage := "Running workspace agent startup scripts"
-			follow := opts.Wait
+			follow := opts.Wait && agent.LifecycleState.Starting()
 			if !follow {
 				stage += " (non-blocking)"
 			}
 			sw.Start(stage)
+			if follow {
+				sw.Log(time.Time{}, codersdk.LogLevelInfo, "==> ℹ︎ To connect immediately, reconnect with --wait=no or CODER_SSH_WAIT=no, see --help for more information.")
+			}
 
 			err = func() error { // Use func because of defer in for loop.
 				logStream, logsCloser, err := opts.FetchLogs(ctx, agent.ID, 0, follow)
@@ -206,19 +209,25 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			case codersdk.WorkspaceAgentLifecycleReady:
 				sw.Complete(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 			case codersdk.WorkspaceAgentLifecycleStartTimeout:
-				sw.Fail(stage, 0)
+				// Backwards compatibility: Avoid printing warning if
+				// coderd is old and doesn't set ReadyAt for timeouts.
+				if agent.ReadyAt == nil {
+					sw.Fail(stage, 0)
+				} else {
+					sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
+				}
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script timed out and your workspace may be incomplete.")
 			case codersdk.WorkspaceAgentLifecycleStartError:
 				sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script exited with an error and your workspace may be incomplete.")
-				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates/troubleshooting#startup-script-exited-with-an-error"))
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/templates/troubleshooting#startup-script-exited-with-an-error"))
 			default:
 				switch {
 				case agent.LifecycleState.Starting():
 					// Use zero time (omitted) to separate these from the startup logs.
 					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup scripts are still running and your workspace may be incomplete.")
-					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates/troubleshooting#your-workspace-may-be-incomplete"))
+					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/templates/troubleshooting#your-workspace-may-be-incomplete"))
 					// Note: We don't complete or fail the stage here, it's
 					// intentionally left open to indicate this stage didn't
 					// complete.
@@ -240,7 +249,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			stage := "The workspace agent lost connection"
 			sw.Start(stage)
 			sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
-			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates/troubleshooting#agent-connection-issues"))
+			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/templates/troubleshooting#agent-connection-issues"))
 
 			disconnectedAt := agent.DisconnectedAt
 			for agent.Status == codersdk.WorkspaceAgentDisconnected {

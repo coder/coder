@@ -602,6 +602,10 @@
           "path": "./api/members.md"
         },
         {
+          "title": "Notifications",
+          "path": "./api/notifications.md"
+        },
+        {
           "title": "Organizations",
           "path": "./api/organizations.md"
         },
@@ -754,6 +758,21 @@
           "title": "netcheck",
           "description": "Print network debug information for DERP and STUN",
           "path": "cli/netcheck.md"
+        },
+        {
+          "title": "notifications",
+          "description": "Manage Coder notifications",
+          "path": "cli/notifications.md"
+        },
+        {
+          "title": "notifications pause",
+          "description": "Pause notifications",
+          "path": "cli/notifications_pause.md"
+        },
+        {
+          "title": "notifications resume",
+          "description": "Resume notifications",
+          "path": "cli/notifications_resume.md"
         },
         {
           "title": "open",
@@ -1072,6 +1091,11 @@
           "title": "version",
           "description": "Show coder version",
           "path": "cli/version.md"
+        },
+        {
+          "title": "whoami",
+          "description": "Fetch authenticated user info for Coder deployment",
+          "path": "cli/whoami.md"
         }
       ]
     },

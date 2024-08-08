@@ -2,7 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within, expect } from "@storybook/test";
 import { buildLogsKey, agentLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
-import { withDesktopViewport } from "testHelpers/storybook";
+import {
+  withDashboardProvider,
+  withDesktopViewport,
+} from "testHelpers/storybook";
 import { WorkspaceActions } from "./WorkspaceActions";
 
 const meta: Meta<typeof WorkspaceActions> = {
@@ -11,7 +14,7 @@ const meta: Meta<typeof WorkspaceActions> = {
   args: {
     isUpdating: false,
   },
-  decorators: [withDesktopViewport],
+  decorators: [withDashboardProvider, withDesktopViewport],
 };
 
 export default meta;
@@ -203,6 +206,18 @@ export const OpenDownloadLogs: Story = {
     await userEvent.click(canvas.getByText("Download logs", { exact: false }));
     const screen = within(document.body);
     await expect(screen.getByTestId("dialog")).toBeInTheDocument();
+  },
+};
+
+export const CanDeleteDormantWorkspace: Story = {
+  args: {
+    workspace: Mocks.MockDormantWorkspace,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+    const deleteButton = canvas.getByText("Delete…");
+    await expect(deleteButton).toBeEnabled();
   },
 };
 

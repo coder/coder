@@ -38,6 +38,7 @@ export interface AuditPageViewProps {
   error?: unknown;
   filterProps: ComponentProps<typeof AuditFilter>;
   auditsQuery: PaginationResult;
+  showOrgDetails: boolean;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -47,6 +48,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   error,
   filterProps,
   auditsQuery: paginationResult,
+  showOrgDetails,
 }) => {
   const isLoading =
     (auditLogs === undefined || paginationResult.totalRecords === undefined) &&
@@ -55,8 +57,20 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   const isEmpty = !isLoading && auditLogs?.length === 0;
 
   return (
-    <Margins>
-      <PageHeader>
+    <Margins
+      css={{
+        // When acting as a deployment settings page, there is already padding.
+        // TODO: When multi-org is stable we should move this to the deployment
+        //       settings dir, use the standard header, and remove these margins.
+        padding: showOrgDetails ? 0 : undefined,
+      }}
+    >
+      <PageHeader
+        css={{
+          // When acting as a deployment settings page, there is already padding.
+          paddingTop: showOrgDetails ? 0 : undefined,
+        }}
+      >
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.title}</span>
@@ -117,7 +131,11 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
                           items={auditLogs}
                           getDate={(log) => new Date(log.time)}
                           row={(log) => (
-                            <AuditLogRow key={log.id} auditLog={log} />
+                            <AuditLogRow
+                              key={log.id}
+                              auditLog={log}
+                              showOrgDetails={showOrgDetails}
+                            />
                           )}
                         />
                       )}

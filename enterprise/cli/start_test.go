@@ -196,7 +196,7 @@ func TestStart(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
 
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-		workspace := coderdtest.CreateWorkspace(t, memberClient, owner.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, memberClient, workspace.LatestBuild.ID)
 		_ = coderdtest.MustTransitionWorkspace(t, memberClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 		err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{

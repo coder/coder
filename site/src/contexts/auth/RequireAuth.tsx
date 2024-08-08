@@ -74,7 +74,7 @@ type RequireKeys<T, R extends keyof T> = Omit<T, R> & {
 // values are not undefined when authenticated
 type AuthenticatedAuthContextValue = RequireKeys<
   AuthContextValue,
-  "user" | "permissions" | "organizationIds"
+  "user" | "permissions"
 >;
 
 export const useAuthenticated = (): AuthenticatedAuthContextValue => {
@@ -86,10 +86,6 @@ export const useAuthenticated = (): AuthenticatedAuthContextValue => {
 
   if (!auth.permissions) {
     throw new Error("Permissions are not available.");
-  }
-
-  if (!auth.organizationIds) {
-    throw new Error("Organization ID is not available.");
   }
 
   return auth as AuthenticatedAuthContextValue;

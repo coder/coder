@@ -212,8 +212,8 @@ const Consequences: FC<ConsequencesProps> = ({ runningWorkspaces }) => {
       <p>You are about to update {workspaceCount}.</p>
       <ul css={styles.consequences}>
         <li>
-          Updating will stop all running processes and delete non-persistent
-          data.
+          Updating will start workspaces on their latest template versions. This
+          can delete non-persistent data.
         </li>
         <li>
           Anyone connected to a running workspace will be disconnected until the

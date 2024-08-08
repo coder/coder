@@ -669,6 +669,7 @@ const (
 	NotificationMessageStatusPermanentFailure NotificationMessageStatus = "permanent_failure"
 	NotificationMessageStatusTemporaryFailure NotificationMessageStatus = "temporary_failure"
 	NotificationMessageStatusUnknown          NotificationMessageStatus = "unknown"
+	NotificationMessageStatusInhibited        NotificationMessageStatus = "inhibited"
 )
 
 func (e *NotificationMessageStatus) Scan(src interface{}) error {
@@ -713,7 +714,8 @@ func (e NotificationMessageStatus) Valid() bool {
 		NotificationMessageStatusSent,
 		NotificationMessageStatusPermanentFailure,
 		NotificationMessageStatusTemporaryFailure,
-		NotificationMessageStatusUnknown:
+		NotificationMessageStatusUnknown,
+		NotificationMessageStatusInhibited:
 		return true
 	}
 	return false
@@ -727,6 +729,7 @@ func AllNotificationMessageStatusValues() []NotificationMessageStatus {
 		NotificationMessageStatusPermanentFailure,
 		NotificationMessageStatusTemporaryFailure,
 		NotificationMessageStatusUnknown,
+		NotificationMessageStatusInhibited,
 	}
 }
 
@@ -785,6 +788,61 @@ func AllNotificationMethodValues() []NotificationMethod {
 	return []NotificationMethod{
 		NotificationMethodSmtp,
 		NotificationMethodWebhook,
+	}
+}
+
+type NotificationTemplateKind string
+
+const (
+	NotificationTemplateKindSystem NotificationTemplateKind = "system"
+)
+
+func (e *NotificationTemplateKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = NotificationTemplateKind(s)
+	case string:
+		*e = NotificationTemplateKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for NotificationTemplateKind: %T", src)
+	}
+	return nil
+}
+
+type NullNotificationTemplateKind struct {
+	NotificationTemplateKind NotificationTemplateKind `json:"notification_template_kind"`
+	Valid                    bool                     `json:"valid"` // Valid is true if NotificationTemplateKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullNotificationTemplateKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.NotificationTemplateKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.NotificationTemplateKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullNotificationTemplateKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.NotificationTemplateKind), nil
+}
+
+func (e NotificationTemplateKind) Valid() bool {
+	switch e {
+	case NotificationTemplateKindSystem:
+		return true
+	}
+	return false
+}
+
+func AllNotificationTemplateKindValues() []NotificationTemplateKind {
+	return []NotificationTemplateKind{
+		NotificationTemplateKindSystem,
 	}
 }
 
@@ -1352,6 +1410,8 @@ const (
 	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole              ResourceType = "custom_role"
 	ResourceTypeOrganizationMember      ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings   ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate    ResourceType = "notification_template"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1407,7 +1467,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeOauth2ProviderApp,
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
-		ResourceTypeOrganizationMember:
+		ResourceTypeOrganizationMember,
+		ResourceTypeNotificationsSettings,
+		ResourceTypeNotificationTemplate:
 		return true
 	}
 	return false
@@ -1432,6 +1494,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderAppSecret,
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
+		ResourceTypeNotificationsSettings,
+		ResourceTypeNotificationTemplate,
 	}
 }
 
@@ -2028,6 +2092,15 @@ type NotificationMessage struct {
 	UpdatedAt              sql.NullTime              `db:"updated_at" json:"updated_at"`
 	LeasedUntil            sql.NullTime              `db:"leased_until" json:"leased_until"`
 	NextRetryAfter         sql.NullTime              `db:"next_retry_after" json:"next_retry_after"`
+	QueuedSeconds          sql.NullFloat64           `db:"queued_seconds" json:"queued_seconds"`
+}
+
+type NotificationPreference struct {
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+	Disabled               bool      `db:"disabled" json:"disabled"`
+	CreatedAt              time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Templates from which to create notification messages.
@@ -2038,6 +2111,9 @@ type NotificationTemplate struct {
 	BodyTemplate  string         `db:"body_template" json:"body_template"`
 	Actions       []byte         `db:"actions" json:"actions"`
 	Group         sql.NullString `db:"group" json:"group"`
+	// NULL defers to the deployment-level method
+	Method NullNotificationMethod   `db:"method" json:"method"`
+	Kind   NotificationTemplateKind `db:"kind" json:"kind"`
 }
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
@@ -2181,6 +2257,15 @@ type ProvisionerJobLog struct {
 	ID        int64     `db:"id" json:"id"`
 }
 
+type ProvisionerKey struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Tags           StringMap `db:"tags" json:"tags"`
+}
+
 type Replica struct {
 	ID              uuid.UUID    `db:"id" json:"id"`
 	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
@@ -2276,6 +2361,8 @@ type Template struct {
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName       string          `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
 }
 
 type TemplateTable struct {
@@ -2460,6 +2547,8 @@ type User struct {
 	ThemePreference string `db:"theme_preference" json:"theme_preference"`
 	// Name of the Coder user
 	Name string `db:"name" json:"name"`
+	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
+	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
 }
 
 type UserLink struct {

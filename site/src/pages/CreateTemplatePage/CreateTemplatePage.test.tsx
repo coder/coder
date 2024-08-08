@@ -8,7 +8,6 @@ import {
   MockTemplateVersionVariable2,
   MockTemplateVersionVariable3,
   MockTemplate,
-  MockOrganization,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import CreateTemplatePage from "./CreateTemplatePage";
@@ -19,7 +18,10 @@ const renderPage = async (searchParams: URLSearchParams) => {
     route: `/templates/new?${searchParams.toString()}`,
     path: "/templates/new",
     // We need this because after creation, the user will be redirected to here
-    extraRoutes: [{ path: "templates/:template/files", element: <></> }],
+    extraRoutes: [
+      { path: "templates/:organization/:template/files", element: <></> },
+      { path: "templates/:template/files", element: <></> },
+    ],
   });
   // It is lazy loaded, so we have to wait for it to be rendered to not get an
   // act error
@@ -96,7 +98,7 @@ test("Create template from starter template", async () => {
   expect(router.state.location.pathname).toEqual(
     `/templates/${MockTemplate.name}/files`,
   );
-  expect(API.createTemplateVersion).toHaveBeenCalledWith(MockOrganization.id, {
+  expect(API.createTemplateVersion).toHaveBeenCalledWith("default", {
     example_id: "aws-windows",
     provisioner: "terraform",
     storage_method: "file",
@@ -117,7 +119,7 @@ test("Create template from duplicating a template", async () => {
     .mockResolvedValue([MockTemplateVersionVariable1]);
 
   const searchParams = new URLSearchParams({
-    fromTemplate: MockTemplate.name,
+    fromTemplate: MockTemplate.id,
   });
   const { router } = await renderPage(searchParams);
   // Name and display name are using copy prefixes

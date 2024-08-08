@@ -1,16 +1,25 @@
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
+import type { FC } from "react";
 import { Link } from "react-router-dom";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { linkToTemplate, useLinks } from "modules/navigation";
 
-export const WorkspacesEmpty = (props: {
+interface WorkspacesEmptyProps {
   isUsingFilter: boolean;
   templates?: Template[];
   canCreateTemplate: boolean;
+}
+
+export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
+  isUsingFilter,
+  templates,
+  canCreateTemplate,
 }) => {
-  const { isUsingFilter, templates, canCreateTemplate } = props;
+  const getLink = useLinks();
+
   const totalFeaturedTemplates = 6;
   const featuredTemplates = templates?.slice(0, totalFeaturedTemplates);
   const defaultTitle = "Create a workspace";
@@ -92,8 +101,10 @@ export const WorkspacesEmpty = (props: {
           >
             {featuredTemplates?.map((t) => (
               <Link
-                to={`/templates/${t.name}/workspace`}
                 key={t.id}
+                to={`${getLink(
+                  linkToTemplate(t.organization_name, t.name),
+                )}/workspace`}
                 css={(theme) => ({
                   width: "320px",
                   padding: 16,
@@ -120,19 +131,38 @@ export const WorkspacesEmpty = (props: {
                     {t.name}
                   </Avatar>
                 </div>
-                <div>
-                  <h4 css={{ fontSize: 14, fontWeight: 600, margin: 0 }}>
-                    {t.display_name.length > 0 ? t.display_name : t.name}
+
+                <div css={{ width: "100%", minWidth: "0" }}>
+                  <h4
+                    css={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      margin: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {t.display_name || t.name}
                   </h4>
-                  <span
+
+                  <p
                     css={(theme) => ({
                       fontSize: 13,
                       color: theme.palette.text.secondary,
-                      lineHeight: "0.5",
+                      lineHeight: "1.4",
+                      margin: 0,
+                      paddingTop: "4px",
+
+                      // We've had users plug URLs directly into the
+                      // descriptions, when those URLS have no hyphens or other
+                      // easy semantic breakpoints. Need to set this to ensure
+                      // those URLs don't break outside their containing boxes
+                      wordBreak: "break-word",
                     })}
                   >
                     {t.description}
-                  </span>
+                  </p>
                 </div>
               </Link>
             ))}

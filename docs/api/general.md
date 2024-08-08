@@ -256,11 +256,26 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "notifications": {
       "dispatch_timeout": 0,
       "email": {
+        "auth": {
+          "identity": "string",
+          "password": "string",
+          "password_file": "string",
+          "username": "string"
+        },
+        "force_tls": true,
         "from": "string",
         "hello": "string",
         "smarthost": {
           "host": "string",
           "port": "string"
+        },
+        "tls": {
+          "ca_file": "string",
+          "cert_file": "string",
+          "insecure_skip_verify": true,
+          "key_file": "string",
+          "server_name": "string",
+          "start_tls": true
         }
       },
       "fetch_interval": 0,
@@ -332,6 +347,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "scopes": ["string"],
       "sign_in_text": "string",
       "signups_disabled_text": "string",
+      "skip_issuer_checks": true,
       "user_role_field": "string",
       "user_role_mapping": {},
       "user_roles_default": ["string"],

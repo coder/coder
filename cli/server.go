@@ -106,12 +106,18 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
-func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
+func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
 		return nil, xerrors.Errorf("OIDC client ID must be set!")
 	}
 	if vals.OIDC.IssuerURL == "" {
 		return nil, xerrors.Errorf("OIDC issuer URL must be set!")
+	}
+
+	// Skipping issuer checks is not recommended.
+	if vals.OIDC.SkipIssuerChecks {
+		logger.Warn(ctx, "issuer checks with OIDC is disabled. This is not recommended as it can compromise the security of the authentication")
+		ctx = oidc.InsecureIssuerURLContext(ctx, vals.OIDC.IssuerURL.String())
 	}
 
 	oidcProvider, err := oidc.NewProvider(
@@ -167,6 +173,9 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		Provider:     oidcProvider,
 		Verifier: oidcProvider.Verifier(&oidc.Config{
 			ClientID: vals.OIDC.ClientID.String(),
+			// Enabling this skips checking the "iss" claim in the token
+			// matches the issuer URL. This is not recommended.
+			SkipIssuerCheck: vals.OIDC.SkipIssuerChecks.Value(),
 		}),
 		EmailDomain:         vals.OIDC.EmailDomain,
 		AllowSignups:        vals.OIDC.AllowSignups.Value(),
@@ -657,7 +666,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// Missing:
 				//	- Userinfo
 				//	- Verify
-				oc, err := createOIDCConfig(ctx, vals)
+				oc, err := createOIDCConfig(ctx, options.Logger, vals)
 				if err != nil {
 					return xerrors.Errorf("create oidc config: %w", err)
 				}
@@ -838,7 +847,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer options.Telemetry.Close()
 			} else {
-				logger.Warn(ctx, `telemetry disabled, unable to notify of security issues. Read more: https://coder.com/docs/v2/latest/admin/telemetry`)
+				logger.Warn(ctx, `telemetry disabled, unable to notify of security issues. Read more: https://coder.com/docs/admin/telemetry`)
 			}
 
 			// This prevents the pprof import from being accidentally deleted.
@@ -983,6 +992,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			)
 			if experiments.Enabled(codersdk.ExperimentNotifications) {
 				cfg := options.DeploymentValues.Notifications
+				metrics := notifications.NewMetrics(options.PrometheusRegistry)
 
 				// The enqueuer is responsible for enqueueing notifications to the given store.
 				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, templateHelpers(options), logger.Named("notifications.enqueuer"))
@@ -994,7 +1004,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// The notification manager is responsible for:
 				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
 				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, logger.Named("notifications.manager"))
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, metrics, logger.Named("notifications.manager"))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}
@@ -1065,7 +1075,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C)
+				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer)
 			autobuildExecutor.Run()
 
 			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())
@@ -1569,6 +1579,19 @@ func generateSelfSignedCertificate() (*tls.Certificate, error) {
 	return &cert, nil
 }
 
+// defaultCipherSuites is a list of safe cipher suites that we default to. This
+// is different from Golang's list of defaults, which unfortunately includes
+// `TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA`.
+var defaultCipherSuites = func() []uint16 {
+	ret := []uint16{}
+
+	for _, suite := range tls.CipherSuites() {
+		ret = append(ret, suite.ID)
+	}
+
+	return ret
+}()
+
 // configureServerTLS returns the TLS config used for the Coderd server
 // connections to clients. A logger is passed in to allow printing warning
 // messages that do not block startup.
@@ -1599,6 +1622,8 @@ func configureServerTLS(ctx context.Context, logger slog.Logger, tlsMinVersion, 
 			return nil, err
 		}
 		tlsConfig.CipherSuites = cipherIDs
+	} else {
+		tlsConfig.CipherSuites = defaultCipherSuites
 	}
 
 	switch tlsClientAuth {

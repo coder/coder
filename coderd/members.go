@@ -33,10 +33,11 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 		user              = httpmw.UserParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionCreate,
+			OrganizationID: organization.ID,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionCreate,
 		})
 	)
 	aReq.Old = database.AuditableOrganizationMember{}
@@ -82,27 +83,46 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 // @Summary Remove organization member
 // @ID remove-organization-member
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
-// @Success 200 {object} codersdk.OrganizationMember
+// @Success 204
 // @Router /organizations/{organization}/members/{user} [delete]
 func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
+		apiKey            = httpmw.APIKey(r)
 		organization      = httpmw.OrganizationParam(r)
 		member            = httpmw.OrganizationMemberParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionDelete,
+			OrganizationID: organization.ID,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
 		})
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
+
+	if organization.IsDefault {
+		// Multi-organizations is currently an experiment, which means it is feasible
+		// for a deployment to enable, then disable this. To maintain backwards
+		// compatibility, this safety is necessary.
+		// TODO: Remove this check when multi-organizations is fully supported.
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Removing members from the default organization is not supported.",
+			Detail:      "Multi-organizations is currently an experiment, and until it is fully supported, the default org should be protected.",
+			Validations: nil,
+		})
+		return
+	}
+
+	if member.UserID == apiKey.UserID {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "cannot remove self from an organization"})
+		return
+	}
 
 	err := api.Database.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
 		OrganizationID: organization.ID,
@@ -118,7 +138,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	}
 
 	aReq.New = database.AuditableOrganizationMember{}
-	httpapi.Write(ctx, rw, http.StatusOK, "organization member removed")
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary List organization members
@@ -127,7 +147,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 // @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
-// @Success 200 {object} []codersdk.OrganizationMemberWithName
+// @Success 200 {object} []codersdk.OrganizationMemberWithUserData
 // @Router /organizations/{organization}/members [get]
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -148,7 +168,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := convertOrganizationMemberRows(ctx, api.Database, members)
+	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -292,7 +312,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 	return converted, nil
 }
 
-func convertOrganizationMemberRows(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow) ([]codersdk.OrganizationMemberWithName, error) {
+func convertOrganizationMembersWithUserData(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow) ([]codersdk.OrganizationMemberWithUserData, error) {
 	members := make([]database.OrganizationMember, 0)
 	for _, row := range rows {
 		members = append(members, row.OrganizationMember)
@@ -306,10 +326,14 @@ func convertOrganizationMemberRows(ctx context.Context, db database.Store, rows 
 		return nil, xerrors.Errorf("conversion failed, mismatch slice lengths")
 	}
 
-	converted := make([]codersdk.OrganizationMemberWithName, 0)
+	converted := make([]codersdk.OrganizationMemberWithUserData, 0)
 	for i := range convertedMembers {
-		converted = append(converted, codersdk.OrganizationMemberWithName{
+		converted = append(converted, codersdk.OrganizationMemberWithUserData{
 			Username:           rows[i].Username,
+			AvatarURL:          rows[i].AvatarURL,
+			Name:               rows[i].Name,
+			Email:              rows[i].Email,
+			GlobalRoles:        db2sdk.SlimRolesFromNames(rows[i].GlobalRoles),
 			OrganizationMember: convertedMembers[i],
 		})
 	}

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { watchWorkspace } from "api/api";
 import { checkAuthorization } from "api/queries/authCheck";
-import { templateByName } from "api/queries/templates";
+import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
@@ -13,7 +13,6 @@ import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { workspaceChecks, type WorkspacePermissions } from "./permissions";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
@@ -25,7 +24,6 @@ export const WorkspacePage: FC = () => {
   };
   const workspaceName = params.workspace;
   const username = params.username.replace("@", "");
-  const { organizationId } = useDashboard();
 
   // Workspace
   const workspaceQueryOptions = workspaceByOwnerAndName(
@@ -36,10 +34,11 @@ export const WorkspacePage: FC = () => {
   const workspace = workspaceQuery.data;
 
   // Template
-  const templateQuery = useQuery({
-    ...templateByName(organizationId, workspace?.template_name ?? ""),
-    enabled: workspace !== undefined,
-  });
+  const templateQuery = useQuery(
+    workspace
+      ? templateQueryOptions(workspace.template_id)
+      : { enabled: false },
+  );
   const template = templateQuery.data;
 
   // Permissions

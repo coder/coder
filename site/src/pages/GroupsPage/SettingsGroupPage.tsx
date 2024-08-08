@@ -13,8 +13,7 @@ import SettingsGroupPageView from "./SettingsGroupPageView";
 export const SettingsGroupPage: FC = () => {
   const { groupName } = useParams() as { groupName: string };
   const queryClient = useQueryClient();
-  const groupQuery = useQuery(group(groupName));
-  const { data: groupData, isLoading, error } = useQuery(group(groupName));
+  const groupQuery = useQuery(group("default", groupName));
   const patchGroupMutation = useMutation(patchGroup(queryClient));
   const navigate = useNavigate();
 
@@ -28,11 +27,11 @@ export const SettingsGroupPage: FC = () => {
     </Helmet>
   );
 
-  if (error) {
-    return <ErrorAlert error={error} />;
+  if (groupQuery.error) {
+    return <ErrorAlert error={groupQuery.error} />;
   }
 
-  if (isLoading || !groupData) {
+  if (groupQuery.isLoading || !groupQuery.data) {
     return (
       <>
         {helmet}
@@ -40,7 +39,8 @@ export const SettingsGroupPage: FC = () => {
       </>
     );
   }
-  const groupId = groupData.id;
+
+  const groupId = groupQuery.data.id;
 
   return (
     <>

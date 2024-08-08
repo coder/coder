@@ -2,7 +2,7 @@
 
 ## Requirements
 
-1. Start a Coder deployment and be sure to set the following [configuration values](https://coder.com/docs/v2/latest/admin/configure):
+1. Start a Coder deployment and be sure to set the following [configuration values](https://coder.com/docs/admin/configure):
 
    ```env
    CODER_HTTP_ADDRESS=127.0.0.1:3000

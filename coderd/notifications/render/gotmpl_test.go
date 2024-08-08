@@ -38,6 +38,24 @@ func TestGoTemplate(t *testing.T) {
 			expectedOutput: userEmail,
 			expectedErr:    nil,
 		},
+		{
+			name: "render workspace URL",
+			in: `[{
+				"label": "View workspace",
+				"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}"
+			}]`,
+			payload: types.MessagePayload{
+				UserName:     "John Doe",
+				UserUsername: "johndoe",
+				Labels: map[string]string{
+					"name": "my-workspace",
+				},
+			},
+			expectedOutput: `[{
+				"label": "View workspace",
+				"url": "https://mocked-server-address/@johndoe/my-workspace"
+			}]`,
+		},
 	}
 
 	for _, tc := range tests {
@@ -46,7 +64,9 @@ func TestGoTemplate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			out, err := render.GoTemplate(tc.in, tc.payload, nil)
+			out, err := render.GoTemplate(tc.in, tc.payload, map[string]any{
+				"base_url": func() string { return "https://mocked-server-address" },
+			})
 			if tc.expectedErr == nil {
 				require.NoError(t, err)
 			} else {

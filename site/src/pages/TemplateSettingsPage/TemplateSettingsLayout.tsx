@@ -9,7 +9,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
@@ -27,9 +26,11 @@ export function useTemplateSettings() {
 }
 
 export const TemplateSettingsLayout: FC = () => {
-  const { organizationId } = useDashboard();
-  const { template: templateName } = useParams() as { template: string };
-  const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const { organization: organizationName = "default", template: templateName } =
+    useParams() as { organization?: string; template: string };
+  const templateQuery = useQuery(
+    templateByName(organizationName, templateName),
+  );
   const permissionsQuery = useQuery({
     ...checkAuthorization({
       checks: {
@@ -52,7 +53,7 @@ export const TemplateSettingsLayout: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([templateName, "Settings"])}</title>
+        <title>{pageTitle(templateName, "Settings")}</title>
       </Helmet>
 
       <Margins>

@@ -47,13 +47,21 @@ pages.
 
 ## Release schedule
 
-| Release name | Release Date      | Status           |
-| ------------ | ----------------- | ---------------- |
-| 2.7.x        | January 01, 2024  | Not Supported    |
-| 2.8.x        | February 06, 2024 | Not Supported    |
-| 2.9.x        | March 07, 2024    | Not Supported    |
-| 2.10.x       | April 03, 2024    | Not Supported    |
-| 2.11.x       | May 07, 2024      | Security Support |
-| 2.12.x       | June 04, 2024     | Stable           |
-| 2.13.x       | July 02, 2024     | Mainline         |
-| 2.14.x       | Aigust 06, 2024   | Not Released     |
+| Release name | Release Date       | Status           |
+| ------------ | ------------------ | ---------------- |
+| 2.8.x        | February 06, 2024  | Not Supported    |
+| 2.9.x        | March 07, 2024     | Not Supported    |
+| 2.10.x       | April 03, 2024     | Not Supported    |
+| 2.11.x       | May 07, 2024       | Not Supported    |
+| 2.12.x       | June 04, 2024      | Security Support |
+| 2.13.x       | July 02, 2024      | Stable           |
+| 2.14.x       | August 06, 2024    | Mainline         |
+| 2.15.x       | September 03, 2024 | Not Released     |
+
+> **Tip**: We publish a
+> [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image
+> `ghcr.io/coder/coder-preview` on each commit to the `main` branch. This can be
+> used to test under-development features and bug fixes that have not yet been
+> released to [`mainline`](#mainline-releases) or [`stable`](#stable-releases).
+>
+> > **Important**: The `preview` image is not intended for production use.

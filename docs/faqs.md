@@ -37,7 +37,7 @@ The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
 
 Coder's networking stack has intelligence to attempt a peer-to-peer or
-[Direct connection](https://coder.com/docs/v2/latest/networking#direct-connections)
+[Direct connection](https://coder.com/docs/networking#direct-connections)
 between the local IDE and the workspace. However, this requires some additional
 protocols like UDP and being able to reach a STUN server to echo the IP
 addresses of the local IDE machine and workspace, for sharing using a Wireguard
@@ -52,11 +52,11 @@ to establish these direct connections.
 Setting the following flags as shown disables this logic to simplify
 troubleshooting.
 
-| Flag                                                                                                           | Value       | Meaning                               |
-| -------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
-| [`CODER_BLOCK_DIRECT`](https://coder.com/docs/v2/latest/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
-| [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/v2/latest/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
-| [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/v2/latest/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
+| Flag                                                                                                 | Value       | Meaning                               |
+| ---------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
+| [`CODER_BLOCK_DIRECT`](https://coder.com/docs/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
 ### How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -118,8 +118,7 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the
-[`CODER_ACCESS_URL`](https://coder.com/docs/v2/latest/admin/configure#access-url)
+If the [`CODER_ACCESS_URL`](https://coder.com/docs/admin/configure#access-url)
 is not accessible from a workspace, the workspace may build, but the agent
 cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 
@@ -149,9 +148,9 @@ of these values can lead to existing workspaces failing to start. This issue
 occurs because the Terraform state will not be in sync with the new template.
 
 However, a lesser-known CLI sub-command,
-[`coder update`](https://coder.com/docs/v2/latest/cli/update), can resolve this
-issue. This command re-prompts users to re-enter the input variables,
-potentially saving the workspace from a failed status.
+[`coder update`](https://coder.com/docs/cli/update), can resolve this issue.
+This command re-prompts users to re-enter the input variables, potentially
+saving the workspace from a failed status.
 
 ```sh
 coder update --always-prompt <workspace name>
@@ -290,12 +289,12 @@ References:
 
 - [Public Github Issue 6117](https://github.com/coder/coder/issues/6117)
 - [Public Github Issue 5677](https://github.com/coder/coder/issues/5677)
-- [Coder docs: Templates/Change Management](https://coder.com/docs/v2/latest/templates/change-management)
+- [Coder docs: Templates/Change Management](https://coder.com/docs/templates/change-management)
 
 ### Can I run Coder in an air-gapped or offline mode? (no Internet)?
 
 Yes, Coder can be deployed in air-gapped or offline mode.
-https://coder.com/docs/v2/latest/install/offline
+https://coder.com/docs/install/offline
 
 Our product bundles with the Terraform binary so assume access to terraform.io
 during installation. The docs outline rebuilding the Coder container with
@@ -340,8 +339,8 @@ the IDE can be baked into the container image and manually open Gateway (or
 IntelliJ which has Gateway built-in), using a session token to Coder and then
 open the IDE.
 
-- [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/pod-idea)
-- [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/pod-idea-icon)
+- [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/src/pod-idea)
+- [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/src/pod-idea-icon)
 
 ### What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?
 
@@ -353,18 +352,18 @@ Artifactory.
 - [Blog post](https://coder.com/blog/running-a-private-vs-code-extension-marketplace)
 - [OSS project](https://github.com/coder/code-marketplace)
 
-[See this example template](https://github.com/sharkymark/v2-templates/blob/main/code-marketplace/main.tf#L229C1-L232C12)
+[See this example template](https://github.com/sharkymark/v2-templates/blob/main/src/code-marketplace/main.tf#L229C1-L232C12)
 where the agent specifies the URL and config environment variables which
 code-server picks up and points the developer to.
 
 Another option is to use Microsoft's code-server - which is like Coder's, but it
 can connect to Microsoft's extension marketplace so Copilot and chat can be
 retrieved there.
-[See a sample template here](https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf).
+[See a sample template here](https://github.com/sharkymark/v2-templates/blob/main/src/vs-code-server/main.tf).
 
 Another option is to use VS Code Desktop (local) and that connects to
 Microsoft's marketplace.
-https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf
+https://github.com/sharkymark/v2-templates/blob/main/src/vs-code-server/main.tf
 
 > Note: these are example templates with no SLAs on them and are not guaranteed
 > for long-term support.
@@ -401,7 +400,7 @@ colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
 ```
 
 Colima will show the path to the docker socket so we have a
-[community template](https://github.com/sharkymark/v2-templates/tree/main/docker-code-server)
+[community template](https://github.com/sharkymark/v2-templates/tree/main/src/docker-code-server)
 that prompts the Coder admin to enter the docker socket as a Terraform variable.
 
 ### How to make a `coder_app` optional?

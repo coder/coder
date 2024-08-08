@@ -81,7 +81,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 
 			var varsFiles []string
 			if !uploadFlags.stdin() {
-				varsFiles, err = DiscoverVarsFiles(uploadFlags.directory)
+				varsFiles, err = codersdk.DiscoverVarsFiles(uploadFlags.directory)
 				if err != nil {
 					return err
 				}
@@ -111,7 +111,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				inv.Logger.Info(inv.Context(), "reusing existing provisioner tags", "tags", tags)
 			}
 
-			userVariableValues, err := ParseUserVariableValues(
+			userVariableValues, err := codersdk.ParseUserVariableValues(
 				varsFiles,
 				variablesFile,
 				commandLineVariables)

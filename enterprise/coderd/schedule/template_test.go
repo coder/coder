@@ -12,9 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/notifications"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/cryptorand"
@@ -270,13 +274,15 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			wsBuild, err = db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
 			require.NoError(t, err)
 
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
 			userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 			require.NoError(t, err)
 			userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
 			userQuietHoursStorePtr.Store(&userQuietHoursStore)
 
 			// Set the template policy.
-			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr)
+			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifications.NewNoopEnqueuer(), logger)
 			templateScheduleStore.TimeNowFn = func() time.Time {
 				return c.now
 			}
@@ -555,13 +561,15 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
 	userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 	require.NoError(t, err)
 	userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
 	userQuietHoursStorePtr.Store(&userQuietHoursStore)
 
 	// Set the template policy.
-	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr)
+	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifications.NewNoopEnqueuer(), logger)
 	templateScheduleStore.TimeNowFn = func() time.Time {
 		return now
 	}
@@ -596,6 +604,104 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 
 		assert.Equal(t, builds[i].wsBuild.ProvisionerState, newBuild.ProvisionerState, "provisioner state mismatch")
 	}
+}
+
+func TestNotifications(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Dormancy", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			ctx   = testutil.Context(t, testutil.WaitLong)
+			user  = dbgen.User(t, db, database.User{})
+			file  = dbgen.File(t, db, database.File{
+				CreatedBy: user.ID,
+			})
+			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				FileID:      file.ID,
+				InitiatorID: user.ID,
+				Tags: database.StringMap{
+					"foo": "bar",
+				},
+			})
+			timeTilDormant  = time.Minute * 2
+			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				JobID:          templateJob.ID,
+				OrganizationID: templateJob.OrganizationID,
+			})
+			template = dbgen.Template(t, db, database.Template{
+				ActiveVersionID:          templateVersion.ID,
+				CreatedBy:                user.ID,
+				OrganizationID:           templateJob.OrganizationID,
+				TimeTilDormant:           int64(timeTilDormant),
+				TimeTilDormantAutoDelete: int64(timeTilDormant),
+			})
+		)
+
+		// Add two dormant workspaces and one active workspace.
+		dormantWorkspaces := []database.Workspace{
+			dbgen.Workspace(t, db, database.Workspace{
+				OwnerID:        user.ID,
+				TemplateID:     template.ID,
+				OrganizationID: templateJob.OrganizationID,
+				LastUsedAt:     time.Now().Add(-time.Hour),
+			}),
+			dbgen.Workspace(t, db, database.Workspace{
+				OwnerID:        user.ID,
+				TemplateID:     template.ID,
+				OrganizationID: templateJob.OrganizationID,
+				LastUsedAt:     time.Now().Add(-time.Hour),
+			}),
+		}
+		dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+			OrganizationID: templateJob.OrganizationID,
+			LastUsedAt:     time.Now(),
+		})
+		for _, ws := range dormantWorkspaces {
+			db.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+				ID: ws.ID,
+				DormantAt: sql.NullTime{
+					Time:  ws.LastUsedAt.Add(timeTilDormant),
+					Valid: true,
+				},
+			})
+		}
+
+		// Setup dependencies
+		notifyEnq := testutil.FakeNotificationsEnqueuer{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+		require.NoError(t, err)
+		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+		userQuietHoursStorePtr.Store(&userQuietHoursStore)
+		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, &notifyEnq, logger)
+		templateScheduleStore.TimeNowFn = time.Now
+
+		// Lower the dormancy TTL to ensure the schedule recalculates deadlines and
+		// triggers notifications.
+		_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+			TimeTilDormant:           timeTilDormant / 2,
+			TimeTilDormantAutoDelete: timeTilDormant / 2,
+		})
+		require.NoError(t, err)
+
+		// We should expect a notification for each dormant workspace.
+		require.Len(t, notifyEnq.Sent, len(dormantWorkspaces))
+		for i, dormantWs := range dormantWorkspaces {
+			require.Equal(t, notifyEnq.Sent[i].UserID, dormantWs.OwnerID)
+			require.Equal(t, notifyEnq.Sent[i].TemplateID, notifications.TemplateWorkspaceMarkedForDeletion)
+			require.Contains(t, notifyEnq.Sent[i].Targets, template.ID)
+			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.ID)
+			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.OrganizationID)
+			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.OwnerID)
+		}
+	})
 }
 
 func must[V any](v V, err error) V {

@@ -12,13 +12,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -765,6 +771,170 @@ func TestReadCustomRoles(t *testing.T) {
 			require.Equal(t, a, b)
 		})
 	}
+}
+
+func TestAuthorizedAuditLogs(t *testing.T) {
+	t.Parallel()
+
+	var allLogs []database.AuditLog
+	db, _ := dbtestutil.NewDB(t)
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+	siteWideIDs := []uuid.UUID{uuid.New(), uuid.New()}
+	for _, id := range siteWideIDs {
+		allLogs = append(allLogs, dbgen.AuditLog(t, db, database.AuditLog{
+			ID:             id,
+			OrganizationID: uuid.Nil,
+		}))
+	}
+
+	// This map is a simple way to insert a given number of organizations
+	// and audit logs for each organization.
+	// map[orgID][]AuditLogID
+	orgAuditLogs := map[uuid.UUID][]uuid.UUID{
+		uuid.New(): {uuid.New(), uuid.New()},
+		uuid.New(): {uuid.New(), uuid.New()},
+	}
+	orgIDs := make([]uuid.UUID, 0, len(orgAuditLogs))
+	for orgID := range orgAuditLogs {
+		orgIDs = append(orgIDs, orgID)
+	}
+	for orgID, ids := range orgAuditLogs {
+		dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+		for _, id := range ids {
+			allLogs = append(allLogs, dbgen.AuditLog(t, db, database.AuditLog{
+				ID:             id,
+				OrganizationID: orgID,
+			}))
+		}
+	}
+
+	// Now fetch all the logs
+	ctx := testutil.Context(t, testutil.WaitLong)
+	auditorRole, err := rbac.RoleByName(rbac.RoleAuditor())
+	require.NoError(t, err)
+
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	require.NoError(t, err)
+
+	orgAuditorRoles := func(t *testing.T, orgID uuid.UUID) rbac.Role {
+		t.Helper()
+
+		role, err := rbac.RoleByName(rbac.ScopedRoleOrgAuditor(orgID))
+		require.NoError(t, err)
+		return role
+	}
+
+	t.Run("NoAccess", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: A user who is a member of 0 organizations
+		memberCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "member",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{memberRole},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for audit logs
+		logs, err := db.GetAuditLogsOffset(memberCtx, database.GetAuditLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: No logs returned
+		require.Len(t, logs, 0, "no logs should be returned")
+	})
+
+	t.Run("SiteWideAuditor", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: A site wide auditor
+		siteAuditorCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "owner",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{auditorRole},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: the auditor queries for audit logs
+		logs, err := db.GetAuditLogsOffset(siteAuditorCtx, database.GetAuditLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: All logs are returned
+		require.ElementsMatch(t, auditOnlyIDs(allLogs), auditOnlyIDs(logs))
+	})
+
+	t.Run("SingleOrgAuditor", func(t *testing.T) {
+		t.Parallel()
+
+		orgID := orgIDs[0]
+		// Given: An organization scoped auditor
+		orgAuditCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, orgID)},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The auditor queries for audit logs
+		logs, err := db.GetAuditLogsOffset(orgAuditCtx, database.GetAuditLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: Only the logs for the organization are returned
+		require.ElementsMatch(t, orgAuditLogs[orgID], auditOnlyIDs(logs))
+	})
+
+	t.Run("TwoOrgAuditors", func(t *testing.T) {
+		t.Parallel()
+
+		first := orgIDs[0]
+		second := orgIDs[1]
+		// Given: A user who is an auditor for two organizations
+		multiOrgAuditCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, first), orgAuditorRoles(t, second)},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for audit logs
+		logs, err := db.GetAuditLogsOffset(multiOrgAuditCtx, database.GetAuditLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: All logs for both organizations are returned
+		require.ElementsMatch(t, append(orgAuditLogs[first], orgAuditLogs[second]...), auditOnlyIDs(logs))
+	})
+
+	t.Run("ErroneousOrg", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: A user who is an auditor for an organization that has 0 logs
+		userCtx := dbauthz.As(ctx, rbac.Subject{
+			FriendlyName: "org-auditor",
+			ID:           uuid.NewString(),
+			Roles:        rbac.Roles{orgAuditorRoles(t, uuid.New())},
+			Scope:        rbac.ScopeAll,
+		})
+
+		// When: The user queries for audit logs
+		logs, err := db.GetAuditLogsOffset(userCtx, database.GetAuditLogsOffsetParams{})
+		require.NoError(t, err)
+		// Then: No logs are returned
+		require.Len(t, logs, 0, "no logs should be returned")
+	})
+}
+
+func auditOnlyIDs[T database.AuditLog | database.GetAuditLogsOffsetRow](logs []T) []uuid.UUID {
+	ids := make([]uuid.UUID, 0, len(logs))
+	for _, log := range logs {
+		switch log := any(log).(type) {
+		case database.AuditLog:
+			ids = append(ids, log.ID)
+		case database.GetAuditLogsOffsetRow:
+			ids = append(ids, log.AuditLog.ID)
+		default:
+			panic("unreachable")
+		}
+	}
+	return ids
 }
 
 type tvArgs struct {

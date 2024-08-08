@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -20,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -461,6 +464,12 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 		loginType = database.LoginTypePassword
 	case codersdk.LoginTypeOIDC:
+		if api.OIDCConfig == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "You must configure OIDC before creating OIDC users.",
+			})
+			return
+		}
 		loginType = database.LoginTypeOIDC
 	case codersdk.LoginTypeGithub:
 		loginType = database.LoginTypeGithub
@@ -468,6 +477,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported login type %q for manually creating new users.", req.UserLoginType),
 		})
+		return
 	}
 
 	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
@@ -501,10 +511,9 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 // @Summary Delete user
 // @ID delete-user
 // @Security CoderSessionToken
-// @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Success 200 {object} codersdk.User
+// @Success 200
 // @Router /users/{user} [delete]
 func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -558,6 +567,27 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	user.Deleted = true
 	aReq.New = user
+
+	userAdmins, err := findUserAdmins(ctx, api.Database)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user admins.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	for _, u := range userAdmins {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountDeleted,
+			map[string]string{
+				"deleted_account_name": user.Username,
+			}, "api-users-delete",
+			user.ID,
+		); err != nil {
+			api.Logger.Warn(ctx, "unable to notify about deleted user", slog.F("deleted_user", user.Username), slog.Error(err))
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "User has been deleted!",
 	})
@@ -913,6 +943,11 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = user
 
+	if !api.Authorize(r, policy.ActionUpdatePersonal, user) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
@@ -1008,7 +1043,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	newUser.HashedPassword = []byte(hashedPassword)
 	aReq.New = newUser
 
-	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get user roles
@@ -1165,12 +1200,7 @@ func (api *API) organizationsByUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	publicOrganizations := make([]codersdk.Organization, 0, len(organizations))
-	for _, organization := range organizations {
-		publicOrganizations = append(publicOrganizations, convertOrganization(organization))
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, publicOrganizations)
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(organizations, db2sdk.Organization))
 }
 
 // @Summary Get organization by user and organization name
@@ -1198,12 +1228,13 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertOrganization(organization))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Organization(organization))
 }
 
 type CreateUserRequest struct {
 	codersdk.CreateUserRequest
-	LoginType database.LoginType
+	LoginType         database.LoginType
+	SkipNotifications bool
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
@@ -1214,7 +1245,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	var user database.User
-	return user, req.OrganizationID, store.InTx(func(tx database.Store) error {
+	err := store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
 		// Organization is required to know where to allocate the user.
 		if req.OrganizationID == uuid.Nil {
@@ -1275,6 +1306,45 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		return nil
 	}, nil)
+	if err != nil || req.SkipNotifications {
+		return user, req.OrganizationID, err
+	}
+
+	userAdmins, err := findUserAdmins(ctx, store)
+	if err != nil {
+		return user, req.OrganizationID, xerrors.Errorf("find user admins: %w", err)
+	}
+
+	for _, u := range userAdmins {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
+			map[string]string{
+				"created_account_name": user.Username,
+			}, "api-users-create",
+			user.ID,
+		); err != nil {
+			api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Username), slog.Error(err))
+		}
+	}
+	return user, req.OrganizationID, err
+}
+
+// findUserAdmins fetches all users with user admin permission including owners.
+func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
+	// Notice: we can't scrape the user information in parallel as pq
+	// fails with: unexpected describe rows response: 'D'
+	owners, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get owners: %w", err)
+	}
+	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleUserAdmin},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user admins: %w", err)
+	}
+	return append(owners, userAdmins...), nil
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
@@ -1291,9 +1361,12 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 	if err != nil {
 		return []uuid.UUID{}, err
 	}
+
+	// If you are in no orgs, then return an empty list.
 	if len(organizationIDsByMemberIDsRows) == 0 {
-		return []uuid.UUID{}, xerrors.Errorf("user %q must be a member of at least one organization", user.Email)
+		return []uuid.UUID{}, nil
 	}
+
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil
 }

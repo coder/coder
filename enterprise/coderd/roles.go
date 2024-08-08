@@ -1,104 +1,105 @@
 package coderd
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type enterpriseCustomRoleHandler struct {
-	API     *API
-	Enabled bool
-}
-
-func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, rw http.ResponseWriter, r *http.Request, orgID uuid.UUID, role codersdk.Role) (codersdk.Role, bool) {
-	if !h.Enabled {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Custom roles are not enabled",
-		})
-		return codersdk.Role{}, false
-	}
-
+// patchRole will allow creating a custom organization role
+//
+// @Summary Upsert a custom organization role
+// @ID upsert-a-custom-organization-role
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.PatchRoleRequest true "Upsert role request"
+// @Tags Members
+// @Success 200 {array} codersdk.Role
+// @Router /organizations/{organization}/members/roles [patch]
+func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
-		db                = h.API.Database
-		auditor           = h.API.AGPL.Auditor.Load()
+		ctx               = r.Context()
+		db                = api.Database
+		auditor           = api.AGPL.Auditor.Load()
+		organization      = httpmw.OrganizationParam(r)
 		aReq, commitAudit = audit.InitRequest[database.CustomRole](rw, &audit.RequestParams{
 			Audit:          *auditor,
-			Log:            h.API.Logger,
+			Log:            api.Logger,
 			Request:        r,
 			Action:         database.AuditActionWrite,
-			OrganizationID: orgID,
+			OrganizationID: organization.ID,
 		})
 	)
 	defer commitAudit()
 
-	// This check is not ideal, but we cannot enforce a unique role name in the db against
-	// the built-in role names.
-	if rbac.ReservedRoleName(role.Name) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Reserved role name",
-			Detail:  fmt.Sprintf("%q is a reserved role name, and not allowed to be used", role.Name),
-		})
-		return codersdk.Role{}, false
+	var req codersdk.PatchRoleRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
 	}
 
-	if err := httpapi.NameValid(role.Name); err != nil {
+	// This check is not ideal, but we cannot enforce a unique role name in the db against
+	// the built-in role names.
+	if rbac.ReservedRoleName(req.Name) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Reserved role name",
+			Detail:  fmt.Sprintf("%q is a reserved role name, and not allowed to be used", req.Name),
+		})
+		return
+	}
+
+	if err := httpapi.NameValid(req.Name); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid role name",
 			Detail:  err.Error(),
 		})
-		return codersdk.Role{}, false
+		return
 	}
 
 	// Only organization permissions are allowed to be granted
-	if len(role.SitePermissions) > 0 {
+	if len(req.SitePermissions) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request, not allowed to assign site wide permissions for an organization role.",
 			Detail:  "organization scoped roles may not contain site wide permissions",
 		})
-		return codersdk.Role{}, false
+		return
 	}
 
-	if len(role.UserPermissions) > 0 {
+	if len(req.UserPermissions) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request, not allowed to assign user permissions for an organization role.",
 			Detail:  "organization scoped roles may not contain user permissions",
 		})
-		return codersdk.Role{}, false
-	}
-
-	if role.OrganizationID != orgID.String() {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request, organization in role and url must match",
-			Detail:  fmt.Sprintf("role organization=%q does not match URL=%q", role.OrganizationID, orgID.String()),
-		})
-		return codersdk.Role{}, false
+		return
 	}
 
 	originalRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
 		LookupRoles: []database.NameOrganizationPair{
 			{
-				Name:           role.Name,
-				OrganizationID: orgID,
+				Name:           req.Name,
+				OrganizationID: organization.ID,
 			},
 		},
 		ExcludeOrgRoles: false,
-		OrganizationID:  orgID,
+		// Linter requires all fields to be set. This field is not actually required.
+		OrganizationID: organization.ID,
 	})
 	// If it is a 404 (not found) error, ignore it.
 	if err != nil && !httpapi.Is404Error(err) {
 		httpapi.InternalServerError(rw, err)
-		return codersdk.Role{}, false
+		return
 	}
 	if len(originalRoles) == 1 {
 		// For auditing changes to a role.
@@ -106,30 +107,110 @@ func (h enterpriseCustomRoleHandler) PatchOrganizationRole(ctx context.Context, 
 	}
 
 	inserted, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
-		Name:        role.Name,
-		DisplayName: role.DisplayName,
+		Name:        req.Name,
+		DisplayName: req.DisplayName,
 		OrganizationID: uuid.NullUUID{
-			UUID:  orgID,
+			UUID:  organization.ID,
 			Valid: true,
 		},
-		SitePermissions: db2sdk.List(role.SitePermissions, sdkPermissionToDB),
-		OrgPermissions:  db2sdk.List(role.OrganizationPermissions, sdkPermissionToDB),
-		UserPermissions: db2sdk.List(role.UserPermissions, sdkPermissionToDB),
+		SitePermissions: db2sdk.List(req.SitePermissions, sdkPermissionToDB),
+		OrgPermissions:  db2sdk.List(req.OrganizationPermissions, sdkPermissionToDB),
+		UserPermissions: db2sdk.List(req.UserPermissions, sdkPermissionToDB),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
-		return codersdk.Role{}, false
+		return
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to update role permissions",
 			Detail:  err.Error(),
 		})
-		return codersdk.Role{}, false
+		return
 	}
 	aReq.New = inserted
 
-	return db2sdk.Role(inserted), true
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Role(inserted))
+}
+
+// deleteOrgRole will remove a custom role from an organization
+//
+// @Summary Delete a custom organization role
+// @ID delete-a-custom-organization-role
+// @Security CoderSessionToken
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param roleName path string true "Role name"
+// @Tags Members
+// @Success 200 {array} codersdk.Role
+// @Router /organizations/{organization}/members/roles/{roleName} [delete]
+func (api *API) deleteOrgRole(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		organization      = httpmw.OrganizationParam(r)
+		aReq, commitAudit = audit.InitRequest[database.CustomRole](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
+			OrganizationID: organization.ID,
+		})
+	)
+	defer commitAudit()
+
+	rolename := chi.URLParam(r, "roleName")
+	roles, err := api.Database.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           rolename,
+				OrganizationID: organization.ID,
+			},
+		},
+		ExcludeOrgRoles: false,
+		// Linter requires all fields to be set. This field is not actually required.
+		OrganizationID: organization.ID,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if len(roles) == 0 {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message:     fmt.Sprintf("No custom role with the name %s found", rolename),
+			Detail:      "no role found",
+			Validations: nil,
+		})
+		return
+	}
+	if len(roles) > 1 {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message:     fmt.Sprintf("Multiple roles with the name %s found", rolename),
+			Detail:      "multiple roles found, this should never happen",
+			Validations: nil,
+		})
+		return
+	}
+	aReq.Old = roles[0]
+
+	err = api.Database.DeleteCustomRole(ctx, database.DeleteCustomRoleParams{
+		Name: rolename,
+		OrganizationID: uuid.NullUUID{
+			UUID:  organization.ID,
+			Valid: true,
+		},
+	})
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.New = database.CustomRole{}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {

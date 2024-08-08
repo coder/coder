@@ -3,15 +3,18 @@ package codersdk_test
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -378,4 +381,183 @@ func TestExternalAuthYAMLConfig(t *testing.T) {
 	// Because we only marshal the 1 section, the correct section name is not applied.
 	output := strings.Replace(out.String(), "value:", "externalAuthProviders:", 1)
 	require.Equal(t, inputYAML, output, "re-marshaled is the same as input")
+}
+
+func TestFeatureComparison(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name     string
+		A        codersdk.Feature
+		B        codersdk.Feature
+		Expected int
+	}{
+		{
+			Name:     "Empty",
+			Expected: 0,
+		},
+		// Entitlement check
+		//		Entitled
+		{
+			Name:     "EntitledVsGracePeriod",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
+			Expected: 1,
+		},
+		{
+			Name: "EntitledVsGracePeriodLimits",
+			A:    codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			// Entitled should still win here
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](50)},
+			Expected: 1,
+		},
+		{
+			Name:     "EntitledVsNotEntitled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
+			Expected: 3,
+		},
+		{
+			Name:     "EntitledVsUnknown",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			B:        codersdk.Feature{Entitlement: ""},
+			Expected: 4,
+		},
+		//		GracePeriod
+		{
+			Name:     "GracefulVsNotEntitled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
+			Expected: 2,
+		},
+		{
+			Name:     "GracefulVsUnknown",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
+			B:        codersdk.Feature{Entitlement: ""},
+			Expected: 3,
+		},
+		//		NotEntitled
+		{
+			Name:     "NotEntitledVsUnknown",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
+			B:        codersdk.Feature{Entitlement: ""},
+			Expected: 1,
+		},
+		// --
+		{
+			Name:     "EntitledVsGracePeriodCapable",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](200)},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](300), Actual: ptr.Ref[int64](200)},
+			Expected: -1,
+		},
+		// UserLimits
+		{
+			// Tests an exceeded limit that is entitled vs a graceful limit that
+			// is not exceeded. This is the edge case that we should use the graceful period
+			// instead of the entitled.
+			Name:     "UserLimitExceeded",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: -1,
+		},
+		{
+			Name:     "UserLimitExceededNoEntitled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: 3,
+		},
+		{
+			Name:     "HigherLimit",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(110)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			Expected: 10, // Diff in the limit #
+		},
+		{
+			Name:     "HigherActual",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			Expected: 100, // Diff in the actual #
+		},
+		{
+			Name:     "LimitExists",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "LimitExistsGrace",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: nil, Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "ActualExists",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
+			Expected: 1,
+		},
+		{
+			Name:     "NotNils",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
+			Expected: 1,
+		},
+		{
+			Name:     "EnabledVsDisabled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "NotNils",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
+			Expected: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			r := tc.A.Compare(tc.B)
+			logIt := !assert.Equal(t, tc.Expected, r)
+
+			// Comparisons should be like addition. A - B = -1 * (B - A)
+			r = tc.B.Compare(tc.A)
+			logIt = logIt || !assert.Equalf(t, tc.Expected*-1, r, "the inverse comparison should also be true")
+			if logIt {
+				ad, _ := json.Marshal(tc.A)
+				bd, _ := json.Marshal(tc.B)
+				t.Logf("a = %s\nb = %s", ad, bd)
+			}
+		})
+	}
+}
+
+// TestPremiumSuperSet tests that the "premium" feature set is a superset of the
+// "enterprise" feature set.
+func TestPremiumSuperSet(t *testing.T) {
+	t.Parallel()
+
+	enterprise := codersdk.FeatureSetEnterprise
+	premium := codersdk.FeatureSetPremium
+
+	// Premium > Enterprise
+	require.Greater(t, len(premium.Features()), len(enterprise.Features()), "premium should have more features than enterprise")
+
+	// Premium ⊃ Enterprise
+	require.Subset(t, premium.Features(), enterprise.Features(), "premium should be a superset of enterprise. If this fails, update the premium feature set to include all enterprise features.")
+
+	// Premium = All Features
+	// This is currently true. If this assertion changes, update this test
+	// to reflect the change in feature sets.
+	require.ElementsMatch(t, premium.Features(), codersdk.FeatureNames, "premium should contain all features")
+
+	// This check exists because if you misuse the slices.Delete, you can end up
+	// with zero'd values.
+	require.NotContains(t, enterprise.Features(), "", "enterprise should not contain empty string")
+	require.NotContains(t, premium.Features(), "", "premium should not contain empty string")
 }

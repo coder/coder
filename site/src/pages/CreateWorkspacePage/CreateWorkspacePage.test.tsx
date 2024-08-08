@@ -12,7 +12,6 @@ import {
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockTemplateVersionExternalAuthGithub,
-  MockOrganization,
   MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
@@ -28,7 +27,7 @@ const validationNumberNotInRangeText = "Value must be between 1 and 3.";
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {
-    route: "/templates/" + MockTemplate.name + "/workspace",
+    route: `/templates/${MockTemplate.name}/workspace`,
     path: "/templates/:template/workspace",
   });
 };
@@ -60,7 +59,6 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        MockUser.organization_ids[0],
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRichParametersRequest,
@@ -77,10 +75,7 @@ describe("CreateWorkspacePage", () => {
       .mockResolvedValueOnce([MockTemplateVersionParameter1]);
 
     renderWithAuth(<CreateWorkspacePage />, {
-      route:
-        "/templates/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}`,
+      route: `/templates/${MockTemplate.name}/workspace?param.${param}=${paramValue}`,
       path: "/templates/:template/workspace",
     });
 
@@ -224,7 +219,6 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        MockUser.organization_ids[0],
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRequest,
@@ -264,7 +258,6 @@ describe("CreateWorkspacePage", () => {
 
     await waitFor(() =>
       expect(API.createWorkspace).toBeCalledWith(
-        MockUser.organization_ids[0],
         MockUser.id,
         expect.objectContaining({
           ...MockWorkspaceRequest,
@@ -280,15 +273,14 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/" +
+        "/templates/default/" +
         MockTemplate.name +
         `/workspace?param.${param}=${paramValue}&mode=auto`,
-      path: "/templates/:template/workspace",
+      path: "/templates/:organization/:template/workspace",
     });
 
     await waitFor(() => {
       expect(createWorkspaceSpy).toBeCalledWith(
-        MockOrganization.id,
         "me",
         expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,
@@ -315,10 +307,10 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/" +
+        "/templates/default/" +
         MockTemplate.name +
         `/workspace?param.${param}=${paramValue}&mode=auto`,
-      path: "/templates/:template/workspace",
+      path: "/templates/:organization/:template/workspace",
     });
     await waitForLoaderToBeRemoved();
 
@@ -340,15 +332,14 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/" +
+        "/templates/default/" +
         MockTemplate.name +
         `/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
-      path: "/templates/:template/workspace",
+      path: "/templates/:organization/:template/workspace",
     });
 
     await waitFor(() => {
       expect(createWorkspaceSpy).toBeCalledWith(
-        MockOrganization.id,
         "me",
         expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,
@@ -368,8 +359,10 @@ describe("CreateWorkspacePage", () => {
     });
 
     renderWithAuth(<CreateWorkspacePage />, {
-      path: "/templates/:template/workspace",
-      route: `/templates/${MockWorkspace.name}/workspace?${params.toString()}`,
+      path: "/templates/:organization/:template/workspace",
+      route: `/templates/default/${
+        MockWorkspace.name
+      }/workspace?${params.toString()}`,
     });
 
     const warningMessage = await screen.findByTestId("duplication-warning");

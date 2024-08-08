@@ -1,7 +1,11 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Collapse from "@mui/material/Collapse";
+import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
+import Tooltip from "@mui/material/Tooltip";
 import { type FC, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import userAgentParser from "ua-parser-js";
 import type { AuditLog } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
@@ -33,11 +37,13 @@ export interface AuditLogRowProps {
   auditLog: AuditLog;
   // Useful for Storybook
   defaultIsDiffOpen?: boolean;
+  showOrgDetails: boolean;
 }
 
 export const AuditLogRow: FC<AuditLogRowProps> = ({
   auditLog,
   defaultIsDiffOpen = false,
+  showOrgDetails,
 }) => {
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen);
   const diffs = Object.entries(auditLog.diff);
@@ -111,28 +117,80 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
                 </Stack>
 
                 <Stack direction="row" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="baseline">
-                    {auditLog.ip && (
-                      <span css={styles.auditLogInfo}>
-                        <>IP: </>
-                        <strong>{auditLog.ip}</strong>
-                      </span>
-                    )}
-                    {os.name && (
-                      <span css={styles.auditLogInfo}>
-                        <>OS: </>
-                        <strong>{os.name}</strong>
-                      </span>
-                    )}
-                    {browser.name && (
-                      <span css={styles.auditLogInfo}>
-                        <>Browser: </>
-                        <strong>
-                          {browser.name} {browser.version}
-                        </strong>
-                      </span>
-                    )}
-                  </Stack>
+                  {/* With multi-org, there is not enough space so show
+                      everything in a tooltip. */}
+                  {showOrgDetails ? (
+                    <Tooltip
+                      title={
+                        <div css={styles.auditLogInfoTooltip}>
+                          {auditLog.ip && (
+                            <div>
+                              <h4 css={styles.auditLogInfoHeader}>IP:</h4>
+                              <div>{auditLog.ip}</div>
+                            </div>
+                          )}
+                          {os.name && (
+                            <div>
+                              <h4 css={styles.auditLogInfoHeader}>OS:</h4>
+                              <div>{os.name}</div>
+                            </div>
+                          )}
+                          {browser.name && (
+                            <div>
+                              <h4 css={styles.auditLogInfoHeader}>Browser:</h4>
+                              <div>
+                                {browser.name} {browser.version}
+                              </div>
+                            </div>
+                          )}
+                          {auditLog.organization && (
+                            <div>
+                              <h4 css={styles.auditLogInfoHeader}>
+                                Organization:
+                              </h4>
+                              <Link
+                                component={RouterLink}
+                                to={`/organizations/${auditLog.organization.name}`}
+                              >
+                                {auditLog.organization.display_name ||
+                                  auditLog.organization.name}
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      }
+                    >
+                      <InfoOutlined
+                        css={(theme) => ({
+                          fontSize: 20,
+                          color: theme.palette.info.light,
+                        })}
+                      />
+                    </Tooltip>
+                  ) : (
+                    <Stack direction="row" spacing={1} alignItems="baseline">
+                      {auditLog.ip && (
+                        <span css={styles.auditLogInfo}>
+                          <span>IP: </span>
+                          <strong>{auditLog.ip}</strong>
+                        </span>
+                      )}
+                      {os.name && (
+                        <span css={styles.auditLogInfo}>
+                          <span>OS: </span>
+                          <strong>{os.name}</strong>
+                        </span>
+                      )}
+                      {browser.name && (
+                        <span css={styles.auditLogInfo}>
+                          <span>Browser: </span>
+                          <strong>
+                            {browser.name} {browser.version}
+                          </strong>
+                        </span>
+                      )}
+                    </Stack>
+                  )}
 
                   <Pill
                     css={styles.httpStatusPill}
@@ -193,6 +251,20 @@ const styles = {
     color: theme.palette.text.secondary,
     display: "block",
   }),
+
+  auditLogInfoHeader: (theme) => ({
+    margin: 0,
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    lineHeight: "150%",
+    fontWeight: 600,
+  }),
+
+  auditLogInfoTooltip: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
 
   // offset the absence of the arrow icon on diff-less logs
   columnWithoutDiff: {

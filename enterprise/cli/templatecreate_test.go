@@ -140,7 +140,10 @@ func TestTemplateCreate(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
+		dv.Experiments = []string{
+			string(codersdk.ExperimentCustomRoles),
+			string(codersdk.ExperimentMultiOrganization),
+		}
 		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -152,19 +155,20 @@ func TestTemplateCreate(t *testing.T) {
 					codersdk.FeatureAccessControl:              1,
 					codersdk.FeatureCustomRoles:                1,
 					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
 		})
 
 		// Create the second organization
-		secondOrg := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		secondOrg := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{
 			IncludeProvisionerDaemon: true,
 		})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		//nolint:gocritic // owner required to make custom roles
-		orgTemplateAdminRole, err := ownerClient.PatchOrganizationRole(ctx, secondOrg.ID, codersdk.Role{
+		orgTemplateAdminRole, err := ownerClient.PatchOrganizationRole(ctx, codersdk.Role{
 			Name:           "org-template-admin",
 			OrganizationID: secondOrg.ID.String(),
 			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{

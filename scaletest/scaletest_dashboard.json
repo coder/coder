@@ -7,6 +7,22 @@
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_GOOGLE_CLOUD MONITORING",
+      "label": "Google Cloud Monitoring",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "stackdriver",
+      "pluginName": "Google Cloud Monitoring"
+    },
+    {
+      "name": "DS_GOOGLE_CLOUD LOGGING :: V2-LOADTEST",
+      "label": "Google Cloud Logging :: v2-loadtest",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "googlecloud-logging-datasource",
+      "pluginName": "Google Cloud Logging"
     }
   ],
   "__elements": {},
@@ -18,10 +34,16 @@
       "version": ""
     },
     {
+      "type": "datasource",
+      "id": "googlecloud-logging-datasource",
+      "name": "Google Cloud Logging",
+      "version": "1.3.0"
+    },
+    {
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "9.5.2"
+      "version": "11.1.0"
     },
     {
       "type": "panel",
@@ -30,10 +52,22 @@
       "version": ""
     },
     {
+      "type": "panel",
+      "id": "logs",
+      "name": "Logs",
+      "version": ""
+    },
+    {
       "type": "datasource",
       "id": "prometheus",
       "name": "Prometheus",
       "version": "1.0.0"
+    },
+    {
+      "type": "datasource",
+      "id": "stackdriver",
+      "name": "Google Cloud Monitoring",
+      "version": "11.1.0"
     },
     {
       "type": "panel",
@@ -61,6 +95,119 @@
           "type": "dashboard"
         },
         "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "name": "Scaletest Error",
+        "target": {
+          "refId": "Anno",
+          "tags": ["scaletest", "runner", "error"],
+          "type": "tags"
+        }
+      },
+      {
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "iconColor": "green",
+        "name": "Scaletest Phase",
+        "target": {
+          "refId": "Anno",
+          "tags": ["scaletest", "runner", "phase-default"],
+          "type": "tags"
+        }
+      },
+      {
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "iconColor": "transparent",
+        "name": "Scaletest Phase (Wait)",
+        "target": {
+          "refId": "Anno",
+          "tags": ["scaletest", "runner", "phase-wait"],
+          "type": "tags"
+        }
+      },
+      {
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "name": "Scaletest Status",
+        "target": {
+          "refId": "Anno",
+          "tags": ["scaletest", "runner", "status"],
+          "type": "tags"
+        }
+      },
+      {
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "iconColor": "dark-green",
+        "name": "Concurrent Scenarios",
+        "target": {
+          "refId": "Anno",
+          "tags": ["scaletest", "runner", "scenario"],
+          "type": "tags"
+        }
+      },
+      {
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "iconColor": "semi-dark-orange",
+        "name": "Greedy agent",
+        "target": {
+          "refId": "Anno",
+          "tags": ["scaletest", "runner", "greedy_agent"],
+          "type": "tags"
+        }
+      },
+      {
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": false,
+        "iconColor": "super-light-purple",
+        "name": "Scaletest Runner Workspace",
+        "target": {
+          "refId": "Anno",
+          "tags": ["scaletest", "runner", "workspace"],
+          "type": "tags"
+        }
+      },
+      {
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": false,
+        "iconColor": "super-light-orange",
+        "name": "Pprof",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": ["scaletest", "runner", "pprof"],
+          "type": "tags"
+        }
       }
     ]
   },
@@ -95,6 +242,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -108,6 +256,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -251,6 +400,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -265,6 +415,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -405,6 +556,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": true,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -418,6 +570,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -513,7 +666,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by(pod) (-rate(container_network_transmit_bytes_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"^(coder|provisionerd)-[^-]+-[^-]+$\"}[$__rate_interval]))",
+          "expr": "sum by(pod) (-rate(container_network_transmit_bytes_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"^coder-(provisioner-)?[a-z0-9]+-[a-z0-9]+$\"}[$__rate_interval]))",
           "hide": false,
           "legendFormat": "tx {{pod}}",
           "range": true,
@@ -525,9 +678,9 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by(pod) (rate(container_network_receive_bytes_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"^(coder|provisionerd)-[^-]+-[^-]+$\"}[$__rate_interval]))",
+          "expr": "sum by(pod) (rate(container_network_receive_bytes_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"^coder-(provisioner-)?[a-z0-9]+-[a-z0-9]+$\"}[$__rate_interval]))",
           "hide": false,
-          "legendFormat": "rx {{pod}",
+          "legendFormat": "rx {{pod}}",
           "range": true,
           "refId": "B"
         }
@@ -546,6 +699,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -560,6 +714,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -666,17 +821,635 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "stackdriver",
+        "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#989898",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
+      "id": 50,
+      "options": {
+        "barRadius": 0,
+        "barWidth": 0.97,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 200
+      },
+      "pluginVersion": "9.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "stackdriver",
+            "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+          },
+          "queryType": "timeSeriesList",
+          "refId": "A",
+          "timeSeriesList": {
+            "alignmentPeriod": "+300s",
+            "crossSeriesReducer": "REDUCE_NONE",
+            "filters": [
+              "resource.label.project_id",
+              "=",
+              "v2-loadtest",
+              "AND",
+              "resource.label.namespace_name",
+              "=",
+              "coder-big",
+              "AND",
+              "resource.label.container_name",
+              "=",
+              "coder",
+              "AND",
+              "resource.label.cluster_name",
+              "=",
+              "big",
+              "AND",
+              "resource.type",
+              "=",
+              "k8s_container",
+              "AND",
+              "resource.label.pod_name",
+              "!=~",
+              "coder-scaletest-.*",
+              "AND",
+              "resource.label.pod_name",
+              "=~",
+              "coder-.*",
+              "AND",
+              "metric.type",
+              "=",
+              "logging.googleapis.com/log_entry_count"
+            ],
+            "groupBys": [],
+            "perSeriesAligner": "ALIGN_SUM",
+            "preprocessor": "none",
+            "projectName": "v2-loadtest"
+          }
+        }
+      ],
+      "title": "Coder Logs Entries (All Levels)",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "googlecloud-logging-datasource",
+        "uid": "${DS_GOOGLE_CLOUD LOGGING :: V2-LOADTEST}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "id": 51,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "googlecloud-logging-datasource",
+            "uid": "${DS_GOOGLE_CLOUD LOGGING :: V2-LOADTEST}"
+          },
+          "projectId": "v2-loadtest",
+          "queryText": "resource.type=\"k8s_container\" AND\nresource.labels.cluster_name=\"big\" AND\nresource.labels.namespace_name=\"coder-big\" AND\nresource.labels.location=\"us-central1-a\" AND\nresource.labels.project_id=\"v2-loadtest\" AND\n(resource.labels.container_name=\"coder\" OR resource.labels.container_name=\"coder-provisionerd\") AND\njsonPayload.message!=\"\" AND\nseverity=\"ERROR\"",
+          "refId": "Error"
+        },
+        {
+          "datasource": {
+            "type": "googlecloud-logging-datasource",
+            "uid": "${DS_GOOGLE_CLOUD LOGGING :: V2-LOADTEST}"
+          },
+          "hide": false,
+          "projectId": "v2-loadtest",
+          "queryText": "resource.type=\"k8s_container\" AND\nresource.labels.cluster_name=\"big\" AND\nresource.labels.namespace_name=\"coder-big\" AND\nresource.labels.location=\"us-central1-a\" AND\nresource.labels.project_id=\"v2-loadtest\" AND\ntextPayload=~\"panic:.*\"",
+          "refId": "Panic"
+        }
+      ],
+      "title": "Coder Error Logs",
+      "type": "logs"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 25
       },
       "id": 29,
       "panels": [],
       "title": "Database",
       "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "stackdriver",
+        "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "id": 52,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "stackdriver",
+            "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+          },
+          "queryType": "timeSeriesList",
+          "refId": "A",
+          "timeSeriesList": {
+            "alignmentPeriod": "cloud-monitoring-auto",
+            "crossSeriesReducer": "REDUCE_NONE",
+            "filters": [
+              "resource.label.project_id",
+              "=",
+              "v2-loadtest",
+              "AND",
+              "metric.type",
+              "=",
+              "cloudsql.googleapis.com/database/cpu/utilization"
+            ],
+            "groupBys": ["resource.label.database_id"],
+            "perSeriesAligner": "ALIGN_NONE",
+            "preprocessor": "none",
+            "projectName": "v2-loadtest"
+          }
+        }
+      ],
+      "title": "DB CPU Util%",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "stackdriver",
+        "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "id": 53,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "stackdriver",
+            "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+          },
+          "queryType": "timeSeriesList",
+          "refId": "A",
+          "timeSeriesList": {
+            "alignmentPeriod": "cloud-monitoring-auto",
+            "crossSeriesReducer": "REDUCE_NONE",
+            "filters": [
+              "resource.label.project_id",
+              "=",
+              "v2-loadtest",
+              "AND",
+              "metric.type",
+              "=",
+              "cloudsql.googleapis.com/database/memory/utilization"
+            ],
+            "groupBys": [],
+            "perSeriesAligner": "ALIGN_NONE",
+            "preprocessor": "none",
+            "projectName": "v2-loadtest"
+          }
+        }
+      ],
+      "title": "DB Mem Util%",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "stackdriver",
+        "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "id": 54,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "stackdriver",
+            "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+          },
+          "queryType": "timeSeriesList",
+          "refId": "A",
+          "timeSeriesList": {
+            "alignmentPeriod": "+60s",
+            "crossSeriesReducer": "REDUCE_NONE",
+            "filters": [
+              "resource.label.project_id",
+              "=",
+              "v2-loadtest",
+              "AND",
+              "metric.type",
+              "=",
+              "cloudsql.googleapis.com/database/disk/read_ops_count"
+            ],
+            "groupBys": [],
+            "perSeriesAligner": "ALIGN_DELTA",
+            "preprocessor": "none",
+            "projectName": "v2-loadtest"
+          }
+        }
+      ],
+      "title": "DB Disk Read I/O",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "stackdriver",
+        "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 55,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "stackdriver",
+            "uid": "${DS_GOOGLE_CLOUD MONITORING}"
+          },
+          "queryType": "timeSeriesList",
+          "refId": "A",
+          "timeSeriesList": {
+            "alignmentPeriod": "cloud-monitoring-auto",
+            "crossSeriesReducer": "REDUCE_NONE",
+            "filters": [
+              "resource.label.project_id",
+              "=",
+              "v2-loadtest",
+              "AND",
+              "metric.type",
+              "=",
+              "cloudsql.googleapis.com/database/disk/write_ops_count"
+            ],
+            "groupBys": [],
+            "perSeriesAligner": "ALIGN_NONE",
+            "preprocessor": "rate",
+            "projectName": "v2-loadtest"
+          }
+        }
+      ],
+      "title": "DB Disk Write I/O",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -690,6 +1463,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -703,6 +1477,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -742,7 +1517,7 @@
         "h": 16,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 42
       },
       "id": 36,
       "options": {
@@ -833,6 +1608,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -846,6 +1622,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -884,7 +1661,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 42
       },
       "id": 39,
       "options": {
@@ -963,6 +1740,7 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
@@ -976,6 +1754,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -1014,7 +1793,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 50
       },
       "id": 37,
       "options": {
@@ -1082,7 +1861,7 @@
         "h": 26,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 58
       },
       "id": 30,
       "options": {
@@ -1114,7 +1893,8 @@
           "layout": "auto"
         },
         "tooltip": {
-          "show": true,
+          "mode": "single",
+          "showColorScale": false,
           "yHistogram": false
         },
         "yAxis": {
@@ -1122,14 +1902,14 @@
           "reverse": false
         }
       },
-      "pluginVersion": "9.5.2",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
+          "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le, query) (rate(coderd_db_query_latencies_seconds_bucket{cluster=\"$cluster\", namespace=\"$namespace\", pod=~\"$pod\"}[$__rate_interval])))",
           "legendFormat": "__auto",
           "range": true,
@@ -1163,7 +1943,7 @@
         "h": 26,
         "w": 12,
         "x": 12,
-        "y": 34
+        "y": 58
       },
       "id": 31,
       "options": {
@@ -1195,7 +1975,8 @@
           "layout": "auto"
         },
         "tooltip": {
-          "show": true,
+          "mode": "single",
+          "showColorScale": false,
           "yHistogram": false
         },
         "yAxis": {
@@ -1203,7 +1984,7 @@
           "reverse": false
         }
       },
-      "pluginVersion": "9.5.2",
+      "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
@@ -1226,7 +2007,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 84
       },
       "id": 16,
       "panels": [],
@@ -1278,8 +2059,102 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 0,
+        "y": 85
+      },
+      "id": 45,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "sum by(pod) (rate(coderd_api_requests_processed_total{cluster=\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))",
+          "instant": true,
+          "key": "Q-2eb2f8ac-845d-462d-9bb0-b98334fbfd4a-0",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "API Requests by pod",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1291,10 +2166,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 61
+        "h": 11,
+        "w": 12,
+        "x": 12,
+        "y": 85
       },
       "id": 44,
       "options": {
@@ -1317,7 +2192,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "sum(rate(coderd_api_requests_processed_total{cluster=\"$cluster\", code=~\"5..\"}[$__rate_interval]))",
+          "expr": "sum(rate(coderd_api_requests_processed_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\", code=~\"5..\"}[$__rate_interval]))",
           "instant": true,
           "key": "Q-2eb2f8ac-845d-462d-9bb0-b98334fbfd4a-0",
           "legendFormat": "5xx",
@@ -1330,7 +2205,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(coderd_api_requests_processed_total{cluster=\"$cluster\", code=~\"4..\"}[$__rate_interval]))",
+          "expr": "sum(rate(coderd_api_requests_processed_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\", code=~\"4..\"}[$__rate_interval]))",
           "instant": true,
           "key": "Q-fe3b7389-28e7-4b2c-90ef-3b1490f99528-1",
           "legendFormat": "4xx",
@@ -1365,7 +2240,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 70
+        "y": 96
       },
       "id": 4,
       "options": {
@@ -1426,42 +2301,15 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "fillOpacity": 80,
-            "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
-            "lineWidth": 1,
             "scaleDistribution": {
               "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
             }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
           }
         },
         "overrides": []
@@ -1470,29 +2318,44 @@
         "h": 18,
         "w": 12,
         "x": 0,
-        "y": 80
+        "y": 106
       },
       "id": 33,
       "options": {
-        "barRadius": 0,
-        "barWidth": 0.97,
-        "fullHighlight": false,
-        "groupWidth": 0.7,
+        "calculate": false,
+        "cellGap": 1,
+        "cellValues": {
+          "unit": "s"
+        },
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Viridis",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-9
+        },
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+          "show": true
         },
-        "orientation": "auto",
-        "showValue": "auto",
-        "stacking": "none",
+        "rowsFrame": {
+          "layout": "auto"
+        },
         "tooltip": {
-          "mode": "single",
-          "sort": "none"
+          "show": true,
+          "yHistogram": false
         },
-        "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 200
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
+        }
       },
       "pluginVersion": "9.5.2",
       "targets": [
@@ -1510,7 +2373,7 @@
         }
       ],
       "title": "API Request Latency P95",
-      "type": "barchart"
+      "type": "heatmap"
     },
     {
       "datasource": {
@@ -1519,54 +2382,16 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
           "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 100,
-            "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "normal"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
             }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "reqps"
+          }
         },
         "overrides": []
       },
@@ -1574,19 +2399,40 @@
         "h": 18,
         "w": 12,
         "x": 12,
-        "y": 80
+        "y": 106
       },
       "id": 34,
       "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "color": {
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "mode": "scheme",
+          "reverse": false,
+          "scale": "exponential",
+          "scheme": "Viridis",
+          "steps": 64
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-9
+        },
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto"
         },
         "tooltip": {
-          "mode": "single",
-          "sort": "none"
+          "show": true,
+          "yHistogram": false
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false
         }
       },
       "pluginVersion": "9.5.2",
@@ -1605,7 +2451,7 @@
         }
       ],
       "title": "API Requests",
-      "type": "timeseries"
+      "type": "heatmap"
     },
     {
       "collapsed": false,
@@ -1613,7 +2459,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 98
+        "y": 124
       },
       "id": 40,
       "panels": [],
@@ -1665,8 +2511,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           }
@@ -1697,7 +2542,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 99
+        "y": 125
       },
       "id": 41,
       "options": {
@@ -1719,7 +2564,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "max(kube_pod_container_resource_limits{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"coder-scaletest-.*-scaletest-.*\", resource=\"cpu\"})",
+          "expr": "max(kube_pod_container_resource_limits{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"coder-scaletest-.*-scaletest-.*\", pod!=\"coder-scaletest-runner-scaletest-runner\", resource=\"cpu\"})",
           "legendFormat": "limit",
           "range": true,
           "refId": "A"
@@ -1730,14 +2575,14 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"coder-scaletest-.*-scaletest-.*\", container=\"dev\"}[$__rate_interval]))",
+          "expr": "avg(rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"coder-scaletest-.*-scaletest-.*\", pod!=\"coder-scaletest-runner-scaletest-runner\", container=\"dev\"}[$__rate_interval]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Scaletest Workspace CPU Usage",
+      "title": "Scaletest Workspace CPU Usage (Avg)",
       "type": "timeseries"
     },
     {
@@ -1757,7 +2602,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 23,
+            "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -1785,8 +2630,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -1818,7 +2662,7 @@
         "h": 16,
         "w": 12,
         "x": 12,
-        "y": 99
+        "y": 125
       },
       "id": 43,
       "options": {
@@ -1840,7 +2684,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum (rate(container_network_receive_bytes_total{cluster=~\"${cluster}\", namespace=~\"${namespace}\", pod=~\"coder-scaletest-.*-scaletest-.*\"}[$__rate_interval]))",
+          "expr": "sum(rate(container_network_receive_bytes_total{cluster=~\"${cluster}\", namespace=~\"${namespace}\", pod=~\"coder-scaletest-.*-scaletest-.*\", pod!=\"coder-scaletest-runner-scaletest-runner\"}[$__rate_interval]))",
           "format": "time_series",
           "hide": false,
           "legendFormat": "rx",
@@ -1852,15 +2696,15 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "sum(rate(container_network_transmit_bytes_total{cluster=~\"${cluster}\", namespace=~\"${namespace}\", pod=~\"coder-scaletest-.*-scaletest-.*\"}[$__rate_interval])) * -1",
+          "editorMode": "code",
+          "expr": "sum(rate(container_network_transmit_bytes_total{cluster=~\"${cluster}\", namespace=~\"${namespace}\", pod=~\"coder-scaletest-.*-scaletest-.*\", pod!=\"coder-scaletest-runner-scaletest-runner\"}[$__rate_interval])) * -1",
           "hide": false,
           "legendFormat": "tx {{pod}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Scaletest Workspace Network Usage",
+      "title": "Scaletest Workspace Network Usage (Sum)",
       "type": "timeseries"
     },
     {
@@ -1908,8 +2752,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -1941,7 +2784,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 107
+        "y": 133
       },
       "id": 42,
       "options": {
@@ -1963,7 +2806,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "max(kube_pod_container_resource_limits{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"coder-scaletest-.*-scaletest-.*\", resource=\"memory\"})",
+          "expr": "max(kube_pod_container_resource_limits{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"coder-scaletest-.*-scaletest-.*\", pod!=\"coder-scaletest-runner-scaletest-runner\", resource=\"memory\"})",
           "legendFormat": "limit",
           "range": true,
           "refId": "A"
@@ -1974,14 +2817,136 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by(pod) (container_memory_usage_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"coder-scaletest-.*-scaletest-.*\", container!=\"\"})",
+          "expr": "avg(container_memory_usage_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"coder-scaletest-.*-scaletest-.*\", pod!=\"coder-scaletest-runner-scaletest-runner\", container!=\"\"})",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "Scaletest Workspace Memory Usage",
+      "title": "Scaletest Workspace Memory Usage (Avg)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": true,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": 60000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "limit"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 12,
+        "x": 12,
+        "y": 141
+      },
+      "id": 56,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(container_network_receive_errors_total{cluster=~\"${cluster}\", namespace=~\"${namespace}\", pod=~\"coder-scaletest-.*-scaletest-.*\", pod!=\"coder-scaletest-runner-scaletest-runner\"}[$__rate_interval]))",
+          "format": "time_series",
+          "hide": false,
+          "legendFormat": "rx errs {{pod}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(container_network_transmit_errors_total{cluster=~\"${cluster}\", namespace=~\"${namespace}\", pod=~\"coder-scaletest-.*-scaletest-.*\", pod!=\"coder-scaletest-runner-scaletest-runner\"}[$__rate_interval])) * -1",
+          "hide": false,
+          "legendFormat": "tx errs {{pod}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Scaletest Workspace Network RX/TX errs (Sum)",
       "type": "timeseries"
     },
     {
@@ -1990,7 +2955,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 115
+        "y": 157
       },
       "id": 18,
       "panels": [],
@@ -2014,7 +2979,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 100,
+            "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -2042,8 +3007,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2059,7 +3023,7 @@
         "h": 18,
         "w": 12,
         "x": 0,
-        "y": 116
+        "y": 158
       },
       "id": 20,
       "options": {
@@ -2148,8 +3112,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2165,7 +3128,7 @@
         "h": 18,
         "w": 12,
         "x": 12,
-        "y": 116
+        "y": 158
       },
       "id": 38,
       "options": {
@@ -2266,8 +3229,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2283,7 +3245,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 134
+        "y": 176
       },
       "id": 3,
       "options": {
@@ -2304,11 +3266,11 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "code",
-          "expr": "sum(coderd_api_concurrent_websockets{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\", container=\"coder\"})",
+          "editorMode": "builder",
+          "expr": "sum by(pod) (coderd_api_concurrent_websockets{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\", container=\"coder\"})",
           "format": "time_series",
           "interval": "",
-          "legendFormat": "Websockets",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
@@ -2361,8 +3323,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2378,7 +3339,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 134
+        "y": 176
       },
       "id": 19,
       "options": {
@@ -2400,7 +3361,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum(coderd_agents_connections{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\"})",
+          "expr": "sum by (pod) (coderd_agents_connections{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\"})",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -2415,7 +3376,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 143
+        "y": 185
       },
       "id": 14,
       "panels": [],
@@ -2467,8 +3428,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2484,7 +3444,7 @@
         "h": 16,
         "w": 12,
         "x": 0,
-        "y": 144
+        "y": 186
       },
       "id": 11,
       "options": {
@@ -2507,7 +3467,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "sum by(pod) (rate(coderd_scaletest_bytes_written_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=\"coder-scaletest-workspace-traffic\"}[$__rate_interval])) * -1",
+          "expr": "sum by(pod) (rate(coderd_scaletest_bytes_written_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])) * -1",
           "legendFormat": "tx inside container",
           "range": true,
           "refId": "A"
@@ -2518,7 +3478,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "sum by(pod) (rate(coderd_scaletest_bytes_read_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=\"coder-scaletest-workspace-traffic\"}[$__rate_interval]))",
+          "expr": "sum by(pod) (rate(coderd_scaletest_bytes_read_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
           "hide": false,
           "legendFormat": "rx inside container",
           "range": true,
@@ -2597,8 +3557,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2614,7 +3573,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 144
+        "y": 186
       },
       "id": 12,
       "options": {
@@ -2637,7 +3596,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.95, sum by(le) (rate(coderd_scaletest_read_latency_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by(le, pod) (rate(coderd_scaletest_read_latency_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -2692,8 +3651,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2709,7 +3667,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 152
+        "y": 194
       },
       "id": 32,
       "options": {
@@ -2732,7 +3690,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "histogram_quantile(0.95, sum by(le) (rate(coderd_scaletest_write_latency_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by(le, pod) (rate(coderd_scaletest_write_latency_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval])))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -2787,8 +3745,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2803,7 +3760,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 160
+        "y": 202
       },
       "id": 13,
       "options": {
@@ -2826,7 +3783,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "sum(rate(coderd_scaletest_read_errors_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by(pod) (rate(coderd_scaletest_read_errors_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -2881,8 +3838,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2897,7 +3853,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 160
+        "y": 202
       },
       "id": 28,
       "options": {
@@ -2920,7 +3876,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "sum(rate(coderd_scaletest_write_errors_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
+          "expr": "sum by(pod) (rate(coderd_scaletest_write_errors_total{cluster=~\"$cluster\", namespace=~\"$namespace\"}[$__rate_interval]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -2975,8 +3931,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           }
@@ -3026,7 +3981,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 168
+        "y": 210
       },
       "id": 22,
       "options": {
@@ -3048,7 +4003,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",pod=\"coder-scaletest-workspace-traffic\"}[$__rate_interval]))",
+          "expr": "sum by(pod) (rate(container_cpu_usage_seconds_total{cluster=~\"$cluster\", namespace=~\"$namespace\",pod=\"coder-scaletest-runner-scaletest-runner\", container=\"dev\"}[$__rate_interval]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -3103,8 +4058,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -3155,7 +4109,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 168
+        "y": 210
       },
       "id": 23,
       "options": {
@@ -3176,8 +4130,8 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "editorMode": "builder",
-          "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=\"coder-scaletest-workspace-traffic\"})",
+          "editorMode": "code",
+          "expr": "sum by(pod) (container_memory_working_set_bytes{cluster=~\"$cluster\", namespace=~\"$namespace\",pod=\"coder-scaletest-runner-scaletest-runner\",container=\"dev\"})",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -3233,8 +4187,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -3285,7 +4238,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 168
+        "y": 210
       },
       "id": 26,
       "options": {
@@ -3307,7 +4260,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "code",
-          "expr": "sum by(pod) (increase(kube_pod_container_status_restarts_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=\"coder-scaletest-workspace-traffic\"}[$__rate_interval]))",
+          "expr": "sum by(pod) (increase(kube_pod_container_status_restarts_total{cluster=~\"$cluster\", namespace=~\"$namespace\",pod=\"coder-scaletest-runner-scaletest-runner\"}[$__rate_interval]))",
           "hide": false,
           "legendFormat": "__auto",
           "range": true,
@@ -3323,7 +4276,205 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 176
+        "y": 218
+      },
+      "id": 46,
+      "panels": [],
+      "title": "Scaletest Dashboard Actions",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 2,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 19,
+        "w": 12,
+        "x": 0,
+        "y": 219
+      },
+      "id": 47,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "histogram_quantile(0.95, sum by(le, action) (rate(coderd_scaletest_dashboard_duration_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])))",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Dashboard Actions Duration P95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 19,
+        "w": 12,
+        "x": 12,
+        "y": 219
+      },
+      "id": 49,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum by(le, action) (rate(coderd_scaletest_dashboard_errors_total{cluster=~\"$cluster\", namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Dashboard Actions Errors",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 238
       },
       "id": 17,
       "panels": [],
@@ -3376,8 +4527,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3393,7 +4543,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 177
+        "y": 239
       },
       "id": 5,
       "options": {
@@ -3497,8 +4647,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3514,7 +4663,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 177
+        "y": 239
       },
       "id": 6,
       "options": {
@@ -3617,8 +4766,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3633,7 +4781,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 184
+        "y": 246
       },
       "id": 8,
       "options": {
@@ -3709,8 +4857,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3741,6 +4888,22 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "external_daemons"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
           }
         ]
       },
@@ -3748,7 +4911,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 184
+        "y": 246
       },
       "id": 35,
       "options": {
@@ -3783,9 +4946,21 @@
           "editorMode": "code",
           "expr": "sum by(status, container) (coderd_provisionerd_num_daemons{cluster=~\"$cluster\", namespace=~\"$namespace\", container=~\"^(coder|provisionerd)$\"})",
           "hide": false,
-          "legendFormat": "daemons",
+          "legendFormat": "builtin_daemons",
           "range": true,
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "sum(kube_pod_container_status_running {cluster=~\"$cluster\", namespace=~\"coder-big\", pod=~\"coder-provisioner-.*\"})",
+          "hide": false,
+          "legendFormat": "external_daemons",
+          "range": true,
+          "refId": "C"
         }
       ],
       "title": "Concurrent Provisioner Jobs",
@@ -3793,8 +4968,7 @@
     }
   ],
   "refresh": false,
-  "schemaVersion": 38,
-  "style": "dark",
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": [
@@ -3847,7 +5021,7 @@
         "type": "query"
       },
       {
-        "allValue": "coder-.*",
+        "allValue": ".*",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -3873,13 +5047,13 @@
     ]
   },
   "time": {
-    "from": "2023-06-27T11:56:59.659Z",
-    "to": "2023-06-27T16:04:43.640Z"
+    "from": "now-6h",
+    "to": "now"
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Coder Scaletest Dashboard",
+  "title": "CoderV2 Loadtest Dashboard",
   "uid": "qLVSTR-Vz",
-  "version": 170,
+  "version": 254,
   "weekStart": ""
 }

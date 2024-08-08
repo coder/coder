@@ -31,6 +31,12 @@ export const LicenseCard: FC<LicenseCardProps> = ({
   const currentUserLimit =
     license.claims.features["user_limit"] || userLimitLimit;
 
+  const licenseType = license.claims.trial
+    ? "Trial"
+    : license.claims.feature_set?.toLowerCase() === "premium"
+      ? "Premium"
+      : "Enterprise";
+
   return (
     <Paper
       key={license.id}
@@ -64,7 +70,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
       >
         <span css={styles.licenseId}>#{license.id}</span>
         <span css={styles.accountType} className="account-type">
-          {license.claims.trial ? "Trial" : "Enterprise"}
+          {licenseType}
         </span>
         <Stack
           direction="row"

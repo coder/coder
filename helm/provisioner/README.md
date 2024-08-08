@@ -12,7 +12,7 @@ External provisioner daemons are an Enterprise feature. Contact sales@coder.com.
 > instructions on a tagged release.
 
 View
-[our docs](https://coder.com/docs/v2/latest/admin/provisioners)
+[our docs](https://coder.com/docs/admin/provisioners)
 for detailed installation instructions.
 
 ## Values

@@ -2,7 +2,7 @@
 -- ID.
 -- name: GetAuditLogsOffset :many
 SELECT
-    audit_logs.*,
+    sqlc.embed(audit_logs),
     -- sqlc.embed(users) would be nice but it does not seem to play well with
     -- left joins.
     users.username AS user_username,
@@ -18,6 +18,9 @@ SELECT
     users.deleted AS user_deleted,
     users.theme_preference AS user_theme_preference,
     users.quiet_hours_schedule AS user_quiet_hours_schedule,
+    COALESCE(organizations.name, '') AS organization_name,
+    COALESCE(organizations.display_name, '') AS organization_display_name,
+    COALESCE(organizations.icon, '') AS organization_icon,
     COUNT(audit_logs.*) OVER () AS count
 FROM
     audit_logs
@@ -46,6 +49,7 @@ FROM
 				workspaces.id = workspace_builds.workspace_id AND
 				workspace_builds.build_number = 1
 			)
+		LEFT JOIN organizations ON audit_logs.organization_id = organizations.id
 WHERE
     -- Filter resource_type
 	CASE
@@ -113,6 +117,9 @@ WHERE
             workspace_builds.reason::text = @build_reason
         ELSE true
     END
+
+	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
+	-- @authorize_filter
 ORDER BY
     "time" DESC
 LIMIT

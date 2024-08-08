@@ -126,6 +126,7 @@ main() {
 					log "Found renamed cherry-pick commit ${commit1} -> ${renamed}"
 					renamed_cherry_pick_commits[${commit1}]=${renamed}
 					renamed_cherry_pick_commits[${renamed}]=${commit1}
+					i=$((i - 1))
 					continue
 				fi
 
@@ -145,6 +146,11 @@ main() {
 			error "Invariant failed, cherry-picked commit ${commit} has no corresponding original commit"
 		fi
 		log "Found matching cherry-pick commit ${commit} -> ${renamed_cherry_pick_commits[${commit}]}"
+	done
+
+	# Merge the two maps.
+	for commit in "${!renamed_cherry_pick_commits[@]}"; do
+		cherry_pick_commits[${commit}]=${renamed_cherry_pick_commits[${commit}]}
 	done
 
 	# Get abbreviated and full commit hashes and titles for each commit.

@@ -7,13 +7,13 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type testOAuth2Provider struct {
@@ -128,7 +128,7 @@ func TestOAuth2(t *testing.T) {
 	})
 	t.Run("PresetConvertState", func(t *testing.T) {
 		t.Parallel()
-		customState := namesgenerator.GetRandomName(1)
+		customState := testutil.GetRandomName(t)
 		req := httptest.NewRequest("GET", "/?oidc_merge_state="+customState+"&redirect="+url.QueryEscape("/dashboard"), nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)

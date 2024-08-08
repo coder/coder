@@ -79,6 +79,9 @@ const (
 	// ProvisionerDaemonPSK contains the authentication pre-shared key for an external provisioner daemon
 	ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK"
 
+	// ProvisionerDaemonKey contains the authentication key for an external provisioner daemon
+	ProvisionerDaemonKey = "Coder-Provisioner-Daemon-Key"
+
 	// BuildVersionHeader contains build information of Coder.
 	BuildVersionHeader = "X-Coder-Build-Version"
 

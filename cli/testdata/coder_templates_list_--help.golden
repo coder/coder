@@ -8,9 +8,6 @@ USAGE:
   Aliases: ls
 
 OPTIONS:
-  -O, --org string, $CODER_ORGANIZATION
-          Select which organization (uuid or name) to use.
-
   -c, --column string-array (default: name,organization name,last updated,used by)
           Columns to display in table output. Available columns: name, created
           at, last updated, organization id, organization name, provisioner,

@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"cdr.dev/slog"
+
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -14,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -28,13 +31,18 @@ type EnterpriseTemplateScheduleStore struct {
 
 	// Custom time.Now() function to use in tests. Defaults to dbtime.Now().
 	TimeNowFn func() time.Time
+
+	enqueuer notifications.Enqueuer
+	logger   slog.Logger
 }
 
 var _ agpl.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 
-func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]) *EnterpriseTemplateScheduleStore {
+func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore], enqueuer notifications.Enqueuer, logger slog.Logger) *EnterpriseTemplateScheduleStore {
 	return &EnterpriseTemplateScheduleStore{
 		UserQuietHoursScheduleStore: userQuietHoursStore,
+		enqueuer:                    enqueuer,
+		logger:                      logger,
 	}
 }
 
@@ -125,7 +133,10 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		return database.Template{}, xerrors.Errorf("verify autostart requirement: %w", err)
 	}
 
-	var template database.Template
+	var (
+		template          database.Template
+		markedForDeletion []database.Workspace
+	)
 	err = db.InTx(func(tx database.Store) error {
 		ctx, span := tracing.StartSpanWithName(ctx, "(*schedule.EnterpriseTemplateScheduleStore).Set()-InTx()")
 		defer span.End()
@@ -159,7 +170,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
+		markedForDeletion, err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
 			TemplateID:                 tpl.ID,
 			TimeTilDormantAutodeleteMs: opts.TimeTilDormantAutoDelete.Milliseconds(),
 			DormantAt:                  dormantAt,
@@ -191,6 +202,28 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}, nil)
 	if err != nil {
 		return database.Template{}, err
+	}
+
+	for _, ws := range markedForDeletion {
+		_, err = s.enqueuer.Enqueue(
+			ctx,
+			ws.OwnerID,
+			notifications.TemplateWorkspaceMarkedForDeletion,
+			map[string]string{
+				"name":           ws.Name,
+				"reason":         "an update to the template's dormancy",
+				"timeTilDormant": opts.TimeTilDormantAutoDelete.String(),
+			},
+			"scheduletemplate",
+			// Associate this notification with all the related entities.
+			ws.ID,
+			ws.OwnerID,
+			ws.TemplateID,
+			ws.OrganizationID,
+		)
+		if err != nil {
+			s.logger.Warn(ctx, "failed to notify of workspace marked for deletion", slog.Error(err), slog.F("workspace_id", ws.ID))
+		}
 	}
 
 	return template, nil

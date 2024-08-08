@@ -97,6 +97,9 @@ type FakeIDP struct {
 	deviceCode *syncmap.Map[string, deviceFlow]
 
 	// hooks
+	// hookWellKnown allows mutating the returned .well-known/configuration JSON.
+	// Using this can break the IDP configuration, so be careful.
+	hookWellKnown func(r *http.Request, j *ProviderJSON) error
 	// hookValidRedirectURL can be used to reject a redirect url from the
 	// IDP -> Application. Almost all IDPs have the concept of
 	// "Authorized Redirect URLs". This can be used to emulate that.
@@ -148,6 +151,12 @@ func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeID
 func WithMiddlewares(mws ...func(http.Handler) http.Handler) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.middlewares = append(f.middlewares, mws...)
+	}
+}
+
+func WithHookWellKnown(hook func(r *http.Request, j *ProviderJSON) error) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.hookWellKnown = hook
 	}
 }
 
@@ -342,6 +351,13 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 	if idp.serve {
 		idp.realServer(t)
 	}
+
+	// Log the url to indicate which port the IDP is running on if it is
+	// being served on a real port.
+	idp.logger.Info(context.Background(),
+		"fake IDP created",
+		slog.F("issuer", idp.IssuerURL().String()),
+	)
 
 	return idp
 }
@@ -744,9 +760,18 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// This endpoint is required to initialize the OIDC provider.
 	// It is used to get the OIDC configuration.
 	mux.Get("/.well-known/openid-configuration", func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http OIDC config", slog.F("url", r.URL.String()))
+		f.logger.Info(r.Context(), "http OIDC config", slogRequestFields(r)...)
 
-		_ = json.NewEncoder(rw).Encode(f.provider)
+		cpy := f.provider
+		if f.hookWellKnown != nil {
+			err := f.hookWellKnown(r, &cpy)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		_ = json.NewEncoder(rw).Encode(cpy)
 	})
 
 	// Authorize is called when the user is redirected to the IDP to login.
@@ -754,7 +779,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// w/e and clicking "Allow". They will be redirected back to the redirect
 	// when this is done.
 	mux.Handle(authorizePath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call authorize", slog.F("url", r.URL.String()))
+		f.logger.Info(r.Context(), "http call authorize", slogRequestFields(r)...)
 
 		clientID := r.URL.Query().Get("client_id")
 		if !assert.Equal(t, f.clientID, clientID, "unexpected client_id") {
@@ -812,11 +837,12 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			values, err = f.authenticateOIDCClientRequest(t, r)
 		}
 		f.logger.Info(r.Context(), "http idp call token",
-			slog.F("url", r.URL.String()),
-			slog.F("valid", err == nil),
-			slog.F("grant_type", values.Get("grant_type")),
-			slog.F("values", values.Encode()),
-		)
+			append(slogRequestFields(r),
+				slog.F("valid", err == nil),
+				slog.F("grant_type", values.Get("grant_type")),
+				slog.F("values", values.Encode()),
+			)...)
+
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("invalid token request: %s", err.Error()), httpErrorCode(http.StatusBadRequest, err))
 			return
@@ -990,8 +1016,10 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	mux.Handle(userInfoPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		email, ok := validateMW(rw, r)
 		f.logger.Info(r.Context(), "http userinfo endpoint",
-			slog.F("valid", ok),
-			slog.F("email", email),
+			append(slogRequestFields(r),
+				slog.F("valid", ok),
+				slog.F("email", email),
+			)...,
 		)
 		if !ok {
 			return
@@ -1011,8 +1039,10 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	mux.Mount("/external-auth-validate/", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		email, ok := validateMW(rw, r)
 		f.logger.Info(r.Context(), "http external auth validate",
-			slog.F("valid", ok),
-			slog.F("email", email),
+			append(slogRequestFields(r),
+				slog.F("valid", ok),
+				slog.F("email", email),
+			)...,
 		)
 		if !ok {
 			return
@@ -1028,7 +1058,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(keysPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call idp /keys")
+		f.logger.Info(r.Context(), "http call idp /keys", slogRequestFields(r)...)
 		set := jose.JSONWebKeySet{
 			Keys: []jose.JSONWebKey{
 				{
@@ -1042,7 +1072,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(deviceVerify, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call device verify")
+		f.logger.Info(r.Context(), "http call device verify", slogRequestFields(r)...)
 
 		inputParam := "user_input"
 		userInput := r.URL.Query().Get(inputParam)
@@ -1099,7 +1129,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(deviceAuth, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call device auth")
+		f.logger.Info(r.Context(), "http call device auth", slogRequestFields(r)...)
 
 		p := httpapi.NewQueryParamParser()
 		p.RequiredNotEmpty("client_id")
@@ -1161,7 +1191,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Error(r.Context(), "http call not found", slog.F("path", r.URL.Path))
+		f.logger.Error(r.Context(), "http call not found", slogRequestFields(r)...)
 		t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
 	})
 
@@ -1359,8 +1389,11 @@ func (f *FakeIDP) AppCredentials() (clientID string, clientSecret string) {
 	return f.clientID, f.clientSecret
 }
 
-// OIDCConfig returns the OIDC config to use for Coderd.
-func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+func (f *FakeIDP) PublicKey() crypto.PublicKey {
+	return f.key.Public()
+}
+
+func (f *FakeIDP) OauthConfig(t testing.TB, scopes []string) *oauth2.Config {
 	t.Helper()
 
 	if len(scopes) == 0 {
@@ -1379,22 +1412,50 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 		RedirectURL: "https://redirect.com",
 		Scopes:      scopes,
 	}
+	f.cfg = oauthCfg
 
-	ctx := oidc.ClientContext(context.Background(), f.HTTPClient(nil))
+	return oauthCfg
+}
+
+func (f *FakeIDP) OIDCConfigSkipIssuerChecks(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+	ctx := oidc.InsecureIssuerURLContext(context.Background(), f.issuer)
+
+	return f.internalOIDCConfig(ctx, t, scopes, func(config *oidc.Config) {
+		config.SkipIssuerCheck = true
+	}, opts...)
+}
+
+func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+	return f.internalOIDCConfig(context.Background(), t, scopes, nil, opts...)
+}
+
+// OIDCConfig returns the OIDC config to use for Coderd.
+func (f *FakeIDP) internalOIDCConfig(ctx context.Context, t testing.TB, scopes []string, verifierOpt func(config *oidc.Config), opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+	t.Helper()
+
+	oauthCfg := f.OauthConfig(t, scopes)
+
+	ctx = oidc.ClientContext(ctx, f.HTTPClient(nil))
 	p, err := oidc.NewProvider(ctx, f.provider.Issuer)
 	require.NoError(t, err, "failed to create OIDC provider")
+
+	verifierConfig := &oidc.Config{
+		ClientID: oauthCfg.ClientID,
+		SupportedSigningAlgs: []string{
+			"RS256",
+		},
+		// Todo: add support for Now()
+	}
+	if verifierOpt != nil {
+		verifierOpt(verifierConfig)
+	}
+
 	cfg := &coderd.OIDCConfig{
 		OAuth2Config: oauthCfg,
 		Provider:     p,
 		Verifier: oidc.NewVerifier(f.provider.Issuer, &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{f.key.Public()},
-		}, &oidc.Config{
-			ClientID: oauthCfg.ClientID,
-			SupportedSigningAlgs: []string{
-				"RS256",
-			},
-			// Todo: add support for Now()
-		}),
+		}, verifierConfig),
 		UsernameField: "preferred_username",
 		EmailField:    "email",
 		AuthURLParams: map[string]string{"access_type": "offline"},
@@ -1407,13 +1468,12 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 		opt(cfg)
 	}
 
-	f.cfg = oauthCfg
 	return cfg
 }
 
 func (f *FakeIDP) getClaims(m *syncmap.Map[string, jwt.MapClaims], key string) (jwt.MapClaims, bool) {
 	v, ok := m.Load(key)
-	if !ok {
+	if !ok || v == nil {
 		if f.defaultIDClaims != nil {
 			return f.defaultIDClaims, true
 		}
@@ -1422,11 +1482,19 @@ func (f *FakeIDP) getClaims(m *syncmap.Map[string, jwt.MapClaims], key string) (
 	return v, true
 }
 
+func slogRequestFields(r *http.Request) []any {
+	return []any{
+		slog.F("url", r.URL.String()),
+		slog.F("host", r.Host),
+		slog.F("method", r.Method),
+	}
+}
+
 func httpErrorCode(defaultCode int, err error) int {
-	var stautsErr statusHookError
+	var statusErr statusHookError
 	status := defaultCode
-	if errors.As(err, &stautsErr) {
-		status = stautsErr.HTTPStatusCode
+	if errors.As(err, &statusErr) {
+		status = statusErr.HTTPStatusCode
 	}
 	return status
 }

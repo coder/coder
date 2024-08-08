@@ -212,6 +212,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -269,6 +270,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -341,6 +343,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -531,6 +534,33 @@ curl -X DELETE http://coder-server:8080/api/v2/licenses/{id} \
 | Status | Meaning                                                 | Description | Schema |
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update notification template dispatch method
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/notifications/templates/{notification_template}/method \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /notifications/templates/{notification_template}/method`
+
+### Parameters
+
+| Name                    | In   | Type   | Required | Description                |
+| ----------------------- | ---- | ------ | -------- | -------------------------- |
+| `notification_template` | path | string | true     | Notification template UUID |
+
+### Responses
+
+| Status | Meaning                                                         | Description  | Schema |
+| ------ | --------------------------------------------------------------- | ------------ | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | Success      |        |
+| 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not modified |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1071,6 +1101,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "name": "string",
         "status": "active",
         "theme_preference": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       }
     ],
@@ -1108,6 +1139,7 @@ Status Code **200**
 | `»» name`             | string                                                 | false    |              |             |
 | `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
 | `»» theme_preference` | string                                                 | false    |              |             |
+| `»» updated_at`       | string(date-time)                                      | false    |              |             |
 | `»» username`         | string                                                 | true     |              |             |
 | `» name`              | string                                                 | false    |              |             |
 | `» organization_id`   | string(uuid)                                           | false    |              |             |
@@ -1183,6 +1215,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -1241,6 +1274,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "name": "string",
       "status": "active",
       "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ],
@@ -1290,6 +1324,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "provisioners": ["string"],
     "tags": {
       "property1": "string",
@@ -1318,6 +1353,7 @@ Status Code **200**
 | `» id`              | string(uuid)      | false    |              |             |
 | `» last_seen_at`    | string(date-time) | false    |              |             |
 | `» name`            | string            | false    |              |             |
+| `» organization_id` | string(uuid)      | false    |              |             |
 | `» provisioners`    | array             | false    |              |             |
 | `» tags`            | object            | false    |              |             |
 | `»» [any property]` | string            | false    |              |             |
@@ -1348,6 +1384,130 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 | Status | Meaning                                                                  | Description         | Schema |
 | ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List provisioner key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/provisionerkeys`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description     |
+| -------------- | ---- | ------ | -------- | --------------- |
+| `organization` | path | string | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    }
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey) |
+
+<h3 id="list-provisioner-key-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                | Type              | Required | Restrictions | Description |
+| ------------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]`      | array             | false    |              |             |
+| `» created_at`      | string(date-time) | false    |              |             |
+| `» id`              | string(uuid)      | false    |              |             |
+| `» name`            | string            | false    |              |             |
+| `» organization`    | string(uuid)      | false    |              |             |
+| `» tags`            | object            | false    |              |             |
+| `»» [any property]` | string            | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create provisioner key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /organizations/{organization}/provisionerkeys`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description     |
+| -------------- | ---- | ------ | -------- | --------------- |
+| `organization` | path | string | true     | Organization ID |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "key": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                                   |
+| ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------------- |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateProvisionerKeyResponse](schemas.md#codersdkcreateprovisionerkeyresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete provisioner key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys/{provisionerkey} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /organizations/{organization}/provisionerkeys/{provisionerkey}`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description          |
+| ---------------- | ---- | ------ | -------- | -------------------- |
+| `organization`   | path | string | true     | Organization ID      |
+| `provisionerkey` | path | string | true     | Provisioner key name |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1606,6 +1766,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   ],
   "status": "active",
   "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -1662,6 +1823,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
     ],
     "status": "active",
     "theme_preference": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
     "username": "string"
   }
 ]
@@ -1695,6 +1857,7 @@ Status Code **200**
 | `»» organization_id` | string                                                   | false    |              |             |
 | `» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)     | false    |              |             |
 | `» theme_preference` | string                                                   | false    |              |             |
+| `» updated_at`       | string(date-time)                                        | false    |              |             |
 | `» username`         | string                                                   | true     |              |             |
 
 #### Enumerated Values
@@ -1817,6 +1980,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "name": "string",
             "status": "active",
             "theme_preference": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
             "username": "string"
           }
         ],
@@ -1837,6 +2001,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "name": "string",
         "status": "active",
         "theme_preference": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
         "username": "string"
       }
     ]
@@ -1871,6 +2036,7 @@ Status Code **200**
 | `»»» name`             | string                                                 | false    |              |             |
 | `»»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
 | `»»» theme_preference` | string                                                 | false    |              |             |
+| `»»» updated_at`       | string(date-time)                                      | false    |              |             |
 | `»»» username`         | string                                                 | true     |              |             |
 | `»» name`              | string                                                 | false    |              |             |
 | `»» organization_id`   | string(uuid)                                           | false    |              |             |

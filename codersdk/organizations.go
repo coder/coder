@@ -39,16 +39,20 @@ func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
 	}
 }
 
-// Organization is the JSON representation of a Coder organization.
-type Organization struct {
+type MinimalOrganization struct {
 	ID          uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
 	Name        string    `table:"name,default_sort" json:"name"`
 	DisplayName string    `table:"display_name" json:"display_name"`
-	Description string    `table:"description" json:"description"`
-	CreatedAt   time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt   time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
-	IsDefault   bool      `table:"default" json:"is_default" validate:"required"`
 	Icon        string    `table:"icon" json:"icon"`
+}
+
+// Organization is the JSON representation of a Coder organization.
+type Organization struct {
+	MinimalOrganization `table:"m,recursive_inline"`
+	Description         string    `table:"description" json:"description"`
+	CreatedAt           time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt           time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
+	IsDefault           bool      `table:"default" json:"is_default" validate:"required"`
 }
 
 func (o Organization) HumanName() string {
@@ -66,8 +70,12 @@ type OrganizationMember struct {
 	Roles          []SlimRole `table:"organization_roles" json:"roles"`
 }
 
-type OrganizationMemberWithName struct {
-	Username           string `table:"username,default_sort" json:"username"`
+type OrganizationMemberWithUserData struct {
+	Username           string     `table:"username,default_sort" json:"username"`
+	Name               string     `table:"name" json:"name"`
+	AvatarURL          string     `json:"avatar_url"`
+	Email              string     `json:"email"`
+	GlobalRoles        []SlimRole `json:"global_roles"`
 	OrganizationMember `table:"m,recursive_inline"`
 }
 
@@ -212,6 +220,21 @@ func (c *Client) OrganizationByName(ctx context.Context, name string) (Organizat
 	return organization, json.NewDecoder(res.Body).Decode(&organization)
 }
 
+func (c *Client) Organizations(ctx context.Context) ([]Organization, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/organizations", nil)
+	if err != nil {
+		return []Organization{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return []Organization{}, ReadBodyAsError(res)
+	}
+
+	var organizations []Organization
+	return organizations, json.NewDecoder(res.Body).Decode(&organizations)
+}
+
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {
 	// OrganizationByName uses the exact same endpoint. It accepts a name or uuid.
 	// We just provide this function for type safety.
@@ -272,6 +295,24 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 	res, err := c.Request(ctx, http.MethodGet,
 		// TODO: the organization path parameter is currently ignored.
 		"/api/v2/organizations/default/provisionerdaemons",
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var daemons []ProvisionerDaemon
+	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
+}
+
+func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String()),
 		nil,
 	)
 	if err != nil {
@@ -365,6 +406,7 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 
 type TemplateFilter struct {
 	OrganizationID uuid.UUID
+	ExactName      string
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -376,6 +418,10 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 		// string.
 		if f.OrganizationID != uuid.Nil {
 			params = append(params, fmt.Sprintf("organization:%q", f.OrganizationID.String()))
+		}
+
+		if f.ExactName != "" {
+			params = append(params, fmt.Sprintf("exact_name:%q", f.ExactName))
 		}
 
 		q := r.URL.Query()
@@ -427,8 +473,15 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 }
 
 // CreateWorkspace creates a new workspace for the template specified.
-func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, user string, request CreateWorkspaceRequest) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s/workspaces", organizationID, user), request)
+//
+// Deprecated: Use CreateUserWorkspace instead.
+func (c *Client) CreateWorkspace(ctx context.Context, _ uuid.UUID, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	return c.CreateUserWorkspace(ctx, user, request)
+}
+
+// CreateUserWorkspace creates a new workspace for the template specified.
+func (c *Client) CreateUserWorkspace(ctx context.Context, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
 	if err != nil {
 		return Workspace{}, err
 	}

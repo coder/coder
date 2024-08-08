@@ -9,9 +9,11 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -108,5 +110,94 @@ func TestEditOrganizationRoles(t *testing.T) {
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, "not allowed to assign site wide permissions for an organization role")
+	})
+}
+
+func TestShowOrganizations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OnlyID", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				DeploymentValues:         dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations:      1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+
+		// Owner is required to make orgs
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleOwner())
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		orgs := []string{"foo", "bar"}
+		for _, orgName := range orgs {
+			_, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+				Name: orgName,
+			})
+			require.NoError(t, err)
+		}
+
+		inv, root := clitest.New(t, "organizations", "show", "--only-id", "--org="+first.OrganizationID.String())
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+		errC := make(chan error)
+		go func() {
+			errC <- inv.Run()
+		}()
+		require.NoError(t, <-errC)
+		pty.ExpectMatch(first.OrganizationID.String())
+	})
+
+	t.Run("UsingFlag", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				DeploymentValues:         dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations:      1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+
+		// Owner is required to make orgs
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleOwner())
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		orgs := map[string]codersdk.Organization{
+			"foo": {},
+			"bar": {},
+		}
+		for orgName := range orgs {
+			org, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+				Name: orgName,
+			})
+			require.NoError(t, err)
+			orgs[orgName] = org
+		}
+
+		inv, root := clitest.New(t, "organizations", "show", "selected", "--only-id", "-O=bar")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+		errC := make(chan error)
+		go func() {
+			errC <- inv.Run()
+		}()
+		require.NoError(t, <-errC)
+		pty.ExpectMatch(orgs["bar"].ID.String())
 	})
 }

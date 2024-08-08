@@ -1097,17 +1097,17 @@ func TestPreviousTemplateVersion(t *testing.T) {
 	})
 }
 
-func TestTemplateExamples(t *testing.T) {
+func TestStarterTemplates(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		ex, err := client.TemplateExamples(ctx, user.OrganizationID)
+		ex, err := client.StarterTemplates(ctx)
 		require.NoError(t, err)
 		ls, err := examples.List()
 		require.NoError(t, err)
@@ -1597,7 +1597,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 			req.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+		workspace := coderdtest.CreateWorkspace(t, client, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
 			request.TemplateVersionID = used.ID
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)

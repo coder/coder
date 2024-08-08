@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { createTemplate } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { pageTitle } from "utils/page";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
@@ -14,6 +15,7 @@ import { UploadTemplateView } from "./UploadTemplateView";
 
 const CreateTemplatePage: FC = () => {
   const navigate = useNavigate();
+  const getLink = useLinks();
   const [searchParams] = useSearchParams();
   const [isBuildLogsOpen, setIsBuildLogsOpen] = useState(false);
   const [templateVersion, setTemplateVersion] = useState<TemplateVersion>();
@@ -32,7 +34,9 @@ const CreateTemplatePage: FC = () => {
         onCreateVersion: setTemplateVersion,
         onTemplateVersionChanges: setTemplateVersion,
       });
-      navigate(`/templates/${template.name}/files`);
+      navigate(
+        `${getLink(linkToTemplate(options.organization, template.name))}/files`,
+      );
     },
     onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
     error: createTemplateMutation.error,

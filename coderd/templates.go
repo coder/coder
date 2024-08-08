@@ -791,7 +791,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 	if updated.UpdatedAt.IsZero() {
 		aReq.New = template
-		httpapi.Write(ctx, rw, http.StatusNotModified, nil)
+		rw.WriteHeader(http.StatusNotModified)
 		return
 	}
 	aReq.New = updated
@@ -821,13 +821,41 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.TemplateExample
 // @Router /organizations/{organization}/templates/examples [get]
-func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
+// @Deprecated Use /templates/examples instead
+func (api *API) templateExamplesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
 		organization = httpmw.OrganizationParam(r)
 	)
 
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	ex, err := examples.List()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching examples.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, ex)
+}
+
+// @Summary Get template examples
+// @ID get-template-examples
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Success 200 {array} codersdk.TemplateExample
+// @Router /templates/examples [get]
+func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.AnyOrganization()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -886,6 +914,8 @@ func (api *API) convertTemplate(
 		UpdatedAt:                      template.UpdatedAt,
 		OrganizationID:                 template.OrganizationID,
 		OrganizationName:               template.OrganizationName,
+		OrganizationDisplayName:        template.OrganizationDisplayName,
+		OrganizationIcon:               template.OrganizationIcon,
 		Name:                           template.Name,
 		DisplayName:                    template.DisplayName,
 		Provisioner:                    codersdk.ProvisionerType(template.Provisioner),

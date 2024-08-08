@@ -18,7 +18,7 @@ func TestAsAuthzSystem(t *testing.T) {
 	t.Parallel()
 	userActor := coderdtest.RandomRBACSubject()
 
-	base := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+	base := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		actor, ok := dbauthz.ActorFromContext(r.Context())
 		assert.True(t, ok, "actor should exist")
 		assert.True(t, userActor.Equal(actor), "actor should be the user actor")
@@ -80,7 +80,7 @@ func TestAsAuthzSystem(t *testing.T) {
 			mwAssertUser,
 		)
 		r.Handle("/", base)
-		r.NotFound(func(writer http.ResponseWriter, request *http.Request) {
+		r.NotFound(func(http.ResponseWriter, *http.Request) {
 			assert.Fail(t, "should not hit not found, the route should be correct")
 		})
 	})

@@ -26,7 +26,7 @@ type APIVersion struct {
 }
 
 func (v *APIVersion) WithBackwardCompat(majs ...int) *APIVersion {
-	v.additionalMajors = append(v.additionalMajors, majs[:]...)
+	v.additionalMajors = append(v.additionalMajors, majs...)
 	return v
 }
 

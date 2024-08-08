@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -154,6 +155,8 @@ type Options struct {
 	DatabaseRolluper                   *dbrollup.Rolluper
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
+
+	NotificationsEnqueuer notifications.Enqueuer
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -201,7 +204,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options = &Options{}
 	}
 	if options.Logger == nil {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("coderd")
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
 		options.Logger = &logger
 	}
 	if options.GoogleTokenValidator == nil {
@@ -236,6 +239,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	}
+
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = new(testutil.FakeNotificationsEnqueuer)
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -282,6 +289,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.StatsBatcher = batcher
 		t.Cleanup(closeBatcher)
 	}
+	if options.NotificationsEnqueuer == nil {
+		options.NotificationsEnqueuer = &testutil.FakeNotificationsEnqueuer{}
+	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
@@ -305,6 +315,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		accessControlStore,
 		*options.Logger,
 		options.AutobuildTicker,
+		options.NotificationsEnqueuer,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
@@ -498,6 +509,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			NewTicker:                          options.NewTicker,
 			DatabaseRolluper:                   options.DatabaseRolluper,
 			WorkspaceUsageTracker:              wuTracker,
+			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 		}
 }
 
@@ -526,14 +538,18 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	return client, provisionerCloser, coderAPI
 }
 
-// provisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
-type provisionerdCloser struct {
+// ProvisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
+type ProvisionerdCloser struct {
 	mu     sync.Mutex
 	closed bool
 	d      *provisionerd.Server
 }
 
-func (c *provisionerdCloser) Close() error {
+func NewProvisionerDaemonCloser(d *provisionerd.Server) *ProvisionerdCloser {
+	return &ProvisionerdCloser{d: d}
+}
+
+func (c *ProvisionerdCloser) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed {
@@ -593,65 +609,10 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
 	})
-	closer := &provisionerdCloser{d: daemon}
+	closer := NewProvisionerDaemonCloser(daemon)
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
-	return closer
-}
-
-func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
-	t.Helper()
-
-	// Without this check, the provisioner will silently fail.
-	entitlements, err := client.Entitlements(context.Background())
-	if err == nil {
-		feature := entitlements.Features[codersdk.FeatureExternalProvisionerDaemons]
-		if !feature.Enabled || feature.Entitlement != codersdk.EntitlementEntitled {
-			require.NoError(t, xerrors.Errorf("external provisioner daemons require an entitled license"))
-			return nil
-		}
-	}
-
-	echoClient, echoServer := drpc.MemTransportPipe()
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	serveDone := make(chan struct{})
-	t.Cleanup(func() {
-		_ = echoClient.Close()
-		_ = echoServer.Close()
-		cancelFunc()
-		<-serveDone
-	})
-	go func() {
-		defer close(serveDone)
-		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
-			Listener:      echoServer,
-			WorkDirectory: t.TempDir(),
-		})
-		assert.NoError(t, err)
-	}()
-
-	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
-			ID:           uuid.New(),
-			Name:         t.Name(),
-			Organization: org,
-			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
-			Tags:         tags,
-		})
-	}, &provisionerd.Options{
-		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
-		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: 5 * time.Second,
-		Connector: provisionerd.LocalProvisioners{
-			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
-		},
-	})
-	closer := &provisionerdCloser{d: daemon}
-	t.Cleanup(func() {
-		_ = closer.Close()
-	})
-
 	return closer
 }
 
@@ -796,45 +757,31 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		user, err = client.UpdateUserRoles(context.Background(), user.ID.String(), codersdk.UpdateRoles{Roles: db2sdk.List(siteRoles, onlyName)})
 		require.NoError(t, err, "update site roles")
 
+		// isMember keeps track of which orgs the user was added to as a member
+		isMember := map[uuid.UUID]bool{
+			organizationID: true,
+		}
+
 		// Update org roles
 		for orgID, roles := range orgRoles {
+			// The user must be an organization of any orgRoles, so insert
+			// the organization member, then assign the roles.
+			if !isMember[orgID] {
+				_, err = client.PostOrganizationMember(context.Background(), orgID, user.ID.String())
+				require.NoError(t, err, "add user to organization as member")
+			}
+
 			_, err = client.UpdateOrganizationMemberRoles(context.Background(), orgID, user.ID.String(),
 				codersdk.UpdateRoles{Roles: db2sdk.List(roles, onlyName)})
 			require.NoError(t, err, "update org membership roles")
+			isMember[orgID] = true
 		}
 	}
+
+	user, err = client.User(context.Background(), user.Username)
+	require.NoError(t, err, "update final user")
+
 	return other, user
-}
-
-type CreateOrganizationOptions struct {
-	// IncludeProvisionerDaemon will spin up an external provisioner for the organization.
-	// This requires enterprise and the feature 'codersdk.FeatureExternalProvisionerDaemons'
-	IncludeProvisionerDaemon bool
-}
-
-func CreateOrganization(t *testing.T, client *codersdk.Client, opts CreateOrganizationOptions, mutators ...func(*codersdk.CreateOrganizationRequest)) codersdk.Organization {
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	req := codersdk.CreateOrganizationRequest{
-		Name:        strings.ReplaceAll(strings.ToLower(namesgenerator.GetRandomName(0)), "_", "-"),
-		DisplayName: namesgenerator.GetRandomName(1),
-		Description: namesgenerator.GetRandomName(1),
-		Icon:        "",
-	}
-	for _, mutator := range mutators {
-		mutator(&req)
-	}
-
-	org, err := client.CreateOrganization(ctx, req)
-	require.NoError(t, err)
-
-	if opts.IncludeProvisionerDaemon {
-		closer := NewExternalProvisionerDaemon(t, client, org.ID, map[string]string{})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
-	}
-
-	return org
 }
 
 // CreateTemplateVersion creates a template import provisioner job
@@ -1117,7 +1064,7 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 // CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
 // To customize the defaults, pass a mutator func.
-func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
@@ -1129,7 +1076,7 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UU
 	for _, mutator := range mutators {
 		mutator(&req)
 	}
-	workspace, err := client.CreateWorkspace(context.Background(), organization, codersdk.Me, req)
+	workspace, err := client.CreateUserWorkspace(context.Background(), codersdk.Me, req)
 	require.NoError(t, err)
 	return workspace
 }

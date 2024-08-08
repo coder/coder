@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -46,7 +45,7 @@ func TestAuditLogs(t *testing.T) {
 		require.Len(t, alogs.AuditLogs, 1)
 	})
 
-	t.Run("User", func(t *testing.T) {
+	t.Run("IncludeUser", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -107,7 +106,7 @@ func TestAuditLogs(t *testing.T) {
 		)
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		buildResourceInfo := audit.AdditionalFields{
@@ -159,24 +158,22 @@ func TestAuditLogs(t *testing.T) {
 
 		// Add an extra audit log in another organization
 		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			ResourceID:     owner.UserID,
-			OrganizationID: uuid.New(),
+			ResourceID: owner.UserID,
 		})
 		require.NoError(t, err)
 
-		// Fetching audit logs without an organization selector should fail
-		_, err = orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		// Fetching audit logs without an organization selector should only
+		// return organization audit logs the org admin is an admin of.
+		alogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
 				Limit: 5,
 			},
 		})
-		var sdkError *codersdk.Error
-		require.Error(t, err)
-		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
-		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+		require.NoError(t, err)
+		require.Len(t, alogs.AuditLogs, 1)
 
 		// Using the organization selector allows the org admin to fetch audit logs
-		alogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		alogs, err = orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			SearchQuery: fmt.Sprintf("organization:%s", owner.OrganizationID.String()),
 			Pagination: codersdk.Pagination{
 				Limit: 5,
@@ -237,7 +234,7 @@ func TestAuditLogsFilter(t *testing.T) {
 		)
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 
 		// Create two logs with "Create"
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{

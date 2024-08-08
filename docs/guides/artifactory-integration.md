@@ -37,9 +37,9 @@ two type of modules that automate the JFrog Artifactory and Coder integration.
 
 This module is usable by JFrog self-hosted (on-premises) Artifactory as it
 requires configuring a custom integration. This integration benefits from
-Coder's [external-auth](https://coder.com/docs/v2/latest/admin/external-auth)
-feature and allows each user to authenticate with Artifactory using an OAuth
-flow and issues user-scoped tokens to each user.
+Coder's [external-auth](https://coder.com/docs/admin/external-auth) feature and
+allows each user to authenticate with Artifactory using an OAuth flow and issues
+user-scoped tokens to each user.
 
 To set this up, follow these steps:
 
@@ -72,8 +72,8 @@ artifactory:
 ![JFrog Platform new integration](../images/guides/artifactory-integration/jfrog-oauth-app.png)
 
 3. Add a new
-   [external authentication](https://coder.com/docs/v2/latest/admin/external-auth)
-   to Coder by setting these env variables,
+   [external authentication](https://coder.com/docs/admin/external-auth) to
+   Coder by setting these env variables,
 
 ```env
 # JFrog Artifactory External Auth

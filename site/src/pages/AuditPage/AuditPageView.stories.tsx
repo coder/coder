@@ -10,7 +10,12 @@ import {
 } from "components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import { chromaticWithTablet } from "testHelpers/chromatic";
-import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities";
+import {
+  MockAuditLog,
+  MockAuditLog2,
+  MockAuditLog3,
+  MockUser,
+} from "testHelpers/entities";
 import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
@@ -21,6 +26,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
     username: MockUser.username,
     action: undefined,
     resource_type: undefined,
+    organization: undefined,
   },
   menus: {
     user: MockMenu,
@@ -33,9 +39,10 @@ const meta: Meta<typeof AuditPageView> = {
   title: "pages/AuditPage",
   component: AuditPageView,
   args: {
-    auditLogs: [MockAuditLog, MockAuditLog2],
+    auditLogs: [MockAuditLog, MockAuditLog2, MockAuditLog3],
     isAuditLogVisible: true,
     filterProps: defaultFilterProps,
+    showOrgDetails: false,
   },
 };
 
@@ -83,5 +90,20 @@ export const NotVisible: Story = {
   args: {
     isAuditLogVisible: false,
     auditsQuery: mockInitialRenderResult,
+  },
+};
+
+export const MultiOrg: Story = {
+  parameters: { chromatic: chromaticWithTablet },
+  args: {
+    showOrgDetails: true,
+    auditsQuery: mockSuccessResult,
+    filterProps: {
+      ...defaultFilterProps,
+      menus: {
+        ...defaultFilterProps.menus,
+        organization: MockMenu,
+      },
+    },
   },
 };

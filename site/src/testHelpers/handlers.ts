@@ -41,11 +41,11 @@ export const handlers = [
   }),
 
   // organizations
+  http.get("/api/v2/organizations", () => {
+    return HttpResponse.json([M.MockDefaultOrganization]);
+  }),
   http.get("/api/v2/organizations/:organizationId", () => {
     return HttpResponse.json(M.MockOrganization);
-  }),
-  http.get("api/v2/organizations/:organizationId/templates/examples", () => {
-    return HttpResponse.json([M.MockTemplateExample, M.MockTemplateExample2]);
   }),
   http.get(
     "/api/v2/organizations/:organizationId/templates/:templateId",
@@ -56,8 +56,31 @@ export const handlers = [
   http.get("/api/v2/organizations/:organizationId/templates", () => {
     return HttpResponse.json([M.MockTemplate]);
   }),
+  http.get("/api/v2/organizations/:organizationId/members/roles", () => {
+    return HttpResponse.json([
+      M.MockOrganizationAdminRole,
+      M.MockOrganizationUserAdminRole,
+      M.MockOrganizationTemplateAdminRole,
+      M.MockOrganizationAuditorRole,
+    ]);
+  }),
+  http.get("/api/v2/organizations/:organizationId/members", () => {
+    return HttpResponse.json([
+      M.MockOrganizationMember,
+      M.MockOrganizationMember2,
+    ]);
+  }),
+  http.delete(
+    `/api/v2/organizations/:organizationId/members/:userId`,
+    async () => {
+      return new HttpResponse(null, { status: 204 });
+    },
+  ),
 
   // templates
+  http.get("/api/v2/templates/examples", () => {
+    return HttpResponse.json([M.MockTemplateExample, M.MockTemplateExample2]);
+  }),
   http.get("/api/v2/templates/:templateId", () => {
     return HttpResponse.json(M.MockTemplate);
   }),
