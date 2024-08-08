@@ -16,13 +16,7 @@ jest.spyOn(console, "error").mockImplementation(() => {});
 const renderRootPage = async () => {
   renderWithManagementSettingsLayout(<OrganizationSettingsPage />, {
     route: "/organizations",
-    path: "/organizations",
-    extraRoutes: [
-      {
-        path: "/organizations/:organization",
-        element: <OrganizationSettingsPage />,
-      },
-    ],
+    path: "/organizations/:organization?",
   });
   await waitForLoaderToBeRemoved();
 };
