@@ -1583,7 +1583,7 @@ ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY custom_roles
-    ADD CONSTRAINT custom_roles_pkey PRIMARY KEY (name);
+    ADD CONSTRAINT custom_roles_unique_key UNIQUE (name, organization_id);
 
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);

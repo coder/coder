@@ -880,7 +880,7 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 }
 
 func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
-	role, err := db.UpsertCustomRole(genCtx, database.UpsertCustomRoleParams{
+	role, err := db.InsertCustomRole(genCtx, database.InsertCustomRoleParams{
 		Name:            takeFirst(seed.Name, strings.ToLower(testutil.GetRandomName(t))),
 		DisplayName:     testutil.GetRandomName(t),
 		OrganizationID:  seed.OrganizationID,
