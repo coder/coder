@@ -153,7 +153,7 @@ func (r *RootCmd) editOrganizationRole(orgContext *OrganizationContext) *serpent
 				return err
 			}
 
-			createNewRole := false
+			createNewRole := true
 			var customRole codersdk.Role
 			if jsonInput {
 				// JSON Upload mode
@@ -174,6 +174,18 @@ func (r *RootCmd) editOrganizationRole(orgContext *OrganizationContext) *serpent
 						return xerrors.Errorf("the input appears to be an array, only 1 role can be sent at a time")
 					}
 					return xerrors.Errorf("json input does not appear to be a valid role")
+				}
+
+				existingRoles, err := client.ListOrganizationRoles(ctx, org.ID)
+				if err != nil {
+					return xerrors.Errorf("listing existing roles: %w", err)
+				}
+				for _, existingRole := range existingRoles {
+					if strings.EqualFold(customRole.Name, existingRole.Name) {
+						// Editing an existing role
+						createNewRole = false
+						break
+					}
 				}
 			} else {
 				if len(inv.Args) == 0 {
