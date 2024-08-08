@@ -98,7 +98,7 @@ func TestInsertCustomRoles(t *testing.T) {
 			org: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceWorkspace: {codersdk.ActionRead},
 			}),
-			errorContains: "cannot assign both org and site permissions",
+			errorContains: "organization roles specify site or user permissions",
 		},
 		{
 			name:    "invalid-action",

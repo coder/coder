@@ -340,10 +340,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleUserAdmin(),
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate},
+			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
 			// Need organization assign as well to create users. At present, creating a user
 			// will always assign them to some organization.
-			ResourceAssignOrgRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate},
+			ResourceAssignOrgRole.Type: {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
 			ResourceUser.Type: {
 				policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete,
 				policy.ActionUpdatePersonal, policy.ActionReadPersonal,
@@ -458,7 +458,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
 						// Assign, remove, and read roles in the organization.
-						ResourceAssignOrgRole.Type:      {policy.ActionAssign, policy.ActionDelete, policy.ActionRead, policy.ActionUpdate},
+						ResourceAssignOrgRole.Type:      {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
 						ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 						ResourceGroup.Type:              ResourceGroup.AvailableActions(),
 					}),

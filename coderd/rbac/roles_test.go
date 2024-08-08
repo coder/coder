@@ -280,7 +280,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "CreateCustomRole",
-			Actions:  []policy.Action{policy.ActionCreate},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
 			Resource: rbac.ResourceAssignRole,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
@@ -316,7 +316,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "CreateOrgRoleAssignment",
-			Actions:  []policy.Action{policy.ActionCreate},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
 			Resource: rbac.ResourceAssignOrgRole.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
