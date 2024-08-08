@@ -1,4 +1,4 @@
 packages:
-  # - "offlinedocs"
-  # - "scripts/*"
+  - "offlinedocs"
+  - "scripts/*"
   - "site"
