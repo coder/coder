@@ -2543,6 +2543,114 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
+func (q *querier) InsertCustomRole(ctx context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
+	// Org and site role upsert share the same query. So switch the assertion based on the org uuid.
+	if arg.OrganizationID.UUID != uuid.Nil {
+		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+			return database.CustomRole{}, err
+		}
+	} else {
+		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
+			return database.CustomRole{}, err
+		}
+	}
+
+	if err := q.customRoleCheck(ctx, database.CustomRole{
+		Name:            arg.Name,
+		DisplayName:     arg.DisplayName,
+		SitePermissions: arg.SitePermissions,
+		OrgPermissions:  arg.OrgPermissions,
+		UserPermissions: arg.UserPermissions,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+		OrganizationID:  arg.OrganizationID,
+		ID:              uuid.New(),
+	}); err != nil {
+		return database.CustomRole{}, err
+	}
+	return q.db.InsertCustomRole(ctx, arg)
+}
+
+// customRoleCheck will validate a custom role for inserting or updating.
+// If the role is not valid, an error will be returned.
+// - Check custom roles are valid for their resource types + actions
+// - Check the actor can create the custom role
+// - Check the custom role does not grant perms the actor does not have
+// - Prevent negative perms
+// - Prevent roles with site and org permissions.
+func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole) error {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return NoActorError
+	}
+
+	// Org permissions require an org role
+	if role.OrganizationID.UUID == uuid.Nil && len(role.OrgPermissions) > 0 {
+		return xerrors.Errorf("organization permissions require specifying an organization id")
+	}
+
+	// Org roles can only specify org permissions
+	if role.OrganizationID.UUID != uuid.Nil && (len(role.SitePermissions) > 0 || len(role.UserPermissions) > 0) {
+		return xerrors.Errorf("organization roles specify site or user permissions")
+	}
+
+	// The rbac.Role has a 'Valid()' function on it that will do a lot
+	// of checks.
+	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
+		Name:            role.Name,
+		DisplayName:     role.DisplayName,
+		SitePermissions: role.SitePermissions,
+		OrgPermissions:  role.OrgPermissions,
+		UserPermissions: role.UserPermissions,
+		OrganizationID:  role.OrganizationID,
+	})
+	if err != nil {
+		return xerrors.Errorf("invalid args: %w", err)
+	}
+
+	err = rbacRole.Valid()
+	if err != nil {
+		return xerrors.Errorf("invalid role: %w", err)
+	}
+
+	if len(rbacRole.Org) > 0 && len(rbacRole.Site) > 0 {
+		// This is a choice to keep roles simple. If we allow mixing site and org scoped perms, then knowing who can
+		// do what gets more complicated.
+		return xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
+	}
+
+	if len(rbacRole.Org) > 1 {
+		// Again to avoid more complexity in our roles
+		return xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
+	}
+
+	// Prevent escalation
+	for _, sitePerm := range rbacRole.Site {
+		err := q.customRoleEscalationCheck(ctx, act, sitePerm, rbac.Object{Type: sitePerm.ResourceType})
+		if err != nil {
+			return xerrors.Errorf("site permission: %w", err)
+		}
+	}
+
+	for orgID, perms := range rbacRole.Org {
+		for _, orgPerm := range perms {
+			err := q.customRoleEscalationCheck(ctx, act, orgPerm, rbac.Object{OrgID: orgID, Type: orgPerm.ResourceType})
+			if err != nil {
+				return xerrors.Errorf("org=%q: %w", orgID, err)
+			}
+		}
+	}
+
+	for _, userPerm := range rbacRole.User {
+		err := q.customRoleEscalationCheck(ctx, act, userPerm, rbac.Object{Type: userPerm.ResourceType, Owner: act.ID})
+		if err != nil {
+			return xerrors.Errorf("user permission: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (q *querier) InsertDBCryptKey(ctx context.Context, arg database.InsertDBCryptKeyParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -2992,6 +3100,10 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -3654,91 +3766,6 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertApplicationName(ctx, value)
-}
-
-// UpsertCustomRole does a series of authz checks to protect custom roles.
-// - Check custom roles are valid for their resource types + actions
-// - Check the actor can create the custom role
-// - Check the custom role does not grant perms the actor does not have
-// - Prevent negative perms
-// - Prevent roles with site and org permissions.
-func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
-	act, ok := ActorFromContext(ctx)
-	if !ok {
-		return database.CustomRole{}, NoActorError
-	}
-
-	// Org and site role upsert share the same query. So switch the assertion based on the org uuid.
-	if arg.OrganizationID.UUID != uuid.Nil {
-		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
-			return database.CustomRole{}, err
-		}
-	} else {
-		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
-			return database.CustomRole{}, err
-		}
-	}
-
-	if arg.OrganizationID.UUID == uuid.Nil && len(arg.OrgPermissions) > 0 {
-		return database.CustomRole{}, xerrors.Errorf("organization permissions require specifying an organization id")
-	}
-
-	// There is quite a bit of validation we should do here.
-	// The rbac.Role has a 'Valid()' function on it that will do a lot
-	// of checks.
-	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
-		Name:            arg.Name,
-		DisplayName:     arg.DisplayName,
-		SitePermissions: arg.SitePermissions,
-		OrgPermissions:  arg.OrgPermissions,
-		UserPermissions: arg.UserPermissions,
-		OrganizationID:  arg.OrganizationID,
-	})
-	if err != nil {
-		return database.CustomRole{}, xerrors.Errorf("invalid args: %w", err)
-	}
-
-	err = rbacRole.Valid()
-	if err != nil {
-		return database.CustomRole{}, xerrors.Errorf("invalid role: %w", err)
-	}
-
-	if len(rbacRole.Org) > 0 && len(rbacRole.Site) > 0 {
-		// This is a choice to keep roles simple. If we allow mixing site and org scoped perms, then knowing who can
-		// do what gets more complicated.
-		return database.CustomRole{}, xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
-	}
-
-	if len(rbacRole.Org) > 1 {
-		// Again to avoid more complexity in our roles
-		return database.CustomRole{}, xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
-	}
-
-	// Prevent escalation
-	for _, sitePerm := range rbacRole.Site {
-		err := q.customRoleEscalationCheck(ctx, act, sitePerm, rbac.Object{Type: sitePerm.ResourceType})
-		if err != nil {
-			return database.CustomRole{}, xerrors.Errorf("site permission: %w", err)
-		}
-	}
-
-	for orgID, perms := range rbacRole.Org {
-		for _, orgPerm := range perms {
-			err := q.customRoleEscalationCheck(ctx, act, orgPerm, rbac.Object{OrgID: orgID, Type: orgPerm.ResourceType})
-			if err != nil {
-				return database.CustomRole{}, xerrors.Errorf("org=%q: %w", orgID, err)
-			}
-		}
-	}
-
-	for _, userPerm := range rbacRole.User {
-		err := q.customRoleEscalationCheck(ctx, act, userPerm, rbac.Object{Type: userPerm.ResourceType, Owner: act.ID})
-		if err != nil {
-			return database.CustomRole{}, xerrors.Errorf("user permission: %w", err)
-		}
-	}
-
-	return q.db.UpsertCustomRole(ctx, arg)
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
