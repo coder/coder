@@ -2,13 +2,12 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router-dom";
 import { organizationsPermissions } from "api/queries/organizations";
-import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import {
   canEditOrganization,
   useOrganizationSettings,
 } from "./ManagementSettingsLayout";
-import { SidebarView } from "./SidebarView";
+import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
 
 /**
  * A combined deployment settings and organization menu.
@@ -34,11 +33,19 @@ export const Sidebar: FC = () => {
   // can manage in some way.
   const editableOrgs = organizations
     ?.map((org) => {
-      const permissions = orgPermissionsQuery.data?.[org.id];
-      return [org, permissions] as [Organization, AuthorizationResponse];
+      return {
+        ...org,
+        permissions: orgPermissionsQuery.data?.[org.id],
+      };
     })
-    .filter(([_, permissions]) => {
-      return canEditOrganization(permissions);
+    // TypeScript is not able to infer whether permissions are defined from the
+    // canEditOrganization call, so although redundant this helps figure it out.
+    .filter(
+      (org): org is OrganizationWithPermissions =>
+        org.permissions !== undefined,
+    )
+    .filter((org) => {
+      return canEditOrganization(org.permissions);
     });
 
   return (

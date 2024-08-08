@@ -12,13 +12,17 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { linkToAuditing, linkToUsers, withFilter } from "modules/navigation";
 
+export interface OrganizationWithPermissions extends Organization {
+  permissions: AuthorizationResponse;
+}
+
 interface SidebarProps {
   /** True if a settings page is being viewed. */
   activeSettings: boolean;
   /** The active org name, if any.  Overrides activeSettings. */
   activeOrganizationName: string | undefined;
   /** Organizations and their permissions or undefined if still fetching. */
-  organizations: [Organization, AuthorizationResponse][] | undefined;
+  organizations: OrganizationWithPermissions[] | undefined;
   /** Site-wide permissions. */
   permissions: AuthorizationResponse;
 }
@@ -137,7 +141,7 @@ interface OrganizationsSettingsNavigationProps {
   /** The active org name if an org is being viewed. */
   activeOrganizationName: string | undefined;
   /** Organizations and their permissions or undefined if still fetching. */
-  organizations: [Organization, AuthorizationResponse][] | undefined;
+  organizations: OrganizationWithPermissions[] | undefined;
   /** Site-wide permissions. */
   permissions: AuthorizationResponse;
 }
@@ -177,11 +181,10 @@ const OrganizationsSettingsNavigation: FC<
           New organization
         </SidebarNavItem>
       )}
-      {props.organizations.map(([org, permissions]) => (
+      {props.organizations.map((org) => (
         <OrganizationSettingsNavigation
           key={org.id}
           organization={org}
-          permissions={permissions}
           active={org.name === props.activeOrganizationName}
         />
       ))}
@@ -193,9 +196,7 @@ interface OrganizationSettingsNavigationProps {
   /** Whether this organization is currently selected. */
   active: boolean;
   /** The organization to display in the navigation. */
-  organization: Organization;
-  /** The permissions for this organization. */
-  permissions: AuthorizationResponse;
+  organization: OrganizationWithPermissions;
 }
 
 /**
@@ -226,7 +227,7 @@ const OrganizationSettingsNavigation: FC<
       </SidebarNavItem>
       {props.active && (
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          {props.permissions.editOrganization && (
+          {props.organization.permissions.editOrganization && (
             <SidebarNavSubItem
               end
               href={urlForSubpage(props.organization.name)}
@@ -234,14 +235,14 @@ const OrganizationSettingsNavigation: FC<
               Organization settings
             </SidebarNavSubItem>
           )}
-          {props.permissions.editMembers && (
+          {props.organization.permissions.editMembers && (
             <SidebarNavSubItem
               href={urlForSubpage(props.organization.name, "members")}
             >
               Members
             </SidebarNavSubItem>
           )}
-          {props.permissions.editGroups && (
+          {props.organization.permissions.editGroups && (
             <SidebarNavSubItem
               href={urlForSubpage(props.organization.name, "groups")}
             >
@@ -251,7 +252,7 @@ const OrganizationSettingsNavigation: FC<
           {/* For now redirect to the site-wide audit page with the organization
               pre-filled into the filter.  Based on user feedback we might want
               to serve a copy of the audit page or even delete this link. */}
-          {props.permissions.auditOrganization && (
+          {props.organization.permissions.auditOrganization && (
             <SidebarNavSubItem
               href={`/deployment${withFilter(
                 linkToAuditing,

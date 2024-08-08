@@ -13,24 +13,24 @@ const meta: Meta<typeof SidebarView> = {
     activeSettings: true,
     activeOrganizationName: undefined,
     organizations: [
-      [
-        MockOrganization,
-        {
+      {
+        ...MockOrganization,
+        permissions: {
           editOrganization: true,
           editMembers: true,
           editGroups: true,
           auditOrganization: true,
         },
-      ],
-      [
-        MockOrganization2,
-        {
+      },
+      {
+        ...MockOrganization2,
+        permissions: {
           editOrganization: true,
           editMembers: true,
           editGroups: true,
           auditOrganization: true,
         },
-      ],
+      },
     ],
     permissions: MockPermissions,
   },
@@ -114,15 +114,15 @@ export const SelectedOrgAdmin: Story = {
   args: {
     activeOrganizationName: MockOrganization.name,
     organizations: [
-      [
-        MockOrganization,
-        {
+      {
+        ...MockOrganization,
+        permissions: {
           editOrganization: true,
           editMembers: true,
           editGroups: true,
           auditOrganization: true,
         },
-      ],
+      },
     ],
   },
 };
@@ -135,15 +135,15 @@ export const SelectedOrgAuditor: Story = {
       createOrganization: false,
     },
     organizations: [
-      [
-        MockOrganization,
-        {
+      {
+        ...MockOrganization,
+        permissions: {
           editOrganization: false,
           editMembers: false,
           editGroups: false,
           auditOrganization: true,
         },
-      ],
+      },
     ],
   },
 };
@@ -156,15 +156,15 @@ export const SelectedOrgUserAdmin: Story = {
       createOrganization: false,
     },
     organizations: [
-      [
-        MockOrganization,
-        {
+      {
+        ...MockOrganization,
+        permissions: {
           editOrganization: false,
           editMembers: true,
           editGroups: true,
           auditOrganization: false,
         },
-      ],
+      },
     ],
   },
 };
@@ -172,24 +172,24 @@ export const SelectedOrgUserAdmin: Story = {
 export const MultiOrgAdminAndUserAdmin: Story = {
   args: {
     organizations: [
-      [
-        MockOrganization,
-        {
+      {
+        ...MockOrganization,
+        permissions: {
           editOrganization: false,
           editMembers: false,
           editGroups: false,
           auditOrganization: true,
         },
-      ],
-      [
-        MockOrganization2,
-        {
+      },
+      {
+        ...MockOrganization2,
+        permissions: {
           editOrganization: false,
           editMembers: true,
           editGroups: true,
           auditOrganization: false,
         },
-      ],
+      },
     ],
   },
 };
@@ -198,24 +198,24 @@ export const SelectedMultiOrgAdminAndUserAdmin: Story = {
   args: {
     activeOrganizationName: MockOrganization2.name,
     organizations: [
-      [
-        MockOrganization,
-        {
+      {
+        ...MockOrganization,
+        permissions: {
           editOrganization: false,
           editMembers: false,
           editGroups: false,
           auditOrganization: true,
         },
-      ],
-      [
-        MockOrganization2,
-        {
+      },
+      {
+        ...MockOrganization2,
+        permissions: {
           editOrganization: false,
           editMembers: true,
           editGroups: true,
           auditOrganization: false,
         },
-      ],
+      },
     ],
   },
 };
