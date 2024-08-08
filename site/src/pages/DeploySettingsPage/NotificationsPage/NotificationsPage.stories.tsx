@@ -39,6 +39,9 @@ const meta: Meta<typeof NotificationsPage> = {
         webhook: {
           endpoint: "https://example.com",
         },
+        email: {
+          smarthost: "smtp.example.com",
+        },
       },
     } as DeploymentValues,
   },
@@ -55,6 +58,36 @@ export default meta;
 type Story = StoryObj<typeof NotificationsPage>;
 
 export const Default: Story = {};
+
+export const NoEmailSmarthost: Story = {
+  parameters: {
+    deploymentValues: {
+      notifications: {
+        webhook: {
+          endpoint: "https://example.com",
+        },
+        email: {
+          smarthost: "",
+        },
+      },
+    } as DeploymentValues,
+  },
+};
+
+export const NoWebhookEndpoint: Story = {
+  parameters: {
+    deploymentValues: {
+      notifications: {
+        webhook: {
+          endpoint: "",
+        },
+        email: {
+          smarthost: "smtp.example.com",
+        },
+      },
+    } as DeploymentValues,
+  },
+};
 
 export const Toggle: Story = {
   play: async ({ canvasElement }) => {

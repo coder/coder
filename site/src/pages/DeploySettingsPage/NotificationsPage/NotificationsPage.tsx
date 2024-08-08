@@ -17,6 +17,8 @@ import {
   systemNotificationTemplates,
   updateNotificationTemplateMethod,
 } from "api/queries/notifications";
+import type { DeploymentValues } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
@@ -149,13 +151,14 @@ export const NotificationsPage: FC = () => {
           {ready ? (
             tab === "events" ? (
               <EventsView
+                templatesByGroup={templatesByGroup.data}
+                deploymentValues={deploymentValues.config}
                 defaultMethod={castNotificationMethod(
                   dispatchMethods.data.default,
                 )}
                 availableMethods={dispatchMethods.data.available.map(
                   castNotificationMethod,
                 )}
-                templatesByGroup={templatesByGroup.data}
               />
             ) : (
               <OptionsTable
@@ -177,15 +180,33 @@ type EventsViewProps = {
   defaultMethod: NotificationMethod;
   availableMethods: NotificationMethod[];
   templatesByGroup: ReturnType<typeof selectTemplatesByGroup>;
+  deploymentValues: DeploymentValues;
 };
 
 const EventsView: FC<EventsViewProps> = ({
   defaultMethod,
   availableMethods,
   templatesByGroup,
+  deploymentValues,
 }) => {
   return (
     <Stack spacing={3}>
+      {availableMethods.includes("smtp") &&
+        deploymentValues.notifications?.webhook.endpoint === "" && (
+          <Alert severity="warning">
+            Webhook notifications are enabled, but no endpoint has been
+            configured.
+          </Alert>
+        )}
+
+      {availableMethods.includes("smtp") &&
+        deploymentValues.notifications?.email.smarthost === "" && (
+          <Alert severity="warning">
+            SMTP notifications are enabled, but no smart host has been
+            configured.
+          </Alert>
+        )}
+
       {Object.entries(templatesByGroup).map(([group, templates]) => (
         <Card
           key={group}
