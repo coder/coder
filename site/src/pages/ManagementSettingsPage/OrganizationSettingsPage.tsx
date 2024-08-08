@@ -35,7 +35,9 @@ const OrganizationSettingsPage: FC = () => {
     organizations && organizationName
       ? getOrganizationByName(organizations, organizationName)
       : undefined;
-  const permissionsQuery = useQuery(organizationsPermissions(organizations));
+  const permissionsQuery = useQuery(
+    organizationsPermissions(organizations?.map((o) => o.id)),
+  );
 
   const permissions = permissionsQuery.data;
   if (!organizations || !permissions) {

@@ -25,7 +25,9 @@ export const Sidebar: FC = () => {
     organization?: string;
   };
 
-  const orgPermissionsQuery = useQuery(organizationsPermissions(organizations));
+  const orgPermissionsQuery = useQuery(
+    organizationsPermissions(organizations?.map((o) => o.id)),
+  );
 
   // Sometimes a user can read an organization but cannot actually do anything
   // with it.  For now, these are filtered out so you only see organizations you

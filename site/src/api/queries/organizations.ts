@@ -3,7 +3,6 @@ import { API } from "api/api";
 import type {
   AuthorizationResponse,
   CreateOrganizationRequest,
-  Organization,
   UpdateOrganizationRequest,
 } from "api/typesGenerated";
 import { meKey } from "./users";
@@ -169,9 +168,9 @@ export const organizationPermissions = (organizationId: string | undefined) => {
  * If organizations are undefined, return a disabled query.
  */
 export const organizationsPermissions = (
-  organizations: Organization[] | undefined,
+  organizationIds: string[] | undefined,
 ) => {
-  if (!organizations) {
+  if (!organizationIds) {
     return { enabled: false };
   }
 
@@ -215,10 +214,10 @@ export const organizationsPermissions = (
 
       // The endpoint takes a flat array, so to avoid collisions prepend each
       // check with the org ID (the key can be anything we want).
-      const prefixedChecks = organizations
-        .map((org) =>
-          Object.entries(checks(org.id)).map(([key, val]) => [
-            `${org.id}.${key}`,
+      const prefixedChecks = organizationIds
+        .map((orgId) =>
+          Object.entries(checks(orgId)).map(([key, val]) => [
+            `${orgId}.${key}`,
             val,
           ]),
         )
