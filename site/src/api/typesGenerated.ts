@@ -345,6 +345,15 @@ export interface CreateWorkspaceRequest {
   readonly automatic_updates?: AutomaticUpdates;
 }
 
+// From codersdk/roles.go
+export interface CustomRoleRequest {
+  readonly name: string;
+  readonly display_name: string;
+  readonly site_permissions: readonly Permission[];
+  readonly organization_permissions: readonly Permission[];
+  readonly user_permissions: readonly Permission[];
+}
+
 // From codersdk/deployment.go
 export interface DAUEntry {
   readonly date: string;
@@ -922,15 +931,6 @@ export interface PatchGroupRequest {
   readonly display_name?: string;
   readonly avatar_url?: string;
   readonly quota_allowance?: number;
-}
-
-// From codersdk/roles.go
-export interface PatchRoleRequest {
-  readonly name: string;
-  readonly display_name: string;
-  readonly site_permissions: readonly Permission[];
-  readonly organization_permissions: readonly Permission[];
-  readonly user_permissions: readonly Permission[];
 }
 
 // From codersdk/templateversions.go
