@@ -175,7 +175,7 @@ export const organizationsPermissions = (
   }
 
   return {
-    queryKey: ["organizations", "permissions"],
+    queryKey: ["organizations", organizationIds.sort(), "permissions"],
     queryFn: async () => {
       // Only request what we need for the sidebar, which is one edit permission
       // per sub-link (audit page, settings page, groups page, and members page)
