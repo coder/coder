@@ -4,11 +4,16 @@ function defaultDocsUrl(): string {
   const docsUrl = "https://coder.com/docs";
   // If we can get the specific version, we want to include that in default docs URL.
   let version = getStaticBuildInfo()?.version;
+  if (!version) {
+    return docsUrl;
+  }
+
+  // Strip the postfix version info that's not part of the link.
   const i = version?.indexOf("-") ?? -1;
-  if (version.index >= 0) {
+  if (i >= 0) {
     version = version.slice(0, i);
   }
-  return version ? `${docsUrl}/@${version}` : docsUrl;
+  return `${docsUrl}/@${version}`;
 }
 
 // Add cache to avoid DOM reading all the time
