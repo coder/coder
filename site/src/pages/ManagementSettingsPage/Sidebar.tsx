@@ -38,13 +38,10 @@ export const Sidebar: FC = () => {
         permissions: orgPermissionsQuery.data?.[org.id],
       };
     })
-    // TypeScript is not able to infer whether permissions are defined from the
-    // canEditOrganization call, so although redundant this helps figure it out.
-    .filter(
-      (org): org is OrganizationWithPermissions =>
-        org.permissions !== undefined,
-    )
-    .filter((org) => {
+    // TypeScript is not able to infer whether permissions are defined on the
+    // object even if we explicitly check org.permissions here, so add the `is`
+    // here to help out (canEditOrganization does the actual check).
+    .filter((org): org is OrganizationWithPermissions => {
       return canEditOrganization(org.permissions);
     });
 

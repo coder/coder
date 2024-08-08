@@ -28,7 +28,7 @@ export const canEditOrganization = (
   permissions: AuthorizationResponse | undefined,
 ) => {
   return (
-    permissions &&
+    permissions !== undefined &&
     (permissions.editOrganization ||
       permissions.editMembers ||
       permissions.editGroups)
