@@ -17,8 +17,6 @@ import {
   systemNotificationTemplates,
   updateNotificationTemplateMethod,
 } from "api/queries/notifications";
-import type { NotificationsConfig } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
@@ -157,7 +155,6 @@ export const NotificationsPage: FC = () => {
                 availableMethods={dispatchMethods.data.available.map(
                   castNotificationMethod,
                 )}
-                notificationsConfig={deploymentValues.config.notifications}
                 templatesByGroup={templatesByGroup.data}
               />
             ) : (
@@ -179,35 +176,16 @@ export const NotificationsPage: FC = () => {
 type EventsViewProps = {
   defaultMethod: NotificationMethod;
   availableMethods: NotificationMethod[];
-  notificationsConfig?: NotificationsConfig;
   templatesByGroup: ReturnType<typeof selectTemplatesByGroup>;
 };
 
 const EventsView: FC<EventsViewProps> = ({
   defaultMethod,
   availableMethods,
-  notificationsConfig,
   templatesByGroup,
 }) => {
-  const isUsingWebhook = availableMethods.includes("webhook");
-  const isUsingSmpt = availableMethods.includes("smtp");
-  const webhookEndpoint = notificationsConfig?.webhook.endpoint;
-  const smtpConfig = notificationsConfig?.email;
-
   return (
     <Stack spacing={3}>
-      {isUsingWebhook && !webhookEndpoint && (
-        <Alert severity="warning">
-          Webhook method is enabled, but the endpoint is not configured.
-        </Alert>
-      )}
-
-      {isUsingSmpt && !smtpConfig && (
-        <Alert severity="warning">
-          SMTP method is enabled, but is not configured.
-        </Alert>
-      )}
-
       {Object.entries(templatesByGroup).map(([group, templates]) => (
         <Card
           key={group}

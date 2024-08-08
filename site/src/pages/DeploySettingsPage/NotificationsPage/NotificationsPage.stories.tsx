@@ -56,18 +56,6 @@ type Story = StoryObj<typeof NotificationsPage>;
 
 export const Default: Story = {};
 
-export const NoWebhookEndpoint: Story = {
-  parameters: {
-    deploymentValues: {
-      notifications: {
-        webhook: {
-          endpoint: "",
-        },
-      },
-    } as DeploymentValues,
-  },
-};
-
 export const Toggle: Story = {
   play: async ({ canvasElement }) => {
     spyOn(API, "updateNotificationTemplateMethod").mockResolvedValue();
