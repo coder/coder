@@ -93,7 +93,7 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.CustomRoleRequest true "Upsert role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles [patch]
+// @Router /organizations/{organization}/members/roles [put]
 func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
