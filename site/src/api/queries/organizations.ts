@@ -234,10 +234,9 @@ export const organizationsPermissions = (
           const orgId = key.substring(0, index);
           const perm = key.substring(index + 1);
           if (!acc[orgId]) {
-            acc[orgId] = { [perm]: value };
-          } else {
-            acc[orgId][perm] = value;
+            acc[orgId] = {};
           }
+          acc[orgId][perm] = value;
           return acc;
         },
         {} as Record<string, AuthorizationResponse>,
