@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MockRole } from "testHelpers/entities";
+import { MockRoleWithOrgPermissions } from "testHelpers/entities";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
 const meta: Meta<typeof CustomRolesPageView> = {
@@ -12,7 +12,7 @@ type Story = StoryObj<typeof CustomRolesPageView>;
 
 export const NotEnabled: Story = {
   args: {
-    roles: [MockRole],
+    roles: [MockRoleWithOrgPermissions],
     canAssignOrgRole: true,
     isCustomRolesEnabled: false,
   },
@@ -20,7 +20,7 @@ export const NotEnabled: Story = {
 
 export const Enabled: Story = {
   args: {
-    roles: [MockRole],
+    roles: [MockRoleWithOrgPermissions],
     canAssignOrgRole: true,
     isCustomRolesEnabled: true,
   },
@@ -28,7 +28,13 @@ export const Enabled: Story = {
 
 export const EmptyDisplayName: Story = {
   args: {
-    roles: [{ ...MockRole, name: "my-custom-role", display_name: "" }],
+    roles: [
+      {
+        ...MockRoleWithOrgPermissions,
+        name: "my-custom-role",
+        display_name: "",
+      },
+    ],
     canAssignOrgRole: true,
     isCustomRolesEnabled: true,
   },

@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Table from "@mui/material/Table";
@@ -8,9 +9,10 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
-import type { useFormik } from "formik";
+import { useFormik } from "formik";
 import { type ChangeEvent, useState, type FC } from "react";
 import { useNavigate } from "react-router-dom";
+import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
 import { RBACResourceActions } from "api/rbacresources_gen";
 import type {
@@ -28,71 +30,129 @@ import {
   FormSection,
   HorizontalForm,
 } from "components/Form/Form";
-import { getFormHelpers } from "utils/formUtils";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { getFormHelpers, nameValidator } from "utils/formUtils";
+
+const validationSchema = Yup.object({
+  name: nameValidator("Name"),
+});
 
 export type CreateEditRolePageViewProps = {
   role: AssignableRoles | undefined;
-  form: ReturnType<typeof useFormik<PatchRoleRequest>>;
+  onSubmit: (data: PatchRoleRequest) => void;
   error?: unknown;
   isLoading: boolean;
+  organizationName: string;
+  canAssignOrgRole: boolean;
+  allResources?: boolean;
 };
 
 export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
   role,
-  form,
+  onSubmit,
   error,
   isLoading,
+  organizationName,
+  canAssignOrgRole,
+  allResources = false,
 }) => {
   const navigate = useNavigate();
-  const getFieldHelpers = getFormHelpers<Role>(form, error);
   const onCancel = () => navigate(-1);
 
-  return (
-    <HorizontalForm onSubmit={form.handleSubmit}>
-      <FormSection
-        title="Role settings"
-        description="Set a name and permissions for this role."
-      >
-        <FormFields>
-          {Boolean(error) && !isApiValidationError(error) && (
-            <ErrorAlert error={error} />
-          )}
+  const form = useFormik<PatchRoleRequest>({
+    initialValues: {
+      name: role?.name || "",
+      display_name: role?.display_name || "",
+      site_permissions: role?.site_permissions || [],
+      organization_permissions: role?.organization_permissions || [],
+      user_permissions: role?.user_permissions || [],
+    },
+    validationSchema,
+    onSubmit,
+  });
 
-          <TextField
-            {...getFieldHelpers("name", {
-              helperText:
-                "The role name cannot be modified after the role is created.",
-            })}
-            autoFocus
-            fullWidth
-            disabled={role !== undefined}
-            label="Name"
+  const getFieldHelpers = getFormHelpers<Role>(form, error);
+
+  return (
+    <>
+      <PageHeader
+        actions={
+          canAssignOrgRole && (
+            <>
+              <Button
+                onClick={() => {
+                  navigate(`/organizations/${organizationName}/roles`);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  form.handleSubmit();
+                }}
+              >
+                {role !== undefined ? "Save" : "Create Role"}
+              </Button>
+            </>
+          )
+        }
+      >
+        <PageHeaderTitle>
+          {role ? "Edit" : "Create"} custom role
+        </PageHeaderTitle>
+      </PageHeader>
+      <HorizontalForm onSubmit={form.handleSubmit}>
+        <FormSection
+          title="Role settings"
+          description="Set a name and permissions for this role."
+        >
+          <FormFields>
+            {Boolean(error) && !isApiValidationError(error) && (
+              <ErrorAlert error={error} />
+            )}
+
+            <TextField
+              {...getFieldHelpers("name", {
+                helperText:
+                  "The role name cannot be modified after the role is created.",
+              })}
+              autoFocus
+              fullWidth
+              disabled={role !== undefined}
+              label="Name"
+            />
+            <TextField
+              {...getFieldHelpers("display_name", {
+                helperText: "Optional: keep empty to default to the name.",
+              })}
+              fullWidth
+              label="Display Name"
+            />
+            <ActionCheckboxes
+              permissions={role?.organization_permissions || []}
+              form={form}
+              allResources={allResources}
+            />
+          </FormFields>
+        </FormSection>
+        {canAssignOrgRole && (
+          <FormFooter
+            onCancel={onCancel}
+            isLoading={isLoading}
+            submitLabel={role !== undefined ? "Save" : "Create Role"}
           />
-          <TextField
-            {...getFieldHelpers("display_name", {
-              helperText: "Optional: keep empty to default to the name.",
-            })}
-            fullWidth
-            label="Display Name"
-          />
-          <ActionCheckboxes
-            permissions={role?.organization_permissions || []}
-            form={form}
-          />
-        </FormFields>
-      </FormSection>
-      <FormFooter
-        onCancel={onCancel}
-        isLoading={isLoading}
-        submitLabel={role !== undefined ? "Save" : "Create Role"}
-      />
-    </HorizontalForm>
+        )}
+      </HorizontalForm>
+    </>
   );
 };
 
 interface ActionCheckboxesProps {
   permissions: readonly Permission[] | undefined;
   form: ReturnType<typeof useFormik<Role>> & { values: Role };
+  allResources: boolean;
 }
 
 const ResourceActionComparator = (
@@ -120,9 +180,13 @@ const filteredRBACResourceActions = Object.fromEntries(
   ),
 );
 
-const ActionCheckboxes: FC<ActionCheckboxesProps> = ({ permissions, form }) => {
+const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
+  permissions,
+  form,
+  allResources,
+}) => {
   const [checkedActions, setCheckActions] = useState(permissions);
-  const [showAllResources, setShowAllResources] = useState(false);
+  const [showAllResources, setShowAllResources] = useState(allResources);
 
   const handleActionCheckChange = async (
     e: ChangeEvent<HTMLInputElement>,
