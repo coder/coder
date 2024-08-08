@@ -50,12 +50,9 @@ const OrganizationSettingsPage: FC = () => {
     const editableOrg = organizations
       .sort((a, b) => {
         // Prefer default org (it may not be first).
-        if (a.is_default) {
-          return -1;
-        } else if (b.is_default) {
-          return 1;
-        }
-        return 0;
+        // JavaScript will happily subtract booleans, but use numbers to keep
+        // the compiler happy.
+        return (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0);
       })
       .find((org) => canEditOrganization(permissions[org.id]));
     if (editableOrg) {
