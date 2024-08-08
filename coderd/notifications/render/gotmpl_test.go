@@ -65,8 +65,7 @@ func TestGoTemplate(t *testing.T) {
 			t.Parallel()
 
 			out, err := render.GoTemplate(tc.in, tc.payload, map[string]any{
-				"base_url":     func() string { return "https://mocked-server-address" },
-				"current_year": func() string { return "2024" },
+				"base_url": func() string { return "https://mocked-server-address" },
 			})
 			if tc.expectedErr == nil {
 				require.NoError(t, err)

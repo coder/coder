@@ -9,6 +9,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"text/template"
 
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
@@ -417,7 +418,7 @@ func TestSMTP(t *testing.T) {
 			require.NoError(t, hp.Set(listen.Addr().String()))
 			tc.cfg.Smarthost = hp
 
-			handler := dispatch.NewSMTPHandler(tc.cfg, logger.Named("smtp"))
+			handler := dispatch.NewSMTPHandler(tc.cfg, template.FuncMap{}, logger.Named("smtp"))
 
 			// Start mock SMTP server in the background.
 			var wg sync.WaitGroup

@@ -78,7 +78,7 @@ func defaultNotificationsConfig(method database.NotificationMethod) codersdk.Not
 func defaultHelpers() map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return "http://test.com" },
-		"current_year": func() int { return time.Now().Year() },
+		"current_year": func() string { return "2024" },
 	}
 }
 
