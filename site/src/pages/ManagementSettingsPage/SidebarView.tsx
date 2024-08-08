@@ -30,16 +30,25 @@ interface SidebarProps {
 /**
  * A combined deployment settings and organization menu.
  */
-export const SidebarView: FC<SidebarProps> = (props) => {
+export const SidebarView: FC<SidebarProps> = ({
+  activeSettings,
+  activeOrganizationName,
+  organizations,
+  permissions,
+}) => {
   // TODO: Do something nice to scroll to the active org.
   return (
     <BaseSidebar>
       <header css={styles.sidebarHeader}>Deployment</header>
       <DeploymentSettingsNavigation
-        active={!props.activeOrganizationName && props.activeSettings}
-        permissions={props.permissions}
+        active={!activeOrganizationName && activeSettings}
+        permissions={permissions}
       />
-      <OrganizationsSettingsNavigation {...props} />
+      <OrganizationsSettingsNavigation
+        activeOrganizationName={activeOrganizationName}
+        organizations={organizations}
+        permissions={permissions}
+      />
     </BaseSidebar>
   );
 };
@@ -58,15 +67,16 @@ interface DeploymentSettingsNavigationProps {
  * Menu items are shown based on the permissions.  If organizations can be
  * viewed, groups are skipped since they will show under each org instead.
  */
-const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = (
-  props,
-) => {
+const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
+  active,
+  permissions,
+}) => {
   return (
     <div css={{ paddingBottom: 12 }}>
       <SidebarNavItem
-        active={props.active}
+        active={active}
         href={
-          props.permissions.viewDeploymentValues
+          permissions.viewDeploymentValues
             ? "/deployment/general"
             : "/deployment/workspace-proxies"
         }
@@ -77,23 +87,23 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = (
       >
         Deployment
       </SidebarNavItem>
-      {props.active && (
+      {active && (
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          {props.permissions.viewDeploymentValues && (
+          {permissions.viewDeploymentValues && (
             <SidebarNavSubItem href="general">General</SidebarNavSubItem>
           )}
-          {props.permissions.viewAllLicenses && (
+          {permissions.viewAllLicenses && (
             <SidebarNavSubItem href="licenses">Licenses</SidebarNavSubItem>
           )}
-          {props.permissions.editDeploymentValues && (
+          {permissions.editDeploymentValues && (
             <SidebarNavSubItem href="appearance">Appearance</SidebarNavSubItem>
           )}
-          {props.permissions.viewDeploymentValues && (
+          {permissions.viewDeploymentValues && (
             <SidebarNavSubItem href="userauth">
               User Authentication
             </SidebarNavSubItem>
           )}
-          {props.permissions.viewDeploymentValues && (
+          {permissions.viewDeploymentValues && (
             <SidebarNavSubItem href="external-auth">
               External Authentication
             </SidebarNavSubItem>
@@ -102,27 +112,27 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = (
           <SidebarNavSubItem href="oauth2-provider/ap>
             OAuth2 Applications
           </SidebarNavSubItem>*/}
-          {props.permissions.viewDeploymentValues && (
+          {permissions.viewDeploymentValues && (
             <SidebarNavSubItem href="network">Network</SidebarNavSubItem>
           )}
           {/* All users can view workspace regions.  */}
           <SidebarNavSubItem href="workspace-proxies">
             Workspace Proxies
           </SidebarNavSubItem>
-          {props.permissions.viewDeploymentValues && (
+          {permissions.viewDeploymentValues && (
             <SidebarNavSubItem href="security">Security</SidebarNavSubItem>
           )}
-          {props.permissions.viewDeploymentValues && (
+          {permissions.viewDeploymentValues && (
             <SidebarNavSubItem href="observability">
               Observability
             </SidebarNavSubItem>
           )}
-          {props.permissions.viewAllUsers && (
+          {permissions.viewAllUsers && (
             <SidebarNavSubItem href={linkToUsers.slice(1)}>
               Users
             </SidebarNavSubItem>
           )}
-          {props.permissions.viewAnyAuditLog && (
+          {permissions.viewAnyAuditLog && (
             <SidebarNavSubItem href={linkToAuditing.slice(1)}>
               Auditing
             </SidebarNavSubItem>
@@ -156,23 +166,20 @@ interface OrganizationsSettingsNavigationProps {
  */
 const OrganizationsSettingsNavigation: FC<
   OrganizationsSettingsNavigationProps
-> = (props) => {
+> = ({ activeOrganizationName, organizations, permissions }) => {
   // Wait for organizations and their permissions to load in.
-  if (!props.organizations) {
+  if (!organizations) {
     return <Loader />;
   }
 
-  if (
-    props.organizations.length <= 0 &&
-    !props.permissions.createOrganization
-  ) {
+  if (organizations.length <= 0 && !permissions.createOrganization) {
     return null;
   }
 
   return (
     <>
       <header css={styles.sidebarHeader}>Organizations</header>
-      {props.permissions.createOrganization && (
+      {permissions.createOrganization && (
         <SidebarNavItem
           active="auto"
           href="/organizations/new"
@@ -181,11 +188,11 @@ const OrganizationsSettingsNavigation: FC<
           New organization
         </SidebarNavItem>
       )}
-      {props.organizations.map((org) => (
+      {organizations.map((org) => (
         <OrganizationSettingsNavigation
           key={org.id}
           organization={org}
-          active={org.name === props.activeOrganizationName}
+          active={org.name === activeOrganizationName}
         />
       ))}
     </>
@@ -208,43 +215,40 @@ interface OrganizationSettingsNavigationProps {
  */
 const OrganizationSettingsNavigation: FC<
   OrganizationSettingsNavigationProps
-> = (props) => {
+> = ({ active, organization }) => {
   return (
     <>
       <SidebarNavItem
-        active={props.active}
-        href={urlForSubpage(props.organization.name)}
+        active={active}
+        href={urlForSubpage(organization.name)}
         icon={
           <UserAvatar
-            key={props.organization.id}
+            key={organization.id}
             size="sm"
-            username={props.organization.display_name}
-            avatarURL={props.organization.icon}
+            username={organization.display_name}
+            avatarURL={organization.icon}
           />
         }
       >
-        {props.organization.display_name}
+        {organization.display_name}
       </SidebarNavItem>
-      {props.active && (
+      {active && (
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          {props.organization.permissions.editOrganization && (
-            <SidebarNavSubItem
-              end
-              href={urlForSubpage(props.organization.name)}
-            >
+          {organization.permissions.editOrganization && (
+            <SidebarNavSubItem end href={urlForSubpage(organization.name)}>
               Organization settings
             </SidebarNavSubItem>
           )}
-          {props.organization.permissions.editMembers && (
+          {organization.permissions.editMembers && (
             <SidebarNavSubItem
-              href={urlForSubpage(props.organization.name, "members")}
+              href={urlForSubpage(organization.name, "members")}
             >
               Members
             </SidebarNavSubItem>
           )}
-          {props.organization.permissions.editGroups && (
+          {organization.permissions.editGroups && (
             <SidebarNavSubItem
-              href={urlForSubpage(props.organization.name, "groups")}
+              href={urlForSubpage(organization.name, "groups")}
             >
               Groups
             </SidebarNavSubItem>
@@ -252,11 +256,11 @@ const OrganizationSettingsNavigation: FC<
           {/* For now redirect to the site-wide audit page with the organization
               pre-filled into the filter.  Based on user feedback we might want
               to serve a copy of the audit page or even delete this link. */}
-          {props.organization.permissions.auditOrganization && (
+          {organization.permissions.auditOrganization && (
             <SidebarNavSubItem
               href={`/deployment${withFilter(
                 linkToAuditing,
-                `organization:${props.organization.name}`,
+                `organization:${organization.name}`,
               )}`}
             >
               Auditing
