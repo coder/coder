@@ -190,7 +190,7 @@ const EventsView: FC<EventsViewProps> = ({
   deploymentValues,
 }) => {
   return (
-    <Stack spacing={3}>
+    <Stack spacing={4}>
       {availableMethods.includes("smtp") &&
         deploymentValues.notifications?.webhook.endpoint === "" && (
           <Alert severity="warning">
@@ -218,8 +218,9 @@ const EventsView: FC<EventsViewProps> = ({
               <ListItemText css={styles.listItemText} primary={group} />
             </ListItem>
 
-            {templates.map((tpl) => {
+            {templates.map((tpl, i) => {
               const value = castNotificationMethod(tpl.method || defaultMethod);
+              const isLastItem = i === templates.length - 1;
 
               return (
                 <Fragment key={tpl.id}>
@@ -234,7 +235,7 @@ const EventsView: FC<EventsViewProps> = ({
                       value={value}
                     />
                   </ListItem>
-                  <Divider css={styles.divider} />
+                  {!isLastItem && <Divider />}
                 </Fragment>
               );
             })}
@@ -281,9 +282,4 @@ const styles = {
       fontSize: "inherit",
     },
   }),
-  divider: {
-    "&:last-child": {
-      display: "none",
-    },
-  },
 } as Record<string, Interpolation<Theme>>;

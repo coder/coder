@@ -38,7 +38,7 @@ export const updateUserNotificationPreferences = (
               id,
               disabled,
               updated_at: new Date().toISOString(),
-            }) as NotificationPreference,
+            }) satisfies NotificationPreference,
         ),
       );
     },
@@ -65,7 +65,7 @@ export const systemNotificationTemplates = () => {
 export function selectTemplatesByGroup(
   data: NotificationTemplate[],
 ): Record<string, NotificationTemplate[]> {
-  return data.reduce(
+  const grouped = data.reduce(
     (acc, tpl) => {
       if (!acc[tpl.group]) {
         acc[tpl.group] = [];
@@ -75,6 +75,20 @@ export function selectTemplatesByGroup(
     },
     {} as Record<string, NotificationTemplate[]>,
   );
+
+  // Sort templates within each group
+  for (const group in grouped) {
+    grouped[group].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // Sort groups by name
+  const sortedGroups = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+  const sortedGrouped: Record<string, NotificationTemplate[]> = {};
+  for (const group of sortedGroups) {
+    sortedGrouped[group] = grouped[group];
+  }
+
+  return sortedGrouped;
 }
 
 export const notificationDispatchMethodsKey = [

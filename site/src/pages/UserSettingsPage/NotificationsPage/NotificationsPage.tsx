@@ -102,7 +102,7 @@ export const NotificationsPage: FC = () => {
         layout="fluid"
       >
         {ready ? (
-          <Stack spacing={3}>
+          <Stack spacing={4}>
             {Object.entries(templatesByGroup.data).map(([group, templates]) => {
               const allDisabled = templates.some((tpl) => {
                 return disabledPreferences.data[tpl.id] === true;
@@ -138,12 +138,13 @@ export const NotificationsPage: FC = () => {
                         }}
                       />
                     </ListItem>
-                    {templates.map((tmpl) => {
+                    {templates.map((tmpl, i) => {
                       const method = castNotificationMethod(
                         tmpl.method || dispatchMethods.data.default,
                       );
                       const Icon = methodIcons[method];
                       const label = methodLabels[method];
+                      const isLastItem = i === templates.length - 1;
 
                       return (
                         <Fragment key={tmpl.id}>
@@ -177,7 +178,7 @@ export const NotificationsPage: FC = () => {
                               </Tooltip>
                             </ListItemIcon>
                           </ListItem>
-                          <Divider css={styles.divider} />
+                          {!isLastItem && <Divider />}
                         </Fragment>
                       );
                     })}
@@ -230,9 +231,4 @@ const styles = {
       fontSize: "inherit",
     },
   }),
-  divider: {
-    "&:last-child": {
-      display: "none",
-    },
-  },
 } as Record<string, Interpolation<Theme>>;
