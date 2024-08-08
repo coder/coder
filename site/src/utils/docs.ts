@@ -3,7 +3,11 @@ import { getStaticBuildInfo } from "./buildInfo";
 function defaultDocsUrl(): string {
   const docsUrl = "https://coder.com/docs";
   // If we can get the specific version, we want to include that in default docs URL.
-  const version = getStaticBuildInfo()?.version.split("-")[0];
+  let version = getStaticBuildInfo()?.version;
+  const i = version?.indexOf("-") ?? -1;
+  if (version.index >= 0) {
+    version = version.slice(0, i);
+  }
   return version ? `${docsUrl}/@${version}` : docsUrl;
 }
 
