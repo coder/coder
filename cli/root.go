@@ -546,6 +546,50 @@ func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
 	}
 }
 
+func (r *RootCmd) CheckExistingUserSession() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			conf := r.createConfig()
+			var err error
+			// Read the client URL stored on disk.
+			if r.clientURL == nil || r.clientURL.String() == "" {
+				rawURL, err := conf.URL().Read()
+				// If the configuration files are absent, the user is logged out
+				if os.IsNotExist(err) {
+					return next(inv)
+				}
+				if err != nil {
+					return err
+				}
+
+				r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+				if err != nil {
+					return err
+				}
+			}
+			// Read the token stored on disk.
+			if r.token == "" {
+				r.token, err = conf.Session().Read()
+				// Even if there isn't a token, we don't care.
+				if err != nil && !os.IsNotExist(err) {
+					return next(inv)
+				}
+			}
+
+			// IF r.token and r.clientUR, exists then print warning "ALready loggedIn"
+			if r.token != "" && r.clientURL.String() != "" {
+				_, _ = fmt.Fprintf(inv.Stdout, Caret+"%s!\n", pretty.Sprint(cliui.DefaultStyles.Warn, "Already Logged In to "+r.clientURL.String()))
+			}
+
+			// We remove the token and clientURL from the RootCmd, so the user can still go ahead and login
+			r.clientURL = nil
+			r.token = ""
+
+			return next(inv)
+		}
+	}
+}
+
 // HeaderTransport creates a new transport that executes `--header-command`
 // if it is set to add headers for all outbound requests.
 func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*codersdk.HeaderTransport, error) {

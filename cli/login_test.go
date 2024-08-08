@@ -442,4 +442,48 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, selected, first.OrganizationID.String())
 	})
+
+	t.Run("ExistingUserValidTokenTTYWarnReloggin", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
+		pty := ptytest.New(t).Attach(root)
+		go func() {
+			defer close(doneChan)
+			err := root.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		if runtime.GOOS != "windows" {
+			// For some reason, the match does not show up on Windows.
+			pty.ExpectMatch(client.SessionToken())
+		}
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+
+		doneChan = make(chan struct{})
+		root, _ = clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
+		pty = ptytest.New(t).Attach(root)
+		go func() {
+			defer close(doneChan)
+			err := root.Run()
+			assert.NoError(t, err)
+		}()
+		pty.ExpectMatch(fmt.Sprintf(" Already Logged In to '%s'!", client.URL.String()))
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		if runtime.GOOS != "windows" {
+			// For some reason, the match does not show up on Windows.
+			pty.ExpectMatch(client.SessionToken())
+		}
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
 }
