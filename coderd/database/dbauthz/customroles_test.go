@@ -19,8 +19,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestUpsertCustomRoles verifies creating custom roles cannot escalate permissions.
-func TestUpsertCustomRoles(t *testing.T) {
+// TestInsertCustomRoles verifies creating custom roles cannot escalate permissions.
+func TestInsertCustomRoles(t *testing.T) {
 	t.Parallel()
 
 	userID := uuid.New()
@@ -231,7 +231,7 @@ func TestUpsertCustomRoles(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			ctx = dbauthz.As(ctx, subject)
 
-			_, err := az.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
+			_, err := az.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 				Name:            "test-role",
 				DisplayName:     "",
 				OrganizationID:  tc.organizationID,
