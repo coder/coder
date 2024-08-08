@@ -81,13 +81,6 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	return err
 }
 
-func (m metricsStore) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertCustomRole(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertCustomRole").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)

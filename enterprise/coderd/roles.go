@@ -26,7 +26,7 @@ import (
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.PatchRoleRequest true "Insert role request"
+// @Param request body codersdk.CustomRoleRequest true "Insert role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /organizations/{organization}/members/roles [post]
@@ -46,7 +46,7 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	var req codersdk.PatchRoleRequest
+	var req codersdk.CustomRoleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -90,7 +90,7 @@ func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.PatchRoleRequest true "Upsert role request"
+// @Param request body codersdk.CustomRoleRequest true "Upsert role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
 // @Router /organizations/{organization}/members/roles [patch]
@@ -110,7 +110,7 @@ func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	var req codersdk.PatchRoleRequest
+	var req codersdk.CustomRoleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -255,7 +255,7 @@ func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {
 	}
 }
 
-func validOrganizationRoleRequest(ctx context.Context, req codersdk.PatchRoleRequest, rw http.ResponseWriter) bool {
+func validOrganizationRoleRequest(ctx context.Context, req codersdk.CustomRoleRequest, rw http.ResponseWriter) bool {
 	// This check is not ideal, but we cannot enforce a unique role name in the db against
 	// the built-in role names.
 	if rbac.ReservedRoleName(req.Name) {
