@@ -61,8 +61,8 @@ type Role struct {
 	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
 }
 
-// PatchRoleRequest is used to edit custom roles.
-type PatchRoleRequest struct {
+// CustomRoleRequest is used to edit custom roles.
+type CustomRoleRequest struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
 	DisplayName     string       `json:"display_name" table:"display_name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
@@ -82,9 +82,9 @@ func (r Role) FullName() string {
 	return r.Name + ":" + r.OrganizationID
 }
 
-// PatchOrganizationRole will upsert a custom organization role
-func (c *Client) PatchOrganizationRole(ctx context.Context, role Role) (Role, error) {
-	req := PatchRoleRequest{
+// CreateOrganizationRole will create a custom organization role
+func (c *Client) CreateOrganizationRole(ctx context.Context, role Role) (Role, error) {
+	req := CustomRoleRequest{
 		Name:                    role.Name,
 		DisplayName:             role.DisplayName,
 		SitePermissions:         role.SitePermissions,
@@ -92,7 +92,30 @@ func (c *Client) PatchOrganizationRole(ctx context.Context, role Role) (Role, er
 		UserPermissions:         role.UserPermissions,
 	}
 
-	res, err := c.Request(ctx, http.MethodPatch,
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/organizations/%s/members/roles", role.OrganizationID), req)
+	if err != nil {
+		return Role{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Role{}, ReadBodyAsError(res)
+	}
+	var r Role
+	return r, json.NewDecoder(res.Body).Decode(&r)
+}
+
+// UpdateOrganizationRole will update an existing custom organization role
+func (c *Client) UpdateOrganizationRole(ctx context.Context, role Role) (Role, error) {
+	req := CustomRoleRequest{
+		Name:                    role.Name,
+		DisplayName:             role.DisplayName,
+		SitePermissions:         role.SitePermissions,
+		OrganizationPermissions: role.OrganizationPermissions,
+		UserPermissions:         role.UserPermissions,
+	}
+
+	res, err := c.Request(ctx, http.MethodPut,
 		fmt.Sprintf("/api/v2/organizations/%s/members/roles", role.OrganizationID), req)
 	if err != nil {
 		return Role{}, err
