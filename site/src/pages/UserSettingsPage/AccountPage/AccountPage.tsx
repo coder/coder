@@ -13,11 +13,12 @@ export const AccountPage: FC = () => {
   const { permissions, user: me } = useAuthenticated();
   const { updateProfile, updateProfileError, isUpdatingProfile } =
     useAuthContext();
-  const { entitlements, organizationId } = useDashboard();
+  const { entitlements } = useDashboard();
 
   const hasGroupsFeature = entitlements.features.user_role_management.enabled;
   const groupsQuery = useQuery({
-    ...groupsForUser(organizationId, me.id),
+    // TODO: This should probably list all groups, not just default org groups
+    ...groupsForUser("default", me.id),
     enabled: hasGroupsFeature,
   });
 

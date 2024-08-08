@@ -17,10 +17,9 @@ import {
 import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: FC = () => {
-  const { audit_log: isAuditLogVisible } = useFeatureVisibility();
+  const feats = useFeatureVisibility();
   const { experiments } = useDashboard();
   const location = useLocation();
-  const isMultiOrg = experiments.includes("multi-organization");
 
   /**
    * There is an implicit link between auditsQuery and filter via the
@@ -75,7 +74,9 @@ const AuditPage: FC = () => {
   // TODO: Once multi-org is stable, we should place this redirect into the
   //       router directly, if we still need to maintain it (for users who are
   //       typing the old URL manually or have it bookmarked).
-  if (isMultiOrg && location.pathname !== "/deployment/audit") {
+  const canViewOrganizations =
+    feats.multiple_organizations && experiments.includes("multi-organization");
+  if (canViewOrganizations && location.pathname !== "/deployment/audit") {
     return <Navigate to={`/deployment/audit${location.search}`} replace />;
   }
 
@@ -88,10 +89,10 @@ const AuditPage: FC = () => {
       <AuditPageView
         auditLogs={auditsQuery.data?.audit_logs}
         isNonInitialPage={isNonInitialPage(searchParams)}
-        isAuditLogVisible={isAuditLogVisible}
+        isAuditLogVisible={feats.audit_log}
         auditsQuery={auditsQuery}
         error={auditsQuery.error}
-        showOrgDetails={isMultiOrg}
+        showOrgDetails={canViewOrganizations}
         filterProps={{
           filter,
           error: auditsQuery.error,
@@ -99,7 +100,7 @@ const AuditPage: FC = () => {
             user: userMenu,
             action: actionMenu,
             resourceType: resourceTypeMenu,
-            organization: isMultiOrg ? organizationsMenu : undefined,
+            organization: canViewOrganizations ? organizationsMenu : undefined,
           },
         }}
       />

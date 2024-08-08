@@ -958,6 +958,20 @@ func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 	return q.db.DeleteCoordinator(ctx, id)
 }
 
+func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCustomRoleParams) error {
+	if arg.OrganizationID.UUID != uuid.Nil {
+		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+			return err
+		}
+	} else {
+		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignRole); err != nil {
+			return err
+		}
+	}
+
+	return q.db.DeleteCustomRole(ctx, arg)
+}
+
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		//nolint:gosimple
@@ -1248,6 +1262,13 @@ func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
+	// Shortcut if the user is an owner. The SQL filter is noticeable,
+	// and this is an easy win for owners. Which is the common case.
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog)
+	if err == nil {
+		return q.db.GetAuditLogsOffset(ctx, arg)
+	}
+
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAuditLog.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
@@ -1472,6 +1493,23 @@ func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.GetNotificationMessagesByStatus(ctx, arg)
+}
+
+func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationTemplate); err != nil {
+		return database.NotificationTemplate{}, err
+	}
+	return q.db.GetNotificationTemplateByID(ctx, id)
+}
+
+func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	// Anyone can read the system notification templates.
+	if kind == database.NotificationTemplateKindSystem {
+		return q.db.GetNotificationTemplatesByKind(ctx, kind)
+	}
+
+	// TODO(dannyk): handle template ownership when we support user-default notification templates.
+	return nil, sql.ErrNoRows
 }
 
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
@@ -2083,6 +2121,13 @@ func (q *querier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([
 		return nil, err
 	}
 	return q.db.GetUserLinksByUserID(ctx, userID)
+}
+
+func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationPreference.WithOwner(userID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserNotificationPreferences(ctx, userID)
 }
 
 func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
@@ -3011,6 +3056,13 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	return q.db.UpdateMemberRoles(ctx, arg)
 }
 
+func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationTemplate); err != nil {
+		return database.NotificationTemplate{}, err
+	}
+	return q.db.UpdateNotificationTemplateMethodByID(ctx, arg)
+}
+
 func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
@@ -3324,6 +3376,13 @@ func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUs
 		return database.User{}, err
 	}
 	return q.db.UpdateUserLoginType(ctx, arg)
+}
+
+func (q *querier) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationPreference.WithOwner(arg.UserID.String())); err != nil {
+		return -1, err
+	}
+	return q.db.UpdateUserNotificationPreferences(ctx, arg)
 }
 
 func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {

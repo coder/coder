@@ -3,7 +3,11 @@ import type { FC } from "react";
 import { withDefaultFeatures } from "api/api";
 import type { Entitlements } from "api/typesGenerated";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { MockAppearanceConfig, MockEntitlements } from "./entities";
+import {
+  MockAppearanceConfig,
+  MockDefaultOrganization,
+  MockEntitlements,
+} from "./entities";
 
 export const withDashboardProvider = (
   Story: FC,
@@ -26,10 +30,10 @@ export const withDashboardProvider = (
   return (
     <DashboardContext.Provider
       value={{
-        organizationId: "",
         entitlements,
         experiments,
         appearance: MockAppearanceConfig,
+        organizations: [MockDefaultOrganization],
       }}
     >
       <Story />

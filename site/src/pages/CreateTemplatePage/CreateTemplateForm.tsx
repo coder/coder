@@ -1,10 +1,13 @@
+import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
 import { useState, type FC } from "react";
+import { useQuery } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import * as Yup from "yup";
+import { provisionerDaemons } from "api/queries/organizations";
 import type {
   Organization,
   ProvisionerJobLog,
@@ -14,6 +17,7 @@ import type {
   TemplateVersionVariable,
   VariableValue,
 } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import {
   HorizontalForm,
   FormSection,
@@ -23,6 +27,7 @@ import {
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
+import { docs } from "utils/docs";
 import {
   nameValidator,
   getFormHelpers,
@@ -210,6 +215,24 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
   });
   const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
+  const provisionerDaemonsQuery = useQuery(
+    selectedOrg
+      ? {
+          ...provisionerDaemons(selectedOrg.id),
+          enabled: showOrganizationPicker,
+          select: (provisioners) => provisioners.length < 1,
+        }
+      : { enabled: false },
+  );
+
+  // TODO: Ideally, we would have a backend endpoint that could notify the
+  // frontend that a provisioner has been connected, so that we could hide
+  // this warning. In the meantime, **do not use this variable to disable
+  // form submission**!! A user could easily see this warning, connect a
+  // provisioner, and then not refresh the page. Even if they submit without
+  // a provisioner, it'll just sit in the job queue until they connect one.
+  const showProvisionerWarning = provisionerDaemonsQuery.data;
+
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
       {/* General info */}
@@ -232,17 +255,24 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
           )}
 
           {showOrganizationPicker && (
-            <OrganizationAutocomplete
-              {...getFieldHelpers("organization_id")}
-              required
-              label="Belongs to"
-              value={selectedOrg}
-              onChange={(newValue) => {
-                setSelectedOrg(newValue);
-                void form.setFieldValue("organization", newValue?.id || "");
-              }}
-              size="medium"
-            />
+            <>
+              {showProvisionerWarning && <ProvisionerWarning />}
+              <OrganizationAutocomplete
+                {...getFieldHelpers("organization")}
+                required
+                label="Belongs to"
+                value={selectedOrg}
+                onChange={(newValue) => {
+                  setSelectedOrg(newValue);
+                  void form.setFieldValue("organization", newValue?.name || "");
+                }}
+                size="medium"
+                check={{
+                  object: { resource_type: "template" },
+                  action: "create",
+                }}
+              />
+            </>
           )}
 
           {"copiedTemplate" in props && (
@@ -368,4 +398,16 @@ const fillNameAndDisplayWithFilename = async (
     ),
     form.setFieldValue("display_name", capitalize(name)),
   ]);
+};
+
+const ProvisionerWarning: FC = () => {
+  return (
+    <Alert severity="warning" css={{ marginBottom: 16 }}>
+      This organization does not have any provisioners. Before you create a
+      template, you&apos;ll need to configure a provisioner.{" "}
+      <Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
+        See our documentation.
+      </Link>
+    </Alert>
+  );
 };

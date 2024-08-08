@@ -761,6 +761,60 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get template examples
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templates/examples \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templates/examples`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "description": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "markdown": "string",
+    "name": "string",
+    "tags": ["string"],
+    "url": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateExample](schemas.md#codersdktemplateexample) |
+
+<h3 id="get-template-examples-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name            | Type         | Required | Restrictions | Description |
+| --------------- | ------------ | -------- | ------------ | ----------- |
+| `[array item]`  | array        | false    |              |             |
+| `» description` | string       | false    |              |             |
+| `» icon`        | string       | false    |              |             |
+| `» id`          | string(uuid) | false    |              |             |
+| `» markdown`    | string       | false    |              |             |
+| `» name`        | string       | false    |              |             |
+| `» tags`        | array        | false    |              |             |
+| `» url`         | string       | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get template metadata by ID
 
 ### Code samples

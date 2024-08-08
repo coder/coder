@@ -8,7 +8,7 @@ import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
 const StarterTemplatePage: FC = () => {
   const { exampleId } = useParams() as { exampleId: string };
-  const templateExamplesQuery = useQuery(templateExamples("default"));
+  const templateExamplesQuery = useQuery(templateExamples());
   const starterTemplate = templateExamplesQuery.data?.find(
     (example) => example.id === exampleId,
   );

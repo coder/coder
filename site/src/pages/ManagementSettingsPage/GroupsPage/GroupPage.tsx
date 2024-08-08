@@ -51,7 +51,7 @@ import { pageTitle } from "utils/page";
 
 export const GroupPage: FC = () => {
   const { organization = "default", groupName } = useParams() as {
-    organization: string;
+    organization?: string;
     groupName: string;
   };
   const queryClient = useQueryClient();

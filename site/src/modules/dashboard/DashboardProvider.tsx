@@ -3,23 +3,22 @@ import { useQuery } from "react-query";
 import { appearance } from "api/queries/appearance";
 import { entitlements } from "api/queries/entitlements";
 import { experiments } from "api/queries/experiments";
+import { organizations } from "api/queries/organizations";
 import type {
   AppearanceConfig,
   Entitlements,
   Experiments,
+  Organization,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 
 export interface DashboardValue {
-  /**
-   * @deprecated Do not add new usage of this value. It is being removed as part
-   * of the multi-org work.
-   */
-  organizationId: string;
   entitlements: Entitlements;
   experiments: Experiments;
   appearance: AppearanceConfig;
+  organizations: Organization[];
 }
 
 export const DashboardContext = createContext<DashboardValue | undefined>(
@@ -31,9 +30,23 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
   const experimentsQuery = useQuery(experiments(metadata.experiments));
   const appearanceQuery = useQuery(appearance(metadata.appearance));
+  const organizationsQuery = useQuery(organizations());
+
+  const error =
+    entitlementsQuery.error ||
+    appearanceQuery.error ||
+    experimentsQuery.error ||
+    organizationsQuery.error;
+
+  if (error) {
+    return <ErrorAlert error={error} />;
+  }
 
   const isLoading =
-    !entitlementsQuery.data || !appearanceQuery.data || !experimentsQuery.data;
+    !entitlementsQuery.data ||
+    !appearanceQuery.data ||
+    !experimentsQuery.data ||
+    !organizationsQuery.data;
 
   if (isLoading) {
     return <Loader fullscreen />;
@@ -42,10 +55,10 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <DashboardContext.Provider
       value={{
-        organizationId: "00000000-0000-0000-0000-000000000000",
         entitlements: entitlementsQuery.data,
         experiments: experimentsQuery.data,
         appearance: appearanceQuery.data,
+        organizations: organizationsQuery.data,
       }}
     >
       {children}

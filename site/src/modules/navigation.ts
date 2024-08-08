@@ -27,8 +27,13 @@ export const linkToUsers = withFilter("/users", "status:active");
 
 export const linkToTemplate =
   (organizationName: string, templateName: string): LinkThunk =>
-  (dashboard) =>
-    dashboard.experiments.includes("multi-organization") &&
-    selectFeatureVisibility(dashboard.entitlements).multiple_organizations
+  (dashboard) => {
+    const hasMultipleOrganizations = dashboard.organizations.length > 1;
+    const organizationsEnabled =
+      dashboard.experiments.includes("multi-organization") &&
+      selectFeatureVisibility(dashboard.entitlements).multiple_organizations;
+
+    return hasMultipleOrganizations || organizationsEnabled
       ? `/templates/${organizationName}/${templateName}`
       : `/templates/${templateName}`;
+  };

@@ -65,6 +65,7 @@ func New() database.Store {
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			notificationMessages:      make([]database.NotificationMessage, 0),
+			notificationPreferences:   make([]database.NotificationPreference, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
@@ -160,6 +161,7 @@ type data struct {
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	notificationMessages          []database.NotificationMessage
+	notificationPreferences       []database.NotificationPreference
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
@@ -1377,6 +1379,35 @@ func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 
 func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteCustomRole(_ context.Context, arg database.DeleteCustomRoleParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	initial := len(q.data.customRoles)
+	q.data.customRoles = slices.DeleteFunc(q.data.customRoles, func(role database.CustomRole) bool {
+		return role.OrganizationID.UUID == arg.OrganizationID.UUID && role.Name == arg.Name
+	})
+	if initial == len(q.data.customRoles) {
+		return sql.ErrNoRows
+	}
+
+	// Emulate the trigger 'remove_organization_member_custom_role'
+	for i, mem := range q.organizationMembers {
+		if mem.OrganizationID == arg.OrganizationID.UUID {
+			mem.Roles = slices.DeleteFunc(mem.Roles, func(role string) bool {
+				return role == arg.Name
+			})
+			q.organizationMembers[i] = mem
+		}
+	}
+	return nil
 }
 
 func (q *FakeQuerier) DeleteExternalAuthLink(_ context.Context, arg database.DeleteExternalAuthLinkParams) error {
@@ -2706,6 +2737,18 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	}
 
 	return out, nil
+}
+
+func (*FakeQuerier) GetNotificationTemplateByID(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return database.NotificationTemplate{}, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetNotificationTemplatesByKind(_ context.Context, _ database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error) {
@@ -4851,6 +4894,22 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 		}
 	}
 	return uls, nil
+}
+
+func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.NotificationPreference, 0, len(q.notificationPreferences))
+	for _, np := range q.notificationPreferences {
+		if np.UserID != userID {
+			continue
+		}
+
+		out = append(out, np)
+	}
+
+	return out, nil
 }
 
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
@@ -7520,6 +7579,12 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
+func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return database.NotificationTemplate{}, ErrUnimplemented
+}
+
 func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -8112,6 +8177,57 @@ func (q *FakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 		}
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserNotificationPreferences(_ context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return 0, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var upserted int64
+	for i := range arg.NotificationTemplateIds {
+		var (
+			found      bool
+			templateID = arg.NotificationTemplateIds[i]
+			disabled   = arg.Disableds[i]
+		)
+
+		for j, np := range q.notificationPreferences {
+			if np.UserID != arg.UserID {
+				continue
+			}
+
+			if np.NotificationTemplateID != templateID {
+				continue
+			}
+
+			np.Disabled = disabled
+			np.UpdatedAt = dbtime.Now()
+			q.notificationPreferences[j] = np
+
+			upserted++
+			found = true
+			break
+		}
+
+		if !found {
+			np := database.NotificationPreference{
+				Disabled:               disabled,
+				UserID:                 arg.UserID,
+				NotificationTemplateID: templateID,
+				CreatedAt:              dbtime.Now(),
+				UpdatedAt:              dbtime.Now(),
+			}
+			q.notificationPreferences = append(q.notificationPreferences, np)
+			upserted++
+		}
+	}
+
+	return upserted, nil
 }
 
 func (q *FakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {

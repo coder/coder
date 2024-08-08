@@ -35,7 +35,7 @@ export const TemplateVersionEditorPage: FC = () => {
     template: templateName,
     version: versionName,
   } = useParams() as {
-    organization: string;
+    organization?: string;
     template: string;
     version: string;
   };
@@ -194,7 +194,9 @@ export const TemplateVersionEditorPage: FC = () => {
               params.set("version", publishedVersion.id);
             }
             navigate(
-              `/templates/${organizationName}/${templateName}/workspace?${params.toString()}`,
+              `${getLink(
+                linkToTemplate(organizationName, templateName),
+              )}/workspace?${params.toString()}`,
             );
           }}
           isBuilding={

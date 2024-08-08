@@ -69,6 +69,7 @@ type sqlcQuerier interface {
 	DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteCoordinator(ctx context.Context, id uuid.UUID) error
+	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
@@ -162,6 +163,8 @@ type sqlcQuerier interface {
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
+	GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (NotificationTemplate, error)
+	GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error)
 	GetNotificationsSettings(ctx context.Context) (string, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
@@ -265,6 +268,7 @@ type sqlcQuerier interface {
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error)
+	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
 	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)
@@ -401,6 +405,7 @@ type sqlcQuerier interface {
 	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
 	UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error)
 	UpdateMemberRoles(ctx context.Context, arg UpdateMemberRolesParams) (OrganizationMember, error)
+	UpdateNotificationTemplateMethodByID(ctx context.Context, arg UpdateNotificationTemplateMethodByIDParams) (NotificationTemplate, error)
 	UpdateOAuth2ProviderAppByID(ctx context.Context, arg UpdateOAuth2ProviderAppByIDParams) (OAuth2ProviderApp, error)
 	UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg UpdateOAuth2ProviderAppSecretByIDParams) (OAuth2ProviderAppSecret, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
@@ -427,6 +432,7 @@ type sqlcQuerier interface {
 	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
 	UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error)
 	UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error)
+	UpdateUserNotificationPreferences(ctx context.Context, arg UpdateUserNotificationPreferencesParams) (int64, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)

@@ -84,12 +84,17 @@ CREATE TYPE notification_message_status AS ENUM (
     'sent',
     'permanent_failure',
     'temporary_failure',
-    'unknown'
+    'unknown',
+    'inhibited'
 );
 
 CREATE TYPE notification_method AS ENUM (
     'smtp',
     'webhook'
+);
+
+CREATE TYPE notification_template_kind AS ENUM (
+    'system'
 );
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
@@ -164,7 +169,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app_secret',
     'custom_role',
     'organization_member',
-    'notifications_settings'
+    'notifications_settings',
+    'notification_template'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -249,6 +255,23 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	-- Fail the insertion if the user has disabled this notification.
+	IF EXISTS (SELECT 1
+			   FROM notification_preferences
+			   WHERE disabled = TRUE
+				 AND user_id = NEW.user_id
+				 AND notification_template_id = NEW.notification_template_id) THEN
+		RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
+	END IF;
+
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION insert_apikey_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -276,6 +299,26 @@ BEGIN
 		END IF;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION remove_organization_member_role() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	-- Delete the role from all organization members that have it.
+	-- TODO: When site wide custom roles are supported, if the
+	--	organization_id is null, we should remove the role from the 'users'
+	--	table instead.
+	IF OLD.organization_id IS NOT NULL THEN
+		UPDATE organization_members
+		-- this is a noop if the role is not assigned to the member
+		SET roles = array_remove(roles, OLD.name)
+		WHERE
+			-- Scope to the correct organization
+			organization_members.organization_id = OLD.organization_id;
+	END IF;
+	RETURN OLD;
 END;
 $$;
 
@@ -567,16 +610,28 @@ CREATE TABLE notification_messages (
     queued_seconds double precision
 );
 
+CREATE TABLE notification_preferences (
+    user_id uuid NOT NULL,
+    notification_template_id uuid NOT NULL,
+    disabled boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE notification_templates (
     id uuid NOT NULL,
     name text NOT NULL,
     title_template text NOT NULL,
     body_template text NOT NULL,
     actions jsonb,
-    "group" text
+    "group" text,
+    method notification_method,
+    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL
 );
 
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';
+
+COMMENT ON COLUMN notification_templates.method IS 'NULL defers to the deployment-level method';
 
 CREATE TABLE oauth2_provider_app_codes (
     id uuid NOT NULL,
@@ -1536,6 +1591,9 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
+
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
 
@@ -1734,9 +1792,9 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
+CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
-COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Allow unique provisioner daemon names by user';
+COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
@@ -1798,6 +1856,12 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
+CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
+CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
+
+COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
+
 CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
 
 CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_clients FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_change();
@@ -1850,6 +1914,12 @@ ALTER TABLE ONLY notification_messages
 
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY notification_preferences
+    ADD CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;

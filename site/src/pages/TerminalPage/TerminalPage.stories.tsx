@@ -13,6 +13,7 @@ import {
   MockAppearanceConfig,
   MockAuthMethodsAll,
   MockBuildInfo,
+  MockDefaultOrganization,
   MockEntitlements,
   MockExperiments,
   MockUser,
@@ -70,6 +71,7 @@ const meta = {
       { key: ["entitlements"], data: MockEntitlements },
       { key: ["experiments"], data: MockExperiments },
       { key: ["appearance"], data: MockAppearanceConfig },
+      { key: ["organizations"], data: [MockDefaultOrganization] },
       {
         key: getAuthorizationKey({ checks: permissionsToCheck }),
         data: { editWorkspaceProxies: true },

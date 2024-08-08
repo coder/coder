@@ -38,7 +38,7 @@ export interface UsersPageViewProps {
   usersQuery: PaginationResult;
 
   // TODO: Refactor these out once we remove the multi-organization experiment.
-  isMultiOrg?: boolean;
+  canViewOrganizations?: boolean;
   canCreateUser?: boolean;
 }
 
@@ -63,14 +63,14 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
   authMethods,
   groupsByUserId,
   usersQuery,
-  isMultiOrg,
+  canViewOrganizations,
   canCreateUser,
 }) => {
   const navigate = useNavigate();
 
   return (
     <>
-      {isMultiOrg && (
+      {canViewOrganizations && (
         <PageHeader
           css={{ paddingTop: 0 }}
           actions={

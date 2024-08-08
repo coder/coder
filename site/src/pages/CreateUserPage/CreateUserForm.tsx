@@ -65,7 +65,6 @@ export interface CreateUserFormProps {
   onCancel: () => void;
   error?: unknown;
   isLoading: boolean;
-  organizationId: string;
   authMethods?: TypesGen.AuthMethods;
 }
 
@@ -86,7 +85,7 @@ const validationSchema = Yup.object({
 
 export const CreateUserForm: FC<
   React.PropsWithChildren<CreateUserFormProps>
-> = ({ onSubmit, onCancel, error, isLoading, organizationId, authMethods }) => {
+> = ({ onSubmit, onCancel, error, isLoading, authMethods }) => {
   const form: FormikContextType<TypesGen.CreateUserRequest> =
     useFormik<TypesGen.CreateUserRequest>({
       initialValues: {
@@ -94,7 +93,7 @@ export const CreateUserForm: FC<
         password: "",
         username: "",
         name: "",
-        organization_id: organizationId,
+        organization_id: "00000000-0000-0000-0000-000000000000",
         disable_login: false,
         login_type: "",
       },

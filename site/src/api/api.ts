@@ -300,9 +300,19 @@ const BASE_CONTENT_TYPE_JSON = {
   "Content-Type": "application/json",
 } as const satisfies HeadersInit;
 
-type TemplateOptions = Readonly<{
+export type GetTemplatesOptions = Readonly<{
   readonly deprecated?: boolean;
 }>;
+
+function normalizeGetTemplatesOptions(
+  options: GetTemplatesOptions = {},
+): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (options.deprecated !== undefined) {
+    params["deprecated"] = String(options.deprecated);
+  }
+  return params;
+}
 
 type SearchParamOptions = TypesGen.Pagination & {
   q?: string;
@@ -473,7 +483,7 @@ class ApiMethods {
   };
 
   deleteToken = async (keyId: string): Promise<void> => {
-    await this.axios.delete("/api/v2/users/me/keys/" + keyId);
+    await this.axios.delete(`/api/v2/users/me/keys/${keyId}`);
   };
 
   createToken = async (
@@ -617,6 +627,18 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  getProvisionerDaemonsByOrganization = async (
+    organization: string,
+  ): Promise<TypesGen.ProvisionerDaemon[]> => {
+    const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
+      `/api/v2/organizations/${organization}/provisionerdaemons`,
+    );
+    return response.data;
+  };
+
   getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
     const response = await this.axios.get<TypesGen.Template>(
       `/api/v2/templates/${templateId}`,
@@ -625,21 +647,26 @@ class ApiMethods {
     return response.data;
   };
 
+  getTemplates = async (
+    options?: GetTemplatesOptions,
+  ): Promise<TypesGen.Template[]> => {
+    const params = normalizeGetTemplatesOptions(options);
+    const response = await this.axios.get<TypesGen.Template[]>(
+      `/api/v2/templates`,
+      { params },
+    );
+
+    return response.data;
+  };
+
   /**
    * @param organization Can be the organization's ID or name
    */
-  getTemplates = async (
+  getTemplatesByOrganization = async (
     organization: string,
-    options?: TemplateOptions,
+    options?: GetTemplatesOptions,
   ): Promise<TypesGen.Template[]> => {
-    const params: Record<string, string> = {};
-    if (options?.deprecated !== undefined) {
-      // Just want to check if it isn't undefined. If it has
-      // a boolean value, convert it to a string and include
-      // it as a param.
-      params["deprecated"] = String(options.deprecated);
-    }
-
+    const params = normalizeGetTemplatesOptions(options);
     const response = await this.axios.get<TypesGen.Template[]>(
       `/api/v2/organizations/${organization}/templates`,
       { params },
@@ -1727,12 +1754,8 @@ class ApiMethods {
   /**
    * @param organization Can be the organization's ID or name
    */
-  getTemplateExamples = async (
-    organization: string,
-  ): Promise<TypesGen.TemplateExample[]> => {
-    const response = await this.axios.get(
-      `/api/v2/organizations/${organization}/templates/examples`,
-    );
+  getTemplateExamples = async (): Promise<TypesGen.TemplateExample[]> => {
+    const response = await this.axios.get(`/api/v2/templates/examples`);
 
     return response.data;
   };

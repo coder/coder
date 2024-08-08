@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 
@@ -266,14 +267,14 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		check.Args(database.GetAuditLogsOffsetParams{
 			LimitOpt: 10,
-		}).Asserts()
+		}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
 	s.Run("GetAuthorizedAuditLogsOffset", s.Subtest(func(db database.Store, check *expects) {
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		check.Args(database.GetAuditLogsOffsetParams{
 			LimitOpt: 10,
-		}, emptyPreparedAuthorized{}).Asserts()
+		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
 }
 
@@ -1245,6 +1246,31 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
+	}))
+	s.Run("Organization/DeleteCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		})
+		check.Args(database.DeleteCustomRoleParams{
+			Name:           customRole.Name,
+			OrganizationID: customRole.OrganizationID,
+		}).Asserts(
+			rbac.ResourceAssignOrgRole.InOrg(customRole.OrganizationID.UUID), policy.ActionDelete)
+	}))
+	s.Run("Site/DeleteCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.Nil,
+				Valid: false,
+			},
+		})
+		check.Args(database.DeleteCustomRoleParams{
+			Name: customRole.Name,
+		}).Asserts(
+			rbac.ResourceAssignRole, policy.ActionDelete)
 	}))
 	s.Run("Blank/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		// Blank is no perms in the role
@@ -2561,6 +2587,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			AgentID:     uuid.New(),
 		}).Asserts(tpl, policy.ActionCreate)
 	}))
+}
+
+func (s *MethodTestSuite) TestNotifications() {
+	// System functions
 	s.Run("AcquireNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: update this test once we have a specific role for notifications
 		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
@@ -2595,6 +2625,42 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+
+	// Notification templates
+	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetNotificationTemplatesByKind", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.NotificationTemplateKindSystem).
+			Asserts().
+			Errors(dbmem.ErrUnimplemented)
+
+		// TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
+	}))
+	s.Run("UpdateNotificationTemplateMethodByID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpdateNotificationTemplateMethodByIDParams{
+			Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true},
+			ID:     notifications.TemplateWorkspaceDormant,
+		}).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+
+	// Notification preferences
+	s.Run("GetUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).
+			Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("UpdateUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserNotificationPreferencesParams{
+			UserID:                  user.ID,
+			NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated, notifications.TemplateWorkspaceDeleted},
+			Disableds:               []bool{true, false},
+		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
 	}))
 }
 

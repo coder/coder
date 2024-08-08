@@ -225,7 +225,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                  db,
 		Pubsub:                    ps,
