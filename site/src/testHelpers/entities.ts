@@ -2499,7 +2499,7 @@ export const MockGroup: TypesGen.Group = {
   members: [MockUser, MockUser2],
   quota_allowance: 5,
   source: "user",
-  total_member_count: 0,
+  total_member_count: 2,
 };
 
 const everyOneGroup = (organizationId: string): TypesGen.Group => ({
