@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router-dom";
 import { organizationsPermissions } from "api/queries/organizations";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
   canEditOrganization,
   useOrganizationSettings,
@@ -19,6 +20,7 @@ import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
 export const Sidebar: FC = () => {
   const location = useLocation();
   const { permissions } = useAuthenticated();
+  const { experiments } = useDashboard();
   const { organizations } = useOrganizationSettings();
   const { organization: organizationName } = useParams() as {
     organization?: string;
@@ -54,6 +56,7 @@ export const Sidebar: FC = () => {
       activeOrganizationName={organizationName}
       organizations={editableOrgs}
       permissions={permissions}
+      experiments={experiments}
     />
   );
 };

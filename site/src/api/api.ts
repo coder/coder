@@ -2036,6 +2036,49 @@ class ApiMethods {
 
     return response.data;
   };
+
+  getUserNotificationPreferences = async (userId: string) => {
+    const res = await this.axios.get<TypesGen.NotificationPreference[] | null>(
+      `/api/v2/users/${userId}/notifications/preferences`,
+    );
+    return res.data ?? [];
+  };
+
+  putUserNotificationPreferences = async (
+    userId: string,
+    req: TypesGen.UpdateUserNotificationPreferences,
+  ) => {
+    const res = await this.axios.put<TypesGen.NotificationPreference[]>(
+      `/api/v2/users/${userId}/notifications/preferences`,
+      req,
+    );
+    return res.data;
+  };
+
+  getSystemNotificationTemplates = async () => {
+    const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
+      `/api/v2/notifications/templates/system`,
+    );
+    return res.data;
+  };
+
+  getNotificationDispatchMethods = async () => {
+    const res = await this.axios.get<TypesGen.NotificationMethodsResponse>(
+      `/api/v2/notifications/dispatch-methods`,
+    );
+    return res.data;
+  };
+
+  updateNotificationTemplateMethod = async (
+    templateId: string,
+    req: TypesGen.UpdateNotificationTemplateMethod,
+  ) => {
+    const res = await this.axios.put<void>(
+      `/api/v2/notifications/templates/${templateId}/method`,
+      req,
+    );
+    return res.data;
+  };
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

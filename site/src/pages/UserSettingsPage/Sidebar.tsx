@@ -2,6 +2,7 @@ import AppearanceIcon from "@mui/icons-material/Brush";
 import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
 import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
+import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import AccountIcon from "@mui/icons-material/Person";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { FC } from "react";
@@ -20,7 +21,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
-  const { entitlements } = useDashboard();
+  const { entitlements, experiments } = useDashboard();
   const showSchedulePage =
     entitlements.features.advanced_template_scheduling.enabled;
 
@@ -56,6 +57,11 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
       <SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
         Tokens
       </SidebarNavItem>
+      {experiments.includes("notifications") && (
+        <SidebarNavItem href="notifications" icon={NotificationsIcon}>
+          Notifications
+        </SidebarNavItem>
+      )}
     </BaseSidebar>
   );
 };
