@@ -1401,18 +1401,11 @@ func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([
 }
 
 func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
-	group, err := q.GetGroupByID(ctx, groupID)
-	if err != nil {
+	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
 		return 0, err
 	}
 	memberCount, err := q.db.GetGroupMembersCountByGroupID(ctx, groupID)
 	if err != nil {
-		return 0, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, database.GroupMembersCountRBACHelper{
-		GroupID:        groupID,
-		OrganizationID: group.OrganizationID,
-	}); err != nil {
 		return 0, err
 	}
 	return memberCount, nil

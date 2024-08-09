@@ -172,32 +172,19 @@ func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
 	return rbac.ResourceTemplate.InOrg(v.OrganizationID)
 }
 
-func groupRBACObject(groupID, organizationID uuid.UUID) rbac.Object {
-	return rbac.ResourceGroup.WithID(groupID).
-		InOrg(organizationID).
+func (g Group) RBACObject() rbac.Object {
+	return rbac.ResourceGroup.WithID(g.ID).
+		InOrg(g.OrganizationID).
 		// Group members can read the group.
 		WithGroupACL(map[string][]policy.Action{
-			groupID.String(): {
+			g.ID.String(): {
 				policy.ActionRead,
 			},
 		})
 }
 
-func (g Group) RBACObject() rbac.Object {
-	return groupRBACObject(g.ID, g.OrganizationID)
-}
-
 func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
-}
-
-type GroupMembersCountRBACHelper struct {
-	GroupID        uuid.UUID
-	OrganizationID uuid.UUID
-}
-
-func (r GroupMembersCountRBACHelper) RBACObject() rbac.Object {
-	return groupRBACObject(r.GroupID, r.OrganizationID)
 }
 
 func (w GetWorkspaceByAgentIDRow) RBACObject() rbac.Object {
