@@ -91,6 +91,7 @@ export const NotificationsPage: FC = () => {
                       <ListItemIcon>
                         <Switch
                           id={group}
+                          size="small"
                           checked={!allDisabled}
                           onChange={async (_, checked) => {
                             const updated = { ...disabledPreferences.data };
@@ -126,6 +127,7 @@ export const NotificationsPage: FC = () => {
                           <ListItem>
                             <ListItemIcon>
                               <Switch
+                                size="small"
                                 id={tmpl.id}
                                 checked={!disabledPreferences.data[tmpl.id]}
                                 onChange={async (_, checked) => {
