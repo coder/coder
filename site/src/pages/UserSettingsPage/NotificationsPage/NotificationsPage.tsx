@@ -33,38 +33,6 @@ import {
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
-type PreferenceSwitchProps = {
-  id: string;
-  disabled: boolean;
-  onToggle: (checked: boolean) => Record<string, boolean>;
-};
-
-const PreferenceSwitch: FC<PreferenceSwitchProps> = ({
-  id,
-  disabled,
-  onToggle,
-}) => {
-  const { user } = useAuthenticated();
-  const queryClient = useQueryClient();
-  const updatePreferences = useMutation(
-    updateUserNotificationPreferences(user.id, queryClient),
-  );
-
-  return (
-    <Switch
-      id={id}
-      size="small"
-      checked={!disabled}
-      onChange={async (_, checked) => {
-        await updatePreferences.mutateAsync({
-          template_disabled_map: onToggle(checked),
-        });
-        displaySuccess("Notification preferences updated");
-      }}
-    />
-  );
-};
-
 export const NotificationsPage: FC = () => {
   const { user, permissions } = useAuthenticated();
   const [disabledPreferences, templatesByGroup, dispatchMethods] = useQueries({
@@ -88,6 +56,10 @@ export const NotificationsPage: FC = () => {
       notificationDispatchMethods(),
     ],
   });
+  const queryClient = useQueryClient();
+  const updatePreferences = useMutation(
+    updateUserNotificationPreferences(user.id, queryClient),
+  );
   const ready =
     disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;
 
@@ -117,15 +89,18 @@ export const NotificationsPage: FC = () => {
                   <List>
                     <ListItem css={styles.listHeader}>
                       <ListItemIcon>
-                        <PreferenceSwitch
+                        <Switch
                           id={group}
-                          disabled={allDisabled}
-                          onToggle={(checked) => {
+                          checked={!allDisabled}
+                          onChange={async (_, checked) => {
                             const updated = { ...disabledPreferences.data };
                             for (const tpl of templates) {
                               updated[tpl.id] = !checked;
                             }
-                            return updated;
+                            await updatePreferences.mutateAsync({
+                              template_disabled_map: updated,
+                            });
+                            displaySuccess("Notification preferences updated");
                           }}
                         />
                       </ListItemIcon>
@@ -150,14 +125,19 @@ export const NotificationsPage: FC = () => {
                         <Fragment key={tmpl.id}>
                           <ListItem>
                             <ListItemIcon>
-                              <PreferenceSwitch
+                              <Switch
                                 id={tmpl.id}
-                                disabled={disabledPreferences.data[tmpl.id]}
-                                onToggle={(checked) => {
-                                  return {
-                                    ...disabledPreferences.data,
-                                    [tmpl.id]: !checked,
-                                  };
+                                checked={!disabledPreferences.data[tmpl.id]}
+                                onChange={async (_, checked) => {
+                                  await updatePreferences.mutateAsync({
+                                    template_disabled_map: {
+                                      ...disabledPreferences.data,
+                                      [tmpl.id]: !checked,
+                                    },
+                                  });
+                                  displaySuccess(
+                                    "Notification preferences updated",
+                                  );
                                 }}
                               />
                             </ListItemIcon>
