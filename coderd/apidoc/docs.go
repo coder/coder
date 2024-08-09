@@ -3256,50 +3256,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/organizations/{organization}/users/{user}/reduced-groups": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get reduced groups for a user in an organization",
-                "operationId": "get-reduced-groups-by-user-and-organization",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "User ID, name, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ReducedGroup"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/regions": {
             "get": {
                 "security": [
@@ -11674,32 +11630,6 @@ const docTemplate = `{
                 },
                 "disable_all": {
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.ReducedGroup": {
-            "type": "object",
-            "properties": {
-                "avatar_url": {
-                    "type": "string"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "total_member_count": {
-                    "description": "How many users are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
-                    "type": "integer"
                 }
             }
         },

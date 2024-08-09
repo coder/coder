@@ -222,17 +222,6 @@ func Group(group database.Group, members []database.GroupMember, totalMemberCoun
 	}
 }
 
-func ReducedGroup(group database.Group, totalMemberCount int) codersdk.ReducedGroup {
-	return codersdk.ReducedGroup{
-		ID:               group.ID,
-		Name:             group.Name,
-		DisplayName:      group.DisplayName,
-		OrganizationID:   group.OrganizationID,
-		AvatarURL:        group.AvatarURL,
-		TotalMemberCount: totalMemberCount,
-	}
-}
-
 func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
 	// Use a stable sort, similarly to how we would sort in the query, note that
 	// we don't sort in the query because order varies depending on the table

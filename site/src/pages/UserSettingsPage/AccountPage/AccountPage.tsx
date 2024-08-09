@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { reducedGroupsForUser } from "api/queries/groups";
+import { groupsForUser } from "api/queries/groups";
 import { Stack } from "components/Stack/Stack";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -18,7 +18,7 @@ export const AccountPage: FC = () => {
   const hasGroupsFeature = entitlements.features.user_role_management.enabled;
   const groupsQuery = useQuery({
     // TODO: This should probably list all groups, not just default org groups
-    ...reducedGroupsForUser("default", me.id),
+    ...groupsForUser("default", me.id),
     enabled: hasGroupsFeature,
   });
 
