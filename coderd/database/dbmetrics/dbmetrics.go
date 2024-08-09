@@ -648,7 +648,7 @@ func (m metricsStore) GetGroupMembers(ctx context.Context) ([]database.GroupMemb
 	return r0, r1
 }
 
-func (m metricsStore) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
+func (m metricsStore) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]database.GroupMember, error) {
 	start := time.Now()
 	users, err := m.s.GetGroupMembersByGroupID(ctx, groupID)
 	m.queryLatencies.WithLabelValues("GetGroupMembersByGroupID").Observe(time.Since(start).Seconds())
