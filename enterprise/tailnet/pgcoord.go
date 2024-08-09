@@ -26,18 +26,19 @@ import (
 )
 
 const (
-	EventHeartbeats        = "tailnet_coordinator_heartbeat"
-	eventPeerUpdate        = "tailnet_peer_update"
-	eventTunnelUpdate      = "tailnet_tunnel_update"
-	eventReadyForHandshake = "tailnet_ready_for_handshake"
-	HeartbeatPeriod        = time.Second * 2
-	MissedHeartbeats       = 3
-	numQuerierWorkers      = 10
-	numBinderWorkers       = 10
-	numTunnelerWorkers     = 10
-	numHandshakerWorkers   = 5
-	dbMaxBackoff           = 10 * time.Second
-	cleanupPeriod          = time.Hour
+	EventHeartbeats             = "tailnet_coordinator_heartbeat"
+	eventPeerUpdate             = "tailnet_peer_update"
+	eventTunnelUpdate           = "tailnet_tunnel_update"
+	eventReadyForHandshake      = "tailnet_ready_for_handshake"
+	HeartbeatPeriod             = time.Second * 2
+	MissedHeartbeats            = 3
+	unhealthyHeartbeatThreshold = 3
+	numQuerierWorkers           = 10
+	numBinderWorkers            = 10
+	numTunnelerWorkers          = 10
+	numHandshakerWorkers        = 5
+	dbMaxBackoff                = 10 * time.Second
+	cleanupPeriod               = time.Hour
 )
 
 // pgCoord is a postgres-backed coordinator
@@ -1646,13 +1647,18 @@ func (h *heartbeats) sendBeats() {
 	// send an initial heartbeat so that other coordinators can start using our bindings right away.
 	h.sendBeat()
 	close(h.firstHeartbeat) // signal binder it can start writing
-	defer h.sendDelete()
 	tkr := h.clock.TickerFunc(h.ctx, HeartbeatPeriod, func() error {
 		h.sendBeat()
 		return nil
 	}, "heartbeats", "sendBeats")
 	err := tkr.Wait()
 	h.logger.Debug(h.ctx, "ending heartbeats", slog.Error(err))
+	// This is unlikely to succeed if we're unhealthy but
+	// we get it our best effort.
+	if h.failedHeartbeats >= unhealthyHeartbeatThreshold {
+		h.logger.Debug(h.ctx, "coordinator detected unhealthy, deleting self", slog.Error(err))
+		h.sendDelete()
+	}
 }
 
 func (h *heartbeats) sendBeat() {
@@ -1663,14 +1669,14 @@ func (h *heartbeats) sendBeat() {
 	if err != nil {
 		h.logger.Error(h.ctx, "failed to send heartbeat", slog.Error(err))
 		h.failedHeartbeats++
-		if h.failedHeartbeats == 3 {
+		if h.failedHeartbeats == unhealthyHeartbeatThreshold {
 			h.logger.Error(h.ctx, "coordinator failed 3 heartbeats and is unhealthy")
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateUnhealthy})
 		}
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
-	if h.failedHeartbeats >= 3 {
+	if h.failedHeartbeats >= unhealthyHeartbeatThreshold {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
 	}
