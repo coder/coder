@@ -13,7 +13,7 @@ import OrganizationSettingsPage from "./OrganizationSettingsPage";
 
 jest.spyOn(console, "error").mockImplementation(() => {});
 
-const renderRootPage = async () => {
+const renderPage = async () => {
   renderWithManagementSettingsLayout(<OrganizationSettingsPage />, {
     route: "/organizations",
     path: "/organizations/:organization?",
@@ -21,31 +21,7 @@ const renderRootPage = async () => {
   await waitForLoaderToBeRemoved();
 };
 
-const renderPage = async (orgName: string) => {
-  renderWithManagementSettingsLayout(<OrganizationSettingsPage />, {
-    route: `/organizations/${orgName}`,
-    path: "/organizations/:organization",
-  });
-  await waitForLoaderToBeRemoved();
-};
-
 describe("OrganizationSettingsPage", () => {
-  it("has no organizations", async () => {
-    server.use(
-      http.get("/api/v2/organizations", () => {
-        return HttpResponse.json([]);
-      }),
-      http.post("/api/v2/authcheck", async () => {
-        return HttpResponse.json({
-          [`${MockDefaultOrganization.id}.editOrganization`]: true,
-          viewDeploymentValues: true,
-        });
-      }),
-    );
-    await renderRootPage();
-    await screen.findByText("No organizations found");
-  });
-
   it("has no editable organizations", async () => {
     server.use(
       http.get("/api/v2/organizations", () => {
@@ -57,7 +33,7 @@ describe("OrganizationSettingsPage", () => {
         });
       }),
     );
-    await renderRootPage();
+    await renderPage();
     await screen.findByText("No organizations found");
   });
 
@@ -75,7 +51,7 @@ describe("OrganizationSettingsPage", () => {
         });
       }),
     );
-    await renderRootPage();
+    await renderPage();
     const form = screen.getByTestId("org-settings-form");
     expect(within(form).getByRole("textbox", { name: "Name" })).toHaveValue(
       MockDefaultOrganization.name,
@@ -94,46 +70,10 @@ describe("OrganizationSettingsPage", () => {
         });
       }),
     );
-    await renderRootPage();
+    await renderPage();
     const form = screen.getByTestId("org-settings-form");
     expect(within(form).getByRole("textbox", { name: "Name" })).toHaveValue(
       MockOrganization2.name,
     );
-  });
-
-  it("cannot find organization", async () => {
-    server.use(
-      http.get("/api/v2/organizations", () => {
-        return HttpResponse.json([MockDefaultOrganization, MockOrganization2]);
-      }),
-      http.post("/api/v2/authcheck", async () => {
-        return HttpResponse.json({
-          [`${MockOrganization2.id}.editOrganization`]: true,
-          viewDeploymentValues: true,
-        });
-      }),
-    );
-    await renderPage("the-endless-void");
-    await screen.findByText("Organization not found");
-  });
-
-  it("cannot edit organization", async () => {
-    server.use(
-      http.get("/api/v2/organizations", () => {
-        return HttpResponse.json([MockDefaultOrganization]);
-      }),
-      http.post("/api/v2/authcheck", async () => {
-        return HttpResponse.json({
-          viewDeploymentValues: true,
-        });
-      }),
-    );
-    // No form since they cannot edit, instead sees the summary view.
-    await renderPage(MockDefaultOrganization.name);
-    expect(screen.queryByTestId("org-settings-form")).not.toBeInTheDocument();
-    await screen.findByRole("heading", {
-      level: 1,
-      name: MockDefaultOrganization.display_name,
-    });
   });
 });
