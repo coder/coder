@@ -27,13 +27,12 @@ import type {
   RBACAction,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { FormFields, FormFooter, VerticalForm } from "components/Form/Form";
 import {
-  FormFields,
-  FormFooter,
-  FormSection,
-  VerticalForm,
-} from "components/Form/Form";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+  PageHeader,
+  PageHeaderSubtitle,
+  PageHeaderTitle,
+} from "components/PageHeader/PageHeader";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 
 const validationSchema = Yup.object({
@@ -105,41 +104,39 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
         <PageHeaderTitle>
           {role ? "Edit" : "Create"} custom role
         </PageHeaderTitle>
+        <PageHeaderSubtitle>
+          {"Set a name and permissions for this role."}
+        </PageHeaderSubtitle>
       </PageHeader>
       <VerticalForm onSubmit={form.handleSubmit}>
-        <FormSection
-          title="Role settings"
-          description="Set a name and permissions for this role."
-        >
-          <FormFields>
-            {Boolean(error) && !isApiValidationError(error) && (
-              <ErrorAlert error={error} />
-            )}
+        <FormFields>
+          {Boolean(error) && !isApiValidationError(error) && (
+            <ErrorAlert error={error} />
+          )}
 
-            <TextField
-              {...getFieldHelpers("name", {
-                helperText:
-                  "The role name cannot be modified after the role is created.",
-              })}
-              autoFocus
-              fullWidth
-              disabled={role !== undefined}
-              label="Name"
-            />
-            <TextField
-              {...getFieldHelpers("display_name", {
-                helperText: "Optional: keep empty to default to the name.",
-              })}
-              fullWidth
-              label="Display Name"
-            />
-            <ActionCheckboxes
-              permissions={role?.organization_permissions || []}
-              form={form}
-              allResources={allResources}
-            />
-          </FormFields>
-        </FormSection>
+          <TextField
+            {...getFieldHelpers("name", {
+              helperText:
+                "The role name cannot be modified after the role is created.",
+            })}
+            autoFocus
+            fullWidth
+            disabled={role !== undefined}
+            label="Name"
+          />
+          <TextField
+            {...getFieldHelpers("display_name", {
+              helperText: "Optional: keep empty to default to the name.",
+            })}
+            fullWidth
+            label="Display Name"
+          />
+          <ActionCheckboxes
+            permissions={role?.organization_permissions || []}
+            form={form}
+            allResources={allResources}
+          />
+        </FormFields>
         {canAssignOrgRole && (
           <FormFooter
             onCancel={onCancel}
