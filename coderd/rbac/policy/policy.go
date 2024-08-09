@@ -149,6 +149,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update a group"),
 		},
 	},
+	"group_member": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead: actDef("read group members"),
+		},
+	},
 	"file": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create a file"),

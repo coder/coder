@@ -14,6 +14,7 @@ const (
 	ResourceDeploymentStats        RBACResource = "deployment_stats"
 	ResourceFile                   RBACResource = "file"
 	ResourceGroup                  RBACResource = "group"
+	ResourceGroupMember            RBACResource = "group_member"
 	ResourceLicense                RBACResource = "license"
 	ResourceNotificationPreference RBACResource = "notification_preference"
 	ResourceNotificationTemplate   RBACResource = "notification_template"
@@ -65,6 +66,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceDeploymentStats:        {ActionRead},
 	ResourceFile:                   {ActionCreate, ActionRead},
 	ResourceGroup:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceGroupMember:            {ActionRead},
 	ResourceLicense:                {ActionCreate, ActionDelete, ActionRead},
 	ResourceNotificationPreference: {ActionRead, ActionUpdate},
 	ResourceNotificationTemplate:   {ActionRead, ActionUpdate},
