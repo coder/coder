@@ -15,6 +15,7 @@ import {
   useOrganizationSettings,
 } from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
+import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
 
 const OrganizationSettingsPage: FC = () => {
   const { organization: organizationName } = useParams() as {
@@ -65,12 +66,18 @@ const OrganizationSettingsPage: FC = () => {
     return <EmptyState message="Organization not found" />;
   }
 
+  // The user may not be able to edit this org but they can still see it because
+  // they can edit members, etc.  In this case they will be shown a read-only
+  // summary page instead of the settings form.
+  if (!permissions[organization.id]?.editOrganization) {
+    return <OrganizationSummaryPageView organization={organization} />;
+  }
+
   const error =
     updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
   return (
     <OrganizationSettingsPageView
-      canEdit={permissions[organization.id]?.editOrganization ?? false}
       organization={organization}
       error={error}
       onSubmit={async (values) => {
