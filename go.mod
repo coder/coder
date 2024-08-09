@@ -87,6 +87,7 @@ require (
 	github.com/coder/quartz v0.1.0
 	github.com/coder/retry v1.5.1
 	github.com/coder/terraform-provider-coder v0.23.0
+	github.com/coder/websocket v1.8.12
 	github.com/coder/wgtunnel v0.1.13-0.20240522110300-ade90dfb2da0
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
@@ -188,7 +189,6 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc
-	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33
 	tailscale.com v1.46.1
 )
@@ -219,6 +219,7 @@ require (
 	github.com/pion/transport/v2 v2.0.0 // indirect
 	github.com/tdewolff/test v1.0.11-0.20240106005702-7de5f7df4739 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0 // indirect
+	nhooyr.io/websocket v1.8.7 // indirect
 )
 
 require (

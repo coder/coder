@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 

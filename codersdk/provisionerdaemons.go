@@ -9,10 +9,10 @@ import (
 	"net/http/cookiejar"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/drpc"

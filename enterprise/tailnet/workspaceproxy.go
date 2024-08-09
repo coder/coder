@@ -146,9 +146,9 @@ func forwardNodesToWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.Mu
 			return err
 		}
 
-		// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
+		// github.com/coder/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
 		// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
-		// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
+		// fails.  What github.com/coder/websocket does is set a timer, after which it expires the websocket write context.
 		// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
 		// our successful write, it is important that we reset the deadline before it fires.
 		err = conn.SetWriteDeadline(time.Time{})

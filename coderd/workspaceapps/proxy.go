@@ -12,10 +12,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentssh"

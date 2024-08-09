@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"golang.org/x/exp/slices"
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"

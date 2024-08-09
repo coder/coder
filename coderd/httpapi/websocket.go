@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 
 	"cdr.dev/slog"
 )

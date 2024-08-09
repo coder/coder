@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"

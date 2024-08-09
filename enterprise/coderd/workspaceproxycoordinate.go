@@ -3,8 +3,8 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"

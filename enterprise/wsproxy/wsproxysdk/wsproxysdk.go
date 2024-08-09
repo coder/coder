@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"

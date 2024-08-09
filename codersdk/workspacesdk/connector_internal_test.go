@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"

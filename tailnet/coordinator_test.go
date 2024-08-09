@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 

@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 

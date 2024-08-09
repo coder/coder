@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/capture"
 

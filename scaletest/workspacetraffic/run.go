@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"

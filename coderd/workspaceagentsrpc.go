@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"

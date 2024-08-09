@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 

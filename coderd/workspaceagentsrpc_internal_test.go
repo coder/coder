@@ -10,10 +10,10 @@ import (
 
 	"github.com/coder/coder/v2/coderd/util/ptr"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"

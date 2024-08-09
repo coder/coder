@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 
