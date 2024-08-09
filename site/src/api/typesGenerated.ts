@@ -1067,16 +1067,6 @@ export interface RateLimitConfig {
   readonly api: number;
 }
 
-// From codersdk/groups.go
-export interface ReducedGroup {
-  readonly id: string;
-  readonly name: string;
-  readonly display_name: string;
-  readonly organization_id: string;
-  readonly total_member_count: number;
-  readonly avatar_url: string;
-}
-
 // From codersdk/users.go
 export interface ReducedUser extends MinimalUser {
   readonly name: string;

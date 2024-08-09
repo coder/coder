@@ -1518,65 +1518,6 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get reduced groups for a user in an organization
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/users/{user}/reduced-groups \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /organizations/{organization}/users/{user}/reduced-groups`
-
-### Parameters
-
-| Name           | In   | Type   | Required | Description          |
-| -------------- | ---- | ------ | -------- | -------------------- |
-| `organization` | path | string | true     | Organization ID      |
-| `user`         | path | string | true     | User ID, name, or me |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "avatar_url": "string",
-    "display_name": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "total_member_count": 0
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                            |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ReducedGroup](schemas.md#codersdkreducedgroup) |
-
-<h3 id="get-reduced-groups-for-a-user-in-an-organization-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name                   | Type         | Required | Restrictions | Description                                                                                                                                                         |
-| ---------------------- | ------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`         | array        | false    |              |                                                                                                                                                                     |
-| `» avatar_url`         | string       | false    |              |                                                                                                                                                                     |
-| `» display_name`       | string       | false    |              |                                                                                                                                                                     |
-| `» id`                 | string(uuid) | false    |              |                                                                                                                                                                     |
-| `» name`               | string       | false    |              |                                                                                                                                                                     |
-| `» organization_id`    | string(uuid) | false    |              |                                                                                                                                                                     |
-| `» total_member_count` | integer      | false    |              | How many users are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get active replicas
 
 ### Code samples
