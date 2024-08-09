@@ -475,7 +475,7 @@ func TestLogin(t *testing.T) {
 			err := root.Run()
 			assert.NoError(t, err)
 		}()
-		pty.ExpectMatch(fmt.Sprintf(" Already Logged In to '%s'!", client.URL.String()))
+		pty.ExpectMatch(fmt.Sprintf("You are already logged in to '%s'!", client.URL.String()))
 		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine(client.SessionToken())
