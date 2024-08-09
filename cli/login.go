@@ -151,9 +151,12 @@ func (r *RootCmd) login() *serpent.Command {
 		useTokenForSession bool
 	)
 	cmd := &serpent.Command{
-		Use:        "login [<url>]",
-		Short:      "Authenticate with Coder deployment",
-		Middleware: serpent.RequireRangeArgs(0, 1),
+		Use:   "login [<url>]",
+		Short: "Authenticate with Coder deployment",
+		Middleware: serpent.Chain(
+			serpent.RequireRangeArgs(0, 1),
+			r.CheckExistingUserSession(),
+		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			rawURL := ""
