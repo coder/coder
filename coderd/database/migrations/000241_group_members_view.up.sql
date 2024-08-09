@@ -1,6 +1,8 @@
 CREATE VIEW
     group_members_expanded
 AS
+-- If the group is a user made group, then we need to check the group_members table.
+-- If it is the "Everyone" group, then we need to check the organization_members table.
 WITH all_members AS (
     SELECT user_id, group_id FROM group_members
     UNION
