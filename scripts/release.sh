@@ -165,12 +165,6 @@ if [[ ${script_check} = 1 ]] && [[ -n ${script_diff} ]]; then
 	error "Release script is out-of-date. Please check out the latest version and try again."
 fi
 
-# Make sure no other remote release contains this ref.
-release_contains_ref="$(git branch --remotes --contains "${ref}" --list "${remote}/release/*" --format='%(refname)')"
-if [[ -n ${release_contains_ref} ]]; then
-	error "Ref ${ref_name} is already part of another release: $(git describe --always "${ref}") on ${release_contains_ref#"refs/remotes/${remote}/"}."
-fi
-
 log "Checking GitHub for latest release(s)..."
 
 # Check the latest version tag from GitHub (by version) using the API.

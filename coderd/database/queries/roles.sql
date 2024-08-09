@@ -25,6 +25,13 @@ WHERE
   END
 ;
 
+-- name: DeleteCustomRole :exec
+DELETE FROM
+	custom_roles
+WHERE
+	name = lower(@name)
+	AND organization_id = @organization_id
+;
 
 -- name: UpsertCustomRole :one
 INSERT INTO

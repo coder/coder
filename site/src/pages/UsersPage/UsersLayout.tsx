@@ -25,8 +25,7 @@ export const UsersLayout: FC = () => {
   const location = useLocation();
   const activeTab = location.pathname.endsWith("groups") ? "groups" : "users";
 
-  const canViewOrganizations =
-    feats.multiple_organizations && experiments.includes("multi-organization");
+  const canViewOrganizations = experiments.includes("multi-organization");
 
   return (
     <>

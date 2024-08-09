@@ -1,4 +1,20 @@
-const DEFAULT_DOCS_URL = "https://coder.com/docs";
+import { getStaticBuildInfo } from "./buildInfo";
+
+function defaultDocsUrl(): string {
+  const docsUrl = "https://coder.com/docs";
+  // If we can get the specific version, we want to include that in default docs URL.
+  let version = getStaticBuildInfo()?.version;
+  if (!version) {
+    return docsUrl;
+  }
+
+  // Strip the postfix version info that's not part of the link.
+  const i = version?.indexOf("-") ?? -1;
+  if (i >= 0) {
+    version = version.slice(0, i);
+  }
+  return `${docsUrl}/@${version}`;
+}
 
 // Add cache to avoid DOM reading all the time
 let CACHED_DOCS_URL: string | undefined;
@@ -12,8 +28,9 @@ const getBaseDocsURL = () => {
     const docsUrl = document
       .querySelector<HTMLMetaElement>('meta[property="docs-url"]')
       ?.getAttribute("content");
+
     const isValidDocsURL = docsUrl && isURL(docsUrl);
-    CACHED_DOCS_URL = isValidDocsURL ? docsUrl : DEFAULT_DOCS_URL;
+    CACHED_DOCS_URL = isValidDocsURL ? docsUrl : defaultDocsUrl();
   }
   return CACHED_DOCS_URL;
 };

@@ -29,7 +29,6 @@ import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -43,7 +42,6 @@ const UsersPage: FC = () => {
   const searchParamsResult = useSearchParams();
   const { entitlements, experiments } = useDashboard();
   const [searchParams] = searchParamsResult;
-  const feats = useFeatureVisibility();
 
   const groupsByUserIdQuery = useQuery(groupsByUserId("default"));
   const authMethodsQuery = useQuery(authMethods());
@@ -104,8 +102,7 @@ const UsersPage: FC = () => {
     authMethodsQuery.isLoading ||
     groupsByUserIdQuery.isLoading;
 
-  const canViewOrganizations =
-    feats.multiple_organizations && experiments.includes("multi-organization");
+  const canViewOrganizations = experiments.includes("multi-organization");
   if (canViewOrganizations && location.pathname !== "/deployment/users") {
     return <Navigate to={`/deployment/users${location.search}`} replace />;
   }

@@ -9,7 +9,6 @@ import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { Sidebar } from "./Sidebar";
 
@@ -34,9 +33,7 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 export const DeploySettingsLayout: FC = () => {
   const { experiments } = useDashboard();
 
-  const feats = useFeatureVisibility();
-  const canViewOrganizations =
-    feats.multiple_organizations && experiments.includes("multi-organization");
+  const canViewOrganizations = experiments.includes("multi-organization");
 
   return canViewOrganizations ? (
     <ManagementSettingsLayout />

@@ -20,10 +20,10 @@ import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Loader } from "components/Loader/Loader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { createDayString } from "utils/createDayString";
-import { Header } from "../Header";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 export type MutatingResource = {
@@ -75,7 +75,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
         direction="row"
         justifyContent="space-between"
       >
-        <Header
+        <SettingsHeader
           title="Edit OAuth2 application"
           description="Configure an application to use Coder as an OAuth2 provider."
         />

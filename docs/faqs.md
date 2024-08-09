@@ -339,8 +339,8 @@ the IDE can be baked into the container image and manually open Gateway (or
 IntelliJ which has Gateway built-in), using a session token to Coder and then
 open the IDE.
 
-- [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/pod-idea)
-- [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/pod-idea-icon)
+- [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/src/pod-idea)
+- [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/src/pod-idea-icon)
 
 ### What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?
 
@@ -352,18 +352,18 @@ Artifactory.
 - [Blog post](https://coder.com/blog/running-a-private-vs-code-extension-marketplace)
 - [OSS project](https://github.com/coder/code-marketplace)
 
-[See this example template](https://github.com/sharkymark/v2-templates/blob/main/code-marketplace/main.tf#L229C1-L232C12)
+[See this example template](https://github.com/sharkymark/v2-templates/blob/main/src/code-marketplace/main.tf#L229C1-L232C12)
 where the agent specifies the URL and config environment variables which
 code-server picks up and points the developer to.
 
 Another option is to use Microsoft's code-server - which is like Coder's, but it
 can connect to Microsoft's extension marketplace so Copilot and chat can be
 retrieved there.
-[See a sample template here](https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf).
+[See a sample template here](https://github.com/sharkymark/v2-templates/blob/main/src/vs-code-server/main.tf).
 
 Another option is to use VS Code Desktop (local) and that connects to
 Microsoft's marketplace.
-https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf
+https://github.com/sharkymark/v2-templates/blob/main/src/vs-code-server/main.tf
 
 > Note: these are example templates with no SLAs on them and are not guaranteed
 > for long-term support.
@@ -400,7 +400,7 @@ colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
 ```
 
 Colima will show the path to the docker socket so we have a
-[community template](https://github.com/sharkymark/v2-templates/tree/main/docker-code-server)
+[community template](https://github.com/sharkymark/v2-templates/tree/main/src/docker-code-server)
 that prompts the Coder admin to enter the docker socket as a Terraform variable.
 
 ### How to make a `coder_app` optional?

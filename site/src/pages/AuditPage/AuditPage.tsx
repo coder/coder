@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useSearchParams, Navigate, useLocation } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { paginatedAudits } from "api/queries/audits";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
@@ -19,7 +19,6 @@ import { AuditPageView } from "./AuditPageView";
 const AuditPage: FC = () => {
   const feats = useFeatureVisibility();
   const { experiments } = useDashboard();
-  const location = useLocation();
 
   /**
    * There is an implicit link between auditsQuery and filter via the
@@ -71,14 +70,9 @@ const AuditPage: FC = () => {
       }),
   });
 
-  // TODO: Once multi-org is stable, we should place this redirect into the
-  //       router directly, if we still need to maintain it (for users who are
-  //       typing the old URL manually or have it bookmarked).
-  const canViewOrganizations =
-    feats.multiple_organizations && experiments.includes("multi-organization");
-  if (canViewOrganizations && location.pathname !== "/deployment/audit") {
-    return <Navigate to={`/deployment/audit${location.search}`} replace />;
-  }
+  // With the multi-organization experiment enabled, show extra organization
+  // info and the organization filter dropdon.
+  const canViewOrganizations = experiments.includes("multi-organization");
 
   return (
     <>

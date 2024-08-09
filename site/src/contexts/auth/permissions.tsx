@@ -41,6 +41,7 @@ export const permissionsToCheck = {
   [checks.createTemplates]: {
     object: {
       resource_type: "template",
+      any_org: true,
     },
     action: "update",
   },

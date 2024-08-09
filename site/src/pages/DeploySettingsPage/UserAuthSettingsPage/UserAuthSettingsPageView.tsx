@@ -1,12 +1,12 @@
 import type { SerpentOption } from "api/typesGenerated";
 import { Badges, DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
 } from "utils/deployOptions";
 import { docs } from "utils/docs";
-import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 
 export type UserAuthSettingsPageViewProps = {
@@ -27,9 +27,9 @@ export const UserAuthSettingsPageView = ({
     <>
       <Stack direction="column" spacing={6}>
         <div>
-          <Header title="User Authentication" />
+          <SettingsHeader title="User Authentication" />
 
-          <Header
+          <SettingsHeader
             title="Login with OpenID Connect"
             secondary
             description="Set up authentication to login with OpenID Connect."
@@ -48,7 +48,7 @@ export const UserAuthSettingsPageView = ({
         </div>
 
         <div>
-          <Header
+          <SettingsHeader
             title="Login with GitHub"
             secondary
             description="Set up authentication to login with GitHub."

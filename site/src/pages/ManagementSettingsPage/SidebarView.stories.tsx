@@ -4,15 +4,36 @@ import {
   MockOrganization2,
   MockPermissions,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { SidebarView } from "./SidebarView";
 
 const meta: Meta<typeof SidebarView> = {
   title: "components/MultiOrgSidebarView",
   component: SidebarView,
+  decorators: [withDashboardProvider],
   args: {
-    activeOrganization: undefined,
-    activeOrgPermissions: undefined,
-    organizations: [MockOrganization, MockOrganization2],
+    activeSettings: true,
+    activeOrganizationName: undefined,
+    organizations: [
+      {
+        ...MockOrganization,
+        permissions: {
+          editOrganization: true,
+          editMembers: true,
+          editGroups: true,
+          auditOrganization: true,
+        },
+      },
+      {
+        ...MockOrganization2,
+        permissions: {
+          editOrganization: true,
+          editMembers: true,
+          editGroups: true,
+          auditOrganization: true,
+        },
+      },
+    ],
     permissions: MockPermissions,
   },
 };
@@ -20,7 +41,11 @@ const meta: Meta<typeof SidebarView> = {
 export default meta;
 type Story = StoryObj<typeof SidebarView>;
 
-export const Default: Story = {};
+export const LoadingOrganizations: Story = {
+  args: {
+    organizations: undefined,
+  },
+};
 
 export const NoCreateOrg: Story = {
   args: {
@@ -74,44 +99,126 @@ export const NoPermissions: Story = {
   },
 };
 
-export const SelectedOrgLoading: Story = {
+export const NoSelected: Story = {
   args: {
-    activeOrganization: MockOrganization,
+    activeSettings: false,
+  },
+};
+
+export const SelectedOrgNoMatch: Story = {
+  args: {
+    activeOrganizationName: MockOrganization.name,
+    organizations: [],
   },
 };
 
 export const SelectedOrgAdmin: Story = {
   args: {
-    activeOrganization: MockOrganization,
-    activeOrgPermissions: {
-      editOrganization: true,
-      viewMembers: true,
-      viewGroups: true,
-      auditOrganization: true,
-    },
+    activeOrganizationName: MockOrganization.name,
+    organizations: [
+      {
+        ...MockOrganization,
+        permissions: {
+          editOrganization: true,
+          editMembers: true,
+          editGroups: true,
+          auditOrganization: true,
+          assignOrgRole: true,
+        },
+      },
+    ],
   },
 };
 
 export const SelectedOrgAuditor: Story = {
   args: {
-    activeOrganization: MockOrganization,
-    activeOrgPermissions: {
-      editOrganization: false,
-      viewMembers: false,
-      viewGroups: false,
-      auditOrganization: true,
+    activeOrganizationName: MockOrganization.name,
+    permissions: {
+      ...MockPermissions,
+      createOrganization: false,
     },
+    organizations: [
+      {
+        ...MockOrganization,
+        permissions: {
+          editOrganization: false,
+          editMembers: false,
+          editGroups: false,
+          auditOrganization: true,
+        },
+      },
+    ],
   },
 };
 
-export const SelectedOrgNoPerms: Story = {
+export const SelectedOrgUserAdmin: Story = {
   args: {
-    activeOrganization: MockOrganization,
-    activeOrgPermissions: {
-      editOrganization: false,
-      viewMembers: false,
-      viewGroups: false,
-      auditOrganization: false,
+    activeOrganizationName: MockOrganization.name,
+    permissions: {
+      ...MockPermissions,
+      createOrganization: false,
     },
+    organizations: [
+      {
+        ...MockOrganization,
+        permissions: {
+          editOrganization: false,
+          editMembers: true,
+          editGroups: true,
+          auditOrganization: false,
+        },
+      },
+    ],
+  },
+};
+
+export const MultiOrgAdminAndUserAdmin: Story = {
+  args: {
+    organizations: [
+      {
+        ...MockOrganization,
+        permissions: {
+          editOrganization: false,
+          editMembers: false,
+          editGroups: false,
+          auditOrganization: true,
+        },
+      },
+      {
+        ...MockOrganization2,
+        permissions: {
+          editOrganization: false,
+          editMembers: true,
+          editGroups: true,
+          auditOrganization: false,
+        },
+      },
+    ],
+  },
+};
+
+export const SelectedMultiOrgAdminAndUserAdmin: Story = {
+  args: {
+    activeOrganizationName: MockOrganization2.name,
+    organizations: [
+      {
+        ...MockOrganization,
+        permissions: {
+          editOrganization: false,
+          editMembers: false,
+          editGroups: false,
+          auditOrganization: true,
+        },
+      },
+      {
+        ...MockOrganization2,
+        permissions: {
+          editOrganization: false,
+          editMembers: true,
+          editGroups: true,
+          auditOrganization: false,
+        },
+      },
+    ],
   },
 };

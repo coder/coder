@@ -6,13 +6,13 @@ import {
   EnabledBadge,
   EnterpriseBadge,
 } from "components/Badges/Badges";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
 } from "utils/deployOptions";
 import { docs } from "utils/docs";
-import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 
 export type SecuritySettingsPageViewProps = {
@@ -31,7 +31,7 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
   return (
     <Stack direction="column" spacing={6}>
       <div>
-        <Header
+        <SettingsHeader
           title="Security"
           description="Ensure your Coder deployment is secure."
         />
@@ -47,7 +47,7 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
       </div>
 
       <div>
-        <Header
+        <SettingsHeader
           title="Browser Only Connections"
           secondary
           description="Block all workspace access via SSH, port forward, and other non-browser connections."
@@ -62,7 +62,7 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 
       {tlsOptions.length > 0 && (
         <div>
-          <Header
+          <SettingsHeader
             title="TLS"
             secondary
             description="Ensure TLS is properly configured for your Coder deployment."

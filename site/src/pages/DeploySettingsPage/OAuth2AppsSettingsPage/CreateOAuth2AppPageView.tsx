@@ -4,8 +4,8 @@ import type { FC } from "react";
 import { Link } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
-import { Header } from "../Header";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type CreateOAuth2AppProps = {
@@ -26,7 +26,7 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
         direction="row"
         justifyContent="space-between"
       >
-        <Header
+        <SettingsHeader
           title="Add an OAuth2 application"
           description="Configure an application to use Coder as an OAuth2 provider."
         />

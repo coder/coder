@@ -138,7 +138,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
                 onChange={handleChange}
                 isChecked={selectedRoleNames.has(role.name)}
                 value={role.name}
-                name={role.display_name}
+                name={role.display_name || role.name}
                 description={roleDescriptions[role.name] ?? ""}
               />
             ))}

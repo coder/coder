@@ -1247,6 +1247,31 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
 	}))
+	s.Run("Organization/DeleteCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		})
+		check.Args(database.DeleteCustomRoleParams{
+			Name:           customRole.Name,
+			OrganizationID: customRole.OrganizationID,
+		}).Asserts(
+			rbac.ResourceAssignOrgRole.InOrg(customRole.OrganizationID.UUID), policy.ActionDelete)
+	}))
+	s.Run("Site/DeleteCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.Nil,
+				Valid: false,
+			},
+		})
+		check.Args(database.DeleteCustomRoleParams{
+			Name: customRole.Name,
+		}).Asserts(
+			rbac.ResourceAssignRole, policy.ActionDelete)
+	}))
 	s.Run("Blank/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		// Blank is no perms in the role
 		check.Args(database.UpsertCustomRoleParams{
@@ -2610,8 +2635,10 @@ func (s *MethodTestSuite) TestNotifications() {
 	}))
 	s.Run("GetNotificationTemplatesByKind", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.NotificationTemplateKindSystem).
-			Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
+			Asserts().
 			Errors(dbmem.ErrUnimplemented)
+
+		// TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
 	}))
 	s.Run("UpdateNotificationTemplateMethodByID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpdateNotificationTemplateMethodByIDParams{

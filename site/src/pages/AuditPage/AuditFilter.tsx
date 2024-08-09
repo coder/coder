@@ -51,6 +51,8 @@ interface AuditFilterProps {
 }
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
+  // Use a smaller width if including the organization filter.
+  const width = menus.organization && 175;
   return (
     <Filter
       learnMoreLink={docs("/admin/audit-logs#filtering-logs")}
@@ -58,16 +60,14 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
       isLoading={menus.user.isInitializing}
       filter={filter}
       error={error}
-      // There is not much space with the sidebar and four filters, so in this
-      // case we will use the compact mode.
-      compact={Boolean(menus.organization)}
+      breakpoint={menus.organization && "lg"}
       options={
         <>
-          <ResourceTypeMenu menu={menus.resourceType} />
-          <ActionMenu menu={menus.action} />
-          <UserMenu menu={menus.user} />
+          <ResourceTypeMenu width={width} menu={menus.resourceType} />
+          <ActionMenu width={width} menu={menus.action} />
+          <UserMenu width={width} menu={menus.user} />
           {menus.organization && (
-            <OrganizationsMenu menu={menus.organization} />
+            <OrganizationsMenu width={width} menu={menus.organization} />
           )}
         </>
       }
@@ -211,19 +211,36 @@ export const useOrganizationsFilterMenu = ({
       return null;
     },
     getOptions: async () => {
-      const organizationsRes = await API.getOrganizations();
-      return organizationsRes.map<SelectFilterOption>((organization) => ({
-        label: organization.display_name || organization.name,
-        value: organization.name,
-        startIcon: (
-          <UserAvatar
-            key={organization.id}
-            size="xs"
-            username={organization.display_name || organization.name}
-            avatarURL={organization.icon}
-          />
+      // Only show the organizations for which you can view audit logs.
+      const organizations = await API.getOrganizations();
+      const permissions = await API.checkAuthorization({
+        checks: Object.fromEntries(
+          organizations.map((organization) => [
+            organization.id,
+            {
+              object: {
+                resource_type: "audit_log",
+                organization_id: organization.id,
+              },
+              action: "read",
+            },
+          ]),
         ),
-      }));
+      });
+      return organizations
+        .filter((organization) => permissions[organization.id])
+        .map<SelectFilterOption>((organization) => ({
+          label: organization.display_name || organization.name,
+          value: organization.name,
+          startIcon: (
+            <UserAvatar
+              key={organization.id}
+              size="xs"
+              username={organization.display_name || organization.name}
+              avatarURL={organization.icon}
+            />
+          ),
+        }));
     },
   });
 };

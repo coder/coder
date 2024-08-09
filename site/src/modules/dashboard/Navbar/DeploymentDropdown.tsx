@@ -124,11 +124,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
       {canViewAuditLog && (
         <MenuItem
           component={NavLink}
-          to={
-            canViewOrganizations
-              ? `/deployment${linkToAuditing}`
-              : linkToAuditing
-          }
+          to={linkToAuditing}
           css={styles.menuItem}
           onClick={onPopoverClose}
         >

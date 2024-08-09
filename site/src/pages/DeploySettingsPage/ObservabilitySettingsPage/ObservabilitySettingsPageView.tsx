@@ -6,10 +6,10 @@ import {
   EnabledBadge,
   EnterpriseBadge,
 } from "components/Badges/Badges";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
-import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 
 export type ObservabilitySettingsPageViewProps = {
@@ -24,8 +24,8 @@ export const ObservabilitySettingsPageView: FC<
     <>
       <Stack direction="column" spacing={6}>
         <div>
-          <Header title="Observability" />
-          <Header
+          <SettingsHeader title="Observability" />
+          <SettingsHeader
             title="Audit Logging"
             secondary
             description="Allow auditors to monitor user operations in your deployment."
@@ -39,7 +39,7 @@ export const ObservabilitySettingsPageView: FC<
         </div>
 
         <div>
-          <Header
+          <SettingsHeader
             title="Monitoring"
             secondary
             description="Monitoring your Coder application with logs and metrics."

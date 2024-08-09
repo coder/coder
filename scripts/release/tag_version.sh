@@ -171,10 +171,6 @@ else
 		fi
 	fi
 
-	if [[ -n ${remote_branch_exists} ]]; then
-		error "Release branch ${release_branch} already exists on remote, please check your ref."
-	fi
-
 	if [[ -n ${local_branch_exists} ]]; then
 		# If it exists, ensure that this release branch points to the provided ref.
 		release_branch_ref=$(git rev-parse "${release_branch}")

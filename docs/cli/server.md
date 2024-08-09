@@ -917,7 +917,7 @@ Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
 | YAML        | <code>cacheDir</code>               |
 | Default     | <code>~/.cache/coder</code>         |
 
-The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.
+The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.
 
 ### --postgres-url
 
