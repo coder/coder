@@ -28,7 +28,6 @@ beforeEach(() => {
     http.post("/api/v2/authcheck", async () => {
       return HttpResponse.json({
         editMembers: true,
-        viewMembers: true,
         viewDeploymentValues: true,
       });
     }),
