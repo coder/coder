@@ -16,36 +16,37 @@ export const roles = () => {
   };
 };
 
-export const organizationRoles = (organizationId: string) => {
+export const organizationRoles = (organization: string) => {
   return {
-    queryKey: ["organization", organizationId, "roles"],
-    queryFn: () => API.getOrganizationRoles(organizationId),
+    queryKey: ["organization", organization, "roles"],
+    queryFn: () => API.getOrganizationRoles(organization),
   };
 };
 
 export const patchOrganizationRole = (
   queryClient: QueryClient,
-  organizationId: string,
+  organization: string,
 ) => {
   return {
     mutationFn: (request: Role) =>
-      API.patchOrganizationRole(organizationId, request),
+      API.patchOrganizationRole(organization, request),
     onSuccess: async (updatedRole: Role) =>
       await queryClient.invalidateQueries(
-        getRoleQueryKey(organizationId, updatedRole.name),
+        getRoleQueryKey(organization, updatedRole.name),
       ),
   };
 };
 
-export const deleteRole = (
+export const deleteOrganizationRole = (
   queryClient: QueryClient,
-  organizationId: string,
+  organization: string,
 ) => {
   return {
-    mutationFn: API.deleteOrganizationRole,
+    mutationFn: (roleName: string) =>
+      API.deleteOrganizationRole(organization, roleName),
     onSuccess: async (_: void, roleName: string) =>
       await queryClient.invalidateQueries(
-        getRoleQueryKey(organizationId, roleName),
+        getRoleQueryKey(organization, roleName),
       ),
   };
 };

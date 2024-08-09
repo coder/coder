@@ -1,13 +1,15 @@
 import AddIcon from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { organizationPermissions } from "api/queries/organizations";
-import { organizationRoles } from "api/queries/roles";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { deleteOrganizationRole, organizationRoles } from "api/queries/roles";
+import type { Role } from "api/typesGenerated";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
@@ -17,6 +19,7 @@ import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import CustomRolesPageView from "./CustomRolesPageView";
 
 export const CustomRolesPage: FC = () => {
+  const queryClient = useQueryClient();
   const { custom_roles: isCustomRolesEnabled } = useFeatureVisibility();
   const { organization: organizationName } = useParams() as {
     organization: string;
@@ -24,6 +27,10 @@ export const CustomRolesPage: FC = () => {
   const { organizations } = useOrganizationSettings();
   const organization = organizations?.find((o) => o.name === organizationName);
   const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+  const deleteRoleMutation = useMutation(
+    deleteOrganizationRole(queryClient, organizationName),
+  );
+  const [roleToDelete, setRoleToDelete] = useState<Role>();
   const organizationRolesQuery = useQuery(organizationRoles(organizationName));
   const filteredRoleData = organizationRolesQuery.data?.filter(
     (role) => role.built_in === false,
@@ -69,8 +76,30 @@ export const CustomRolesPage: FC = () => {
 
       <CustomRolesPageView
         roles={filteredRoleData}
+        onDeleteRole={setRoleToDelete}
         canAssignOrgRole={permissions.assignOrgRole}
         isCustomRolesEnabled={isCustomRolesEnabled}
+      />
+
+      <DeleteDialog
+        key={roleToDelete?.name}
+        isOpen={roleToDelete !== undefined}
+        confirmLoading={deleteRoleMutation.isLoading}
+        name={roleToDelete?.name ?? ""}
+        entity="role"
+        onCancel={() => setRoleToDelete(undefined)}
+        onConfirm={async () => {
+          try {
+            await deleteRoleMutation.mutateAsync(roleToDelete!.name);
+            setRoleToDelete(undefined);
+            await organizationRolesQuery.refetch();
+            displaySuccess("Custom role deleted successfully!");
+          } catch (error) {
+            displayError(
+              getErrorMessage(error, "Failed to delete custom role"),
+            );
+          }
+        }}
       />
     </>
   );
