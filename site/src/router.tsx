@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { lazy, Suspense } from "react";
 import {
   createBrowserRouter,
   createRoutesFromChildren,
@@ -23,6 +23,7 @@ import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
+import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -282,27 +283,29 @@ const RoutesWithSuspense = () => {
 const templateRouter = () => {
   return (
     <Route path=":template">
-      <Route element={<TemplateLayout />}>
-        <Route index element={<TemplateSummaryPage />} />
-        <Route path="docs" element={<TemplateDocsPage />} />
-        <Route path="files" element={<TemplateFilesPage />} />
-        <Route path="versions" element={<TemplateVersionsPage />} />
-        <Route path="embed" element={<TemplateEmbedPage />} />
-        <Route path="insights" element={<TemplateInsightsPage />} />
-      </Route>
+      <Route element={<TemplateRedirectController />}>
+        <Route element={<TemplateLayout />}>
+          <Route index element={<TemplateSummaryPage />} />
+          <Route path="docs" element={<TemplateDocsPage />} />
+          <Route path="files" element={<TemplateFilesPage />} />
+          <Route path="versions" element={<TemplateVersionsPage />} />
+          <Route path="embed" element={<TemplateEmbedPage />} />
+          <Route path="insights" element={<TemplateInsightsPage />} />
+        </Route>
 
-      <Route path="workspace" element={<CreateWorkspacePage />} />
+        <Route path="workspace" element={<CreateWorkspacePage />} />
 
-      <Route path="settings" element={<TemplateSettingsLayout />}>
-        <Route index element={<TemplateSettingsPage />} />
-        <Route path="permissions" element={<TemplatePermissionsPage />} />
-        <Route path="variables" element={<TemplateVariablesPage />} />
-        <Route path="schedule" element={<TemplateSchedulePage />} />
-      </Route>
+        <Route path="settings" element={<TemplateSettingsLayout />}>
+          <Route index element={<TemplateSettingsPage />} />
+          <Route path="permissions" element={<TemplatePermissionsPage />} />
+          <Route path="variables" element={<TemplateVariablesPage />} />
+          <Route path="schedule" element={<TemplateSchedulePage />} />
+        </Route>
 
-      <Route path="versions">
-        <Route path=":version">
-          <Route index element={<TemplateVersionPage />} />
+        <Route path="versions">
+          <Route path=":version">
+            <Route index element={<TemplateVersionPage />} />
+          </Route>
         </Route>
       </Route>
     </Route>
