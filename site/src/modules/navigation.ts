@@ -4,7 +4,6 @@
 
 import { useEffectEvent } from "hooks/hookPolyfills";
 import type { DashboardValue } from "./dashboard/DashboardProvider";
-import { selectFeatureVisibility } from "./dashboard/entitlements";
 import { useDashboard } from "./dashboard/useDashboard";
 
 type LinkThunk = (state: DashboardValue) => string;
@@ -27,13 +26,7 @@ export const linkToUsers = withFilter("/users", "status:active");
 
 export const linkToTemplate =
   (organizationName: string, templateName: string): LinkThunk =>
-  (dashboard) => {
-    const hasMultipleOrganizations = dashboard.organizations.length > 1;
-    const organizationsEnabled =
-      dashboard.experiments.includes("multi-organization") &&
-      selectFeatureVisibility(dashboard.entitlements).multiple_organizations;
-
-    return hasMultipleOrganizations || organizationsEnabled
+  (dashboard) =>
+    dashboard.showOrganizations
       ? `/templates/${organizationName}/${templateName}`
       : `/templates/${templateName}`;
-  };

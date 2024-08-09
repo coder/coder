@@ -81,10 +81,11 @@ const TemplateHelpTooltip: FC = () => {
 };
 
 interface TemplateRowProps {
+  showOrganizations: boolean;
   template: Template;
 }
 
-const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
+const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
   const getLink = useLinks();
   const templatePageLink = getLink(
     linkToTemplate(template.organization_name, template.name),
@@ -120,7 +121,23 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
       </TableCell>
 
       <TableCell css={styles.secondary}>
-        {Language.developerCount(template.active_user_count)}
+        {showOrganizations ? (
+          <Stack
+            spacing={0}
+            css={{
+              width: "100%",
+            }}
+          >
+            <span css={styles.cellPrimaryLine}>
+              {template.organization_display_name}
+            </span>
+            <span css={styles.cellSecondaryLine}>
+              Used by {Language.developerCount(template.active_user_count)}
+            </span>
+          </Stack>
+        ) : (
+          Language.developerCount(template.active_user_count)
+        )}
       </TableCell>
 
       <TableCell css={styles.secondary}>
@@ -156,16 +173,18 @@ const TemplateRow: FC<TemplateRowProps> = ({ template }) => {
 
 export interface TemplatesPageViewProps {
   error?: unknown;
+  showOrganizations: boolean;
+  canCreateTemplates: boolean;
   examples: TemplateExample[] | undefined;
   templates: Template[] | undefined;
-  canCreateTemplates: boolean;
 }
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
-  templates,
   error,
-  examples,
+  showOrganizations,
   canCreateTemplates,
+  examples,
+  templates,
 }) => {
   const isLoading = !templates;
   const isEmpty = templates && templates.length === 0;
@@ -209,7 +228,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             <TableHead>
               <TableRow>
                 <TableCell width="35%">{Language.nameLabel}</TableCell>
-                <TableCell width="15%">{Language.usedByLabel}</TableCell>
+                <TableCell width="15%">
+                  {showOrganizations ? "Organization" : Language.usedByLabel}
+                </TableCell>
                 <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
                 <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
                 <TableCell width="1%"></TableCell>
@@ -225,7 +246,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                 />
               ) : (
                 templates?.map((template) => (
-                  <TemplateRow key={template.id} template={template} />
+                  <TemplateRow
+                    key={template.id}
+                    showOrganizations={showOrganizations}
+                    template={template}
+                  />
                 ))
               )}
             </TableBody>
@@ -276,6 +301,15 @@ const styles = {
   actionCell: {
     whiteSpace: "nowrap",
   },
+  cellPrimaryLine: (theme) => ({
+    color: theme.palette.text.primary,
+    fontWeight: 600,
+  }),
+  cellSecondaryLine: (theme) => ({
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+    lineHeight: "150%",
+  }),
   secondary: (theme) => ({
     color: theme.palette.text.secondary,
   }),
