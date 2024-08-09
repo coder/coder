@@ -2495,7 +2495,7 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context) ([]database.GroupMember
 	return out, nil
 }
 
-func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 

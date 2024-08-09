@@ -1396,7 +1396,7 @@ func (q *querier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, 
 	return q.db.GetGroupMembers(ctx)
 }
 
-func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.User, error) {
+func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
 	group, err := q.GetGroupByID(ctx, id)
 	if err != nil { // AuthZ check
 		return nil, err

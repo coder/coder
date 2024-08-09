@@ -1322,7 +1322,7 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many
-SELECT user_id, group_id FROM group_members
+SELECT user_id, username, user_avatar_url, organization_id, group_name, group_id FROM group_members_expanded
 `
 
 func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error) {
@@ -1334,7 +1334,14 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 	var items []GroupMember
 	for rows.Next() {
 		var i GroupMember
-		if err := rows.Scan(&i.UserID, &i.GroupID); err != nil {
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.UserAvatarUrl,
+			&i.OrganizationID,
+			&i.GroupName,
+			&i.GroupID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1349,57 +1356,25 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 }
 
 const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
-SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference, users.name, users.github_com_user_id
-FROM
-	users
-LEFT JOIN
-	group_members
-ON
-	group_members.user_id = users.id AND
-	group_members.group_id = $1
-LEFT JOIN
-	organization_members
-ON
-	organization_members.user_id = users.id AND
-	organization_members.organization_id = $1
-WHERE
-	-- In either case, the group_id will only match an org or a group.
-    (group_members.group_id = $1
-         OR
-     organization_members.organization_id = $1)
-AND
-	users.deleted = 'false'
+SELECT user_id, username, user_avatar_url, organization_id, group_name, group_id FROM group_members_expanded WHERE group_id = $1
 `
 
-// If the group is a user made group, then we need to check the group_members table.
-// If it is the "Everyone" group, then we need to check the organization_members table.
-func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GroupMember, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID, groupID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []GroupMember
 	for rows.Next() {
-		var i User
+		var i GroupMember
 		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
+			&i.UserID,
 			&i.Username,
-			&i.HashedPassword,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Status,
-			&i.RBACRoles,
-			&i.LoginType,
-			&i.AvatarURL,
-			&i.Deleted,
-			&i.LastSeenAt,
-			&i.QuietHoursSchedule,
-			&i.ThemePreference,
-			&i.Name,
-			&i.GithubComUserID,
+			&i.UserAvatarUrl,
+			&i.OrganizationID,
+			&i.GroupName,
+			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}
@@ -1415,31 +1390,9 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.
 }
 
 const getGroupMembersCountByGroupID = `-- name: GetGroupMembersCountByGroupID :one
-SELECT
-	COUNT(users.id)
-FROM
-	users
-LEFT JOIN
-	group_members
-ON
-	group_members.user_id = users.id AND
-	group_members.group_id = $1
-LEFT JOIN
-	organization_members
-ON
-	organization_members.user_id = users.id AND
-	organization_members.organization_id = $1
-WHERE
-	-- In either case, the group_id will only match an org or a group.
-    (group_members.group_id = $1
-         OR
-     organization_members.organization_id = $1)
-AND
-	users.deleted = 'false'
+SELECT COUNT(*) FROM group_members_expanded WHERE group_id = $1
 `
 
-// If the group is a user made group, then we need to check the group_members table.
-// If it is the "Everyone" group, then we need to check the organization_members table.
 func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getGroupMembersCountByGroupID, groupID)
 	var count int64
@@ -1618,24 +1571,17 @@ SELECT
     groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source
 FROM
     groups
-	-- If the group is a user made group, then we need to check the group_members table.
-LEFT JOIN
-    group_members
-ON
-    group_members.group_id = groups.id AND
-    group_members.user_id = $1
-	-- If it is the "Everyone" group, then we need to check the organization_members table.
-LEFT JOIN
-    organization_members
-ON
-    organization_members.organization_id = groups.id AND
-    organization_members.user_id = $1
 WHERE
-    -- In either case, the group_id will only match an org or a group.
-    (group_members.user_id = $1 OR organization_members.user_id = $1)
-AND
-    -- Ensure the group or organization is the specified organization.
-    groups.organization_id = $2
+    groups.id IN (
+        SELECT
+            group_id
+        FROM
+            group_members_expanded gme
+        WHERE
+            gme.user_id = $1
+        AND
+            gme.organization_id = $2
+    )
 `
 
 type GetGroupsByOrganizationAndUserIDParams struct {

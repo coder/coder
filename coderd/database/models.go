@@ -2054,7 +2054,17 @@ type Group struct {
 	Source GroupSource `db:"source" json:"source"`
 }
 
+// Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).
 type GroupMember struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	Username       string    `db:"username" json:"username"`
+	UserAvatarUrl  string    `db:"user_avatar_url" json:"user_avatar_url"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	GroupName      string    `db:"group_name" json:"group_name"`
+	GroupID        uuid.UUID `db:"group_id" json:"group_id"`
+}
+
+type GroupMemberTable struct {
 	UserID  uuid.UUID `db:"user_id" json:"user_id"`
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }
