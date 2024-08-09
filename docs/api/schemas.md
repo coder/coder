@@ -4267,6 +4267,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `deployment_stats`        |
 | `file`                    |
 | `group`                   |
+| `group_member`            |
 | `license`                 |
 | `notification_preference` |
 | `notification_template`   |

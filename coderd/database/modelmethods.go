@@ -76,18 +76,18 @@ func (m OrganizationMember) Auditable(username string) AuditableOrganizationMemb
 
 type AuditableGroup struct {
 	Group
-	Members []GroupMember `json:"members"`
+	Members []GroupMemberTable `json:"members"`
 }
 
 // Auditable returns an object that can be used in audit logs.
 // Covers both group and group member changes.
-func (g Group) Auditable(users []User) AuditableGroup {
-	members := make([]GroupMember, 0, len(users))
-	for _, u := range users {
-		members = append(members, GroupMember{
-			UserID:  u.ID,
-			GroupID: g.ID,
-		})
+func (g Group) Auditable(members []GroupMember) AuditableGroup {
+	membersTable := make([]GroupMemberTable, len(members))
+	for i, member := range members {
+		membersTable[i] = GroupMemberTable{
+			UserID:  member.UserID,
+			GroupID: member.GroupID,
+		}
 	}
 
 	// consistent ordering
@@ -97,7 +97,7 @@ func (g Group) Auditable(users []User) AuditableGroup {
 
 	return AuditableGroup{
 		Group:   g,
-		Members: members,
+		Members: membersTable,
 	}
 }
 

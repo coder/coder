@@ -189,6 +189,7 @@ Status Code **200**
 | `resource_type` | `deployment_stats`        |
 | `resource_type` | `file`                    |
 | `resource_type` | `group`                   |
+| `resource_type` | `group_member`            |
 | `resource_type` | `license`                 |
 | `resource_type` | `notification_preference` |
 | `resource_type` | `notification_template`   |
@@ -346,6 +347,7 @@ Status Code **200**
 | `resource_type` | `deployment_stats`        |
 | `resource_type` | `file`                    |
 | `resource_type` | `group`                   |
+| `resource_type` | `group_member`            |
 | `resource_type` | `license`                 |
 | `resource_type` | `notification_preference` |
 | `resource_type` | `notification_template`   |
@@ -728,6 +730,7 @@ Status Code **200**
 | `resource_type` | `deployment_stats`        |
 | `resource_type` | `file`                    |
 | `resource_type` | `group`                   |
+| `resource_type` | `group_member`            |
 | `resource_type` | `license`                 |
 | `resource_type` | `notification_preference` |
 | `resource_type` | `notification_template`   |

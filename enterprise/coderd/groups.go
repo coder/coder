@@ -77,8 +77,8 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var emptyUsers []database.User
-	aReq.New = group.Auditable(emptyUsers)
+	var emptyMembers []database.GroupMember
+	aReq.New = group.Auditable(emptyMembers)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Group(group, nil))
 }

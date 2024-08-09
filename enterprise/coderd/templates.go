@@ -121,7 +121,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 
 	groups := make([]codersdk.TemplateGroup, 0, len(dbGroups))
 	for _, group := range dbGroups {
-		var members []database.User
+		var members []database.GroupMember
 
 		// This is a bit of a hack. The caller might not have permission to do this,
 		// but they can read the acl list if the function got this far. So we let
