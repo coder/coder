@@ -150,7 +150,7 @@ type sqlcQuerier interface {
 	// Returns the total count of members in a group. Shows the total
 	// count even if the caller does not have read access to ResourceGroupMember.
 	// They only need ResourceGroup read access.
-	GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (GetGroupMembersCountByGroupIDRow, error)
+	GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error)
 	GetGroups(ctx context.Context) ([]Group, error)
 	GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)

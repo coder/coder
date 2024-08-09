@@ -291,7 +291,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, patchedMembers, int(memberCount.MemberCount)))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, patchedMembers, int(memberCount)))
 }
 
 // @Summary Delete group by name
@@ -382,7 +382,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, users, int(memberCount.MemberCount)))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, users, int(memberCount)))
 }
 
 // @Summary Get groups by organization
@@ -432,7 +432,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp = append(resp, db2sdk.Group(group, members, int(memberCount.MemberCount)))
+		resp = append(resp, db2sdk.Group(group, members, int(memberCount)))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

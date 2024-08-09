@@ -8,16 +8,7 @@ SELECT * FROM group_members_expanded WHERE group_id = @group_id;
 -- Returns the total count of members in a group. Shows the total
 -- count even if the caller does not have read access to ResourceGroupMember.
 -- They only need ResourceGroup read access.
-SELECT 
-    gme.organization_id,
-    gme.group_id,
-    COUNT(*) as member_count
-FROM 
-    group_members_expanded gme
-WHERE 
-    gme.group_id = @group_id
-GROUP BY 
-    gme.organization_id, gme.group_id;
+SELECT COUNT(*) FROM group_members_expanded WHERE group_id = @group_id;
 
 -- InsertUserGroupsByName adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByName :exec
