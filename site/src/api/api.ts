@@ -600,6 +600,9 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   patchOrganizationRole = async (
     organization: string,
     role: TypesGen.Role,
@@ -612,6 +615,9 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   deleteOrganizationRole = async (organization: string, roleName: string) => {
     await this.axios.delete(
       `/api/v2/organizations/${organization}/members/roles/${roleName}`,
