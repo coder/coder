@@ -600,21 +600,27 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   patchOrganizationRole = async (
-    organizationId: string,
+    organization: string,
     role: TypesGen.Role,
   ): Promise<TypesGen.Role> => {
     const response = await this.axios.patch<TypesGen.Role>(
-      `/api/v2/organizations/${organizationId}/members/roles`,
+      `/api/v2/organizations/${organization}/members/roles`,
       role,
     );
 
     return response.data;
   };
 
-  deleteOrganizationRole = async (organizationId: string, roleName: string) => {
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  deleteOrganizationRole = async (organization: string, roleName: string) => {
     await this.axios.delete(
-      `/api/v2/organizations/${organizationId}/members/roles/${roleName}`,
+      `/api/v2/organizations/${organization}/members/roles/${roleName}`,
     );
   };
 
