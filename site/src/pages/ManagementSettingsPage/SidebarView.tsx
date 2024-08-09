@@ -11,7 +11,7 @@ import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { linkToAuditing, linkToUsers, withFilter } from "modules/navigation";
+import { linkToUsers } from "modules/navigation";
 
 export interface OrganizationWithPermissions extends Organization {
   permissions: AuthorizationResponse;
@@ -131,11 +131,6 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
           {permissions.viewAllUsers && (
             <SidebarNavSubItem href={linkToUsers.slice(1)}>
               Users
-            </SidebarNavSubItem>
-          )}
-          {permissions.viewAnyAuditLog && (
-            <SidebarNavSubItem href={linkToAuditing.slice(1)}>
-              Auditing
             </SidebarNavSubItem>
           )}
         </Stack>
@@ -264,19 +259,6 @@ const OrganizationSettingsNavigation: FC<
                 Roles
               </SidebarNavSubItem>
             )}
-          {/* For now redirect to the site-wide audit page with the organization
-              pre-filled into the filter.  Based on user feedback we might want
-              to serve a copy of the audit page or even delete this link. */}
-          {organization.permissions.auditOrganization && (
-            <SidebarNavSubItem
-              href={`/deployment${withFilter(
-                linkToAuditing,
-                `organization:${organization.name}`,
-              )}`}
-            >
-              Auditing
-            </SidebarNavSubItem>
-          )}
         </Stack>
       )}
     </>

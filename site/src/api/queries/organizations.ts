@@ -135,9 +135,9 @@ export const organizationPermissions = (organizationId: string | undefined) => {
     queryKey: ["organization", organizationId, "permissions"],
     queryFn: () =>
       // Only request what we use on individual org settings, members, and group
-      // pages, which at the moment is whether you can edit the members or roles
-      // on the members page and whether you can see the create group button on
-      // the groups page.  The edit organization check for the settings page is
+      // pages, which at the moment is whether you can edit the members on the
+      // members page, create roles on the roles page, and create groups on the
+      // groups page.  The edit organization check for the settings page is
       // covered by the multi-org query at the moment, and the edit group check
       // on the group page is done on the group itself, not the org, so neither
       // show up here.
@@ -185,9 +185,9 @@ export const organizationsPermissions = (
     queryKey: ["organizations", organizationIds.sort(), "permissions"],
     queryFn: async () => {
       // Only request what we need for the sidebar, which is one edit permission
-      // per sub-link (audit, settings, groups, roles, and members pages) that
-      // tells us whether to show that page, since we only show them if you can
-      // edit (and not, at the moment if you can only view).
+      // per sub-link (settings, groups, roles, and members pages) that tells us
+      // whether to show that page, since we only show them if you can edit (and
+      // not, at the moment if you can only view).
       const checks = (organizationId: string) => ({
         editMembers: {
           object: {
@@ -209,13 +209,6 @@ export const organizationsPermissions = (
             organization_id: organizationId,
           },
           action: "update",
-        },
-        auditOrganization: {
-          object: {
-            resource_type: "audit_log",
-            organization_id: organizationId,
-          },
-          action: "read",
         },
         assignOrgRole: {
           object: {
