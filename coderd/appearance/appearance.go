@@ -2,7 +2,10 @@ package appearance
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -11,20 +14,21 @@ type Fetcher interface {
 }
 
 func DefaultSupportLinks(docsURL string) []codersdk.LinkConfig {
+	version := buildinfo.Version()
 	if docsURL == "" {
-		docsURL = "https://coder.com/docs/{CODER_VERSION}"
+		docsURL = "https://coder.com/docs/@" + strings.Split(version, "-")[0]
 	}
+	buildInfo := fmt.Sprintf("Version: [`%s`](%s)", version, buildinfo.ExternalURL())
 
-	docsLink := codersdk.LinkConfig{
-		Name:   "Documentation",
-		Target: docsURL,
-		Icon:   "docs",
-	}
-
-	defaultSupportLinks := []codersdk.LinkConfig{
+	return []codersdk.LinkConfig{
+		{
+			Name:   "Documentation",
+			Target: docsURL,
+			Icon:   "docs",
+		},
 		{
 			Name:   "Report a bug",
-			Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body={CODER_BUILD_INFO}",
+			Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=" + buildInfo,
 			Icon:   "bug",
 		},
 		{
@@ -38,8 +42,6 @@ func DefaultSupportLinks(docsURL string) []codersdk.LinkConfig {
 			Icon:   "star",
 		},
 	}
-
-	return append([]codersdk.LinkConfig{docsLink}, defaultSupportLinks...)
 }
 
 type AGPLFetcher struct {
