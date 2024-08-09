@@ -705,7 +705,7 @@ func TestEnterpriseUserLogin(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		//nolint:gocritic // owner required
-		customRole, err := ownerClient.PatchOrganizationRole(ctx, codersdk.Role{
+		customRole, err := ownerClient.CreateOrganizationRole(ctx, codersdk.Role{
 			Name:                    "custom-role",
 			OrganizationID:          owner.OrganizationID.String(),
 			OrganizationPermissions: []codersdk.Permission{},

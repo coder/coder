@@ -579,7 +579,7 @@ func TestReadCustomRoles(t *testing.T) {
 			orgID = uuid.NullUUID{}
 		}
 
-		role, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
+		role, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 			Name:           fmt.Sprintf("role-%d", i),
 			OrganizationID: orgID,
 		})
