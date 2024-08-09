@@ -32,11 +32,11 @@ func (r *RootCmd) stat() *serpent.Command {
 		fs        = afero.NewReadOnlyFs(afero.NewOsFs())
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat([]statsRow{}, []string{
-				"host_cpu",
-				"host_memory",
-				"home_disk",
-				"container_cpu",
-				"container_memory",
+				"host cpu",
+				"host memory",
+				"home disk",
+				"container cpu",
+				"container memory",
 			}),
 			cliui.JSONFormat(),
 		)
@@ -284,9 +284,9 @@ func (*RootCmd) statDisk(fs afero.Fs) *serpent.Command {
 }
 
 type statsRow struct {
-	HostCPU         *clistat.Result `json:"host_cpu" table:"host_cpu,default_sort"`
-	HostMemory      *clistat.Result `json:"host_memory" table:"host_memory"`
-	Disk            *clistat.Result `json:"home_disk" table:"home_disk"`
-	ContainerCPU    *clistat.Result `json:"container_cpu" table:"container_cpu"`
-	ContainerMemory *clistat.Result `json:"container_memory" table:"container_memory"`
+	HostCPU         *clistat.Result `json:"host_cpu" table:"host cpu,default_sort"`
+	HostMemory      *clistat.Result `json:"host_memory" table:"host memory"`
+	Disk            *clistat.Result `json:"home_disk" table:"home disk"`
+	ContainerCPU    *clistat.Result `json:"container_cpu" table:"container cpu"`
+	ContainerMemory *clistat.Result `json:"container_memory" table:"container memory"`
 }

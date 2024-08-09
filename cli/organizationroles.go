@@ -36,7 +36,7 @@ func (r *RootCmd) organizationRoles(orgContext *OrganizationContext) *serpent.Co
 func (r *RootCmd) showOrganizationRoles(orgContext *OrganizationContext) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
-			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "organization_permissions", "user_permissions"}),
+			cliui.TableFormat([]roleTableRow{}, []string{"name", "display name", "site permissions", "organization permissions", "user permissions"}),
 			func(data any) (any, error) {
 				inputs, ok := data.([]codersdk.AssignableRoles)
 				if !ok {
@@ -103,7 +103,7 @@ func (r *RootCmd) showOrganizationRoles(orgContext *OrganizationContext) *serpen
 func (r *RootCmd) editOrganizationRole(orgContext *OrganizationContext) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
-			cliui.TableFormat([]roleTableRow{}, []string{"name", "display_name", "site_permissions", "organization_permissions", "user_permissions"}),
+			cliui.TableFormat([]roleTableRow{}, []string{"name", "display name", "site permissions", "organization permissions", "user permissions"}),
 			func(data any) (any, error) {
 				typed, _ := data.(codersdk.Role)
 				return []roleTableRow{roleToTableView(typed)}, nil
@@ -408,10 +408,10 @@ func roleToTableView(role codersdk.Role) roleTableRow {
 
 type roleTableRow struct {
 	Name            string `table:"name,default_sort"`
-	DisplayName     string `table:"display_name"`
-	OrganizationID  string `table:"organization_id"`
-	SitePermissions string ` table:"site_permissions"`
+	DisplayName     string `table:"display name"`
+	OrganizationID  string `table:"organization id"`
+	SitePermissions string ` table:"site permissions"`
 	// map[<org_id>] -> Permissions
-	OrganizationPermissions string `table:"organization_permissions"`
-	UserPermissions         string `table:"user_permissions"`
+	OrganizationPermissions string `table:"organization permissions"`
+	UserPermissions         string `table:"user permissions"`
 }

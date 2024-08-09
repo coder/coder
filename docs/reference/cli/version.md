@@ -14,9 +14,9 @@ coder version [flags]
 
 ### -o, --output
 
-|         |                     |
-| ------- | ------------------- |
-| Type    | <code>string</code> |
-| Default | <code>text</code>   |
+|         |                         |
+| ------- | ----------------------- |
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
 
-Output format. Available formats: text, json.
+Output format.

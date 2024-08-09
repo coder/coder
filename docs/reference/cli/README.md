@@ -25,6 +25,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 | Name                                               | Purpose                                                                                               |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [<code>completion</code>](./completion.md)         | Install or update shell completion scripts for the detected or chosen shell.                          |
 | [<code>dotfiles</code>](./dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
 | [<code>external-auth</code>](./external-auth.md)   | Manage external authentication                                                                        |
 | [<code>login</code>](./login.md)                   | Authenticate with Coder deployment                                                                    |

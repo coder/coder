@@ -82,6 +82,7 @@ const (
 func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	// Please re-sort this list alphabetically if you change it!
 	return []*serpent.Command{
+		r.completion(),
 		r.dotfiles(),
 		r.externalAuth(),
 		r.login(),

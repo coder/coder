@@ -8,8 +8,8 @@ USAGE:
    $ coder users show me
 
 OPTIONS:
-  -o, --output string (default: table)
-          Output format. Available formats: table, json.
+  -o, --output table|json (default: table)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

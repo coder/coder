@@ -69,10 +69,10 @@ type groupTableRow struct {
 
 	// For table output:
 	Name           string    `json:"-" table:"name,default_sort"`
-	DisplayName    string    `json:"-" table:"display_name"`
-	OrganizationID uuid.UUID `json:"-" table:"organization_id"`
+	DisplayName    string    `json:"-" table:"display name"`
+	OrganizationID uuid.UUID `json:"-" table:"organization id"`
 	Members        []string  `json:"-" table:"members"`
-	AvatarURL      string    `json:"-" table:"avatar_url"`
+	AvatarURL      string    `json:"-" table:"avatar url"`
 }
 
 func groupsToRows(groups ...codersdk.Group) []groupTableRow {

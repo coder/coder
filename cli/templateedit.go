@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -239,35 +238,14 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Value:       serpent.DurationOf(&activityBump),
 		},
 		{
-			Flag: "autostart-requirement-weekdays",
-			// workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
+			Flag:        "autostart-requirement-weekdays",
 			Description: "Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.",
-			Value: serpent.Validate(serpent.StringArrayOf(&autostartRequirementDaysOfWeek), func(value *serpent.StringArray) error {
-				v := value.GetSlice()
-				if len(v) == 1 && v[0] == "all" {
-					return nil
-				}
-				_, err := codersdk.WeekdaysToBitmap(v)
-				if err != nil {
-					return xerrors.Errorf("invalid autostart requirement days of week %q: %w", strings.Join(v, ","), err)
-				}
-				return nil
-			}),
+			Value:       serpent.EnumArrayOf(&autostartRequirementDaysOfWeek, append(codersdk.AllDaysOfWeek, "all")...),
 		},
 		{
 			Flag:        "autostop-requirement-weekdays",
 			Description: "Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.",
-			Value: serpent.Validate(serpent.StringArrayOf(&autostopRequirementDaysOfWeek), func(value *serpent.StringArray) error {
-				v := value.GetSlice()
-				if len(v) == 1 && v[0] == "none" {
-					return nil
-				}
-				_, err := codersdk.WeekdaysToBitmap(v)
-				if err != nil {
-					return xerrors.Errorf("invalid autostop requirement days of week %q: %w", strings.Join(v, ","), err)
-				}
-				return nil
-			}),
+			Value:       serpent.EnumArrayOf(&autostopRequirementDaysOfWeek, append(codersdk.AllDaysOfWeek, "none")...),
 		},
 		{
 			Flag:        "autostop-requirement-weeks",
