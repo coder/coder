@@ -70,7 +70,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 			return
 		}
 
-		sdkGroups = append(sdkGroups, db2sdk.Group(group, members, int(memberCount.MemberCount)))
+		sdkGroups = append(sdkGroups, db2sdk.Group(group, members, int(memberCount)))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
@@ -145,7 +145,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		groups = append(groups, codersdk.TemplateGroup{
-			Group: db2sdk.Group(group.Group, members, int(memberCount.MemberCount)),
+			Group: db2sdk.Group(group.Group, members, int(memberCount)),
 			Role:  convertToTemplateRole(group.Actions),
 		})
 	}

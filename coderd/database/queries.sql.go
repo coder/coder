@@ -1416,32 +1416,17 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.
 }
 
 const getGroupMembersCountByGroupID = `-- name: GetGroupMembersCountByGroupID :one
-SELECT 
-    gme.organization_id,
-    gme.group_id,
-    COUNT(*) as member_count
-FROM 
-    group_members_expanded gme
-WHERE 
-    gme.group_id = $1
-GROUP BY 
-    gme.organization_id, gme.group_id
+SELECT COUNT(*) FROM group_members_expanded WHERE group_id = $1
 `
-
-type GetGroupMembersCountByGroupIDRow struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	GroupID        uuid.UUID `db:"group_id" json:"group_id"`
-	MemberCount    int64     `db:"member_count" json:"member_count"`
-}
 
 // Returns the total count of members in a group. Shows the total
 // count even if the caller does not have read access to ResourceGroupMember.
 // They only need ResourceGroup read access.
-func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (GetGroupMembersCountByGroupIDRow, error) {
+func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getGroupMembersCountByGroupID, groupID)
-	var i GetGroupMembersCountByGroupIDRow
-	err := row.Scan(&i.OrganizationID, &i.GroupID, &i.MemberCount)
-	return i, err
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const insertGroupMember = `-- name: InsertGroupMember :exec

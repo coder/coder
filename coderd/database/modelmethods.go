@@ -191,7 +191,12 @@ func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
-func (r GetGroupMembersCountByGroupIDRow) RBACObject() rbac.Object {
+type GroupMembersCountRBACHelper struct {
+	GroupID        uuid.UUID
+	OrganizationID uuid.UUID
+}
+
+func (r GroupMembersCountRBACHelper) RBACObject() rbac.Object {
 	return groupRBACObject(r.GroupID, r.OrganizationID)
 }
 
