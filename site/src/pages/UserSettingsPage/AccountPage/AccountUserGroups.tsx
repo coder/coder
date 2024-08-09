@@ -57,8 +57,8 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
                   header={group.display_name || group.name}
                   subtitle={
                     <>
-                      {group.members.length} member
-                      {group.members.length !== 1 && "s"}
+                      {group.total_member_count} member
+                      {group.total_member_count !== 1 && "s"}
                     </>
                   }
                 />
