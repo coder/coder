@@ -126,7 +126,7 @@ func TestGroupsAuth(t *testing.T) {
 			ReadGroup:   false,
 			ReadMembers: false,
 			// TODO: If fixed, they should only be able to see themselves
-			//MembersExpected: 1,
+			// MembersExpected: 1,
 		},
 		{
 			// Org admin in the incorrect organization
