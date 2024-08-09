@@ -256,10 +256,10 @@ const OrganizationSettingsNavigation: FC<
               Groups
             </SidebarNavSubItem>
           )}
-          {props.permissions.assignOrgRole &&
+          {organization.permissions.assignOrgRole &&
             experiments.includes("custom-roles") && (
               <SidebarNavSubItem
-                href={urlForSubpage(props.organization.name, "roles")}
+                href={urlForSubpage(organization.name, "roles")}
               >
                 Roles
               </SidebarNavSubItem>

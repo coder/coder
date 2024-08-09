@@ -185,9 +185,9 @@ export const organizationsPermissions = (
     queryKey: ["organizations", organizationIds.sort(), "permissions"],
     queryFn: async () => {
       // Only request what we need for the sidebar, which is one edit permission
-      // per sub-link (audit page, settings page, groups page, and members page)
-      // that tells us whether to show that page, since we only show them if you
-      // can edit (and not, at the moment if you can only view).
+      // per sub-link (audit, settings, groups, roles, and members pages) that
+      // tells us whether to show that page, since we only show them if you can
+      // edit (and not, at the moment if you can only view).
       const checks = (organizationId: string) => ({
         editMembers: {
           object: {
@@ -216,6 +216,13 @@ export const organizationsPermissions = (
             organization_id: organizationId,
           },
           action: "read",
+        },
+        assignOrgRole: {
+          object: {
+            resource_type: "assign_org_role",
+            organization_id: organizationId,
+          },
+          action: "create",
         },
       });
 
