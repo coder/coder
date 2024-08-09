@@ -15,6 +15,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/codersdk"
+
 	"cdr.dev/slog"
 )
 
@@ -175,6 +178,7 @@ type pqListener interface {
 	Listen(string) error
 	Unlisten(string) error
 	NotifyChan() <-chan *pq.Notification
+	SetName(string)
 }
 
 type pqListenerShim struct {
@@ -190,6 +194,7 @@ type PGPubsub struct {
 	logger     slog.Logger
 	listenDone chan struct{}
 	pgListener pqListener
+	pgAuth     codersdk.PostgresAuth
 	db         *sql.DB
 
 	qMu    sync.Mutex
@@ -433,8 +438,18 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 			d: net.Dialer{},
 		}
 	)
+
+	name := connectURL
+	if p.pgAuth == codersdk.PostgresAuthAWSIAMRDS {
+		nURL, err := awsiamrds.AuthenticatedURL(ctx, connectURL)
+		if err != nil {
+			return xerrors.Errorf("authenticate url: %w", err)
+		}
+		name = nURL
+	}
+
 	p.pgListener = pqListenerShim{
-		Listener: pq.NewDialListener(dialer, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
+		Listener: pq.NewDialListener(dialer, name, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
 			switch t {
 			case pq.ListenerEventConnected:
 				p.logger.Info(ctx, "pubsub connected to postgres")
@@ -442,11 +457,29 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 			case pq.ListenerEventDisconnected:
 				p.logger.Error(ctx, "pubsub disconnected from postgres", slog.Error(err))
 				p.connected.Set(0)
+
+				if p.pgAuth == codersdk.PostgresAuthAWSIAMRDS {
+					nURL, err := awsiamrds.AuthenticatedURL(ctx, connectURL)
+					if err != nil {
+						p.logger.Error(ctx, "pubsub cannot authenticate url", slog.Error(err))
+						return
+					}
+					p.pgListener.SetName(nURL)
+				}
 			case pq.ListenerEventReconnected:
 				p.logger.Info(ctx, "pubsub reconnected to postgres")
 				p.connected.Set(1)
 			case pq.ListenerEventConnectionAttemptFailed:
 				p.logger.Error(ctx, "pubsub failed to connect to postgres", slog.Error(err))
+
+				if p.pgAuth == codersdk.PostgresAuthAWSIAMRDS {
+					nURL, err := awsiamrds.AuthenticatedURL(ctx, connectURL)
+					if err != nil {
+						p.logger.Error(ctx, "pubsub cannot authenticate url", slog.Error(err))
+						return
+					}
+					p.pgListener.SetName(nURL)
+				}
 			}
 			// This callback gets events whenever the connection state changes.
 			// Don't send if the errChannel has already been closed.
