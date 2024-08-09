@@ -34,7 +34,7 @@ func TestBufferedUpdates(t *testing.T) {
 	cfg.StoreSyncInterval = serpent.Duration(time.Hour) // Ensure we don't sync the store automatically.
 
 	// GIVEN: a manager which will pass or fail notifications based on their "nice" labels
-	mgr, err := notifications.NewManager(cfg, interceptor, createMetrics(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		database.NotificationMethodSmtp: santa,
@@ -150,7 +150,7 @@ func TestStopBeforeRun(t *testing.T) {
 	ctx, logger, db := setupInMemory(t)
 
 	// GIVEN: a standard manager
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), db, createMetrics(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), db, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
 	require.NoError(t, err)
 
 	// THEN: validate that the manager can be stopped safely without Run() having been called yet
