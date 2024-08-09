@@ -10,7 +10,7 @@ import Tooltip from "@mui/material/Tooltip";
 import { Fragment, type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQueryClient } from "react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import {
   notificationDispatchMethods,
   selectTemplatesByGroup,
@@ -115,25 +115,7 @@ export const NotificationsPage: FC = () => {
       </Helmet>
       <Section
         title="Notifications"
-        description={
-          <>
-            Control delivery methods for notifications on this deployment.
-            Notifications may be disabled in your{" "}
-            <Link
-              to="/settings/notifications"
-              css={(theme) => ({
-                color: theme.roles.active.fill.outline,
-                textDecoration: "none",
-                "&: hover": {
-                  textDecoration: "underline",
-                },
-              })}
-            >
-              profile settings
-            </Link>
-            .
-          </>
-        }
+        description="Control delivery methods for notifications on this deployment."
         layout="fluid"
       >
         <Tabs active={tab}>
