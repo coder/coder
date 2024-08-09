@@ -1,0 +1,4 @@
+packages:
+  - "offlinedocs"
+  - "scripts/*"
+  - "site"
