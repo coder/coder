@@ -6,6 +6,7 @@ import {
   Outlet,
   Route,
 } from "react-router-dom";
+import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
@@ -23,7 +24,6 @@ import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
-import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
