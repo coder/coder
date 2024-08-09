@@ -13,7 +13,7 @@ type Fetcher interface {
 var DefaultSupportLinks = []codersdk.LinkConfig{
 	{
 		Name:   "Documentation",
-		Target: "https://coder.com/docs/coder-oss",
+		Target: "https://coder.com/docs",
 		Icon:   "docs",
 	},
 	{

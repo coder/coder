@@ -15,10 +15,9 @@ The following explains how to do certain things related to dogfooding.
    1. If you don't have an account, sign in with GitHub
    2. If you see a dialog/pop-up, hit "Cancel" (this is because of Rippling)
 2. Create a workspace
-3. [Connect with your favorite IDE](https://coder.com/docs/coder-oss/latest/ides)
+3. [Connect with your favorite IDE](https://coder.com/docs/ides)
 4. Clone the repo: `git clone git@github.com:coder/coder.git`
-5. Follow the
-   [contributing guide](https://coder.com/docs/coder-oss/latest/CONTRIBUTING)
+5. Follow the [contributing guide](https://coder.com/docs/CONTRIBUTING)
 
 ### Run Coder in your Coder Workspace
 

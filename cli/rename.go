@@ -31,7 +31,7 @@ func (r *RootCmd) rename() *serpent.Command {
 			_, _ = fmt.Fprintf(inv.Stdout, "%s\n\n",
 				pretty.Sprint(cliui.DefaultStyles.Wrap, "WARNING: A rename can result in data loss if a resource references the workspace name in the template (e.g volumes). Please backup any data before proceeding."),
 			)
-			_, _ = fmt.Fprintf(inv.Stdout, "See: %s\n\n", "https://coder.com/docs/coder-oss/latest/templates/resource-persistence#%EF%B8%8F-persistence-pitfalls")
+			_, _ = fmt.Fprintf(inv.Stdout, "See: %s\n\n", "https://coder.com/docs/templates/resource-persistence#%EF%B8%8F-persistence-pitfalls")
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text: fmt.Sprintf("Type %q to confirm rename:", workspace.Name),
 				Validate: func(s string) error {

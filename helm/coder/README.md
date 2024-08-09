@@ -11,7 +11,7 @@ and notably (compared to Coder Classic) does not include a database server.
 > instructions on a tagged release.
 
 View
-[our docs](https://coder.com/docs/coder-oss/latest/install/kubernetes)
+[our docs](https://coder.com/docs/install/kubernetes)
 for detailed installation instructions.
 
 ## Values

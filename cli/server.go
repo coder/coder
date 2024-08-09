@@ -631,7 +631,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 								"new version of coder available",
 								slog.F("new_version", r.Version),
 								slog.F("url", r.URL),
-								slog.F("upgrade_instructions", "https://coder.com/docs/coder-oss/latest/admin/upgrade"),
+								slog.F("upgrade_instructions", "https://coder.com/docs/admin/upgrade"),
 							)
 						}
 					},
