@@ -214,6 +214,13 @@ func (m metricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	return r0
 }
 
+func (m metricsStore) DeleteCustomRole(ctx context.Context, arg database.DeleteCustomRoleParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteCustomRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteCustomRole").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteExternalAuthLink(ctx, arg)

@@ -135,9 +135,9 @@ export const organizationPermissions = (organizationId: string | undefined) => {
     queryKey: ["organization", organizationId, "permissions"],
     queryFn: () =>
       // Only request what we use on individual org settings, members, and group
-      // pages, which at the moment is whether you can edit the members on the
-      // members page and whether you can see the create group button on the
-      // groups page.  The edit organization check for the settings page is
+      // pages, which at the moment is whether you can edit the members or roles
+      // on the members page and whether you can see the create group button on
+      // the groups page.  The edit organization check for the settings page is
       // covered by the multi-org query at the moment, and the edit group check
       // on the group page is done on the group itself, not the org, so neither
       // show up here.
@@ -153,6 +153,13 @@ export const organizationPermissions = (organizationId: string | undefined) => {
           createGroup: {
             object: {
               resource_type: "group",
+              organization_id: organizationId,
+            },
+            action: "create",
+          },
+          assignOrgRole: {
+            object: {
+              resource_type: "assign_org_role",
               organization_id: organizationId,
             },
             action: "create",

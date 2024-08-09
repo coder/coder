@@ -317,6 +317,20 @@ func (mr *MockStoreMockRecorder) DeleteCoordinator(arg0, arg1 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCoordinator", reflect.TypeOf((*MockStore)(nil).DeleteCoordinator), arg0, arg1)
 }
 
+// DeleteCustomRole mocks base method.
+func (m *MockStore) DeleteCustomRole(arg0 context.Context, arg1 database.DeleteCustomRoleParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCustomRole", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteCustomRole indicates an expected call of DeleteCustomRole.
+func (mr *MockStoreMockRecorder) DeleteCustomRole(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCustomRole", reflect.TypeOf((*MockStore)(nil).DeleteCustomRole), arg0, arg1)
+}
+
 // DeleteExternalAuthLink mocks base method.
 func (m *MockStore) DeleteExternalAuthLink(arg0 context.Context, arg1 database.DeleteExternalAuthLinkParams) error {
 	m.ctrl.T.Helper()

@@ -3,7 +3,7 @@ package notifications
 import "github.com/google/uuid"
 
 // These vars are mapped to UUIDs in the notification_templates table.
-// TODO: autogenerate these.
+// TODO: autogenerate these: https://github.com/coder/team-coconut/issues/36
 
 // Workspace-related events.
 var (

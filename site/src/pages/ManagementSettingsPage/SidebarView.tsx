@@ -10,6 +10,7 @@ import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToAuditing, linkToUsers, withFilter } from "modules/navigation";
 
 export interface OrganizationWithPermissions extends Organization {
@@ -216,6 +217,8 @@ interface OrganizationSettingsNavigationProps {
 const OrganizationSettingsNavigation: FC<
   OrganizationSettingsNavigationProps
 > = ({ active, organization }) => {
+  const { experiments } = useDashboard();
+
   return (
     <>
       <SidebarNavItem
@@ -253,6 +256,14 @@ const OrganizationSettingsNavigation: FC<
               Groups
             </SidebarNavSubItem>
           )}
+          {props.permissions.assignOrgRole &&
+            experiments.includes("custom-roles") && (
+              <SidebarNavSubItem
+                href={urlForSubpage(props.organization.name, "roles")}
+              >
+                Roles
+              </SidebarNavSubItem>
+            )}
           {/* For now redirect to the site-wide audit page with the organization
               pre-filled into the filter.  Based on user feedback we might want
               to serve a copy of the audit page or even delete this link. */}
