@@ -724,9 +724,9 @@ func (q *FakeQuerier) getOrganizationMemberNoLock(orgID uuid.UUID) []database.Or
 }
 
 // getEveryoneGroupMembersNoLock fetches all the users in an organization.
-func (q *FakeQuerier) getEveryoneGroupMembersNoLock(orgID uuid.UUID) []database.User {
+func (q *FakeQuerier) getEveryoneGroupMembersNoLock(orgID uuid.UUID) []database.GroupMember {
 	var (
-		everyone   []database.User
+		everyone   []database.GroupMember
 		orgMembers = q.getOrganizationMemberNoLock(orgID)
 	)
 	for _, member := range orgMembers {
@@ -734,7 +734,30 @@ func (q *FakeQuerier) getEveryoneGroupMembersNoLock(orgID uuid.UUID) []database.
 		if err != nil {
 			return nil
 		}
-		everyone = append(everyone, user)
+		if user.Deleted {
+			continue
+		}
+		everyone = append(everyone, database.GroupMember{
+			UserID:                 user.ID,
+			UserEmail:              user.Email,
+			UserUsername:           user.Username,
+			UserHashedPassword:     user.HashedPassword,
+			UserCreatedAt:          user.CreatedAt,
+			UserUpdatedAt:          user.UpdatedAt,
+			UserStatus:             user.Status,
+			UserRbacRoles:          user.RBACRoles,
+			UserLoginType:          user.LoginType,
+			UserAvatarUrl:          user.AvatarURL,
+			UserDeleted:            user.Deleted,
+			UserLastSeenAt:         user.LastSeenAt,
+			UserQuietHoursSchedule: user.QuietHoursSchedule,
+			UserThemePreference:    user.ThemePreference,
+			UserName:               user.Name,
+			UserGithubComUserID:    user.GithubComUserID,
+			OrganizationID:         orgID,
+			GroupName:              "Everyone",
+			GroupID:                orgID,
+		})
 	}
 	return everyone
 }
@@ -2495,7 +2518,7 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context) ([]database.GroupMember
 	return out, nil
 }
 
-func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2510,18 +2533,15 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) 
 		}
 	}
 
-	users := make([]database.User, 0, len(members))
+	return members, nil
+}
 
-	for _, member := range members {
-		for _, user := range q.users {
-			if user.ID == member.UserID && !user.Deleted {
-				users = append(users, user)
-				break
-			}
-		}
+func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	users, err := q.GetGroupMembersByGroupID(ctx, groupID)
+	if err != nil {
+		return 0, err
 	}
-
-	return users, nil
+	return int64(len(users)), nil
 }
 
 func (q *FakeQuerier) GetGroups(_ context.Context) ([]database.Group, error) {

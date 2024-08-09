@@ -2499,6 +2499,7 @@ export const MockGroup: TypesGen.Group = {
   members: [MockUser, MockUser2],
   quota_allowance: 5,
   source: "user",
+  total_member_count: 2,
 };
 
 const everyOneGroup = (organizationId: string): TypesGen.Group => ({
@@ -2510,6 +2511,7 @@ const everyOneGroup = (organizationId: string): TypesGen.Group => ({
   avatar_url: "",
   quota_allowance: 0,
   source: "user",
+  total_member_count: 0,
 });
 
 export const MockTemplateACL: TypesGen.TemplateACL = {

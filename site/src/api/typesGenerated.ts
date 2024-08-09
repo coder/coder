@@ -613,6 +613,7 @@ export interface Group {
   readonly display_name: string;
   readonly organization_id: string;
   readonly members: readonly ReducedUser[];
+  readonly total_member_count: number;
   readonly avatar_url: string;
   readonly quota_allowance: number;
   readonly source: GroupSource;
@@ -2302,6 +2303,7 @@ export type RBACResource =
   | "deployment_stats"
   | "file"
   | "group"
+  | "group_member"
   | "license"
   | "notification_preference"
   | "notification_template"
@@ -2331,6 +2333,7 @@ export const RBACResources: RBACResource[] = [
   "deployment_stats",
   "file",
   "group",
+  "group_member",
   "license",
   "notification_preference",
   "notification_template",
