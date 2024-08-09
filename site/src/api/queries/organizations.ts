@@ -177,6 +177,13 @@ export const organizationPermissions = (organizationId: string | undefined) => {
             },
             action: "read",
           },
+          assignOrgRole: {
+            object: {
+              resource_type: "assign_org_role",
+              organization_id: organizationId,
+            },
+            action: "create",
+          },
         },
       }),
   };
