@@ -2312,6 +2312,7 @@ export type RBACResource =
   | "deployment_stats"
   | "file"
   | "group"
+  | "group_member"
   | "license"
   | "notification_preference"
   | "notification_template"
@@ -2341,6 +2342,7 @@ export const RBACResources: RBACResource[] = [
   "deployment_stats",
   "file",
   "group",
+  "group_member",
   "license",
   "notification_preference",
   "notification_template",
