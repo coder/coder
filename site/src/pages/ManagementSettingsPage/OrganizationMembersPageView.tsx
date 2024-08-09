@@ -52,7 +52,7 @@ export const OrganizationMembersPageView: FC<
 > = (props) => {
   return (
     <div>
-      <SettingsHeader title="Organization members" />
+      <SettingsHeader title="Members" />
 
       <Stack>
         {Boolean(props.error) && <ErrorAlert error={props.error} />}

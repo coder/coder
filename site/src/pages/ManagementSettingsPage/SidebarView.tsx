@@ -234,7 +234,7 @@ const OrganizationSettingsNavigation: FC<
         <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
           {organization.permissions.editOrganization && (
             <SidebarNavSubItem end href={urlForSubpage(organization.name)}>
-              Organization settings
+              Settings
             </SidebarNavSubItem>
           )}
           {organization.permissions.editMembers && (

@@ -80,7 +80,7 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
         justifyContent="space-between"
       >
         <SettingsHeader
-          title={`${role ? "Edit" : "Create"} custom role`}
+          title={`${role ? "Edit" : "Create"} Custom Role`}
           description="Set a name and permissions for this role."
         />
         {canAssignOrgRole && (

@@ -67,7 +67,7 @@ export const OrganizationSettingsPageView: FC<
 
   return (
     <div>
-      <SettingsHeader title="Organization settings" />
+      <SettingsHeader title="Settings" />
 
       {Boolean(error) && !isApiValidationError(error) && (
         <div css={{ marginBottom: 32 }}>
