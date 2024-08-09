@@ -154,7 +154,7 @@ func (set FeatureSet) Features() []FeatureName {
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
 			switch f {
 			// Add all features that should be excluded in the Enterprise feature set.
-			case FeatureMultipleOrganizations:
+			case FeatureMultipleOrganizations, FeatureCustomRoles:
 				return true
 			default:
 				return false
