@@ -2536,12 +2536,20 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) 
 	return members, nil
 }
 
-func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
-	users, err := q.GetGroupMembersByGroupID(ctx, groupID)
+func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (database.GetGroupMembersCountByGroupIDRow, error) {
+	members, err := q.GetGroupMembersByGroupID(ctx, groupID)
 	if err != nil {
-		return 0, err
+		return database.GetGroupMembersCountByGroupIDRow{}, err
 	}
-	return int64(len(users)), nil
+	group, err := q.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return database.GetGroupMembersCountByGroupIDRow{}, err
+	}
+	return database.GetGroupMembersCountByGroupIDRow{
+		OrganizationID: group.OrganizationID,
+		GroupID:        groupID,
+		MemberCount:    int64(len(members)),
+	}, nil
 }
 
 func (q *FakeQuerier) GetGroups(_ context.Context) ([]database.Group, error) {

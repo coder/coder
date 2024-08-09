@@ -1400,22 +1400,8 @@ func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, id)
 }
 
-func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
-	group, err := q.GetGroupByID(ctx, groupID)
-	if err != nil {
-		return 0, err
-	}
-	memberCount, err := q.db.GetGroupMembersCountByGroupID(ctx, groupID)
-	if err != nil {
-		return 0, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, database.GroupMembersCountRBACHelper{
-		GroupID:        groupID,
-		OrganizationID: group.OrganizationID,
-	}); err != nil {
-		return 0, err
-	}
-	return memberCount, nil
+func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (database.GetGroupMembersCountByGroupIDRow, error) {
+	return fetch(q.log, q.auth, q.db.GetGroupMembersCountByGroupID)(ctx, groupID)
 }
 
 func (q *querier) GetGroups(ctx context.Context) ([]database.Group, error) {

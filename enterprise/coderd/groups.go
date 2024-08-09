@@ -453,7 +453,7 @@ func (api *API) reducedGroupsByUserAndOrganization(rw http.ResponseWriter, r *ht
 			return
 		}
 
-		resp = append(resp, db2sdk.ReducedGroup(group, int(memberCount)))
+		resp = append(resp, db2sdk.ReducedGroup(group, int(memberCount.MemberCount)))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

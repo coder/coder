@@ -5,7 +5,17 @@ SELECT * FROM group_members_expanded;
 SELECT * FROM group_members_expanded WHERE group_id = @group_id;
 
 -- name: GetGroupMembersCountByGroupID :one
-SELECT COUNT(*) FROM group_members_expanded WHERE group_id = @group_id;
+SELECT 
+    gme.organization_id,
+    gme.group_id,
+    COUNT(*) as member_count
+FROM 
+    group_members_expanded gme
+WHERE 
+    gme.group_id = @group_id
+-- This aggregation is guaranteed to return a single row
+GROUP BY 
+    gme.organization_id, gme.group_id;
 
 -- InsertUserGroupsByName adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByName :exec
