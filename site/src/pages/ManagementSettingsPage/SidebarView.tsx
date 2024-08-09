@@ -4,7 +4,11 @@ import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
 import type { FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
-import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import type {
+  AuthorizationResponse,
+  Experiments,
+  Organization,
+} from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
@@ -26,6 +30,8 @@ interface SidebarProps {
   organizations: OrganizationWithPermissions[] | undefined;
   /** Site-wide permissions. */
   permissions: AuthorizationResponse;
+  /** Active experiments */
+  experiments: Experiments;
 }
 
 /**
@@ -36,6 +42,7 @@ export const SidebarView: FC<SidebarProps> = ({
   activeOrganizationName,
   organizations,
   permissions,
+  experiments,
 }) => {
   // TODO: Do something nice to scroll to the active org.
   return (
@@ -43,6 +50,7 @@ export const SidebarView: FC<SidebarProps> = ({
       <header css={styles.sidebarHeader}>Deployment</header>
       <DeploymentSettingsNavigation
         active={!activeOrganizationName && activeSettings}
+        experiments={experiments}
         permissions={permissions}
       />
       <OrganizationsSettingsNavigation
@@ -59,6 +67,8 @@ interface DeploymentSettingsNavigationProps {
   active: boolean;
   /** Site-wide permissions. */
   permissions: AuthorizationResponse;
+  /** Active experiments */
+  experiments: Experiments;
 }
 
 /**
@@ -71,6 +81,7 @@ interface DeploymentSettingsNavigationProps {
 const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
   active,
   permissions,
+  experiments,
 }) => {
   return (
     <div css={{ paddingBottom: 12 }}>
@@ -133,9 +144,11 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
               Users
             </SidebarNavSubItem>
           )}
-          <SidebarNavSubItem href="notifications">
-            Notifications
-          </SidebarNavSubItem>
+          {experiments.includes("notifications") && (
+            <SidebarNavSubItem href="notifications">
+              Notifications
+            </SidebarNavSubItem>
+          )}
         </Stack>
       )}
     </div>

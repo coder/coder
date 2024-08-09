@@ -184,7 +184,7 @@ const EventsView: FC<EventsViewProps> = ({
       {availableMethods.includes("smtp") &&
         deploymentValues.notifications?.email.smarthost === "" && (
           <Alert severity="warning">
-            SMTP notifications are enabled, but no smart host has been
+            SMTP notifications are enabled, but no smarthost has been
             configured.
           </Alert>
         )}
