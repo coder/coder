@@ -84,7 +84,8 @@ type Options struct {
 func New(opts *Options) *Handler {
 	if opts.AppearanceFetcher == nil {
 		daf := atomic.Pointer[appearance.Fetcher]{}
-		daf.Store(&appearance.DefaultFetcher)
+		f := appearance.NewDefaultFetcher(opts.DocsURL)
+		daf.Store(&f)
 		opts.AppearanceFetcher = &daf
 	}
 	handler := &Handler{

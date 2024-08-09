@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -229,6 +230,26 @@ func TestCustomSupportLinks(t *testing.T) {
 	require.Equal(t, supportLinks, appr.SupportLinks)
 }
 
+func TestDefaultSupportLinksWithCustomDocsUrl(t *testing.T) {
+	t.Parallel()
+
+	// Don't need to set the license, as default links are passed without it.
+	testURLRawString := "http://google.com"
+	testURL, err := url.Parse(testURLRawString)
+	require.NoError(t, err)
+	cfg := coderdtest.DeploymentValues(t)
+	cfg.DocsURL = *serpent.URLOf(testURL)
+	adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true, Options: &coderdtest.Options{DeploymentValues: cfg}})
+	anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	appr, err := anotherClient.Appearance(ctx)
+	require.NoError(t, err)
+	require.Equal(t, appearance.DefaultSupportLinks(testURLRawString), appr.SupportLinks)
+}
+
 func TestDefaultSupportLinks(t *testing.T) {
 	t.Parallel()
 
@@ -241,5 +262,5 @@ func TestDefaultSupportLinks(t *testing.T) {
 
 	appr, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.Equal(t, appearance.DefaultSupportLinks, appr.SupportLinks)
+	require.Equal(t, appearance.DefaultSupportLinks(""), appr.SupportLinks)
 }
