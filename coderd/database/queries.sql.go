@@ -1322,7 +1322,7 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many
-SELECT user_id, username, user_avatar_url, organization_id, group_name, group_id FROM group_members_expanded
+SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded
 `
 
 func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error) {
@@ -1336,8 +1336,21 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 		var i GroupMember
 		if err := rows.Scan(
 			&i.UserID,
-			&i.Username,
+			&i.UserEmail,
+			&i.UserUsername,
+			&i.UserHashedPassword,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRbacRoles),
+			&i.UserLoginType,
 			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserLastSeenAt,
+			&i.UserQuietHoursSchedule,
+			&i.UserThemePreference,
+			&i.UserName,
+			&i.UserGithubComUserID,
 			&i.OrganizationID,
 			&i.GroupName,
 			&i.GroupID,
@@ -1356,7 +1369,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 }
 
 const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
-SELECT user_id, username, user_avatar_url, organization_id, group_name, group_id FROM group_members_expanded WHERE group_id = $1
+SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded WHERE group_id = $1
 `
 
 func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GroupMember, error) {
@@ -1370,8 +1383,21 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.
 		var i GroupMember
 		if err := rows.Scan(
 			&i.UserID,
-			&i.Username,
+			&i.UserEmail,
+			&i.UserUsername,
+			&i.UserHashedPassword,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRbacRoles),
+			&i.UserLoginType,
 			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserLastSeenAt,
+			&i.UserQuietHoursSchedule,
+			&i.UserThemePreference,
+			&i.UserName,
+			&i.UserGithubComUserID,
 			&i.OrganizationID,
 			&i.GroupName,
 			&i.GroupID,
