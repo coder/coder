@@ -30,7 +30,6 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
 import {
   MoreMenu,
   MoreMenuContent,
@@ -38,7 +37,7 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { ResourcePageHeader } from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
   PaginationStatus,
@@ -98,111 +97,113 @@ export const GroupPage: FC = () => {
     <>
       {helmet}
 
-      <Margins>
-        <ResourcePageHeader
-          displayName={groupData?.display_name}
-          name={groupData?.name}
-          actions={
-            canUpdateGroup && (
-              <>
-                <Button
-                  startIcon={<SettingsOutlined />}
-                  to="settings"
-                  component={RouterLink}
-                >
-                  Settings
-                </Button>
-                <Button
-                  disabled={groupData?.id === groupData?.organization_id}
-                  onClick={() => {
-                    setIsDeletingGroup(true);
-                  }}
-                  startIcon={<DeleteOutline />}
-                  css={styles.removeButton}
-                >
-                  Delete&hellip;
-                </Button>
-              </>
-            )
-          }
+      <Stack
+        alignItems="baseline"
+        direction="row"
+        justifyContent="space-between"
+      >
+        <SettingsHeader
+          title={groupData?.display_name || groupData?.name}
+          description="Manage members for this group."
         />
-
-        <Stack spacing={1}>
-          {canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-            <AddGroupMember
-              isLoading={addMemberMutation.isLoading}
-              onSubmit={async (user, reset) => {
-                try {
-                  await addMemberMutation.mutateAsync({
-                    groupId,
-                    userId: user.id,
-                  });
-                  reset();
-                  await groupQuery.refetch();
-                } catch (error) {
-                  displayError(getErrorMessage(error, "Failed to add member."));
-                }
+        {canUpdateGroup && (
+          <Stack direction="row" spacing={2}>
+            <Button
+              startIcon={<SettingsOutlined />}
+              to="settings"
+              component={RouterLink}
+            >
+              Settings
+            </Button>
+            <Button
+              disabled={groupData?.id === groupData?.organization_id}
+              onClick={() => {
+                setIsDeletingGroup(true);
               }}
-            />
-          )}
-          <TableToolbar>
-            <PaginationStatus
-              isLoading={Boolean(isLoading)}
-              showing={groupData?.members.length ?? 0}
-              total={groupData?.members.length ?? 0}
-              label="members"
-            />
-          </TableToolbar>
+              startIcon={<DeleteOutline />}
+              css={styles.removeButton}
+            >
+              Delete&hellip;
+            </Button>
+          </Stack>
+        )}
+      </Stack>
 
-          <TableContainer>
-            <Table>
-              <TableHead>
+      <Stack spacing={1}>
+        {canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
+          <AddGroupMember
+            isLoading={addMemberMutation.isLoading}
+            onSubmit={async (user, reset) => {
+              try {
+                await addMemberMutation.mutateAsync({
+                  groupId,
+                  userId: user.id,
+                });
+                reset();
+                await groupQuery.refetch();
+              } catch (error) {
+                displayError(getErrorMessage(error, "Failed to add member."));
+              }
+            }}
+          />
+        )}
+        <TableToolbar>
+          <PaginationStatus
+            isLoading={Boolean(isLoading)}
+            showing={groupData?.members.length ?? 0}
+            total={groupData?.members.length ?? 0}
+            label="members"
+          />
+        </TableToolbar>
+
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell width="59%">User</TableCell>
+                <TableCell width="40">Status</TableCell>
+                <TableCell width="1%"></TableCell>
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {groupData?.members.length === 0 ? (
                 <TableRow>
-                  <TableCell width="59%">User</TableCell>
-                  <TableCell width="40">Status</TableCell>
-                  <TableCell width="1%"></TableCell>
-                </TableRow>
-              </TableHead>
-
-              <TableBody>
-                {groupData?.members.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={999}>
-                      <EmptyState
-                        message="No members yet"
-                        description="Add a member using the controls above"
-                      />
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  groupData?.members.map((member) => (
-                    <GroupMemberRow
-                      member={member}
-                      group={groupData}
-                      key={member.id}
-                      canUpdate={canUpdateGroup}
-                      onRemove={async () => {
-                        try {
-                          await removeMemberMutation.mutateAsync({
-                            groupId: groupData.id,
-                            userId: member.id,
-                          });
-                          await groupQuery.refetch();
-                          displaySuccess("Member removed successfully.");
-                        } catch (error) {
-                          displayError(
-                            getErrorMessage(error, "Failed to remove member."),
-                          );
-                        }
-                      }}
+                  <TableCell colSpan={999}>
+                    <EmptyState
+                      message="No members yet"
+                      description="Add a member using the controls above"
                     />
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Stack>
-      </Margins>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                groupData?.members.map((member) => (
+                  <GroupMemberRow
+                    member={member}
+                    group={groupData}
+                    key={member.id}
+                    canUpdate={canUpdateGroup}
+                    onRemove={async () => {
+                      try {
+                        await removeMemberMutation.mutateAsync({
+                          groupId: groupData.id,
+                          userId: member.id,
+                        });
+                        await groupQuery.refetch();
+                        displaySuccess("Member removed successfully.");
+                      } catch (error) {
+                        displayError(
+                          getErrorMessage(error, "Failed to remove member."),
+                        );
+                      }
+                    }}
+                  />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Stack>
 
       {groupQuery.data && (
         <DeleteDialog

@@ -10,9 +10,9 @@ import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import type { GetLicensesResponse } from "api/api";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useWindowSize } from "hooks/useWindowSize";
-import { Header } from "../Header";
 import { LicenseCard } from "./LicenseCard";
 
 type Props = {
@@ -55,7 +55,7 @@ const LicensesSettingsPageView: FC<Props> = ({
         direction="row"
         justifyContent="space-between"
       >
-        <Header
+        <SettingsHeader
           title="Licenses"
           description="Manage licenses to unlock Enterprise features."
         />

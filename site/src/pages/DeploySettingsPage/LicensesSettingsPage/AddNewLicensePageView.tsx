@@ -6,9 +6,9 @@ import { Link as RouterLink } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FileUpload } from "components/FileUpload/FileUpload";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { Fieldset } from "../Fieldset";
-import { Header } from "../Header";
 import { DividerWithText } from "./DividerWithText";
 
 type AddNewLicenseProps = {
@@ -50,7 +50,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         direction="row"
         justifyContent="space-between"
       >
-        <Header
+        <SettingsHeader
           title="Add a license"
           description="Get access to high availability, RBAC, quotas, and more."
         />

@@ -11,11 +11,11 @@ import {
   ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import { Alert } from "../../../components/Alert/Alert";
-import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 import { ChartSection } from "./ChartSection";
 
@@ -38,7 +38,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 }) => {
   return (
     <>
-      <Header
+      <SettingsHeader
         title="General"
         description="Information about your Coder deployment."
         docsHref={docs("/admin/configure")}

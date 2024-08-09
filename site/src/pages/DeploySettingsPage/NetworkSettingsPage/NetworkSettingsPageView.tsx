@@ -1,13 +1,13 @@
 import type { FC } from "react";
 import type { SerpentOption } from "api/typesGenerated";
 import { Badges, EnabledBadge, DisabledBadge } from "components/Badges/Badges";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
 } from "utils/deployOptions";
 import { docs } from "utils/docs";
-import { Header } from "../Header";
 import OptionsTable from "../OptionsTable";
 
 export type NetworkSettingsPageViewProps = {
@@ -19,7 +19,7 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 }) => (
   <Stack direction="column" spacing={6}>
     <div>
-      <Header
+      <SettingsHeader
         title="Network"
         description="Configure your deployment connectivity."
         docsHref={docs("/networking")}
@@ -32,7 +32,7 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
     </div>
 
     <div>
-      <Header
+      <SettingsHeader
         title="Port Forwarding"
         secondary
         description="Port forwarding lets developers securely access processes on their Coder workspace from a local machine."

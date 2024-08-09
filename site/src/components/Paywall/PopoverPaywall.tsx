@@ -3,7 +3,7 @@ import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { FC, ReactNode } from "react";
-import { EnterpriseBadge } from "components/Badges/Badges";
+import { EnterpriseBadge, PremiumBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import { docs } from "utils/docs";
 
@@ -11,19 +11,21 @@ export interface PopoverPaywallProps {
   message: string;
   description?: ReactNode;
   documentationLink?: string;
+  licenseType?: "enterprise" | "premium";
 }
 
 export const PopoverPaywall: FC<PopoverPaywallProps> = ({
   message,
   description,
   documentationLink,
+  licenseType = "enterprise",
 }) => {
   return (
     <div css={styles.root}>
       <div>
         <Stack direction="row" alignItems="center" css={{ marginBottom: 18 }}>
           <h5 css={styles.title}>{message}</h5>
-          <EnterpriseBadge />
+          {licenseType === "premium" ? <PremiumBadge /> : <EnterpriseBadge />}
         </Stack>
 
         {description && <p css={styles.description}>{description}</p>}
@@ -51,6 +53,11 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
           <li css={styles.feature}>
             <FeatureIcon /> Audit logs
           </li>
+          {licenseType === "premium" && (
+            <li css={styles.feature}>
+              <FeatureIcon /> Organizations
+            </li>
+          )}
         </ul>
         <Button
           href={docs("/enterprise")}
@@ -60,7 +67,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
           variant="outlined"
           color="neutral"
         >
-          Learn about Enterprise
+          Learn about {licenseType === "premium" ? "Premium" : "Enterprise"}
         </Button>
       </Stack>
     </div>

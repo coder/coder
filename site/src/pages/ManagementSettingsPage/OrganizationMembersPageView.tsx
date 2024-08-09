@@ -24,7 +24,7 @@ import {
   MoreMenuItem,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
@@ -52,9 +52,7 @@ export const OrganizationMembersPageView: FC<
 > = (props) => {
   return (
     <div>
-      <PageHeader>
-        <PageHeaderTitle>Organization members</PageHeaderTitle>
-      </PageHeader>
+      <SettingsHeader title="Members" />
 
       <Stack>
         {Boolean(props.error) && <ErrorAlert error={props.error} />}

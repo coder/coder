@@ -28,11 +28,8 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FormFields, FormFooter, VerticalForm } from "components/Form/Form";
-import {
-  PageHeader,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 
 const validationSchema = Yup.object({
@@ -77,37 +74,37 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 
   return (
     <>
-      <PageHeader
-        actions={
-          canAssignOrgRole && (
-            <>
-              <Button
-                onClick={() => {
-                  navigate(`/organizations/${organizationName}/roles`);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => {
-                  form.handleSubmit();
-                }}
-              >
-                {role !== undefined ? "Save" : "Create Role"}
-              </Button>
-            </>
-          )
-        }
+      <Stack
+        alignItems="baseline"
+        direction="row"
+        justifyContent="space-between"
       >
-        <PageHeaderTitle>
-          {role ? "Edit" : "Create"} custom role
-        </PageHeaderTitle>
-        <PageHeaderSubtitle>
-          {"Set a name and permissions for this role."}
-        </PageHeaderSubtitle>
-      </PageHeader>
+        <SettingsHeader
+          title={`${role ? "Edit" : "Create"} Custom Role`}
+          description="Set a name and permissions for this role."
+        />
+        {canAssignOrgRole && (
+          <Stack direction="row" spacing={2}>
+            <Button
+              onClick={() => {
+                navigate(`/organizations/${organizationName}/roles`);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => {
+                form.handleSubmit();
+              }}
+            >
+              {role !== undefined ? "Save" : "Create Role"}
+            </Button>
+          </Stack>
+        )}
+      </Stack>
+
       <VerticalForm onSubmit={form.handleSubmit}>
         <FormFields>
           {Boolean(error) && !isApiValidationError(error) && (

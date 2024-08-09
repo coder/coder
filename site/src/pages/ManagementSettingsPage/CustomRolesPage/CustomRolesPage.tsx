@@ -9,7 +9,8 @@ import { organizationPermissions } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
@@ -50,23 +51,21 @@ export const CustomRolesPage: FC = () => {
         <title>{pageTitle("Custom Roles")}</title>
       </Helmet>
 
-      <PageHeader
-        actions={
-          <>
-            {permissions.assignOrgRole && isCustomRolesEnabled && (
-              <Button
-                component={RouterLink}
-                startIcon={<AddIcon />}
-                to="create"
-              >
-                Create custom role
-              </Button>
-            )}
-          </>
-        }
+      <Stack
+        alignItems="baseline"
+        direction="row"
+        justifyContent="space-between"
       >
-        <PageHeaderTitle>Custom Roles</PageHeaderTitle>
-      </PageHeader>
+        <SettingsHeader
+          title="Custom Roles"
+          description="Manage custom roles for this organization."
+        />
+        {permissions.assignOrgRole && isCustomRolesEnabled && (
+          <Button component={RouterLink} startIcon={<AddIcon />} to="create">
+            Create custom role
+          </Button>
+        )}
+      </Stack>
 
       <CustomRolesPageView
         roles={filteredRoleData}
