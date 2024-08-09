@@ -65,6 +65,15 @@ func (d *awsIamRdsDriver) Open(name string) (driver.Conn, error) {
 	return conn, nil
 }
 
+func AuthenticatedURL(ctx context.Context, dbURL string) (string, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return getAuthenticatedURL(cfg, dbURL)
+}
+
 func getAuthenticatedURL(cfg aws.Config, dbURL string) (string, error) {
 	nURL, err := url.Parse(dbURL)
 	if err != nil {

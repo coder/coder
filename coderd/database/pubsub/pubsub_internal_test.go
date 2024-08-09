@@ -239,6 +239,8 @@ func (f *fakePqListener) NotifyChan() <-chan *pq.Notification {
 	return f.notify
 }
 
+func (*fakePqListener) SetName(_ string) {}
+
 // getTestChanLocked returns the name of a channel we are currently listening for, if there is one.
 // Otherwise, it just returns "test".  We prefer to send test notifications for channels that appear
 // in the tests, but if there are none, just return anything.

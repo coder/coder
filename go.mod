@@ -62,6 +62,8 @@ replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0
 // Fixes https://github.com/coder/coder/issues/6685
 replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145-8218e927edb0
 
+replace github.com/lib/pq => github.com/f0ssel/pq v0.0.0-20240809153647-fa7a96faeafc
+
 require (
 	cdr.dev/slog v1.6.2-0.20240126064726-20367d4aede6
 	cloud.google.com/go/compute/metadata v0.5.0
