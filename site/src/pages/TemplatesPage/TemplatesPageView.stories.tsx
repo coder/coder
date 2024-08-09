@@ -69,6 +69,13 @@ export const WithTemplates: Story = {
   },
 };
 
+export const MultipleOrganizations: Story = {
+  args: {
+    ...WithTemplates.args,
+    showOrganizations: true,
+  },
+};
+
 export const EmptyCanCreate: Story = {
   args: {
     canCreateTemplates: true,
