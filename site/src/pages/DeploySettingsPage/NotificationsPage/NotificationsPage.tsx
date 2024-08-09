@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
@@ -31,6 +32,7 @@ import {
 } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import { deploymentGroupHasParent } from "utils/deployOptions";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { useDeploySettings } from "../DeploySettingsLayout";
 import OptionsTable from "../OptionsTable";
@@ -175,7 +177,21 @@ const EventsView: FC<EventsViewProps> = ({
     <Stack spacing={4}>
       {availableMethods.includes("smtp") &&
         deploymentValues.notifications?.webhook.endpoint === "" && (
-          <Alert severity="warning">
+          <Alert
+            severity="warning"
+            actions={
+              <Button
+                variant="text"
+                size="small"
+                component="a"
+                target="_blank"
+                rel="noreferrer"
+                href={docs("/cli/server#--notifications-webhook-endpoint")}
+              >
+                Read the docs
+              </Button>
+            }
+          >
             Webhook notifications are enabled, but no endpoint has been
             configured.
           </Alert>
@@ -183,7 +199,21 @@ const EventsView: FC<EventsViewProps> = ({
 
       {availableMethods.includes("smtp") &&
         deploymentValues.notifications?.email.smarthost === "" && (
-          <Alert severity="warning">
+          <Alert
+            severity="warning"
+            actions={
+              <Button
+                variant="text"
+                size="small"
+                component="a"
+                target="_blank"
+                rel="noreferrer"
+                href={docs("/cli/server#--notifications-email-smarthost")}
+              >
+                Read the docs
+              </Button>
+            }
+          >
             SMTP notifications are enabled, but no smarthost has been
             configured.
           </Alert>
