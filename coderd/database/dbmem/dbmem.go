@@ -9647,6 +9647,11 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		if arg.Deprecated.Valid && arg.Deprecated.Bool == (template.Deprecated != "") {
 			continue
 		}
+		if arg.FuzzyName != "" {
+			if !strings.Contains(strings.ToLower(template.Name), strings.ToLower(arg.FuzzyName)) {
+				continue
+			}
+		}
 
 		if len(arg.IDs) > 0 {
 			match := false

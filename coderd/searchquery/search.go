@@ -198,6 +198,7 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
+		FuzzyName:  parser.String(values, "", "name"),
 		Deleted:    parser.Boolean(values, false, "deleted"),
 		ExactName:  parser.String(values, "", "exact_name"),
 		IDs:        parser.UUIDs(values, []uuid.UUID{}, "ids"),
