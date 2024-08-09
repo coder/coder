@@ -8,6 +8,7 @@ import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
+import TableFooter from "@mui/material/TableFooter";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
@@ -219,80 +220,102 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
     : filteredRBACResourceActions;
 
   return (
-    <>
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Permission</TableCell>
-              <TableCell
-                align="right"
-                sx={{ paddingTop: 0.4, paddingBottom: 0.4 }}
-              >
-                <FormControlLabel
-                  sx={{ marginRight: 1 }}
-                  control={
-                    <Checkbox
-                      size="small"
-                      id="show_all_permissions"
-                      name="show_all_permissions"
-                      checked={showAllResources}
-                      onChange={(e) =>
-                        setShowAllResources(e.currentTarget.checked)
-                      }
-                      checkedIcon={<VisibilityOutlinedIcon />}
-                      icon={<VisibilityOffOutlinedIcon />}
-                    />
-                  }
-                  label={
-                    <span style={{ fontSize: 12 }}>Show all permissions</span>
-                  }
-                />
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {Object.entries(resourceActions).map(([resourceKey, value]) => {
-              return (
-                <TableRow key={resourceKey}>
-                  <TableCell sx={{ paddingLeft: 2 }}>
-                    <li key={resourceKey} css={styles.checkBoxes}>
-                      {resourceKey}
-                      <ul css={styles.checkBoxes}>
-                        {Object.entries(value).map(([actionKey, value]) => (
-                          <li key={actionKey}>
-                            <span css={styles.actionText}>
-                              <Checkbox
-                                size="small"
-                                name={`${resourceKey}:${actionKey}`}
-                                checked={checkedActions?.some((p) =>
-                                  ResourceActionComparator(
-                                    p,
-                                    resourceKey,
-                                    actionKey,
-                                  ),
-                                )}
-                                onChange={(e) =>
-                                  handleActionCheckChange(e, form)
-                                }
-                              />
-                              {actionKey}
-                            </span>{" "}
-                            &ndash;{" "}
-                            <span css={styles.actionDescription}>{value}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  </TableCell>
-                  <TableCell />
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </>
+    <TableContainer>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>Permission</TableCell>
+            <TableCell
+              align="right"
+              sx={{ paddingTop: 0.4, paddingBottom: 0.4 }}
+            >
+              <ShowAllResourcesCheckbox
+                showAllResources={showAllResources}
+                setShowAllResources={setShowAllResources}
+              />
+            </TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {Object.entries(resourceActions).map(([resourceKey, value]) => {
+            return (
+              <TableRow key={resourceKey}>
+                <TableCell sx={{ paddingLeft: 2 }} colSpan={2}>
+                  <li key={resourceKey} css={styles.checkBoxes}>
+                    {resourceKey}
+                    <ul css={styles.checkBoxes}>
+                      {Object.entries(value).map(([actionKey, value]) => (
+                        <li key={actionKey}>
+                          <span css={styles.actionText}>
+                            <Checkbox
+                              size="small"
+                              name={`${resourceKey}:${actionKey}`}
+                              checked={checkedActions?.some((p) =>
+                                ResourceActionComparator(
+                                  p,
+                                  resourceKey,
+                                  actionKey,
+                                ),
+                              )}
+                              onChange={(e) => handleActionCheckChange(e, form)}
+                            />
+                            {actionKey}
+                          </span>{" "}
+                          &ndash;{" "}
+                          <span css={styles.actionDescription}>{value}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+        <TableFooter>
+          <TableRow>
+            <TableCell
+              align="right"
+              colSpan={2}
+              sx={{ paddingTop: 0.4, paddingBottom: 0.4, paddingRight: 4 }}
+            >
+              <ShowAllResourcesCheckbox
+                showAllResources={showAllResources}
+                setShowAllResources={setShowAllResources}
+              />
+            </TableCell>
+          </TableRow>
+        </TableFooter>
+      </Table>
+    </TableContainer>
+  );
+};
+
+interface ShowAllResourcesCheckboxProps {
+  showAllResources: boolean;
+  setShowAllResources: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+const ShowAllResourcesCheckbox: FC<ShowAllResourcesCheckboxProps> = ({
+  showAllResources,
+  setShowAllResources,
+}) => {
+  return (
+    <FormControlLabel
+      sx={{ marginRight: 1 }}
+      control={
+        <Checkbox
+          size="small"
+          id="show_all_permissions"
+          name="show_all_permissions"
+          checked={showAllResources}
+          onChange={(e) => setShowAllResources(e.currentTarget.checked)}
+          checkedIcon={<VisibilityOutlinedIcon />}
+          icon={<VisibilityOffOutlinedIcon />}
+        />
+      }
+      label={<span style={{ fontSize: 12 }}>Show all permissions</span>}
+    />
   );
 };
 
