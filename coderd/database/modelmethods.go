@@ -183,20 +183,8 @@ func (g Group) RBACObject() rbac.Object {
 		})
 }
 
-type GroupMemberRBACHelper struct {
-	User           User
-	GroupID        uuid.UUID
-	OrganizationID uuid.UUID
-}
-
-func (gm GroupMemberRBACHelper) RBACObject() rbac.Object {
-	return rbac.ResourceGroup.WithID(gm.GroupID).InOrg(gm.OrganizationID).
-		// Group member can see they are in the group.
-		WithACLUserList(map[string][]policy.Action{
-			gm.User.ID.String(): {
-				policy.ActionRead,
-			},
-		})
+func (gm GroupMember) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
 type GroupMembersCountRBACHelper struct {
