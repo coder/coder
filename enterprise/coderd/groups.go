@@ -80,7 +80,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	var emptyMembers []database.GroupMember
 	aReq.New = group.Auditable(emptyMembers)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Group(group, nil))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Group(group, nil, 0))
 }
 
 // @Summary Update group by name
@@ -285,7 +285,13 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = group.Auditable(patchedMembers)
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, patchedMembers))
+	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, patchedMembers, int(memberCount.MemberCount)))
 }
 
 // @Summary Delete group by name
@@ -370,7 +376,13 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, users))
+	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, users, int(memberCount.MemberCount)))
 }
 
 // @Summary Get groups by organization
@@ -414,8 +426,13 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 
-		resp = append(resp, db2sdk.Group(group, members))
+		resp = append(resp, db2sdk.Group(group, members, int(memberCount.MemberCount)))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

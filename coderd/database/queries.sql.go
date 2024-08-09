@@ -1434,7 +1434,9 @@ type GetGroupMembersCountByGroupIDRow struct {
 	MemberCount    int64     `db:"member_count" json:"member_count"`
 }
 
-// This aggregation is guaranteed to return a single row
+// Returns the total count of members in a group. Shows the total
+// count even if the caller does not have read access to ResourceGroupMember.
+// They only need ResourceGroup read access.
 func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (GetGroupMembersCountByGroupIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getGroupMembersCountByGroupID, groupID)
 	var i GetGroupMembersCountByGroupIDRow

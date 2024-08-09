@@ -5,6 +5,9 @@ SELECT * FROM group_members_expanded;
 SELECT * FROM group_members_expanded WHERE group_id = @group_id;
 
 -- name: GetGroupMembersCountByGroupID :one
+-- Returns the total count of members in a group. Shows the total
+-- count even if the caller does not have read access to ResourceGroupMember.
+-- They only need ResourceGroup read access.
 SELECT 
     gme.organization_id,
     gme.group_id,
@@ -13,7 +16,6 @@ FROM
     group_members_expanded gme
 WHERE 
     gme.group_id = @group_id
--- This aggregation is guaranteed to return a single row
 GROUP BY 
     gme.organization_id, gme.group_id;
 

@@ -147,7 +147,9 @@ type sqlcQuerier interface {
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 	GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GroupMember, error)
-	// This aggregation is guaranteed to return a single row
+	// Returns the total count of members in a group. Shows the total
+	// count even if the caller does not have read access to ResourceGroupMember.
+	// They only need ResourceGroup read access.
 	GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (GetGroupMembersCountByGroupIDRow, error)
 	GetGroups(ctx context.Context) ([]Group, error)
 	GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error)

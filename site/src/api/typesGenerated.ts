@@ -613,6 +613,7 @@ export interface Group {
   readonly display_name: string;
   readonly organization_id: string;
   readonly members: readonly ReducedUser[];
+  readonly total_member_count: number;
   readonly avatar_url: string;
   readonly quota_allowance: number;
   readonly source: GroupSource;

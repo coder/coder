@@ -208,16 +208,17 @@ func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []c
 	})
 }
 
-func Group(group database.Group, members []database.GroupMember) codersdk.Group {
+func Group(group database.Group, members []database.GroupMember, totalMemberCount int) codersdk.Group {
 	return codersdk.Group{
-		ID:             group.ID,
-		Name:           group.Name,
-		DisplayName:    group.DisplayName,
-		OrganizationID: group.OrganizationID,
-		AvatarURL:      group.AvatarURL,
-		Members:        ReducedUsersFromGroupMembers(members),
-		QuotaAllowance: int(group.QuotaAllowance),
-		Source:         codersdk.GroupSource(group.Source),
+		ID:               group.ID,
+		Name:             group.Name,
+		DisplayName:      group.DisplayName,
+		OrganizationID:   group.OrganizationID,
+		AvatarURL:        group.AvatarURL,
+		Members:          ReducedUsersFromGroupMembers(members),
+		TotalMemberCount: totalMemberCount,
+		QuotaAllowance:   int(group.QuotaAllowance),
+		Source:           codersdk.GroupSource(group.Source),
 	}
 }
 
