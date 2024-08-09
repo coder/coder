@@ -46,7 +46,7 @@
     "@mui/system": "5.16.0",
     "@mui/utils": "5.16.0",
     "@mui/x-tree-view": "7.9.0",
-    "@tanstack/react-query-devtools": "4.35.3",
+    "@tanstack/react-query-devtools": "4.36.1",
     "@xterm/addon-canvas": "0.7.0",
     "@xterm/addon-fit": "0.10.0",
     "@xterm/addon-unicode11": "0.8.0",
