@@ -230,7 +230,7 @@ you can configure the template to run Jupyter on a path. There is however
 running an app on a path and the template code is more complicated with coder
 value substitution to recreate the path structure.
 
-[This](https://github.com/sharkymark/v2-templates/tree/main/pod-with-jupyter-path)
+[This](https://github.com/sharkymark/v2-templates/tree/main/src/pod-with-jupyter-path)
 is a community template example.
 
 ![JupyterLab in Coder](../images/jupyter.png)

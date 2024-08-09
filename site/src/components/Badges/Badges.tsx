@@ -123,6 +123,23 @@ export const EnterpriseBadge: FC = () => {
   );
 };
 
+export const PremiumBadge: FC = () => {
+  return (
+    <span
+      css={[
+        styles.badge,
+        (theme) => ({
+          backgroundColor: theme.roles.info.background,
+          border: `1px solid ${theme.roles.info.outline}`,
+          color: theme.roles.info.text,
+        }),
+      ]}
+    >
+      Premium
+    </span>
+  );
+};
+
 export const PreviewBadge: FC = () => {
   return (
     <span

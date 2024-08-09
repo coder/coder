@@ -1,6 +1,7 @@
 import type { QueryClient } from "react-query";
 import { API } from "api/api";
 import type {
+  AuthorizationResponse,
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
 } from "api/typesGenerated";
@@ -118,5 +119,135 @@ export const provisionerDaemons = (organization: string) => {
   return {
     queryKey: getProvisionerDaemonsKey(organization),
     queryFn: () => API.getProvisionerDaemonsByOrganization(organization),
+  };
+};
+
+/**
+ * Fetch permissions for a single organization.
+ *
+ * If the ID is undefined, return a disabled query.
+ */
+export const organizationPermissions = (organizationId: string | undefined) => {
+  if (!organizationId) {
+    return { enabled: false };
+  }
+  return {
+    queryKey: ["organization", organizationId, "permissions"],
+    queryFn: () =>
+      // Only request what we use on individual org settings, members, and group
+      // pages, which at the moment is whether you can edit the members on the
+      // members page, create roles on the roles page, and create groups on the
+      // groups page.  The edit organization check for the settings page is
+      // covered by the multi-org query at the moment, and the edit group check
+      // on the group page is done on the group itself, not the org, so neither
+      // show up here.
+      API.checkAuthorization({
+        checks: {
+          editMembers: {
+            object: {
+              resource_type: "organization_member",
+              organization_id: organizationId,
+            },
+            action: "update",
+          },
+          createGroup: {
+            object: {
+              resource_type: "group",
+              organization_id: organizationId,
+            },
+            action: "create",
+          },
+          assignOrgRole: {
+            object: {
+              resource_type: "assign_org_role",
+              organization_id: organizationId,
+            },
+            action: "create",
+          },
+        },
+      }),
+  };
+};
+
+/**
+ * Fetch permissions for all provided organizations.
+ *
+ * If organizations are undefined, return a disabled query.
+ */
+export const organizationsPermissions = (
+  organizationIds: string[] | undefined,
+) => {
+  if (!organizationIds) {
+    return { enabled: false };
+  }
+
+  return {
+    queryKey: ["organizations", organizationIds.sort(), "permissions"],
+    queryFn: async () => {
+      // Only request what we need for the sidebar, which is one edit permission
+      // per sub-link (settings, groups, roles, and members pages) that tells us
+      // whether to show that page, since we only show them if you can edit (and
+      // not, at the moment if you can only view).
+      const checks = (organizationId: string) => ({
+        editMembers: {
+          object: {
+            resource_type: "organization_member",
+            organization_id: organizationId,
+          },
+          action: "update",
+        },
+        editGroups: {
+          object: {
+            resource_type: "group",
+            organization_id: organizationId,
+          },
+          action: "update",
+        },
+        editOrganization: {
+          object: {
+            resource_type: "organization",
+            organization_id: organizationId,
+          },
+          action: "update",
+        },
+        assignOrgRole: {
+          object: {
+            resource_type: "assign_org_role",
+            organization_id: organizationId,
+          },
+          action: "create",
+        },
+      });
+
+      // The endpoint takes a flat array, so to avoid collisions prepend each
+      // check with the org ID (the key can be anything we want).
+      const prefixedChecks = organizationIds
+        .map((orgId) =>
+          Object.entries(checks(orgId)).map(([key, val]) => [
+            `${orgId}.${key}`,
+            val,
+          ]),
+        )
+        .flat();
+
+      const response = await API.checkAuthorization({
+        checks: Object.fromEntries(prefixedChecks),
+      });
+
+      // Now we can unflatten by parsing out the org ID from each check.
+      return Object.entries(response).reduce(
+        (acc, [key, value]) => {
+          const index = key.indexOf(".");
+          const orgId = key.substring(0, index);
+          const perm = key.substring(index + 1);
+          if (!acc[orgId]) {
+            acc[orgId] = {};
+          }
+          acc[orgId][perm] = value;
+          return acc;
+        },
+        {} as Record<string, AuthorizationResponse>,
+      );
+    },
   };
 };

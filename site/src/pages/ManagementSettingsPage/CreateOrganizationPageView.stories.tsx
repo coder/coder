@@ -5,12 +5,21 @@ import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 const meta: Meta<typeof CreateOrganizationPageView> = {
   title: "pages/CreateOrganizationPageView",
   component: CreateOrganizationPageView,
+  args: {
+    isEntitled: true,
+  },
 };
 
 export default meta;
 type Story = StoryObj<typeof CreateOrganizationPageView>;
 
 export const Example: Story = {};
+
+export const NotEntitled: Story = {
+  args: {
+    isEntitled: false,
+  },
+};
 
 export const Error: Story = {
   args: { error: "Oh no!" },

@@ -958,6 +958,20 @@ func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 	return q.db.DeleteCoordinator(ctx, id)
 }
 
+func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCustomRoleParams) error {
+	if arg.OrganizationID.UUID != uuid.Nil {
+		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+			return err
+		}
+	} else {
+		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignRole); err != nil {
+			return err
+		}
+	}
+
+	return q.db.DeleteCustomRole(ctx, arg)
+}
+
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		//nolint:gosimple
@@ -1489,13 +1503,13 @@ func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID)
 }
 
 func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
-	// TODO: restrict 'system' kind to admins only?
-	// All notification templates share the same rbac.Object, so there is no need
-	// to authorize them individually. If this passes, all notification templates can be read.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationTemplate); err != nil {
-		return nil, err
+	// Anyone can read the system notification templates.
+	if kind == database.NotificationTemplateKindSystem {
+		return q.db.GetNotificationTemplatesByKind(ctx, kind)
 	}
-	return q.db.GetNotificationTemplatesByKind(ctx, kind)
+
+	// TODO(dannyk): handle template ownership when we support user-default notification templates.
+	return nil, sql.ErrNoRows
 }
 
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {

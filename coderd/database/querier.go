@@ -69,6 +69,7 @@ type sqlcQuerier interface {
 	DeleteAllTailnetTunnels(ctx context.Context, arg DeleteAllTailnetTunnelsParams) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteCoordinator(ctx context.Context, id uuid.UUID) error
+	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error

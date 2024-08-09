@@ -31,7 +31,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
   const { multiple_organizations: organizationsEnabled } =
     useFeatureVisibility();
   const [searchParams] = useSearchParams();
-  const templateExamplesQuery = useQuery(templateExamples("default"));
+  const templateExamplesQuery = useQuery(templateExamples());
   const templateExample = templateExamplesQuery.data?.find(
     (e) => e.id === searchParams.get("exampleId")!,
   );

@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useSearchParams, Navigate, useLocation } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { paginatedAudits } from "api/queries/audits";
 import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
@@ -17,10 +17,8 @@ import {
 import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: FC = () => {
-  const { audit_log: isAuditLogVisible } = useFeatureVisibility();
+  const feats = useFeatureVisibility();
   const { experiments } = useDashboard();
-  const location = useLocation();
-  const isMultiOrg = experiments.includes("multi-organization");
 
   /**
    * There is an implicit link between auditsQuery and filter via the
@@ -72,12 +70,9 @@ const AuditPage: FC = () => {
       }),
   });
 
-  // TODO: Once multi-org is stable, we should place this redirect into the
-  //       router directly, if we still need to maintain it (for users who are
-  //       typing the old URL manually or have it bookmarked).
-  if (isMultiOrg && location.pathname !== "/deployment/audit") {
-    return <Navigate to={`/deployment/audit${location.search}`} replace />;
-  }
+  // With the multi-organization experiment enabled, show extra organization
+  // info and the organization filter dropdon.
+  const canViewOrganizations = experiments.includes("multi-organization");
 
   return (
     <>
@@ -88,10 +83,10 @@ const AuditPage: FC = () => {
       <AuditPageView
         auditLogs={auditsQuery.data?.audit_logs}
         isNonInitialPage={isNonInitialPage(searchParams)}
-        isAuditLogVisible={isAuditLogVisible}
+        isAuditLogVisible={feats.audit_log}
         auditsQuery={auditsQuery}
         error={auditsQuery.error}
-        showOrgDetails={isMultiOrg}
+        showOrgDetails={canViewOrganizations}
         filterProps={{
           filter,
           error: auditsQuery.error,
@@ -99,7 +94,7 @@ const AuditPage: FC = () => {
             user: userMenu,
             action: actionMenu,
             resourceType: resourceTypeMenu,
-            organization: isMultiOrg ? organizationsMenu : undefined,
+            organization: canViewOrganizations ? organizationsMenu : undefined,
           },
         }}
       />

@@ -5011,16 +5011,13 @@ VALUES (
 	$6,
 	$7,
 	$8
-) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
+) ON CONFLICT("organization_id", "name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
 	"version" = $6,
 	api_version = $8,
 	organization_id = $7
-WHERE
-	-- Only ones with the same tags are allowed clobber
-	provisioner_daemons.tags <@ $4 :: jsonb
 RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
 `
 
@@ -6521,6 +6518,24 @@ func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const deleteCustomRole = `-- name: DeleteCustomRole :exec
+DELETE FROM
+	custom_roles
+WHERE
+	name = lower($1)
+	AND organization_id = $2
+`
+
+type DeleteCustomRoleParams struct {
+	Name           string        `db:"name" json:"name"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomRole, arg.Name, arg.OrganizationID)
+	return err
 }
 
 const upsertCustomRole = `-- name: UpsertCustomRole :one

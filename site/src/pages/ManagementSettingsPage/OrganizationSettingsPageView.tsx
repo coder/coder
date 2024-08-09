@@ -18,7 +18,7 @@ import {
   FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import {
   getFormHelpers,
   nameValidator,
@@ -44,11 +44,12 @@ interface OrganizationSettingsPageViewProps {
   error: unknown;
   onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
   onDeleteOrganization: () => void;
+  canEdit: boolean;
 }
 
 export const OrganizationSettingsPageView: FC<
   OrganizationSettingsPageViewProps
-> = ({ organization, error, onSubmit, onDeleteOrganization }) => {
+> = ({ organization, error, onSubmit, onDeleteOrganization, canEdit }) => {
   const form = useFormik<UpdateOrganizationRequest>({
     initialValues: {
       name: organization.name,
@@ -66,9 +67,7 @@ export const OrganizationSettingsPageView: FC<
 
   return (
     <div>
-      <PageHeader>
-        <PageHeaderTitle>Organization settings</PageHeaderTitle>
-      </PageHeader>
+      <SettingsHeader title="Settings" />
 
       {Boolean(error) && !isApiValidationError(error) && (
         <div css={{ marginBottom: 32 }}>
@@ -77,15 +76,16 @@ export const OrganizationSettingsPageView: FC<
       )}
 
       <HorizontalForm
+        data-testid="org-settings-form"
         onSubmit={form.handleSubmit}
         aria-label="Organization settings form"
       >
         <FormSection
           title="Info"
-          description="Change the name or description of the organization."
+          description="The name and description of the organization."
         >
           <fieldset
-            disabled={form.isSubmitting}
+            disabled={form.isSubmitting || !canEdit}
             css={{ border: "unset", padding: 0, margin: 0, width: "100%" }}
           >
             <FormFields>
@@ -117,10 +117,10 @@ export const OrganizationSettingsPageView: FC<
             </FormFields>
           </fieldset>
         </FormSection>
-        <FormFooter isLoading={form.isSubmitting} />
+        {canEdit && <FormFooter isLoading={form.isSubmitting} />}
       </HorizontalForm>
 
-      {!organization.is_default && (
+      {canEdit && !organization.is_default && (
         <HorizontalContainer css={{ marginTop: 48 }}>
           <HorizontalSection
             title="Settings"

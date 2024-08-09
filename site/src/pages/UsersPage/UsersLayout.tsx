@@ -20,14 +20,12 @@ import { linkToUsers } from "modules/navigation";
 export const UsersLayout: FC = () => {
   const { permissions } = useAuthenticated();
   const { experiments } = useDashboard();
-  const { createUser: canCreateUser, createGroup: canCreateGroup } =
-    permissions;
   const navigate = useNavigate();
-  const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
+  const feats = useFeatureVisibility();
   const location = useLocation();
   const activeTab = location.pathname.endsWith("groups") ? "groups" : "users";
 
-  const isMultiOrg = experiments.includes("multi-organization");
+  const canViewOrganizations = experiments.includes("multi-organization");
 
   return (
     <>
@@ -35,7 +33,7 @@ export const UsersLayout: FC = () => {
         <PageHeader
           actions={
             <>
-              {canCreateUser && (
+              {permissions.createUser && (
                 <Button
                   onClick={() => {
                     navigate("/users/create");
@@ -45,7 +43,7 @@ export const UsersLayout: FC = () => {
                   Create user
                 </Button>
               )}
-              {canCreateGroup && isTemplateRBACEnabled && (
+              {permissions.createGroup && feats.template_rbac && (
                 <Button
                   component={RouterLink}
                   startIcon={<GroupAdd />}
@@ -61,7 +59,7 @@ export const UsersLayout: FC = () => {
         </PageHeader>
       </Margins>
 
-      {!isMultiOrg && (
+      {!canViewOrganizations && (
         <Tabs
           css={{ marginBottom: 40, marginTop: -TAB_PADDING_Y }}
           active={activeTab}

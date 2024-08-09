@@ -10,6 +10,7 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
+import { getStaticBuildInfo } from "utils/buildInfo";
 
 const fetchDynamicallyImportedModuleError =
   "Failed to fetch dynamically imported module";
@@ -114,21 +115,6 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
       )}
     </>
   );
-};
-
-// During the build process, we inject the build info into the HTML
-const getStaticBuildInfo = () => {
-  const buildInfoJson = document
-    .querySelector("meta[property=build-info]")
-    ?.getAttribute("content");
-
-  if (buildInfoJson) {
-    try {
-      return JSON.parse(buildInfoJson) as BuildInfoResponse;
-    } catch {
-      return undefined;
-    }
-  }
 };
 
 const styles = {

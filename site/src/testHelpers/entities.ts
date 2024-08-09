@@ -326,6 +326,71 @@ export const MockOrganizationAuditorRole: TypesGen.Role = {
   organization_id: MockOrganization.id,
 };
 
+export const MockRoleWithOrgPermissions: TypesGen.Role = {
+  name: "my-role-1",
+  display_name: "My Role 1",
+  organization_id: MockOrganization.id,
+  site_permissions: [],
+  organization_permissions: [
+    {
+      negate: false,
+      resource_type: "organization_member",
+      action: "create",
+    },
+    {
+      negate: false,
+      resource_type: "organization_member",
+      action: "delete",
+    },
+    {
+      negate: false,
+      resource_type: "organization_member",
+      action: "read",
+    },
+    {
+      negate: false,
+      resource_type: "organization_member",
+      action: "update",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "create",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "delete",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "read",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "update",
+    },
+    {
+      negate: false,
+      resource_type: "template",
+      action: "view_insights",
+    },
+    {
+      negate: false,
+      resource_type: "audit_log",
+      action: "create",
+    },
+    {
+      negate: false,
+      resource_type: "audit_log",
+      action: "read",
+    },
+  ],
+  user_permissions: [],
+};
+
 // assignableRole takes a role and a boolean. The boolean implies if the
 // actor can assign (add/remove) the role from other users.
 export function assignableRole(
@@ -2209,6 +2274,17 @@ export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
   }),
 };
 
+export const MockEntitlementsWithMultiOrg: TypesGen.Entitlements = {
+  ...MockEntitlements,
+  has_license: true,
+  features: withDefaultFeatures({
+    multiple_organizations: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  }),
+};
+
 export const MockExperiments: TypesGen.Experiment[] = [];
 
 /**
@@ -2472,19 +2548,24 @@ export const MockTemplateExample2: TypesGen.TemplateExample = {
 };
 
 export const MockPermissions: Permissions = {
-  createGroup: true,
   createTemplates: true,
   createUser: true,
   deleteTemplates: true,
   updateTemplates: true,
-  readAllUsers: true,
+  viewAllUsers: true,
   updateUsers: true,
-  viewAuditLog: true,
+  viewAnyAuditLog: true,
   viewDeploymentValues: true,
+  editDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
   viewExternalAuthConfig: true,
   editWorkspaceProxies: true,
+  createOrganization: true,
+  editAnyOrganization: true,
+  viewAnyGroup: true,
+  createGroup: true,
+  viewAllLicenses: true,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

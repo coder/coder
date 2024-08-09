@@ -9,8 +9,8 @@ import type { FC } from "react";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { EnterpriseBadge } from "components/Badges/Badges";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { docs } from "utils/docs";
-import { Header } from "../Header";
 
 export type ExternalAuthSettingsPageViewProps = {
   config: DeploymentValues;
@@ -21,7 +21,7 @@ export const ExternalAuthSettingsPageView: FC<
 > = ({ config }) => {
   return (
     <>
-      <Header
+      <SettingsHeader
         title="External Authentication"
         description="Coder integrates with GitHub, GitLab, BitBucket, Azure Repos, and OpenID Connect to authenticate developers with external services."
         docsHref={docs("/admin/external-auth")}

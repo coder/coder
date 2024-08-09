@@ -11,14 +11,13 @@ import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
   const { permissions } = useAuthenticated();
-  const { createGroup: canCreateGroup } = permissions;
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const groupsQuery = useQuery(groups("default"));
 
   useEffect(() => {
     if (groupsQuery.error) {
       displayError(
-        getErrorMessage(groupsQuery.error, "Error on loading groups."),
+        getErrorMessage(groupsQuery.error, "Unable to load groups."),
       );
     }
   }, [groupsQuery.error]);
@@ -31,7 +30,7 @@ export const GroupsPage: FC = () => {
 
       <GroupsPageView
         groups={groupsQuery.data}
-        canCreateGroup={canCreateGroup}
+        canCreateGroup={permissions.createGroup}
         isTemplateRBACEnabled={isTemplateRBACEnabled}
       />
     </>

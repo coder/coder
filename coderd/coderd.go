@@ -872,7 +872,7 @@ func New(options *Options) *API {
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization())
-					r.Get("/examples", api.templateExamples)
+					r.Get("/examples", api.templateExamplesByOrganization)
 					r.Route("/{templatename}", func(r chi.Router) {
 						r.Get("/", api.templateByOrganizationAndName)
 						r.Route("/versions/{templateversionname}", func(r chi.Router) {
@@ -916,6 +916,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.fetchTemplates(nil))
+			r.Get("/examples", api.templateExamples)
 			r.Route("/{template}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractTemplateParam(options.Database),

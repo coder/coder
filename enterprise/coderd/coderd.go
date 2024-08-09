@@ -270,6 +270,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Patch("/organizations/{organization}/members/roles", api.patchOrgRoles)
+			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
 		})
 
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {

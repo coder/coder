@@ -483,7 +483,7 @@ class ApiMethods {
   };
 
   deleteToken = async (keyId: string): Promise<void> => {
-    await this.axios.delete("/api/v2/users/me/keys/" + keyId);
+    await this.axios.delete(`/api/v2/users/me/keys/${keyId}`);
   };
 
   createToken = async (
@@ -598,6 +598,24 @@ class ApiMethods {
     );
 
     return response.data;
+  };
+
+  patchOrganizationRole = async (
+    organizationId: string,
+    role: TypesGen.Role,
+  ): Promise<TypesGen.Role> => {
+    const response = await this.axios.patch<TypesGen.Role>(
+      `/api/v2/organizations/${organizationId}/members/roles`,
+      role,
+    );
+
+    return response.data;
+  };
+
+  deleteOrganizationRole = async (organizationId: string, roleName: string) => {
+    await this.axios.delete(
+      `/api/v2/organizations/${organizationId}/members/roles/${roleName}`,
+    );
   };
 
   /**
@@ -1754,12 +1772,8 @@ class ApiMethods {
   /**
    * @param organization Can be the organization's ID or name
    */
-  getTemplateExamples = async (
-    organization: string,
-  ): Promise<TypesGen.TemplateExample[]> => {
-    const response = await this.axios.get(
-      `/api/v2/organizations/${organization}/templates/examples`,
-    );
+  getTemplateExamples = async (): Promise<TypesGen.TemplateExample[]> => {
+    const response = await this.axios.get(`/api/v2/templates/examples`);
 
     return response.data;
   };
