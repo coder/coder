@@ -1397,37 +1397,7 @@ func (q *querier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, 
 }
 
 func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
-	group, err := q.GetGroupByID(ctx, id)
-	if err != nil { // AuthZ check
-		return nil, err
-	}
-	// The GroupMemberRBACHelper type is used to do the authz check. It ensures
-	// that group members can see themselves. Unless they have Group read permissions,
-	// they cannot see other members.
-	fetch := func(ctx context.Context, _ any) ([]database.GroupMemberRBACHelper, error) {
-		users, err := q.db.GetGroupMembersByGroupID(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		groupMembers := make([]database.GroupMemberRBACHelper, len(users))
-		for i, user := range users {
-			groupMembers[i] = database.GroupMemberRBACHelper{
-				User:           user,
-				GroupID:        group.ID,
-				OrganizationID: group.OrganizationID,
-			}
-		}
-		return groupMembers, nil
-	}
-	groupMembers, err := fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	users := make([]database.User, len(groupMembers))
-	for i, groupMember := range groupMembers {
-		users[i] = groupMember.User
-	}
-	return users, nil
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, id)
 }
 
 func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
