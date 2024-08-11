@@ -60,9 +60,9 @@ func WithLogger(logger slog.Logger) Option {
 	}
 }
 
-func WithURL(url string) Option {
+func WithURL(u string) Option {
 	return func(o *options) {
-		o.url = url
+		o.url = u
 	}
 }
 

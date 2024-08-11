@@ -987,7 +987,6 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 	p1.AssertEventuallyHasDERP(p2.ID, 4)
 	// Make sure peer2 never got an update about peer1 disconnecting.
 	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
-
 }
 
 func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
