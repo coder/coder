@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/coder/v2/tailnet/test"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -746,6 +745,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
 	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
 	require.NoError(t, err)
@@ -810,7 +810,7 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Times(1)
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
 	require.NoError(t, err)
@@ -922,7 +922,75 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	assert.Equal(t, 11, cnode.PreferredDERP)
 }
 
-func TestPGCoordinatorPeerReconnect(t *testing.T) {
+// TestPGCoordinatorDual_FailedHeartbeat tests that peers
+// disconnect from a coordinator when they are unhealthy,
+// are marked as LOST (not DISCONNECTED), and can reconnect to
+// a new coordinator and reestablish their tunnels.
+func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	dburl, closeFn, err := dbtestutil.Open()
+	require.NoError(t, err)
+	t.Cleanup(closeFn)
+
+	store1, ps1, sdb1 := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithURL(dburl))
+	defer sdb1.Close()
+	store2, ps2, sdb2 := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithURL(dburl))
+	defer sdb2.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	t.Cleanup(cancel)
+
+	// We do this to avoid failing due errors related to the
+	// database connection being close.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	// Create two coordinators, 1 for each peer.
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps1, store1)
+	require.NoError(t, err)
+	c2, err := tailnet.NewPGCoord(ctx, logger, ps2, store2)
+	require.NoError(t, err)
+
+	p1 := agpltest.NewPeer(ctx, t, c1, "peer1")
+	p2 := agpltest.NewPeer(ctx, t, c2, "peer2")
+
+	// Create a binding between the two.
+	p1.AddTunnel(p2.ID)
+
+	// Ensure that messages pass through.
+	p1.UpdateDERP(1)
+	p2.UpdateDERP(2)
+	p1.AssertEventuallyHasDERP(p2.ID, 2)
+	p2.AssertEventuallyHasDERP(p1.ID, 1)
+
+	// Close the underlying database connection to induce
+	// a heartbeat failure scenario and assert that
+	// we eventually disconnect from the coordinator.
+	err = sdb1.Close()
+	require.NoError(t, err)
+	p1.AssertEventuallyResponsesClosed()
+	p2.AssertEventuallyLost(p1.ID)
+
+	// Connect peer1 to coordinator2.
+	p1.ConnectToCoordinator(ctx, c2)
+	// Reestablish binding.
+	p1.AddTunnel(p2.ID)
+	// Ensure messages still flow back and forth.
+	p1.AssertEventuallyHasDERP(p2.ID, 2)
+	p1.UpdateDERP(3)
+	p2.UpdateDERP(4)
+	p2.AssertEventuallyHasDERP(p1.ID, 3)
+	p1.AssertEventuallyHasDERP(p2.ID, 4)
+	// Make sure peer2 never got an update about peer1 disconnecting.
+	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
+
+}
+
+func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
@@ -940,8 +1008,8 @@ func TestPGCoordinatorPeerReconnect(t *testing.T) {
 	c2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 
-	p1 := test.NewPeer(ctx, t, c1, "peer1")
-	p2 := test.NewPeer(ctx, t, c2, "peer2")
+	p1 := agpltest.NewPeer(ctx, t, c1, "peer1")
+	p2 := agpltest.NewPeer(ctx, t, c2, "peer2")
 
 	// Create a binding between the two.
 	p1.AddTunnel(p2.ID)
@@ -957,6 +1025,7 @@ func TestPGCoordinatorPeerReconnect(t *testing.T) {
 	err = c1.Close()
 	require.NoError(t, err)
 	p1.AssertEventuallyResponsesClosed()
+	p2.AssertEventuallyLost(p1.ID)
 
 	// Connect peer1 to coordinator2.
 	p1.ConnectToCoordinator(ctx, c2)

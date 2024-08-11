@@ -1659,8 +1659,6 @@ func (h *heartbeats) sendBeats() {
 	}, "heartbeats", "sendBeats")
 	err := tkr.Wait()
 	h.logger.Debug(h.ctx, "ending heartbeats", slog.Error(err))
-	// This is unlikely to succeed if we're unhealthy but
-	// we get it our best effort.
 }
 
 func (h *heartbeats) sendBeat() {
