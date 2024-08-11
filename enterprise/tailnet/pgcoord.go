@@ -144,9 +144,6 @@ func newPGCoordInternal(
 	// signals when first heartbeat has been sent, so it's safe to start binding.
 	fHB := make(chan struct{})
 
-	// we need to arrange for the querier to stop _after_ the tunneler and binder, since we delete
-	// the coordinator when the querier stops (via the heartbeats).  If the tunneler and binder are
-	// still running, they could run afoul of foreign key constraints.
 	querierCtx, querierCancel := context.WithCancel(dbauthz.As(context.Background(), pgCoordSubject))
 	c := &pgCoord{
 		ctx:              ctx,
@@ -168,8 +165,9 @@ func newPGCoordInternal(
 	}
 	go func() {
 		// when the main context is canceled, or the coordinator closed, the binder, tunneler, and
-		// handshaker always eventually stop.  Once they stop it's safe to cancel the querier context, which
-		// has the effect of deleting the coordinator from the database and ceasing heartbeats.
+		// handshaker always eventually stop. When the
+		// binder stops it updates all the peers handled
+		// by this coordinator to LOST.
 		c.binder.workerWG.Wait()
 		c.tunneler.workerWG.Wait()
 		c.handshaker.workerWG.Wait()
