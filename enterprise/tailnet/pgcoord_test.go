@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/coder/v2/tailnet/test"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -591,8 +592,10 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 	err = client21.recvErr(ctx, t)
 	require.ErrorIs(t, err, io.EOF)
+	assertEventuallyLost(ctx, t, store, agent2.id)
+	assertEventuallyLost(ctx, t, store, client21.id)
+	assertEventuallyLost(ctx, t, store, client22.id)
 
-	t.Logf("close coord1")
 	err = coord1.Close()
 	require.NoError(t, err)
 	// this closes agent1, client12, client11
@@ -602,6 +605,9 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 	err = client11.recvErr(ctx, t)
 	require.ErrorIs(t, err, io.EOF)
+	assertEventuallyLost(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, client11.id)
+	assertEventuallyLost(ctx, t, store, client12.id)
 
 	// wait for all connections to close
 	err = agent1.close()
@@ -890,6 +896,7 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	require.Len(t, agentNodes, 1)
 	assert.Equal(t, 10, agentNodes[0].PreferredDERP)
 	client.sendNode(&agpl.Node{PreferredDERP: 11})
+
 	clientNodes := agent.recvNodes(ctx, t)
 	require.Len(t, clientNodes, 1)
 	assert.Equal(t, 11, clientNodes[0].PreferredDERP)
@@ -908,6 +915,61 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 
 	anode = coordinator2.Node(agent.id)
 	require.NotNil(t, anode)
+	assert.Equal(t, 10, anode.PreferredDERP)
+
+	cnode = coordinator2.Node(client.id)
+	require.NotNil(t, cnode)
+	assert.Equal(t, 11, cnode.PreferredDERP)
+}
+
+func TestPGCoordinatorPeerReconnect(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	// Create two coordinators, 1 for each peer.
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	c2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+
+	p1 := test.NewPeer(ctx, t, c1, "peer1")
+	p2 := test.NewPeer(ctx, t, c2, "peer2")
+
+	// Create a binding between the two.
+	p1.AddTunnel(p2.ID)
+
+	// Ensure that messages pass through.
+	p1.UpdateDERP(1)
+	p2.UpdateDERP(2)
+	p1.AssertEventuallyHasDERP(p2.ID, 2)
+	p2.AssertEventuallyHasDERP(p1.ID, 1)
+
+	// Close coordinator1. Now we will check that we
+	// never send a DISCONNECTED update.
+	err = c1.Close()
+	require.NoError(t, err)
+	p1.AssertEventuallyResponsesClosed()
+
+	// Connect peer1 to coordinator2.
+	p1.ConnectToCoordinator(ctx, c2)
+	// Reestablish binding.
+	p1.AddTunnel(p2.ID)
+	// Ensure messages still flow back and forth.
+	p1.AssertEventuallyHasDERP(p2.ID, 2)
+	p1.UpdateDERP(3)
+	p2.UpdateDERP(4)
+	p2.AssertEventuallyHasDERP(p1.ID, 3)
+	p1.AssertEventuallyHasDERP(p2.ID, 4)
+	// Make sure peer2 never got an update about peer1 disconnecting.
+	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
 }
 
 type testConn struct {

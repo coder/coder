@@ -26,19 +26,18 @@ import (
 )
 
 const (
-	EventHeartbeats             = "tailnet_coordinator_heartbeat"
-	eventPeerUpdate             = "tailnet_peer_update"
-	eventTunnelUpdate           = "tailnet_tunnel_update"
-	eventReadyForHandshake      = "tailnet_ready_for_handshake"
-	HeartbeatPeriod             = time.Second * 2
-	MissedHeartbeats            = 3
-	unhealthyHeartbeatThreshold = 3
-	numQuerierWorkers           = 10
-	numBinderWorkers            = 10
-	numTunnelerWorkers          = 10
-	numHandshakerWorkers        = 5
-	dbMaxBackoff                = 10 * time.Second
-	cleanupPeriod               = time.Hour
+	EventHeartbeats        = "tailnet_coordinator_heartbeat"
+	eventPeerUpdate        = "tailnet_peer_update"
+	eventTunnelUpdate      = "tailnet_tunnel_update"
+	eventReadyForHandshake = "tailnet_ready_for_handshake"
+	HeartbeatPeriod        = time.Second * 2
+	MissedHeartbeats       = 3
+	numQuerierWorkers      = 10
+	numBinderWorkers       = 10
+	numTunnelerWorkers     = 10
+	numHandshakerWorkers   = 5
+	dbMaxBackoff           = 10 * time.Second
+	cleanupPeriod          = time.Hour
 )
 
 // pgCoord is a postgres-backed coordinator
@@ -521,7 +520,14 @@ func (b *binder) handleBindings() {
 	for {
 		select {
 		case <-b.ctx.Done():
-			b.logger.Debug(b.ctx, "binder exiting", slog.Error(b.ctx.Err()))
+			b.logger.Debug(b.ctx, "binder exiting, updating peers to lost", slog.Error(b.ctx.Err()))
+			err := b.store.UpdateTailnetPeerStatusByCoordinator(context.Background(), database.UpdateTailnetPeerStatusByCoordinatorParams{
+				CoordinatorID: b.coordinatorID,
+				Status:        database.TailnetStatusLost,
+			})
+			if err != nil {
+				b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
+			}
 			return
 		case bnd := <-b.bindings:
 			b.storeBinding(bnd)
@@ -1655,10 +1661,6 @@ func (h *heartbeats) sendBeats() {
 	h.logger.Debug(h.ctx, "ending heartbeats", slog.Error(err))
 	// This is unlikely to succeed if we're unhealthy but
 	// we get it our best effort.
-	if h.failedHeartbeats >= unhealthyHeartbeatThreshold {
-		h.logger.Debug(h.ctx, "coordinator detected unhealthy, deleting self", slog.Error(err))
-		h.sendDelete()
-	}
 }
 
 func (h *heartbeats) sendBeat() {
@@ -1669,29 +1671,18 @@ func (h *heartbeats) sendBeat() {
 	if err != nil {
 		h.logger.Error(h.ctx, "failed to send heartbeat", slog.Error(err))
 		h.failedHeartbeats++
-		if h.failedHeartbeats == unhealthyHeartbeatThreshold {
+		if h.failedHeartbeats == 3 {
 			h.logger.Error(h.ctx, "coordinator failed 3 heartbeats and is unhealthy")
 			_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateUnhealthy})
 		}
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
-	if h.failedHeartbeats >= unhealthyHeartbeatThreshold {
+	if h.failedHeartbeats >= 3 {
 		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
 	}
 	h.failedHeartbeats = 0
-}
-
-func (h *heartbeats) sendDelete() {
-	// here we don't want to use the main context, since it will have been canceled
-	ctx := dbauthz.As(context.Background(), pgCoordSubject)
-	err := h.store.DeleteCoordinator(ctx, h.self)
-	if err != nil {
-		h.logger.Error(h.ctx, "failed to send coordinator delete", slog.Error(err))
-		return
-	}
-	h.logger.Debug(h.ctx, "deleted coordinator")
 }
 
 func (h *heartbeats) cleanupLoop() {

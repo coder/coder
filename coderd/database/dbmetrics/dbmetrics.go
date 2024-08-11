@@ -2041,6 +2041,13 @@ func (m metricsStore) UpdateReplica(ctx context.Context, arg database.UpdateRepl
 	return replica, err
 }
 
+func (m metricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTailnetPeerStatusByCoordinator").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateACLByID(ctx, arg)

@@ -7759,6 +7759,15 @@ func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 	return database.Replica{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
