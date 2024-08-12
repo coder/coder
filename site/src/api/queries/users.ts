@@ -141,10 +141,12 @@ export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
   };
 }
 
+export const hasFirstUserKey = ["hasFirstUser"];
+
 export const hasFirstUser = (userMetadata: MetadataState<User>) => {
   return cachedQuery({
     metadata: userMetadata,
-    queryKey: ["hasFirstUser"],
+    queryKey: hasFirstUserKey,
     queryFn: API.hasFirstUser,
   });
 };

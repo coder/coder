@@ -600,21 +600,27 @@ class ApiMethods {
     return response.data;
   };
 
+  /**
+   * @param organization Can be the organization's ID or name
+   */
   patchOrganizationRole = async (
-    organizationId: string,
+    organization: string,
     role: TypesGen.Role,
   ): Promise<TypesGen.Role> => {
     const response = await this.axios.patch<TypesGen.Role>(
-      `/api/v2/organizations/${organizationId}/members/roles`,
+      `/api/v2/organizations/${organization}/members/roles`,
       role,
     );
 
     return response.data;
   };
 
-  deleteOrganizationRole = async (organizationId: string, roleName: string) => {
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  deleteOrganizationRole = async (organization: string, roleName: string) => {
     await this.axios.delete(
-      `/api/v2/organizations/${organizationId}/members/roles/${roleName}`,
+      `/api/v2/organizations/${organization}/members/roles/${roleName}`,
     );
   };
 
@@ -2035,6 +2041,49 @@ class ApiMethods {
     );
 
     return response.data;
+  };
+
+  getUserNotificationPreferences = async (userId: string) => {
+    const res = await this.axios.get<TypesGen.NotificationPreference[] | null>(
+      `/api/v2/users/${userId}/notifications/preferences`,
+    );
+    return res.data ?? [];
+  };
+
+  putUserNotificationPreferences = async (
+    userId: string,
+    req: TypesGen.UpdateUserNotificationPreferences,
+  ) => {
+    const res = await this.axios.put<TypesGen.NotificationPreference[]>(
+      `/api/v2/users/${userId}/notifications/preferences`,
+      req,
+    );
+    return res.data;
+  };
+
+  getSystemNotificationTemplates = async () => {
+    const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
+      `/api/v2/notifications/templates/system`,
+    );
+    return res.data;
+  };
+
+  getNotificationDispatchMethods = async () => {
+    const res = await this.axios.get<TypesGen.NotificationMethodsResponse>(
+      `/api/v2/notifications/dispatch-methods`,
+    );
+    return res.data;
+  };
+
+  updateNotificationTemplateMethod = async (
+    templateId: string,
+    req: TypesGen.UpdateNotificationTemplateMethod,
+  ) => {
+    const res = await this.axios.put<void>(
+      `/api/v2/notifications/templates/${templateId}/method`,
+      req,
+    );
+    return res.data;
   };
 }
 

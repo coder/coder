@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import AddOutlined from "@mui/icons-material/AddOutlined";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
@@ -14,22 +13,30 @@ import { Link as RouterLink, useNavigate } from "react-router-dom";
 import type { Role } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import {
+  MoreMenu,
+  MoreMenuContent,
+  MoreMenuItem,
+  MoreMenuTrigger,
+  ThreeDotsButton,
+} from "components/MoreMenu/MoreMenu";
 import { Paywall } from "components/Paywall/Paywall";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { useClickableTableRow } from "hooks";
 import { docs } from "utils/docs";
 
 export type CustomRolesPageViewProps = {
   roles: Role[] | undefined;
+  onDeleteRole: (role: Role) => void;
   canAssignOrgRole: boolean;
   isCustomRolesEnabled: boolean;
 };
 
 export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
   roles,
+  onDeleteRole,
   canAssignOrgRole,
   isCustomRolesEnabled,
 }) => {
@@ -53,7 +60,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
                 <TableRow>
                   <TableCell width="50%">Name</TableCell>
                   <TableCell width="49%">Permissions</TableCell>
-                  <TableCell width="1%"></TableCell>
+                  <TableCell width="1%" />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -91,7 +98,12 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 
                   <Cond>
                     {roles?.map((role) => (
-                      <RoleRow key={role.name} role={role} />
+                      <RoleRow
+                        key={role.name}
+                        role={role}
+                        canAssignOrgRole={canAssignOrgRole}
+                        onDelete={() => onDeleteRole(role)}
+                      />
                     ))}
                   </Cond>
                 </ChooseOne>
@@ -106,16 +118,15 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 
 interface RoleRowProps {
   role: Role;
+  onDelete: () => void;
+  canAssignOrgRole: boolean;
 }
 
-const RoleRow: FC<RoleRowProps> = ({ role }) => {
+const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
   const navigate = useNavigate();
-  const rowProps = useClickableTableRow({
-    onClick: () => navigate(role.name),
-  });
 
   return (
-    <TableRow data-testid={`role-${role.name}`} {...rowProps}>
+    <TableRow data-testid={`role-${role.name}`}>
       <TableCell>{role.display_name || role.name}</TableCell>
 
       <TableCell css={styles.secondary}>
@@ -123,9 +134,25 @@ const RoleRow: FC<RoleRowProps> = ({ role }) => {
       </TableCell>
 
       <TableCell>
-        <div css={styles.arrowCell}>
-          <KeyboardArrowRight css={styles.arrowRight} />
-        </div>
+        <MoreMenu>
+          <MoreMenuTrigger>
+            <ThreeDotsButton />
+          </MoreMenuTrigger>
+          <MoreMenuContent>
+            <MoreMenuItem
+              onClick={() => {
+                navigate(role.name);
+              }}
+            >
+              Edit
+            </MoreMenuItem>
+            {canAssignOrgRole && (
+              <MoreMenuItem danger onClick={onDelete}>
+                Delete&hellip;
+              </MoreMenuItem>
+            )}
+          </MoreMenuContent>
+        </MoreMenu>
       </TableCell>
     </TableRow>
   );
@@ -150,14 +177,6 @@ const TableLoader = () => {
 };
 
 const styles = {
-  arrowRight: (theme) => ({
-    color: theme.palette.text.secondary,
-    width: 20,
-    height: 20,
-  }),
-  arrowCell: {
-    display: "flex",
-  },
   secondary: (theme) => ({
     color: theme.palette.text.secondary,
   }),

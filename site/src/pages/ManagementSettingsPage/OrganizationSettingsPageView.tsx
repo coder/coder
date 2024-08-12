@@ -44,12 +44,11 @@ interface OrganizationSettingsPageViewProps {
   error: unknown;
   onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
   onDeleteOrganization: () => void;
-  canEdit: boolean;
 }
 
 export const OrganizationSettingsPageView: FC<
   OrganizationSettingsPageViewProps
-> = ({ organization, error, onSubmit, onDeleteOrganization, canEdit }) => {
+> = ({ organization, error, onSubmit, onDeleteOrganization }) => {
   const form = useFormik<UpdateOrganizationRequest>({
     initialValues: {
       name: organization.name,
@@ -85,7 +84,7 @@ export const OrganizationSettingsPageView: FC<
           description="The name and description of the organization."
         >
           <fieldset
-            disabled={form.isSubmitting || !canEdit}
+            disabled={form.isSubmitting}
             css={{ border: "unset", padding: 0, margin: 0, width: "100%" }}
           >
             <FormFields>
@@ -117,10 +116,10 @@ export const OrganizationSettingsPageView: FC<
             </FormFields>
           </fieldset>
         </FormSection>
-        {canEdit && <FormFooter isLoading={form.isSubmitting} />}
+        <FormFooter isLoading={form.isSubmitting} />
       </HorizontalForm>
 
-      {canEdit && !organization.is_default && (
+      {!organization.is_default && (
         <HorizontalContainer css={{ marginTop: 48 }}>
           <HorizontalSection
             title="Settings"

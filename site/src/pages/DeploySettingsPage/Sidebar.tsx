@@ -3,6 +3,7 @@ import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import InsertChartIcon from "@mui/icons-material/InsertChart";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import LockRounded from "@mui/icons-material/LockOutlined";
+import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import Globe from "@mui/icons-material/PublicOutlined";
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
@@ -12,8 +13,11 @@ import {
   Sidebar as BaseSidebar,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const Sidebar: FC = () => {
+  const { experiments } = useDashboard();
+
   return (
     <BaseSidebar>
       <SidebarNavItem href="general" icon={LaunchOutlined}>
@@ -47,6 +51,11 @@ export const Sidebar: FC = () => {
       <SidebarNavItem href="observability" icon={InsertChartIcon}>
         Observability
       </SidebarNavItem>
+      {experiments.includes("notifications") && (
+        <SidebarNavItem href="notifications" icon={NotificationsIcon}>
+          Notifications
+        </SidebarNavItem>
+      )}
     </BaseSidebar>
   );
 };
