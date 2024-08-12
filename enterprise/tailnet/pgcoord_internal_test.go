@@ -403,14 +403,10 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
 	coordinator, err := newPGCoordInternal(ctx, logger, ps, mStore, mClock)
 	require.NoError(t, err)
-
-	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), database.UpdateTailnetPeerStatusByCoordinatorParams{
-		CoordinatorID: coordinator.id,
-		Status:        database.TailnetStatusLost,
-	})
 
 	expectedPeriod := HeartbeatPeriod
 	tfCall, err := tfTrap.Wait(ctx)

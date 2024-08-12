@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/tailnet"
@@ -199,7 +198,7 @@ func (p *Peer) AssertNeverUpdateKind(peer uuid.UUID, kind proto.CoordinateRespon
 	p.t.Helper()
 
 	updates, ok := p.peerUpdates[peer]
-	require.True(p.t, ok, "expected updates for peer %s", peer)
+	assert.True(p.t, ok, "expected updates for peer %s", peer)
 
 	for _, update := range updates {
 		assert.NotEqual(p.t, kind, update.Kind, update)
@@ -224,6 +223,8 @@ func (p *Peer) handleOneResp() error {
 			if err != nil {
 				return err
 			}
+			p.peerUpdates[id] = append(p.peerUpdates[id], update)
+
 			switch update.Kind {
 			case proto.CoordinateResponse_PeerUpdate_NODE, proto.CoordinateResponse_PeerUpdate_LOST:
 				peer := p.peers[id]
@@ -239,7 +240,6 @@ func (p *Peer) handleOneResp() error {
 			default:
 				return xerrors.Errorf("unhandled update kind %s", update.Kind)
 			}
-			p.peerUpdates[id] = append(p.peerUpdates[id], update)
 		}
 	}
 	return nil
