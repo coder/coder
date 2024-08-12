@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
@@ -132,7 +133,7 @@ func TestGroupsAuth(t *testing.T) {
 			Name: "DifferentOrgAdmin",
 			Subject: rbac.Subject{
 				ID:     "orgadmin",
-				Roles:  rbac.Roles(must(rbac.RoleIdentifiers{}.Expand())),
+				Roles:  rbac.Roles(must(rbac.RoleIdentifiers{rbac.ScopedRoleOrgUserAdmin(uuid.New())}.Expand())),
 				Groups: []string{},
 				Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 			},
@@ -160,6 +161,7 @@ func TestGroupsAuth(t *testing.T) {
 				require.Len(t, members, tc.MembersExpected, "member count found does not match")
 			} else {
 				require.Error(t, err, "member read")
+				require.True(t, dbauthz.IsNotAuthorizedError(err), "not authorized error")
 			}
 		})
 	}
