@@ -12,6 +12,7 @@ var (
 	TemplateWorkspaceDormant           = uuid.MustParse("0ea69165-ec14-4314-91f1-69566ac3c5a0")
 	TemplateWorkspaceAutoUpdated       = uuid.MustParse("c34a0c09-0704-4cac-bd1c-0c0146811c2b")
 	TemplateWorkspaceMarkedForDeletion = uuid.MustParse("51ce2fdf-c9ca-4be1-8d70-628674f9bc42")
+	TemplateTemplateDeleted            = uuid.MustParse("29a09665-2a4c-403f-9648-54301670e7be")
 )
 
 // Account-related events.

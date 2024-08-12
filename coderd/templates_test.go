@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1325,4 +1326,67 @@ func TestTemplateMetrics(t *testing.T) {
 	assert.WithinDuration(t,
 		dbtime.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
 	)
+}
+
+func TestTemplateNotifications(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("InitiatorNotTemplateAdmin", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+				})
+				user               = coderdtest.CreateFirstUser(t, client)
+				version            = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_                  = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template           = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				initiatorClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+				ctx                = testutil.Context(t, testutil.WaitLong)
+			)
+
+			// When: initiator is not the template admin
+			err := initiatorClient.DeleteTemplate(ctx, template.ID)
+			require.NoError(t, err)
+
+			// Then: the template admin should receive a notification
+			require.Len(t, notifyEnq.Sent, 1)
+			require.Equal(t, notifyEnq.Sent[0].TemplateID, notifications.TemplateTemplateDeleted)
+			require.Equal(t, notifyEnq.Sent[0].UserID, template.CreatedByID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, template.OrganizationID)
+			require.Contains(t, notifyEnq.Sent[0].Labels["name"], template.Name)
+			require.Contains(t, notifyEnq.Sent[0].Labels["initiator"], coderdtest.FirstUserParams.Username)
+		})
+
+		t.Run("InitiatorIsTemplateAdmin", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+				})
+				user     = coderdtest.CreateFirstUser(t, client)
+				version  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+				ctx      = testutil.Context(t, testutil.WaitLong)
+			)
+
+			// When: initiator is the template admin
+			err := client.DeleteTemplate(ctx, template.ID)
+			require.NoError(t, err)
+
+			// Then: the template admin should not receive a notification
+			require.Len(t, notifyEnq.Sent, 0)
+		})
+	})
 }

@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -12,12 +13,15 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -56,6 +60,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 // @Router /templates/{template} [delete]
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
+		apiKey            = httpmw.APIKey(r)
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
@@ -101,9 +106,35 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	api.notifyTemplateDeleted(ctx, template, apiKey.UserID)
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Template has been deleted!",
 	})
+}
+
+func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Template, initiatorID uuid.UUID) {
+	if template.CreatedBy == initiatorID {
+		return
+	}
+
+	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to fetch initiator for template deletion notification", slog.F("initiator_id", initiatorID), slog.Error(err))
+		return
+	}
+
+	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, template.CreatedBy, notifications.TemplateTemplateDeleted,
+		map[string]string{
+			"name":      template.Name,
+			"initiator": initiator.Username,
+		}, "api-templates-delete",
+		// Associate this notification with all the related entities.
+		template.ID, template.OrganizationID,
+	); err != nil {
+		api.Logger.Warn(ctx, "failed to notify of template deletion", slog.F("deleted_template", template.ID), slog.Error(err))
+	}
 }
 
 // Create a new template in an organization.
