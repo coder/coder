@@ -754,7 +754,8 @@
 }
 ```
 
-AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.
+AuthorizationCheck is used to check if the currently authenticated user (or the
+specified user) can do a given action to a given set of objects.
 
 ### Properties
 
@@ -784,7 +785,9 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 }
 ```
 
-AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me, all workspaces across the entire product.
+AuthorizationObject can represent a "set" of objects, such as: all workspaces in
+an organization, all workspaces owned by me, all workspaces across the entire
+product.
 
 ### Properties
 
@@ -1386,7 +1389,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 }
 ```
 
-CreateWorkspaceRequest provides options for creating a new workspace. Only one of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is specified, the active version of the template will be used.
+CreateWorkspaceRequest provides options for creating a new workspace. Only one
+of TemplateID or TemplateVersionID can be specified, not both. If TemplateID is
+specified, the active version of the template will be used.
 
 ### Properties
 
@@ -5707,8 +5712,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ---------- | ------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schedule` | string | true     |              | Schedule is a cron expression that defines when the user's quiet hours window is. Schedule must not be empty. For new users, the schedule is set to 2am in their browser or computer's timezone. The schedule denotes the beginning of a 4 hour window where the workspace is allowed to automatically stop or restart due to maintenance or template schedule. |
 
-The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
-If the schedule is empty, the user will be updated to use the default schedule.|
+The schedule must be daily with a single time, and should have a timezone
+specified via a CRON_TZ prefix (otherwise UTC will be used). If the schedule is
+empty, the user will be updated to use the default schedule.|
 
 ## codersdk.UpdateWorkspaceAutomaticUpdatesRequest
 
@@ -9204,9 +9210,9 @@ _None_
 | `regionScore` | object | false    |              | Regionscore scales latencies of DERP regions by a given scaling factor when determining which region to use as the home ("preferred") DERP. Scores in the range (0, 1) will cause this region to be proportionally more preferred, and scores in the range (1, ∞) will penalize a region. |
 
 If a region is not present in this map, it is treated as having a score of 1.0.
-Scores should not be 0 or negative; such scores will be ignored.
-A nil map means no change from the previous value (if any); an empty non-nil map can be sent to reset all scores back to 1.0.|
-|» `[any property]`|number|false|||
+Scores should not be 0 or negative; such scores will be ignored. A nil map means
+no change from the previous value (if any); an empty non-nil map can be sent to
+reset all scores back to 1.0.| |» `[any property]`|number|false|||
 
 ## tailcfg.DERPMap
 
@@ -9282,9 +9288,9 @@ A nil map means no change from the previous value (if any); an empty non-nil map
 | This field is only meaningful if the Regions map is non-nil (indicating a change). |
 | `regions`                                                                          | object                                           | false    |              | Regions is the set of geographic regions running DERP node(s).                                                                                                                 |
 
-It's keyed by the DERPRegion.RegionID.
-The numbers are not necessarily contiguous.|
-|» `[any property]`|[tailcfg.DERPRegion](#tailcfgderpregion)|false|||
+It's keyed by the DERPRegion.RegionID. The numbers are not necessarily
+contiguous.| |»
+`[any property]`|[tailcfg.DERPRegion](#tailcfgderpregion)|false|||
 
 ## tailcfg.DERPNode
 
@@ -9366,10 +9372,13 @@ The numbers are not necessarily contiguous.|
 | `regionCode`                                                                                                                                                                                                                                                                                                | string                                        | false    |              | Regioncode is a short name for the region. It's usually a popular city or airport code in the region: "nyc", "sf", "sin", "fra", etc.                                                                                                              |
 | `regionID`                                                                                                                                                                                                                                                                                                  | integer                                       | false    |              | Regionid is a unique integer for a geographic region.                                                                                                                                                                                              |
 
-It corresponds to the legacy derpN.tailscale.com hostnames used by older clients. (Older clients will continue to resolve derpN.tailscale.com when contacting peers, rather than use the server-provided DERPMap)
-RegionIDs must be non-zero, positive, and guaranteed to fit in a JavaScript number.
-RegionIDs in range 900-999 are reserved for end users to run their own DERP nodes.|
-|`regionName`|string|false||Regionname is a long English name for the region: "New York City", "San Francisco", "Singapore", "Frankfurt", etc.|
+It corresponds to the legacy derpN.tailscale.com hostnames used by older
+clients. (Older clients will continue to resolve derpN.tailscale.com when
+contacting peers, rather than use the server-provided DERPMap) RegionIDs must be
+non-zero, positive, and guaranteed to fit in a JavaScript number. RegionIDs in
+range 900-999 are reserved for end users to run their own DERP nodes.|
+|`regionName`|string|false||Regionname is a long English name for the region:
+"New York City", "San Francisco", "Singapore", "Frankfurt", etc.|
 
 ## url.Userinfo
 

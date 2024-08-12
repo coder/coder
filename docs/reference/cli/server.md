@@ -39,7 +39,8 @@ The URL that users will use to access the Coder deployment.
 | Environment | <code>$CODER_WILDCARD_ACCESS_URL</code>   |
 | YAML        | <code>networking.wildcardAccessURL</code> |
 
-Specifies the wildcard hostname to use for workspace applications in the form "\*.example.com".
+Specifies the wildcard hostname to use for workspace applications in the form
+"\*.example.com".
 
 ### --docs-url
 
@@ -101,7 +102,10 @@ Whether TLS will be enabled.
 | Environment | <code>$CODER_TLS_CERT_FILE</code>     |
 | YAML        | <code>networking.tls.certFiles</code> |
 
-Path to each certificate for TLS. It requires a PEM-encoded file. To configure the listener to use a CA certificate, concatenate the primary certificate and the CA certificate together. The primary certificate should appear first in the combined file.
+Path to each certificate for TLS. It requires a PEM-encoded file. To configure
+the listener to use a CA certificate, concatenate the primary certificate and
+the CA certificate together. The primary certificate should appear first in the
+combined file.
 
 ### --tls-client-ca-file
 
@@ -111,7 +115,8 @@ Path to each certificate for TLS. It requires a PEM-encoded file. To configure t
 | Environment | <code>$CODER_TLS_CLIENT_CA_FILE</code>   |
 | YAML        | <code>networking.tls.clientCAFile</code> |
 
-PEM-encoded Certificate Authority file used for checking the authenticity of client.
+PEM-encoded Certificate Authority file used for checking the authenticity of
+client.
 
 ### --tls-client-auth
 
@@ -122,7 +127,8 @@ PEM-encoded Certificate Authority file used for checking the authenticity of cli
 | YAML        | <code>networking.tls.clientAuth</code> |
 | Default     | <code>none</code>                      |
 
-Policy the server will follow for TLS Client Authentication. Accepted values are "none", "request", "require-any", "verify-if-given", or "require-and-verify".
+Policy the server will follow for TLS Client Authentication. Accepted values are
+"none", "request", "require-any", "verify-if-given", or "require-and-verify".
 
 ### --tls-key-file
 
@@ -132,7 +138,8 @@ Policy the server will follow for TLS Client Authentication. Accepted values are
 | Environment | <code>$CODER_TLS_KEY_FILE</code>     |
 | YAML        | <code>networking.tls.keyFiles</code> |
 
-Paths to the private keys for each of the certificates. It requires a PEM-encoded file.
+Paths to the private keys for each of the certificates. It requires a
+PEM-encoded file.
 
 ### --tls-min-version
 
@@ -143,7 +150,8 @@ Paths to the private keys for each of the certificates. It requires a PEM-encode
 | YAML        | <code>networking.tls.minVersion</code> |
 | Default     | <code>tls12</code>                     |
 
-Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" or "tls13".
+Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12"
+or "tls13".
 
 ### --tls-client-cert-file
 
@@ -153,7 +161,8 @@ Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" 
 | Environment | <code>$CODER_TLS_CLIENT_CERT_FILE</code>   |
 | YAML        | <code>networking.tls.clientCertFile</code> |
 
-Path to certificate for client TLS authentication. It requires a PEM-encoded file.
+Path to certificate for client TLS authentication. It requires a PEM-encoded
+file.
 
 ### --tls-client-key-file
 
@@ -173,7 +182,8 @@ Path to key for client TLS authentication. It requires a PEM-encoded file.
 | Environment | <code>$CODER_TLS_CIPHERS</code>        |
 | YAML        | <code>networking.tls.tlsCiphers</code> |
 
-Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
+Specify specific TLS ciphers that allowed to be used. See
+https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
 
 ### --tls-allow-insecure-ciphers
 
@@ -184,7 +194,8 @@ Specify specific TLS ciphers that allowed to be used. See https://github.com/gol
 | YAML        | <code>networking.tls.tlsAllowInsecureCiphers</code> |
 | Default     | <code>false</code>                                  |
 
-By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+By default, only ciphers marked as 'secure' are allowed to be used. See
+https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
 
 ### --derp-server-enable
 
@@ -217,7 +228,11 @@ Region name that for the embedded DERP server.
 | YAML        | <code>networking.derp.stunAddresses</code>                                                                                               |
 | Default     | <code>stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302</code> |
 
-Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.
+Addresses for STUN servers to establish P2P connections. It's recommended to
+have at least two STUN servers to give users the best chance of connecting P2P
+to workspaces. Each STUN server will get it's own DERP region, with region IDs
+starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn
+off STUN completely.
 
 ### --derp-server-relay-url
 
@@ -227,7 +242,8 @@ Addresses for STUN servers to establish P2P connections. It's recommended to hav
 | Environment | <code>$CODER_DERP_SERVER_RELAY_URL</code> |
 | YAML        | <code>networking.derp.relayURL</code>     |
 
-An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.
+An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
+for high availability.
 
 ### --block-direct-connections
 
@@ -237,7 +253,11 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 | Environment | <code>$CODER_BLOCK_DIRECT</code>         |
 | YAML        | <code>networking.derp.blockDirect</code> |
 
-Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.
+Block peer-to-peer (aka. direct) workspace connections. All workspace
+connections from the CLI will be proxied through Coder (or custom configured
+DERP servers) and will never be peer-to-peer when enabled. Workspaces may still
+reach out to STUN servers to get their address until they are restarted after
+this change has been made, but new connections will still be proxied regardless.
 
 ### --derp-force-websockets
 
@@ -247,7 +267,10 @@ Block peer-to-peer (aka. direct) workspace connections. All workspace connection
 | Environment | <code>$CODER_DERP_FORCE_WEBSOCKETS</code>    |
 | YAML        | <code>networking.derp.forceWebSockets</code> |
 
-Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.
+Force clients and agents to always use WebSocket to connect to DERP relay
+servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some
+reverse proxies. Clients may automatically fallback to WebSocket if they detect
+an issue with `Upgrade: derp`, but this does not work in all situations.
 
 ### --derp-config-url
 
@@ -257,7 +280,8 @@ Force clients and agents to always use WebSocket to connect to DERP relay server
 | Environment | <code>$CODER_DERP_CONFIG_URL</code> |
 | YAML        | <code>networking.derp.url</code>    |
 
-URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
+URL to fetch a DERP mapping on startup. See:
+https://tailscale.com/kb/1118/custom-derp-servers/.
 
 ### --derp-config-path
 
@@ -267,7 +291,8 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 | Environment | <code>$CODER_DERP_CONFIG_PATH</code>    |
 | YAML        | <code>networking.derp.configPath</code> |
 
-Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
+Path to read a DERP mapping from. See:
+https://tailscale.com/kb/1118/custom-derp-servers/.
 
 ### --prometheus-enable
 
@@ -309,7 +334,9 @@ Collect agent stats (may increase charges for metrics storage).
 | YAML        | <code>introspection.prometheus.aggregate_agent_stats_by</code> |
 | Default     | <code>agent_name,template_name,username,workspace_name</code>  |
 
-When collecting agent stats, aggregate metrics by a given set of comma-separated labels to reduce cardinality. Accepted values are agent_name, template_name, username, workspace_name.
+When collecting agent stats, aggregate metrics by a given set of comma-separated
+labels to reduce cardinality. Accepted values are agent_name, template_name,
+username, workspace_name.
 
 ### --prometheus-collect-db-metrics
 
@@ -380,7 +407,8 @@ Organizations the user must be a member of to Login with GitHub.
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOWED_TEAMS</code> |
 | YAML        | <code>oauth2.github.allowedTeams</code>         |
 
-Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.
+Teams inside organizations the user must be a member of to Login with GitHub.
+Structured as: <organization-name>/<team-slug>.
 
 ### --oauth2-github-allow-signups
 
@@ -400,7 +428,8 @@ Whether new users can sign up with GitHub.
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_EVERYONE</code> |
 | YAML        | <code>oauth2.github.allowEveryone</code>         |
 
-Allow all logins, setting this option means allowed orgs and teams must be empty.
+Allow all logins, setting this option means allowed orgs and teams must be
+empty.
 
 ### --oauth2-github-enterprise-base-url
 
@@ -450,7 +479,8 @@ Client secret to use for Login with OIDC.
 | Environment | <code>$CODER_OIDC_CLIENT_KEY_FILE</code> |
 | YAML        | <code>oidc.oidcClientKeyFile</code>      |
 
-Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be used instead of oidc-client-secret if your IDP supports it.
+Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be
+used instead of oidc-client-secret if your IDP supports it.
 
 ### --oidc-client-cert-file
 
@@ -460,7 +490,9 @@ Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be
 | Environment | <code>$CODER_OIDC_CLIENT_CERT_FILE</code> |
 | YAML        | <code>oidc.oidcClientCertFile</code>      |
 
-Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.
+Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public
+certificate that accompanies oidc-client-key-file. A standard x509 certificate
+is expected.
 
 ### --oidc-email-domain
 
@@ -566,7 +598,8 @@ Ignore the userinfo endpoint and only use the ID token for user information.
 | Environment | <code>$CODER_OIDC_GROUP_FIELD</code> |
 | YAML        | <code>oidc.groupField</code>         |
 
-This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.
+This field must be set if using the group sync feature and the scope name is not
+'groups'. Set to the claim to be used for groups.
 
 ### --oidc-group-mapping
 
@@ -577,7 +610,8 @@ This field must be set if using the group sync feature and the scope name is not
 | YAML        | <code>oidc.groupMapping</code>         |
 | Default     | <code>{}</code>                        |
 
-A map of OIDC group IDs and the group in Coder it should map to. This is useful for when OIDC providers only return group IDs.
+A map of OIDC group IDs and the group in Coder it should map to. This is useful
+for when OIDC providers only return group IDs.
 
 ### --oidc-group-auto-create
 
@@ -599,7 +633,9 @@ Automatically creates missing groups from a user's groups claim.
 | YAML        | <code>oidc.groupRegexFilter</code>          |
 | Default     | <code>.\*</code>                            |
 
-If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.
+If provided any group name not matching the regex is ignored. This allows for
+filtering out groups that are not needed. This filter is applied after the group
+mapping.
 
 ### --oidc-allowed-groups
 
@@ -609,7 +645,9 @@ If provided any group name not matching the regex is ignored. This allows for fi
 | Environment | <code>$CODER_OIDC_ALLOWED_GROUPS</code> |
 | YAML        | <code>oidc.groupAllowed</code>          |
 
-If provided any group name not in the list will not be allowed to authenticate. This allows for restricting access to a specific set of groups. This filter is applied after the group mapping and before the regex filter.
+If provided any group name not in the list will not be allowed to authenticate.
+This allows for restricting access to a specific set of groups. This filter is
+applied after the group mapping and before the regex filter.
 
 ### --oidc-user-role-field
 
@@ -619,7 +657,9 @@ If provided any group name not in the list will not be allowed to authenticate. 
 | Environment | <code>$CODER_OIDC_USER_ROLE_FIELD</code> |
 | YAML        | <code>oidc.userRoleField</code>          |
 
-This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.
+This field must be set if using the user roles sync feature. Set this to the
+name of the claim used to store the user's role. The roles should be sent as an
+array of strings.
 
 ### --oidc-user-role-mapping
 
@@ -630,7 +670,9 @@ This field must be set if using the user roles sync feature. Set this to the nam
 | YAML        | <code>oidc.userRoleMapping</code>          |
 | Default     | <code>{}</code>                            |
 
-A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.
+A map of the OIDC passed in user roles and the groups in Coder it should map to.
+This is useful if the group names do not match. If mapped to the empty string,
+the role will ignored.
 
 ### --oidc-user-role-default
 
@@ -640,7 +682,8 @@ A map of the OIDC passed in user roles and the groups in Coder it should map to.
 | Environment | <code>$CODER_OIDC_USER_ROLE_DEFAULT</code> |
 | YAML        | <code>oidc.userRoleDefault</code>          |
 
-If user role sync is enabled, these roles are always included for all authenticated users. The 'member' role is always assigned.
+If user role sync is enabled, these roles are always included for all
+authenticated users. The 'member' role is always assigned.
 
 ### --oidc-sign-in-text
 
@@ -671,7 +714,8 @@ URL pointing to the icon to use on the OpenID Connect login button.
 | Environment | <code>$CODER_OIDC_SIGNUPS_DISABLED_TEXT</code> |
 | YAML        | <code>oidc.signupsDisabledText</code>          |
 
-The custom text to show on the error page informing about disabled OIDC signups. Markdown format is supported.
+The custom text to show on the error page informing about disabled OIDC signups.
+Markdown format is supported.
 
 ### --dangerous-oidc-skip-issuer-checks
 
@@ -681,7 +725,9 @@ The custom text to show on the error page informing about disabled OIDC signups.
 | Environment | <code>$CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS</code> |
 | YAML        | <code>oidc.dangerousSkipIssuerChecks</code>           |
 
-OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.
+OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the
+well-known configuration. This flag disables that requirement, and can lead to
+an insecure OIDC configuration. It is not recommended to use this flag.
 
 ### --telemetry
 
@@ -692,7 +738,8 @@ OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the
 | YAML        | <code>telemetry.enable</code>        |
 | Default     | <code>true</code>                    |
 
-Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.
+Whether telemetry is enabled or not. Coder collects anonymized usage data to
+help improve our product.
 
 ### --trace
 
@@ -702,7 +749,9 @@ Whether telemetry is enabled or not. Coder collects anonymized usage data to hel
 | Environment | <code>$CODER_TRACE_ENABLE</code>          |
 | YAML        | <code>introspection.tracing.enable</code> |
 
-Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+Whether application tracing data is collected. It exports to a backend
+configured by environment variables. See:
+https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
 ### --trace-honeycomb-api-key
 
@@ -721,7 +770,9 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 | Environment | <code>$CODER_TRACE_LOGS</code>                 |
 | YAML        | <code>introspection.tracing.captureLogs</code> |
 
-Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs.
+Enables capturing of logs as events in traces. This is useful for debugging, but
+may result in a very large amount of events being sent to the tracing backend
+which may incur significant costs.
 
 ### --provisioner-daemons
 
@@ -732,7 +783,8 @@ Enables capturing of logs as events in traces. This is useful for debugging, but
 | YAML        | <code>provisioning.daemons</code>       |
 | Default     | <code>3</code>                          |
 
-Number of provisioner daemons to create on start. If builds are stuck in queued state for a long time, consider increasing this.
+Number of provisioner daemons to create on start. If builds are stuck in queued
+state for a long time, consider increasing this.
 
 ### --provisioner-daemon-poll-interval
 
@@ -784,7 +836,8 @@ Pre-shared key to authenticate external provisioner daemons to Coder server.
 | Environment | <code>$CODER_LOG_FILTER</code>            |
 | YAML        | <code>introspection.logging.filter</code> |
 
-Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
+Filter debug logs by matching against a given regex. Use .\* to match all debug
+logs.
 
 ### --log-human
 
@@ -835,7 +888,11 @@ Allow administrators to enable Terraform debug output.
 | Type        | <code>bool</code>                                    |
 | Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SHARING</code> |
 
-Allow workspace apps that are not served from subdomains to be shared. Path-based app sharing is DISABLED by default for security purposes. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
+Allow workspace apps that are not served from subdomains to be shared.
+Path-based app sharing is DISABLED by default for security purposes. Path-based
+apps can make requests to the Coder API and pose a security risk when the
+workspace serves malicious JavaScript. Path-based apps can be disabled entirely
+with --disable-path-apps for further security.
 
 ### --dangerous-allow-path-app-site-owner-access
 
@@ -844,7 +901,11 @@ Allow workspace apps that are not served from subdomains to be shared. Path-base
 | Type        | <code>bool</code>                                              |
 | Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS</code> |
 
-Allow site-owners to access workspace apps from workspaces they do not own. Owners cannot access path-based apps they do not own by default. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. Path-based apps can be disabled entirely with --disable-path-apps for further security.
+Allow site-owners to access workspace apps from workspaces they do not own.
+Owners cannot access path-based apps they do not own by default. Path-based apps
+can make requests to the Coder API and pose a security risk when the workspace
+serves malicious JavaScript. Path-based apps can be disabled entirely with
+--disable-path-apps for further security.
 
 ### --experiments
 
@@ -854,7 +915,9 @@ Allow site-owners to access workspace apps from workspaces they do not own. Owne
 | Environment | <code>$CODER_EXPERIMENTS</code> |
 | YAML        | <code>experiments</code>        |
 
-Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
+Enable one or more experiments. These are not ready for production. Separate
+multiple experiments with commas, or enter '\*' to opt-in to all available
+experiments.
 
 ### --update-check
 
@@ -865,7 +928,8 @@ Enable one or more experiments. These are not ready for production. Separate mul
 | YAML        | <code>updateCheck</code>         |
 | Default     | <code>false</code>               |
 
-Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
+Periodically check for new releases of Coder and inform the owner. The check is
+performed once per day.
 
 ### --max-token-lifetime
 
@@ -896,7 +960,8 @@ Expose the swagger endpoint via /swagger.
 | Environment | <code>$CODER_PROXY_TRUSTED_HEADERS</code>   |
 | YAML        | <code>networking.proxyTrustedHeaders</code> |
 
-Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client-Ip, X-Forwarded-For.
+Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
+True-Client-Ip, X-Forwarded-For.
 
 ### --proxy-trusted-origins
 
@@ -917,7 +982,9 @@ Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
 | YAML        | <code>cacheDir</code>               |
 | Default     | <code>~/.cache/coder</code>         |
 
-The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.
+The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is
+set, it will be used for compatibility with systemd. This directory is NOT safe
+to be configured as a shared directory across coderd/provisionerd replicas.
 
 ### --postgres-url
 
@@ -926,7 +993,9 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded
+from Maven (https://repo1.maven.org/maven2) and store all data in the config
+root. Access the built-in database with "coder server postgres-builtin-url".
 
 ### --postgres-auth
 
@@ -957,7 +1026,8 @@ Controls if the 'Secure' property is set on browser session cookies.
 | Environment | <code>$CODER_TERMS_OF_SERVICE_URL</code> |
 | YAML        | <code>termsOfServiceURL</code>           |
 
-A URL to an external Terms of Service that must be accepted by users when logging in.
+A URL to an external Terms of Service that must be accepted by users when
+logging in.
 
 ### --strict-transport-security
 
@@ -968,7 +1038,9 @@ A URL to an external Terms of Service that must be accepted by users when loggin
 | YAML        | <code>networking.tls.strictTransportSecurity</code> |
 | Default     | <code>0</code>                                      |
 
-Controls if the 'Strict-Transport-Security' header is set on all static file responses. This header should only be set if the server is accessed via HTTPS. This value is the MaxAge in seconds of the header.
+Controls if the 'Strict-Transport-Security' header is set on all static file
+responses. This header should only be set if the server is accessed via HTTPS.
+This value is the MaxAge in seconds of the header.
 
 ### --strict-transport-security-options
 
@@ -978,7 +1050,9 @@ Controls if the 'Strict-Transport-Security' header is set on all static file res
 | Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY_OPTIONS</code>      |
 | YAML        | <code>networking.tls.strictTransportSecurityOptions</code> |
 
-Two optional fields can be set in the Strict-Transport-Security header; 'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be set to a non-zero value for these options to be used.
+Two optional fields can be set in the Strict-Transport-Security header;
+'includeSubDomains' and 'preload'. The 'strict-transport-security' flag must be
+set to a non-zero value for these options to be used.
 
 ### --ssh-keygen-algorithm
 
@@ -989,7 +1063,8 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 | YAML        | <code>sshKeygenAlgorithm</code>          |
 | Default     | <code>ed25519</code>                     |
 
-The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
+The algorithm to use for generating ssh keys. Accepted values are "ed25519",
+"ecdsa", or "rsa4096".
 
 ### --browser-only
 
@@ -1008,7 +1083,8 @@ Whether Coder only allows connections to workspaces via the browser.
 | Type        | <code>string</code>                  |
 | Environment | <code>$CODER_SCIM_AUTH_HEADER</code> |
 
-Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
+Enables SCIM and sets the authentication header for the built-in SCIM server.
+New users are automatically created with OIDC authentication.
 
 ### --external-token-encryption-keys
 
@@ -1017,7 +1093,13 @@ Enables SCIM and sets the authentication header for the built-in SCIM server. Ne
 | Type        | <code>string-array</code>                          |
 | Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS</code> |
 
-Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.
+Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The
+value must be a comma-separated list of base64-encoded keys. Each key, when
+base64-decoded, must be exactly 32 bytes in length. The first key will be used
+to encrypt new values. Subsequent keys will be used as a fallback when
+decrypting. During normal operation it is recommended to only set one key unless
+you are in the process of rotating keys with the `coder server dbcrypt rotate`
+command.
 
 ### --disable-path-apps
 
@@ -1027,7 +1109,10 @@ Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The
 | Environment | <code>$CODER_DISABLE_PATH_APPS</code> |
 | YAML        | <code>disablePathApps</code>          |
 
-Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.
+Disable workspace apps that are not served from subdomains. Path-based apps can
+make requests to the Coder API and pose a security risk when the workspace
+serves malicious JavaScript. This is recommended for security purposes if a
+--wildcard-access-url is configured.
 
 ### --disable-owner-workspace-access
 
@@ -1037,7 +1122,10 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 | Environment | <code>$CODER_DISABLE_OWNER_WORKSPACE_ACCESS</code> |
 | YAML        | <code>disableOwnerWorkspaceAccess</code>           |
 
-Remove the permission for the 'owner' role to have workspace execution on all workspaces. This prevents the 'owner' from ssh, apps, and terminal access based on the 'owner' role. They still have their user permissions to access their own workspaces.
+Remove the permission for the 'owner' role to have workspace execution on all
+workspaces. This prevents the 'owner' from ssh, apps, and terminal access based
+on the 'owner' role. They still have their user permissions to access their own
+workspaces.
 
 ### --session-duration
 
@@ -1048,7 +1136,9 @@ Remove the permission for the 'owner' role to have workspace execution on all wo
 | YAML        | <code>networking.http.sessionDuration</code> |
 | Default     | <code>24h0m0s</code>                         |
 
-The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
+The token expiry duration for browser sessions. Sessions may last longer if they
+are actively making requests, but this functionality can be disabled via
+--disable-session-expiry-refresh.
 
 ### --disable-session-expiry-refresh
 
@@ -1058,7 +1148,8 @@ The token expiry duration for browser sessions. Sessions may last longer if they
 | Environment | <code>$CODER_DISABLE_SESSION_EXPIRY_REFRESH</code>       |
 | YAML        | <code>networking.http.disableSessionExpiryRefresh</code> |
 
-Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
+Disable automatic session expiry bumping due to activity. This forces all
+sessions to become invalid after the session expiry duration has been reached.
 
 ### --disable-password-auth
 
@@ -1068,7 +1159,12 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 | Environment | <code>$CODER_DISABLE_PASSWORD_AUTH</code>        |
 | YAML        | <code>networking.http.disablePasswordAuth</code> |
 
-Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.
+Disable password authentication. This is recommended for security purposes in
+production deployments that rely on an identity provider. Any user with the
+owner role will be able to sign in with their password regardless of this
+setting to avoid potential lock out. If you are locked out of your account, you
+can use the `coder server create-admin` command to create a new admin user
+directly in the database.
 
 ### -c, --config
 
@@ -1098,7 +1194,9 @@ The SSH deployment prefix is used in the Host of the ssh config.
 | Environment | <code>$CODER_SSH_CONFIG_OPTIONS</code> |
 | YAML        | <code>client.sshConfigOptions</code>   |
 
-These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas.Using this incorrectly can break SSH to your deployment, use cautiously.
+These SSH config options will override the default SSH config options. Provide
+options in "key=value" or "key value" format separated by commas.Using this
+incorrectly can break SSH to your deployment, use cautiously.
 
 ### --cli-upgrade-message
 
@@ -1108,7 +1206,9 @@ These SSH config options will override the default SSH config options. Provide o
 | Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code> |
 | YAML        | <code>client.cliUpgradeMessage</code>   |
 
-The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
+The upgrade message to display to users when a client/server mismatch is
+detected. By default it instructs users to update using 'curl -L
+https://coder.com/install.sh | sh'.
 
 ### --write-config
 
@@ -1148,7 +1248,13 @@ The interval in which coderd should be checking the status of workspace proxies.
 | YAML        | <code>userQuietHoursSchedule.defaultQuietHoursSchedule</code> |
 | Default     | <code>CRON_TZ=UTC 0 0 \* \* \*</code>                         |
 
-The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be \*. Only one hour and minute can be specified (ranges or comma separated values are not supported).
+The default daily cron schedule applied to users that haven't set a custom quiet
+hours schedule themselves. The quiet hours schedule determines when workspaces
+will be force stopped due to the template's autostop requirement, and will round
+the max deadline up to be within the user's quiet hours window (or default). The
+format is the same as the standard cron format, but the day-of-month, month and
+day-of-week must be \*. Only one hour and minute can be specified (ranges or
+comma separated values are not supported).
 
 ### --allow-custom-quiet-hours
 
@@ -1159,7 +1265,9 @@ The default daily cron schedule applied to users that haven't set a custom quiet
 | YAML        | <code>userQuietHoursSchedule.allowCustomQuietHours</code> |
 | Default     | <code>true</code>                                         |
 
-Allow users to set their own quiet hours schedule for workspaces to stop in (depending on template autostop requirement settings). If false, users can't change their quiet hours schedule and the site default is always used.
+Allow users to set their own quiet hours schedule for workspaces to stop in
+(depending on template autostop requirement settings). If false, users can't
+change their quiet hours schedule and the site default is always used.
 
 ### --web-terminal-renderer
 
@@ -1170,7 +1278,8 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 | YAML        | <code>client.webTerminalRenderer</code>   |
 | Default     | <code>canvas</code>                       |
 
-The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
+The renderer to use when opening a web terminal. Valid values are 'canvas',
+'webgl', or 'dom'.
 
 ### --allow-workspace-renames
 
@@ -1181,7 +1290,8 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 | YAML        | <code>allowWorkspaceRenames</code>          |
 | Default     | <code>false</code>                          |
 
-DEPRECATED: Allow users to rename their workspaces. Use only for temporary compatibility reasons, this will be removed in a future release.
+DEPRECATED: Allow users to rename their workspaces. Use only for temporary
+compatibility reasons, this will be removed in a future release.
 
 ### --health-check-refresh
 
@@ -1203,7 +1313,9 @@ Refresh interval for healthchecks.
 | YAML        | <code>introspection.healthcheck.thresholdDatabase</code> |
 | Default     | <code>15ms</code>                                        |
 
-The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
+The threshold for the database health check. If the median latency of the
+database exceeds this threshold over 5 attempts, the database is considered
+unhealthy. The default value is 15ms.
 
 ### --notifications-method
 

@@ -66,7 +66,8 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AuthorizationResponse](schemas.md#codersdkauthorizationresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Log in user
 
@@ -161,4 +162,5 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
 | ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------ |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuthConversionResponse](schemas.md#codersdkoauthconversionresponse) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

@@ -40,7 +40,10 @@ Search for a workspace with a query.
 | Type    | <code>string-array</code>                                                                                |
 | Default | <code>workspace,template,status,healthy,last built,current version,outdated,starts at,stops after</code> |
 
-Columns to display in table output. Available columns: favorite, workspace, organization id, organization name, template, status, healthy, last built, current version, outdated, starts at, starts next, stops after, stops next, daily cost.
+Columns to display in table output. Available columns: favorite, workspace,
+organization id, organization name, template, status, healthy, last built,
+current version, outdated, starts at, starts next, stops after, stops next,
+daily cost.
 
 ### -o, --output
 

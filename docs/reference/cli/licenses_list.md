@@ -23,7 +23,8 @@ coder licenses list [flags]
 | Type    | <code>string-array</code>                            |
 | Default | <code>ID,UUID,Expires At,Uploaded At,Features</code> |
 
-Columns to display in table output. Available columns: id, uuid, uploaded at, features, expires at, trial.
+Columns to display in table output. Available columns: id, uuid, uploaded at,
+features, expires at, trial.
 
 ### -o, --output
 

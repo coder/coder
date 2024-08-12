@@ -42,7 +42,8 @@ Status Code **200**
 | `» available`  | array  | false    |              |             |
 | `» default`    | string | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get notifications settings
 
@@ -73,7 +74,8 @@ curl -X GET http://coder-server:8080/api/v2/notifications/settings \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update notifications settings
 
@@ -120,7 +122,8 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK           | [codersdk.NotificationsSettings](schemas.md#codersdknotificationssettings) |
 | 304    | [Not Modified](https://tools.ietf.org/html/rfc7232#section-4.1) | Not Modified |                                                                            |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get system notification templates
 
@@ -176,7 +179,8 @@ Status Code **200**
 | `» name`           | string       | false    |              |             |
 | `» title_template` | string       | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get user notification preferences
 
@@ -228,7 +232,8 @@ Status Code **200**
 | `» id`         | string(uuid)      | false    |              |             |
 | `» updated_at` | string(date-time) | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Update user notification preferences
 
@@ -293,4 +298,5 @@ Status Code **200**
 | `» id`         | string(uuid)      | false    |              |             |
 | `» updated_at` | string(date-time) | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).

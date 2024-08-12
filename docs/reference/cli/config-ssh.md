@@ -42,7 +42,8 @@ Specifies the path to an SSH config.
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_SSH_CONFIG_BINARY_PATH</code> |
 
-Optionally specify the absolute path to the coder binary used in ProxyCommand. By default, the binary invoking this command ('config ssh') is used.
+Optionally specify the absolute path to the coder binary used in ProxyCommand.
+By default, the binary invoking this command ('config ssh') is used.
 
 ### -o, --ssh-option
 
@@ -88,7 +89,9 @@ Override the default host prefix.
 | Environment | <code>$CODER_CONFIGSSH_WAIT</code> |
 | Default     | <code>auto</code>                  |
 
-Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.
+Specifies whether or not to wait for the startup script to finish executing.
+Auto means that the agent startup script behavior configured in the workspace
+template is used.
 
 ### --disable-autostart
 

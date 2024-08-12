@@ -79,7 +79,8 @@ Status Code **200**
 | `» user_id`          | string(uuid)      | false    |              |             |
 | `» username`         | string            | false    |              |             |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get member roles by organization
 
@@ -209,7 +210,8 @@ Status Code **200**
 | `resource_type` | `workspace_dormant`       |
 | `resource_type` | `workspace_proxy`         |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Upsert a custom organization role
 
@@ -367,7 +369,8 @@ Status Code **200**
 | `resource_type` | `workspace_dormant`       |
 | `resource_type` | `workspace_proxy`         |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Delete a custom organization role
 
@@ -494,7 +497,8 @@ Status Code **200**
 | `resource_type` | `workspace_dormant`       |
 | `resource_type` | `workspace_proxy`         |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Add organization member
 
@@ -542,7 +546,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Remove organization member
 
@@ -569,7 +574,8 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Assign role to organization member
 
@@ -627,7 +633,8 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationMember](schemas.md#codersdkorganizationmember) |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
 
 ## Get site member roles
 
@@ -751,4 +758,5 @@ Status Code **200**
 | `resource_type` | `workspace_dormant`       |
 | `resource_type` | `workspace_proxy`         |
 
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
+To perform this operation, you must be authenticated.
+[Learn more](authentication.md).
