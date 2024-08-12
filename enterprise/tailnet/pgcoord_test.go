@@ -908,6 +908,8 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 
 	err = coordinator.Close()
 	require.NoError(t, err)
+	assertEventuallyLost(ctx, t, store, agent.id)
+	assertEventuallyLost(ctx, t, store, client.id)
 
 	coordinator2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
@@ -974,6 +976,10 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 	p1.AssertEventuallyResponsesClosed()
 	p2.AssertEventuallyLost(p1.ID)
+	// This basically checks that peer2 had no update
+	// performed on their status since we are connected
+	// to coordinator2.
+	assertEventuallyStatus(ctx, t, store2, p2.ID, database.TailnetStatusOk)
 
 	// Connect peer1 to coordinator2.
 	p1.ConnectToCoordinator(ctx, c2)
@@ -1025,6 +1031,10 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	require.NoError(t, err)
 	p1.AssertEventuallyResponsesClosed()
 	p2.AssertEventuallyLost(p1.ID)
+	// This basically checks that peer2 had no update
+	// performed on their status since we are connected
+	// to coordinator2.
+	assertEventuallyStatus(ctx, t, store, p2.ID, database.TailnetStatusOk)
 
 	// Connect peer1 to coordinator2.
 	p1.ConnectToCoordinator(ctx, c2)
@@ -1178,7 +1188,7 @@ func assertNeverHasDERPs(ctx context.Context, t *testing.T, c *testConn, expecte
 	}
 }
 
-func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
+func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {
 	t.Helper()
 	assert.Eventually(t, func() bool {
 		peers, err := store.GetTailnetPeers(ctx, agentID)
@@ -1189,12 +1199,17 @@ func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Stor
 			t.Fatal(err)
 		}
 		for _, peer := range peers {
-			if peer.Status == database.TailnetStatusOk {
+			if peer.Status != status {
 				return false
 			}
 		}
 		return true
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
+	t.Helper()
+	assertEventuallyStatus(ctx, t, store, agentID, database.TailnetStatusLost)
 }
 
 func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
