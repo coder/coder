@@ -18,8 +18,7 @@ curl -X GET http://coder-server:8080/api/v2/derp-map \
 | ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Authenticate agent on AWS instance
 
@@ -66,8 +65,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Authenticate agent on Azure instance
 
@@ -114,8 +112,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Authenticate agent on Google Cloud instance
 
@@ -161,8 +158,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get workspace agent external auth
 
@@ -206,8 +202,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Removed: Get workspace agent git auth
 
@@ -251,8 +246,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get workspace agent Git SSH key
 
@@ -284,8 +278,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.GitSSHKey](schemas.md#agentsdkgitsshkey) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Post workspace agent log source
 
@@ -337,8 +330,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentLogSource](schemas.md#codersdkworkspaceagentlogsource) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Patch workspace agent logs
 
@@ -398,8 +390,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get workspace agent by ID
 
@@ -520,8 +511,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgent](schemas.md#codersdkworkspaceagent) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get connection info for workspace agent
 
@@ -618,8 +608,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [workspacesdk.AgentConnectionInfo](schemas.md#workspacesdkagentconnectioninfo) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Coordinate workspace agent
 
@@ -645,8 +634,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/coo
 | ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get listening ports for workspace agent
 
@@ -689,8 +677,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListeningPortsResponse](schemas.md#codersdkworkspaceagentlisteningportsresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get logs by workspace agent
 
@@ -760,8 +747,7 @@ Status Code **200**
 | `level`  | `warn`  |
 | `level`  | `error` |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Open PTY to workspace agent
 
@@ -787,8 +773,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty
 | ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Removed: Get logs by workspace agent
 
@@ -858,5 +843,4 @@ Status Code **200**
 | `level`  | `warn`  |
 | `level`  | `error` |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

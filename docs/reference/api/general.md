@@ -103,8 +103,7 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get deployment config
 
@@ -505,8 +504,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentConfig](schemas.md#codersdkdeploymentconfig) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## SSH Config
 
@@ -541,8 +539,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.SSHConfigResponse](schemas.md#codersdksshconfigresponse) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get deployment stats
 
@@ -594,8 +591,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentStats](schemas.md#codersdkdeploymentstats) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get enabled experiments
 
@@ -632,8 +628,7 @@ Status Code **200**
 | -------------- | ----- | -------- | ------------ | ----------- |
 | `[array item]` | array | false    |              |             |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get safe experiments
 
@@ -670,8 +665,7 @@ Status Code **200**
 | -------------- | ----- | -------- | ------------ | ----------- |
 | `[array item]` | array | false    |              |             |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Update check
 
@@ -738,5 +732,4 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/tokenconfig
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TokenConfig](schemas.md#codersdktokenconfig) |
 
-To perform this operation, you must be authenticated.
-[Learn more](authentication.md).
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
