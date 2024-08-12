@@ -830,9 +830,14 @@ func TestGroups(t *testing.T) {
 
 		groups, err := userAdminClient.GroupsByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		for i := range append(groups, group1, group2) {
-			sortGroupMembers(&groups[i])
+
+		// sort group members so we can compare them
+		allGroups := append([]codersdk.Group{}, groups...)
+		allGroups = append(allGroups, group1, group2)
+		for i := range allGroups {
+			sortGroupMembers(&allGroups[i])
 		}
+
 		// 'Everyone' group + 2 custom groups.
 		require.Len(t, groups, 3)
 		require.Contains(t, groups, group1)
