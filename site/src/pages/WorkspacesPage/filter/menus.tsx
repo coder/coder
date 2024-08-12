@@ -43,8 +43,7 @@ export const useTemplateFilterMenu = ({
           template.display_name.toLowerCase().includes(query.toLowerCase()),
       );
       return filteredTemplates.map((template) => ({
-        label:
-          template.display_name !== "" ? template.display_name : template.name,
+        label: template.display_name || template.name,
         value: template.name,
         startIcon: <TemplateAvatar size="xs" template={template} />,
       }));

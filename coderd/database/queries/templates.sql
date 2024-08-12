@@ -22,17 +22,23 @@ WHERE
 			organization_id = @organization_id
 		ELSE true
 	END
+	-- Filter by organization_name
+	AND CASE
+		WHEN @organization_name :: text != '' THEN
+			LOWER("organization_name") = LOWER(@organization_name)
+		ELSE true
+	END
 	-- Filter by exact name
 	AND CASE
 		WHEN @exact_name :: text != '' THEN
 			LOWER("name") = LOWER(@exact_name)
 		ELSE true
 	END
-  	-- Filter by name, matching on substring
-  	AND CASE
-		  WHEN @fuzzy_name :: text != '' THEN
-			  lower(name) ILIKE '%' || lower(@fuzzy_name) || '%'
-		  ELSE true
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN @fuzzy_name :: text != '' THEN
+			lower(name) ILIKE '%' || lower(@fuzzy_name) || '%'
+		ELSE true
 	END
 	-- Filter by ids
 	AND CASE

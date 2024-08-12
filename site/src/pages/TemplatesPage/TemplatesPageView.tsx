@@ -46,6 +46,7 @@ import {
   formatTemplateActiveDevelopers,
 } from "utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
+import { TemplatesFilter } from "./TemplatesFilter";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -219,6 +220,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
           </PageHeaderSubtitle>
         )}
       </PageHeader>
+
+      <TemplatesFilter />
 
       {error ? (
         <ErrorAlert error={error} />

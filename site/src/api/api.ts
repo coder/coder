@@ -651,6 +651,13 @@ class ApiMethods {
     return response.data;
   };
 
+  getMyOrganizations = async (): Promise<TypesGen.Organization[]> => {
+    const response = await this.axios.get<TypesGen.Organization[]>(
+      "/api/v2/users/me/organizations",
+    );
+    return response.data;
+  };
+
   /**
    * @param organization Can be the organization's ID or name
    */
