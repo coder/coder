@@ -27,8 +27,7 @@ func TestGroupsAuth(t *testing.T) {
 
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
 
-	db := dbmem.New()
-	db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{
+	db := dbauthz.New(dbmem.New(), authz, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	}), coderdtest.AccessControlStorePointer())
 
