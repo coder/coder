@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	apiSubdir       = "api"
-	apiIndexFile    = "index.md"
+	apiSubdir       = "reference/api"
+	apiIndexFile    = "README.md"
 	apiIndexContent = `Get started with the Coder API:
 
 ## Quickstart

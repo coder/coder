@@ -546,99 +546,99 @@
     {
       "title": "API",
       "description": "Learn how to use Coderd API",
-      "path": "./api/index.md",
+      "path": "./reference/api/README.md",
       "icon_path": "./images/icons/api.svg",
       "children": [
         {
           "title": "General",
-          "path": "./api/general.md"
+          "path": "./reference/api/general.md"
         },
         {
           "title": "Agents",
-          "path": "./api/agents.md"
+          "path": "./reference/api/agents.md"
         },
         {
           "title": "Applications",
-          "path": "./api/applications.md"
+          "path": "./reference/api/applications.md"
         },
         {
           "title": "Audit",
-          "path": "./api/audit.md"
+          "path": "./reference/api/audit.md"
         },
         {
           "title": "Authentication",
-          "path": "./api/authentication.md"
+          "path": "./reference/api/authentication.md"
         },
         {
           "title": "Authorization",
-          "path": "./api/authorization.md"
+          "path": "./reference/api/authorization.md"
         },
         {
           "title": "Builds",
-          "path": "./api/builds.md"
+          "path": "./reference/api/builds.md"
         },
         {
           "title": "Debug",
-          "path": "./api/debug.md"
+          "path": "./reference/api/debug.md"
         },
         {
           "title": "Enterprise",
-          "path": "./api/enterprise.md"
+          "path": "./reference/api/enterprise.md"
         },
         {
           "title": "Files",
-          "path": "./api/files.md"
+          "path": "./reference/api/files.md"
         },
         {
           "title": "Git",
-          "path": "./api/git.md"
+          "path": "./reference/api/git.md"
         },
         {
           "title": "Insights",
-          "path": "./api/insights.md"
+          "path": "./reference/api/insights.md"
         },
         {
           "title": "Members",
-          "path": "./api/members.md"
+          "path": "./reference/api/members.md"
         },
         {
           "title": "Notifications",
-          "path": "./api/notifications.md"
+          "path": "./reference/api/notifications.md"
         },
         {
           "title": "Organizations",
-          "path": "./api/organizations.md"
+          "path": "./reference/api/organizations.md"
         },
         {
           "title": "PortSharing",
-          "path": "./api/portsharing.md"
+          "path": "./reference/api/portsharing.md"
         },
         {
           "title": "Schemas",
-          "path": "./api/schemas.md"
+          "path": "./reference/api/schemas.md"
         },
         {
           "title": "Templates",
-          "path": "./api/templates.md"
+          "path": "./reference/api/templates.md"
         },
         {
           "title": "Users",
-          "path": "./api/users.md"
+          "path": "./reference/api/users.md"
         },
         {
           "title": "WorkspaceProxies",
-          "path": "./api/workspaceproxies.md"
+          "path": "./reference/api/workspaceproxies.md"
         },
         {
           "title": "Workspaces",
-          "path": "./api/workspaces.md"
+          "path": "./reference/api/workspaces.md"
         }
       ]
     },
     {
       "title": "Command Line",
       "description": "Learn how to use Coder CLI",
-      "path": "./cli.md",
+      "path": "./reference/README.md",
       "icon_path": "./images/icons/terminal.svg",
       "children": [
         {
