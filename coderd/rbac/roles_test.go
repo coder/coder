@@ -112,6 +112,7 @@ func TestRolePermissions(t *testing.T) {
 	// Subjects to user
 	memberMe := authSubject{Name: "member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember()}}}
 	orgMemberMe := authSubject{Name: "org_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID)}}}
+	groupMemberMe := authSubject{Name: "group_member_me", Actor: rbac.Subject{ID: currentUser.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(orgID)}, Groups: []string{groupID.String()}}}
 
 	owner := authSubject{Name: "owner", Actor: rbac.Subject{ID: adminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()}}}
 	templateAdmin := authSubject{Name: "template-admin", Actor: rbac.Subject{ID: templateAdminID.String(), Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleTemplateAdmin()}}}
@@ -382,21 +383,47 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "Groups",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionDelete, policy.ActionUpdate},
-			Resource: rbac.ResourceGroup.WithID(groupID).InOrg(orgID),
+			Name:    "Groups",
+			Actions: []policy.Action{policy.ActionCreate, policy.ActionDelete, policy.ActionUpdate},
+			Resource: rbac.ResourceGroup.WithID(groupID).InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+				groupID.String(): {
+					policy.ActionRead,
+				},
+			}),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, userAdmin, orgUserAdmin},
-				false: {setOtherOrg, memberMe, orgMemberMe, templateAdmin, orgTemplateAdmin, orgAuditor},
+				false: {setOtherOrg, memberMe, orgMemberMe, templateAdmin, orgTemplateAdmin, orgAuditor, groupMemberMe},
 			},
 		},
 		{
-			Name:     "GroupsRead",
+			Name:    "GroupsRead",
+			Actions: []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceGroup.WithID(groupID).InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+				groupID.String(): {
+					policy.ActionRead,
+				},
+			}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, groupMemberMe},
+				false: {setOtherOrg, memberMe, orgMemberMe, orgAuditor},
+			},
+		},
+		{
+			Name:     "GroupMemberMeRead",
 			Actions:  []policy.Action{policy.ActionRead},
-			Resource: rbac.ResourceGroup.WithID(groupID).InOrg(orgID),
+			Resource: rbac.ResourceGroupMember.WithID(currentUser).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgMemberMe, groupMemberMe},
+				false: {setOtherOrg, memberMe, orgAuditor},
+			},
+		},
+		{
+			Name:     "GroupMemberOtherRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceGroupMember.WithID(adminID).InOrg(orgID).WithOwner(adminID.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin},
-				false: {setOtherOrg, memberMe, orgMemberMe, orgAuditor},
+				false: {setOtherOrg, memberMe, orgAuditor, orgMemberMe, groupMemberMe},
 			},
 		},
 		{

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -374,8 +375,8 @@ func Group(t testing.TB, db database.Store, orig database.Group) database.Group 
 	return group
 }
 
-func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) database.GroupMember {
-	member := database.GroupMember{
+func GroupMember(t testing.TB, db database.Store, orig database.GroupMemberTable) database.GroupMember {
+	member := database.GroupMemberTable{
 		UserID:  takeFirst(orig.UserID, uuid.New()),
 		GroupID: takeFirst(orig.GroupID, uuid.New()),
 	}
@@ -385,7 +386,44 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 		GroupID: member.GroupID,
 	})
 	require.NoError(t, err, "insert group member")
-	return member
+
+	user, err := db.GetUserByID(genCtx, member.UserID)
+	if errors.Is(err, sql.ErrNoRows) {
+		user = User(t, db, database.User{ID: member.UserID})
+	} else {
+		require.NoError(t, err, "get user by id")
+	}
+
+	group, err := db.GetGroupByID(genCtx, member.GroupID)
+	if errors.Is(err, sql.ErrNoRows) {
+		group = Group(t, db, database.Group{ID: member.GroupID})
+	} else {
+		require.NoError(t, err, "get group by id")
+	}
+
+	groupMember := database.GroupMember{
+		UserID:                 user.ID,
+		UserEmail:              user.Email,
+		UserUsername:           user.Username,
+		UserHashedPassword:     user.HashedPassword,
+		UserCreatedAt:          user.CreatedAt,
+		UserUpdatedAt:          user.UpdatedAt,
+		UserStatus:             user.Status,
+		UserRbacRoles:          user.RBACRoles,
+		UserLoginType:          user.LoginType,
+		UserAvatarUrl:          user.AvatarURL,
+		UserDeleted:            user.Deleted,
+		UserLastSeenAt:         user.LastSeenAt,
+		UserQuietHoursSchedule: user.QuietHoursSchedule,
+		UserThemePreference:    user.ThemePreference,
+		UserName:               user.Name,
+		UserGithubComUserID:    user.GithubComUserID,
+		OrganizationID:         group.OrganizationID,
+		GroupName:              group.Name,
+		GroupID:                group.ID,
+	}
+
+	return groupMember
 }
 
 // ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.  ps

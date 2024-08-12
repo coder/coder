@@ -60,7 +60,7 @@ func New() database.Store {
 			dbcryptKeys:               make([]database.DBCryptKey, 0),
 			externalAuthLinks:         make([]database.ExternalAuthLink, 0),
 			groups:                    make([]database.Group, 0),
-			groupMembers:              make([]database.GroupMember, 0),
+			groupMembers:              make([]database.GroupMemberTable, 0),
 			auditLogs:                 make([]database.AuditLog, 0),
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
@@ -156,7 +156,7 @@ type data struct {
 	files                         []database.File
 	externalAuthLinks             []database.ExternalAuthLink
 	gitSSHKey                     []database.GitSSHKey
-	groupMembers                  []database.GroupMember
+	groupMembers                  []database.GroupMemberTable
 	groups                        []database.Group
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
@@ -723,41 +723,68 @@ func (q *FakeQuerier) getOrganizationMemberNoLock(orgID uuid.UUID) []database.Or
 	return members
 }
 
+var ErrUserDeleted = xerrors.New("user deleted")
+
+// getGroupMemberNoLock fetches a group member by user ID and group ID.
+func (q *FakeQuerier) getGroupMemberNoLock(ctx context.Context, userID, groupID uuid.UUID) (database.GroupMember, error) {
+	groupName := "Everyone"
+	orgID := groupID
+	groupIsEveryone := q.isEveryoneGroup(groupID)
+	if !groupIsEveryone {
+		group, err := q.getGroupByIDNoLock(ctx, groupID)
+		if err != nil {
+			return database.GroupMember{}, err
+		}
+		groupName = group.Name
+		orgID = group.OrganizationID
+	}
+
+	user, err := q.getUserByIDNoLock(userID)
+	if err != nil {
+		return database.GroupMember{}, err
+	}
+	if user.Deleted {
+		return database.GroupMember{}, ErrUserDeleted
+	}
+
+	return database.GroupMember{
+		UserID:                 user.ID,
+		UserEmail:              user.Email,
+		UserUsername:           user.Username,
+		UserHashedPassword:     user.HashedPassword,
+		UserCreatedAt:          user.CreatedAt,
+		UserUpdatedAt:          user.UpdatedAt,
+		UserStatus:             user.Status,
+		UserRbacRoles:          user.RBACRoles,
+		UserLoginType:          user.LoginType,
+		UserAvatarUrl:          user.AvatarURL,
+		UserDeleted:            user.Deleted,
+		UserLastSeenAt:         user.LastSeenAt,
+		UserQuietHoursSchedule: user.QuietHoursSchedule,
+		UserThemePreference:    user.ThemePreference,
+		UserName:               user.Name,
+		UserGithubComUserID:    user.GithubComUserID,
+		OrganizationID:         orgID,
+		GroupName:              groupName,
+		GroupID:                groupID,
+	}, nil
+}
+
 // getEveryoneGroupMembersNoLock fetches all the users in an organization.
-func (q *FakeQuerier) getEveryoneGroupMembersNoLock(orgID uuid.UUID) []database.GroupMember {
+func (q *FakeQuerier) getEveryoneGroupMembersNoLock(ctx context.Context, orgID uuid.UUID) []database.GroupMember {
 	var (
 		everyone   []database.GroupMember
 		orgMembers = q.getOrganizationMemberNoLock(orgID)
 	)
 	for _, member := range orgMembers {
-		user, err := q.getUserByIDNoLock(member.UserID)
+		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, orgID)
+		if errors.Is(err, ErrUserDeleted) {
+			continue
+		}
 		if err != nil {
 			return nil
 		}
-		if user.Deleted {
-			continue
-		}
-		everyone = append(everyone, database.GroupMember{
-			UserID:                 user.ID,
-			UserEmail:              user.Email,
-			UserUsername:           user.Username,
-			UserHashedPassword:     user.HashedPassword,
-			UserCreatedAt:          user.CreatedAt,
-			UserUpdatedAt:          user.UpdatedAt,
-			UserStatus:             user.Status,
-			UserRbacRoles:          user.RBACRoles,
-			UserLoginType:          user.LoginType,
-			UserAvatarUrl:          user.AvatarURL,
-			UserDeleted:            user.Deleted,
-			UserLastSeenAt:         user.LastSeenAt,
-			UserQuietHoursSchedule: user.QuietHoursSchedule,
-			UserThemePreference:    user.ThemePreference,
-			UserName:               user.Name,
-			UserGithubComUserID:    user.GithubComUserID,
-			OrganizationID:         orgID,
-			GroupName:              "Everyone",
-			GroupID:                orgID,
-		})
+		everyone = append(everyone, groupMember)
 	}
 	return everyone
 }
@@ -2509,31 +2536,59 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(_ context.Context) ([]database.GroupMember, error) {
+func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	out := make([]database.GroupMember, len(q.groupMembers))
-	copy(out, q.groupMembers)
-	return out, nil
+	members := make([]database.GroupMemberTable, 0, len(q.groupMembers))
+	members = append(members, q.groupMembers...)
+	for _, org := range q.organizations {
+		for _, user := range q.users {
+			members = append(members, database.GroupMemberTable{
+				UserID:  user.ID,
+				GroupID: org.ID,
+			})
+		}
+	}
+
+	var groupMembers []database.GroupMember
+	for _, member := range members {
+		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
+		if errors.Is(err, ErrUserDeleted) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		groupMembers = append(groupMembers, groupMember)
+	}
+
+	return groupMembers, nil
 }
 
-func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) ([]database.GroupMember, error) {
+func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	if q.isEveryoneGroup(id) {
-		return q.getEveryoneGroupMembersNoLock(id), nil
+		return q.getEveryoneGroupMembersNoLock(ctx, id), nil
 	}
 
-	var members []database.GroupMember
+	var groupMembers []database.GroupMember
 	for _, member := range q.groupMembers {
+		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
+		if errors.Is(err, ErrUserDeleted) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
 		if member.GroupID == id {
-			members = append(members, member)
+			groupMembers = append(groupMembers, groupMember)
 		}
 	}
 
-	return members, nil
+	return groupMembers, nil
 }
 
 func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
@@ -2561,15 +2616,15 @@ func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg da
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	var groupIds []uuid.UUID
+	var groupIDs []uuid.UUID
 	for _, member := range q.groupMembers {
 		if member.UserID == arg.UserID {
-			groupIds = append(groupIds, member.GroupID)
+			groupIDs = append(groupIDs, member.GroupID)
 		}
 	}
 	groups := []database.Group{}
 	for _, group := range q.groups {
-		if slices.Contains(groupIds, group.ID) && group.OrganizationID == arg.OrganizationID {
+		if slices.Contains(groupIDs, group.ID) && group.OrganizationID == arg.OrganizationID {
 			groups = append(groups, group)
 		}
 	}
@@ -6254,7 +6309,7 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	}
 
 	//nolint:gosimple
-	q.groupMembers = append(q.groupMembers, database.GroupMember{
+	q.groupMembers = append(q.groupMembers, database.GroupMemberTable{
 		GroupID: arg.GroupID,
 		UserID:  arg.UserID,
 	})
@@ -6794,7 +6849,7 @@ func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.Ins
 	}
 
 	for _, groupID := range groupIDs {
-		q.groupMembers = append(q.groupMembers, database.GroupMember{
+		q.groupMembers = append(q.groupMembers, database.GroupMemberTable{
 			UserID:  arg.UserID,
 			GroupID: groupID,
 		})
