@@ -12,12 +12,12 @@ const renderTemplateRedirectController = (route: string) => {
 };
 
 it("redirects from multi-org to single-org", async () => {
-  const page = renderTemplateRedirectController(
+  const { router } = renderTemplateRedirectController(
     `/templates/${M.MockTemplate.organization_name}/${M.MockTemplate.name}`,
   );
 
   await waitFor(() =>
-    expect(page.router.state.location.pathname).toEqual(
+    expect(router.state.location.pathname).toEqual(
       `/templates/${M.MockTemplate.name}`,
     ),
   );
@@ -28,12 +28,12 @@ it("redirects from single-org to multi-org", async () => {
     .spyOn(API, "getOrganizations")
     .mockResolvedValueOnce([M.MockDefaultOrganization, M.MockOrganization2]);
 
-  const page = renderTemplateRedirectController(
+  const { router } = renderTemplateRedirectController(
     `/templates/${M.MockTemplate.name}`,
   );
 
   await waitFor(() =>
-    expect(page.router.state.location.pathname).toEqual(
+    expect(router.state.location.pathname).toEqual(
       `/templates/${M.MockDefaultOrganization.name}/${M.MockTemplate.name}`,
     ),
   );
