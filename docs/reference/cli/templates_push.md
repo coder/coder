@@ -50,8 +50,7 @@ Specify a set of tags to target provisioner daemons.
 | ---- | ------------------- |
 | Type | <code>string</code> |
 
-Specify a name for the new template version. It will be automatically generated
-if not provided.
+Specify a name for the new template version. It will be automatically generated if not provided.
 
 ### --always-prompt
 
@@ -59,8 +58,7 @@ if not provided.
 | ---- | ----------------- |
 | Type | <code>bool</code> |
 
-Always prompt all parameters. Does not pull parameter values from active
-template version.
+Always prompt all parameters. Does not pull parameter values from active template version.
 
 ### --activate
 
@@ -95,8 +93,7 @@ Specify the directory to create from, use '-' to read tar from stdin.
 | Type    | <code>bool</code>  |
 | Default | <code>false</code> |
 
-Ignore warnings about not having a .terraform.lock.hcl file present in the
-template.
+Ignore warnings about not having a .terraform.lock.hcl file present in the template.
 
 ### -m, --message
 
@@ -104,8 +101,7 @@ template.
 | ---- | ------------------- |
 | Type | <code>string</code> |
 
-Specify a message describing the changes in this version of the template.
-Messages longer than 72 characters will be displayed as truncated.
+Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.
 
 ### -O, --org
 
