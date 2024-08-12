@@ -52,7 +52,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
             />
           }
         >
-          Deployment
+          Manage
         </Button>
       </PopoverTrigger>
 
