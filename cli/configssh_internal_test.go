@@ -138,6 +138,7 @@ func Test_sshConfigSplitOnCoderSection(t *testing.T) {
 
 // This test tries to mimic the behavior of OpenSSH
 // when executing e.g. a ProxyCommand.
+// nolint:tparallel
 func Test_sshConfigExecEscape(t *testing.T) {
 	t.Parallel()
 
@@ -154,11 +155,10 @@ func Test_sshConfigExecEscape(t *testing.T) {
 		{"tabs", "path with \ttabs", false},
 		{"newline fails", "path with \nnewline", true},
 	}
+	// nolint:paralleltest // Fixes a flake
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			if runtime.GOOS == "windows" {
 				t.Skip("Windows doesn't typically execute via /bin/sh or cmd.exe, so this test is not applicable.")
 			}
