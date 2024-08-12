@@ -26,7 +26,7 @@ type Story = StoryObj<typeof NavbarView>;
 export const ForAdmin: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Deployment" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Manage" }));
   },
 };
 
@@ -41,7 +41,7 @@ export const ForAuditor: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Deployment" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Manage" }));
   },
 };
 
@@ -56,7 +56,7 @@ export const ForOrgAdmin: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Deployment" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Manage" }));
   },
 };
 
