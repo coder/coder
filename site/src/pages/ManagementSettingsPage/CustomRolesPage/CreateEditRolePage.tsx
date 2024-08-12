@@ -4,8 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { organizationPermissions } from "api/queries/organizations";
-import { patchOrganizationRole, organizationRoles } from "api/queries/roles";
-import type { PatchRoleRequest } from "api/typesGenerated";
+import {
+  organizationRoles,
+  createOrganizationRole,
+  updateOrganizationRole,
+} from "api/queries/roles";
+import type { CustomRoleRequest } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { pageTitle } from "utils/page";
@@ -22,8 +26,11 @@ export const CreateEditRolePage: FC = () => {
   const { organizations } = useOrganizationSettings();
   const organization = organizations?.find((o) => o.name === organizationName);
   const permissionsQuery = useQuery(organizationPermissions(organization?.id));
-  const patchOrganizationRoleMutation = useMutation(
-    patchOrganizationRole(queryClient, organizationName),
+  const createOrganizationRoleMutation = useMutation(
+    createOrganizationRole(queryClient, organizationName),
+  );
+  const updateOrganizationRoleMutation = useMutation(
+    updateOrganizationRole(queryClient, organizationName),
   );
   const { data: roleData, isLoading } = useQuery(
     organizationRoles(organizationName),
@@ -47,18 +54,31 @@ export const CreateEditRolePage: FC = () => {
 
       <CreateEditRolePageView
         role={role}
-        onSubmit={async (data: PatchRoleRequest) => {
+        onSubmit={async (data: CustomRoleRequest) => {
           try {
-            await patchOrganizationRoleMutation.mutateAsync(data);
-            navigate(`/organizations/${organizationName}/roles`);
+            if (role) {
+              await updateOrganizationRoleMutation.mutateAsync(data);
+              navigate(`/organizations/${organizationName}/roles`);
+            } else {
+              await createOrganizationRoleMutation.mutateAsync(data);
+              navigate(`/organizations/${organizationName}/roles`);
+            }
           } catch (error) {
             displayError(
               getErrorMessage(error, "Failed to update custom role"),
             );
           }
         }}
-        error={patchOrganizationRoleMutation.error}
-        isLoading={patchOrganizationRoleMutation.isLoading}
+        error={
+          role
+            ? updateOrganizationRoleMutation.error
+            : createOrganizationRoleMutation.error
+        }
+        isLoading={
+          role
+            ? updateOrganizationRoleMutation.isLoading
+            : createOrganizationRoleMutation.isLoading
+        }
         organizationName={organizationName}
         canAssignOrgRole={permissions.assignOrgRole}
       />
