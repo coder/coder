@@ -630,6 +630,7 @@ func TestRemoteCoordination(t *testing.T) {
 		DERPMapUpdateFrequency:  time.Hour,
 		DERPMapFn:               func() *tailcfg.DERPMap { panic("not implemented") },
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) { panic("not implemented") },
+		ResumeTokenProvider:     tailnet.InsecureTestResumeTokenProvider,
 	})
 	require.NoError(t, err)
 	sC, cC := net.Pipe()
@@ -681,6 +682,7 @@ func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
 		DERPMapUpdateFrequency:  time.Hour,
 		DERPMapFn:               func() *tailcfg.DERPMap { panic("not implemented") },
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) { panic("not implemented") },
+		ResumeTokenProvider:     tailnet.InsecureTestResumeTokenProvider,
 	})
 	require.NoError(t, err)
 	sC, cC := net.Pipe()

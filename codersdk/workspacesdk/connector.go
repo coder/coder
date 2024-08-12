@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -68,9 +69,10 @@ type tailnetAPIConnector struct {
 	clientMu sync.RWMutex
 	client   proto.DRPCTailnetClient
 
-	connected chan error
-	isFirst   bool
-	closed    chan struct{}
+	connected   chan error
+	resumeToken atomic.Pointer[proto.RefreshResumeTokenResponse]
+	isFirst     bool
+	closed      chan struct{}
 
 	// Only set to true if we get a response from the server that it doesn't support
 	// network telemetry.
@@ -121,7 +123,7 @@ func (tac *tailnetAPIConnector) runConnector(conn tailnetConn) {
 			tac.client = tailnetClient
 			tac.clientMu.Unlock()
 			tac.logger.Debug(tac.ctx, "obtained tailnet API v2+ client")
-			tac.coordinateAndDERPMap(tailnetClient)
+			tac.runConnectorOnce(tailnetClient)
 			tac.logger.Debug(tac.ctx, "tailnet API v2+ connection lost")
 		}
 	}()
@@ -138,8 +140,24 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 		return tac.customDialFn()
 	}
 	tac.logger.Debug(tac.ctx, "dialing Coder tailnet v2+ API")
+
+	u, err := url.Parse(tac.coordinateURL)
+	if err != nil {
+		return nil, xerrors.Errorf("parse URL %q: %w", tac.coordinateURL, err)
+	}
+	resumeToken := tac.resumeToken.Load()
+	if resumeToken != nil {
+		q := u.Query()
+		q.Set("resume_token", resumeToken.Token)
+		u.RawQuery = q.Encode()
+		tac.logger.Debug(tac.ctx, "using resume token", slog.F("resume_token", resumeToken))
+	}
+
+	coordinateURL := u.String()
+	tac.logger.Debug(tac.ctx, "using coordinate URL", slog.F("url", coordinateURL))
+
 	// nolint:bodyclose
-	ws, res, err := websocket.Dial(tac.ctx, tac.coordinateURL, tac.dialOptions)
+	ws, res, err := websocket.Dial(tac.ctx, coordinateURL, tac.dialOptions)
 	if tac.isFirst {
 		if res != nil && slices.Contains(permanentErrorStatuses, res.StatusCode) {
 			err = codersdk.ReadBodyAsError(res)
@@ -163,6 +181,17 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 		if !errors.Is(err, context.Canceled) {
 			tac.logger.Error(tac.ctx, "failed to dial tailnet v2+ API", slog.Error(err))
 		}
+		if res.StatusCode == http.StatusBadRequest {
+			err = codersdk.ReadBodyAsError(res)
+			var sdkErr *codersdk.Error
+			if xerrors.As(err, &sdkErr) {
+				if sdkErr.Message == CoordinateAPIInvalidResumeToken {
+					// Unset the resume token for the next attempt
+					tac.logger.Debug(tac.ctx, "server replied invalid resume token; unsetting for next connection attempt")
+					tac.resumeToken.Store(nil)
+				}
+			}
+		}
 		return nil, err
 	}
 	client, err := tailnet.NewDRPCClient(
@@ -177,11 +206,11 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 	return client, err
 }
 
-// coordinateAndDERPMap uses the provided client to coordinate and stream DERP Maps. It is combined
+// runConnectorOnce uses the provided client to coordinate and stream DERP Maps. It is combined
 // into one function so that a problem with one tears down the other and triggers a retry (if
 // appropriate). We multiplex both RPCs over the same websocket, so we want them to share the same
 // fate.
-func (tac *tailnetAPIConnector) coordinateAndDERPMap(client proto.DRPCTailnetClient) {
+func (tac *tailnetAPIConnector) runConnectorOnce(client proto.DRPCTailnetClient) {
 	defer func() {
 		conn := client.DRPCConn()
 		closeErr := conn.Close()
@@ -193,14 +222,17 @@ func (tac *tailnetAPIConnector) coordinateAndDERPMap(client proto.DRPCTailnetCli
 			<-conn.Closed()
 		}
 	}()
+
+	refreshTokenCtx, refreshTokenCancel := context.WithCancel(tac.ctx)
 	wg := sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
 		tac.coordinate(client)
 	}()
 	go func() {
 		defer wg.Done()
+		defer refreshTokenCancel()
 		dErr := tac.derpMap(client)
 		if dErr != nil && tac.ctx.Err() == nil {
 			// The main context is still active, meaning that we want the tailnet data plane to stay
@@ -214,6 +246,10 @@ func (tac *tailnetAPIConnector) coordinateAndDERPMap(client proto.DRPCTailnetCli
 			tac.clientMu.Unlock()
 			// Note that derpMap() logs it own errors, we don't bother here.
 		}
+	}()
+	go func() {
+		defer wg.Done()
+		tac.refreshToken(refreshTokenCtx, client)
 	}()
 	wg.Wait()
 }
@@ -275,6 +311,36 @@ func (tac *tailnetAPIConnector) derpMap(client proto.DRPCTailnetClient) error {
 		tac.logger.Debug(tac.ctx, "got new DERP Map", slog.F("derp_map", dmp))
 		dm := tailnet.DERPMapFromProto(dmp)
 		tac.conn.SetDERPMap(dm)
+	}
+}
+
+func (tac *tailnetAPIConnector) refreshToken(ctx context.Context, client proto.DRPCTailnetClient) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	initialCh := make(chan struct{}, 1)
+	initialCh <- struct{}{}
+	defer close(initialCh)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		case <-initialCh:
+		}
+
+		attemptCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		res, err := client.RefreshResumeToken(attemptCtx, &proto.RefreshResumeTokenRequest{})
+		cancel()
+		if err != nil {
+			if ctx.Err() == nil {
+				tac.logger.Error(tac.ctx, "error refreshing coordinator resume token", slog.Error(err))
+			}
+			return
+		}
+		tac.logger.Debug(tac.ctx, "refreshed coordinator resume token", slog.F("resume_token", res))
+		tac.resumeToken.Store(res)
+		ticker.Reset(res.RefreshIn.AsDuration())
 	}
 }
 

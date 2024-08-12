@@ -40,6 +40,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {
 			telemetryEvents <- batch
 		},
+		ResumeTokenProvider: tailnet.InsecureTestResumeTokenProvider,
 	})
 	require.NoError(t, err)
 
@@ -144,6 +145,7 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 		DERPMapUpdateFrequency:  0,
 		DERPMapFn:               nil,
 		NetworkTelemetryHandler: nil,
+		ResumeTokenProvider:     tailnet.InsecureTestResumeTokenProvider,
 	})
 	require.NoError(t, err)
 

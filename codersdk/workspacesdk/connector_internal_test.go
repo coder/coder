@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"nhooyr.io/websocket"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
@@ -59,6 +61,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 		DERPMapUpdateFrequency:  time.Millisecond,
 		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
+		ResumeTokenProvider:     tailnet.InsecureTestResumeTokenProvider,
 	})
 	require.NoError(t, err)
 
@@ -142,6 +145,225 @@ func TestTailnetAPIConnector_UplevelVersion(t *testing.T) {
 	require.NotEmpty(t, sdkErr.Helper)
 }
 
+func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+	agentID := uuid.UUID{0x55}
+	fCoord := tailnettest.NewFakeCoordinator()
+	var coord tailnet.Coordinator = fCoord
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
+	derpMapCh := make(chan *tailcfg.DERPMap)
+	defer close(derpMapCh)
+
+	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider([64]byte{1}, time.Second)
+	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  logger,
+		CoordPtr:                &coordPtr,
+		DERPMapUpdateFrequency:  time.Millisecond,
+		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
+		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
+		ResumeTokenProvider:     resumeTokenProvider,
+	})
+	require.NoError(t, err)
+
+	var (
+		websocketConnCh   = make(chan *websocket.Conn, 64)
+		peerIDCh          = make(chan uuid.UUID, 64)
+		expectResumeToken = ""
+	)
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Accept a resume_token query parameter to use the same peer ID. This
+		// behavior matches the actual client coordinate route.
+		var (
+			peerID      = uuid.New()
+			resumeToken = r.URL.Query().Get("resume_token")
+		)
+		t.Logf("received resume token: %s", resumeToken)
+		assert.Equal(t, expectResumeToken, resumeToken)
+		if resumeToken != "" {
+			peerID, err = resumeTokenProvider.ParseResumeToken(resumeToken)
+			assert.NoError(t, err, "failed to parse resume token")
+			if err != nil {
+				httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+					Message: CoordinateAPIInvalidResumeToken,
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
+		testutil.RequireSendCtx(ctx, t, peerIDCh, peerID)
+
+		sws, err := websocket.Accept(w, r, nil)
+		if !assert.NoError(t, err) {
+			return
+		}
+		testutil.RequireSendCtx(ctx, t, websocketConnCh, sws)
+		ctx, nc := codersdk.WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
+		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
+			Name: "client",
+			ID:   peerID,
+			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
+		})
+		assert.NoError(t, err)
+	}))
+
+	fConn := newFakeTailnetConn()
+
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	uut.runConnector(fConn)
+
+	// Wait for the resume token to be fetched for the first time.
+	require.Eventually(t, func() bool {
+		return uut.resumeToken.Load() != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	originalResumeToken := uut.resumeToken.Load()
+	require.NotNil(t, originalResumeToken)
+	expectResumeToken = originalResumeToken.Token
+	t.Logf("expecting resume token: %s", expectResumeToken)
+
+	// Sever the connection and expect it to reconnect with the resume token and
+	// assume the same peer ID.
+	originalPeerID := testutil.RequireRecvCtx(ctx, t, peerIDCh)
+	wsConn := testutil.RequireRecvCtx(ctx, t, websocketConnCh)
+	_ = wsConn.Close(websocket.StatusGoingAway, "test")
+
+	// Wait for the resume token to be refreshed.
+	require.Eventually(t, func() bool {
+		rt := uut.resumeToken.Load()
+		return rt != nil && rt.Token != originalResumeToken.Token
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Peer ID should be identical.
+	require.Equal(t, originalPeerID, testutil.RequireRecvCtx(ctx, t, peerIDCh))
+}
+
+type resumeTokenProvider struct {
+	genFn   func(uuid.UUID) (*proto.RefreshResumeTokenResponse, error)
+	parseFn func(string) (uuid.UUID, error)
+}
+
+var _ tailnet.ResumeTokenProvider = resumeTokenProvider{}
+
+// GenerateResumeToken implements tailnet.ResumeTokenProvider.
+func (r resumeTokenProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
+	return r.genFn(peerID)
+}
+
+// ParseResumeToken implements tailnet.ResumeTokenProvider.
+func (r resumeTokenProvider) ParseResumeToken(token string) (uuid.UUID, error) {
+	return r.parseFn(token)
+}
+
+func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+	agentID := uuid.UUID{0x55}
+	fCoord := tailnettest.NewFakeCoordinator()
+	var coord tailnet.Coordinator = fCoord
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
+	derpMapCh := make(chan *tailcfg.DERPMap)
+	defer close(derpMapCh)
+
+	resumeTokenProvider := resumeTokenProvider{
+		genFn: func(uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
+			return &proto.RefreshResumeTokenResponse{
+				Token:     uuid.NewString(),
+				RefreshIn: durationpb.New(time.Minute),
+				ExpiresAt: timestamppb.New(time.Now().Add(time.Hour)),
+			}, nil
+		},
+		parseFn: func(string) (uuid.UUID, error) {
+			return uuid.UUID{}, xerrors.New("test error")
+		},
+	}
+	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                  logger,
+		CoordPtr:                &coordPtr,
+		DERPMapUpdateFrequency:  time.Millisecond,
+		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
+		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
+		ResumeTokenProvider:     resumeTokenProvider,
+	})
+	require.NoError(t, err)
+
+	var (
+		websocketConnCh = make(chan *websocket.Conn, 64)
+		peerIDCh        = make(chan uuid.UUID, 64)
+		didFail         int64
+	)
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Accept a resume_token query parameter to use the same peer ID.
+		var (
+			peerID      = uuid.New()
+			resumeToken = r.URL.Query().Get("resume_token")
+		)
+		t.Logf("received resume token: %s", resumeToken)
+		if resumeToken != "" {
+			_, err = resumeTokenProvider.ParseResumeToken(resumeToken)
+			assert.Error(t, err, "parse resume token should return an error")
+			atomic.AddInt64(&didFail, 1)
+			httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+				Message: CoordinateAPIInvalidResumeToken,
+				Detail:  err.Error(),
+			})
+			return
+		}
+		testutil.RequireSendCtx(ctx, t, peerIDCh, peerID)
+
+		sws, err := websocket.Accept(w, r, nil)
+		if !assert.NoError(t, err) {
+			return
+		}
+		testutil.RequireSendCtx(ctx, t, websocketConnCh, sws)
+		ctx, nc := codersdk.WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
+		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
+			Name: "client",
+			ID:   peerID,
+			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
+		})
+		assert.NoError(t, err)
+	}))
+
+	fConn := newFakeTailnetConn()
+
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	uut.runConnector(fConn)
+
+	// Wait for the resume token to be fetched for the first time.
+	require.Eventually(t, func() bool {
+		return uut.resumeToken.Load() != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	originalResumeToken := uut.resumeToken.Load()
+	require.NotNil(t, originalResumeToken)
+
+	// Sever the connection and expect it to reconnect with the resume token,
+	// which should fail and cause the client to be disconnected. The client
+	// should then reconnect with no resume token.
+	originalPeerID := testutil.RequireRecvCtx(ctx, t, peerIDCh)
+	wsConn := testutil.RequireRecvCtx(ctx, t, websocketConnCh)
+	_ = wsConn.Close(websocket.StatusGoingAway, "test")
+
+	// Wait for the resume token to be refreshed.
+	require.Eventually(t, func() bool {
+		rt := uut.resumeToken.Load()
+		return rt != nil && rt.Token != originalResumeToken.Token
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Peer ID should be different.
+	require.NotEqual(t, originalPeerID, testutil.RequireRecvCtx(ctx, t, peerIDCh))
+
+	// The resume token should have failed to parse.
+	require.EqualValues(t, 1, atomic.LoadInt64(&didFail))
+}
+
 func TestTailnetAPIConnector_TelemetrySuccess(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -161,8 +383,9 @@ func TestTailnetAPIConnector_TelemetrySuccess(t *testing.T) {
 		DERPMapUpdateFrequency: time.Millisecond,
 		DERPMapFn:              func() *tailcfg.DERPMap { return <-derpMapCh },
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {
-			eventCh <- batch
+			testutil.RequireSendCtx(ctx, t, eventCh, batch)
 		},
+		ResumeTokenProvider: tailnet.InsecureTestResumeTokenProvider,
 	})
 	require.NoError(t, err)
 
@@ -301,6 +524,7 @@ func newFakeTailnetConn() *fakeTailnetConn {
 
 type fakeDRPCClient struct {
 	postTelemetryCalls int64
+	refreshTokenFn     func(context.Context, *proto.RefreshResumeTokenRequest) (*proto.RefreshResumeTokenResponse, error)
 	telemetryError     error
 	fakeDRPPCMapStream
 }
@@ -337,6 +561,19 @@ func (f *fakeDRPCClient) PostTelemetry(_ context.Context, _ *proto.TelemetryRequ
 // StreamDERPMaps implements proto.DRPCTailnetClient.
 func (f *fakeDRPCClient) StreamDERPMaps(_ context.Context, _ *proto.StreamDERPMapsRequest) (proto.DRPCTailnet_StreamDERPMapsClient, error) {
 	return &f.fakeDRPPCMapStream, nil
+}
+
+// RefreshResumeToken implements proto.DRPCTailnetClient.
+func (f *fakeDRPCClient) RefreshResumeToken(_ context.Context, _ *proto.RefreshResumeTokenRequest) (*proto.RefreshResumeTokenResponse, error) {
+	if f.refreshTokenFn != nil {
+		return f.refreshTokenFn(context.Background(), nil)
+	}
+
+	return &proto.RefreshResumeTokenResponse{
+		Token:     "test",
+		RefreshIn: durationpb.New(30 * time.Minute),
+		ExpiresAt: timestamppb.New(time.Now().Add(time.Hour)),
+	}, nil
 }
 
 type fakeDRPCConn struct{}

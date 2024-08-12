@@ -847,6 +847,10 @@ func (c *Conn) GetPeerDiagnostics(peerID uuid.UUID) PeerDiagnostics {
 	return d
 }
 
+func (c *Conn) GetKnownPeerIDs() []uuid.UUID {
+	return c.configMaps.knownPeerIDs()
+}
+
 type listenKey struct {
 	network string
 	host    string

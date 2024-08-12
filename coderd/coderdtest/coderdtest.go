@@ -492,6 +492,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TailnetCoordinator:                 options.Coordinator,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,
+			CoordinatorResumeTokenProvider:     tailnet.InsecureTestResumeTokenProvider,
 			MetricsCacheRefreshInterval:        options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:          options.AgentStatsRefreshInterval,
 			DeploymentValues:                   options.DeploymentValues,

@@ -55,7 +55,11 @@ const (
 	AgentMinimumListeningPort = 9
 )
 
-const AgentAPIMismatchMessage = "Unknown or unsupported API version"
+const (
+	AgentAPIMismatchMessage = "Unknown or unsupported API version"
+
+	CoordinateAPIInvalidResumeToken = "Invalid resume token"
+)
 
 // AgentIgnoredListeningPorts contains a list of ports to ignore when looking for
 // running applications inside a workspace. We want to ignore non-HTTP servers,

@@ -40,6 +40,7 @@ type DRPCTailnetClient interface {
 
 	PostTelemetry(ctx context.Context, in *TelemetryRequest) (*TelemetryResponse, error)
 	StreamDERPMaps(ctx context.Context, in *StreamDERPMapsRequest) (DRPCTailnet_StreamDERPMapsClient, error)
+	RefreshResumeToken(ctx context.Context, in *RefreshResumeTokenRequest) (*RefreshResumeTokenResponse, error)
 	Coordinate(ctx context.Context) (DRPCTailnet_CoordinateClient, error)
 }
 
@@ -102,6 +103,15 @@ func (x *drpcTailnet_StreamDERPMapsClient) RecvMsg(m *DERPMap) error {
 	return x.MsgRecv(m, drpcEncoding_File_tailnet_proto_tailnet_proto{})
 }
 
+func (c *drpcTailnetClient) RefreshResumeToken(ctx context.Context, in *RefreshResumeTokenRequest) (*RefreshResumeTokenResponse, error) {
+	out := new(RefreshResumeTokenResponse)
+	err := c.cc.Invoke(ctx, "/coder.tailnet.v2.Tailnet/RefreshResumeToken", drpcEncoding_File_tailnet_proto_tailnet_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *drpcTailnetClient) Coordinate(ctx context.Context) (DRPCTailnet_CoordinateClient, error) {
 	stream, err := c.cc.NewStream(ctx, "/coder.tailnet.v2.Tailnet/Coordinate", drpcEncoding_File_tailnet_proto_tailnet_proto{})
 	if err != nil {
@@ -144,6 +154,7 @@ func (x *drpcTailnet_CoordinateClient) RecvMsg(m *CoordinateResponse) error {
 type DRPCTailnetServer interface {
 	PostTelemetry(context.Context, *TelemetryRequest) (*TelemetryResponse, error)
 	StreamDERPMaps(*StreamDERPMapsRequest, DRPCTailnet_StreamDERPMapsStream) error
+	RefreshResumeToken(context.Context, *RefreshResumeTokenRequest) (*RefreshResumeTokenResponse, error)
 	Coordinate(DRPCTailnet_CoordinateStream) error
 }
 
@@ -157,13 +168,17 @@ func (s *DRPCTailnetUnimplementedServer) StreamDERPMaps(*StreamDERPMapsRequest, 
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCTailnetUnimplementedServer) RefreshResumeToken(context.Context, *RefreshResumeTokenRequest) (*RefreshResumeTokenResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 func (s *DRPCTailnetUnimplementedServer) Coordinate(DRPCTailnet_CoordinateStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
 type DRPCTailnetDescription struct{}
 
-func (DRPCTailnetDescription) NumMethods() int { return 3 }
+func (DRPCTailnetDescription) NumMethods() int { return 4 }
 
 func (DRPCTailnetDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -186,6 +201,15 @@ func (DRPCTailnetDescription) Method(n int) (string, drpc.Encoding, drpc.Receive
 					)
 			}, DRPCTailnetServer.StreamDERPMaps, true
 	case 2:
+		return "/coder.tailnet.v2.Tailnet/RefreshResumeToken", drpcEncoding_File_tailnet_proto_tailnet_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCTailnetServer).
+					RefreshResumeToken(
+						ctx,
+						in1.(*RefreshResumeTokenRequest),
+					)
+			}, DRPCTailnetServer.RefreshResumeToken, true
+	case 3:
 		return "/coder.tailnet.v2.Tailnet/Coordinate", drpcEncoding_File_tailnet_proto_tailnet_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCTailnetServer).
@@ -229,6 +253,22 @@ type drpcTailnet_StreamDERPMapsStream struct {
 
 func (x *drpcTailnet_StreamDERPMapsStream) Send(m *DERPMap) error {
 	return x.MsgSend(m, drpcEncoding_File_tailnet_proto_tailnet_proto{})
+}
+
+type DRPCTailnet_RefreshResumeTokenStream interface {
+	drpc.Stream
+	SendAndClose(*RefreshResumeTokenResponse) error
+}
+
+type drpcTailnet_RefreshResumeTokenStream struct {
+	drpc.Stream
+}
+
+func (x *drpcTailnet_RefreshResumeTokenStream) SendAndClose(m *RefreshResumeTokenResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_tailnet_proto_tailnet_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
 }
 
 type DRPCTailnet_CoordinateStream interface {

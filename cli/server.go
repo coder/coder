@@ -791,17 +791,51 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 				}
 
-				keyBytes, err := hex.DecodeString(oauthSigningKeyStr)
+				oauthKeyBytes, err := hex.DecodeString(oauthSigningKeyStr)
 				if err != nil {
 					return xerrors.Errorf("decode oauth signing key from database: %w", err)
 				}
-				if len(keyBytes) != len(options.OAuthSigningKey) {
-					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(keyBytes))
+				if len(oauthKeyBytes) != len(options.OAuthSigningKey) {
+					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(oauthKeyBytes))
 				}
-				copy(options.OAuthSigningKey[:], keyBytes)
+				copy(options.OAuthSigningKey[:], oauthKeyBytes)
 				if options.OAuthSigningKey == [32]byte{} {
 					return xerrors.Errorf("oauth signing key in database is empty")
 				}
+
+				// Read the coordinator resume token signing key from the
+				// database.
+				resumeTokenKey := [64]byte{}
+				resumeTokenKeyStr, err := tx.GetCoordinatorResumeTokenSigningKey(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get coordinator resume token key: %w", err)
+				}
+				if decoded, err := hex.DecodeString(resumeTokenKeyStr); err != nil || len(decoded) != len(resumeTokenKey) {
+					b := make([]byte, len(resumeTokenKey))
+					_, err := rand.Read(b)
+					if err != nil {
+						return xerrors.Errorf("generate fresh coordinator resume token key: %w", err)
+					}
+
+					resumeTokenKeyStr = hex.EncodeToString(b)
+					err = tx.UpsertCoordinatorResumeTokenSigningKey(ctx, resumeTokenKeyStr)
+					if err != nil {
+						return xerrors.Errorf("insert freshly generated coordinator resume token key to database: %w", err)
+					}
+				}
+
+				resumeTokenKeyBytes, err := hex.DecodeString(resumeTokenKeyStr)
+				if err != nil {
+					return xerrors.Errorf("decode coordinator resume token key from database: %w", err)
+				}
+				if len(resumeTokenKeyBytes) != len(resumeTokenKey) {
+					return xerrors.Errorf("coordinator resume token key in database is not the correct length, expect %d got %d", len(resumeTokenKey), len(resumeTokenKeyBytes))
+				}
+				copy(resumeTokenKey[:], resumeTokenKeyBytes)
+				if resumeTokenKey == [64]byte{} {
+					return xerrors.Errorf("coordinator resume token key in database is empty")
+				}
+				options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(resumeTokenKey, tailnet.DefaultResumeTokenExpiry)
 
 				return nil
 			}, nil)

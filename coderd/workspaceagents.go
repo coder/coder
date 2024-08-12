@@ -846,6 +846,23 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Accept a resume_token query parameter to use the same peer ID.
+	var (
+		peerID      = uuid.New()
+		resumeToken = r.URL.Query().Get("resume_token")
+	)
+	if resumeToken != "" {
+		var err error
+		peerID, err = api.Options.CoordinatorResumeTokenProvider.ParseResumeToken(resumeToken)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -866,7 +883,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	go httpapi.Heartbeat(ctx, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, uuid.New(), workspaceAgent.ID)
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, peerID, workspaceAgent.ID)
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return

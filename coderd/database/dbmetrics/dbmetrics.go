@@ -529,6 +529,13 @@ func (m metricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid
 	return row, err
 }
 
+func (m metricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
+	m.queryLatencies.WithLabelValues("GetCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDBCryptKeys(ctx)
@@ -2360,6 +2367,13 @@ func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) e
 	start := time.Now()
 	r0 := m.s.UpsertApplicationName(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertApplicationName").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
 	return r0
 }
 

@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -507,6 +510,118 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	require.Equal(t, "Unknown or unsupported API version", sdkErr.Message)
 	require.Len(t, sdkErr.Validations, 1)
 	require.Equal(t, "version", sdkErr.Validations[0].Field)
+}
+
+func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	// We block DERP in this test to ensure that even if there's no direct
+	// connection, no shenanigans happen with the peer IDs on either side.
+	dv := coderdtest.DeploymentValues(t)
+	err := dv.DERP.Config.BlockDirect.Set("true")
+	require.NoError(t, err)
+	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+	defer closer.Close()
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Change the DERP mapper to our custom one.
+	var currentDerpMap atomic.Pointer[tailcfg.DERPMap]
+	originalDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	currentDerpMap.Store(originalDerpMap)
+	derpMapFn := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
+		return currentDerpMap.Load().Clone()
+	}
+	api.DERPMapper.Store(&derpMapFn)
+
+	// Start workspace a workspace agent.
+	r := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	agentCloser := agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	agentID := resources[0].Agents[0].ID
+
+	// Create a new "proxy" server that we can use to kill the connection
+	// whenever we want.
+	l, err := netListenDroppable("tcp", "localhost:0")
+	require.NoError(t, err)
+	defer l.Close()
+	srv := &httptest.Server{
+		Listener: l,
+		//nolint:gosec
+		Config: &http.Server{Handler: api.RootHandler},
+	}
+	srv.Start()
+	proxyURL, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+	proxyClient := codersdk.New(proxyURL)
+	proxyClient.SetSessionToken(client.SessionToken())
+
+	// Connect from a client.
+	conn, err := func() (*workspacesdk.AgentConn, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel() // Connection should remain open even if the dial context is canceled.
+
+		return workspacesdk.New(proxyClient).
+			DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+				Logger: logger.Named("client"),
+			})
+	}()
+	require.NoError(t, err)
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	ok := conn.AwaitReachable(ctx)
+	require.True(t, ok)
+	originalAgentPeers := agentCloser.TailnetConn().GetKnownPeerIDs()
+
+	// Drop client conn's coordinator connection.
+	l.DropAllConns()
+
+	// HACK: Change the DERP map and add a second "marker" region so we know
+	//       when the client has reconnected to the coordinator.
+	//
+	//       With some refactoring of the client connection to expose the
+	//       coordinator connection status, this wouldn't be needed, but this
+	//       also works.
+	derpMap := currentDerpMap.Load().Clone()
+	newDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	derpMap.Regions[2] = newDerpMap.Regions[1]
+	currentDerpMap.Store(derpMap)
+
+	// Wait for the agent's DERP map to be updated.
+	require.Eventually(t, func() bool {
+		conn := agentCloser.TailnetConn()
+		if conn == nil {
+			return false
+		}
+		regionIDs := conn.DERPMap().RegionIDs()
+		return len(regionIDs) == 2 && regionIDs[1] == 2
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// Wait for the DERP map to be updated on the client. This means that the
+	// client has reconnected to the coordinator.
+	require.Eventually(t, func() bool {
+		regionIDs := conn.Conn.DERPMap().RegionIDs()
+		return len(regionIDs) == 2 && regionIDs[1] == 2
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// The first client should still be able to reach the agent.
+	ok = conn.AwaitReachable(ctx)
+	require.True(t, ok)
+	_, err = conn.ListeningPorts(ctx)
+	require.NoError(t, err)
+
+	// The agent should not see any new peers.
+	require.ElementsMatch(t, originalAgentPeers, agentCloser.TailnetConn().GetKnownPeerIDs())
 }
 
 func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
@@ -1721,4 +1836,41 @@ func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup
 	aAPI := agentproto.NewDRPCAgentClient(conn)
 	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
 	return err
+}
+
+type droppableTCPListener struct {
+	net.Listener
+	mu    sync.Mutex
+	conns []net.Conn
+}
+
+var _ net.Listener = &droppableTCPListener{}
+
+func netListenDroppable(network, addr string) (*droppableTCPListener, error) {
+	l, err := net.Listen(network, addr)
+	if err != nil {
+		return nil, err
+	}
+	return &droppableTCPListener{Listener: l}, nil
+}
+
+func (l *droppableTCPListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.conns = append(l.conns, conn)
+	return conn, nil
+}
+
+func (l *droppableTCPListener) DropAllConns() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, c := range l.conns {
+		_ = c.Close()
+	}
+	l.conns = nil
 }

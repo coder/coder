@@ -182,6 +182,9 @@ type Options struct {
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
+	// CoordinatorResumeTokenProvider is used to provide and validate resume
+	// tokens issued by and passed to the coordinator DRPC API.
+	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 
 	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
@@ -583,12 +586,16 @@ func New(options *Options) *API {
 		api.Options.NetworkTelemetryBatchMaxSize,
 		api.handleNetworkTelemetry,
 	)
+	if options.CoordinatorResumeTokenProvider == nil {
+		panic("CoordinatorResumeTokenProvider is nil")
+	}
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  api.Logger.Named("tailnetclient"),
 		CoordPtr:                &api.TailnetCoordinator,
 		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
 		DERPMapFn:               api.DERPMap,
 		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
+		ResumeTokenProvider:     api.Options.CoordinatorResumeTokenProvider,
 	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
@@ -613,6 +620,9 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
+	if options.AppSecurityKey.IsZero() {
+		api.Logger.Fatal(api.ctx, "app security key cannot be zero")
+	}
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: workspaceAppsLogger,
 

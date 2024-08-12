@@ -30,6 +30,7 @@ func NewClientService(options agpl.ClientServiceOptions) (*ClientService, error)
 		DERPMapUpdateFrequency:  options.DERPMapUpdateFrequency,
 		DERPMapFn:               options.DERPMapFn,
 		NetworkTelemetryHandler: options.NetworkTelemetryHandler,
+		ResumeTokenProvider:     options.ResumeTokenProvider,
 	})
 	if err != nil {
 		return nil, err

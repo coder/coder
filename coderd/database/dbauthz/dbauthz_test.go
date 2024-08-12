@@ -2445,10 +2445,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(int32(0)).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("UpsertAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("").Asserts()
+		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("GetApplicationName", s.Subtest(func(db database.Store, check *expects) {
 		db.UpsertApplicationName(context.Background(), "foo")
@@ -2486,6 +2486,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetOAuthSigningKey", s.Subtest(func(db database.Store, check *expects) {
 		db.UpsertOAuthSigningKey(context.Background(), "foo")
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("UpsertCoordinatorResumeTokenSigningKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("GetCoordinatorResumeTokenSigningKey", s.Subtest(func(db database.Store, check *expects) {
+		db.UpsertCoordinatorResumeTokenSigningKey(context.Background(), "foo")
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("InsertMissingGroups", s.Subtest(func(db database.Store, check *expects) {
