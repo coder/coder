@@ -13,12 +13,14 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { selectFeatureVisibility } from "./entitlements";
 
 export interface DashboardValue {
   entitlements: Entitlements;
   experiments: Experiments;
   appearance: AppearanceConfig;
   organizations: Organization[];
+  showOrganizations: boolean;
 }
 
 export const DashboardContext = createContext<DashboardValue | undefined>(
@@ -52,6 +54,11 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
     return <Loader fullscreen />;
   }
 
+  const hasMultipleOrganizations = organizationsQuery.data.length > 1;
+  const organizationsEnabled =
+    experimentsQuery.data.includes("multi-organization") &&
+    selectFeatureVisibility(entitlementsQuery.data).multiple_organizations;
+
   return (
     <DashboardContext.Provider
       value={{
@@ -59,6 +66,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
         experiments: experimentsQuery.data,
         appearance: appearanceQuery.data,
         organizations: organizationsQuery.data,
+        showOrganizations: hasMultipleOrganizations || organizationsEnabled,
       }}
     >
       {children}

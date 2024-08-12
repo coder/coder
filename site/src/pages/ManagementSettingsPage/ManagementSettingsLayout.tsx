@@ -13,7 +13,7 @@ import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayou
 import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsValue = {
-  organizations: Organization[] | undefined;
+  organizations: Organization[];
 };
 
 export const useOrganizationSettings = (): OrganizationSettingsValue => {
