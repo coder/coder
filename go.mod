@@ -138,7 +138,7 @@ require (
 	github.com/moby/moby v27.1.1+incompatible
 	github.com/muesli/termenv v0.15.3-0.20240618155329-98d742f6907a
 	github.com/open-policy-agent/opa v0.67.0
-	github.com/ory/dockertest/v3 v3.10.0
+	github.com/ory/dockertest/v3 v3.11.0
 	github.com/pion/udp v0.1.4
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
@@ -272,12 +272,12 @@ require (
 	github.com/chromedp/sysutil v1.0.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
-	github.com/containerd/continuity v0.4.2 // indirect
+	github.com/containerd/continuity v0.4.3 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/docker/cli v27.1.1+incompatible // indirect
 	github.com/docker/docker v27.1.1+incompatible // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
@@ -358,7 +358,7 @@ require (
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
-	github.com/opencontainers/runc v1.1.12 // indirect
+	github.com/opencontainers/runc v1.1.13 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
