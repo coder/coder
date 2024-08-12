@@ -12,6 +12,7 @@ import {
   MockAuditLogWithWorkspaceBuild,
   MockAuditLogWithDeletedResource,
   MockAuditLogGitSSH,
+  MockUser,
 } from "testHelpers/entities";
 import { AuditLogRow } from "./AuditLogRow";
 
@@ -118,5 +119,36 @@ export const WithOrganization: Story = {
   args: {
     auditLog: MockAuditLog,
     showOrgDetails: true,
+  },
+};
+
+export const NoUserAgent: Story = {
+  args: {
+    auditLog: {
+      id: "8073939e-2f18-41f6-9cec-c1e61293b0d5",
+      request_id: "79d1df16-b387-4d47-8f47-dc2b919c78b9",
+      time: "2024-07-15T19:30:16.327247Z",
+      organization_id: "703f72a1-76f6-4f89-9de6-8a3989693fe5",
+      ip: "",
+      user_agent: "",
+      resource_type: "workspace_build",
+      resource_id: "605e8bda-2d1e-43c3-beec-97ebedc1b88c",
+      resource_target: "",
+      resource_icon: "",
+      action: "delete",
+      diff: {},
+      status_code: 500,
+      additional_fields: {
+        build_number: "35",
+        build_reason: "autodelete",
+        workspace_id: "649742dc-1b4a-43d8-8539-2fbc11b1bbac",
+        workspace_name: "yeee",
+        workspace_owner: "",
+      },
+      description: "{user} deleted workspace {target}",
+      resource_link: "/@jon/yeee/builds/35",
+      is_deleted: false,
+      user: MockUser,
+    },
   },
 };
