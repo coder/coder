@@ -116,6 +116,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, admin := range admins {
+		// Don't send notification to user which initiated the event.
 		if admin.ID == apiKey.UserID {
 			continue
 		}
@@ -128,10 +129,6 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Template, initiatorID uuid.UUID, receiverID uuid.UUID) {
-	if initiatorID == receiverID {
-		return
-	}
-
 	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to fetch initiator for template deletion notification", slog.F("initiator_id", initiatorID), slog.Error(err))
