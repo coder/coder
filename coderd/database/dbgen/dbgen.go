@@ -375,11 +375,19 @@ func Group(t testing.TB, db database.Store, orig database.Group) database.Group 
 	return group
 }
 
-func GroupMember(t testing.TB, db database.Store, orig database.GroupMemberTable) database.GroupMember {
-	member := database.GroupMemberTable{
-		UserID:  takeFirst(orig.UserID, uuid.New()),
-		GroupID: takeFirst(orig.GroupID, uuid.New()),
-	}
+// GroupMember requires a user + group to already exist.
+// Example for creating a group member for a random group + user.
+//
+//	GroupMember(t, db, database.GroupMemberTable{
+//	  UserID:  User(t, db, database.User{}).ID,
+//	  GroupID: Group(t, db, database.Group{
+//	    OrganizationID: must(db.GetDefaultOrganization(genCtx)).ID,
+//	  }).ID,
+//	})
+func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTable) database.GroupMember {
+	require.NotEqual(t, member.UserID, uuid.Nil, "A user id is required to use 'dbgen.GroupMember', use 'dbgen.User'.")
+	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
+
 	//nolint:gosimple
 	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
 		UserID:  member.UserID,
@@ -389,17 +397,15 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMemberTable
 
 	user, err := db.GetUserByID(genCtx, member.UserID)
 	if errors.Is(err, sql.ErrNoRows) {
-		user = User(t, db, database.User{ID: member.UserID})
-	} else {
-		require.NoError(t, err, "get user by id")
+		require.NoErrorf(t, err, "'dbgen.GroupMember' failed as the user with id %s does not exist. A user is required to use this function, use 'dbgen.User'.", member.UserID)
 	}
+	require.NoError(t, err, "get user by id")
 
 	group, err := db.GetGroupByID(genCtx, member.GroupID)
 	if errors.Is(err, sql.ErrNoRows) {
-		group = Group(t, db, database.Group{ID: member.GroupID})
-	} else {
-		require.NoError(t, err, "get group by id")
+		require.NoErrorf(t, err, "'dbgen.GroupMember' failed as the group with id %s does not exist. A group is required to use this function, use 'dbgen.Group'.", member.GroupID)
 	}
+	require.NoError(t, err, "get group by id")
 
 	groupMember := database.GroupMember{
 		UserID:                 user.ID,
