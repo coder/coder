@@ -419,7 +419,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	var filter database.GetGroupsParams
 	parser := httpapi.NewQueryParamParser()
 	// Organization selector can be an org ID or name
-	filter.OrganizationID = parser.UUIDorName(r.URL.Query(), uuid.Nil, "has_member", func(orgName string) (uuid.UUID, error) {
+	filter.OrganizationID = parser.UUIDorName(r.URL.Query(), uuid.Nil, "organization", func(orgName string) (uuid.UUID, error) {
 		org, err := api.Database.GetOrganizationByName(ctx, orgName)
 		if err != nil {
 			return uuid.Nil, xerrors.Errorf("organization %q not found", orgName)
@@ -438,6 +438,14 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		}
 		return user.ID, nil
 	})
+	parser.ErrorExcessParams(r.URL.Query())
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
 
 	groups, err := api.Database.GetGroups(ctx, filter)
 	if httpapi.Is404Error(err) {

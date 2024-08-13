@@ -568,6 +568,12 @@ func TestPatchGroup(t *testing.T) {
 	})
 }
 
+func sortAllGroups(groups []codersdk.Group) {
+	for i := range groups {
+		sortGroupMembers(&groups[i])
+	}
+}
+
 func sortGroupMembers(group *codersdk.Group) {
 	sort.Slice(group.Members, func(i, j int) bool {
 		return group.Members[i].ID.String() < group.Members[j].ID.String()
@@ -793,6 +799,8 @@ func TestGroup(t *testing.T) {
 func TestGroups(t *testing.T) {
 	t.Parallel()
 
+	// 5 users
+	// 2 custom groups + original org group
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -822,26 +830,41 @@ func TestGroups(t *testing.T) {
 			AddUsers: []string{user2.ID.String(), user3.ID.String()},
 		})
 		require.NoError(t, err)
+		sortGroupMembers(&group1)
 
 		group2, err = userAdminClient.PatchGroup(ctx, group2.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user4.ID.String(), user5.ID.String()},
 		})
 		require.NoError(t, err)
+		sortGroupMembers(&group2)
 
-		groups, err := userAdminClient.GroupsByOrganization(ctx, user.OrganizationID)
+		// Fetch everyone group for comparison
+		everyoneGroup, err := userAdminClient.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
+		sortGroupMembers(&everyoneGroup)
 
-		// sort group members so we can compare them
-		allGroups := append([]codersdk.Group{}, groups...)
-		allGroups = append(allGroups, group1, group2)
-		for i := range allGroups {
-			sortGroupMembers(&allGroups[i])
-		}
+		groups, err := userAdminClient.Groups(ctx, codersdk.GroupArguments{
+			Organization: user.OrganizationID.String(),
+		})
+		require.NoError(t, err)
+		sortAllGroups(groups)
 
 		// 'Everyone' group + 2 custom groups.
 		require.Len(t, groups, 3)
 		require.Contains(t, groups, group1)
 		require.Contains(t, groups, group2)
+
+		// Filter by user
+		user5Groups, err := userAdminClient.Groups(ctx, codersdk.GroupArguments{
+			HasMember: user5.Username,
+		})
+		require.NoError(t, err)
+		// Everyone group and group 2
+		require.ElementsMatch(t, user5Groups, []codersdk.Group{
+			everyoneGroup,
+			group2,
+		})
+
 	})
 }
 
