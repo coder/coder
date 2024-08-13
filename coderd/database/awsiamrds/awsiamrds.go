@@ -21,8 +21,10 @@ type awsIamRdsDriver struct {
 	cfg    aws.Config
 }
 
-var _ driver.Driver = &awsIamRdsDriver{}
-var _ database.ConnectorCreator = &awsIamRdsDriver{}
+var (
+	_ driver.Driver             = &awsIamRdsDriver{}
+	_ database.ConnectorCreator = &awsIamRdsDriver{}
+)
 
 // Register initializes and registers our aws iam rds wrapped database driver.
 func Register(ctx context.Context, parentName string) (string, error) {
