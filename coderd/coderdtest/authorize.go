@@ -373,7 +373,6 @@ func (d *FakeAuthorizer) AlwaysReturn(err error) *FakeAuthorizer {
 func (d *FakeAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 	if d.ConditionalReturn != nil {
 		return d.ConditionalReturn(ctx, subject, action, object)
-
 	}
 	return nil
 }

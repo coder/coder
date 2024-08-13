@@ -392,9 +392,8 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} codersdk.Group
 // @Router /organizations/{organization}/groups [get]
 func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
-	var (
-		org = httpmw.OrganizationParam(r)
-	)
+	org := httpmw.OrganizationParam(r)
+
 	values := r.URL.Query()
 	values.Set("organization", org.ID.String())
 	r.URL.RawQuery = values.Encode()
@@ -412,9 +411,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} codersdk.Group
 // @Router /groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	var filter database.GetGroupsParams
 	parser := httpapi.NewQueryParamParser()
