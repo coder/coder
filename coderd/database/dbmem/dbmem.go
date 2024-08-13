@@ -723,7 +723,7 @@ func (q *FakeQuerier) getOrganizationMemberNoLock(orgID uuid.UUID) []database.Or
 	return members
 }
 
-var ErrUserDeleted = xerrors.New("user deleted")
+var errUserDeleted = xerrors.New("user deleted")
 
 // getGroupMemberNoLock fetches a group member by user ID and group ID.
 func (q *FakeQuerier) getGroupMemberNoLock(ctx context.Context, userID, groupID uuid.UUID) (database.GroupMember, error) {
@@ -744,7 +744,7 @@ func (q *FakeQuerier) getGroupMemberNoLock(ctx context.Context, userID, groupID 
 		return database.GroupMember{}, err
 	}
 	if user.Deleted {
-		return database.GroupMember{}, ErrUserDeleted
+		return database.GroupMember{}, errUserDeleted
 	}
 
 	return database.GroupMember{
@@ -778,7 +778,7 @@ func (q *FakeQuerier) getEveryoneGroupMembersNoLock(ctx context.Context, orgID u
 	)
 	for _, member := range orgMembers {
 		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, orgID)
-		if errors.Is(err, ErrUserDeleted) {
+		if errors.Is(err, errUserDeleted) {
 			continue
 		}
 		if err != nil {
@@ -2554,7 +2554,7 @@ func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMemb
 	var groupMembers []database.GroupMember
 	for _, member := range members {
 		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
-		if errors.Is(err, ErrUserDeleted) {
+		if errors.Is(err, errUserDeleted) {
 			continue
 		}
 		if err != nil {
@@ -2577,7 +2577,7 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID
 	var groupMembers []database.GroupMember
 	for _, member := range q.groupMembers {
 		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
-		if errors.Is(err, ErrUserDeleted) {
+		if errors.Is(err, errUserDeleted) {
 			continue
 		}
 		if err != nil {
