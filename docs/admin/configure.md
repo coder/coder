@@ -1,6 +1,6 @@
 Coder server's primary configuration is done via environment variables. For a
 full list of the options, run `coder server --help` or see our
-[CLI documentation](../cli/server.md).
+[CLI documentation](../reference/cli/server.md).
 
 ## Access URL
 

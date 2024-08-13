@@ -26,7 +26,7 @@ For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
 Provisioners are started with the
-[coder provisionerd start](../cli/provisionerd_start.md) command.
+[coder provisionerd start](../reference/cli/provisionerd_start.md) command.
 
 ## Authentication
 

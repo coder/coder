@@ -47,7 +47,7 @@ Additional database fields may be encrypted in the future.
 
 - Ensure you have a valid backup of your database. **Do not skip this step.** If
   you are using the built-in PostgreSQL database, you can run
-  [`coder server postgres-builtin-url`](../cli/server_postgres-builtin-url.md)
+  [`coder server postgres-builtin-url`](../reference/cli/server_postgres-builtin-url.md)
   to get the connection URL.
 
 - Generate a 32-byte random key and base64-encode it. For example:
@@ -110,13 +110,13 @@ data:
   encrypted with the old key(s).
 
 - To re-encrypt all encrypted database fields with the new key, run
-  [`coder server dbcrypt rotate`](../cli/server_dbcrypt_rotate.md). This command
-  will re-encrypt all tokens with the specified new encryption key. We recommend
-  performing this action during a maintenance window.
+  [`coder server dbcrypt rotate`](../reference/cli/server_dbcrypt_rotate.md).
+  This command will re-encrypt all tokens with the specified new encryption key.
+  We recommend performing this action during a maintenance window.
 
   > Note: this command requires direct access to the database. If you are using
   > the built-in PostgreSQL database, you can run
-  > [`coder server postgres-builtin-url`](../cli/server_postgres-builtin-url.md)
+  > [`coder server postgres-builtin-url`](../reference/cli/server_postgres-builtin-url.md)
   > to get the connection URL.
 
 - Once the above command completes successfully, remove the old encryption key
@@ -132,8 +132,9 @@ To disable encryption, perform the following actions:
 - Stop all active coderd instances. This will prevent new encrypted data from
   being written, which may cause the next step to fail.
 
-- Run [`coder server dbcrypt decrypt`](../cli/server_dbcrypt_decrypt.md). This
-  command will decrypt all encrypted user tokens and revoke all active
+- Run
+  [`coder server dbcrypt decrypt`](../reference/cli/server_dbcrypt_decrypt.md).
+  This command will decrypt all encrypted user tokens and revoke all active
   encryption keys.
 
   > Note: for `decrypt` command, the equivalent environment variable for
@@ -159,9 +160,10 @@ To delete all encrypted data from your database, perform the following actions:
 - Stop all active coderd instances. This will prevent new encrypted data from
   being written.
 
-- Run [`coder server dbcrypt delete`](../cli/server_dbcrypt_delete.md). This
-  command will delete all encrypted user tokens and revoke all active encryption
-  keys.
+- Run
+  [`coder server dbcrypt delete`](../reference/cli/server_dbcrypt_delete.md).
+  This command will delete all encrypted user tokens and revoke all active
+  encryption keys.
 
 - Remove all
   [external token encryption keys](../reference/cli/server.md#--external-token-encryption-keys)

@@ -32,7 +32,7 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 
 ## Documentation
 
-We publish an [API reference](../api/index.md) in our documentation. You can
+We publish an [API reference](../reference/api/README.md) in our documentation. You can
 also enable a [Swagger endpoint](../reference/cli/server.md#--swagger-enable) on
 your Coder deployment.
 
@@ -52,7 +52,7 @@ payloads, we recommend checking the CLI and API documentation.
 Workspace agents have a special token that can send logs, metrics, and workspace
 activity.
 
-- [Custom workspace logs](../api/agents.md#patch-workspace-agent-logs): Expose
+- [Custom workspace logs](../reference/api/agents.md#patch-workspace-agent-logs): Expose
   messages prior to the Coder init script running (e.g. pulling image, VM
   starting, restoring snapshot).
   [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses
@@ -73,7 +73,7 @@ activity.
   }"
   ```
 
-- [Manually send workspace activity](../api/agents.md#submit-workspace-agent-stats):
+- [Manually send workspace activity](../reference/api/agents.md#submit-workspace-agent-stats):
   Keep a workspace "active," even if there is not an open connection (e.g. for a
   long-running machine learning job).
 

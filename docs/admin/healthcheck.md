@@ -4,7 +4,7 @@ Coder includes an operator-friendly deployment health page that provides a
 number of details about the health of your Coder deployment.
 
 You can view it at `https://${CODER_URL}/health`, or you can alternatively view
-the [JSON response directly](../api/debug.md#debug-info-deployment-health).
+the [JSON response directly](../reference/api/debug.md#debug-info-deployment-health).
 
 The deployment health page is broken up into the following sections:
 

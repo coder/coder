@@ -70,7 +70,7 @@ audit trails.
 
 Audit logs can be accessed through our REST API. You can find detailed
 information about this in our
-[endpoint documentation](../api/audit.md#get-audit-logs).
+[endpoint documentation](../reference/api/audit.md#get-audit-logs).
 
 ## Service Logs
 
