@@ -77,7 +77,8 @@ information about this in our
 Audit trails are also dispatched as service logs and can be captured and
 categorized using any log management tool such as [Splunk](https://splunk.com).
 
-Example of a [JSON formatted](../reference/cli/server.md#--log-json) audit log entry:
+Example of a [JSON formatted](../reference/cli/server.md#--log-json) audit log
+entry:
 
 ```json
 {
@@ -112,7 +113,8 @@ Example of a [JSON formatted](../reference/cli/server.md#--log-json) audit log e
 }
 ```
 
-Example of a [human readable](../reference/cli/server.md#--log-human) audit log entry:
+Example of a [human readable](../reference/cli/server.md#--log-human) audit log
+entry:
 
 ```console
 2023-06-13 03:43:29.233 [info]  coderd: audit_log  ID=95f7c392-da3e-480c-a579-8909f145fbe2  Time="2023-06-13T03:43:29.230422Z"  UserID=6c405053-27e3-484a-9ad7-bcb64e7bfde6  OrganizationID=00000000-0000-0000-0000-000000000000  Ip=<nil>  UserAgent=<nil>  ResourceType=workspace_build  ResourceID=988ae133-5b73-41e3-a55e-e1e9d3ef0b66  ResourceTarget=""  Action=start  Diff="{}"  StatusCode=200  AdditionalFields="{\"workspace_name\":\"linux-container\",\"build_number\":\"7\",\"build_reason\":\"initiator\",\"workspace_owner\":\"\"}"  RequestID=9682b1b5-7b9f-4bf2-9a39-9463f8e41cd6  ResourceIcon=""
