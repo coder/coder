@@ -81,7 +81,7 @@ func TestInTX(t *testing.T) {
 
 	db := dbmem.New()
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
-		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.New("custom error")),
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
@@ -110,7 +110,7 @@ func TestNew(t *testing.T) {
 		db  = dbmem.New()
 		exp = dbgen.Workspace(t, db, database.Workspace{})
 		rec = &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		subj = rbac.Subject{}
 		ctx  = dbauthz.As(context.Background(), rbac.Subject{})
@@ -135,7 +135,7 @@ func TestNew(t *testing.T) {
 func TestDBAuthzRecursive(t *testing.T) {
 	t.Parallel()
 	q := dbauthz.New(dbmem.New(), &coderdtest.RecordingAuthorizer{
-		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+		Wrapped: &coderdtest.FakeAuthorizer{},
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),

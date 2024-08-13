@@ -353,21 +353,29 @@ func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.Convert
 	return s.prepped.CompileToSQL(ctx, cfg)
 }
 
-// FakeAuthorizer is an Authorizer that always returns the same error.
+// FakeAuthorizer is an Authorizer that will return an error based on the
+// "ConditionalReturn" function. By default, **no error** is returned.
+// Meaning 'FakeAuthorizer' by default will never return "unauthorized".
 type FakeAuthorizer struct {
-	// AlwaysReturn is the error that will be returned by Authorize.
-	AlwaysReturn      error
 	ConditionalReturn func(context.Context, rbac.Subject, policy.Action, rbac.Object) error
 }
 
 var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
+
+// AlwaysReturn is the error that will be returned by Authorize.
+func (d *FakeAuthorizer) AlwaysReturn(err error) *FakeAuthorizer {
+	d.ConditionalReturn = func(_ context.Context, _ rbac.Subject, _ policy.Action, _ rbac.Object) error {
+		return err
+	}
+	return d
+}
 
 func (d *FakeAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 	if d.ConditionalReturn != nil {
 		return d.ConditionalReturn(ctx, subject, action, object)
 
 	}
-	return d.AlwaysReturn
+	return nil
 }
 
 func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action policy.Action, _ string) (rbac.PreparedAuthorized, error) {
