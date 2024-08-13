@@ -12,8 +12,8 @@ import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import {
-  updateDeadline,
-  workspaceByOwnerAndNameKey,
+	updateDeadline,
+	workspaceByOwnerAndNameKey,
 } from "api/queries/workspaces";
 import type { Template, Workspace } from "api/typesGenerated";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
@@ -21,303 +21,303 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTime } from "hooks/useTime";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import {
-  autostartDisplay,
-  autostopDisplay,
-  getDeadline,
-  getMaxDeadline,
-  getMaxDeadlineChange,
-  getMinDeadline,
+	autostartDisplay,
+	autostopDisplay,
+	getDeadline,
+	getMaxDeadline,
+	getMaxDeadlineChange,
+	getMinDeadline,
 } from "utils/schedule";
 import { isWorkspaceOn } from "utils/workspace";
 
 export interface WorkspaceScheduleContainerProps {
-  children?: ReactNode;
-  onClickIcon?: () => void;
+	children?: ReactNode;
+	onClickIcon?: () => void;
 }
 
 export const WorkspaceScheduleContainer: FC<
-  WorkspaceScheduleContainerProps
+	WorkspaceScheduleContainerProps
 > = ({ children, onClickIcon }) => {
-  const icon = (
-    <TopbarIcon>
-      <ScheduleOutlined aria-label="Schedule" />
-    </TopbarIcon>
-  );
+	const icon = (
+		<TopbarIcon>
+			<ScheduleOutlined aria-label="Schedule" />
+		</TopbarIcon>
+	);
 
-  return (
-    <TopbarData>
-      <Tooltip title="Schedule">
-        {onClickIcon ? (
-          <button
-            data-testid="schedule-icon-button"
-            onClick={onClickIcon}
-            css={styles.scheduleIconButton}
-          >
-            {icon}
-          </button>
-        ) : (
-          icon
-        )}
-      </Tooltip>
-      {children}
-    </TopbarData>
-  );
+	return (
+		<TopbarData>
+			<Tooltip title="Schedule">
+				{onClickIcon ? (
+					<button
+						data-testid="schedule-icon-button"
+						onClick={onClickIcon}
+						css={styles.scheduleIconButton}
+					>
+						{icon}
+					</button>
+				) : (
+					icon
+				)}
+			</Tooltip>
+			{children}
+		</TopbarData>
+	);
 };
 
 interface WorkspaceScheduleControlsProps {
-  workspace: Workspace;
-  template: Template;
-  canUpdateSchedule: boolean;
+	workspace: Workspace;
+	template: Template;
+	canUpdateSchedule: boolean;
 }
 
 export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
-  workspace,
-  template,
-  canUpdateSchedule,
+	workspace,
+	template,
+	canUpdateSchedule,
 }) => {
-  if (!shouldDisplayScheduleControls(workspace)) {
-    return null;
-  }
+	if (!shouldDisplayScheduleControls(workspace)) {
+		return null;
+	}
 
-  return (
-    <div css={styles.scheduleValue} data-testid="schedule-controls">
-      {isWorkspaceOn(workspace) ? (
-        <AutostopDisplay
-          workspace={workspace}
-          template={template}
-          canUpdateSchedule={canUpdateSchedule}
-        />
-      ) : (
-        <WorkspaceScheduleContainer>
-          <ScheduleSettingsLink>
-            Starts at {autostartDisplay(workspace.autostart_schedule)}
-          </ScheduleSettingsLink>
-        </WorkspaceScheduleContainer>
-      )}
-    </div>
-  );
+	return (
+		<div css={styles.scheduleValue} data-testid="schedule-controls">
+			{isWorkspaceOn(workspace) ? (
+				<AutostopDisplay
+					workspace={workspace}
+					template={template}
+					canUpdateSchedule={canUpdateSchedule}
+				/>
+			) : (
+				<WorkspaceScheduleContainer>
+					<ScheduleSettingsLink>
+						Starts at {autostartDisplay(workspace.autostart_schedule)}
+					</ScheduleSettingsLink>
+				</WorkspaceScheduleContainer>
+			)}
+		</div>
+	);
 };
 
 interface AutostopDisplayProps {
-  workspace: Workspace;
-  template: Template;
-  canUpdateSchedule: boolean;
+	workspace: Workspace;
+	template: Template;
+	canUpdateSchedule: boolean;
 }
 
 const AutostopDisplay: FC<AutostopDisplayProps> = ({
-  workspace,
-  template,
-  canUpdateSchedule,
+	workspace,
+	template,
+	canUpdateSchedule,
 }) => {
-  const queryClient = useQueryClient();
-  const deadline = getDeadline(workspace);
-  const maxDeadlineDecrease = getMaxDeadlineChange(deadline, getMinDeadline());
-  const maxDeadlineIncrease = getMaxDeadlineChange(
-    getMaxDeadline(workspace),
-    deadline,
-  );
-  const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
-  const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
-  const deadlineUpdateTimeout = useRef<number>();
-  const lastStableDeadline = useRef<Dayjs>(deadline);
+	const queryClient = useQueryClient();
+	const deadline = getDeadline(workspace);
+	const maxDeadlineDecrease = getMaxDeadlineChange(deadline, getMinDeadline());
+	const maxDeadlineIncrease = getMaxDeadlineChange(
+		getMaxDeadline(workspace),
+		deadline,
+	);
+	const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
+	const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
+	const deadlineUpdateTimeout = useRef<number>();
+	const lastStableDeadline = useRef<Dayjs>(deadline);
 
-  const updateWorkspaceDeadlineQueryData = (deadline: Dayjs) => {
-    queryClient.setQueryData(
-      workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
-      {
-        ...workspace,
-        latest_build: {
-          ...workspace.latest_build,
-          deadline: deadline.toISOString(),
-        },
-      },
-    );
-  };
+	const updateWorkspaceDeadlineQueryData = (deadline: Dayjs) => {
+		queryClient.setQueryData(
+			workspaceByOwnerAndNameKey(workspace.owner_name, workspace.name),
+			{
+				...workspace,
+				latest_build: {
+					...workspace.latest_build,
+					deadline: deadline.toISOString(),
+				},
+			},
+		);
+	};
 
-  const updateDeadlineMutation = useMutation({
-    ...updateDeadline(workspace),
-    onSuccess: (_, updatedDeadline) => {
-      displaySuccess("Workspace shutdown time has been successfully updated.");
-      lastStableDeadline.current = updatedDeadline;
-    },
-    onError: (error) => {
-      displayError(
-        getErrorMessage(
-          error,
-          "We couldn't update your workspace shutdown time. Please try again.",
-        ),
-      );
-      updateWorkspaceDeadlineQueryData(lastStableDeadline.current);
-    },
-  });
+	const updateDeadlineMutation = useMutation({
+		...updateDeadline(workspace),
+		onSuccess: (_, updatedDeadline) => {
+			displaySuccess("Workspace shutdown time has been successfully updated.");
+			lastStableDeadline.current = updatedDeadline;
+		},
+		onError: (error) => {
+			displayError(
+				getErrorMessage(
+					error,
+					"We couldn't update your workspace shutdown time. Please try again.",
+				),
+			);
+			updateWorkspaceDeadlineQueryData(lastStableDeadline.current);
+		},
+	});
 
-  const handleDeadlineChange = (newDeadline: Dayjs) => {
-    clearTimeout(deadlineUpdateTimeout.current);
-    // Optimistic update
-    updateWorkspaceDeadlineQueryData(newDeadline);
-    deadlineUpdateTimeout.current = window.setTimeout(() => {
-      updateDeadlineMutation.mutate(newDeadline);
-    }, 500);
-  };
+	const handleDeadlineChange = (newDeadline: Dayjs) => {
+		clearTimeout(deadlineUpdateTimeout.current);
+		// Optimistic update
+		updateWorkspaceDeadlineQueryData(newDeadline);
+		deadlineUpdateTimeout.current = window.setTimeout(() => {
+			updateDeadlineMutation.mutate(newDeadline);
+		}, 500);
+	};
 
-  const activityStatus = useTime(() => getWorkspaceActivityStatus(workspace));
-  const { message, tooltip, danger } = autostopDisplay(
-    workspace,
-    activityStatus,
-    template,
-  );
+	const activityStatus = useTime(() => getWorkspaceActivityStatus(workspace));
+	const { message, tooltip, danger } = autostopDisplay(
+		workspace,
+		activityStatus,
+		template,
+	);
 
-  const [showControlsAnyway, setShowControlsAnyway] = useState(false);
-  let onClickScheduleIcon: (() => void) | undefined;
+	const [showControlsAnyway, setShowControlsAnyway] = useState(false);
+	let onClickScheduleIcon: (() => void) | undefined;
 
-  if (activityStatus === "connected") {
-    onClickScheduleIcon = () => setShowControlsAnyway((it) => !it);
+	if (activityStatus === "connected") {
+		onClickScheduleIcon = () => setShowControlsAnyway((it) => !it);
 
-    const now = dayjs();
-    const noRequiredStopSoon =
-      !workspace.latest_build.max_deadline ||
-      dayjs(workspace.latest_build.max_deadline).isAfter(now.add(2, "hour"));
+		const now = dayjs();
+		const noRequiredStopSoon =
+			!workspace.latest_build.max_deadline ||
+			dayjs(workspace.latest_build.max_deadline).isAfter(now.add(2, "hour"));
 
-    // User has shown controls manually, or we should warn about a nearby required stop
-    if (!showControlsAnyway && noRequiredStopSoon) {
-      return <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon} />;
-    }
-  }
+		// User has shown controls manually, or we should warn about a nearby required stop
+		if (!showControlsAnyway && noRequiredStopSoon) {
+			return <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon} />;
+		}
+	}
 
-  const display = (
-    <ScheduleSettingsLink
-      data-testid="schedule-controls-autostop"
-      css={
-        danger &&
-        ((theme) => ({
-          color: `${theme.roles.danger.fill.outline} !important`,
-        }))
-      }
-    >
-      {message}
-    </ScheduleSettingsLink>
-  );
+	const display = (
+		<ScheduleSettingsLink
+			data-testid="schedule-controls-autostop"
+			css={
+				danger &&
+				((theme) => ({
+					color: `${theme.roles.danger.fill.outline} !important`,
+				}))
+			}
+		>
+			{message}
+		</ScheduleSettingsLink>
+	);
 
-  const controls = canUpdateSchedule && canEditDeadline(workspace) && (
-    <div css={styles.scheduleControls}>
-      <Tooltip title="Subtract 1 hour from deadline">
-        <IconButton
-          disabled={!deadlineMinusEnabled}
-          size="small"
-          css={styles.scheduleButton}
-          onClick={() => {
-            handleDeadlineChange(deadline.subtract(1, "h"));
-          }}
-        >
-          <RemoveIcon />
-          <span style={visuallyHidden}>Subtract 1 hour</span>
-        </IconButton>
-      </Tooltip>
-      <Tooltip title="Add 1 hour to deadline">
-        <IconButton
-          disabled={!deadlinePlusEnabled}
-          size="small"
-          css={styles.scheduleButton}
-          onClick={() => {
-            handleDeadlineChange(deadline.add(1, "h"));
-          }}
-        >
-          <AddIcon />
-          <span style={visuallyHidden}>Add 1 hour</span>
-        </IconButton>
-      </Tooltip>
-    </div>
-  );
+	const controls = canUpdateSchedule && canEditDeadline(workspace) && (
+		<div css={styles.scheduleControls}>
+			<Tooltip title="Subtract 1 hour from deadline">
+				<IconButton
+					disabled={!deadlineMinusEnabled}
+					size="small"
+					css={styles.scheduleButton}
+					onClick={() => {
+						handleDeadlineChange(deadline.subtract(1, "h"));
+					}}
+				>
+					<RemoveIcon />
+					<span style={visuallyHidden}>Subtract 1 hour</span>
+				</IconButton>
+			</Tooltip>
+			<Tooltip title="Add 1 hour to deadline">
+				<IconButton
+					disabled={!deadlinePlusEnabled}
+					size="small"
+					css={styles.scheduleButton}
+					onClick={() => {
+						handleDeadlineChange(deadline.add(1, "h"));
+					}}
+				>
+					<AddIcon />
+					<span style={visuallyHidden}>Add 1 hour</span>
+				</IconButton>
+			</Tooltip>
+		</div>
+	);
 
-  if (tooltip) {
-    return (
-      <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
-        <Tooltip title={tooltip}>{display}</Tooltip>
-        {controls}
-      </WorkspaceScheduleContainer>
-    );
-  }
+	if (tooltip) {
+		return (
+			<WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
+				<Tooltip title={tooltip}>{display}</Tooltip>
+				{controls}
+			</WorkspaceScheduleContainer>
+		);
+	}
 
-  return (
-    <WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
-      {display}
-      {controls}
-    </WorkspaceScheduleContainer>
-  );
+	return (
+		<WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
+			{display}
+			{controls}
+		</WorkspaceScheduleContainer>
+	);
 };
 
 const ScheduleSettingsLink = forwardRef<HTMLAnchorElement, LinkProps>(
-  (props, ref) => {
-    return (
-      <Link
-        ref={ref}
-        component={RouterLink}
-        to="settings/schedule"
-        css={{
-          color: "inherit",
-          "&:first-letter": {
-            textTransform: "uppercase",
-          },
-        }}
-        {...props}
-      />
-    );
-  },
+	(props, ref) => {
+		return (
+			<Link
+				ref={ref}
+				component={RouterLink}
+				to="settings/schedule"
+				css={{
+					color: "inherit",
+					"&:first-letter": {
+						textTransform: "uppercase",
+					},
+				}}
+				{...props}
+			/>
+		);
+	},
 );
 
 const hasDeadline = (workspace: Workspace): boolean => {
-  return Boolean(workspace.latest_build.deadline);
+	return Boolean(workspace.latest_build.deadline);
 };
 
 const hasAutoStart = (workspace: Workspace): boolean => {
-  return Boolean(workspace.autostart_schedule);
+	return Boolean(workspace.autostart_schedule);
 };
 
 export const canEditDeadline = (workspace: Workspace): boolean => {
-  return isWorkspaceOn(workspace) && hasDeadline(workspace);
+	return isWorkspaceOn(workspace) && hasDeadline(workspace);
 };
 
 export const shouldDisplayScheduleControls = (
-  workspace: Workspace,
+	workspace: Workspace,
 ): boolean => {
-  const willAutoStop = isWorkspaceOn(workspace) && hasDeadline(workspace);
-  const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
-  return willAutoStop || willAutoStart;
+	const willAutoStop = isWorkspaceOn(workspace) && hasDeadline(workspace);
+	const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
+	return willAutoStop || willAutoStart;
 };
 
 const styles = {
-  scheduleIconButton: {
-    display: "flex",
-    alignItems: "center",
-    background: "transparent",
-    border: 0,
-    padding: 0,
-    fontSize: "inherit",
-    lineHeight: "inherit",
-  },
+	scheduleIconButton: {
+		display: "flex",
+		alignItems: "center",
+		background: "transparent",
+		border: 0,
+		padding: 0,
+		fontSize: "inherit",
+		lineHeight: "inherit",
+	},
 
-  scheduleValue: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    fontVariantNumeric: "tabular-nums",
-  },
+	scheduleValue: {
+		display: "flex",
+		alignItems: "center",
+		gap: 12,
+		fontVariantNumeric: "tabular-nums",
+	},
 
-  scheduleControls: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-  },
+	scheduleControls: {
+		display: "flex",
+		alignItems: "center",
+		gap: 4,
+	},
 
-  scheduleButton: (theme) => ({
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: 4,
-    width: 20,
-    height: 20,
+	scheduleButton: (theme) => ({
+		border: `1px solid ${theme.palette.divider}`,
+		borderRadius: 4,
+		width: 20,
+		height: 20,
 
-    "& svg.MuiSvgIcon-root": {
-      width: 12,
-      height: 12,
-    },
-  }),
+		"& svg.MuiSvgIcon-root": {
+			width: 12,
+			height: 12,
+		},
+	}),
 } satisfies Record<string, Interpolation<Theme>>;

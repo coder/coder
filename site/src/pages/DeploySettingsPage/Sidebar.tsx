@@ -10,52 +10,52 @@ import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { FC } from "react";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
-  Sidebar as BaseSidebar,
-  SidebarNavItem,
+	Sidebar as BaseSidebar,
+	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const Sidebar: FC = () => {
-  const { experiments } = useDashboard();
+	const { experiments } = useDashboard();
 
-  return (
-    <BaseSidebar>
-      <SidebarNavItem href="general" icon={LaunchOutlined}>
-        General
-      </SidebarNavItem>
-      <SidebarNavItem href="licenses" icon={ApprovalIcon}>
-        Licenses
-      </SidebarNavItem>
-      <SidebarNavItem href="appearance" icon={Brush}>
-        Appearance
-      </SidebarNavItem>
-      <SidebarNavItem href="userauth" icon={VpnKeyOutlined}>
-        User Authentication
-      </SidebarNavItem>
-      <SidebarNavItem href="external-auth" icon={GitIcon}>
-        External Authentication
-      </SidebarNavItem>
-      {/* Not exposing this yet since token exchange is not finished yet.
+	return (
+		<BaseSidebar>
+			<SidebarNavItem href="general" icon={LaunchOutlined}>
+				General
+			</SidebarNavItem>
+			<SidebarNavItem href="licenses" icon={ApprovalIcon}>
+				Licenses
+			</SidebarNavItem>
+			<SidebarNavItem href="appearance" icon={Brush}>
+				Appearance
+			</SidebarNavItem>
+			<SidebarNavItem href="userauth" icon={VpnKeyOutlined}>
+				User Authentication
+			</SidebarNavItem>
+			<SidebarNavItem href="external-auth" icon={GitIcon}>
+				External Authentication
+			</SidebarNavItem>
+			{/* Not exposing this yet since token exchange is not finished yet.
       <SidebarNavItem href="oauth2-provider/apps" icon={Token}>
         OAuth2 Applications
       </SidebarNavItem>*/}
-      <SidebarNavItem href="network" icon={Globe}>
-        Network
-      </SidebarNavItem>
-      <SidebarNavItem href="workspace-proxies" icon={HubOutlinedIcon}>
-        Workspace Proxies
-      </SidebarNavItem>
-      <SidebarNavItem href="security" icon={LockRounded}>
-        Security
-      </SidebarNavItem>
-      <SidebarNavItem href="observability" icon={InsertChartIcon}>
-        Observability
-      </SidebarNavItem>
-      {experiments.includes("notifications") && (
-        <SidebarNavItem href="notifications" icon={NotificationsIcon}>
-          Notifications
-        </SidebarNavItem>
-      )}
-    </BaseSidebar>
-  );
+			<SidebarNavItem href="network" icon={Globe}>
+				Network
+			</SidebarNavItem>
+			<SidebarNavItem href="workspace-proxies" icon={HubOutlinedIcon}>
+				Workspace Proxies
+			</SidebarNavItem>
+			<SidebarNavItem href="security" icon={LockRounded}>
+				Security
+			</SidebarNavItem>
+			<SidebarNavItem href="observability" icon={InsertChartIcon}>
+				Observability
+			</SidebarNavItem>
+			{experiments.includes("notifications") && (
+				<SidebarNavItem href="notifications" icon={NotificationsIcon}>
+					Notifications
+				</SidebarNavItem>
+			)}
+		</BaseSidebar>
+	);
 };

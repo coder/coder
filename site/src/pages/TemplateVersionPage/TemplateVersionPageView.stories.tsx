@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  mockApiError,
-  MockTemplate,
-  MockTemplateVersion,
-  MockTemplateVersionWithMarkdownMessage,
+	mockApiError,
+	MockTemplate,
+	MockTemplateVersion,
+	MockTemplateVersionWithMarkdownMessage,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import {
-  TemplateVersionPageView,
-  type TemplateVersionPageViewProps,
+	TemplateVersionPageView,
+	type TemplateVersionPageViewProps,
 } from "./TemplateVersionPageView";
 
 const readmeContent = `---
@@ -23,25 +23,25 @@ You can add instructions here
 \`\`\``;
 
 const defaultArgs: TemplateVersionPageViewProps = {
-  organizationName: MockTemplate.organization_name,
-  templateName: MockTemplate.name,
-  versionName: MockTemplateVersion.name,
-  currentVersion: MockTemplateVersion,
-  currentFiles: {
-    "README.md": readmeContent,
-    "main.tf": "{}",
-    "some.tpl": "{{.Name}}",
-    "some.sh": `echo "Hello world"`,
-  },
-  baseFiles: undefined,
-  error: undefined,
+	organizationName: MockTemplate.organization_name,
+	templateName: MockTemplate.name,
+	versionName: MockTemplateVersion.name,
+	currentVersion: MockTemplateVersion,
+	currentFiles: {
+		"README.md": readmeContent,
+		"main.tf": "{}",
+		"some.tpl": "{{.Name}}",
+		"some.sh": `echo "Hello world"`,
+	},
+	baseFiles: undefined,
+	error: undefined,
 };
 
 const meta: Meta<typeof TemplateVersionPageView> = {
-  title: "pages/TemplateVersionPage",
-  decorators: [withDashboardProvider],
-  component: TemplateVersionPageView,
-  args: defaultArgs,
+	title: "pages/TemplateVersionPage",
+	decorators: [withDashboardProvider],
+	component: TemplateVersionPageView,
+	args: defaultArgs,
 };
 
 export default meta;
@@ -50,18 +50,18 @@ type Story = StoryObj<typeof TemplateVersionPageView>;
 export const Default: Story = {};
 
 export const LongVersionMessage: Story = {
-  args: {
-    currentVersion: MockTemplateVersionWithMarkdownMessage,
-  },
+	args: {
+		currentVersion: MockTemplateVersionWithMarkdownMessage,
+	},
 };
 
 export const Error: Story = {
-  args: {
-    ...defaultArgs,
-    currentVersion: undefined,
-    currentFiles: undefined,
-    error: mockApiError({
-      message: "Error on loading the template version",
-    }),
-  },
+	args: {
+		...defaultArgs,
+		currentVersion: undefined,
+		currentFiles: undefined,
+		error: mockApiError({
+			message: "Error on loading the template version",
+		}),
+	},
 };

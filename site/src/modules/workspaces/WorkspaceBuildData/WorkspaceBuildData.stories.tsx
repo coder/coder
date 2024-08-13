@@ -3,99 +3,99 @@ import { MockWorkspaceBuild } from "testHelpers/entities";
 import { WorkspaceBuildData } from "./WorkspaceBuildData";
 
 const meta: Meta<typeof WorkspaceBuildData> = {
-  title: "modules/workspaces/WorkspaceBuildData",
-  component: WorkspaceBuildData,
+	title: "modules/workspaces/WorkspaceBuildData",
+	component: WorkspaceBuildData,
 };
 
 export default meta;
 type Story = StoryObj<typeof WorkspaceBuildData>;
 
 export const Start: Story = {
-  args: {
-    build: MockWorkspaceBuild,
-  },
+	args: {
+		build: MockWorkspaceBuild,
+	},
 };
 
 export const Stop: Story = {
-  args: {
-    build: {
-      ...MockWorkspaceBuild,
-      transition: "stop",
-    },
-  },
+	args: {
+		build: {
+			...MockWorkspaceBuild,
+			transition: "stop",
+		},
+	},
 };
 
 export const Delete: Story = {
-  args: {
-    build: {
-      ...MockWorkspaceBuild,
-      transition: "delete",
-    },
-  },
+	args: {
+		build: {
+			...MockWorkspaceBuild,
+			transition: "delete",
+		},
+	},
 };
 
 export const Success: Story = {
-  args: {
-    build: MockWorkspaceBuild,
-  },
+	args: {
+		build: MockWorkspaceBuild,
+	},
 };
 
 export const Pending: Story = {
-  args: {
-    build: {
-      ...MockWorkspaceBuild,
-      job: {
-        ...MockWorkspaceBuild.job,
-        status: "pending",
-      },
-    },
-  },
+	args: {
+		build: {
+			...MockWorkspaceBuild,
+			job: {
+				...MockWorkspaceBuild.job,
+				status: "pending",
+			},
+		},
+	},
 };
 
 export const Running: Story = {
-  args: {
-    build: {
-      ...MockWorkspaceBuild,
-      job: {
-        ...MockWorkspaceBuild.job,
-        status: "running",
-      },
-    },
-  },
+	args: {
+		build: {
+			...MockWorkspaceBuild,
+			job: {
+				...MockWorkspaceBuild.job,
+				status: "running",
+			},
+		},
+	},
 };
 
 export const Failed: Story = {
-  args: {
-    build: {
-      ...MockWorkspaceBuild,
-      job: {
-        ...MockWorkspaceBuild.job,
-        status: "failed",
-      },
-    },
-  },
+	args: {
+		build: {
+			...MockWorkspaceBuild,
+			job: {
+				...MockWorkspaceBuild.job,
+				status: "failed",
+			},
+		},
+	},
 };
 
 export const Canceling: Story = {
-  args: {
-    build: {
-      ...MockWorkspaceBuild,
-      job: {
-        ...MockWorkspaceBuild.job,
-        status: "canceling",
-      },
-    },
-  },
+	args: {
+		build: {
+			...MockWorkspaceBuild,
+			job: {
+				...MockWorkspaceBuild.job,
+				status: "canceling",
+			},
+		},
+	},
 };
 
 export const Canceled: Story = {
-  args: {
-    build: {
-      ...MockWorkspaceBuild,
-      job: {
-        ...MockWorkspaceBuild.job,
-        status: "canceled",
-      },
-    },
-  },
+	args: {
+		build: {
+			...MockWorkspaceBuild,
+			job: {
+				...MockWorkspaceBuild.job,
+				status: "canceled",
+			},
+		},
+	},
 };

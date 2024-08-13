@@ -3,10 +3,10 @@ import { chromatic } from "testHelpers/chromatic";
 import { DropdownArrow } from "./DropdownArrow";
 
 const meta: Meta<typeof DropdownArrow> = {
-  title: "components/DropdownArrow",
-  parameters: { chromatic },
-  component: DropdownArrow,
-  args: {},
+	title: "components/DropdownArrow",
+	parameters: { chromatic },
+	component: DropdownArrow,
+	args: {},
 };
 
 export default meta;

@@ -4,58 +4,58 @@ import { useWorkspacesData } from "pages/WorkspacesPage/data";
 import type { TemplateScheduleFormValues } from "./formHelpers";
 
 export const useWorkspacesToGoDormant = (
-  template: Template,
-  formValues: TemplateScheduleFormValues,
-  fromDate: Date,
+	template: Template,
+	formValues: TemplateScheduleFormValues,
+	fromDate: Date,
 ) => {
-  const { data } = useWorkspacesData({
-    page: 0,
-    limit: 0,
-    query: `template:${template.name}`,
-  });
+	const { data } = useWorkspacesData({
+		page: 0,
+		limit: 0,
+		query: `template:${template.name}`,
+	});
 
-  return data?.workspaces?.filter((workspace: Workspace) => {
-    if (!formValues.time_til_dormant_ms) {
-      return;
-    }
+	return data?.workspaces?.filter((workspace: Workspace) => {
+		if (!formValues.time_til_dormant_ms) {
+			return;
+		}
 
-    if (workspace.dormant_at) {
-      return;
-    }
+		if (workspace.dormant_at) {
+			return;
+		}
 
-    const proposedLocking = new Date(
-      new Date(workspace.last_used_at).getTime() +
-        formValues.time_til_dormant_ms,
-    );
+		const proposedLocking = new Date(
+			new Date(workspace.last_used_at).getTime() +
+				formValues.time_til_dormant_ms,
+		);
 
-    if (compareAsc(proposedLocking, fromDate) < 1) {
-      return workspace;
-    }
-  });
+		if (compareAsc(proposedLocking, fromDate) < 1) {
+			return workspace;
+		}
+	});
 };
 
 export const useWorkspacesToBeDeleted = (
-  template: Template,
-  formValues: TemplateScheduleFormValues,
-  fromDate: Date,
+	template: Template,
+	formValues: TemplateScheduleFormValues,
+	fromDate: Date,
 ) => {
-  const { data } = useWorkspacesData({
-    page: 0,
-    limit: 0,
-    query: `template:${template.name} dormant:true`,
-  });
-  return data?.workspaces?.filter((workspace: Workspace) => {
-    if (!workspace.dormant_at || !formValues.time_til_dormant_autodelete_ms) {
-      return false;
-    }
+	const { data } = useWorkspacesData({
+		page: 0,
+		limit: 0,
+		query: `template:${template.name} dormant:true`,
+	});
+	return data?.workspaces?.filter((workspace: Workspace) => {
+		if (!workspace.dormant_at || !formValues.time_til_dormant_autodelete_ms) {
+			return false;
+		}
 
-    const proposedLocking = new Date(
-      new Date(workspace.dormant_at).getTime() +
-        formValues.time_til_dormant_autodelete_ms,
-    );
+		const proposedLocking = new Date(
+			new Date(workspace.dormant_at).getTime() +
+				formValues.time_til_dormant_autodelete_ms,
+		);
 
-    if (compareAsc(proposedLocking, fromDate) < 1) {
-      return workspace;
-    }
-  });
+		if (compareAsc(proposedLocking, fromDate) < 1) {
+			return workspace;
+		}
+	});
 };

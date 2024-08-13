@@ -10,45 +10,45 @@ import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
 const WorkspaceSettingsPage: FC = () => {
-  const params = useParams() as {
-    workspace: string;
-    username: string;
-  };
-  const workspaceName = params.workspace;
-  const username = params.username.replace("@", "");
-  const workspace = useWorkspaceSettings();
-  const navigate = useNavigate();
+	const params = useParams() as {
+		workspace: string;
+		username: string;
+	};
+	const workspaceName = params.workspace;
+	const username = params.username.replace("@", "");
+	const workspace = useWorkspaceSettings();
+	const navigate = useNavigate();
 
-  const mutation = useMutation({
-    mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
-      await Promise.all([
-        API.patchWorkspace(workspace.id, { name: formValues.name }),
-        API.updateWorkspaceAutomaticUpdates(
-          workspace.id,
-          formValues.automatic_updates,
-        ),
-      ]);
-    },
-    onSuccess: (_, formValues) => {
-      displaySuccess("Workspace updated successfully");
-      navigate(`/@${username}/${formValues.name}/settings`);
-    },
-  });
+	const mutation = useMutation({
+		mutationFn: async (formValues: WorkspaceSettingsFormValues) => {
+			await Promise.all([
+				API.patchWorkspace(workspace.id, { name: formValues.name }),
+				API.updateWorkspaceAutomaticUpdates(
+					workspace.id,
+					formValues.automatic_updates,
+				),
+			]);
+		},
+		onSuccess: (_, formValues) => {
+			displaySuccess("Workspace updated successfully");
+			navigate(`/@${username}/${formValues.name}/settings`);
+		},
+	});
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle(workspaceName, "Settings")}</title>
-      </Helmet>
+	return (
+		<>
+			<Helmet>
+				<title>{pageTitle(workspaceName, "Settings")}</title>
+			</Helmet>
 
-      <WorkspaceSettingsPageView
-        error={mutation.error}
-        workspace={workspace}
-        onCancel={() => navigate(`/@${username}/${workspaceName}`)}
-        onSubmit={mutation.mutateAsync}
-      />
-    </>
-  );
+			<WorkspaceSettingsPageView
+				error={mutation.error}
+				workspace={workspace}
+				onCancel={() => navigate(`/@${username}/${workspaceName}`)}
+				onSubmit={mutation.mutateAsync}
+			/>
+		</>
+	);
 };
 
 export default WorkspaceSettingsPage;

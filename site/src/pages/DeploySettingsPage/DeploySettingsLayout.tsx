@@ -13,57 +13,57 @@ import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/Managemen
 import { Sidebar } from "./Sidebar";
 
 type DeploySettingsContextValue = {
-  deploymentValues: DeploymentConfig | undefined;
+	deploymentValues: DeploymentConfig | undefined;
 };
 
 export const DeploySettingsContext = createContext<
-  DeploySettingsContextValue | undefined
+	DeploySettingsContextValue | undefined
 >(undefined);
 
 export const useDeploySettings = (): DeploySettingsContextValue => {
-  const context = useContext(DeploySettingsContext);
-  if (!context) {
-    throw new Error(
-      "useDeploySettings should be used inside of DeploySettingsContext or DeploySettingsLayout",
-    );
-  }
-  return context;
+	const context = useContext(DeploySettingsContext);
+	if (!context) {
+		throw new Error(
+			"useDeploySettings should be used inside of DeploySettingsContext or DeploySettingsLayout",
+		);
+	}
+	return context;
 };
 
 export const DeploySettingsLayout: FC = () => {
-  const { experiments } = useDashboard();
+	const { experiments } = useDashboard();
 
-  const canViewOrganizations = experiments.includes("multi-organization");
+	const canViewOrganizations = experiments.includes("multi-organization");
 
-  return canViewOrganizations ? (
-    <ManagementSettingsLayout />
-  ) : (
-    <DeploySettingsLayoutInner />
-  );
+	return canViewOrganizations ? (
+		<ManagementSettingsLayout />
+	) : (
+		<DeploySettingsLayoutInner />
+	);
 };
 
 const DeploySettingsLayoutInner: FC = () => {
-  const deploymentConfigQuery = useQuery(deploymentConfig());
-  const { permissions } = useAuthenticated();
+	const deploymentConfigQuery = useQuery(deploymentConfig());
+	const { permissions } = useAuthenticated();
 
-  return (
-    <RequirePermission isFeatureVisible={permissions.viewDeploymentValues}>
-      <Margins>
-        <Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
-          <Sidebar />
-          <main css={{ maxWidth: 800, width: "100%" }}>
-            <DeploySettingsContext.Provider
-              value={{
-                deploymentValues: deploymentConfigQuery.data,
-              }}
-            >
-              <Suspense fallback={<Loader />}>
-                <Outlet />
-              </Suspense>
-            </DeploySettingsContext.Provider>
-          </main>
-        </Stack>
-      </Margins>
-    </RequirePermission>
-  );
+	return (
+		<RequirePermission isFeatureVisible={permissions.viewDeploymentValues}>
+			<Margins>
+				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
+					<Sidebar />
+					<main css={{ maxWidth: 800, width: "100%" }}>
+						<DeploySettingsContext.Provider
+							value={{
+								deploymentValues: deploymentConfigQuery.data,
+							}}
+						>
+							<Suspense fallback={<Loader />}>
+								<Outlet />
+							</Suspense>
+						</DeploySettingsContext.Provider>
+					</main>
+				</Stack>
+			</Margins>
+		</RequirePermission>
+	);
 };

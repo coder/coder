@@ -10,36 +10,36 @@ import { CreateTemplatesPageView } from "./CreateTemplatesPageView";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
 
 const CreateTemplatesGalleryPage: FC = () => {
-  const { experiments } = useDashboard();
-  const templateExamplesQuery = useQuery(templateExamples());
-  const starterTemplatesByTag = templateExamplesQuery.data
-    ? // Currently, the scratch template should not be displayed on the starter templates page.
-      getTemplatesByTag(removeScratchExample(templateExamplesQuery.data))
-    : undefined;
-  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+	const { experiments } = useDashboard();
+	const templateExamplesQuery = useQuery(templateExamples());
+	const starterTemplatesByTag = templateExamplesQuery.data
+		? // Currently, the scratch template should not be displayed on the starter templates page.
+			getTemplatesByTag(removeScratchExample(templateExamplesQuery.data))
+		: undefined;
+	const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("Create a Template")}</title>
-      </Helmet>
-      {multiOrgExperimentEnabled ? (
-        <CreateTemplatesPageView
-          error={templateExamplesQuery.error}
-          starterTemplatesByTag={starterTemplatesByTag}
-        />
-      ) : (
-        <StarterTemplatesPageView
-          error={templateExamplesQuery.error}
-          starterTemplatesByTag={starterTemplatesByTag}
-        />
-      )}
-    </>
-  );
+	return (
+		<>
+			<Helmet>
+				<title>{pageTitle("Create a Template")}</title>
+			</Helmet>
+			{multiOrgExperimentEnabled ? (
+				<CreateTemplatesPageView
+					error={templateExamplesQuery.error}
+					starterTemplatesByTag={starterTemplatesByTag}
+				/>
+			) : (
+				<StarterTemplatesPageView
+					error={templateExamplesQuery.error}
+					starterTemplatesByTag={starterTemplatesByTag}
+				/>
+			)}
+		</>
+	);
 };
 
 const removeScratchExample = (data: TemplateExample[]) => {
-  return data.filter((example) => example.id !== "scratch");
+	return data.filter((example) => example.id !== "scratch");
 };
 
 export default CreateTemplatesGalleryPage;

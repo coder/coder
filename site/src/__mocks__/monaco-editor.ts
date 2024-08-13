@@ -1,18 +1,18 @@
 const editor = {
-  defineTheme: () => {
-    //
-  },
-  create: () => {
-    return {
-      dispose: () => {
-        //
-      },
-    };
-  },
+	defineTheme: () => {
+		//
+	},
+	create: () => {
+		return {
+			dispose: () => {
+				//
+			},
+		};
+	},
 };
 
 const monaco = {
-  editor,
+	editor,
 };
 
 module.exports = monaco;

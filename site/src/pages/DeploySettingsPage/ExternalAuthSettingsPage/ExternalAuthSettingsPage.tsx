@@ -6,21 +6,21 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const ExternalAuthSettingsPage: FC = () => {
-  const { deploymentValues } = useDeploySettings();
+	const { deploymentValues } = useDeploySettings();
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("External Authentication Settings")}</title>
-      </Helmet>
+	return (
+		<>
+			<Helmet>
+				<title>{pageTitle("External Authentication Settings")}</title>
+			</Helmet>
 
-      {deploymentValues ? (
-        <ExternalAuthSettingsPageView config={deploymentValues.config} />
-      ) : (
-        <Loader />
-      )}
-    </>
-  );
+			{deploymentValues ? (
+				<ExternalAuthSettingsPageView config={deploymentValues.config} />
+			) : (
+				<Loader />
+			)}
+		</>
+	);
 };
 
 export default ExternalAuthSettingsPage;

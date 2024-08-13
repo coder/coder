@@ -3,17 +3,17 @@ import { type ImgHTMLAttributes, forwardRef } from "react";
 import { getExternalImageStylesFromUrl } from "theme/externalImages";
 
 export const ExternalImage = forwardRef<
-  HTMLImageElement,
-  ImgHTMLAttributes<HTMLImageElement>
+	HTMLImageElement,
+	ImgHTMLAttributes<HTMLImageElement>
 >((attrs, ref) => {
-  const theme = useTheme();
+	const theme = useTheme();
 
-  return (
-    <img
-      ref={ref}
-      alt=""
-      css={getExternalImageStylesFromUrl(theme.externalImages, attrs.src)}
-      {...attrs}
-    />
-  );
+	return (
+		<img
+			ref={ref}
+			alt=""
+			css={getExternalImageStylesFromUrl(theme.externalImages, attrs.src)}
+			{...attrs}
+		/>
+	);
 });

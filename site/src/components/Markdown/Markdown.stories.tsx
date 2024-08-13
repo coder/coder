@@ -2,16 +2,16 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Markdown } from "./Markdown";
 
 const meta: Meta<typeof Markdown> = {
-  title: "components/Markdown",
-  component: Markdown,
+	title: "components/Markdown",
+	component: Markdown,
 };
 
 export default meta;
 type Story = StoryObj<typeof Markdown>;
 
 export const WithCode: Story = {
-  args: {
-    children: `
+	args: {
+		children: `
   ## Required permissions / policy
 
   The following sample policy allows Coder to create EC2 instances and modify instances provisioned by Coder:
@@ -63,14 +63,14 @@ export const WithCode: Story = {
     ]
   }
   \`\`\``,
-  },
+	},
 };
 
 export const WithTable: Story = {
-  args: {
-    children: `
+	args: {
+		children: `
   | heading | b  |  c |  d  |
   | - | :- | -: | :-: |
   | cell 1 | cell 2 | 3 | 4 | `,
-  },
+	},
 };

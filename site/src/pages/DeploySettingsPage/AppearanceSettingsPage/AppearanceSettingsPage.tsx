@@ -14,41 +14,41 @@ import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 // exception because the Service Banner is visual, and configuring it from
 // the command line would be a significantly worse user experience.
 const AppearanceSettingsPage: FC = () => {
-  const { appearance, entitlements } = useDashboard();
-  const queryClient = useQueryClient();
-  const updateAppearanceMutation = useMutation(updateAppearance(queryClient));
+	const { appearance, entitlements } = useDashboard();
+	const queryClient = useQueryClient();
+	const updateAppearanceMutation = useMutation(updateAppearance(queryClient));
 
-  const onSaveAppearance = async (
-    newConfig: Partial<UpdateAppearanceConfig>,
-  ) => {
-    const newAppearance = { ...appearance, ...newConfig };
+	const onSaveAppearance = async (
+		newConfig: Partial<UpdateAppearanceConfig>,
+	) => {
+		const newAppearance = { ...appearance, ...newConfig };
 
-    try {
-      await updateAppearanceMutation.mutateAsync(newAppearance);
-      await queryClient.invalidateQueries(appearanceConfigKey);
-      displaySuccess("Successfully updated appearance settings!");
-    } catch (error) {
-      displayError(
-        getErrorMessage(error, "Failed to update appearance settings."),
-      );
-    }
-  };
+		try {
+			await updateAppearanceMutation.mutateAsync(newAppearance);
+			await queryClient.invalidateQueries(appearanceConfigKey);
+			displaySuccess("Successfully updated appearance settings!");
+		} catch (error) {
+			displayError(
+				getErrorMessage(error, "Failed to update appearance settings."),
+			);
+		}
+	};
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("Appearance Settings")}</title>
-      </Helmet>
+	return (
+		<>
+			<Helmet>
+				<title>{pageTitle("Appearance Settings")}</title>
+			</Helmet>
 
-      <AppearanceSettingsPageView
-        appearance={appearance}
-        onSaveAppearance={onSaveAppearance}
-        isEntitled={
-          entitlements.features.appearance.entitlement !== "not_entitled"
-        }
-      />
-    </>
-  );
+			<AppearanceSettingsPageView
+				appearance={appearance}
+				onSaveAppearance={onSaveAppearance}
+				isEntitled={
+					entitlements.features.appearance.entitlement !== "not_entitled"
+				}
+			/>
+		</>
+	);
 };
 
 export default AppearanceSettingsPage;

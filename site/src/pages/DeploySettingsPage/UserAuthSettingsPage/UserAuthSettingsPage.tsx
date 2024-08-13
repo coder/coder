@@ -6,21 +6,21 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const UserAuthSettingsPage: FC = () => {
-  const { deploymentValues } = useDeploySettings();
+	const { deploymentValues } = useDeploySettings();
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("User Authentication Settings")}</title>
-      </Helmet>
+	return (
+		<>
+			<Helmet>
+				<title>{pageTitle("User Authentication Settings")}</title>
+			</Helmet>
 
-      {deploymentValues ? (
-        <UserAuthSettingsPageView options={deploymentValues.options} />
-      ) : (
-        <Loader />
-      )}
-    </>
-  );
+			{deploymentValues ? (
+				<UserAuthSettingsPageView options={deploymentValues.options} />
+			) : (
+				<Loader />
+			)}
+		</>
+	);
 };
 
 export default UserAuthSettingsPage;
