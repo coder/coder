@@ -61,7 +61,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 		DERPMapUpdateFrequency:  time.Millisecond,
 		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
-		ResumeTokenProvider:     tailnet.InsecureTestResumeTokenProvider,
+		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
 
@@ -185,12 +185,15 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 		t.Logf("received resume token: %s", resumeToken)
 		assert.Equal(t, expectResumeToken, resumeToken)
 		if resumeToken != "" {
-			peerID, err = resumeTokenProvider.ParseResumeToken(resumeToken)
+			peerID, err = resumeTokenProvider.VerifyResumeToken(resumeToken)
 			assert.NoError(t, err, "failed to parse resume token")
 			if err != nil {
-				httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
 					Message: CoordinateAPIInvalidResumeToken,
 					Detail:  err.Error(),
+					Validations: []codersdk.ValidationError{
+						{Field: "resume_token", Detail: CoordinateAPIInvalidResumeToken},
+					},
 				})
 				return
 			}
@@ -253,8 +256,8 @@ func (r resumeTokenProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.Refre
 	return r.genFn(peerID)
 }
 
-// ParseResumeToken implements tailnet.ResumeTokenProvider.
-func (r resumeTokenProvider) ParseResumeToken(token string) (uuid.UUID, error) {
+// VerifyResumeToken implements tailnet.ResumeTokenProvider.
+func (r resumeTokenProvider) VerifyResumeToken(token string) (uuid.UUID, error) {
 	return r.parseFn(token)
 }
 
@@ -307,12 +310,15 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 		)
 		t.Logf("received resume token: %s", resumeToken)
 		if resumeToken != "" {
-			_, err = resumeTokenProvider.ParseResumeToken(resumeToken)
+			_, err = resumeTokenProvider.VerifyResumeToken(resumeToken)
 			assert.Error(t, err, "parse resume token should return an error")
 			atomic.AddInt64(&didFail, 1)
-			httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
 				Message: CoordinateAPIInvalidResumeToken,
 				Detail:  err.Error(),
+				Validations: []codersdk.ValidationError{
+					{Field: "resume_token", Detail: CoordinateAPIInvalidResumeToken},
+				},
 			})
 			return
 		}
@@ -385,7 +391,7 @@ func TestTailnetAPIConnector_TelemetrySuccess(t *testing.T) {
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {
 			testutil.RequireSendCtx(ctx, t, eventCh, batch)
 		},
-		ResumeTokenProvider: tailnet.InsecureTestResumeTokenProvider,
+		ResumeTokenProvider: tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
 

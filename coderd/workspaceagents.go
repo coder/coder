@@ -853,11 +853,14 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	)
 	if resumeToken != "" {
 		var err error
-		peerID, err = api.Options.CoordinatorResumeTokenProvider.ParseResumeToken(resumeToken)
+		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(resumeToken)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
 				Detail:  err.Error(),
+				Validations: []codersdk.ValidationError{
+					{Field: "resume_token", Detail: workspacesdk.CoordinateAPIInvalidResumeToken},
+				},
 			})
 			return
 		}

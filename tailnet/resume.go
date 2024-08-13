@@ -1,6 +1,10 @@
 package tailnet
 
 import (
+	"context"
+	"crypto/rand"
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"time"
 
@@ -19,22 +23,81 @@ const (
 	resumeTokenSigningAlgorithm = jose.HS512
 )
 
-var InsecureTestResumeTokenProvider ResumeTokenProvider = ResumeTokenKeyProvider{
-	key:    [64]byte{1},
-	expiry: time.Hour,
+// NewInsecureTestResumeTokenProvider returns a ResumeTokenProvider that uses a
+// random key with short expiry for testing purposes. If any errors occur while
+// generating the key, the function panics.
+func NewInsecureTestResumeTokenProvider() ResumeTokenProvider {
+	key, err := GenerateResumeTokenSigningKey()
+	if err != nil {
+		panic(err)
+	}
+	return NewResumeTokenKeyProvider(key, time.Hour)
 }
 
 type ResumeTokenProvider interface {
 	GenerateResumeToken(peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error)
-	ParseResumeToken(token string) (uuid.UUID, error)
+	VerifyResumeToken(token string) (uuid.UUID, error)
+}
+
+type ResumeTokenSigningKey [64]byte
+
+func GenerateResumeTokenSigningKey() (ResumeTokenSigningKey, error) {
+	var key ResumeTokenSigningKey
+	_, err := rand.Read(key[:])
+	if err != nil {
+		return key, xerrors.Errorf("generate random key: %w", err)
+	}
+	return key, nil
+}
+
+type ResumeTokenSigningKeyDatabaseStore interface {
+	GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error)
+	UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, key string) error
+}
+
+// ResumeTokenSigningKeyFromDatabase retrieves the coordinator resume token
+// signing key from the database. If the key is not found, a new key is
+// generated and inserted into the database.
+func ResumeTokenSigningKeyFromDatabase(ctx context.Context, db ResumeTokenSigningKeyDatabaseStore) (ResumeTokenSigningKey, error) {
+	var resumeTokenKey ResumeTokenSigningKey
+	resumeTokenKeyStr, err := db.GetCoordinatorResumeTokenSigningKey(ctx)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return resumeTokenKey, xerrors.Errorf("get coordinator resume token key: %w", err)
+	}
+	if decoded, err := hex.DecodeString(resumeTokenKeyStr); err != nil || len(decoded) != len(resumeTokenKey) {
+		b := make([]byte, len(resumeTokenKey))
+		_, err := rand.Read(b)
+		if err != nil {
+			return resumeTokenKey, xerrors.Errorf("generate fresh coordinator resume token key: %w", err)
+		}
+
+		resumeTokenKeyStr = hex.EncodeToString(b)
+		err = db.UpsertCoordinatorResumeTokenSigningKey(ctx, resumeTokenKeyStr)
+		if err != nil {
+			return resumeTokenKey, xerrors.Errorf("insert freshly generated coordinator resume token key to database: %w", err)
+		}
+	}
+
+	resumeTokenKeyBytes, err := hex.DecodeString(resumeTokenKeyStr)
+	if err != nil {
+		return resumeTokenKey, xerrors.Errorf("decode coordinator resume token key from database: %w", err)
+	}
+	if len(resumeTokenKeyBytes) != len(resumeTokenKey) {
+		return resumeTokenKey, xerrors.Errorf("coordinator resume token key in database is not the correct length, expect %d got %d", len(resumeTokenKey), len(resumeTokenKeyBytes))
+	}
+	copy(resumeTokenKey[:], resumeTokenKeyBytes)
+	if resumeTokenKey == [64]byte{} {
+		return resumeTokenKey, xerrors.Errorf("coordinator resume token key in database is empty")
+	}
+	return resumeTokenKey, nil
 }
 
 type ResumeTokenKeyProvider struct {
-	key    [64]byte
+	key    ResumeTokenSigningKey
 	expiry time.Duration
 }
 
-func NewResumeTokenKeyProvider(key [64]byte, expiry time.Duration) ResumeTokenProvider {
+func NewResumeTokenKeyProvider(key ResumeTokenSigningKey, expiry time.Duration) ResumeTokenProvider {
 	if expiry <= 0 {
 		expiry = DefaultResumeTokenExpiry
 	}
@@ -45,8 +108,8 @@ func NewResumeTokenKeyProvider(key [64]byte, expiry time.Duration) ResumeTokenPr
 }
 
 type resumeTokenPayload struct {
-	PeerID uuid.UUID `json:"peer_id"`
-	Expiry time.Time `json:"expiry"`
+	PeerID uuid.UUID `json:"sub"`
+	Expiry time.Time `json:"exp"`
 }
 
 func (p ResumeTokenKeyProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
@@ -87,7 +150,7 @@ func (p ResumeTokenKeyProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.Re
 // VerifySignedToken parses a signed workspace app token with the given key and
 // returns the payload. If the token is invalid or expired, an error is
 // returned.
-func (p ResumeTokenKeyProvider) ParseResumeToken(str string) (uuid.UUID, error) {
+func (p ResumeTokenKeyProvider) VerifyResumeToken(str string) (uuid.UUID, error) {
 	object, err := jose.ParseSigned(str)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("parse JWS: %w", err)
