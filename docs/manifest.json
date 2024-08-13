@@ -544,558 +544,562 @@
       ]
     },
     {
-      "title": "API",
-      "description": "Learn how to use Coderd API",
-      "path": "./api/index.md",
-      "icon_path": "./images/icons/api.svg",
+      "title": "Reference",
+      "description": "Reference",
+      "path": "./reference/README.md",
+      "icon_path": "./images/icons/notes.svg",
       "children": [
         {
-          "title": "General",
-          "path": "./api/general.md"
-        },
-        {
-          "title": "Agents",
-          "path": "./api/agents.md"
-        },
-        {
-          "title": "Applications",
-          "path": "./api/applications.md"
-        },
-        {
-          "title": "Audit",
-          "path": "./api/audit.md"
-        },
-        {
-          "title": "Authentication",
-          "path": "./api/authentication.md"
-        },
-        {
-          "title": "Authorization",
-          "path": "./api/authorization.md"
-        },
-        {
-          "title": "Builds",
-          "path": "./api/builds.md"
-        },
-        {
-          "title": "Debug",
-          "path": "./api/debug.md"
-        },
-        {
-          "title": "Enterprise",
-          "path": "./api/enterprise.md"
-        },
-        {
-          "title": "Files",
-          "path": "./api/files.md"
-        },
-        {
-          "title": "Git",
-          "path": "./api/git.md"
-        },
-        {
-          "title": "Insights",
-          "path": "./api/insights.md"
-        },
-        {
-          "title": "Members",
-          "path": "./api/members.md"
-        },
-        {
-          "title": "Notifications",
-          "path": "./api/notifications.md"
-        },
-        {
-          "title": "Organizations",
-          "path": "./api/organizations.md"
-        },
-        {
-          "title": "PortSharing",
-          "path": "./api/portsharing.md"
-        },
-        {
-          "title": "Schemas",
-          "path": "./api/schemas.md"
-        },
-        {
-          "title": "Templates",
-          "path": "./api/templates.md"
-        },
-        {
-          "title": "Users",
-          "path": "./api/users.md"
-        },
-        {
-          "title": "WorkspaceProxies",
-          "path": "./api/workspaceproxies.md"
-        },
-        {
-          "title": "Workspaces",
-          "path": "./api/workspaces.md"
-        }
-      ]
-    },
-    {
-      "title": "Command Line",
-      "description": "Learn how to use Coder CLI",
-      "path": "./cli.md",
-      "icon_path": "./images/icons/terminal.svg",
-      "children": [
-        {
-          "title": "autoupdate",
-          "description": "Toggle auto-update policy for a workspace",
-          "path": "cli/autoupdate.md"
-        },
-        {
-          "title": "coder",
-          "path": "cli.md"
-        },
-        {
-          "title": "config-ssh",
-          "description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
-          "path": "cli/config-ssh.md"
-        },
-        {
-          "title": "create",
-          "description": "Create a workspace",
-          "path": "cli/create.md"
-        },
-        {
-          "title": "delete",
-          "description": "Delete a workspace",
-          "path": "cli/delete.md"
-        },
-        {
-          "title": "dotfiles",
-          "description": "Personalize your workspace by applying a canonical dotfiles repository",
-          "path": "cli/dotfiles.md"
-        },
-        {
-          "title": "external-auth",
-          "description": "Manage external authentication",
-          "path": "cli/external-auth.md"
-        },
-        {
-          "title": "external-auth access-token",
-          "description": "Print auth for an external provider",
-          "path": "cli/external-auth_access-token.md"
-        },
-        {
-          "title": "favorite",
-          "description": "Add a workspace to your favorites",
-          "path": "cli/favorite.md"
-        },
-        {
-          "title": "features",
-          "description": "List Enterprise features",
-          "path": "cli/features.md"
-        },
-        {
-          "title": "features list",
-          "path": "cli/features_list.md"
-        },
-        {
-          "title": "groups",
-          "description": "Manage groups",
-          "path": "cli/groups.md"
-        },
-        {
-          "title": "groups create",
-          "description": "Create a user group",
-          "path": "cli/groups_create.md"
-        },
-        {
-          "title": "groups delete",
-          "description": "Delete a user group",
-          "path": "cli/groups_delete.md"
-        },
-        {
-          "title": "groups edit",
-          "description": "Edit a user group",
-          "path": "cli/groups_edit.md"
-        },
-        {
-          "title": "groups list",
-          "description": "List user groups",
-          "path": "cli/groups_list.md"
-        },
-        {
-          "title": "licenses",
-          "description": "Add, delete, and list licenses",
-          "path": "cli/licenses.md"
-        },
-        {
-          "title": "licenses add",
-          "description": "Add license to Coder deployment",
-          "path": "cli/licenses_add.md"
-        },
-        {
-          "title": "licenses delete",
-          "description": "Delete license by ID",
-          "path": "cli/licenses_delete.md"
-        },
-        {
-          "title": "licenses list",
-          "description": "List licenses (including expired)",
-          "path": "cli/licenses_list.md"
-        },
-        {
-          "title": "list",
-          "description": "List workspaces",
-          "path": "cli/list.md"
-        },
-        {
-          "title": "login",
-          "description": "Authenticate with Coder deployment",
-          "path": "cli/login.md"
-        },
-        {
-          "title": "logout",
-          "description": "Unauthenticate your local session",
-          "path": "cli/logout.md"
-        },
-        {
-          "title": "netcheck",
-          "description": "Print network debug information for DERP and STUN",
-          "path": "cli/netcheck.md"
-        },
-        {
-          "title": "notifications",
-          "description": "Manage Coder notifications",
-          "path": "cli/notifications.md"
-        },
-        {
-          "title": "notifications pause",
-          "description": "Pause notifications",
-          "path": "cli/notifications_pause.md"
-        },
-        {
-          "title": "notifications resume",
-          "description": "Resume notifications",
-          "path": "cli/notifications_resume.md"
-        },
-        {
-          "title": "open",
-          "description": "Open a workspace",
-          "path": "cli/open.md"
-        },
-        {
-          "title": "open vscode",
-          "description": "Open a workspace in VS Code Desktop",
-          "path": "cli/open_vscode.md"
-        },
-        {
-          "title": "ping",
-          "description": "Ping a workspace",
-          "path": "cli/ping.md"
-        },
-        {
-          "title": "port-forward",
-          "description": "Forward ports from a workspace to the local machine. For reverse port forwarding, use \"coder ssh -R\".",
-          "path": "cli/port-forward.md"
-        },
-        {
-          "title": "provisionerd",
-          "description": "Manage provisioner daemons",
-          "path": "cli/provisionerd.md"
-        },
-        {
-          "title": "provisionerd start",
-          "description": "Run a provisioner daemon",
-          "path": "cli/provisionerd_start.md"
-        },
-        {
-          "title": "publickey",
-          "description": "Output your Coder public key used for Git operations",
-          "path": "cli/publickey.md"
-        },
-        {
-          "title": "rename",
-          "description": "Rename a workspace",
-          "path": "cli/rename.md"
-        },
-        {
-          "title": "reset-password",
-          "description": "Directly connect to the database to reset a user's password",
-          "path": "cli/reset-password.md"
-        },
-        {
-          "title": "restart",
-          "description": "Restart a workspace",
-          "path": "cli/restart.md"
-        },
-        {
-          "title": "schedule",
-          "description": "Schedule automated start and stop times for workspaces",
-          "path": "cli/schedule.md"
-        },
-        {
-          "title": "schedule override-stop",
-          "description": "Override the stop time of a currently running workspace instance.",
-          "path": "cli/schedule_override-stop.md"
-        },
-        {
-          "title": "schedule show",
-          "description": "Show workspace schedules",
-          "path": "cli/schedule_show.md"
-        },
-        {
-          "title": "schedule start",
-          "description": "Edit workspace start schedule",
-          "path": "cli/schedule_start.md"
-        },
-        {
-          "title": "schedule stop",
-          "description": "Edit workspace stop schedule",
-          "path": "cli/schedule_stop.md"
-        },
-        {
-          "title": "server",
-          "description": "Start a Coder server",
-          "path": "cli/server.md"
-        },
-        {
-          "title": "server create-admin-user",
-          "description": "Create a new admin user with the given username, email and password and adds it to every organization.",
-          "path": "cli/server_create-admin-user.md"
-        },
-        {
-          "title": "server dbcrypt",
-          "description": "Manage database encryption.",
-          "path": "cli/server_dbcrypt.md"
-        },
-        {
-          "title": "server dbcrypt decrypt",
-          "description": "Decrypt a previously encrypted database.",
-          "path": "cli/server_dbcrypt_decrypt.md"
-        },
-        {
-          "title": "server dbcrypt delete",
-          "description": "Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.",
-          "path": "cli/server_dbcrypt_delete.md"
-        },
-        {
-          "title": "server dbcrypt rotate",
-          "description": "Rotate database encryption keys.",
-          "path": "cli/server_dbcrypt_rotate.md"
-        },
-        {
-          "title": "server postgres-builtin-serve",
-          "description": "Run the built-in PostgreSQL deployment.",
-          "path": "cli/server_postgres-builtin-serve.md"
-        },
-        {
-          "title": "server postgres-builtin-url",
-          "description": "Output the connection URL for the built-in PostgreSQL deployment.",
-          "path": "cli/server_postgres-builtin-url.md"
-        },
-        {
-          "title": "show",
-          "description": "Display details of a workspace's resources and agents",
-          "path": "cli/show.md"
-        },
-        {
-          "title": "speedtest",
-          "description": "Run upload and download tests from your machine to a workspace",
-          "path": "cli/speedtest.md"
-        },
-        {
-          "title": "ssh",
-          "description": "Start a shell into a workspace",
-          "path": "cli/ssh.md"
-        },
-        {
-          "title": "start",
-          "description": "Start a workspace",
-          "path": "cli/start.md"
-        },
-        {
-          "title": "stat",
-          "description": "Show resource usage for the current workspace.",
-          "path": "cli/stat.md"
-        },
-        {
-          "title": "stat cpu",
-          "description": "Show CPU usage, in cores.",
-          "path": "cli/stat_cpu.md"
-        },
-        {
-          "title": "stat disk",
-          "description": "Show disk usage, in gigabytes.",
-          "path": "cli/stat_disk.md"
-        },
-        {
-          "title": "stat mem",
-          "description": "Show memory usage, in gigabytes.",
-          "path": "cli/stat_mem.md"
-        },
-        {
-          "title": "state",
-          "description": "Manually manage Terraform state to fix broken workspaces",
-          "path": "cli/state.md"
-        },
-        {
-          "title": "state pull",
-          "description": "Pull a Terraform state file from a workspace.",
-          "path": "cli/state_pull.md"
-        },
-        {
-          "title": "state push",
-          "description": "Push a Terraform state file to a workspace.",
-          "path": "cli/state_push.md"
-        },
-        {
-          "title": "stop",
-          "description": "Stop a workspace",
-          "path": "cli/stop.md"
-        },
-        {
-          "title": "support",
-          "description": "Commands for troubleshooting issues with a Coder deployment.",
-          "path": "cli/support.md"
-        },
-        {
-          "title": "support bundle",
-          "description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
-          "path": "cli/support_bundle.md"
-        },
-        {
-          "title": "templates",
-          "description": "Manage templates",
-          "path": "cli/templates.md"
-        },
-        {
-          "title": "templates archive",
-          "description": "Archive unused or failed template versions from a given template(s)",
-          "path": "cli/templates_archive.md"
-        },
-        {
-          "title": "templates create",
-          "description": "DEPRECATED: Create a template from the current directory or as specified by flag",
-          "path": "cli/templates_create.md"
-        },
-        {
-          "title": "templates delete",
-          "description": "Delete templates",
-          "path": "cli/templates_delete.md"
-        },
-        {
-          "title": "templates edit",
-          "description": "Edit the metadata of a template by name.",
-          "path": "cli/templates_edit.md"
-        },
-        {
-          "title": "templates init",
-          "description": "Get started with a templated template.",
-          "path": "cli/templates_init.md"
-        },
-        {
-          "title": "templates list",
-          "description": "List all the templates available for the organization",
-          "path": "cli/templates_list.md"
-        },
-        {
-          "title": "templates pull",
-          "description": "Download the active, latest, or specified version of a template to a path.",
-          "path": "cli/templates_pull.md"
-        },
-        {
-          "title": "templates push",
-          "description": "Create or update a template from the current directory or as specified by flag",
-          "path": "cli/templates_push.md"
-        },
-        {
-          "title": "templates versions",
-          "description": "Manage different versions of the specified template",
-          "path": "cli/templates_versions.md"
-        },
-        {
-          "title": "templates versions archive",
-          "description": "Archive a template version(s).",
-          "path": "cli/templates_versions_archive.md"
-        },
-        {
-          "title": "templates versions list",
-          "description": "List all the versions of the specified template",
-          "path": "cli/templates_versions_list.md"
-        },
-        {
-          "title": "templates versions unarchive",
-          "description": "Unarchive a template version(s).",
-          "path": "cli/templates_versions_unarchive.md"
-        },
-        {
-          "title": "tokens",
-          "description": "Manage personal access tokens",
-          "path": "cli/tokens.md"
-        },
-        {
-          "title": "tokens create",
-          "description": "Create a token",
-          "path": "cli/tokens_create.md"
-        },
-        {
-          "title": "tokens list",
-          "description": "List tokens",
-          "path": "cli/tokens_list.md"
-        },
-        {
-          "title": "tokens remove",
-          "description": "Delete a token",
-          "path": "cli/tokens_remove.md"
-        },
-        {
-          "title": "unfavorite",
-          "description": "Remove a workspace from your favorites",
-          "path": "cli/unfavorite.md"
-        },
-        {
-          "title": "update",
-          "description": "Will update and start a given workspace if it is out of date",
-          "path": "cli/update.md"
-        },
-        {
-          "title": "users",
-          "description": "Manage users",
-          "path": "cli/users.md"
-        },
-        {
-          "title": "users activate",
-          "description": "Update a user's status to 'active'. Active users can fully interact with the platform",
-          "path": "cli/users_activate.md"
-        },
-        {
-          "title": "users create",
-          "path": "cli/users_create.md"
-        },
-        {
-          "title": "users delete",
-          "description": "Delete a user by username or user_id.",
-          "path": "cli/users_delete.md"
-        },
-        {
-          "title": "users list",
-          "path": "cli/users_list.md"
-        },
-        {
-          "title": "users show",
-          "description": "Show a single user. Use 'me' to indicate the currently authenticated user.",
-          "path": "cli/users_show.md"
-        },
-        {
-          "title": "users suspend",
-          "description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform",
-          "path": "cli/users_suspend.md"
-        },
-        {
-          "title": "version",
-          "description": "Show coder version",
-          "path": "cli/version.md"
-        },
-        {
-          "title": "whoami",
-          "description": "Fetch authenticated user info for Coder deployment",
-          "path": "cli/whoami.md"
+          "title": "REST API",
+          "description": "Learn how to use Coderd API",
+          "path": "./reference/api/README.md",
+          "icon_path": "./images/icons/api.svg",
+          "children": [
+            {
+              "title": "General",
+              "path": "./reference/api/general.md"
+            },
+            {
+              "title": "Agents",
+              "path": "./reference/api/agents.md"
+            },
+            {
+              "title": "Applications",
+              "path": "./reference/api/applications.md"
+            },
+            {
+              "title": "Audit",
+              "path": "./reference/api/audit.md"
+            },
+            {
+              "title": "Authentication",
+              "path": "./reference/api/authentication.md"
+            },
+            {
+              "title": "Authorization",
+              "path": "./reference/api/authorization.md"
+            },
+            {
+              "title": "Builds",
+              "path": "./reference/api/builds.md"
+            },
+            {
+              "title": "Debug",
+              "path": "./reference/api/debug.md"
+            },
+            {
+              "title": "Enterprise",
+              "path": "./reference/api/enterprise.md"
+            },
+            {
+              "title": "Files",
+              "path": "./reference/api/files.md"
+            },
+            {
+              "title": "Git",
+              "path": "./reference/api/git.md"
+            },
+            {
+              "title": "Insights",
+              "path": "./reference/api/insights.md"
+            },
+            {
+              "title": "Members",
+              "path": "./reference/api/members.md"
+            },
+            {
+              "title": "Organizations",
+              "path": "./reference/api/organizations.md"
+            },
+            {
+              "title": "PortSharing",
+              "path": "./reference/api/portsharing.md"
+            },
+            {
+              "title": "Schemas",
+              "path": "./reference/api/schemas.md"
+            },
+            {
+              "title": "Templates",
+              "path": "./reference/api/templates.md"
+            },
+            {
+              "title": "Users",
+              "path": "./reference/api/users.md"
+            },
+            {
+              "title": "WorkspaceProxies",
+              "path": "./reference/api/workspaceproxies.md"
+            },
+            {
+              "title": "Workspaces",
+              "path": "./reference/api/workspaces.md"
+            }
+          ]
+        },
+        {
+          "title": "Command Line",
+          "description": "Learn how to use Coder CLI",
+          "path": "./reference/cli/README.md",
+          "icon_path": "./images/icons/terminal.svg",
+          "children": [
+            {
+              "title": "autoupdate",
+              "description": "Toggle auto-update policy for a workspace",
+              "path": "reference/cli/autoupdate.md"
+            },
+            {
+              "title": "coder",
+              "path": "reference/cli/README.md"
+            },
+            {
+              "title": "config-ssh",
+              "description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
+              "path": "reference/cli/config-ssh.md"
+            },
+            {
+              "title": "create",
+              "description": "Create a workspace",
+              "path": "reference/cli/create.md"
+            },
+            {
+              "title": "delete",
+              "description": "Delete a workspace",
+              "path": "reference/cli/delete.md"
+            },
+            {
+              "title": "dotfiles",
+              "description": "Personalize your workspace by applying a canonical dotfiles repository",
+              "path": "reference/cli/dotfiles.md"
+            },
+            {
+              "title": "external-auth",
+              "description": "Manage external authentication",
+              "path": "reference/cli/external-auth.md"
+            },
+            {
+              "title": "external-auth access-token",
+              "description": "Print auth for an external provider",
+              "path": "reference/cli/external-auth_access-token.md"
+            },
+            {
+              "title": "favorite",
+              "description": "Add a workspace to your favorites",
+              "path": "reference/cli/favorite.md"
+            },
+            {
+              "title": "features",
+              "description": "List Enterprise features",
+              "path": "reference/cli/features.md"
+            },
+            {
+              "title": "features list",
+              "path": "reference/cli/features_list.md"
+            },
+            {
+              "title": "groups",
+              "description": "Manage groups",
+              "path": "reference/cli/groups.md"
+            },
+            {
+              "title": "groups create",
+              "description": "Create a user group",
+              "path": "reference/cli/groups_create.md"
+            },
+            {
+              "title": "groups delete",
+              "description": "Delete a user group",
+              "path": "reference/cli/groups_delete.md"
+            },
+            {
+              "title": "groups edit",
+              "description": "Edit a user group",
+              "path": "reference/cli/groups_edit.md"
+            },
+            {
+              "title": "groups list",
+              "description": "List user groups",
+              "path": "reference/cli/groups_list.md"
+            },
+            {
+              "title": "licenses",
+              "description": "Add, delete, and list licenses",
+              "path": "reference/cli/licenses.md"
+            },
+            {
+              "title": "licenses add",
+              "description": "Add license to Coder deployment",
+              "path": "reference/cli/licenses_add.md"
+            },
+            {
+              "title": "licenses delete",
+              "description": "Delete license by ID",
+              "path": "reference/cli/licenses_delete.md"
+            },
+            {
+              "title": "licenses list",
+              "description": "List licenses (including expired)",
+              "path": "reference/cli/licenses_list.md"
+            },
+            {
+              "title": "list",
+              "description": "List workspaces",
+              "path": "reference/cli/list.md"
+            },
+            {
+              "title": "login",
+              "description": "Authenticate with Coder deployment",
+              "path": "reference/cli/login.md"
+            },
+            {
+              "title": "logout",
+              "description": "Unauthenticate your local session",
+              "path": "reference/cli/logout.md"
+            },
+            {
+              "title": "netcheck",
+              "description": "Print network debug information for DERP and STUN",
+              "path": "reference/cli/netcheck.md"
+            },
+            {
+              "title": "notifications",
+              "description": "Manage Coder notifications",
+              "path": "reference/cli/notifications.md"
+            },
+            {
+              "title": "notifications pause",
+              "description": "Pause notifications",
+              "path": "reference/cli/notifications_pause.md"
+            },
+            {
+              "title": "notifications resume",
+              "description": "Resume notifications",
+              "path": "reference/cli/notifications_resume.md"
+            },
+            {
+              "title": "open",
+              "description": "Open a workspace",
+              "path": "reference/cli/open.md"
+            },
+            {
+              "title": "open vscode",
+              "description": "Open a workspace in VS Code Desktop",
+              "path": "reference/cli/open_vscode.md"
+            },
+            {
+              "title": "ping",
+              "description": "Ping a workspace",
+              "path": "reference/cli/ping.md"
+            },
+            {
+              "title": "port-forward",
+              "description": "Forward ports from a workspace to the local machine. For reverse port forwarding, use \"coder ssh -R\".",
+              "path": "reference/cli/port-forward.md"
+            },
+            {
+              "title": "provisionerd",
+              "description": "Manage provisioner daemons",
+              "path": "reference/cli/provisionerd.md"
+            },
+            {
+              "title": "provisionerd start",
+              "description": "Run a provisioner daemon",
+              "path": "reference/cli/provisionerd_start.md"
+            },
+            {
+              "title": "publickey",
+              "description": "Output your Coder public key used for Git operations",
+              "path": "reference/cli/publickey.md"
+            },
+            {
+              "title": "rename",
+              "description": "Rename a workspace",
+              "path": "reference/cli/rename.md"
+            },
+            {
+              "title": "reset-password",
+              "description": "Directly connect to the database to reset a user's password",
+              "path": "reference/cli/reset-password.md"
+            },
+            {
+              "title": "restart",
+              "description": "Restart a workspace",
+              "path": "reference/cli/restart.md"
+            },
+            {
+              "title": "schedule",
+              "description": "Schedule automated start and stop times for workspaces",
+              "path": "reference/cli/schedule.md"
+            },
+            {
+              "title": "schedule override-stop",
+              "description": "Override the stop time of a currently running workspace instance.",
+              "path": "reference/cli/schedule_override-stop.md"
+            },
+            {
+              "title": "schedule show",
+              "description": "Show workspace schedules",
+              "path": "reference/cli/schedule_show.md"
+            },
+            {
+              "title": "schedule start",
+              "description": "Edit workspace start schedule",
+              "path": "reference/cli/schedule_start.md"
+            },
+            {
+              "title": "schedule stop",
+              "description": "Edit workspace stop schedule",
+              "path": "reference/cli/schedule_stop.md"
+            },
+            {
+              "title": "server",
+              "description": "Start a Coder server",
+              "path": "reference/cli/server.md"
+            },
+            {
+              "title": "server create-admin-user",
+              "description": "Create a new admin user with the given username, email and password and adds it to every organization.",
+              "path": "reference/cli/server_create-admin-user.md"
+            },
+            {
+              "title": "server dbcrypt",
+              "description": "Manage database encryption.",
+              "path": "reference/cli/server_dbcrypt.md"
+            },
+            {
+              "title": "server dbcrypt decrypt",
+              "description": "Decrypt a previously encrypted database.",
+              "path": "reference/cli/server_dbcrypt_decrypt.md"
+            },
+            {
+              "title": "server dbcrypt delete",
+              "description": "Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.",
+              "path": "reference/cli/server_dbcrypt_delete.md"
+            },
+            {
+              "title": "server dbcrypt rotate",
+              "description": "Rotate database encryption keys.",
+              "path": "reference/cli/server_dbcrypt_rotate.md"
+            },
+            {
+              "title": "server postgres-builtin-serve",
+              "description": "Run the built-in PostgreSQL deployment.",
+              "path": "reference/cli/server_postgres-builtin-serve.md"
+            },
+            {
+              "title": "server postgres-builtin-url",
+              "description": "Output the connection URL for the built-in PostgreSQL deployment.",
+              "path": "reference/cli/server_postgres-builtin-url.md"
+            },
+            {
+              "title": "show",
+              "description": "Display details of a workspace's resources and agents",
+              "path": "reference/cli/show.md"
+            },
+            {
+              "title": "speedtest",
+              "description": "Run upload and download tests from your machine to a workspace",
+              "path": "reference/cli/speedtest.md"
+            },
+            {
+              "title": "ssh",
+              "description": "Start a shell into a workspace",
+              "path": "reference/cli/ssh.md"
+            },
+            {
+              "title": "start",
+              "description": "Start a workspace",
+              "path": "reference/cli/start.md"
+            },
+            {
+              "title": "stat",
+              "description": "Show resource usage for the current workspace.",
+              "path": "reference/cli/stat.md"
+            },
+            {
+              "title": "stat cpu",
+              "description": "Show CPU usage, in cores.",
+              "path": "reference/cli/stat_cpu.md"
+            },
+            {
+              "title": "stat disk",
+              "description": "Show disk usage, in gigabytes.",
+              "path": "reference/cli/stat_disk.md"
+            },
+            {
+              "title": "stat mem",
+              "description": "Show memory usage, in gigabytes.",
+              "path": "reference/cli/stat_mem.md"
+            },
+            {
+              "title": "state",
+              "description": "Manually manage Terraform state to fix broken workspaces",
+              "path": "reference/cli/state.md"
+            },
+            {
+              "title": "state pull",
+              "description": "Pull a Terraform state file from a workspace.",
+              "path": "reference/cli/state_pull.md"
+            },
+            {
+              "title": "state push",
+              "description": "Push a Terraform state file to a workspace.",
+              "path": "reference/cli/state_push.md"
+            },
+            {
+              "title": "stop",
+              "description": "Stop a workspace",
+              "path": "reference/cli/stop.md"
+            },
+            {
+              "title": "support",
+              "description": "Commands for troubleshooting issues with a Coder deployment.",
+              "path": "reference/cli/support.md"
+            },
+            {
+              "title": "support bundle",
+              "description": "Generate a support bundle to troubleshoot issues connecting to a workspace.",
+              "path": "reference/cli/support_bundle.md"
+            },
+            {
+              "title": "templates",
+              "description": "Manage templates",
+              "path": "reference/cli/templates.md"
+            },
+            {
+              "title": "templates archive",
+              "description": "Archive unused or failed template versions from a given template(s)",
+              "path": "reference/cli/templates_archive.md"
+            },
+            {
+              "title": "templates create",
+              "description": "DEPRECATED: Create a template from the current directory or as specified by flag",
+              "path": "reference/cli/templates_create.md"
+            },
+            {
+              "title": "templates delete",
+              "description": "Delete templates",
+              "path": "reference/cli/templates_delete.md"
+            },
+            {
+              "title": "templates edit",
+              "description": "Edit the metadata of a template by name.",
+              "path": "reference/cli/templates_edit.md"
+            },
+            {
+              "title": "templates init",
+              "description": "Get started with a templated template.",
+              "path": "reference/cli/templates_init.md"
+            },
+            {
+              "title": "templates list",
+              "description": "List all the templates available for the organization",
+              "path": "reference/cli/templates_list.md"
+            },
+            {
+              "title": "templates pull",
+              "description": "Download the active, latest, or specified version of a template to a path.",
+              "path": "reference/cli/templates_pull.md"
+            },
+            {
+              "title": "templates push",
+              "description": "Create or update a template from the current directory or as specified by flag",
+              "path": "reference/cli/templates_push.md"
+            },
+            {
+              "title": "templates versions",
+              "description": "Manage different versions of the specified template",
+              "path": "reference/cli/templates_versions.md"
+            },
+            {
+              "title": "templates versions archive",
+              "description": "Archive a template version(s).",
+              "path": "reference/cli/templates_versions_archive.md"
+            },
+            {
+              "title": "templates versions list",
+              "description": "List all the versions of the specified template",
+              "path": "reference/cli/templates_versions_list.md"
+            },
+            {
+              "title": "templates versions unarchive",
+              "description": "Unarchive a template version(s).",
+              "path": "reference/cli/templates_versions_unarchive.md"
+            },
+            {
+              "title": "tokens",
+              "description": "Manage personal access tokens",
+              "path": "reference/cli/tokens.md"
+            },
+            {
+              "title": "tokens create",
+              "description": "Create a token",
+              "path": "reference/cli/tokens_create.md"
+            },
+            {
+              "title": "tokens list",
+              "description": "List tokens",
+              "path": "reference/cli/tokens_list.md"
+            },
+            {
+              "title": "tokens remove",
+              "description": "Delete a token",
+              "path": "reference/cli/tokens_remove.md"
+            },
+            {
+              "title": "unfavorite",
+              "description": "Remove a workspace from your favorites",
+              "path": "reference/cli/unfavorite.md"
+            },
+            {
+              "title": "update",
+              "description": "Will update and start a given workspace if it is out of date",
+              "path": "reference/cli/update.md"
+            },
+            {
+              "title": "users",
+              "description": "Manage users",
+              "path": "reference/cli/users.md"
+            },
+            {
+              "title": "users activate",
+              "description": "Update a user's status to 'active'. Active users can fully interact with the platform",
+              "path": "reference/cli/users_activate.md"
+            },
+            {
+              "title": "users create",
+              "path": "reference/cli/users_create.md"
+            },
+            {
+              "title": "users delete",
+              "description": "Delete a user by username or user_id.",
+              "path": "reference/cli/users_delete.md"
+            },
+            {
+              "title": "users list",
+              "path": "reference/cli/users_list.md"
+            },
+            {
+              "title": "users show",
+              "description": "Show a single user. Use 'me' to indicate the currently authenticated user.",
+              "path": "reference/cli/users_show.md"
+            },
+            {
+              "title": "users suspend",
+              "description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform",
+              "path": "reference/cli/users_suspend.md"
+            },
+            {
+              "title": "version",
+              "description": "Show coder version",
+              "path": "reference/cli/version.md"
+            },
+            {
+              "title": "whoami",
+              "description": "Fetch authenticated user info for Coder deployment",
+              "path": "reference/cli/whoami.md"
+            }
+          ]
         }
       ]
     },
