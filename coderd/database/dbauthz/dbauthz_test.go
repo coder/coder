@@ -342,18 +342,21 @@ func (s *MethodTestSuite) TestGroup() {
 		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
 		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetGroups", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("System/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		_ = dbgen.Group(s.T(), db, database.Group{})
-		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(database.GetGroupsParams{}).
+			Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetGroupsByOrganizationAndUserID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
-		check.Args(database.GetGroupsByOrganizationAndUserIDParams{
+		check.Args(database.GetGroupsParams{
 			OrganizationID: g.OrganizationID,
-			UserID:         gm.UserID,
-		}).Asserts(g, policy.ActionRead)
+			HasMemberID:    gm.UserID,
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead, g, policy.ActionRead).
+			// Fail the system resource skip
+			FailSystemObjectChecks()
 	}))
 	s.Run("InsertAllUsersGroup", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -597,12 +600,16 @@ func (s *MethodTestSuite) TestLicense() {
 }
 
 func (s *MethodTestSuite) TestOrganization() {
-	s.Run("GetGroupsByOrganizationID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("ByOrganization/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		a := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		b := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		check.Args(o.ID).Asserts(a, policy.ActionRead, b, policy.ActionRead).
-			Returns([]database.Group{a, b})
+		check.Args(database.GetGroupsParams{
+			OrganizationID: o.ID,
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).
+			Returns([]database.Group{a, b}).
+			// Fail the system check shortcut
+			FailSystemObjectChecks()
 	}))
 	s.Run("GetOrganizationByID", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})

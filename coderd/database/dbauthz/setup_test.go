@@ -175,6 +175,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		s.Run("Success", func() {
 			rec.Reset()
 			fakeAuthorizer.AlwaysReturn = nil
+			fakeAuthorizer.ConditionalReturn = testCase.successAuthorizer
 
 			outputs, err := callMethod(ctx)
 			if testCase.err == nil {
@@ -324,6 +325,7 @@ type expects struct {
 	// instead.
 	notAuthorizedExpect string
 	cancelledCtxExpect  string
+	successAuthorizer   func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
@@ -351,6 +353,23 @@ func (m *expects) Returns(rets ...any) *expects {
 // Errors is optional. If it is never called, it will not be asserted.
 func (m *expects) Errors(err error) *expects {
 	m.err = err
+	return m
+}
+
+func (m *expects) FailSystemObjectChecks() *expects {
+	return m.WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
+		if obj.Type == rbac.ResourceSystem.Type {
+			return xerrors.Errorf("hard coded system authz failed")
+		}
+		return nil
+	})
+}
+
+// WithSuccessAuthorizer is helpful when an optimization authz check is made
+// to skip some RBAC checks. This check in testing would prevent the ability
+// to assert the more nuanced RBAC checks.
+func (m *expects) WithSuccessAuthorizer(f func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error) *expects {
+	m.successAuthorizer = f
 	return m
 }
 
