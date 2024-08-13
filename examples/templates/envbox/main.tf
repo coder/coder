@@ -104,11 +104,11 @@ resource "coder_agent" "main" {
     fi
 
     # Install the latest code-server.
-    # Append "-s -- --version x.x.x" to `sh` to install a specific version of code-server.
-    curl -fsSL https://code-server.dev/install.sh | sh | tee code-server-install.log
+    # Append "--version x.x.x" to install a specific version of code-server.
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
 
     # Start code-server in the background.
-    code-server --auth none --port 13337 | tee code-server-install.log &
+    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 }
 
