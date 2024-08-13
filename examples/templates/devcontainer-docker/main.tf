@@ -110,6 +110,24 @@ locals {
   git_author_name            = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
   git_author_email           = data.coder_workspace_owner.me.email
   repo_url                   = data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value
+  # The envbuilder provider requires a key-value map of environment variables.
+  envbuilder_env = {
+    "CODER_AGENT_TOKEN": coder_agent.main.token,
+      # Use the docker gateway if the access URL is 127.0.0.1
+    "CODER_AGENT_URL": replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    "ENVBUILDER_GIT_URL": local.repo_url,
+      # Use the docker gateway if the access URL is 127.0.0.1
+    "ENVBUILDER_INIT_SCRIPT": replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    "ENVBUILDER_FALLBACK_IMAGE": data.coder_parameter.fallback_image.value,
+    "ENVBUILDER_CACHE_REPO": var.cache_repo,
+    "ENVBUILDER_DOCKER_CONFIG_BASE64": try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, ""),
+    "ENVBUILDER_PUSH_IMAGE": var.cache_repo == "" ? "" : "true",
+    #"ENVBUILDER_INSECURE": "true", # Uncomment if testing with an insecure registry.
+  }
+  # Convert the above map to the format expected by the docker provider.
+  docker_env = [
+    for k, v in local.envbuilder_env : "${k}=${v}"
+  ]
 }
 
 data "local_sensitive_file" "cache_repo_dockerconfigjson" {
@@ -155,6 +173,8 @@ resource "envbuilder_cached_image" "cached" {
   builder_image = local.devcontainer_builder_image
   git_url       = local.repo_url
   cache_repo    = var.cache_repo
+  extra_env = local.envbuilder_env
+  #insecure = true # Uncomment if testing with an insecure registry.
 }
 
 resource "docker_container" "workspace" {
@@ -164,18 +184,10 @@ resource "docker_container" "workspace" {
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
-  # Use the docker gateway if the access URL is 127.0.0.1
-  env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    "CODER_AGENT_URL=${replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
-    "ENVBUILDER_GIT_URL=${local.repo_url}",
-    "ENVBUILDER_INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
-    "ENVBUILDER_FALLBACK_IMAGE=${data.coder_parameter.fallback_image.value}",
-    "ENVBUILDER_CACHE_REPO=${var.cache_repo}",
-    "ENVBUILDER_DOCKER_CONFIG_BASE64=${try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, "")}",
-    "ENVBUILDER_PUSH_IMAGE=${var.cache_repo == "" ? "" : "true"}",
-    #"ENVBUILDER_INSECURE=true", # Uncomment if testing with a registry running on `localhost`.
-  ]
+  # Use the environment specified by the envbuilder provider, if available.
+  # FIXME: https://github.com/coder/terraform-provider-envbuilder/issues/31
+  #env = var.cache_repo == "" ? local.docker_env : envbuilder_cached_image.cached.0.env
+  env = local.docker_env
   # network_mode = "host" # Uncomment if testing with a registry running on `localhost`.
   host {
     host = "host.docker.internal"
