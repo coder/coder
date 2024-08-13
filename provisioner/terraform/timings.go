@@ -8,6 +8,7 @@ import (
 	"github.com/cespare/xxhash"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -26,59 +27,42 @@ const (
 	provisionErrored  logType = "provision_errored"
 	refreshStart      logType = "refresh_start"
 	refreshComplete   logType = "refresh_complete"
+	initStart         logType = "init_start"
+	initComplete      logType = "init_complete"
+	initErrored       logType = "init_errored"
 )
 
 type timingsAggregator struct {
-	stateLookup map[uint64]*entry
+	stage       database.ProvisionerJobTimingStage
+	stateLookup map[uint64]*timingsEntry
 }
 
-type entry struct {
+type timingsEntry struct {
 	kind                       logType
 	start, end                 time.Time
+	stage                      database.ProvisionerJobTimingStage
 	action, provider, resource string
 	state                      proto.TimingState
 }
 
-func newTimingsAggregator() *timingsAggregator {
+func newTimingsAggregator(stage database.ProvisionerJobTimingStage) *timingsAggregator {
 	return &timingsAggregator{
-		stateLookup: make(map[uint64]*entry),
+		stage:       stage,
+		stateLookup: make(map[uint64]*timingsEntry),
 	}
 }
 
-func (t *timingsAggregator) ingest(log terraformProvisionLog) {
-	// Input is not well-formed, bail out.
-	if log.Type == "" {
-		return
-	}
+func (t *timingsAggregator) ingest(ts time.Time, e *timingsEntry) {
+	e.stage = t.stage
 
-	typ := logType(log.Type)
-	if !typ.Valid() {
-		// TODO: log
-		return
-	}
-
-	ts, err := time.Parse("2006-01-02T15:04:05.000000Z07:00", log.Timestamp)
-	if err != nil {
-		// TODO: log
-		ts = time.Now()
-	}
-	ts = ts.UTC()
-
-	e := &entry{
-		kind:     typ,
-		action:   log.Hook.Action,
-		provider: log.Hook.Resource.Provider,
-		resource: log.Hook.Resource.Addr,
-	}
-
-	switch typ {
-	case applyStart, provisionStart, refreshStart:
+	switch e.kind {
+	case applyStart, provisionStart, refreshStart, initStart:
 		e.start = ts
 		e.state = proto.TimingState_INCOMPLETE
-	case applyComplete, provisionComplete, refreshComplete:
+	case applyComplete, provisionComplete, refreshComplete, initComplete:
 		e.end = ts
 		e.state = proto.TimingState_COMPLETED
-	case applyErrored, provisionErrored:
+	case applyErrored, provisionErrored, initErrored:
 		e.end = ts
 		e.state = proto.TimingState_FAILED
 	case applyProgress, provisionProgress:
@@ -89,7 +73,7 @@ func (t *timingsAggregator) ingest(log terraformProvisionLog) {
 	t.stateLookup[e.hashByState(e.state)] = e
 }
 
-func (t *timingsAggregator) aggregate() ([]*proto.Timing, error) {
+func (t *timingsAggregator) aggregate() []*proto.Timing {
 	out := make([]*proto.Timing, 0, len(t.stateLookup))
 
 	for _, e := range t.stateLookup {
@@ -109,7 +93,7 @@ func (t *timingsAggregator) aggregate() ([]*proto.Timing, error) {
 		out = append(out, e.toProto())
 	}
 
-	return out, nil
+	return out
 }
 
 func (l logType) Valid() bool {
@@ -127,19 +111,20 @@ func (l logType) Valid() bool {
 	}, l)
 }
 
-// hashState computes a hash based on an entry's unique properties and state.
+// hashState computes a hash based on a timingsEntry's unique properties and state.
 // The combination of resource and provider names MUST be unique across entries.
-func (e *entry) hashByState(state proto.TimingState) uint64 {
+func (e *timingsEntry) hashByState(state proto.TimingState) uint64 {
 	id := fmt.Sprintf("%s:%s:%s", state.String(), e.resource, e.provider)
 	return xxhash.Sum64String(id)
 }
 
-func (e *entry) toProto() *proto.Timing {
+func (e *timingsEntry) toProto() *proto.Timing {
 	return &proto.Timing{
 		Start:    timestamppb.New(e.start),
 		End:      timestamppb.New(e.end),
 		Action:   e.action,
-		Provider: e.provider,
+		Stage:    string(e.stage),
+		Source:   e.provider,
 		Resource: e.resource,
 		State:    e.state,
 	}

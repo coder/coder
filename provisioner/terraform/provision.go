@@ -14,6 +14,8 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/terraform-provider-coder/provider"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -101,11 +103,20 @@ func (s *server) Plan(
 	}
 
 	s.logger.Debug(ctx, "running initialization")
+
+	timingsAgg := newTimingsAggregator(database.ProvisionerJobTimingStageInit)
+	timingsAgg.ingest(createInitTimingsEvent(initStart))
+
 	err = e.init(ctx, killCtx, sess)
 	if err != nil {
+		timingsAgg.ingest(createInitTimingsEvent(initErrored))
+
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
 		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
 	}
+
+	timingsAgg.ingest(createInitTimingsEvent(initComplete))
+
 	s.logger.Debug(ctx, "ran initialization")
 
 	env, err := provisionEnv(sess.Config, request.Metadata, request.RichParameterValues, request.ExternalAuthProviders)
@@ -125,7 +136,18 @@ func (s *server) Plan(
 	if err != nil {
 		return provisionersdk.PlanErrorf(err.Error())
 	}
+
+	resp.Timings = append(resp.Timings, timingsAgg.aggregate()...)
 	return resp
+}
+
+func createInitTimingsEvent(event logType) (time.Time, *timingsEntry) {
+	return dbtime.Now(), &timingsEntry{
+		kind:     event,
+		action:   "initialize terraform",
+		provider: "terraform",
+		resource: "state file",
+	}
 }
 
 func (s *server) Apply(

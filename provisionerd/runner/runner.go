@@ -997,6 +997,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if applyComplete == nil {
 		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
 	}
+
+	// Prepend the plan timings (since they occurred first).
+	applyComplete.Timings = append(planComplete.Timings, applyComplete.Timings...)
+
 	if applyComplete.Error != "" {
 		r.logger.Warn(context.Background(), "apply failed; updating state",
 			slog.F("error", applyComplete.Error),

@@ -1216,6 +1216,67 @@ func AllProvisionerJobStatusValues() []ProvisionerJobStatus {
 	}
 }
 
+type ProvisionerJobTimingStage string
+
+const (
+	ProvisionerJobTimingStageInit  ProvisionerJobTimingStage = "init"
+	ProvisionerJobTimingStagePlan  ProvisionerJobTimingStage = "plan"
+	ProvisionerJobTimingStageApply ProvisionerJobTimingStage = "apply"
+)
+
+func (e *ProvisionerJobTimingStage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerJobTimingStage(s)
+	case string:
+		*e = ProvisionerJobTimingStage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerJobTimingStage: %T", src)
+	}
+	return nil
+}
+
+type NullProvisionerJobTimingStage struct {
+	ProvisionerJobTimingStage ProvisionerJobTimingStage `json:"provisioner_job_timing_stage"`
+	Valid                     bool                      `json:"valid"` // Valid is true if ProvisionerJobTimingStage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullProvisionerJobTimingStage) Scan(value interface{}) error {
+	if value == nil {
+		ns.ProvisionerJobTimingStage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ProvisionerJobTimingStage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullProvisionerJobTimingStage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ProvisionerJobTimingStage), nil
+}
+
+func (e ProvisionerJobTimingStage) Valid() bool {
+	switch e {
+	case ProvisionerJobTimingStageInit,
+		ProvisionerJobTimingStagePlan,
+		ProvisionerJobTimingStageApply:
+		return true
+	}
+	return false
+}
+
+func AllProvisionerJobTimingStageValues() []ProvisionerJobTimingStage {
+	return []ProvisionerJobTimingStage{
+		ProvisionerJobTimingStageInit,
+		ProvisionerJobTimingStagePlan,
+		ProvisionerJobTimingStageApply,
+	}
+}
+
 type ProvisionerJobType string
 
 const (
@@ -2280,13 +2341,29 @@ type ProvisionerJobLog struct {
 	ID        int64     `db:"id" json:"id"`
 }
 
+type ProvisionerJobStat struct {
+	ID             uuid.UUID            `db:"id" json:"id"`
+	JobStatus      ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	WorkerID       uuid.NullUUID        `db:"worker_id" json:"worker_id"`
+	Error          sql.NullString       `db:"error" json:"error"`
+	ErrorCode      sql.NullString       `db:"error_code" json:"error_code"`
+	UpdatedAt      time.Time            `db:"updated_at" json:"updated_at"`
+	QueuedSecs     float64              `db:"queued_secs" json:"queued_secs"`
+	CompletionSecs float64              `db:"completion_secs" json:"completion_secs"`
+	CanceledSecs   float64              `db:"canceled_secs" json:"canceled_secs"`
+	InitSecs       float64              `db:"init_secs" json:"init_secs"`
+	PlanSecs       float64              `db:"plan_secs" json:"plan_secs"`
+	ApplySecs      float64              `db:"apply_secs" json:"apply_secs"`
+}
+
 type ProvisionerJobTiming struct {
-	ProvisionerJobID uuid.UUID `db:"provisioner_job_id" json:"provisioner_job_id"`
-	StartedAt        time.Time `db:"started_at" json:"started_at"`
-	EndedAt          time.Time `db:"ended_at" json:"ended_at"`
-	Context          string    `db:"context" json:"context"`
-	Action           string    `db:"action" json:"action"`
-	Resource         string    `db:"resource" json:"resource"`
+	JobID     uuid.UUID                 `db:"job_id" json:"job_id"`
+	StartedAt time.Time                 `db:"started_at" json:"started_at"`
+	EndedAt   time.Time                 `db:"ended_at" json:"ended_at"`
+	Stage     ProvisionerJobTimingStage `db:"stage" json:"stage"`
+	Source    string                    `db:"source" json:"source"`
+	Action    string                    `db:"action" json:"action"`
+	Resource  string                    `db:"resource" json:"resource"`
 }
 
 type ProvisionerKey struct {

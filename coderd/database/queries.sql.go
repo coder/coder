@@ -5605,24 +5605,26 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 }
 
 const insertProvisionerJobTimings = `-- name: InsertProvisionerJobTimings :many
-INSERT INTO provisioner_job_timings (provisioner_job_id, started_at, ended_at, context, action, resource)
+INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
 SELECT
     $1::uuid AS provisioner_job_id,
     unnest($2::timestamptz[]) AS started_at,
     unnest($3::timestamptz[]) AS ended_at,
-    unnest($4::text[]) AS context,
-    unnest($5::text[]) AS action,
-    unnest($6::text[]) AS resource
-RETURNING provisioner_job_id, started_at, ended_at, context, action, resource
+    unnest($4::provisioner_job_timing_stage[]) AS context,
+    unnest($5::text[]) AS context,
+    unnest($6::text[]) AS action,
+    unnest($7::text[]) AS resource
+RETURNING job_id, started_at, ended_at, stage, source, action, resource
 `
 
 type InsertProvisionerJobTimingsParams struct {
-	JobID     uuid.UUID   `db:"job_id" json:"job_id"`
-	StartedAt []time.Time `db:"started_at" json:"started_at"`
-	EndedAt   []time.Time `db:"ended_at" json:"ended_at"`
-	Context   []string    `db:"context" json:"context"`
-	Action    []string    `db:"action" json:"action"`
-	Resource  []string    `db:"resource" json:"resource"`
+	JobID     uuid.UUID                   `db:"job_id" json:"job_id"`
+	StartedAt []time.Time                 `db:"started_at" json:"started_at"`
+	EndedAt   []time.Time                 `db:"ended_at" json:"ended_at"`
+	Stage     []ProvisionerJobTimingStage `db:"stage" json:"stage"`
+	Source    []string                    `db:"source" json:"source"`
+	Action    []string                    `db:"action" json:"action"`
+	Resource  []string                    `db:"resource" json:"resource"`
 }
 
 func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error) {
@@ -5630,7 +5632,8 @@ func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg Insert
 		arg.JobID,
 		pq.Array(arg.StartedAt),
 		pq.Array(arg.EndedAt),
-		pq.Array(arg.Context),
+		pq.Array(arg.Stage),
+		pq.Array(arg.Source),
 		pq.Array(arg.Action),
 		pq.Array(arg.Resource),
 	)
@@ -5642,10 +5645,11 @@ func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg Insert
 	for rows.Next() {
 		var i ProvisionerJobTiming
 		if err := rows.Scan(
-			&i.ProvisionerJobID,
+			&i.JobID,
 			&i.StartedAt,
 			&i.EndedAt,
-			&i.Context,
+			&i.Stage,
+			&i.Source,
 			&i.Action,
 			&i.Resource,
 		); err != nil {

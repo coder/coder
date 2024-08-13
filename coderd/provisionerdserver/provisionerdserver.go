@@ -1454,7 +1454,14 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				end = t.End.AsTime()
 			}
 
-			params.Context = append(params.Context, t.Provider)
+			var stg database.ProvisionerJobTimingStage
+			if err := stg.Scan(t.Stage); err != nil {
+				s.Logger.Warn(ctx, "failed to parse timings stage, skipping", slog.F("value", t.Stage))
+				continue
+			}
+
+			params.Stage = append(params.Stage, stg)
+			params.Source = append(params.Source, t.Source)
 			params.Resource = append(params.Resource, t.Resource)
 			params.Action = append(params.Action, t.Action)
 			params.StartedAt = append(params.StartedAt, start)

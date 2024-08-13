@@ -1,9 +1,33 @@
+CREATE TYPE provisioner_job_timing_stage AS ENUM (
+    'init',
+    'plan',
+    'apply'
+    );
+
 CREATE TABLE provisioner_job_timings
 (
-    provisioner_job_id uuid                     NOT NULL REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
-    started_at         timestamp with time zone not null,
-    ended_at           timestamp with time zone not null,
-    context            text                     not null, -- TODO: enum?
-    action             text                     not null, -- TODO: enum?
-    resource           text                     not null  -- TODO: enum?
+    job_id     uuid                         NOT NULL REFERENCES provisioner_jobs (id) ON DELETE CASCADE,
+    started_at timestamp with time zone     not null,
+    ended_at   timestamp with time zone     not null,
+    stage      provisioner_job_timing_stage not null,
+    source     text                         not null,
+    action     text                         not null,
+    resource   text                         not null
 );
+
+CREATE VIEW provisioner_job_stats AS
+SELECT pj.id,
+       pj.job_status,
+       pj.worker_id,
+       pj.error,
+       pj.error_code,
+       pj.updated_at,
+       GREATEST(EXTRACT(EPOCH FROM (pj.started_at - pj.created_at)), 0)                                             AS queued_secs,
+       GREATEST(EXTRACT(EPOCH FROM (pj.completed_at - pj.started_at)), 0)                                           AS completion_secs,
+       GREATEST(EXTRACT(EPOCH FROM (pj.canceled_at - pj.started_at)), 0)                                            AS canceled_secs,
+       GREATEST(MAX(CASE WHEN pjt.stage = 'init' THEN EXTRACT(EPOCH FROM (pjt.ended_at - pjt.started_at)) END), 0)  AS init_secs,
+       GREATEST(MAX(CASE WHEN pjt.stage = 'plan' THEN EXTRACT(EPOCH FROM (pjt.ended_at - pjt.started_at)) END), 0)  AS plan_secs,
+       GREATEST(MAX(CASE WHEN pjt.stage = 'apply' THEN EXTRACT(EPOCH FROM (pjt.ended_at - pjt.started_at)) END), 0) AS apply_secs
+FROM provisioner_jobs pj
+         LEFT JOIN provisioner_job_timings pjt ON pjt.job_id = pj.id
+GROUP BY pj.id;

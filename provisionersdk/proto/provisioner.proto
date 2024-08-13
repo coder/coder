@@ -290,10 +290,11 @@ message ApplyComplete {
 message Timing {
     google.protobuf.Timestamp start = 1;
     google.protobuf.Timestamp end = 2;
-    string action = 3; // TODO: enum? try not be terraform-specific
-    string provider = 4;
+    string action = 3;
+    string source = 4;
     string resource = 5;
-    TimingState state = 6;
+    string stage = 6;
+    TimingState state = 7;
 }
 
 enum TimingState {

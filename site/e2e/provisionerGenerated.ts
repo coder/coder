@@ -308,10 +308,10 @@ export interface ApplyComplete {
 export interface Timing {
   start: Date | undefined;
   end: Date | undefined;
-  /** TODO: enum? try not be terraform-specific */
   action: string;
-  provider: string;
+  source: string;
   resource: string;
+  stage: string;
   state: TimingState;
 }
 
@@ -1055,14 +1055,17 @@ export const Timing = {
     if (message.action !== "") {
       writer.uint32(26).string(message.action);
     }
-    if (message.provider !== "") {
-      writer.uint32(34).string(message.provider);
+    if (message.source !== "") {
+      writer.uint32(34).string(message.source);
     }
     if (message.resource !== "") {
       writer.uint32(42).string(message.resource);
     }
+    if (message.stage !== "") {
+      writer.uint32(50).string(message.stage);
+    }
     if (message.state !== 0) {
-      writer.uint32(48).int32(message.state);
+      writer.uint32(56).int32(message.state);
     }
     return writer;
   },

@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"cdr.dev/slog"
 	"github.com/hashicorp/go-version"
@@ -20,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -252,8 +254,8 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		args = append(args, "-var", variable)
 	}
 
-	timingsAgg := newTimingsAggregator()
-	outWriter, doneOut := provisionLogWriter(logr, timingsAgg)
+	timingsAgg := newTimingsAggregator(database.ProvisionerJobTimingStagePlan)
+	outWriter, doneOut := e.provisionLogWriter(logr, timingsAgg)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -271,16 +273,11 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, err
 	}
 
-	timings, err := timingsAgg.aggregate()
-	if err != nil {
-		e.logger.Warn(ctx, "failed to aggregate timings", slog.Error(err))
-	}
-
 	return &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
-		Timings:               timings,
+		Timings:               timingsAgg.aggregate(),
 	}, nil
 }
 
@@ -407,8 +404,8 @@ func (e *executor) apply(
 		getPlanFilePath(e.workdir),
 	}
 
-	timingsAgg := newTimingsAggregator()
-	outWriter, doneOut := provisionLogWriter(logr, timingsAgg)
+	timingsAgg := newTimingsAggregator(database.ProvisionerJobTimingStageApply)
+	outWriter, doneOut := e.provisionLogWriter(logr, timingsAgg)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -431,17 +428,12 @@ func (e *executor) apply(
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 
-	timings, err := timingsAgg.aggregate()
-	if err != nil {
-		e.logger.Warn(ctx, "failed to aggregate timings", slog.Error(err))
-	}
-
 	return &proto.ApplyComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
-		Timings:               timings,
+		Timings:               timingsAgg.aggregate(),
 	}, nil
 }
 
@@ -555,15 +547,15 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
 // closed by the caller to end logging, after which the returned channel will be closed to indicate that logging of the
 // written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func provisionLogWriter(sink logSink, timings *timingsAggregator) (io.WriteCloser, <-chan any) {
+func (e *executor) provisionLogWriter(sink logSink, timings *timingsAggregator) (io.WriteCloser, <-chan any) {
 	r, w := io.Pipe()
 	done := make(chan any)
 
-	go provisionReadAndLog(sink, r, timings, done)
+	go e.provisionReadAndLog(sink, r, timings, done)
 	return w, done
 }
 
-func provisionReadAndLog(sink logSink, r io.Reader, timings *timingsAggregator, done chan<- any) {
+func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, timings *timingsAggregator, done chan<- any) {
 	defer close(done)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -596,7 +588,14 @@ func provisionReadAndLog(sink logSink, r io.Reader, timings *timingsAggregator, 
 		logLevel := convertTerraformLogLevel(log.Level, sink)
 		sink.ProvisionLog(logLevel, log.Message)
 
-		timings.ingest(log)
+		ts, te, err := extractTimingsEntry(log)
+		if err != nil {
+			e.logger.Debug(context.Background(), "failed to extract timings entry from log line",
+				slog.F("line", log.Message), slog.Error(err))
+		} else {
+			// Only ingest valid timings.
+			timings.ingest(ts, te)
+		}
 
 		// If the diagnostic is provided, let's provide a bit more info!
 		if log.Diagnostic == nil {
@@ -607,6 +606,32 @@ func provisionReadAndLog(sink logSink, r io.Reader, timings *timingsAggregator, 
 			sink.ProvisionLog(logLevel, diagLine)
 		}
 	}
+}
+
+func extractTimingsEntry(log terraformProvisionLog) (time.Time, *timingsEntry, error) {
+	// Input is not well-formed, bail out.
+	if log.Type == "" {
+		return time.Time{}, nil, xerrors.Errorf("invalid type: %q", log.Type)
+	}
+
+	typ := logType(log.Type)
+	if !typ.Valid() {
+		return time.Time{}, nil, xerrors.Errorf("invalid type: %q", log.Type)
+	}
+
+	ts, err := time.Parse("2006-01-02T15:04:05.000000Z07:00", log.Timestamp)
+	if err != nil {
+		// TODO: log
+		ts = time.Now()
+	}
+	ts = ts.UTC()
+
+	return ts, &timingsEntry{
+		kind:     typ,
+		action:   log.Hook.Action,
+		provider: log.Hook.Resource.Provider,
+		resource: log.Hook.Resource.Addr,
+	}, nil
 }
 
 func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {

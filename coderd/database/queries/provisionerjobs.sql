@@ -146,12 +146,13 @@ WHERE
 	AND completed_at IS NULL;
 
 -- name: InsertProvisionerJobTimings :many
-INSERT INTO provisioner_job_timings (provisioner_job_id, started_at, ended_at, context, action, resource)
+INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
 SELECT
     @job_id::uuid AS provisioner_job_id,
     unnest(@started_at::timestamptz[]) AS started_at,
     unnest(@ended_at::timestamptz[]) AS ended_at,
-    unnest(@context::text[]) AS context,
+    unnest(@stage::provisioner_job_timing_stage[]) AS context,
+    unnest(@source::text[]) AS context,
     unnest(@action::text[]) AS action,
     unnest(@resource::text[]) AS resource
 RETURNING *;
