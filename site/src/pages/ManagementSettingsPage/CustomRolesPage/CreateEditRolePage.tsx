@@ -58,11 +58,10 @@ export const CreateEditRolePage: FC = () => {
           try {
             if (role) {
               await updateOrganizationRoleMutation.mutateAsync(data);
-              navigate(`/organizations/${organizationName}/roles`);
             } else {
               await createOrganizationRoleMutation.mutateAsync(data);
-              navigate(`/organizations/${organizationName}/roles`);
             }
+            navigate(`/organizations/${organizationName}/roles`);
           } catch (error) {
             displayError(
               getErrorMessage(error, "Failed to update custom role"),
