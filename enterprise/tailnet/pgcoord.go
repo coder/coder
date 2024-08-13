@@ -144,7 +144,6 @@ func newPGCoordInternal(
 	// signals when first heartbeat has been sent, so it's safe to start binding.
 	fHB := make(chan struct{})
 
-	querierCtx, querierCancel := context.WithCancel(dbauthz.As(context.Background(), pgCoordSubject))
 	c := &pgCoord{
 		ctx:              ctx,
 		cancel:           cancel,
@@ -160,15 +159,9 @@ func newPGCoordInternal(
 		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
 		id:               id,
-		querier:          newQuerier(querierCtx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
+		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
 		closed:           make(chan struct{}),
 	}
-	go func() {
-		c.binder.wait()
-		c.tunneler.workerWG.Wait()
-		c.handshaker.workerWG.Wait()
-		querierCancel()
-	}()
 	logger.Info(ctx, "starting coordinator")
 	return c, nil
 }
@@ -233,6 +226,9 @@ func (c *pgCoord) Close() error {
 	c.cancel()
 	c.closeOnce.Do(func() { close(c.closed) })
 	c.querier.wait()
+	c.binder.wait()
+	c.tunneler.workerWG.Wait()
+	c.handshaker.workerWG.Wait()
 	return nil
 }
 
