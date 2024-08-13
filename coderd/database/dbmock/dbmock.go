@@ -1285,10 +1285,10 @@ func (mr *MockStoreMockRecorder) GetGroupMembers(arg0 any) *gomock.Call {
 }
 
 // GetGroupMembersByGroupID mocks base method.
-func (m *MockStore) GetGroupMembersByGroupID(arg0 context.Context, arg1 uuid.UUID) ([]database.User, error) {
+func (m *MockStore) GetGroupMembersByGroupID(arg0 context.Context, arg1 uuid.UUID) ([]database.GroupMember, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGroupMembersByGroupID", arg0, arg1)
-	ret0, _ := ret[0].([]database.User)
+	ret0, _ := ret[0].([]database.GroupMember)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1297,6 +1297,21 @@ func (m *MockStore) GetGroupMembersByGroupID(arg0 context.Context, arg1 uuid.UUI
 func (mr *MockStoreMockRecorder) GetGroupMembersByGroupID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembersByGroupID", reflect.TypeOf((*MockStore)(nil).GetGroupMembersByGroupID), arg0, arg1)
+}
+
+// GetGroupMembersCountByGroupID mocks base method.
+func (m *MockStore) GetGroupMembersCountByGroupID(arg0 context.Context, arg1 uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupMembersCountByGroupID", arg0, arg1)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupMembersCountByGroupID indicates an expected call of GetGroupMembersCountByGroupID.
+func (mr *MockStoreMockRecorder) GetGroupMembersCountByGroupID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembersCountByGroupID", reflect.TypeOf((*MockStore)(nil).GetGroupMembersCountByGroupID), arg0, arg1)
 }
 
 // GetGroups mocks base method.
@@ -3323,6 +3338,21 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), arg0, arg1)
 }
 
+// InsertCustomRole mocks base method.
+func (m *MockStore) InsertCustomRole(arg0 context.Context, arg1 database.InsertCustomRoleParams) (database.CustomRole, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertCustomRole", arg0, arg1)
+	ret0, _ := ret[0].(database.CustomRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertCustomRole indicates an expected call of InsertCustomRole.
+func (mr *MockStoreMockRecorder) InsertCustomRole(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCustomRole", reflect.TypeOf((*MockStore)(nil).InsertCustomRole), arg0, arg1)
+}
+
 // InsertDBCryptKey mocks base method.
 func (m *MockStore) InsertDBCryptKey(arg0 context.Context, arg1 database.InsertDBCryptKeyParams) error {
 	m.ctrl.T.Helper()
@@ -4113,6 +4143,21 @@ func (m *MockStore) UpdateAPIKeyByID(arg0 context.Context, arg1 database.UpdateA
 func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), arg0, arg1)
+}
+
+// UpdateCustomRole mocks base method.
+func (m *MockStore) UpdateCustomRole(arg0 context.Context, arg1 database.UpdateCustomRoleParams) (database.CustomRole, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateCustomRole", arg0, arg1)
+	ret0, _ := ret[0].(database.CustomRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateCustomRole indicates an expected call of UpdateCustomRole.
+func (mr *MockStoreMockRecorder) UpdateCustomRole(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCustomRole", reflect.TypeOf((*MockStore)(nil).UpdateCustomRole), arg0, arg1)
 }
 
 // UpdateExternalAuthLink mocks base method.
@@ -4963,21 +5008,6 @@ func (m *MockStore) UpsertApplicationName(arg0 context.Context, arg1 string) err
 func (mr *MockStoreMockRecorder) UpsertApplicationName(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), arg0, arg1)
-}
-
-// UpsertCustomRole mocks base method.
-func (m *MockStore) UpsertCustomRole(arg0 context.Context, arg1 database.UpsertCustomRoleParams) (database.CustomRole, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertCustomRole", arg0, arg1)
-	ret0, _ := ret[0].(database.CustomRole)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpsertCustomRole indicates an expected call of UpsertCustomRole.
-func (mr *MockStoreMockRecorder) UpsertCustomRole(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCustomRole", reflect.TypeOf((*MockStore)(nil).UpsertCustomRole), arg0, arg1)
 }
 
 // UpsertDefaultProxy mocks base method.

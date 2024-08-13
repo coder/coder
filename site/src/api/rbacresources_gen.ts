@@ -16,15 +16,17 @@ export const RBACResourceActions: Partial<
   },
   assign_org_role: {
     assign: "ability to assign org scoped roles",
-    create: "ability to create/delete/edit custom roles within an organization",
+    create: "ability to create/delete custom roles within an organization",
     delete: "ability to delete org scoped roles",
     read: "view what roles are assignable",
+    update: "ability to edit custom roles within an organization",
   },
   assign_role: {
     assign: "ability to assign roles",
     create: "ability to create/delete/edit custom roles",
     delete: "ability to unassign roles",
     read: "view what roles are assignable",
+    update: "ability to edit custom roles",
   },
   audit_log: {
     create: "create new audit log entries",
@@ -49,6 +51,9 @@ export const RBACResourceActions: Partial<
     delete: "delete a group",
     read: "read groups",
     update: "update a group",
+  },
+  group_member: {
+    read: "read group members",
   },
   license: {
     create: "create a license",

@@ -52,7 +52,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
             />
           }
         >
-          Deployment
+          Administration
         </Button>
       </PopoverTrigger>
 
@@ -128,7 +128,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
           css={styles.menuItem}
           onClick={onPopoverClose}
         >
-          Auditing
+          Audit Logs
         </MenuItem>
       )}
       {canViewHealth && (

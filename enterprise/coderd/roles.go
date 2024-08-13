@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -17,19 +18,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// patchRole will allow creating a custom organization role
+// postOrgRoles will allow creating a custom organization role
 //
-// @Summary Upsert a custom organization role
-// @ID upsert-a-custom-organization-role
+// @Summary Insert a custom organization role
+// @ID insert-a-custom-organization-role
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.PatchRoleRequest true "Upsert role request"
+// @Param request body codersdk.CustomRoleRequest true "Insert role request"
 // @Tags Members
 // @Success 200 {array} codersdk.Role
-// @Router /organizations/{organization}/members/roles [patch]
-func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
+// @Router /organizations/{organization}/members/roles [post]
+func (api *API) postOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		db                = api.Database
@@ -39,74 +40,22 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 			Audit:          *auditor,
 			Log:            api.Logger,
 			Request:        r,
-			Action:         database.AuditActionWrite,
+			Action:         database.AuditActionCreate,
 			OrganizationID: organization.ID,
 		})
 	)
 	defer commitAudit()
 
-	var req codersdk.PatchRoleRequest
+	var req codersdk.CustomRoleRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	// This check is not ideal, but we cannot enforce a unique role name in the db against
-	// the built-in role names.
-	if rbac.ReservedRoleName(req.Name) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Reserved role name",
-			Detail:  fmt.Sprintf("%q is a reserved role name, and not allowed to be used", req.Name),
-		})
+	if !validOrganizationRoleRequest(ctx, req, rw) {
 		return
 	}
 
-	if err := httpapi.NameValid(req.Name); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid role name",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Only organization permissions are allowed to be granted
-	if len(req.SitePermissions) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request, not allowed to assign site wide permissions for an organization role.",
-			Detail:  "organization scoped roles may not contain site wide permissions",
-		})
-		return
-	}
-
-	if len(req.UserPermissions) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request, not allowed to assign user permissions for an organization role.",
-			Detail:  "organization scoped roles may not contain user permissions",
-		})
-		return
-	}
-
-	originalRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
-		LookupRoles: []database.NameOrganizationPair{
-			{
-				Name:           req.Name,
-				OrganizationID: organization.ID,
-			},
-		},
-		ExcludeOrgRoles: false,
-		// Linter requires all fields to be set. This field is not actually required.
-		OrganizationID: organization.ID,
-	})
-	// If it is a 404 (not found) error, ignore it.
-	if err != nil && !httpapi.Is404Error(err) {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	if len(originalRoles) == 1 {
-		// For auditing changes to a role.
-		aReq.Old = originalRoles[0]
-	}
-
-	inserted, err := db.UpsertCustomRole(ctx, database.UpsertCustomRoleParams{
+	inserted, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 		Name:        req.Name,
 		DisplayName: req.DisplayName,
 		OrganizationID: uuid.NullUUID{
@@ -131,6 +80,91 @@ func (api *API) patchOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = inserted
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Role(inserted))
+}
+
+// patchRole will allow creating a custom organization role
+//
+// @Summary Upsert a custom organization role
+// @ID upsert-a-custom-organization-role
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.CustomRoleRequest true "Upsert role request"
+// @Tags Members
+// @Success 200 {array} codersdk.Role
+// @Router /organizations/{organization}/members/roles [put]
+func (api *API) putOrgRoles(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		db                = api.Database
+		auditor           = api.AGPL.Auditor.Load()
+		organization      = httpmw.OrganizationParam(r)
+		aReq, commitAudit = audit.InitRequest[database.CustomRole](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: organization.ID,
+		})
+	)
+	defer commitAudit()
+
+	var req codersdk.CustomRoleRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if !validOrganizationRoleRequest(ctx, req, rw) {
+		return
+	}
+
+	originalRoles, err := db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{
+			{
+				Name:           req.Name,
+				OrganizationID: organization.ID,
+			},
+		},
+		ExcludeOrgRoles: false,
+		// Linter requires all fields to be set. This field is not actually required.
+		OrganizationID: organization.ID,
+	})
+	// If it is a 404 (not found) error, ignore it.
+	if err != nil && !httpapi.Is404Error(err) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if len(originalRoles) == 1 {
+		// For auditing changes to a role.
+		aReq.Old = originalRoles[0]
+	}
+
+	updated, err := db.UpdateCustomRole(ctx, database.UpdateCustomRoleParams{
+		Name:        req.Name,
+		DisplayName: req.DisplayName,
+		OrganizationID: uuid.NullUUID{
+			UUID:  organization.ID,
+			Valid: true,
+		},
+		SitePermissions: db2sdk.List(req.SitePermissions, sdkPermissionToDB),
+		OrgPermissions:  db2sdk.List(req.OrganizationPermissions, sdkPermissionToDB),
+		UserPermissions: db2sdk.List(req.UserPermissions, sdkPermissionToDB),
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to update role permissions",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = updated
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Role(updated))
 }
 
 // deleteOrgRole will remove a custom role from an organization
@@ -219,4 +253,43 @@ func sdkPermissionToDB(p codersdk.Permission) database.CustomRolePermission {
 		ResourceType: string(p.ResourceType),
 		Action:       policy.Action(p.Action),
 	}
+}
+
+func validOrganizationRoleRequest(ctx context.Context, req codersdk.CustomRoleRequest, rw http.ResponseWriter) bool {
+	// This check is not ideal, but we cannot enforce a unique role name in the db against
+	// the built-in role names.
+	if rbac.ReservedRoleName(req.Name) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Reserved role name",
+			Detail:  fmt.Sprintf("%q is a reserved role name, and not allowed to be used", req.Name),
+		})
+		return false
+	}
+
+	if err := httpapi.NameValid(req.Name); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid role name",
+			Detail:  err.Error(),
+		})
+		return false
+	}
+
+	// Only organization permissions are allowed to be granted
+	if len(req.SitePermissions) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request, not allowed to assign site wide permissions for an organization role.",
+			Detail:  "organization scoped roles may not contain site wide permissions",
+		})
+		return false
+	}
+
+	if len(req.UserPermissions) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request, not allowed to assign user permissions for an organization role.",
+			Detail:  "organization scoped roles may not contain user permissions",
+		})
+		return false
+	}
+
+	return true
 }

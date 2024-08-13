@@ -69,7 +69,7 @@ describe("NavbarView", () => {
         canViewAuditLog
       />,
     );
-    const deploymentMenu = await screen.findByText("Deployment");
+    const deploymentMenu = await screen.findByText("Administration");
     await userEvent.click(deploymentMenu);
     const userLink = await screen.findByText(navLanguage.users);
     expect((userLink as HTMLAnchorElement).href).toContain("/users");
@@ -88,7 +88,7 @@ describe("NavbarView", () => {
         canViewAuditLog
       />,
     );
-    const deploymentMenu = await screen.findByText("Deployment");
+    const deploymentMenu = await screen.findByText("Administration");
     await userEvent.click(deploymentMenu);
     const auditLink = await screen.findByText(navLanguage.audit);
     expect((auditLink as HTMLAnchorElement).href).toContain("/audit");
@@ -107,7 +107,7 @@ describe("NavbarView", () => {
         canViewAuditLog
       />,
     );
-    const deploymentMenu = await screen.findByText("Deployment");
+    const deploymentMenu = await screen.findByText("Administration");
     await userEvent.click(deploymentMenu);
     const deploymentSettingsLink = await screen.findByText(
       navLanguage.deployment,

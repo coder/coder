@@ -48,7 +48,9 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen);
   const diffs = Object.entries(auditLog.diff);
   const shouldDisplayDiff = diffs.length > 0;
-  const { os, browser } = userAgentParser(auditLog.user_agent);
+  const userAgent = auditLog.user_agent
+    ? userAgentParser(auditLog.user_agent)
+    : undefined;
 
   let auditDiff = auditLog.diff;
 
@@ -129,17 +131,18 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
                               <div>{auditLog.ip}</div>
                             </div>
                           )}
-                          {os.name && (
+                          {userAgent?.os.name && (
                             <div>
                               <h4 css={styles.auditLogInfoHeader}>OS:</h4>
-                              <div>{os.name}</div>
+                              <div>{userAgent.os.name}</div>
                             </div>
                           )}
-                          {browser.name && (
+                          {userAgent?.browser.name && (
                             <div>
                               <h4 css={styles.auditLogInfoHeader}>Browser:</h4>
                               <div>
-                                {browser.name} {browser.version}
+                                {userAgent.browser.name}{" "}
+                                {userAgent.browser.version}
                               </div>
                             </div>
                           )}
@@ -175,17 +178,17 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
                           <strong>{auditLog.ip}</strong>
                         </span>
                       )}
-                      {os.name && (
+                      {userAgent?.os.name && (
                         <span css={styles.auditLogInfo}>
                           <span>OS: </span>
-                          <strong>{os.name}</strong>
+                          <strong>{userAgent.os.name}</strong>
                         </span>
                       )}
-                      {browser.name && (
+                      {userAgent?.browser.name && (
                         <span css={styles.auditLogInfo}>
                           <span>Browser: </span>
                           <strong>
-                            {browser.name} {browser.version}
+                            {userAgent.browser.name} {userAgent.browser.version}
                           </strong>
                         </span>
                       )}

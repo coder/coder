@@ -269,7 +269,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentCustomRoles),
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
-			r.Patch("/organizations/{organization}/members/roles", api.patchOrgRoles)
+			r.Post("/organizations/{organization}/members/roles", api.postOrgRoles)
+			r.Put("/organizations/{organization}/members/roles", api.putOrgRoles)
 			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
 		})
 

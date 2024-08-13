@@ -345,6 +345,15 @@ export interface CreateWorkspaceRequest {
   readonly automatic_updates?: AutomaticUpdates;
 }
 
+// From codersdk/roles.go
+export interface CustomRoleRequest {
+  readonly name: string;
+  readonly display_name: string;
+  readonly site_permissions: readonly Permission[];
+  readonly organization_permissions: readonly Permission[];
+  readonly user_permissions: readonly Permission[];
+}
+
 // From codersdk/deployment.go
 export interface DAUEntry {
   readonly date: string;
@@ -613,6 +622,7 @@ export interface Group {
   readonly display_name: string;
   readonly organization_id: string;
   readonly members: readonly ReducedUser[];
+  readonly total_member_count: number;
   readonly avatar_url: string;
   readonly quota_allowance: number;
   readonly source: GroupSource;
@@ -922,15 +932,6 @@ export interface PatchGroupRequest {
   readonly display_name?: string;
   readonly avatar_url?: string;
   readonly quota_allowance?: number;
-}
-
-// From codersdk/roles.go
-export interface PatchRoleRequest {
-  readonly name: string;
-  readonly display_name: string;
-  readonly site_permissions: readonly Permission[];
-  readonly organization_permissions: readonly Permission[];
-  readonly user_permissions: readonly Permission[];
 }
 
 // From codersdk/templateversions.go
@@ -2302,6 +2303,7 @@ export type RBACResource =
   | "deployment_stats"
   | "file"
   | "group"
+  | "group_member"
   | "license"
   | "notification_preference"
   | "notification_template"
@@ -2331,6 +2333,7 @@ export const RBACResources: RBACResource[] = [
   "deployment_stats",
   "file",
   "group",
+  "group_member",
   "license",
   "notification_preference",
   "notification_template",
