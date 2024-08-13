@@ -403,7 +403,9 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		org = httpmw.OrganizationParam(r)
 	)
 
-	groups, err := api.Database.GetGroupsByOrganizationID(ctx, org.ID)
+	groups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{
+		OrganizationID: org.ID,
+	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return

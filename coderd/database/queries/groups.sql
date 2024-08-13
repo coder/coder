@@ -1,6 +1,3 @@
--- name: GetGroups :many
-SELECT * FROM groups;
-
 -- name: GetGroupByID :one
 SELECT
 	*
@@ -23,30 +20,34 @@ AND
 LIMIT
 	1;
 
--- name: GetGroupsByOrganizationID :many
+-- name: GetGroups :many
 SELECT
-	*
-FROM
-	groups
-WHERE
-	organization_id = $1;
-
--- name: GetGroupsByOrganizationAndUserID :many
-SELECT
-    groups.*
+    *
 FROM
     groups
 WHERE
-    groups.id IN (
-        SELECT
-            group_id
-        FROM
-            group_members_expanded gme
-        WHERE
-            gme.user_id = @user_id
-        AND
-            gme.organization_id = @organization_id
-    );
+    true
+    AND CASE
+		WHEN @organization_id:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			groups.organization_id = @organization_id
+		ELSE true
+    END
+    AND CASE
+        -- Filter to only include groups a user is a member of
+        WHEN @has_member_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            EXISTS (
+				SELECT
+					1
+				FROM
+					group_members
+				WHERE
+					group_members.group_id = groups.id
+				AND
+					group_members.user_id = @has_member_id
+			)
+		ELSE true
+    END
+;
 
 -- name: InsertGroup :one
 INSERT INTO groups (
@@ -68,15 +69,15 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-    source
+    	    	source
 )
 SELECT
-    gen_random_uuid(),
-    group_name,
-    @organization_id,
-    @source
+    	    	gen_random_uuid(),
+    	    	group_name,
+    	    	@organization_id,
+    	    	@source
 FROM
-    UNNEST(@group_names :: text[]) AS group_name
+    	    	UNNEST(@group_names :: text[]) AS group_name
 -- If the name conflicts, do nothing.
 ON CONFLICT DO NOTHING
 RETURNING *;
