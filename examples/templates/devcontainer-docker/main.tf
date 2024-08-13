@@ -112,16 +112,16 @@ locals {
   repo_url                   = data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value
   # The envbuilder provider requires a key-value map of environment variables.
   envbuilder_env = {
-    "CODER_AGENT_TOKEN": coder_agent.main.token,
-      # Use the docker gateway if the access URL is 127.0.0.1
-    "CODER_AGENT_URL": replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
-    "ENVBUILDER_GIT_URL": local.repo_url,
-      # Use the docker gateway if the access URL is 127.0.0.1
-    "ENVBUILDER_INIT_SCRIPT": replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
-    "ENVBUILDER_FALLBACK_IMAGE": data.coder_parameter.fallback_image.value,
-    "ENVBUILDER_CACHE_REPO": var.cache_repo,
-    "ENVBUILDER_DOCKER_CONFIG_BASE64": try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, ""),
-    "ENVBUILDER_PUSH_IMAGE": var.cache_repo == "" ? "" : "true",
+    "CODER_AGENT_TOKEN" : coder_agent.main.token,
+    # Use the docker gateway if the access URL is 127.0.0.1
+    "CODER_AGENT_URL" : replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    "ENVBUILDER_GIT_URL" : local.repo_url,
+    # Use the docker gateway if the access URL is 127.0.0.1
+    "ENVBUILDER_INIT_SCRIPT" : replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
+    "ENVBUILDER_CACHE_REPO" : var.cache_repo,
+    "ENVBUILDER_DOCKER_CONFIG_BASE64" : try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, ""),
+    "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
     #"ENVBUILDER_INSECURE": "true", # Uncomment if testing with an insecure registry.
   }
   # Convert the above map to the format expected by the docker provider.
@@ -173,7 +173,7 @@ resource "envbuilder_cached_image" "cached" {
   builder_image = local.devcontainer_builder_image
   git_url       = local.repo_url
   cache_repo    = var.cache_repo
-  extra_env = local.envbuilder_env
+  extra_env     = local.envbuilder_env
   #insecure = true # Uncomment if testing with an insecure registry.
 }
 
