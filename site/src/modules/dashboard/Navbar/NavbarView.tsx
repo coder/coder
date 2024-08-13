@@ -31,7 +31,7 @@ export const Language = {
   workspaces: "Workspaces",
   templates: "Templates",
   users: "Users",
-  audit: "Auditing",
+  audit: "Audit Logs",
   deployment: "Settings",
 };
 

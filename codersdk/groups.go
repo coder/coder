@@ -30,9 +30,13 @@ type Group struct {
 	DisplayName    string        `json:"display_name"`
 	OrganizationID uuid.UUID     `json:"organization_id" format:"uuid"`
 	Members        []ReducedUser `json:"members"`
-	AvatarURL      string        `json:"avatar_url"`
-	QuotaAllowance int           `json:"quota_allowance"`
-	Source         GroupSource   `json:"source"`
+	// How many members are in this group. Shows the total count,
+	// even if the user is not authorized to read group member details.
+	// May be greater than `len(Group.Members)`.
+	TotalMemberCount int         `json:"total_member_count"`
+	AvatarURL        string      `json:"avatar_url"`
+	QuotaAllowance   int         `json:"quota_allowance"`
+	Source           GroupSource `json:"source"`
 }
 
 func (g Group) IsEveryone() bool {

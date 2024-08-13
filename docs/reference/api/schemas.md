@@ -246,7 +246,8 @@
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "quota_allowance": 0,
-      "source": "user"
+      "source": "user",
+      "total_member_count": 0
     }
   ],
   "users": [
@@ -1398,6 +1399,46 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `template_id`           | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
 | `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
 | `ttl_ms`                | integer                                                                       | false    |              |                                                                                                         |
+
+## codersdk.CustomRoleRequest
+
+```json
+{
+  "display_name": "string",
+  "name": "string",
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                       | Type                                                | Required | Restrictions | Description                                                                    |
+| -------------------------- | --------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------ |
+| `display_name`             | string                                              | false    |              |                                                                                |
+| `name`                     | string                                              | false    |              |                                                                                |
+| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific to the organization the role belongs to. |
+| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
+| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
 
 ## codersdk.DAUEntry
 
@@ -2806,22 +2847,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "quota_allowance": 0,
-  "source": "user"
+  "source": "user",
+  "total_member_count": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                  | Required | Restrictions | Description |
-| ----------------- | ----------------------------------------------------- | -------- | ------------ | ----------- |
-| `avatar_url`      | string                                                | false    |              |             |
-| `display_name`    | string                                                | false    |              |             |
-| `id`              | string                                                | false    |              |             |
-| `members`         | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
-| `name`            | string                                                | false    |              |             |
-| `organization_id` | string                                                | false    |              |             |
-| `quota_allowance` | integer                                               | false    |              |             |
-| `source`          | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |             |
+| Name                 | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+| -------------------- | ----------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `avatar_url`         | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`       | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                 | string                                                | false    |              |                                                                                                                                                                       |
+| `members`            | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`               | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`    | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`    | integer                                               | false    |              |                                                                                                                                                                       |
+| `source`             | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count` | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
 
 ## codersdk.GroupSource
 
@@ -3760,46 +3803,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
 
-## codersdk.PatchRoleRequest
-
-```json
-{
-  "display_name": "string",
-  "name": "string",
-  "organization_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "site_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "user_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name                       | Type                                                | Required | Restrictions | Description                                                                    |
-| -------------------------- | --------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------ |
-| `display_name`             | string                                              | false    |              |                                                                                |
-| `name`                     | string                                              | false    |              |                                                                                |
-| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific to the organization the role belongs to. |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
-
 ## codersdk.PatchTemplateVersionRequest
 
 ```json
@@ -4267,6 +4270,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `deployment_stats`        |
 | `file`                    |
 | `group`                   |
+| `group_member`            |
 | `license`                 |
 | `notification_preference` |
 | `notification_template`   |

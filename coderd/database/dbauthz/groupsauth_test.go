@@ -115,18 +115,15 @@ func TestGroupsAuth(t *testing.T) {
 			Name: "GroupMember",
 			Subject: rbac.Subject{
 				ID:    users[0].ID.String(),
-				Roles: rbac.Roles(must(rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(org.ID)}.Expand())),
+				Roles: rbac.Roles(must(rbac.RoleIdentifiers{rbac.RoleMember(), rbac.ScopedRoleOrgMember(org.ID)}.Expand())),
 				Groups: []string{
-					group.Name,
+					group.ID.String(),
 				},
 				Scope: rbac.ExpandableScope(rbac.ScopeAll),
 			},
-			// TODO: currently group members cannot see their own groups.
-			//	If this is fixed, these booleans should be flipped to true.
-			ReadGroup:   false,
-			ReadMembers: false,
-			// TODO: If fixed, they should only be able to see themselves
-			// MembersExpected: 1,
+			ReadGroup:       true,
+			ReadMembers:     true,
+			MembersExpected: 1,
 		},
 		{
 			// Org admin in the incorrect organization
@@ -160,8 +157,7 @@ func TestGroupsAuth(t *testing.T) {
 				require.NoError(t, err, "member read")
 				require.Len(t, members, tc.MembersExpected, "member count found does not match")
 			} else {
-				require.Error(t, err, "member read")
-				require.True(t, dbauthz.IsNotAuthorizedError(err), "not authorized error")
+				require.Len(t, members, 0, "member count is not 0")
 			}
 		})
 	}

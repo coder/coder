@@ -74,6 +74,8 @@ sql:
             go_type:
               type: "[]byte"
         rename:
+          group_member: GroupMemberTable
+          group_members_expanded: GroupMember
           template: TemplateTable
           template_with_name: Template
           workspace_build: WorkspaceBuildTable

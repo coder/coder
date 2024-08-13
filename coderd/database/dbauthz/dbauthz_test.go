@@ -305,8 +305,10 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 	s.Run("DeleteGroupMemberFromGroup", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		m := dbgen.GroupMember(s.T(), db, database.GroupMember{
+		u := dbgen.User(s.T(), db, database.User{})
+		m := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{
 			GroupID: g.ID,
+			UserID:  u.ID,
 		})
 		check.Args(database.DeleteGroupMemberFromGroupParams{
 			UserID:  m.UserID,
@@ -326,11 +328,18 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 	s.Run("GetGroupMembersByGroupID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		u := dbgen.User(s.T(), db, database.User{})
+		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
+		check.Args(g.ID).Asserts(gm, policy.ActionRead)
+	}))
+	s.Run("GetGroupMembersCountByGroupID", s.Subtest(func(db database.Store, check *expects) {
+		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(g.ID).Asserts(g, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		g := dbgen.Group(s.T(), db, database.Group{})
+		u := dbgen.User(s.T(), db, database.User{})
+		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
 		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetGroups", s.Subtest(func(db database.Store, check *expects) {
@@ -339,7 +348,8 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 	s.Run("GetGroupsByOrganizationAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		gm := dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g.ID})
+		u := dbgen.User(s.T(), db, database.User{})
+		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
 		check.Args(database.GetGroupsByOrganizationAndUserIDParams{
 			OrganizationID: g.OrganizationID,
 			UserID:         gm.UserID,
@@ -368,7 +378,7 @@ func (s *MethodTestSuite) TestGroup() {
 		u1 := dbgen.User(s.T(), db, database.User{})
 		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
 		check.Args(database.InsertUserGroupsByNameParams{
 			OrganizationID: o.ID,
 			UserID:         u1.ID,
@@ -380,8 +390,8 @@ func (s *MethodTestSuite) TestGroup() {
 		u1 := dbgen.User(s.T(), db, database.User{})
 		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g2.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
 		check.Args(u1.ID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateGroupByID", s.Subtest(func(db database.Store, check *expects) {
@@ -1272,9 +1282,77 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(
 			rbac.ResourceAssignRole, policy.ActionDelete)
 	}))
-	s.Run("Blank/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("Blank/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{})
 		// Blank is no perms in the role
-		check.Args(database.UpsertCustomRoleParams{
+		check.Args(database.UpdateCustomRoleParams{
+			Name:            customRole.Name,
+			DisplayName:     "Test Name",
+			SitePermissions: nil,
+			OrgPermissions:  nil,
+			UserPermissions: nil,
+		}).Asserts(rbac.ResourceAssignRole, policy.ActionUpdate)
+	}))
+	s.Run("SitePermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.Nil,
+				Valid: false,
+			},
+		})
+		check.Args(database.UpdateCustomRoleParams{
+			Name:           customRole.Name,
+			OrganizationID: customRole.OrganizationID,
+			DisplayName:    "Test Name",
+			SitePermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionDelete, codersdk.ActionViewInsights},
+			}), convertSDKPerm),
+			OrgPermissions: nil,
+			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}), convertSDKPerm),
+		}).Asserts(
+			// First check
+			rbac.ResourceAssignRole, policy.ActionUpdate,
+			// Escalation checks
+			rbac.ResourceTemplate, policy.ActionCreate,
+			rbac.ResourceTemplate, policy.ActionRead,
+			rbac.ResourceTemplate, policy.ActionUpdate,
+			rbac.ResourceTemplate, policy.ActionDelete,
+			rbac.ResourceTemplate, policy.ActionViewInsights,
+
+			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
+		)
+	}))
+	s.Run("OrgPermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		orgID := uuid.New()
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+		})
+
+		check.Args(database.UpdateCustomRoleParams{
+			Name:            customRole.Name,
+			DisplayName:     "Test Name",
+			OrganizationID:  customRole.OrganizationID,
+			SitePermissions: nil,
+			OrgPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead},
+			}), convertSDKPerm),
+			UserPermissions: nil,
+		}).Asserts(
+			// First check
+			rbac.ResourceAssignOrgRole.InOrg(orgID), policy.ActionUpdate,
+			// Escalation checks
+			rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate,
+			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,
+		)
+	}))
+	s.Run("Blank/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		// Blank is no perms in the role
+		check.Args(database.InsertCustomRoleParams{
 			Name:            "test",
 			DisplayName:     "Test Name",
 			SitePermissions: nil,
@@ -1282,8 +1360,8 @@ func (s *MethodTestSuite) TestUser() {
 			UserPermissions: nil,
 		}).Asserts(rbac.ResourceAssignRole, policy.ActionCreate)
 	}))
-	s.Run("SitePermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpsertCustomRoleParams{
+	s.Run("SitePermissions/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertCustomRoleParams{
 			Name:        "test",
 			DisplayName: "Test Name",
 			SitePermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
@@ -1306,9 +1384,9 @@ func (s *MethodTestSuite) TestUser() {
 			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
 		)
 	}))
-	s.Run("OrgPermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("OrgPermissions/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
-		check.Args(database.UpsertCustomRoleParams{
+		check.Args(database.InsertCustomRoleParams{
 			Name:        "test",
 			DisplayName: "Test Name",
 			OrganizationID: uuid.NullUUID{
@@ -1319,17 +1397,13 @@ func (s *MethodTestSuite) TestUser() {
 			OrgPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead},
 			}), convertSDKPerm),
-			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace: {codersdk.ActionRead},
-			}), convertSDKPerm),
+			UserPermissions: nil,
 		}).Asserts(
 			// First check
 			rbac.ResourceAssignOrgRole.InOrg(orgID), policy.ActionCreate,
 			// Escalation checks
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate,
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,
-
-			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
 		)
 	}))
 }

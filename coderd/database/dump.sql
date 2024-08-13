@@ -563,6 +563,77 @@ COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friend
 
 COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
+CREATE TABLE organization_members (
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    roles text[] DEFAULT '{}'::text[] NOT NULL
+);
+
+CREATE TABLE users (
+    id uuid NOT NULL,
+    email text NOT NULL,
+    username text DEFAULT ''::text NOT NULL,
+    hashed_password bytea NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    status user_status DEFAULT 'dormant'::user_status NOT NULL,
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
+    login_type login_type DEFAULT 'password'::login_type NOT NULL,
+    avatar_url text DEFAULT ''::text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    theme_preference text DEFAULT ''::text NOT NULL,
+    name text DEFAULT ''::text NOT NULL,
+    github_com_user_id bigint
+);
+
+COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
+
+COMMENT ON COLUMN users.name IS 'Name of the Coder user';
+
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
+
+CREATE VIEW group_members_expanded AS
+ WITH all_members AS (
+         SELECT group_members.user_id,
+            group_members.group_id
+           FROM group_members
+        UNION
+         SELECT organization_members.user_id,
+            organization_members.organization_id AS group_id
+           FROM organization_members
+        )
+ SELECT users.id AS user_id,
+    users.email AS user_email,
+    users.username AS user_username,
+    users.hashed_password AS user_hashed_password,
+    users.created_at AS user_created_at,
+    users.updated_at AS user_updated_at,
+    users.status AS user_status,
+    users.rbac_roles AS user_rbac_roles,
+    users.login_type AS user_login_type,
+    users.avatar_url AS user_avatar_url,
+    users.deleted AS user_deleted,
+    users.last_seen_at AS user_last_seen_at,
+    users.quiet_hours_schedule AS user_quiet_hours_schedule,
+    users.theme_preference AS user_theme_preference,
+    users.name AS user_name,
+    users.github_com_user_id AS user_github_com_user_id,
+    groups.organization_id,
+    groups.name AS group_name,
+    all_members.group_id
+   FROM ((all_members
+     JOIN users ON ((users.id = all_members.user_id)))
+     JOIN groups ON ((groups.id = all_members.group_id)))
+  WHERE (users.deleted = false);
+
+COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
+
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
@@ -679,14 +750,6 @@ CREATE TABLE oauth2_provider_apps (
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
-
-CREATE TABLE organization_members (
-    user_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    roles text[] DEFAULT '{}'::text[] NOT NULL
-);
 
 CREATE TABLE organizations (
     id uuid NOT NULL,
@@ -1013,33 +1076,6 @@ CREATE TABLE template_versions (
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
-
-CREATE TABLE users (
-    id uuid NOT NULL,
-    email text NOT NULL,
-    username text DEFAULT ''::text NOT NULL,
-    hashed_password bytea NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'dormant'::user_status NOT NULL,
-    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
-    login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text DEFAULT ''::text NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
-    theme_preference text DEFAULT ''::text NOT NULL,
-    name text DEFAULT ''::text NOT NULL,
-    github_com_user_id bigint
-);
-
-COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
-
-COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
-
-COMMENT ON COLUMN users.name IS 'Name of the Coder user';
-
-COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -1547,7 +1583,7 @@ ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY custom_roles
-    ADD CONSTRAINT custom_roles_pkey PRIMARY KEY (name);
+    ADD CONSTRAINT custom_roles_unique_key UNIQUE (name, organization_id);
 
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);

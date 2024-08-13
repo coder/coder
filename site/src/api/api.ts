@@ -611,11 +611,26 @@ class ApiMethods {
   /**
    * @param organization Can be the organization's ID or name
    */
-  patchOrganizationRole = async (
+  createOrganizationRole = async (
     organization: string,
     role: TypesGen.Role,
   ): Promise<TypesGen.Role> => {
-    const response = await this.axios.patch<TypesGen.Role>(
+    const response = await this.axios.post<TypesGen.Role>(
+      `/api/v2/organizations/${organization}/members/roles`,
+      role,
+    );
+
+    return response.data;
+  };
+
+  /**
+   * @param organization Can be the organization's ID or name
+   */
+  updateOrganizationRole = async (
+    organization: string,
+    role: TypesGen.Role,
+  ): Promise<TypesGen.Role> => {
+    const response = await this.axios.put<TypesGen.Role>(
       `/api/v2/organizations/${organization}/members/roles`,
       role,
     );
