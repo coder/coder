@@ -90,14 +90,9 @@ To create a new Terraform lock file, run the
 inside a folder containing the Terraform source code for a given template.
 
 This will create a new file named `.terraform.lock.hcl` in the current
-<<<<<<< HEAD
 directory. When you next run
 [`coder templates push`](../reference/cli/templates_push.md), the lock file will
 be stored alongside with the other template source code.
-=======
-directory. When you next run [`coder templates push`](../reference/cli/templates_push.md),
-the lock file will be stored alongside with the other template source code.
->>>>>>> 6457689c5 (fix links)
 
 > Note: Terraform best practices also recommend checking in your
 > `.terraform.lock.hcl` into Git or other VCS.

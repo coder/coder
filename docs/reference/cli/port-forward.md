@@ -2,8 +2,7 @@
 
 # port-forward
 
-Forward ports from a workspace to the local machine. For reverse port
-forwarding, use "coder ssh -R".
+Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".
 
 Aliases:
 
@@ -59,8 +58,7 @@ Forward TCP port(s) from the workspace to the local machine.
 | Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_PORT_FORWARD_UDP</code> |
 
-Forward UDP port(s) from the workspace to the local machine. The UDP connection
-has TCP-like semantics to support stateful UDP protocols.
+Forward UDP port(s) from the workspace to the local machine. The UDP connection has TCP-like semantics to support stateful UDP protocols.
 
 ### --disable-autostart
 

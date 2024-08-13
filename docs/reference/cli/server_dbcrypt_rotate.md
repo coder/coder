@@ -47,8 +47,7 @@ The new external token encryption key. Must be base64-encoded.
 | Type        | <code>string-array</code>                                      |
 | Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS</code> |
 
-The old external token encryption keys. Must be a comma-separated list of
-base64-encoded keys.
+The old external token encryption keys. Must be a comma-separated list of base64-encoded keys.
 
 ### -y, --yes
 
