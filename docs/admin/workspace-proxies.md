@@ -26,7 +26,7 @@ Workspace proxies can be used in the browser by navigating to the user
 
 ## Requirements
 
-- The [Coder CLI](../reference/cli.md) must be installed and authenticated as a
+- The [Coder CLI](../reference/cli/README.md) must be installed and authenticated as a
   user with the Owner role.
 
 ## Step 1: Create the proxy

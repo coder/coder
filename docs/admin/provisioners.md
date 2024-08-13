@@ -40,7 +40,7 @@ on the Coder server and start the provisioner with
 the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
 > Coder still supports authenticating the provisioner daemon with a
-> [token](../reference/cli.md#--token) from a user with the Template Admin or
+> [token](../reference/cli/README.md#--token) from a user with the Template Admin or
 > Owner role. This method is deprecated in favor of the PSK, which only has
 > permission to access provisioner daemon APIs. We recommend migrating to the
 > PSK as soon as practical.
