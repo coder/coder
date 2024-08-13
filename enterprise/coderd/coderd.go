@@ -342,15 +342,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.templateACL)
 			r.Patch("/", api.patchTemplateACL)
 		})
-		r.Route("/groups/{group}", func(r chi.Router) {
+		r.Route("/groups", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
 				apiKeyMiddleware,
-				httpmw.ExtractGroupParam(api.Database),
 			)
-			r.Get("/", api.group)
-			r.Patch("/", api.patchGroup)
-			r.Delete("/", api.deleteGroup)
+			r.Get("/", api.groups)
+			r.Route("/{group}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractGroupParam(api.Database),
+				)
+				r.Get("/", api.group)
+				r.Patch("/", api.patchGroup)
+				r.Delete("/", api.deleteGroup)
+			})
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(
