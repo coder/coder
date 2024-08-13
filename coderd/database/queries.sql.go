@@ -5346,6 +5346,39 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 	return i, err
 }
 
+const getProvisionerJobStatsByWorkspace = `-- name: GetProvisionerJobStatsByWorkspace :one
+SELECT job_id, job_status, workspace_id, worker_id, error, error_code, updated_at, queued_secs, completion_secs, canceled_secs, init_secs, plan_secs, apply_secs FROM provisioner_job_stats
+WHERE job_id = $1::uuid AND workspace_id = $2::uuid
+LIMIT 1
+`
+
+type GetProvisionerJobStatsByWorkspaceParams struct {
+	JobID       uuid.UUID `db:"job_id" json:"job_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+// We include the workspace here so we can authorize the request correctly.
+func (q *sqlQuerier) GetProvisionerJobStatsByWorkspace(ctx context.Context, arg GetProvisionerJobStatsByWorkspaceParams) (ProvisionerJobStat, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerJobStatsByWorkspace, arg.JobID, arg.WorkspaceID)
+	var i ProvisionerJobStat
+	err := row.Scan(
+		&i.JobID,
+		&i.JobStatus,
+		&i.WorkspaceID,
+		&i.WorkerID,
+		&i.Error,
+		&i.ErrorCode,
+		&i.UpdatedAt,
+		&i.QueuedSecs,
+		&i.CompletionSecs,
+		&i.CanceledSecs,
+		&i.InitSecs,
+		&i.PlanSecs,
+		&i.ApplySecs,
+	)
+	return i, err
+}
+
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
 	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status

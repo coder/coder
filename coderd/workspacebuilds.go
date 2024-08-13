@@ -635,6 +635,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: why?
 	// You must have update permissions on the template to get the state.
 	// This matches a push!
 	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {
@@ -645,6 +646,39 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
+}
+
+// @Summary Get stats for workspace build
+// @ID get-stats-for-workspace-build
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID"
+// @Success 200 {object} codersdk.WorkspaceBuildStats
+// @Router /workspacebuilds/{workspacebuild}/stats [get]
+func (api *API) workspaceBuildStats(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceBuild := httpmw.WorkspaceBuildParam(r)
+
+	if workspaceBuild.JobID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to retrieve provisioner job ID from workspace build",
+		})
+		return
+	}
+
+	pj, err := api.Database.GetProvisionerJobStatsByWorkspace(ctx, database.GetProvisionerJobStatsByWorkspaceParams{
+		JobID:       workspaceBuild.JobID,
+		WorkspaceID: workspaceBuild.WorkspaceID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get workspace build stats",
+			Detail:  err.Error(),
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceBuildStats(pj))
 }
 
 type workspaceBuildsData struct {
@@ -1009,4 +1043,22 @@ func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition 
 
 	// return error status since we should never get here
 	return codersdk.WorkspaceStatusFailed
+}
+
+func convertWorkspaceBuildStats(stats database.ProvisionerJobStat) codersdk.WorkspaceBuildStats {
+	return codersdk.WorkspaceBuildStats{
+		ID:             stats.JobID,
+		JobStatus:      codersdk.ProvisionerJobStatus(stats.JobStatus),
+		WorkerID:       stats.WorkspaceID,
+		WorkspaceID:    stats.WorkspaceID,
+		Error:          stats.Error.String,
+		ErrorCode:      stats.ErrorCode.String,
+		UpdatedAt:      stats.UpdatedAt,
+		QueuedSecs:     stats.QueuedSecs,
+		CompletionSecs: stats.CompletionSecs,
+		CanceledSecs:   stats.CanceledSecs,
+		InitSecs:       stats.InitSecs,
+		PlanSecs:       stats.PlanSecs,
+		ApplySecs:      stats.ApplySecs,
+	}
 }

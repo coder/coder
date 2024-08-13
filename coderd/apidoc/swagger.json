@@ -6322,6 +6322,36 @@
         }
       }
     },
+    "/workspacebuilds/{workspacebuild}/stats": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Builds"],
+        "summary": "Get stats for workspace build",
+        "operationId": "get-stats-for-workspace-build",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Workspace build ID",
+            "name": "workspacebuild",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.WorkspaceBuildStats"
+            }
+          }
+        }
+      }
+    },
     "/workspaceproxies": {
       "get": {
         "security": [
@@ -12809,6 +12839,54 @@
         },
         "value": {
           "type": "string"
+        }
+      }
+    },
+    "codersdk.WorkspaceBuildStats": {
+      "type": "object",
+      "properties": {
+        "apply_secs": {
+          "type": "number"
+        },
+        "canceled_secs": {
+          "type": "number"
+        },
+        "completion_secs": {
+          "type": "number"
+        },
+        "error": {
+          "type": "string"
+        },
+        "error_code": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "init_secs": {
+          "type": "number"
+        },
+        "job_status": {
+          "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+        },
+        "plan_secs": {
+          "type": "number"
+        },
+        "queued_secs": {
+          "type": "number"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "worker_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "workspace_id": {
+          "type": "string",
+          "format": "uuid"
         }
       }
     },

@@ -16,8 +16,9 @@ CREATE TABLE provisioner_job_timings
 );
 
 CREATE VIEW provisioner_job_stats AS
-SELECT pj.id,
+SELECT pj.id AS job_id,
        pj.job_status,
+       wb.workspace_id,
        pj.worker_id,
        pj.error,
        pj.error_code,
@@ -29,5 +30,6 @@ SELECT pj.id,
        GREATEST(MAX(CASE WHEN pjt.stage = 'plan' THEN EXTRACT(EPOCH FROM (pjt.ended_at - pjt.started_at)) END), 0)  AS plan_secs,
        GREATEST(MAX(CASE WHEN pjt.stage = 'apply' THEN EXTRACT(EPOCH FROM (pjt.ended_at - pjt.started_at)) END), 0) AS apply_secs
 FROM provisioner_jobs pj
-         LEFT JOIN provisioner_job_timings pjt ON pjt.job_id = pj.id
-GROUP BY pj.id;
+       JOIN workspace_builds wb ON wb.job_id = pj.id
+       LEFT JOIN provisioner_job_timings pjt ON pjt.job_id = pj.id
+GROUP BY pj.id, wb.workspace_id;

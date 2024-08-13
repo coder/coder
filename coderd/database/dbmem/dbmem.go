@@ -3172,6 +3172,15 @@ func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	return q.getProvisionerJobByIDNoLock(ctx, id)
 }
 
+func (q *FakeQuerier) GetProvisionerJobStatsByWorkspace(ctx context.Context, arg database.GetProvisionerJobStatsByWorkspaceParams) (database.ProvisionerJobStat, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ProvisionerJobStat{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

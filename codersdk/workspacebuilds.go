@@ -74,6 +74,23 @@ type WorkspaceBuild struct {
 	DailyCost               int32               `json:"daily_cost"`
 }
 
+// WorkspaceBuildStats is a point-in-time representation of a workspace build, including timing information.
+type WorkspaceBuildStats struct {
+	ID             uuid.UUID            `json:"id" format:"uuid"`
+	JobStatus      ProvisionerJobStatus `json:"job_status"`
+	WorkerID       uuid.UUID            `json:"worker_id" format:"uuid"`
+	WorkspaceID    uuid.UUID            `json:"workspace_id" format:"uuid"`
+	Error          string               `json:"error"`
+	ErrorCode      string               `json:"error_code"`
+	UpdatedAt      time.Time            `json:"updated_at" format:"date-time"`
+	QueuedSecs     float64              `json:"queued_secs"`
+	CompletionSecs float64              `json:"completion_secs"`
+	CanceledSecs   float64              `json:"canceled_secs"`
+	InitSecs       float64              `json:"init_secs"`
+	PlanSecs       float64              `json:"plan_secs"`
+	ApplySecs      float64              `json:"apply_secs"`
+}
+
 // WorkspaceResource describes resources used to create a workspace, for instance:
 // containers, images, volumes.
 type WorkspaceResource struct {

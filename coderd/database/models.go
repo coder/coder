@@ -2342,8 +2342,9 @@ type ProvisionerJobLog struct {
 }
 
 type ProvisionerJobStat struct {
-	ID             uuid.UUID            `db:"id" json:"id"`
+	JobID          uuid.UUID            `db:"job_id" json:"job_id"`
 	JobStatus      ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	WorkspaceID    uuid.UUID            `db:"workspace_id" json:"workspace_id"`
 	WorkerID       uuid.NullUUID        `db:"worker_id" json:"worker_id"`
 	Error          sql.NullString       `db:"error" json:"error"`
 	ErrorCode      sql.NullString       `db:"error_code" json:"error_code"`

@@ -836,8 +836,9 @@ ALTER SEQUENCE provisioner_job_logs_id_seq OWNED BY provisioner_job_logs.id;
 
 CREATE VIEW provisioner_job_stats AS
 SELECT
-    NULL::uuid AS id,
+    NULL::uuid AS job_id,
     NULL::provisioner_job_status AS job_status,
+    NULL::uuid AS workspace_id,
     NULL::uuid AS worker_id,
     NULL::text AS error,
     NULL::text AS error_code,
@@ -1924,8 +1925,9 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE OR REPLACE VIEW provisioner_job_stats AS
- SELECT pj.id,
+ SELECT pj.id AS job_id,
     pj.job_status,
+    wb.workspace_id,
     pj.worker_id,
     pj.error,
     pj.error_code,
@@ -1948,9 +1950,10 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
             WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN date_part('epoch'::text, (pjt.ended_at - pjt.started_at))
             ELSE NULL::double precision
         END), (0)::double precision) AS apply_secs
-   FROM (provisioner_jobs pj
+   FROM ((provisioner_jobs pj
+     JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
-  GROUP BY pj.id;
+  GROUP BY pj.id, wb.workspace_id;
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 

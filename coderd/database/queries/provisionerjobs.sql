@@ -156,3 +156,9 @@ SELECT
     unnest(@action::text[]) AS action,
     unnest(@resource::text[]) AS resource
 RETURNING *;
+
+-- We include the workspace here so we can authorize the request correctly.
+-- name: GetProvisionerJobStatsByWorkspace :one
+SELECT * FROM provisioner_job_stats
+WHERE job_id = @job_id::uuid AND workspace_id = @workspace_id::uuid
+LIMIT 1;

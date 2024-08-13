@@ -1904,6 +1904,23 @@ export interface WorkspaceBuildParameter {
   readonly value: string;
 }
 
+// From codersdk/workspacebuilds.go
+export interface WorkspaceBuildStats {
+  readonly id: string;
+  readonly job_status: ProvisionerJobStatus;
+  readonly worker_id: string;
+  readonly workspace_id: string;
+  readonly error: string;
+  readonly error_code: string;
+  readonly updated_at: string;
+  readonly queued_secs: number;
+  readonly completion_secs: number;
+  readonly canceled_secs: number;
+  readonly init_secs: number;
+  readonly plan_secs: number;
+  readonly apply_secs: number;
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {
   readonly since?: string;
