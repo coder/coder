@@ -52,7 +52,6 @@ Edit the `devcontainer.json` instead!
 
 See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/docker.md) for information on running Docker containers inside a devcontainer built by Envbuilder.
 
-
 ## Caching
 
 To speed up your builds, you can use a container registry as a cache.
