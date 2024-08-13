@@ -2615,6 +2615,13 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 				groupIDs[member.GroupID] = struct{}{}
 			}
 		}
+
+		// Handle the everyone group
+		for _, orgMember := range q.organizationMembers {
+			if orgMember.UserID == arg.HasMemberID {
+				groupIDs[orgMember.OrganizationID] = struct{}{}
+			}
+		}
 	}
 
 	filtered := make([]database.Group, 0)
@@ -2622,6 +2629,7 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
 			continue
 		}
+
 		_, ok := groupIDs[group.ID]
 		if arg.HasMemberID != uuid.Nil && !ok {
 			continue

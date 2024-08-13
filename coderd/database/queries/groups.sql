@@ -39,11 +39,12 @@ WHERE
 				SELECT
 					1
 				FROM
-					group_members
+					-- this view handles the 'everyone' group in orgs.
+					group_members_expanded
 				WHERE
-					group_members.group_id = groups.id
+					group_members_expanded.group_id = groups.id
 				AND
-					group_members.user_id = @has_member_id
+					group_members_expanded.user_id = @has_member_id
 			)
 		ELSE true
     END

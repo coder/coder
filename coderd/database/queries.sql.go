@@ -1579,11 +1579,11 @@ WHERE
 				SELECT
 					1
 				FROM
-					group_members
+					group_members_expanded
 				WHERE
-					group_members.group_id = groups.id
+					group_members_expanded.group_id = groups.id
 				AND
-					group_members.user_id = $2
+					group_members_expanded.user_id = $2
 			)
 		ELSE true
     END
