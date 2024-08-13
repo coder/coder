@@ -75,7 +75,7 @@ const orgOption = (org: Organization): SelectFilterOption => ({
   startIcon: (
     <UserAvatar
       key={org.id}
-      size="sm"
+      size="xs"
       username={org.display_name}
       avatarURL={org.icon}
     />
