@@ -17,6 +17,7 @@ import { ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
+import type { useFilter } from "components/Filter/filter";
 import {
   HelpTooltip,
   HelpTooltipContent,
@@ -174,6 +175,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 
 export interface TemplatesPageViewProps {
   error?: unknown;
+  filter: ReturnType<typeof useFilter>;
   showOrganizations: boolean;
   canCreateTemplates: boolean;
   examples: TemplateExample[] | undefined;
@@ -182,6 +184,7 @@ export interface TemplatesPageViewProps {
 
 export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   error,
+  filter,
   showOrganizations,
   canCreateTemplates,
   examples,
@@ -221,7 +224,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
         )}
       </PageHeader>
 
-      <TemplatesFilter />
+      <TemplatesFilter filter={filter} />
 
       {error ? (
         <ErrorAlert error={error} />

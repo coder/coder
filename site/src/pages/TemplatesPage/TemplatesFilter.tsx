@@ -1,10 +1,9 @@
 import type { FC } from "react";
-import { useSearchParams } from "react-router-dom";
 import {
   Filter,
   MenuSkeleton,
   SearchFieldSkeleton,
-  useFilter,
+  type useFilter,
 } from "components/Filter/filter";
 import { useFilterMenu } from "components/Filter/menu";
 import {
@@ -16,19 +15,16 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { docs } from "utils/docs";
 import { Organization } from "api/typesGenerated";
 
-export const TemplatesFilter: FC = () => {
-  const searchParamsResult = useSearchParams();
-  const filter = useFilter({
-    fallbackFilter: "deprecated:false",
-    searchParamsResult,
-    onUpdate: () => {}, // reset pagination
-  });
+interface TemplatesFilterProps {
+  filter: ReturnType<typeof useFilter>;
+}
 
+export const TemplatesFilter: FC<TemplatesFilterProps> = ({ filter }) => {
   const organizationMenu = useFilterMenu({
     onChange: (option) =>
-      filter.update({ ...filter.values, template: option?.value }),
+      filter.update({ ...filter.values, organization: option?.value }),
     value: filter.values.organization,
-    id: "status",
+    id: "organization",
     getSelectedOption: async () => {
       if (!filter.values.organization) {
         return null;
@@ -47,7 +43,7 @@ export const TemplatesFilter: FC = () => {
     <Filter
       presets={[
         { query: "", name: "All templates" },
-        { query: "deprecated", name: "Deprecated templates" },
+        { query: "deprecated:true", name: "Deprecated templates" },
       ]}
       learnMoreLink={docs("/templates#template-filtering")}
       isLoading={false}

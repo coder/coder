@@ -304,9 +304,17 @@ export type GetTemplatesOptions = Readonly<{
   readonly deprecated?: boolean;
 }>;
 
+export type GetTemplatesQuery = Readonly<{
+  readonly q: string;
+}>;
+
 function normalizeGetTemplatesOptions(
-  options: GetTemplatesOptions = {},
+  options: GetTemplatesOptions | GetTemplatesQuery = {},
 ): Record<string, string> {
+  if ("q" in options) {
+    return options;
+  }
+
   const params: Record<string, string> = {};
   if (options.deprecated !== undefined) {
     params["deprecated"] = String(options.deprecated);
@@ -679,7 +687,7 @@ class ApiMethods {
   };
 
   getTemplates = async (
-    options?: GetTemplatesOptions,
+    options?: GetTemplatesOptions | GetTemplatesQuery,
   ): Promise<TypesGen.Template[]> => {
     const params = normalizeGetTemplatesOptions(options);
     const response = await this.axios.get<TypesGen.Template[]>(
