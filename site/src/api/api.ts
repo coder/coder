@@ -241,7 +241,7 @@ export const watchWorkspaceAgentLogs = (
   });
 
   socket.addEventListener("close", () => {
-    onDone && onDone();
+    onDone?.();
   });
 
   return socket;
@@ -281,13 +281,13 @@ export const watchBuildLogsByBuildId = (
   );
 
   socket.addEventListener("error", () => {
-    onError && onError(new Error("Connection for logs failed."));
+    onError?.(new Error("Connection for logs failed."));
     socket.close();
   });
 
   socket.addEventListener("close", () => {
     // When the socket closes, logs have finished streaming!
-    onDone && onDone();
+    onDone?.();
   });
 
   return socket;
@@ -309,7 +309,7 @@ function normalizeGetTemplatesOptions(
 ): Record<string, string> {
   const params: Record<string, string> = {};
   if (options.deprecated !== undefined) {
-    params["deprecated"] = String(options.deprecated);
+    params.deprecated = String(options.deprecated);
   }
   return params;
 }
@@ -456,7 +456,7 @@ class ApiMethods {
     params: TypesGen.AuthorizationRequest,
   ): Promise<TypesGen.AuthorizationResponse> => {
     const response = await this.axios.post<TypesGen.AuthorizationResponse>(
-      `/api/v2/authcheck`,
+      "/api/v2/authcheck",
       params,
     );
 
@@ -475,7 +475,7 @@ class ApiMethods {
     params: TypesGen.TokensFilter,
   ): Promise<TypesGen.APIKeyWithOwner[]> => {
     const response = await this.axios.get<TypesGen.APIKeyWithOwner[]>(
-      `/api/v2/users/me/keys/tokens`,
+      "/api/v2/users/me/keys/tokens",
       { params },
     );
 
@@ -490,7 +490,7 @@ class ApiMethods {
     params: TypesGen.CreateTokenRequest,
   ): Promise<TypesGen.GenerateAPIKeyResponse> => {
     const response = await this.axios.post(
-      `/api/v2/users/me/keys/tokens`,
+      "/api/v2/users/me/keys/tokens",
       params,
     );
 
@@ -676,7 +676,7 @@ class ApiMethods {
   ): Promise<TypesGen.Template[]> => {
     const params = normalizeGetTemplatesOptions(options);
     const response = await this.axios.get<TypesGen.Template[]>(
-      `/api/v2/templates`,
+      "/api/v2/templates",
       { params },
     );
 
@@ -1246,7 +1246,7 @@ class ApiMethods {
   createFirstUser = async (
     req: TypesGen.CreateFirstUserRequest,
   ): Promise<TypesGen.CreateFirstUserResponse> => {
-    const response = await this.axios.post(`/api/v2/users/first`, req);
+    const response = await this.axios.post("/api/v2/users/first", req);
     return response.data;
   };
 
@@ -1258,8 +1258,9 @@ class ApiMethods {
   };
 
   getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
-    const response =
-      await this.axios.get<TypesGen.AssignableRoles[]>(`/api/v2/users/roles`);
+    const response = await this.axios.get<TypesGen.AssignableRoles[]>(
+      "/api/v2/users/roles",
+    );
 
     return response.data;
   };
@@ -1419,7 +1420,7 @@ class ApiMethods {
 
   getUserExternalAuthProviders =
     async (): Promise<TypesGen.ListUserExternalAuthResponse> => {
-      const resp = await this.axios.get(`/api/v2/external-auth`);
+      const resp = await this.axios.get("/api/v2/external-auth");
       return resp.data;
     };
 
@@ -1450,7 +1451,7 @@ class ApiMethods {
     data: TypesGen.PostOAuth2ProviderAppRequest,
   ): Promise<TypesGen.OAuth2ProviderApp> => {
     const response = await this.axios.post(
-      `/api/v2/oauth2-provider/apps`,
+      "/api/v2/oauth2-provider/apps",
       data,
     );
     return response.data;
@@ -1569,7 +1570,7 @@ class ApiMethods {
   };
 
   getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
-    const response = await this.axios.get(`/api/v2/applications/host`);
+    const response = await this.axios.get("/api/v2/applications/host");
     return response.data;
   };
 
@@ -1692,22 +1693,22 @@ class ApiMethods {
 
   // getDeploymentSSHConfig is used by the VSCode-Extension.
   getDeploymentSSHConfig = async (): Promise<TypesGen.SSHConfigResponse> => {
-    const response = await this.axios.get(`/api/v2/deployment/ssh`);
+    const response = await this.axios.get("/api/v2/deployment/ssh");
     return response.data;
   };
 
   getDeploymentConfig = async (): Promise<DeploymentConfig> => {
-    const response = await this.axios.get(`/api/v2/deployment/config`);
+    const response = await this.axios.get("/api/v2/deployment/config");
     return response.data;
   };
 
   getDeploymentStats = async (): Promise<TypesGen.DeploymentStats> => {
-    const response = await this.axios.get(`/api/v2/deployment/stats`);
+    const response = await this.axios.get("/api/v2/deployment/stats");
     return response.data;
   };
 
   getReplicas = async (): Promise<TypesGen.Replica[]> => {
-    const response = await this.axios.get(`/api/v2/replicas`);
+    const response = await this.axios.get("/api/v2/replicas");
     return response.data;
   };
 
@@ -1725,7 +1726,7 @@ class ApiMethods {
   > => {
     const response =
       await this.axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
-        `/api/v2/regions`,
+        "/api/v2/regions",
       );
 
     return response.data;
@@ -1736,7 +1737,7 @@ class ApiMethods {
   > => {
     const response = await this.axios.get<
       TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
-    >(`/api/v2/workspaceproxies`);
+    >("/api/v2/workspaceproxies");
 
     return response.data;
   };
@@ -1744,13 +1745,13 @@ class ApiMethods {
   createWorkspaceProxy = async (
     b: TypesGen.CreateWorkspaceProxyRequest,
   ): Promise<TypesGen.UpdateWorkspaceProxyResponse> => {
-    const response = await this.axios.post(`/api/v2/workspaceproxies`, b);
+    const response = await this.axios.post("/api/v2/workspaceproxies", b);
     return response.data;
   };
 
   getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
     try {
-      const response = await this.axios.get(`/api/v2/appearance`);
+      const response = await this.axios.get("/api/v2/appearance");
       return response.data || {};
     } catch (ex) {
       if (isAxiosError(ex) && ex.response?.status === 404) {
@@ -1771,7 +1772,7 @@ class ApiMethods {
   updateAppearance = async (
     b: TypesGen.AppearanceConfig,
   ): Promise<TypesGen.AppearanceConfig> => {
-    const response = await this.axios.put(`/api/v2/appearance`, b);
+    const response = await this.axios.put("/api/v2/appearance", b);
     return response.data;
   };
 
@@ -1779,7 +1780,7 @@ class ApiMethods {
    * @param organization Can be the organization's ID or name
    */
   getTemplateExamples = async (): Promise<TypesGen.TemplateExample[]> => {
-    const response = await this.axios.get(`/api/v2/templates/examples`);
+    const response = await this.axios.get("/api/v2/templates/examples");
 
     return response.data;
   };
@@ -1819,14 +1820,14 @@ class ApiMethods {
   };
 
   getLicenses = async (): Promise<GetLicensesResponse[]> => {
-    const response = await this.axios.get(`/api/v2/licenses`);
+    const response = await this.axios.get("/api/v2/licenses");
     return response.data;
   };
 
   createLicense = async (
     data: TypesGen.AddLicenseRequest,
   ): Promise<TypesGen.AddLicenseRequest> => {
-    const response = await this.axios.post(`/api/v2/licenses`, data);
+    const response = await this.axios.post("/api/v2/licenses", data);
     return response.data;
   };
 
@@ -1975,7 +1976,7 @@ class ApiMethods {
     return response.data;
   };
 
-  getHealth = async (force: boolean = false) => {
+  getHealth = async (force = false) => {
     const params = new URLSearchParams({ force: force.toString() });
     const response = await this.axios.get<TypesGen.HealthcheckReport>(
       `/api/v2/debug/health?${params}`,
@@ -1985,7 +1986,7 @@ class ApiMethods {
 
   getHealthSettings = async (): Promise<TypesGen.HealthSettings> => {
     const res = await this.axios.get<TypesGen.HealthSettings>(
-      `/api/v2/debug/health/settings`,
+      "/api/v2/debug/health/settings",
     );
 
     return res.data;
@@ -1993,7 +1994,7 @@ class ApiMethods {
 
   updateHealthSettings = async (data: TypesGen.UpdateHealthSettings) => {
     const response = await this.axios.put<TypesGen.HealthSettings>(
-      `/api/v2/debug/health/settings`,
+      "/api/v2/debug/health/settings",
       data,
     );
 
@@ -2063,14 +2064,14 @@ class ApiMethods {
 
   getSystemNotificationTemplates = async () => {
     const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
-      `/api/v2/notifications/templates/system`,
+      "/api/v2/notifications/templates/system",
     );
     return res.data;
   };
 
   getNotificationDispatchMethods = async () => {
     const res = await this.axios.get<TypesGen.NotificationMethodsResponse>(
-      `/api/v2/notifications/dispatch-methods`,
+      "/api/v2/notifications/dispatch-methods",
     );
     return res.data;
   };

@@ -137,7 +137,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 }) => {
   const theme = useTheme();
   const name = app.display_name || app.id || app.type;
-  const authURL = "/external-auth/" + app.id;
+  const authURL = `/external-auth/${app.id}`;
 
   const {
     externalAuth,

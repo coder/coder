@@ -109,17 +109,18 @@ export const validationSchema = Yup.object({
 
       if (!parent.autostartEnabled) {
         return true;
-      } else {
-        return ![
-          parent.sunday,
-          value,
-          parent.tuesday,
-          parent.wednesday,
-          parent.thursday,
-          parent.friday,
-          parent.saturday,
-        ].every((day) => day === false);
       }
+
+      // Ensure at least one day is enabled
+      return [
+        parent.sunday,
+        value,
+        parent.tuesday,
+        parent.wednesday,
+        parent.thursday,
+        parent.friday,
+        parent.saturday,
+      ].some((day) => day);
     },
   ),
   tuesday: Yup.boolean(),
@@ -134,21 +135,20 @@ export const validationSchema = Yup.object({
       const parent = this.parent as WorkspaceScheduleFormValues;
       if (parent.autostartEnabled) {
         return value !== "";
-      } else {
-        return true;
       }
+      return true;
     })
     .test("is-time-string", Language.errorTime, (value) => {
       if (value === "") {
         return true;
-      } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
-        return false;
-      } else {
-        const parts = value.split(":");
-        const HH = Number(parts[0]);
-        const mm = Number(parts[1]);
-        return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59;
       }
+      if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
+        return false;
+      }
+      const parts = value.split(":");
+      const HH = Number(parts[0]);
+      const mm = Number(parts[1]);
+      return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59;
     }),
   timezone: Yup.string()
     .ensure()
@@ -157,16 +157,15 @@ export const validationSchema = Yup.object({
 
       if (!parent.startTime) {
         return true;
-      } else {
-        // Unfortunately, there's not a good API on dayjs at this time for
-        // evaluating a timezone. Attempt to parse today in the supplied timezone
-        // and return as valid if the function doesn't throw.
-        try {
-          dayjs.tz(dayjs(), value);
-          return true;
-        } catch (e) {
-          return false;
-        }
+      }
+      // Unfortunately, there's not a good API on dayjs at this time for
+      // evaluating a timezone. Attempt to parse today in the supplied timezone
+      // and return as valid if the function doesn't throw.
+      try {
+        dayjs.tz(dayjs(), value);
+        return true;
+      } catch (e) {
+        return false;
       }
     }),
   ttl: Yup.number()
@@ -176,9 +175,8 @@ export const validationSchema = Yup.object({
       const parent = this.parent as WorkspaceScheduleFormValues;
       if (parent.autostopEnabled) {
         return Boolean(value);
-      } else {
-        return true;
       }
+      return true;
     }),
 });
 

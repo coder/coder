@@ -273,9 +273,7 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/default/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}&mode=auto`,
+        `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto`,
       path: "/templates/:organization/:template/workspace",
     });
 
@@ -307,9 +305,7 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/default/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}&mode=auto`,
+        `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto`,
       path: "/templates/:organization/:template/workspace",
     });
     await waitForLoaderToBeRemoved();
@@ -332,9 +328,7 @@ describe("CreateWorkspacePage", () => {
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
-        "/templates/default/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
+        `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
       path: "/templates/:organization/:template/workspace",
     });
 

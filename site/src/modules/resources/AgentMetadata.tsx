@@ -130,7 +130,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 
   const status: ItemStatus = (() => {
     const year = dayjs(item.result.collected_at).year();
-    if (year <= 1970 || isNaN(year)) {
+    if (year <= 1970 || Number.isNaN(year)) {
       return "loading";
     }
     // There is a special circumstance for metadata with `interval: 0`. It is

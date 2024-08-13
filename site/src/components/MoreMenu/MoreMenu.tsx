@@ -125,7 +125,7 @@ export const MoreMenuItem: FC<MoreMenuItemProps> = ({
         },
       })}
       onClick={(e) => {
-        menuItemProps.onClick && menuItemProps.onClick(e);
+        menuItemProps.onClick?.(e);
         if (closeOnClick) {
           menu.close();
         }

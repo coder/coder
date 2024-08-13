@@ -6,7 +6,7 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const UserAuthSettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings();
+  const { deploymentValues } = useDeploySettings();
 
   return (
     <>

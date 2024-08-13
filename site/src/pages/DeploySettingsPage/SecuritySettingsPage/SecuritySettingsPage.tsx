@@ -7,7 +7,7 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 
 const SecuritySettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings();
+  const { deploymentValues } = useDeploySettings();
   const { entitlements } = useDashboard();
 
   return (
@@ -20,7 +20,7 @@ const SecuritySettingsPage: FC = () => {
         <SecuritySettingsPageView
           options={deploymentValues.options}
           featureBrowserOnlyEnabled={
-            entitlements.features["browser_only"].enabled
+            entitlements.features.browser_only.enabled
           }
         />
       ) : (

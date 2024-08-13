@@ -57,7 +57,7 @@ function getAccessibleLabel(
 }
 
 function initializeText(text: string): string {
-  return text.trim().toUpperCase().replaceAll(/\B/g, ".") + ".";
+  return `${text.trim().toUpperCase().replaceAll(/\B/g, ".")}.`;
 }
 
 function flattenPronunciation(text: string): string {

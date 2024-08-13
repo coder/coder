@@ -73,12 +73,12 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
         let fieldHelpers;
         if (templateVariable.sensitive) {
           fieldHelpers = getFieldHelpers(
-            "user_variable_values[" + index + "].value",
+            `user_variable_values[${index}].value`,
             { helperText: <SensitiveVariableHelperText /> },
           );
         } else {
           fieldHelpers = getFieldHelpers(
-            "user_variable_values[" + index + "].value",
+            `user_variable_values[${index}].value`,
           );
         }
 
@@ -95,7 +95,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
                 initialValue={initialUserVariableValues[index].value}
                 disabled={isSubmitting}
                 onChange={async (value) => {
-                  await form.setFieldValue("user_variable_values." + index, {
+                  await form.setFieldValue(`user_variable_values.${index}`, {
                     name: templateVariable.name,
                     value: value,
                   });
@@ -162,12 +162,12 @@ const ValidationSchemaForTemplateVariables = (
           const templateVariable = templateVariables.find(
             (variable) => variable.name === name,
           );
-          if (templateVariable && templateVariable.sensitive) {
+          if (templateVariable?.sensitive) {
             // It's possible that the secret is already stored in database,
             // so we can't properly verify the "required" condition.
             return true;
           }
-          if (templateVariable && templateVariable.required) {
+          if (templateVariable?.required) {
             if (!val || val.length === 0) {
               return ctx.createError({
                 path: ctx.path,

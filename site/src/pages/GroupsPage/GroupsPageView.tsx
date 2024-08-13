@@ -196,7 +196,7 @@ const styles = {
     },
 
     "& .MuiTableCell-root:last-child": {
-      paddingRight: `16px !important`,
+      paddingRight: "16px !important",
     },
   }),
   arrowRight: (theme) => ({

@@ -128,7 +128,7 @@ describe(useClickable.name, () => {
     expect(mockCallback).not.toBeCalled();
 
     // Then explicitly release the space bar
-    await user.keyboard(`{/ }`);
+    await user.keyboard("{/ }");
     expect(mockCallback).toBeCalledTimes(1);
   });
 

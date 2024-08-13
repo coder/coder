@@ -202,7 +202,7 @@ interface FavoriteButtonProps {
 }
 
 export const FavoriteButton: FC<FavoriteButtonProps> = ({
-  onToggle: onToggle,
+  onToggle,
   workspaceID,
   isFavorite,
 }) => {

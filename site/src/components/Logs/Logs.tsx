@@ -23,7 +23,7 @@ export const Logs: FC<LogsProps> = ({
           <LogLine key={idx} level={line.level}>
             {!hideTimestamps && (
               <LogLinePrefix>
-                {dayjs(line.time).format(`HH:mm:ss.SSS`)}
+                {dayjs(line.time).format("HH:mm:ss.SSS")}
               </LogLinePrefix>
             )}
             <span>{line.output}</span>

@@ -24,7 +24,7 @@ const validFormValues = {
 const renderTemplateVariablesPage = async () => {
   renderWithTemplateSettingsLayout(<TemplateVariablesPage />, {
     route: `/templates/${MockTemplate.name}/variables`,
-    path: `/templates/:template/variables`,
+    path: "/templates/:template/variables",
     extraRoutes: [{ path: `/templates/${MockTemplate.name}`, element: <></> }],
   });
   await waitForLoaderToBeRemoved();

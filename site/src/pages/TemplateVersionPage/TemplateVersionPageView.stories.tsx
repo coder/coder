@@ -29,8 +29,8 @@ const defaultArgs: TemplateVersionPageViewProps = {
   currentVersion: MockTemplateVersion,
   currentFiles: {
     "README.md": readmeContent,
-    "main.tf": `{}`,
-    "some.tpl": `{{.Name}}`,
+    "main.tf": "{}",
+    "some.tpl": "{{.Name}}",
     "some.sh": `echo "Hello world"`,
   },
   baseFiles: undefined,

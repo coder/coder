@@ -89,9 +89,8 @@ export const scheduleToAutostart = (schedule?: string): Autostart => {
       autostartEnabled: true,
       ...transformSchedule(schedule),
     };
-  } else {
-    return { autostartEnabled: false, ...emptySchedule };
   }
+  return { autostartEnabled: false, ...emptySchedule };
 };
 
 export const scheduleChanged = (

@@ -121,13 +121,12 @@ const UsersPage: FC = () => {
         authMethods={authMethodsQuery.data}
         onListWorkspaces={(user) => {
           navigate(
-            "/workspaces?filter=" +
-              encodeURIComponent(`owner:${user.username}`),
+            `/workspaces?filter=${encodeURIComponent(`owner:${user.username}`)}`,
           );
         }}
         onViewActivity={(user) => {
           navigate(
-            "/audit?filter=" + encodeURIComponent(`username:${user.username}`),
+            `/audit?filter=${encodeURIComponent(`username:${user.username}`)}`,
           );
         }}
         onDeleteUser={setUserToDelete}

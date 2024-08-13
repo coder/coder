@@ -98,13 +98,13 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
                 !parameter.ephemeral ? (
                   <RichParameterInput
                     {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
+                      `rich_parameter_values[${index}].value`,
                     )}
                     disabled={isSubmitting || disabled || !parameter.mutable}
                     key={parameter.name}
                     onChange={async (value) => {
                       await form.setFieldValue(
-                        "rich_parameter_values." + index,
+                        `rich_parameter_values.${index}`,
                         {
                           name: parameter.name,
                           value: value,
@@ -130,13 +130,13 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
                 parameter.mutable && parameter.ephemeral ? (
                   <RichParameterInput
                     {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
+                      `rich_parameter_values[${index}].value`,
                     )}
                     disabled={isSubmitting || disabled}
                     key={parameter.name}
                     onChange={async (value) => {
                       await form.setFieldValue(
-                        "rich_parameter_values." + index,
+                        `rich_parameter_values.${index}`,
                         {
                           name: parameter.name,
                           value: value,

@@ -47,11 +47,10 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         "Failure cleanup days must be greater than zero when enabled.",
         function (value) {
           const parent = this.parent as TemplateScheduleFormValues;
-          if (parent.failure_cleanup_enabled) {
-            return Boolean(value);
-          } else {
+          if (!parent.failure_cleanup_enabled) {
             return true;
           }
+          return Boolean(value);
         },
       ),
     time_til_dormant_ms: Yup.number()
@@ -65,9 +64,8 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
           const parent = this.parent as TemplateScheduleFormValues;
           if (parent.inactivity_cleanup_enabled) {
             return Boolean(value);
-          } else {
-            return true;
           }
+          return true;
         },
       ),
     time_til_dormant_autodelete_ms: Yup.number()
@@ -81,9 +79,8 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
           const parent = this.parent as TemplateScheduleFormValues;
           if (parent.dormant_autodeletion_cleanup_enabled) {
             return Boolean(value);
-          } else {
-            return true;
           }
+          return true;
         },
       ),
     allow_user_autostart: Yup.boolean(),

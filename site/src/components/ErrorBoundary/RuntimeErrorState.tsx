@@ -71,8 +71,8 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
                     ["**Version**", coderVersion ?? "-- Set version --"].join(
                       "\n",
                     ),
-                    ["**Path**", "`" + location.pathname + "`"].join("\n"),
-                    ["**Error**", "```\n" + error.stack + "\n```"].join("\n"),
+                    ["**Path**", `\`${location.pathname}\``].join("\n"),
+                    ["**Error**", `\`\`\`\n${error.stack}\n\`\`\``].join("\n"),
                   ].join("\n\n"),
                 )}`}
                 target="_blank"

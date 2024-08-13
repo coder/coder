@@ -6,7 +6,7 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
 const ExternalAuthSettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings();
+  const { deploymentValues } = useDeploySettings();
 
   return (
     <>

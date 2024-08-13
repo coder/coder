@@ -6,7 +6,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 export const useWorkspaceBuildLogs = (
   // buildId is optional because sometimes the build is not loaded yet
   buildId: string | undefined,
-  enabled: boolean = true,
+  enabled = true,
 ) => {
   const [logs, setLogs] = useState<ProvisionerJobLog[]>();
   const socket = useRef<WebSocket>();

@@ -201,7 +201,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         >
           {workspace.latest_build.status === "deleted" && (
             <WorkspaceDeletedBanner
-              handleClick={() => navigate(`/templates`)}
+              handleClick={() => navigate("/templates")}
             />
           )}
 

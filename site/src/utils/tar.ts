@@ -114,12 +114,12 @@ export class TarReader {
 
   private readFileMode(offset: number) {
     const mode = this.readString(offset + 100, 8);
-    return parseInt(mode, 8);
+    return Number.parseInt(mode, 8);
   }
 
   private readFileMtime(offset: number) {
     const mtime = this.readString(offset + 136, 12);
-    return parseInt(mtime, 8);
+    return Number.parseInt(mtime, 8);
   }
 
   private readFileUser(offset: number) {
@@ -140,7 +140,7 @@ export class TarReader {
     // offset = 124, length = 12
     const view = new Uint8Array(this.buffer, offset + 124, 12);
     const sizeStr = utf8Decode(view);
-    return parseInt(sizeStr, 8);
+    return Number.parseInt(sizeStr, 8);
   }
 
   private readFileBlob(offset: number, size: number, mimetype: string) {
@@ -239,9 +239,8 @@ export class TarWriter {
     // Required so it works in the browser and node.
     if (typeof Blob !== "undefined") {
       return new Blob([this.buffer], { type: "application/x-tar" });
-    } else {
-      return this.buffer;
     }
+    return this.buffer;
   }
 
   private writeString(str: string, offset: number, size: number) {

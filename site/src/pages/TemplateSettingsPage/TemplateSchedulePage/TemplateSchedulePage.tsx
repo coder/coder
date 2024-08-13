@@ -21,7 +21,7 @@ const TemplateSchedulePage: FC = () => {
   const { organization: organizationName = "default", template: templateName } =
     useParams() as { organization?: string; template: string };
   const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled;
+    entitlements.features.advanced_template_scheduling.enabled;
 
   const {
     mutate: updateTemplate,

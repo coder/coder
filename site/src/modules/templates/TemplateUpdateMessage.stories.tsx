@@ -5,7 +5,7 @@ const meta: Meta<typeof TemplateUpdateMessage> = {
   title: "modules/templates/TemplateUpdateMessage",
   component: TemplateUpdateMessage,
   args: {
-    children: `### Update message\nSome message here.`,
+    children: "### Update message\nSome message here.",
   },
 };
 

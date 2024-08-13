@@ -1,6 +1,6 @@
 export const getApplicationName = (): string => {
   const c = document.head
-    .querySelector(`meta[name=application-name]`)
+    .querySelector("meta[name=application-name]")
     ?.getAttribute("content");
   // Fallback to "Coder" if the application name is not available for some reason.
   // We need to check if the content does not look like `{{ .ApplicationName }}`
@@ -10,7 +10,7 @@ export const getApplicationName = (): string => {
 
 export const getLogoURL = (): string => {
   const c = document.head
-    .querySelector(`meta[property=logo-url]`)
+    .querySelector("meta[property=logo-url]")
     ?.getAttribute("content");
   return c && !c.startsWith("{{ .") ? c : "";
 };

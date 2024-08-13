@@ -8,8 +8,8 @@ import type {
   Reporter,
   TestError,
 } from "@playwright/test/reporter";
-import * as fs from "fs/promises";
-import type { Writable } from "stream";
+import * as fs from "node:fs/promises";
+import type { Writable } from "node:stream";
 import { API } from "api/api";
 import { coderdPProfPort, enterpriseLicense } from "./constants";
 

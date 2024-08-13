@@ -183,7 +183,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
                   }}
                 >
                   {`coder rm ${
-                    build.workspace_owner_name + "/" + build.workspace_name
+                    `${build.workspace_owner_name}/${build.workspace_name}`
                   } --orphan`}
                 </code>{" "}
                 to delete the workspace skipping resource destruction.

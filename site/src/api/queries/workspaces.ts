@@ -88,7 +88,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
         }
       }
 
-      let templateVersionParameters;
+      let templateVersionParameters: Partial<CreateWorkspaceRequest>;
 
       if (templateVersionId) {
         templateVersionParameters = { template_version_id: templateVersionId };
@@ -307,9 +307,8 @@ export const toggleFavorite = (
     mutationFn: () => {
       if (workspace.favorite) {
         return API.deleteFavoriteWorkspace(workspace.id);
-      } else {
-        return API.putFavoriteWorkspace(workspace.id);
       }
+      return API.putFavoriteWorkspace(workspace.id);
     },
     onSuccess: async () => {
       queryClient.setQueryData(

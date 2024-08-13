@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any
--- we need to hack around the MUI types a little */
+// biome-disable lint/suspicious/noExplicitAny: we need to hack around the MUI types a little
 import { createTheme } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "../constants";
 import { components } from "../mui";

@@ -85,7 +85,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
           }}
         >
           <VSCodeIcon css={{ width: 12, height: 12 }} />
-          {DisplayAppNameMap["vscode"]}
+          {DisplayAppNameMap.vscode}
         </MenuItem>
         <MenuItem
           css={{ fontSize: 14 }}
@@ -94,7 +94,7 @@ export const VSCodeDesktopButton: FC<VSCodeDesktopButtonProps> = (props) => {
           }}
         >
           <VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
-          {DisplayAppNameMap["vscode_insiders"]}
+          {DisplayAppNameMap.vscode_insiders}
         </MenuItem>
       </Menu>
     </div>
@@ -145,7 +145,7 @@ const VSCodeButton: FC<VSCodeDesktopButtonProps> = ({
           });
       }}
     >
-      {DisplayAppNameMap["vscode"]}
+      {DisplayAppNameMap.vscode}
     </AgentButton>
   );
 };
@@ -189,7 +189,7 @@ const VSCodeInsidersButton: FC<VSCodeDesktopButtonProps> = ({
           });
       }}
     >
-      {DisplayAppNameMap["vscode_insiders"]}
+      {DisplayAppNameMap.vscode_insiders}
     </AgentButton>
   );
 };

@@ -90,7 +90,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
           Your workspace is running but{" "}
           {workspace.health.failing_agents.length > 1
             ? `${workspace.health.failing_agents.length} agents are unhealthy`
-            : `1 agent is unhealthy`}
+            : "1 agent is unhealthy"}
           .
         </>
       ),
@@ -105,7 +105,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
   // Dormant
   const { entitlements } = useDashboard();
   const advancedSchedulingEnabled =
-    entitlements.features["advanced_template_scheduling"].enabled;
+    entitlements.features.advanced_template_scheduling.enabled;
   if (advancedSchedulingEnabled && workspace.dormant_at) {
     const formatDate = (dateStr: string, timestamp: boolean): string => {
       const date = new Date(dateStr);

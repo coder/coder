@@ -7,7 +7,7 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
 const ObservabilitySettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings();
+  const { deploymentValues } = useDeploySettings();
   const { entitlements } = useDashboard();
 
   return (
@@ -19,7 +19,7 @@ const ObservabilitySettingsPage: FC = () => {
       {deploymentValues ? (
         <ObservabilitySettingsPageView
           options={deploymentValues.options}
-          featureAuditLogEnabled={entitlements.features["audit_log"].enabled}
+          featureAuditLogEnabled={entitlements.features.audit_log.enabled}
         />
       ) : (
         <Loader />

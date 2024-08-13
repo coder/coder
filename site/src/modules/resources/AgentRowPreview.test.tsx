@@ -88,7 +88,7 @@ describe("AgentRowPreviewApps", () => {
       testName: "EmptyAppPreview",
     },
   ])(
-    `<AgentRowPreview agent={$testName} /> displays appropriately`,
+    "<AgentRowPreview agent={$testName} /> displays appropriately",
     ({ workspaceAgent }) => {
       renderComponent(<AgentRowPreview agent={workspaceAgent} />);
       workspaceAgent.apps.forEach((module) => {
@@ -103,11 +103,11 @@ describe("AgentRowPreviewApps", () => {
       // test VS Code display
       if (workspaceAgent.display_apps.includes("vscode")) {
         expect(
-          screen.getByText(DisplayAppNameMap["vscode"]),
+          screen.getByText(DisplayAppNameMap.vscode),
         ).toBeInTheDocument();
       } else if (workspaceAgent.display_apps.includes("vscode_insiders")) {
         expect(
-          screen.getByText(DisplayAppNameMap["vscode_insiders"]),
+          screen.getByText(DisplayAppNameMap.vscode_insiders),
         ).toBeInTheDocument();
       } else {
         expect(screen.queryByText("vscode")).not.toBeInTheDocument();

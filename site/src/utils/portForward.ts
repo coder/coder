@@ -54,7 +54,7 @@ export const openMaybePortForwardedURL = (
     open(
       portForwardURL(
         proxyHost,
-        parseInt(url.port),
+        Number.parseInt(url.port),
         agentName,
         workspaceName,
         username,

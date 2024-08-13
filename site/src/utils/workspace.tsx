@@ -109,7 +109,7 @@ export const displayWorkspaceBuildDuration = (
   return duration ? `${duration} seconds` : inProgressLabel;
 };
 
-export const enum agentVersionStatus {
+export enum agentVersionStatus {
   Updated = 1,
   Outdated = 2,
   Deprecated = 3,

@@ -155,7 +155,7 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
   );
 };
 
-function urlForSubpage(organizationName: string, subpage: string = ""): string {
+function urlForSubpage(organizationName: string, subpage = ""): string {
   return `/organizations/${organizationName}/${subpage}`;
 }
 

@@ -50,7 +50,7 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
       }}
       data-testid="terminal"
     >
-      {DisplayAppNameMap["web_terminal"]}
+      {DisplayAppNameMap.web_terminal}
     </Link>
   );
 };

@@ -233,7 +233,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
             if (!contextMenu) {
               return;
             }
-            onRename && onRename(contextMenu.path);
+            onRename?.(contextMenu.path);
             setContextMenu(undefined);
           }}
         >
@@ -244,7 +244,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
             if (!contextMenu) {
               return;
             }
-            onDelete && onDelete(contextMenu.path);
+            onDelete?.(contextMenu.path);
             setContextMenu(undefined);
           }}
         >

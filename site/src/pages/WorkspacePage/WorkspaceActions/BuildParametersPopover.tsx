@@ -187,7 +187,7 @@ const Form: FC<FormProps> = ({
         {ephemeralParameters.map((parameter, index) => {
           return (
             <RichParameterInput
-              {...getFieldHelpers("rich_parameter_values[" + index + "].value")}
+              {...getFieldHelpers(`rich_parameter_values[${index}].value`)}
               key={parameter.name}
               parameter={parameter}
               size="small"

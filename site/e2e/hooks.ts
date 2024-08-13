@@ -1,10 +1,10 @@
 import type { BrowserContext, Page } from "@playwright/test";
-import http from "http";
+import http from "node:http";
 import { coderPort, gitAuth } from "./constants";
 
 export const beforeCoderTest = async (page: Page) => {
   // eslint-disable-next-line no-console -- Show everything that was printed with console.log()
-  page.on("console", (msg) => console.log("[onConsole] " + msg.text()));
+  page.on("console", (msg) => console.log(`[onConsole] ${msg.text()}`));
 
   page.on("request", (request) => {
     if (!isApiCall(request.url())) {

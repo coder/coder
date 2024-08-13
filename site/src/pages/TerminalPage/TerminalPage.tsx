@@ -186,16 +186,19 @@ const TerminalPage: FC = () => {
     // Show a message if we failed to find the workspace or agent.
     if (workspace.isLoading) {
       return;
-    } else if (workspace.error instanceof Error) {
+    }
+
+    if (workspace.error instanceof Error) {
       terminal.writeln(
         Language.workspaceErrorMessagePrefix + workspace.error.message,
       );
       setConnectionStatus("disconnected");
       return;
-    } else if (!workspaceAgent) {
+    }
+
+    if (!workspaceAgent) {
       terminal.writeln(
-        Language.workspaceAgentErrorMessagePrefix +
-          "no agent found with ID, is the workspace started?",
+        `${Language.workspaceAgentErrorMessagePrefix}no agent found with ID, is the workspace started?`,
       );
       setConnectionStatus("disconnected");
       return;
@@ -258,7 +261,7 @@ const TerminalPage: FC = () => {
         websocket.addEventListener("error", () => {
           terminal.options.disableStdin = true;
           terminal.writeln(
-            Language.websocketErrorMessagePrefix + "socket errored",
+            `${Language.websocketErrorMessagePrefix}socket errored`,
           );
           setConnectionStatus("disconnected");
         });

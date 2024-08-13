@@ -21,7 +21,7 @@ export type SecuritySettingsPageViewProps = {
 };
 
 export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
-  options: options,
+  options,
   featureBrowserOnlyEnabled,
 }) => {
   const tlsOptions = options.filter((o) =>

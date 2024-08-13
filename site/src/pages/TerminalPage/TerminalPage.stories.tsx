@@ -58,7 +58,7 @@ const meta = {
       },
       routing: reactRouterOutlet(
         {
-          path: `/:username/:workspace/terminal`,
+          path: "/:username/:workspace/terminal",
         },
         <TerminalPage />,
       ),
@@ -98,7 +98,7 @@ export const Starting: Story = {
       {
         event: "message",
         // Copied and pasted this from browser
-        data: `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
+        data: "[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗",
       },
     ],
     queries: [...meta.parameters.queries, createWorkspaceWithAgent("starting")],
@@ -113,7 +113,7 @@ export const Ready: Story = {
       {
         event: "message",
         // Copied and pasted this from browser
-        data: `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
+        data: "[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗",
       },
     ],
     queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],

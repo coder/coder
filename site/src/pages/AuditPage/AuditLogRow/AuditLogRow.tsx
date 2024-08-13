@@ -110,7 +110,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
                   <AuditLogDescription auditLog={auditLog} />
                   {auditLog.is_deleted && (
                     <span css={styles.deletedLabel}>
-                      <>(deleted)</>
+                      (deleted)
                     </span>
                   )}
                   <span css={styles.auditLogTime}>

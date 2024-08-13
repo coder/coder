@@ -96,12 +96,12 @@ export const traverse = (
   ) => void,
   parent?: string,
 ) => {
-  Object.keys(fileTree).forEach((filename) => {
+  for (const filename of Object.keys(fileTree)) {
     const fullPath = parent ? `${parent}/${filename}` : filename;
     const content = fileTree[filename];
     callback(content, filename, fullPath);
     if (typeof content === "object") {
       traverse(content, callback, fullPath);
     }
-  });
+  }
 };

@@ -21,7 +21,7 @@ import { AuditPageView } from "./AuditPageView";
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-  query: `owner:me`,
+  query: "owner:me",
   values: {
     username: MockUser.username,
     action: undefined,

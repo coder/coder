@@ -24,11 +24,9 @@ export const expectUrl = expect.extend({
       actual,
       expected,
       message: () =>
-        "The page does not have the expected URL pathname.\n" +
-        `Expected: ${this.isNot ? "not" : ""}${this.utils.printExpected(
+        `The page does not have the expected URL pathname.\nExpected: ${this.isNot ? "not" : ""}${this.utils.printExpected(
           expected,
-        )}\n` +
-        `Actual: ${this.utils.printReceived(actual)}`,
+        )}\nActual: ${this.utils.printReceived(actual)}`,
     };
   },
 });

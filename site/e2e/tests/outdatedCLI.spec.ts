@@ -1,5 +1,5 @@
 import { test } from "@playwright/test";
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import {
   createTemplate,
   createWorkspace,
@@ -16,7 +16,7 @@ const clientVersion = "v0.27.0";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
-test("ssh with client " + clientVersion, async ({ page }) => {
+test(`ssh with client ${clientVersion}`, async ({ page }) => {
   const token = randomUUID();
   const template = await createTemplate(page, {
     apply: [

@@ -63,29 +63,27 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
   const listeners = new Map<string, CallbackFn>();
   let callEventsDelay: number;
 
-  // @ts-expect-error -- TS doesn't know about the global WebSocket
-  window.WebSocket = function () {
-    return {
-      addEventListener: (type: string, callback: CallbackFn) => {
-        listeners.set(type, callback);
+  window.WebSocket = class WebSocket {
+    addEventListener(type: string, callback: CallbackFn) {
+      listeners.set(type, callback);
 
-        // Runs when the last event listener is added
-        clearTimeout(callEventsDelay);
-        callEventsDelay = window.setTimeout(() => {
-          for (const entry of events) {
-            const callback = listeners.get(entry.event);
+      // Runs when the last event listener is added
+      clearTimeout(callEventsDelay);
+      callEventsDelay = window.setTimeout(() => {
+        for (const entry of events) {
+          const callback = listeners.get(entry.event);
 
-            if (callback) {
-              entry.event === "message"
-                ? callback({ data: entry.data })
-                : callback();
-            }
+          if (callback) {
+            entry.event === "message"
+              ? callback({ data: entry.data })
+              : callback();
           }
-        }, 0);
-      },
-      close: () => {},
-    };
-  };
+        }
+      }, 0);
+    }
+
+    close() {}
+  } as any;
 
   return <Story />;
 };

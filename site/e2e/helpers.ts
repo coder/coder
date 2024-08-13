@@ -1,11 +1,11 @@
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
-import { type ChildProcess, exec, spawn } from "child_process";
-import { randomUUID } from "crypto";
+import { type ChildProcess, exec, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import express from "express";
 import capitalize from "lodash/capitalize";
-import path from "path";
+import path from "node:path";
 import * as ssh from "ssh2";
-import { Duplex } from "stream";
+import { Duplex } from "node:stream";
 import { API } from "api/api";
 import type {
   WorkspaceBuildParameter,
@@ -88,7 +88,7 @@ export const createWorkspace = async (
 
   await page.getByTestId("form-submit").click();
 
-  await expectUrl(page).toHavePathName("/@admin/" + name);
+  await expectUrl(page).toHavePathName(`/@admin/${name}`);
 
   await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
     state: "visible",
@@ -102,7 +102,7 @@ export const verifyParameters = async (
   richParameters: RichParameter[],
   expectedBuildParameters: WorkspaceBuildParameter[],
 ) => {
-  await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
+  await page.goto(`/@admin/${workspaceName}/settings/parameters`, {
     waitUntil: "domcontentloaded",
   });
   await expectUrl(page).toHavePathName(
@@ -120,7 +120,7 @@ export const verifyParameters = async (
     }
 
     const parameterLabel = await page.waitForSelector(
-      "[data-testid='parameter-field-" + richParameter.name + "']",
+      `[data-testid='parameter-field-${richParameter.name}']`,
       { state: "visible" },
     );
 
@@ -128,17 +128,13 @@ export const verifyParameters = async (
 
     if (richParameter.type === "bool") {
       const parameterField = await parameterLabel.waitForSelector(
-        "[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked" +
-          muiDisabled +
-          " input",
+        `[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked${muiDisabled} input`,
       );
       const value = await parameterField.inputValue();
       expect(value).toEqual(buildParameter.value);
     } else if (richParameter.options.length > 0) {
       const parameterField = await parameterLabel.waitForSelector(
-        "[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked" +
-          muiDisabled +
-          " input",
+        `[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked${muiDisabled} input`,
       );
       const value = await parameterField.inputValue();
       expect(value).toEqual(buildParameter.value);
@@ -147,7 +143,7 @@ export const verifyParameters = async (
     } else {
       // text or number
       const parameterField = await parameterLabel.waitForSelector(
-        "[data-testid='parameter-field-text'] input" + muiDisabled,
+        `[data-testid='parameter-field-text'] input${muiDisabled}`,
       );
       const value = await parameterField.inputValue();
       expect(value).toEqual(buildParameter.value);
@@ -266,7 +262,7 @@ export const sshIntoWorkspace = async (
 };
 
 export const stopWorkspace = async (page: Page, workspaceName: string) => {
-  await page.goto("/@admin/" + workspaceName, {
+  await page.goto(`/@admin/${workspaceName}`, {
     waitUntil: "domcontentloaded",
   });
   await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
@@ -283,9 +279,9 @@ export const buildWorkspaceWithParameters = async (
   workspaceName: string,
   richParameters: RichParameter[] = [],
   buildParameters: WorkspaceBuildParameter[] = [],
-  confirm: boolean = false,
+  confirm = false,
 ) => {
-  await page.goto("/@admin/" + workspaceName, {
+  await page.goto(`/@admin/${workspaceName}`, {
     waitUntil: "domcontentloaded",
   });
   await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
@@ -321,7 +317,7 @@ export const downloadCoderVersion = async (
     version = version.slice(1);
   }
 
-  const binaryName = "coder-e2e-" + version;
+  const binaryName = `coder-e2e-${version}`;
   const tempDir = "/tmp/coder-e2e-cache";
   // The install script adds `./bin` automatically to the path :shrug:
   const binaryPath = path.join(tempDir, "bin", binaryName);
@@ -367,7 +363,7 @@ export const downloadCoderVersion = async (
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error("install.sh failed with code " + code));
+        reject(new Error(`install.sh failed with code ${code}`));
       }
     });
   });
@@ -385,8 +381,8 @@ export const startAgentWithCommand = async (
       ...process.env,
       CODER_AGENT_URL: `http://localhost:${coderPort}`,
       CODER_AGENT_TOKEN: token,
-      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:" + agentPProfPort,
-      CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:" + prometheusPort,
+      CODER_AGENT_PPROF_ADDRESS: `127.0.0.1:${agentPProfPort}`,
+      CODER_AGENT_PROMETHEUS_ADDRESS: `127.0.0.1:${prometheusPort}`,
     },
   });
   cp.stdout.on("data", (data: Buffer) => {
@@ -406,7 +402,7 @@ export const startAgentWithCommand = async (
   return cp;
 };
 
-export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
+export const stopAgent = async (cp: ChildProcess, goRun = true) => {
   // When the web server is started with `go run`, it spawns a child process with coder server.
   // `pkill -P` terminates child processes belonging the same group as `go run`.
   // The command `kill` is used to terminate a web server started as a standalone binary.
@@ -415,7 +411,7 @@ export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
       throw new Error(`exec error: ${JSON.stringify(error)}`);
     }
   });
-  await waitUntilUrlIsNotResponding("http://localhost:" + prometheusPort);
+  await waitUntilUrlIsNotResponding(`http://localhost:${prometheusPort}`);
 };
 
 export const waitUntilUrlIsNotResponding = async (url: string) => {
@@ -555,7 +551,7 @@ const createTemplateVersionTar = async (
           try {
             Agent.encode(agentResource);
           } catch (e) {
-            let m = `Error: agentResource encode failed, missing defaults?`;
+            let m = "Error: agentResource encode failed, missing defaults?";
             if (e instanceof Error) {
               if (!e.stack?.includes(e.message)) {
                 m += `\n${e.name}: ${e.message}`;
@@ -745,22 +741,18 @@ export const fillParameters = async (
     }
 
     const parameterLabel = await page.waitForSelector(
-      "[data-testid='parameter-field-" + richParameter.name + "']",
+      `[data-testid='parameter-field-${richParameter.name}']`,
       { state: "visible" },
     );
 
     if (richParameter.type === "bool") {
       const parameterField = await parameterLabel.waitForSelector(
-        "[data-testid='parameter-field-bool'] .MuiRadio-root input[value='" +
-          buildParameter.value +
-          "']",
+        `[data-testid='parameter-field-bool'] .MuiRadio-root input[value='${buildParameter.value}']`,
       );
       await parameterField.click();
     } else if (richParameter.options.length > 0) {
       const parameterField = await parameterLabel.waitForSelector(
-        "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
-          buildParameter.value +
-          "']",
+        `[data-testid='parameter-field-options'] .MuiRadio-root input[value='${buildParameter.value}']`,
       );
       await parameterField.click();
     } else if (richParameter.type === "list(string)") {
@@ -856,7 +848,7 @@ export const updateWorkspace = async (
   richParameters: RichParameter[] = [],
   buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
-  await page.goto("/@admin/" + workspaceName, {
+  await page.goto(`/@admin/${workspaceName}`, {
     waitUntil: "domcontentloaded",
   });
   await expectUrl(page).toHavePathName(`/@admin/${workspaceName}`);
@@ -878,7 +870,7 @@ export const updateWorkspaceParameters = async (
   richParameters: RichParameter[] = [],
   buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
-  await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
+  await page.goto(`/@admin/${workspaceName}/settings/parameters`, {
     waitUntil: "domcontentloaded",
   });
   await expectUrl(page).toHavePathName(
@@ -897,7 +889,7 @@ export async function openTerminalWindow(
   page: Page,
   context: BrowserContext,
   workspaceName: string,
-  agentName: string = "dev",
+  agentName = "dev",
 ): Promise<Page> {
   // Wait for the web terminal to open in a new tab
   const pagePromise = context.waitForEvent("page");

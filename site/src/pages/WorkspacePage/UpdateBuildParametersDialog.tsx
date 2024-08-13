@@ -76,13 +76,13 @@ export const UpdateBuildParametersDialog: FC<
                 return (
                   <RichParameterInput
                     {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
+                      `rich_parameter_values[${index}].value`,
                     )}
                     key={parameter.name}
                     parameter={parameter}
                     onChange={async (value) => {
                       await form.setFieldValue(
-                        "rich_parameter_values." + index,
+                        `rich_parameter_values.${index}`,
                         {
                           name: parameter.name,
                           value: value,

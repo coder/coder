@@ -79,7 +79,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
   menus,
 }) => {
   const { entitlements } = useDashboard();
-  const presets = entitlements.features["advanced_template_scheduling"].enabled
+  const presets = entitlements.features.advanced_template_scheduling.enabled
     ? PRESETS_WITH_DORMANT
     : PRESET_FILTERS;
 

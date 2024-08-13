@@ -67,7 +67,7 @@ export const WithErrors: Story = {
         message: "buildError",
         validations: [
           {
-            field: `user_variable_values[0].value`,
+            field: "user_variable_values[0].value",
             detail: "Variable is required.",
           },
         ],

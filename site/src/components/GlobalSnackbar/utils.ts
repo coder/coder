@@ -5,9 +5,9 @@ import { dispatchCustomEvent } from "utils/events";
 ///////////////////////////////////////////////////////////////////////////////
 
 export enum MsgType {
-  Info,
-  Success,
-  Error,
+  Info = 0,
+  Success = 1,
+  Error = 2,
 }
 
 /**

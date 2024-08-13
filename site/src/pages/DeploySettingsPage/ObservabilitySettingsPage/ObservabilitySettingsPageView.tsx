@@ -19,7 +19,7 @@ export type ObservabilitySettingsPageViewProps = {
 
 export const ObservabilitySettingsPageView: FC<
   ObservabilitySettingsPageViewProps
-> = ({ options: options, featureAuditLogEnabled }) => {
+> = ({ options, featureAuditLogEnabled }) => {
   return (
     <>
       <Stack direction="column" spacing={6}>

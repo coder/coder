@@ -6,7 +6,7 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
 
 const NetworkSettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings();
+  const { deploymentValues } = useDeploySettings();
 
   return (
     <>

@@ -108,8 +108,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
               canCreateTemplate={canCreateTemplate}
             />
           )}
-          {workspaces &&
-            workspaces.map((workspace) => {
+          {workspaces?.map((workspace) => {
               const checked = checkedWorkspaces.some(
                 (w) => w.id === workspace.id,
               );

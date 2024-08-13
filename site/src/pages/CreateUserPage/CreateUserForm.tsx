@@ -164,7 +164,7 @@ export const CreateUserForm: FC<
             {methods.map((value) => {
               const language = authMethodLanguage[value];
               return (
-                <MenuItem key={value} id={"item-" + value} value={value}>
+                <MenuItem key={value} id={`item-${value}`} value={value}>
                   <Stack
                     spacing={0}
                     css={{

@@ -219,7 +219,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           >
             <div css={styles.value}>
               <LatencyIcon />
-              {displayLatency > 0 ? displayLatency?.toFixed(2) + " ms" : "-"}
+              {displayLatency > 0 ? `${displayLatency?.toFixed(2)} ms` : "-"}
             </div>
           </Tooltip>
         </div>
@@ -352,7 +352,7 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
     <Tooltip title={`${statusText} Workspaces`}>
       <Link
         component={RouterLink}
-        to={`/workspaces?filter=${encodeURIComponent("status:" + status)}`}
+        to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
       >
         <div css={styles.value}>
           {icon}

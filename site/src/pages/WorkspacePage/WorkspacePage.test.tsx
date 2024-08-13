@@ -171,7 +171,7 @@ describe("WorkspacePage", () => {
 
   it("requests a start job when the user presses Start", async () => {
     server.use(
-      http.get(`/api/v2/users/:userId/workspace/:workspaceName`, () => {
+      http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
         return HttpResponse.json(MockStoppedWorkspace);
       }),
     );
@@ -213,7 +213,7 @@ describe("WorkspacePage", () => {
 
   it("requests cancellation when the user presses Cancel", async () => {
     server.use(
-      http.get(`/api/v2/users/:userId/workspace/:workspaceName`, () => {
+      http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
         return HttpResponse.json(MockStartingWorkspace);
       }),
     );

@@ -49,7 +49,7 @@ export const NotificationsPage: FC = () => {
             ? groups
             : {
                 // Members only have access to the "Workspace Notifications" group
-                ["Workspace Events"]: groups["Workspace Events"],
+                "Workspace Events": groups["Workspace Events"],
               };
         },
       },

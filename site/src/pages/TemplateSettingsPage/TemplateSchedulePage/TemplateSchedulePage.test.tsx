@@ -45,7 +45,7 @@ const validFormValues: TemplateScheduleFormValues = {
 const renderTemplateSchedulePage = async () => {
   renderWithTemplateSettingsLayout(<TemplateSchedulePage />, {
     route: `/templates/${MockTemplate.name}/settings/schedule`,
-    path: `/templates/:template/settings/schedule`,
+    path: "/templates/:template/settings/schedule",
   });
   await waitForLoaderToBeRemoved();
 };

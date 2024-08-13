@@ -37,7 +37,7 @@ beforeEach(() => {
 const renderPage = async () => {
   renderWithManagementSettingsLayout(<OrganizationMembersPage />, {
     route: `/organizations/${MockOrganization.name}/members`,
-    path: `/organizations/:organization/members`,
+    path: "/organizations/:organization/members",
   });
   await waitForLoaderToBeRemoved();
 };

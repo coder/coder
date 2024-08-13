@@ -56,7 +56,7 @@ const validFormValues: FormValues = {
 const renderTemplateSettingsPage = async () => {
   renderWithTemplateSettingsLayout(<TemplateSettingsPage />, {
     route: `/templates/${MockTemplate.name}/settings`,
-    path: `/templates/:template/settings`,
+    path: "/templates/:template/settings",
     extraRoutes: [
       { path: "/templates/:template", element: <div>Template</div> },
     ],

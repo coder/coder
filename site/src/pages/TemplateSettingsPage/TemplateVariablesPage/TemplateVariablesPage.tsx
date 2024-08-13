@@ -126,8 +126,7 @@ const filterEmptySensitiveVariables = (
         (t) => t.name === variableValue.name,
       );
       if (
-        templateVariable &&
-        templateVariable.sensitive &&
+        templateVariable?.sensitive &&
         variableValue.value === ""
       ) {
         return;

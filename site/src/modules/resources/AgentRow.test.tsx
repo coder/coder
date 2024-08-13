@@ -89,7 +89,7 @@ describe.each<{
     showApps: false,
     serverVersion: "",
     serverAPIVersion: "",
-    onUpdateAgent: function (): void {
+    onUpdateAgent: () => {
       throw new Error("Function not implemented.");
     },
     ...testProps,
@@ -100,9 +100,9 @@ describe.each<{
     await waitForLoaderToBeRemoved();
 
     if (result === "visible") {
-      expect(screen.getByText(DisplayAppNameMap["vscode"])).toBeVisible();
+      expect(screen.getByText(DisplayAppNameMap.vscode)).toBeVisible();
     } else {
-      expect(screen.queryByText(DisplayAppNameMap["vscode"])).toBeNull();
+      expect(screen.queryByText(DisplayAppNameMap.vscode)).toBeNull();
     }
   });
 });

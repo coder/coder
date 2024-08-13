@@ -40,7 +40,7 @@ const estimateFinish = (
       Math.ceil(dayjs.duration((1 - sinceStart / est) * est).asSeconds()),
       0,
     );
-    return isNaN(max) ? 0 : max;
+    return Number.isNaN(max) ? 0 : max;
   };
 
   // Under-promise, over-deliver with the 95th percentile estimate.
@@ -66,7 +66,7 @@ export interface WorkspaceBuildProgressProps {
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   workspace,
-  transitionStats: transitionStats,
+  transitionStats,
 }) => {
   const job = workspace.latest_build.job;
   const [progressValue, setProgressValue] = useState<number | undefined>(0);

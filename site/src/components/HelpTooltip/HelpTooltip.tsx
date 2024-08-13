@@ -181,7 +181,6 @@ const getIconSpacingFromSize = (size?: Size): number => {
   switch (size) {
     case "small":
       return 12;
-    case "medium":
     default:
       return 16;
   }

@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any
--- we need to hack around the MUI types a little */
-// eslint-disable-next-line no-restricted-imports -- we use the classes for customization
+// biome-disable lint/suspicious/noExplicitAny: we need to hack around the MUI types a little
+// biome-disable lint/nursery/noRestrictedImports: we use the classes for customization
 import { alertClasses } from "@mui/material/Alert";
 import type { ThemeOptions } from "@mui/material/styles";
 import {
@@ -302,8 +301,8 @@ export const components = {
       root: {
         // It should be the same as the menu padding
         "& .MuiDivider-root": {
-          marginTop: `4px !important`,
-          marginBottom: `4px !important`,
+          marginTop: "4px !important",
+          marginBottom: "4px !important",
         },
       },
     },

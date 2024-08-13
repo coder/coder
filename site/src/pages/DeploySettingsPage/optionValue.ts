@@ -32,7 +32,7 @@ export function optionValue(
       if (option.value === 0) {
         return "Disabled";
       }
-      return (option.value as number).toString() + "s";
+      return `${(option.value as number).toString()}s`;
     case "OIDC Group Mapping":
       return Object.entries(option.value as Record<string, string>).map(
         ([key, value]) => `"${key}"->"${value}"`,

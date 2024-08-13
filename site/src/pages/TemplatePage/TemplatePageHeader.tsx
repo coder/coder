@@ -142,11 +142,11 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
               )}
 
               {workspaceCountQuery.isLoading && (
-                <>Loading information about workspaces used by this template.</>
+                "Loading information about workspaces used by this template."
               )}
 
               {workspaceCountQuery.isError && (
-                <>Unable to determine workspaces used by this template.</>
+                "Unable to determine workspaces used by this template."
               )}
             </>
           }

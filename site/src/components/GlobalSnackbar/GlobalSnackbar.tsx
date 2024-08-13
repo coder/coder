@@ -16,11 +16,12 @@ import {
 const variantFromMsgType = (type: MsgType) => {
   if (type === MsgType.Error) {
     return "error";
-  } else if (type === MsgType.Success) {
-    return "success";
-  } else {
-    return "info";
   }
+
+  if (type === MsgType.Success) {
+    return "success";
+  }
+  return "info";
 };
 
 export const GlobalSnackbar: FC = () => {
@@ -53,10 +54,9 @@ export const GlobalSnackbar: FC = () => {
           <div css={{ maxWidth: 670 }}>
             <span css={styles.messageTitle}>{notificationMsg.msg}</span>
 
-            {notificationMsg.additionalMsgs &&
-              notificationMsg.additionalMsgs.map((msg, index) => (
-                <AdditionalMessageDisplay key={index} message={msg} />
-              ))}
+            {notificationMsg.additionalMsgs?.map((msg, index) => (
+              <AdditionalMessageDisplay key={index} message={msg} />
+            ))}
           </div>
         </div>
       }

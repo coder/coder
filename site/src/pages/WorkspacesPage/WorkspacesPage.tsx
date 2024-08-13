@@ -62,7 +62,7 @@ const WorkspacesPage: FC = () => {
   >(null);
   const [urlSearchParams] = searchParamsResult;
   const canCheckWorkspaces =
-    entitlements.features["workspace_batch_actions"].enabled;
+    entitlements.features.workspace_batch_actions.enabled;
   const batchActions = useBatchActions({
     onSuccess: async () => {
       await refetch();

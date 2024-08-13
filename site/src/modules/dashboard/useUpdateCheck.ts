@@ -18,7 +18,7 @@ export const useUpdateCheck = (enabled: boolean) => {
 
     const isNotDismissed = dismissedVersion !== updateCheckQuery.data.version;
     const isOutdated = !updateCheckQuery.data.current;
-    return isNotDismissed && isOutdated ? true : false;
+    return Boolean(isNotDismissed && isOutdated);
   }, [dismissedVersion, updateCheckQuery.data]);
 
   const dismiss = () => {

@@ -44,7 +44,7 @@ export const deleteOrganizationRole = (
   return {
     mutationFn: (roleName: string) =>
       API.deleteOrganizationRole(organization, roleName),
-    onSuccess: async (_: void, roleName: string) =>
+    onSuccess: async (_: unknown, roleName: string) =>
       await queryClient.invalidateQueries(
         getRoleQueryKey(organization, roleName),
       ),

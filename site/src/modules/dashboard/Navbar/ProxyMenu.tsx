@@ -134,7 +134,6 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
               }}
             >
               <h4
-                autoFocus
                 tabIndex={-1}
                 css={{
                   fontSize: "inherit",
@@ -172,8 +171,8 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
         {proxyContextValue.proxies &&
           [...proxyContextValue.proxies]
             .sort((a, b) => {
-              const latencyA = latencies?.[a.id]?.latencyMS ?? Infinity;
-              const latencyB = latencies?.[b.id]?.latencyMS ?? Infinity;
+              const latencyA = latencies?.[a.id]?.latencyMS ?? Number.POSITIVE_INFINITY;
+              const latencyB = latencies?.[b.id]?.latencyMS ?? Number.POSITIVE_INFINITY;
               return latencyA - latencyB;
             })
             .map((proxy) => (

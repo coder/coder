@@ -249,8 +249,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
         }}
         latestVersion={latestVersion}
         canChangeVersions={canChangeVersions}
-        hideSSHButton={featureVisibility["browser_only"]}
-        hideVSCodeDesktopButton={featureVisibility["browser_only"]}
+        hideSSHButton={featureVisibility.browser_only}
+        hideVSCodeDesktopButton={featureVisibility.browser_only}
         buildInfo={buildInfoQuery.data}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
         template={template}

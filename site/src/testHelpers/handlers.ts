@@ -1,6 +1,6 @@
-import fs from "fs";
+import fs from "node:fs";
 import { http, HttpResponse } from "msw";
-import path from "path";
+import path from "node:path";
 import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import * as M from "./entities";
@@ -71,7 +71,7 @@ export const handlers = [
     ]);
   }),
   http.delete(
-    `/api/v2/organizations/:organizationId/members/:userId`,
+    "/api/v2/organizations/:organizationId/members/:userId",
     async () => {
       return new HttpResponse(null, { status: 204 });
     },

@@ -15,7 +15,7 @@ export type NetworkSettingsPageViewProps = {
 };
 
 export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
-  options: options,
+  options,
 }) => (
   <Stack direction="column" spacing={6}>
     <div>

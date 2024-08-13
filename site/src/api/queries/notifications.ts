@@ -98,7 +98,7 @@ export const notificationDispatchMethodsKey = [
 
 export const notificationDispatchMethods = () => {
   return {
-    staleTime: Infinity,
+    staleTime: Number.POSITIVE_INFINITY,
     queryKey: notificationDispatchMethodsKey,
     queryFn: () => API.getNotificationDispatchMethods(),
   };

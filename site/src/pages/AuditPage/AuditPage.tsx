@@ -53,7 +53,7 @@ const AuditPage: FC = () => {
   });
 
   const resourceTypeMenu = useResourceTypeFilterMenu({
-    value: filter.values["resource_type"],
+    value: filter.values.resource_type,
     onChange: (option) =>
       filter.update({
         ...filter.values,

@@ -339,7 +339,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                 disabled={isSubmitting}
                 key={variable.name}
                 onChange={async (value) => {
-                  await form.setFieldValue("user_variable_values." + index, {
+                  await form.setFieldValue(`user_variable_values.${index}`, {
                     name: variable.name,
                     value,
                   });

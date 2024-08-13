@@ -85,7 +85,7 @@ export const deleteAppSecret = (queryClient: QueryClient) => {
   return {
     mutationFn: ({ appId, secretId }: { appId: string; secretId: string }) =>
       API.deleteOAuth2ProviderAppSecret(appId, secretId),
-    onSuccess: async (_: void, { appId }: { appId: string }) => {
+    onSuccess: async (_: unknown, { appId }: { appId: string }) => {
       await queryClient.invalidateQueries({
         queryKey: appSecretsKey(appId),
       });

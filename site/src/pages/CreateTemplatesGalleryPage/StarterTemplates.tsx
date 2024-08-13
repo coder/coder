@@ -64,8 +64,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
           height: "max-content",
         }}
       >
-        {visibleTemplates &&
-          visibleTemplates.map((example) => (
+        {visibleTemplates?.map((example) => (
             <TemplateExampleCard
               css={(theme) => ({
                 backgroundColor: theme.palette.background.paper,

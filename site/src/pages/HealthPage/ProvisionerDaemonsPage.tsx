@@ -57,7 +57,7 @@ export const ProvisionerDaemonsPage: FC = () => {
         })}
 
         {daemons.items.map(({ provisioner_daemon: daemon, warnings }) => {
-          const daemonScope = daemon.tags["scope"] || "organization";
+          const daemonScope = daemon.tags.scope || "organization";
           const iconScope =
             daemonScope === "organization" ? <Business /> : <Person />;
           const extraTags = Object.keys(daemon.tags)
@@ -203,7 +203,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({ k, v, onDelete }) => {
     <>
       {kv}
       <IconButton
-        aria-label={"delete-" + k}
+        aria-label={`delete-${k}`}
         size="small"
         color="secondary"
         onClick={() => {

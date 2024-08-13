@@ -29,7 +29,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
   >(undefined);
 
   const currentUserLimit =
-    license.claims.features["user_limit"] || userLimitLimit;
+    license.claims.features.user_limit || userLimitLimit;
 
   const licenseType = license.claims.trial
     ? "Trial"

@@ -2,8 +2,8 @@ import type { UseQueryOptions, QueryKey } from "react-query";
 import type { MetadataState, MetadataValue } from "hooks/useEmbeddedMetadata";
 
 export const disabledRefetchOptions = {
-  cacheTime: Infinity,
-  staleTime: Infinity,
+  cacheTime: Number.POSITIVE_INFINITY,
+  staleTime: Number.POSITIVE_INFINITY,
   refetchOnMount: false,
   refetchOnReconnect: false,
   refetchOnWindowFocus: false,
