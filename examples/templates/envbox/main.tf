@@ -24,7 +24,6 @@ data "coder_parameter" "home_disk" {
 
 variable "use_kubeconfig" {
   type        = bool
-  sensitive   = true
   default     = true
   description = <<-EOF
   Use host kubeconfig? (true/false)
@@ -40,13 +39,11 @@ provider "coder" {
 
 variable "namespace" {
   type        = string
-  sensitive   = true
   description = "The namespace to create workspaces in (must exist prior to creating workspaces)"
 }
 
 variable "create_tun" {
   type        = bool
-  sensitive   = true
   description = "Add a TUN device to the workspace."
   default     = false
 }
@@ -54,32 +51,27 @@ variable "create_tun" {
 variable "create_fuse" {
   type        = bool
   description = "Add a FUSE device to the workspace."
-  sensitive   = true
   default     = false
 }
 
 variable "max_cpus" {
   type        = string
-  sensitive   = true
   description = "Max number of CPUs the workspace may use (e.g. 2)."
 }
 
 variable "min_cpus" {
   type        = string
-  sensitive   = true
   description = "Minimum number of CPUs the workspace may use (e.g. .1)."
 }
 
 variable "max_memory" {
   type        = string
   description = "Maximum amount of memory to allocate the workspace (in GB)."
-  sensitive   = true
 }
 
 variable "min_memory" {
   type        = string
   description = "Minimum amount of memory to allocate the workspace (in GB)."
-  sensitive   = true
 }
 
 provider "kubernetes" {
