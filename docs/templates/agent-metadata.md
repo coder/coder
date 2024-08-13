@@ -15,10 +15,10 @@ All of these examples use
 for the script declaration. With heredoc strings, you can script without messy
 escape codes, just as if you were working in your terminal.
 
-Some of the examples use the [`coder stat`](../reference/cli/stat.md) command. This is
-useful for determining CPU and memory usage of the VM or container that the
-workspace is running in, which is more accurate than resource usage about the
-workspace's host.
+Some of the examples use the [`coder stat`](../reference/cli/stat.md) command.
+This is useful for determining CPU and memory usage of the VM or container that
+the workspace is running in, which is more accurate than resource usage about
+the workspace's host.
 
 Here's a standard set of metadata snippets for Linux agents:
 
