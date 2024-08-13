@@ -1,4 +1,6 @@
 import type { FC } from "react";
+import { API } from "api/api";
+import type { Organization } from "api/typesGenerated";
 import {
   Filter,
   MenuSkeleton,
@@ -8,12 +10,10 @@ import {
 import { useFilterMenu } from "components/Filter/menu";
 import {
   SelectFilter,
-  SelectFilterOption,
+  type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import { API } from "api/api";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { docs } from "utils/docs";
-import { Organization } from "api/typesGenerated";
 
 interface TemplatesFilterProps {
   filter: ReturnType<typeof useFilter>;
