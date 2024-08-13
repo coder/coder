@@ -7,7 +7,7 @@ preventing attackers with database access from using them to impersonate users.
 ## How it works
 
 Coder allows administrators to specify
-[external token encryption keys](../cli/server.md#external-token-encryption-keys).
+[external token encryption keys](../reference/cli/server.md#external-token-encryption-keys).
 If configured, Coder will use these keys to encrypt external user tokens before
 storing them in the database. The encryption algorithm used is AES-256-GCM with
 a 32-byte key length.
@@ -90,7 +90,7 @@ if you need to rotate keys, you can perform the following procedure:
 - Generate a new encryption key following the same procedure as above.
 
 - Add the above key to the list of
-  [external token encryption keys](../cli/server.md#--external-token-encryption-keys).
+  [external token encryption keys](../reference/cli/server.md#--external-token-encryption-keys).
   **The new key must appear first in the list**. For example, in the Kubernetes
   secret created above:
 
@@ -142,7 +142,7 @@ To disable encryption, perform the following actions:
   > to help prevent accidentally decrypting data.
 
 - Remove all
-  [external token encryption keys](../cli/server.md#--external-token-encryption-keys)
+  [external token encryption keys](../reference/cli/server.md#--external-token-encryption-keys)
   from Coder's configuration.
 
 - Start coderd. You can now safely delete the encryption keys from your secret
@@ -164,7 +164,7 @@ To delete all encrypted data from your database, perform the following actions:
   keys.
 
 - Remove all
-  [external token encryption keys](../cli/server.md#--external-token-encryption-keys)
+  [external token encryption keys](../reference/cli/server.md#--external-token-encryption-keys)
   from Coder's configuration.
 
 - Start coderd. You can now safely delete the encryption keys from your secret
