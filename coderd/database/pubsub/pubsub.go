@@ -3,6 +3,7 @@ package pubsub
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"io"
 	"net"
@@ -14,6 +15,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 
 	"cdr.dev/slog"
 )
@@ -432,9 +435,31 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 			// pq.defaultDialer uses a zero net.Dialer as well.
 			d: net.Dialer{},
 		}
+		connector driver.Connector
+		err       error
 	)
+
+	// Create a custom connector if the database driver supports it.
+	connectorCreator, ok := p.db.Driver().(database.ConnectorCreator)
+	if !ok {
+		connector, err = pq.NewConnector(connectURL)
+		if err != nil {
+			return xerrors.Errorf("create pq connector: %w", err)
+		}
+	} else {
+		connector, err = connectorCreator.Connector(connectURL)
+		if err != nil {
+			return xerrors.Errorf("create custom connector: %w", err)
+		}
+	}
+
+	// Set the dialer if the connector supports it.
+	if dc, ok := connector.(database.DialerConnector); ok {
+		dc.Dialer(dialer)
+	}
+
 	p.pgListener = pqListenerShim{
-		Listener: pq.NewDialListener(dialer, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
+		Listener: pq.NewConnectorListener(connector, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
 			switch t {
 			case pq.ListenerEventConnected:
 				p.logger.Info(ctx, "pubsub connected to postgres")

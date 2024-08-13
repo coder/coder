@@ -62,6 +62,11 @@ replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0
 // Fixes https://github.com/coder/coder/issues/6685
 replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145-8218e927edb0
 
+// Adds support for a new Listener from a driver.Connector
+// This lets us use rotating authentication tokens for passwords in connection strings
+// which we use in the awsiamrds package.
+replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20240813145306-1ce661cfa68d
+
 require (
 	cdr.dev/slog v1.6.2-0.20240126064726-20367d4aede6
 	cloud.google.com/go/compute/metadata v0.5.0
