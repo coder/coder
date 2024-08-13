@@ -609,8 +609,8 @@ func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
 }
 
 // New creates a new Pubsub implementation using a PostgreSQL connection.
-func New(startCtx context.Context, logger slog.Logger, database *sql.DB, connectURL string) (*PGPubsub, error) {
-	p := newWithoutListener(logger, database)
+func New(startCtx context.Context, logger slog.Logger, db *sql.DB, connectURL string) (*PGPubsub, error) {
+	p := newWithoutListener(logger, db)
 	if err := p.startListener(startCtx, connectURL); err != nil {
 		return nil, err
 	}
@@ -620,11 +620,11 @@ func New(startCtx context.Context, logger slog.Logger, database *sql.DB, connect
 }
 
 // newWithoutListener creates a new PGPubsub without creating the pqListener.
-func newWithoutListener(logger slog.Logger, database *sql.DB) *PGPubsub {
+func newWithoutListener(logger slog.Logger, db *sql.DB) *PGPubsub {
 	return &PGPubsub{
 		logger:          logger,
 		listenDone:      make(chan struct{}),
-		db:              database,
+		db:              db,
 		queues:          make(map[string]map[uuid.UUID]*msgQueue),
 		latencyMeasurer: NewLatencyMeasurer(logger.Named("latency-measurer")),
 
