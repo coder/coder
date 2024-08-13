@@ -1579,6 +1579,7 @@ WHERE
 				SELECT
 					1
 				FROM
+					-- this view handles the 'everyone' group in orgs.
 					group_members_expanded
 				WHERE
 					group_members_expanded.group_id = groups.id
