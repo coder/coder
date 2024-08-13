@@ -93,6 +93,13 @@ var (
 		Type: "group",
 	}
 
+	// ResourceGroupMember
+	// Valid Actions
+	//  - "ActionRead" :: read group members
+	ResourceGroupMember = Object{
+		Type: "group_member",
+	}
+
 	// ResourceLicense
 	// Valid Actions
 	//  - "ActionCreate" :: create a license
@@ -287,6 +294,7 @@ func AllResources() []Objecter {
 		ResourceDeploymentStats,
 		ResourceFile,
 		ResourceGroup,
+		ResourceGroupMember,
 		ResourceLicense,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"net/http"
+	"sort"
 	"testing"
 
 	"github.com/google/uuid"
@@ -567,6 +568,12 @@ func TestPatchGroup(t *testing.T) {
 	})
 }
 
+func sortGroupMembers(group *codersdk.Group) {
+	sort.Slice(group.Members, func(i, j int) bool {
+		return group.Members[i].ID.String() < group.Members[j].ID.String()
+	})
+}
+
 // TODO: test auth.
 func TestGroup(t *testing.T) {
 	t.Parallel()
@@ -638,6 +645,9 @@ func TestGroup(t *testing.T) {
 
 		ggroup, err := userAdminClient.Group(ctx, group.ID)
 		require.NoError(t, err)
+		sortGroupMembers(&group)
+		sortGroupMembers(&ggroup)
+
 		require.Equal(t, group, ggroup)
 	})
 
@@ -820,6 +830,14 @@ func TestGroups(t *testing.T) {
 
 		groups, err := userAdminClient.GroupsByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
+
+		// sort group members so we can compare them
+		allGroups := append([]codersdk.Group{}, groups...)
+		allGroups = append(allGroups, group1, group2)
+		for i := range allGroups {
+			sortGroupMembers(&allGroups[i])
+		}
+
 		// 'Everyone' group + 2 custom groups.
 		require.Len(t, groups, 3)
 		require.Contains(t, groups, group1)

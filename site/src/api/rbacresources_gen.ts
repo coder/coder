@@ -50,6 +50,9 @@ export const RBACResourceActions: Partial<
     read: "read groups",
     update: "update a group",
   },
+  group_member: {
+    read: "read group members",
+  },
   license: {
     create: "create a license",
     delete: "delete license",

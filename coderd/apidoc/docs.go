@@ -10175,6 +10175,10 @@ const docTemplate = `{
                 },
                 "source": {
                     "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
                 }
             }
         },
@@ -11566,6 +11570,7 @@ const docTemplate = `{
                 "deployment_stats",
                 "file",
                 "group",
+                "group_member",
                 "license",
                 "notification_preference",
                 "notification_template",
@@ -11596,6 +11601,7 @@ const docTemplate = `{
                 "ResourceDeploymentStats",
                 "ResourceFile",
                 "ResourceGroup",
+                "ResourceGroupMember",
                 "ResourceLicense",
                 "ResourceNotificationPreference",
                 "ResourceNotificationTemplate",

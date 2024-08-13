@@ -1396,11 +1396,19 @@ func (q *querier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, 
 	return q.db.GetGroupMembers(ctx)
 }
 
-func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.User, error) {
-	if _, err := q.GetGroupByID(ctx, id); err != nil { // AuthZ check
-		return nil, err
+func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, id)
+}
+
+func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
+		return 0, err
 	}
-	return q.db.GetGroupMembersByGroupID(ctx, id)
+	memberCount, err := q.db.GetGroupMembersCountByGroupID(ctx, groupID)
+	if err != nil {
+		return 0, err
+	}
+	return memberCount, nil
 }
 
 func (q *querier) GetGroups(ctx context.Context) ([]database.Group, error) {

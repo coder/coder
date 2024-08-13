@@ -246,7 +246,8 @@
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "quota_allowance": 0,
-      "source": "user"
+      "source": "user",
+      "total_member_count": 0
     }
   ],
   "users": [
@@ -2806,22 +2807,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "quota_allowance": 0,
-  "source": "user"
+  "source": "user",
+  "total_member_count": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                  | Required | Restrictions | Description |
-| ----------------- | ----------------------------------------------------- | -------- | ------------ | ----------- |
-| `avatar_url`      | string                                                | false    |              |             |
-| `display_name`    | string                                                | false    |              |             |
-| `id`              | string                                                | false    |              |             |
-| `members`         | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
-| `name`            | string                                                | false    |              |             |
-| `organization_id` | string                                                | false    |              |             |
-| `quota_allowance` | integer                                               | false    |              |             |
-| `source`          | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |             |
+| Name                 | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+| -------------------- | ----------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `avatar_url`         | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`       | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                 | string                                                | false    |              |                                                                                                                                                                       |
+| `members`            | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`               | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`    | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`    | integer                                               | false    |              |                                                                                                                                                                       |
+| `source`             | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count` | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
 
 ## codersdk.GroupSource
 
@@ -4267,6 +4270,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `deployment_stats`        |
 | `file`                    |
 | `group`                   |
+| `group_member`            |
 | `license`                 |
 | `notification_preference` |
 | `notification_template`   |

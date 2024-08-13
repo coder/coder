@@ -305,8 +305,10 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 	s.Run("DeleteGroupMemberFromGroup", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		m := dbgen.GroupMember(s.T(), db, database.GroupMember{
+		u := dbgen.User(s.T(), db, database.User{})
+		m := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{
 			GroupID: g.ID,
+			UserID:  u.ID,
 		})
 		check.Args(database.DeleteGroupMemberFromGroupParams{
 			UserID:  m.UserID,
@@ -326,11 +328,18 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 	s.Run("GetGroupMembersByGroupID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		u := dbgen.User(s.T(), db, database.User{})
+		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
+		check.Args(g.ID).Asserts(gm, policy.ActionRead)
+	}))
+	s.Run("GetGroupMembersCountByGroupID", s.Subtest(func(db database.Store, check *expects) {
+		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(g.ID).Asserts(g, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		g := dbgen.Group(s.T(), db, database.Group{})
+		u := dbgen.User(s.T(), db, database.User{})
+		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
 		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetGroups", s.Subtest(func(db database.Store, check *expects) {
@@ -339,7 +348,8 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 	s.Run("GetGroupsByOrganizationAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		gm := dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g.ID})
+		u := dbgen.User(s.T(), db, database.User{})
+		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
 		check.Args(database.GetGroupsByOrganizationAndUserIDParams{
 			OrganizationID: g.OrganizationID,
 			UserID:         gm.UserID,
@@ -368,7 +378,7 @@ func (s *MethodTestSuite) TestGroup() {
 		u1 := dbgen.User(s.T(), db, database.User{})
 		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
 		check.Args(database.InsertUserGroupsByNameParams{
 			OrganizationID: o.ID,
 			UserID:         u1.ID,
@@ -380,8 +390,8 @@ func (s *MethodTestSuite) TestGroup() {
 		u1 := dbgen.User(s.T(), db, database.User{})
 		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g2.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
 		check.Args(u1.ID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateGroupByID", s.Subtest(func(db database.Store, check *expects) {
