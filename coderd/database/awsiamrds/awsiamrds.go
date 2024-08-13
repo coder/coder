@@ -69,6 +69,7 @@ func (d *awsIamRdsDriver) Open(name string) (driver.Conn, error) {
 	return conn, nil
 }
 
+// Connector returns a driver.Connector that fetches a new authentication token for each connection.
 func (d *awsIamRdsDriver) Connector(name string) (driver.Connector, error) {
 	connector := &connector{
 		url: name,
@@ -122,7 +123,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	return nc.Connect(ctx)
 }
 
-func (c *connector) Driver() driver.Driver {
+func (*connector) Driver() driver.Driver {
 	return &pq.Driver{}
 }
 

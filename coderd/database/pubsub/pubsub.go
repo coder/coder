@@ -441,15 +441,16 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 
 	// Create a custom connector if the database driver supports it.
 	connectorCreator, ok := p.db.Driver().(database.ConnectorCreator)
-	if !ok {
-		connector, err = pq.NewConnector(connectURL)
-		if err != nil {
-			return xerrors.Errorf("create pq connector: %w", err)
-		}
-	} else {
+	if ok {
 		connector, err = connectorCreator.Connector(connectURL)
 		if err != nil {
 			return xerrors.Errorf("create custom connector: %w", err)
+		}
+	} else {
+		// use the default pq connector otherwise
+		connector, err = pq.NewConnector(connectURL)
+		if err != nil {
+			return xerrors.Errorf("create pq connector: %w", err)
 		}
 	}
 
