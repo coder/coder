@@ -143,7 +143,7 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		// Associate this notification with all the related entities.
 		template.ID, template.OrganizationID,
 	); err != nil {
-		api.Logger.Warn(ctx, "failed to notify of template deletion", slog.F("deleted_template", template.ID), slog.Error(err))
+		api.Logger.Warn(ctx, "failed to notify of template deletion", slog.F("deleted_template_id", template.ID), slog.Error(err))
 	}
 }
 
