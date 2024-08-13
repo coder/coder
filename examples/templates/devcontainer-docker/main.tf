@@ -93,14 +93,13 @@ EOF
 
 variable "cache_repo" {
   default     = ""
-  description = "Use a container registry as a cache to speed up builds."
-  sensitive   = true
+  description = "(Optional) Use a container registry as a cache to speed up builds."
   type        = string
 }
 
 variable "cache_repo_docker_config_path" {
   default     = ""
-  description = "Path to a docker config.json containing credentials to the provided cache repo, if required."
+  description = "(Optional) Path to a docker config.json containing credentials to the provided cache repo, if required."
   sensitive   = true
   type        = string
 }
@@ -152,7 +151,7 @@ resource "docker_volume" "workspaces" {
 # Check for the presence of a prebuilt image in the cache repo
 # that we can use instead.
 resource "envbuilder_cached_image" "cached" {
-  count         = data.coder_workspace.me.start_count
+  count         = var.cache_repo == "" ? 0 : data.coder_workspace.me.start_count
   builder_image = local.devcontainer_builder_image
   git_url       = local.repo_url
   cache_repo    = var.cache_repo
@@ -160,7 +159,7 @@ resource "envbuilder_cached_image" "cached" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = envbuilder_cached_image.cached.0.image
+  image = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
@@ -174,10 +173,10 @@ resource "docker_container" "workspace" {
     "ENVBUILDER_FALLBACK_IMAGE=${data.coder_parameter.fallback_image.value}",
     "ENVBUILDER_CACHE_REPO=${var.cache_repo}",
     "ENVBUILDER_DOCKER_CONFIG_BASE64=${try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, "")}",
-    "ENVBUILDER_PUSH_IMAGE=${var.cache_repo != "" ? "true" : ""}",
-    #"ENVBUILDER_INSECURE=true", # Uncomment if testing with a local registry.
+    "ENVBUILDER_PUSH_IMAGE=${var.cache_repo == "" ? "" : "true"}",
+    #"ENVBUILDER_INSECURE=true", # Uncomment if testing with a registry running on `localhost`.
   ]
-  # network_mode = "host" # Uncomment if testing with a local registry.
+  # network_mode = "host" # Uncomment if testing with a registry running on `localhost`.
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
@@ -312,5 +311,22 @@ resource "coder_app" "code-server" {
     url       = "http://localhost:13337/healthz"
     interval  = 5
     threshold = 6
+  }
+}
+
+resource "coder_metadata" "container_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = docker_container.workspace.0.id
+  item {
+    key   = "workspace image"
+    value = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
+  }
+  item {
+    key   = "git url"
+    value = local.repo_url
+  }
+  item {
+    key   = "cache repo"
+    value = var.cache_repo == "" ? "not enabled" : var.cache_repo
   }
 }

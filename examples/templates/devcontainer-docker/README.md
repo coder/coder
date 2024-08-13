@@ -34,11 +34,12 @@ Coder supports Devcontainers via [envbuilder](https://github.com/coder/envbuilde
 
 This template provisions the following resources:
 
+- Envbuilder cached image (conditional, persistent)
 - Docker image (persistent)
 - Docker container (ephemeral)
 - Docker volume (persistent on `/workspaces`)
 
-with [`envbuilder`](https://github.com/coder/envbuilder).
+with [`envbuilder`](https://github.com/coder/envbuilder) and [`terraform-provider-envbuilder`](https://github.com/coder/terraform-provider-envbuilder).
 The Git repository is cloned inside the `/workspaces` volume if not present.
 Any local changes to the Devcontainer files inside the volume will be applied when you restart the workspace.
 Keep in mind that any tools or files outside of `/workspaces` or not added as part of the Devcontainer specification are not persisted.
@@ -51,10 +52,11 @@ Edit the `devcontainer.json` instead!
 
 See the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/docker.md) for information on running Docker containers inside a devcontainer built by Envbuilder.
 
+
 ## Caching
 
 To speed up your builds, you can use a container registry as a cache.
-When creating the template, set the parameter `cache_repo`.
+When creating the template, set the parameter `cache_repo` to a valid Docker repository.
 
 For example, you can run a local registry:
 
@@ -68,6 +70,8 @@ docker run --detach \
 ```
 
 Then, when creating the template, enter `localhost:5000/devcontainer-cache` for the parameter `cache_repo`.
+
+See the [Envbuilder Terraform Provider Examples](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf/) for a more complete example of how the provider works.
 
 > [!NOTE] We recommend using a registry cache with authentication enabled.
 > To allow Envbuilder to authenticate with the registry cache, specify the variable `cache_repo_docker_config_path`
