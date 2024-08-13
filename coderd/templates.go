@@ -107,15 +107,28 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.notifyTemplateDeleted(ctx, template, apiKey.UserID)
+	admins, err := findTemplateAdmins(ctx, api.Database)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template admins.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	for _, admin := range admins {
+		if admin.ID == apiKey.UserID {
+			continue
+		}
+		api.notifyTemplateDeleted(ctx, template, apiKey.UserID, admin.ID)
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Template has been deleted!",
 	})
 }
 
-func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Template, initiatorID uuid.UUID) {
-	if template.CreatedBy == initiatorID {
+func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Template, initiatorID uuid.UUID, receiverID uuid.UUID) {
+	if initiatorID == receiverID {
 		return
 	}
 
@@ -125,7 +138,7 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		return
 	}
 
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, template.CreatedBy, notifications.TemplateTemplateDeleted,
+	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateDeleted,
 		map[string]string{
 			"name":      template.Name,
 			"initiator": initiator.Username,
@@ -978,4 +991,23 @@ func (api *API) convertTemplate(
 		DeprecationMessage:   templateAccessControl.Deprecated,
 		MaxPortShareLevel:    maxPortShareLevel,
 	}
+}
+
+// findTemplateAdmins fetches all users with template admin permission including owners.
+func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
+	// Notice: we can't scrape the user information in parallel as pq
+	// fails with: unexpected describe rows response: 'D'
+	owners, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get owners: %w", err)
+	}
+	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get template admins: %w", err)
+	}
+	return append(owners, templateAdmins...), nil
 }
