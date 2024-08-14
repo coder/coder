@@ -1334,9 +1334,44 @@ func TestTemplateNotifications(t *testing.T) {
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 
+		t.Run("SendNotification", func(t *testing.T) {
+			t.Parallel()
+
+			// Given: an owner and a template admin
+			var (
+				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+				})
+				owner            = coderdtest.CreateFirstUser(t, client)
+				version          = coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+				_                = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template         = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+				ctx              = testutil.Context(t, testutil.WaitLong)
+				_, templateAdmin = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			)
+
+			// When: the template is deleted
+			err := client.DeleteTemplate(ctx, template.ID)
+			require.NoError(t, err)
+
+			// Then: verify that the notification is sent to the correct user
+			// (template admin) and targets, using the appropriate labels. Note that
+			// the owner, being the initiator, will not receive the notification.
+			require.Len(t, notifyEnq.Sent, 1)
+			require.Contains(t, notifyEnq.Sent[0].TemplateID, notifications.TemplateTemplateDeleted)
+			require.Contains(t, notifyEnq.Sent[0].UserID, templateAdmin.ID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
+			require.Contains(t, notifyEnq.Sent[0].Targets, template.OrganizationID)
+			require.Equal(t, notifyEnq.Sent[0].Labels["name"], template.Name)
+			require.Equal(t, notifyEnq.Sent[0].Labels["initiator"], coderdtest.FirstUserParams.Username)
+		})
+
 		t.Run("OnlyNotifyOwnersAndTemplateAdmins", func(t *testing.T) {
 			t.Parallel()
 
+			// Given: multiple users with different roles
 			var (
 				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
@@ -1349,17 +1384,16 @@ func TestTemplateNotifications(t *testing.T) {
 				template  = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 				ctx       = testutil.Context(t, testutil.WaitLong)
 			)
-
 			_, anotherOwner := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleOwner())
 			_, tmplAdmin := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
 			coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleMember())
 			coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleUserAdmin())
 
-			// When: template is deleted
+			// When: the template is deleted by the owner
 			err := client.DeleteTemplate(ctx, template.ID)
 			require.NoError(t, err)
 
-			// Then: the template owners and template admins should receive the
+			// Then: only the template owners and template admins should receive the
 			// notification. Since the first user is the initiator, it should not
 			// receive the notification.
 			shouldBeNotified := []uuid.UUID{anotherOwner.ID, tmplAdmin.ID}
@@ -1374,14 +1408,6 @@ func TestTemplateNotifications(t *testing.T) {
 				notifiedUsers = append(notifiedUsers, n.UserID)
 			}
 			require.ElementsMatch(t, shouldBeNotified, notifiedUsers)
-
-			// Check whether notifications are correctly enqueued
-			for _, n := range deleteTemplateNotifications {
-				require.Contains(t, n.Targets, template.ID)
-				require.Contains(t, n.Targets, template.OrganizationID)
-				require.Equal(t, n.Labels["name"], template.Name)
-				require.Equal(t, n.Labels["initiator"], coderdtest.FirstUserParams.Username)
-			}
 		})
 	})
 }
