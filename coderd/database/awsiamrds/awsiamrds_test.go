@@ -7,10 +7,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/cli"
-	awsrdsiam "github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -25,10 +26,11 @@ func TestDriver(t *testing.T) {
 		t.Skip()
 	}
 
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	sqlDriver, err := awsrdsiam.Register(ctx, "postgres")
+	sqlDriver, err := awsiamrds.Register(ctx, "postgres")
 	require.NoError(t, err)
 
 	db, err := cli.ConnectToPostgres(ctx, slogtest.Make(t, nil), sqlDriver, url)
@@ -47,4 +49,19 @@ func TestDriver(t *testing.T) {
 	var one int
 	require.NoError(t, i.Scan(&one))
 	require.Equal(t, 1, one)
+
+	ps, err := pubsub.New(ctx, logger, db, url)
+	require.NoError(t, err)
+
+	gotChan := make(chan struct{})
+	subCancel, err := ps.Subscribe("test", func(_ context.Context, _ []byte) {
+		close(gotChan)
+	})
+	defer subCancel()
+	require.NoError(t, err)
+
+	err = ps.Publish("test", []byte("hello"))
+	require.NoError(t, err)
+
+	<-gotChan
 }
