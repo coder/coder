@@ -89,6 +89,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
     };
   }, [fetchStats, stats]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(timeUntilRefresh): periodic refresh
   const lastAggregated = useMemo(() => {
     if (!stats) {
       return;
@@ -98,7 +99,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       return "just now";
     }
     return dayjs().to(dayjs(stats.collected_at));
-  }, [stats, fetchStats]);
+  }, [timeUntilRefresh, stats, fetchStats]);
 
   const healthErrors = health ? getHealthErrors(health) : [];
   const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
