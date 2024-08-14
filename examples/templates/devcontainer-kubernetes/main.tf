@@ -50,6 +50,12 @@ variable "cache_repo" {
   type        = string
 }
 
+variable "insecure_cache_repo" {
+  default     = false
+  description = "Enable this option if your cache registry does not serve HTTPS."
+  type        = bool
+}
+
 data "coder_parameter" "cpu" {
   type         = "number"
   name         = "cpu"
@@ -159,7 +165,7 @@ locals {
     "ENVBUILDER_CACHE_REPO" : var.cache_repo,
     "ENVBUILDER_DOCKER_CONFIG_BASE64" : try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], ""),
     "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
-    #"ENVBUILDER_INSECURE": "true", # Uncomment if testing with an insecure registry.
+    "ENVBUILDER_INSECURE" : "${var.insecure_cache_repo}",
   }
 }
 
@@ -171,7 +177,7 @@ resource "envbuilder_cached_image" "cached" {
   git_url       = local.repo_url
   cache_repo    = var.cache_repo
   extra_env     = local.envbuilder_env
-  #insecure = true # Uncomment if testing with an insecure registry.
+  insecure      = var.insecure_cache_repo
 }
 
 resource "kubernetes_persistent_volume_claim" "workspaces" {
@@ -282,11 +288,10 @@ resource "kubernetes_deployment" "main" {
             name  = "ENVBUILDER_PUSH_IMAGE"
             value = var.cache_repo == "" ? "" : "true"
           }
-          # Uncomment the below if testing with an insecure registry.
-          # env {
-          #   name  = "ENVBUILDER_INSECURE"
-          #   value = "true"
-          # }
+          env {
+            name  = "ENVBUILDER_INSECURE"
+            value = var.insecure_cache_repo
+          }
           env {
             name  = "ENVBUILDER_DOCKER_CONFIG_BASE64"
             value = try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], "")
