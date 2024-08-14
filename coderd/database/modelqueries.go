@@ -75,7 +75,6 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.Deleted,
 		arg.OrganizationID,
-		arg.OrganizationName,
 		arg.ExactName,
 		arg.FuzzyName,
 		pq.Array(arg.IDs),

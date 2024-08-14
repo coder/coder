@@ -22,12 +22,6 @@ WHERE
 			organization_id = @organization_id
 		ELSE true
 	END
-	-- Filter by organization_name
-	AND CASE
-		WHEN @organization_name :: text != '' THEN
-			LOWER("organization_name") = LOWER(@organization_name)
-		ELSE true
-	END
 	-- Filter by exact name
 	AND CASE
 		WHEN @exact_name :: text != '' THEN
