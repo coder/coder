@@ -28,9 +28,10 @@ var (
 	// ResourceAssignOrgRole
 	// Valid Actions
 	//  - "ActionAssign" :: ability to assign org scoped roles
-	//  - "ActionCreate" :: ability to create/delete/edit custom roles within an organization
+	//  - "ActionCreate" :: ability to create/delete custom roles within an organization
 	//  - "ActionDelete" :: ability to delete org scoped roles
 	//  - "ActionRead" :: view what roles are assignable
+	//  - "ActionUpdate" :: ability to edit custom roles within an organization
 	ResourceAssignOrgRole = Object{
 		Type: "assign_org_role",
 	}
@@ -41,6 +42,7 @@ var (
 	//  - "ActionCreate" :: ability to create/delete/edit custom roles
 	//  - "ActionDelete" :: ability to unassign roles
 	//  - "ActionRead" :: view what roles are assignable
+	//  - "ActionUpdate" :: ability to edit custom roles
 	ResourceAssignRole = Object{
 		Type: "assign_role",
 	}
@@ -91,6 +93,13 @@ var (
 	//  - "ActionUpdate" :: update a group
 	ResourceGroup = Object{
 		Type: "group",
+	}
+
+	// ResourceGroupMember
+	// Valid Actions
+	//  - "ActionRead" :: read group members
+	ResourceGroupMember = Object{
+		Type: "group_member",
 	}
 
 	// ResourceLicense
@@ -287,6 +296,7 @@ func AllResources() []Objecter {
 		ResourceDeploymentStats,
 		ResourceFile,
 		ResourceGroup,
+		ResourceGroupMember,
 		ResourceLicense,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,

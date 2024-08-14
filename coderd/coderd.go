@@ -478,7 +478,8 @@ func New(options *Options) *API {
 		dbRolluper: options.DatabaseRolluper,
 	}
 
-	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:     buildinfo.ExternalURL(),

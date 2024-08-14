@@ -278,7 +278,6 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 			atomic.AddInt64(&didFail, 1)
 			httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
 				Message: CoordinateAPIInvalidResumeToken,
-				Detail:  err.Error(),
 				Validations: []codersdk.ValidationError{
 					{Field: "resume_token", Detail: CoordinateAPIInvalidResumeToken},
 				},

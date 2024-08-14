@@ -41,6 +41,7 @@ export const withDashboardProvider = (
         experiments,
         appearance: MockAppearanceConfig,
         organizations: [MockDefaultOrganization],
+        showOrganizations: false,
       }}
     >
       <Story />

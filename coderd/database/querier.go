@@ -147,9 +147,11 @@ type sqlcQuerier interface {
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context) ([]GroupMember, error)
-	// If the group is a user made group, then we need to check the group_members table.
-	// If it is the "Everyone" group, then we need to check the organization_members table.
-	GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GroupMember, error)
+	// Returns the total count of members in a group. Shows the total
+	// count even if the caller does not have read access to ResourceGroupMember.
+	// They only need ResourceGroup read access.
+	GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error)
 	GetGroups(ctx context.Context) ([]Group, error)
 	GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
@@ -334,6 +336,7 @@ type sqlcQuerier interface {
 	// every member of the org.
 	InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (Group, error)
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
+	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
 	InsertDERPMeshKey(ctx context.Context, value string) error
 	InsertDeploymentID(ctx context.Context, value string) error
@@ -401,6 +404,7 @@ type sqlcQuerier interface {
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error)
 	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
@@ -462,7 +466,6 @@ type sqlcQuerier interface {
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
 	UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error
-	UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error)
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.

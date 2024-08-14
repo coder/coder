@@ -2500,7 +2500,7 @@ const docTemplate = `{
                     }
                 }
             },
-            "patch": {
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
@@ -2532,7 +2532,55 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PatchRoleRequest"
+                            "$ref": "#/definitions/codersdk.CustomRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Role"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Insert a custom organization role",
+                "operationId": "insert-a-custom-organization-role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Insert role request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CustomRoleRequest"
                         }
                     }
                 ],
@@ -9455,6 +9503,36 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CustomRoleRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_permissions": {
+                    "description": "OrganizationPermissions are specific to the organization the role belongs to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "site_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "user_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                }
+            }
+        },
         "codersdk.DAUEntry": {
             "type": "object",
             "properties": {
@@ -10175,6 +10253,10 @@ const docTemplate = `{
                 },
                 "source": {
                     "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
                 }
             }
         },
@@ -11067,36 +11149,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.PatchRoleRequest": {
-            "type": "object",
-            "properties": {
-                "display_name": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_permissions": {
-                    "description": "OrganizationPermissions are specific to the organization the role belongs to.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Permission"
-                    }
-                },
-                "site_permissions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Permission"
-                    }
-                },
-                "user_permissions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Permission"
-                    }
-                }
-            }
-        },
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
             "properties": {
@@ -11566,6 +11618,7 @@ const docTemplate = `{
                 "deployment_stats",
                 "file",
                 "group",
+                "group_member",
                 "license",
                 "notification_preference",
                 "notification_template",
@@ -11596,6 +11649,7 @@ const docTemplate = `{
                 "ResourceDeploymentStats",
                 "ResourceFile",
                 "ResourceGroup",
+                "ResourceGroupMember",
                 "ResourceLicense",
                 "ResourceNotificationPreference",
                 "ResourceNotificationTemplate",

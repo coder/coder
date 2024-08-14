@@ -131,7 +131,7 @@ to set the default quiet hours to a time when most users are not expected to be
 using Coder.
 
 Admins can force users to use the default quiet hours with the
-[CODER_ALLOW_CUSTOM_QUIET_HOURS](./cli/server.md#allow-custom-quiet-hours)
+[CODER_ALLOW_CUSTOM_QUIET_HOURS](./reference/cli/server.md#allow-custom-quiet-hours)
 environment variable. Users will still be able to see the page, but will be
 unable to set a custom time or timezone. If users have already set a custom
 quiet hours schedule, it will be ignored and the default will be used instead.

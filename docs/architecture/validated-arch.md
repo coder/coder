@@ -324,7 +324,7 @@ could affect workspace users experience once the platform is live.
    identify the required values for deployment.
 1. Create a `values.yaml` and add it to your version control system.
 1. Determine the necessary environment variables. Here is the
-   [full list of supported server environment variables](../cli/server.md).
+   [full list of supported server environment variables](../reference/cli/server.md).
 1. Follow our documented
    [steps for installing Coder via Helm](../install/kubernetes.md).
 

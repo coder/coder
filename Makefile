@@ -489,7 +489,7 @@ gen: \
 	codersdk/rbacresources_gen.go \
 	site/src/api/rbacresources_gen.ts \
 	docs/admin/prometheus.md \
-	docs/cli.md \
+	docs/reference/cli/README.md \
 	docs/admin/audit-logs.md \
 	coderd/apidoc/swagger.json \
 	.prettierignore.include \
@@ -521,7 +521,7 @@ gen/mark-fresh:
 		codersdk/rbacresources_gen.go \
 		site/src/api/rbacresources_gen.ts \
 		docs/admin/prometheus.md \
-		docs/cli.md \
+		docs/reference/cli/README.md \
 		docs/admin/audit-logs.md \
 		coderd/apidoc/swagger.json \
 		.prettierignore.include \
@@ -633,10 +633,10 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	./scripts/pnpm_install.sh
 	pnpm exec prettier --write ./docs/admin/prometheus.md
 
-docs/cli.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
+docs/reference/cli/README.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	./scripts/pnpm_install.sh
-	pnpm exec prettier --write ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
+	pnpm exec prettier --write ./docs/reference/cli/README.md ./docs/reference/cli/*.md ./docs/manifest.json
 
 docs/admin/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
@@ -646,7 +646,7 @@ docs/admin/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
 	./scripts/pnpm_install.sh
-	pnpm exec prettier --write ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
+	pnpm exec prettier --write ./docs/reference/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
 update-golden-files: \
 	cli/testdata/.gen-golden \

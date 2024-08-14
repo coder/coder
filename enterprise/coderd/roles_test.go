@@ -57,7 +57,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		//nolint:gocritic // owner is required for this
-		role, err := owner.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
+		role, err := owner.CreateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
 		require.NoError(t, err, "upsert role")
 
 		// Assign the custom template admin role
@@ -111,7 +111,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		//nolint:gocritic // owner is required for this
-		role, err := owner.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
+		role, err := owner.CreateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
 		require.NoError(t, err, "upsert role")
 
 		// Remove the license to block enterprise functionality
@@ -124,7 +124,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		}
 
 		// Verify functionality is lost
-		_, err = owner.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
+		_, err = owner.UpdateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
 		require.ErrorContains(t, err, "Custom Roles is an Enterprise feature")
 
 		// Assign the custom template admin role
@@ -152,7 +152,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		//nolint:gocritic // owner is required for this
-		role, err := owner.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
+		role, err := owner.CreateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
 		require.NoError(t, err, "upsert role")
 
 		// Assign the custom template admin role
@@ -169,7 +169,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		newRole.SitePermissions = nil
 		newRole.OrganizationPermissions = nil
 		newRole.UserPermissions = nil
-		_, err = owner.PatchOrganizationRole(ctx, newRole)
+		_, err = owner.UpdateOrganizationRole(ctx, newRole)
 		require.NoError(t, err, "upsert role with override")
 
 		// The role should no longer have template perms
@@ -203,7 +203,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		//nolint:gocritic // owner is required for this
-		_, err := owner.PatchOrganizationRole(ctx, codersdk.Role{
+		_, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
 			Name:                    "Bad_Name", // No underscores allowed
 			DisplayName:             "Testing Purposes",
 			OrganizationID:          first.OrganizationID.String(),
@@ -232,7 +232,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		//nolint:gocritic // owner is required for this
-		_, err := owner.PatchOrganizationRole(ctx, codersdk.Role{
+		_, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
 			Name:                    "owner", // Reserved
 			DisplayName:             "Testing Purposes",
 			OrganizationID:          first.OrganizationID.String(),
@@ -270,7 +270,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		}
 
 		//nolint:gocritic // owner is required for this
-		_, err := owner.PatchOrganizationRole(ctx, siteRole)
+		_, err := owner.CreateOrganizationRole(ctx, siteRole)
 		require.ErrorContains(t, err, "site wide permissions")
 
 		userRole := templateAdminCustom(first.OrganizationID)
@@ -282,7 +282,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		}
 
 		//nolint:gocritic // owner is required for this
-		_, err = owner.PatchOrganizationRole(ctx, userRole)
+		_, err = owner.UpdateOrganizationRole(ctx, userRole)
 		require.ErrorContains(t, err, "not allowed to assign user permissions")
 	})
 
@@ -307,7 +307,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		newRole.OrganizationID = "0000" // This is not a valid uuid
 
 		//nolint:gocritic // owner is required for this
-		_, err := owner.PatchOrganizationRole(ctx, newRole)
+		_, err := owner.CreateOrganizationRole(ctx, newRole)
 		require.ErrorContains(t, err, "Resource not found")
 	})
 
@@ -329,7 +329,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		orgAdmin, orgAdminUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		createdRole, err := orgAdmin.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
+		createdRole, err := orgAdmin.CreateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
 		require.NoError(t, err, "upsert role")
 
 		//nolint:gocritic // org_admin cannot assign to themselves
@@ -389,7 +389,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		orgAdmin, orgAdminUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		createdRole, err := orgAdmin.PatchOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
+		createdRole, err := orgAdmin.CreateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
 		require.NoError(t, err, "upsert role")
 
 		customRoleIdentifier := rbac.RoleIdentifier{

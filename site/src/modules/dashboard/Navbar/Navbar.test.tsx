@@ -22,7 +22,7 @@ describe("Navbar", () => {
       }),
     );
     render(<App />);
-    const deploymentMenu = await screen.findByText("Deployment");
+    const deploymentMenu = await screen.findByText("Administration");
     await userEvent.click(deploymentMenu);
     await waitFor(
       () => {
@@ -37,7 +37,7 @@ describe("Navbar", () => {
     // by default, user is an Admin with permission to see the audit log,
     // but is unlicensed so not entitled to see the audit log
     render(<App />);
-    const deploymentMenu = await screen.findByText("Deployment");
+    const deploymentMenu = await screen.findByText("Administration");
     await userEvent.click(deploymentMenu);
     await waitFor(
       () => {

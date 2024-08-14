@@ -19,7 +19,7 @@ First,
 GitHub will ask you for the following Coder parameters:
 
 - **Homepage URL**: Set to your Coder deployments
-  [`CODER_ACCESS_URL`](../cli/server.md#--access-url) (e.g.
+  [`CODER_ACCESS_URL`](../reference/cli/server.md#--access-url) (e.g.
   `https://coder.domain.com`)
 - **User Authorization Callback URL**: Set to `https://coder.domain.com`
 
