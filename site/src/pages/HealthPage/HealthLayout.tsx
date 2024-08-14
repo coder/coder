@@ -213,6 +213,8 @@ const filterVisibleSections = <T extends object>(sections: T) => {
 
     visible[sectionName as keyof T] = sectionValue;
   }
+
+  return visible;
 };
 
 const classNames = {
