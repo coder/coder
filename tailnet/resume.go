@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -31,7 +32,7 @@ func NewInsecureTestResumeTokenProvider() ResumeTokenProvider {
 	if err != nil {
 		panic(err)
 	}
-	return NewResumeTokenKeyProvider(key, time.Hour)
+	return NewResumeTokenKeyProvider(key, quartz.NewReal(), time.Hour)
 }
 
 type ResumeTokenProvider interface {
@@ -65,13 +66,12 @@ func ResumeTokenSigningKeyFromDatabase(ctx context.Context, db ResumeTokenSignin
 		return resumeTokenKey, xerrors.Errorf("get coordinator resume token key: %w", err)
 	}
 	if decoded, err := hex.DecodeString(resumeTokenKeyStr); err != nil || len(decoded) != len(resumeTokenKey) {
-		b := make([]byte, len(resumeTokenKey))
-		_, err := rand.Read(b)
+		newKey, err := GenerateResumeTokenSigningKey()
 		if err != nil {
 			return resumeTokenKey, xerrors.Errorf("generate fresh coordinator resume token key: %w", err)
 		}
 
-		resumeTokenKeyStr = hex.EncodeToString(b)
+		resumeTokenKeyStr = hex.EncodeToString(newKey[:])
 		err = db.UpsertCoordinatorResumeTokenSigningKey(ctx, resumeTokenKeyStr)
 		if err != nil {
 			return resumeTokenKey, xerrors.Errorf("insert freshly generated coordinator resume token key to database: %w", err)
@@ -94,15 +94,17 @@ func ResumeTokenSigningKeyFromDatabase(ctx context.Context, db ResumeTokenSignin
 
 type ResumeTokenKeyProvider struct {
 	key    ResumeTokenSigningKey
+	clock  quartz.Clock
 	expiry time.Duration
 }
 
-func NewResumeTokenKeyProvider(key ResumeTokenSigningKey, expiry time.Duration) ResumeTokenProvider {
+func NewResumeTokenKeyProvider(key ResumeTokenSigningKey, clock quartz.Clock, expiry time.Duration) ResumeTokenProvider {
 	if expiry <= 0 {
 		expiry = DefaultResumeTokenExpiry
 	}
 	return ResumeTokenKeyProvider{
 		key:    key,
+		clock:  clock,
 		expiry: DefaultResumeTokenExpiry,
 	}
 }
@@ -115,7 +117,7 @@ type resumeTokenPayload struct {
 func (p ResumeTokenKeyProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
 	payload := resumeTokenPayload{
 		PeerID: peerID,
-		Expiry: time.Now().Add(p.expiry),
+		Expiry: p.clock.Now().Add(p.expiry),
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -172,8 +174,8 @@ func (p ResumeTokenKeyProvider) VerifyResumeToken(str string) (uuid.UUID, error)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("unmarshal payload: %w", err)
 	}
-	if tok.Expiry.Before(time.Now()) {
-		return uuid.Nil, xerrors.New("signed app token expired")
+	if tok.Expiry.Before(p.clock.Now()) {
+		return uuid.Nil, xerrors.New("signed resume token expired")
 	}
 
 	return tok.PeerID, nil

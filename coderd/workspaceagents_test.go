@@ -517,7 +517,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-	// We block DERP in this test to ensure that even if there's no direct
+	// We block direct in this test to ensure that even if there's no direct
 	// connection, no shenanigans happen with the peer IDs on either side.
 	dv := coderdtest.DeploymentValues(t)
 	err := dv.DERP.Config.BlockDirect.Set("true")
@@ -563,21 +563,16 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 	proxyClient := codersdk.New(proxyURL)
 	proxyClient.SetSessionToken(client.SessionToken())
 
-	// Connect from a client.
-	conn, err := func() (*workspacesdk.AgentConn, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel() // Connection should remain open even if the dial context is canceled.
-
-		return workspacesdk.New(proxyClient).
-			DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
-				Logger: logger.Named("client"),
-			})
-	}()
-	require.NoError(t, err)
-	defer conn.Close()
-
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
+
+	// Connect from a client.
+	conn, err := workspacesdk.New(proxyClient).
+		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+			Logger: logger.Named("client"),
+		})
+	require.NoError(t, err)
+	defer conn.Close()
 
 	ok := conn.AwaitReachable(ctx)
 	require.True(t, ok)

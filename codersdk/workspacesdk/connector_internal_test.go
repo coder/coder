@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func init() {
@@ -159,7 +160,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	derpMapCh := make(chan *tailcfg.DERPMap)
 	defer close(derpMapCh)
 
-	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider([64]byte{1}, time.Second)
+	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider([64]byte{1}, quartz.NewReal(), time.Second)
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
@@ -198,7 +199,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 				return
 			}
 		}
-		testutil.RequireSendCtx(ctx, t, peerIDCh, peerID)
+		testutil.AssertSendCtx(ctx, t, peerIDCh, peerID)
 
 		sws, err := websocket.Accept(w, r, nil)
 		if !assert.NoError(t, err) {
@@ -244,23 +245,6 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	require.Equal(t, originalPeerID, testutil.RequireRecvCtx(ctx, t, peerIDCh))
 }
 
-type resumeTokenProvider struct {
-	genFn   func(uuid.UUID) (*proto.RefreshResumeTokenResponse, error)
-	parseFn func(string) (uuid.UUID, error)
-}
-
-var _ tailnet.ResumeTokenProvider = resumeTokenProvider{}
-
-// GenerateResumeToken implements tailnet.ResumeTokenProvider.
-func (r resumeTokenProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
-	return r.genFn(peerID)
-}
-
-// VerifyResumeToken implements tailnet.ResumeTokenProvider.
-func (r resumeTokenProvider) VerifyResumeToken(token string) (uuid.UUID, error) {
-	return r.parseFn(token)
-}
-
 func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -275,43 +259,22 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	derpMapCh := make(chan *tailcfg.DERPMap)
 	defer close(derpMapCh)
 
-	resumeTokenProvider := resumeTokenProvider{
-		genFn: func(uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
-			return &proto.RefreshResumeTokenResponse{
-				Token:     uuid.NewString(),
-				RefreshIn: durationpb.New(time.Minute),
-				ExpiresAt: timestamppb.New(time.Now().Add(time.Hour)),
-			}, nil
-		},
-		parseFn: func(string) (uuid.UUID, error) {
-			return uuid.UUID{}, xerrors.New("test error")
-		},
-	}
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
 		DERPMapUpdateFrequency:  time.Millisecond,
 		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
-		ResumeTokenProvider:     resumeTokenProvider,
+		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
 
 	var (
 		websocketConnCh = make(chan *websocket.Conn, 64)
-		peerIDCh        = make(chan uuid.UUID, 64)
 		didFail         int64
 	)
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Accept a resume_token query parameter to use the same peer ID.
-		var (
-			peerID      = uuid.New()
-			resumeToken = r.URL.Query().Get("resume_token")
-		)
-		t.Logf("received resume token: %s", resumeToken)
-		if resumeToken != "" {
-			_, err = resumeTokenProvider.VerifyResumeToken(resumeToken)
-			assert.Error(t, err, "parse resume token should return an error")
+		if r.URL.Query().Get("resume_token") != "" {
 			atomic.AddInt64(&didFail, 1)
 			httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
 				Message: CoordinateAPIInvalidResumeToken,
@@ -322,7 +285,6 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 			})
 			return
 		}
-		testutil.RequireSendCtx(ctx, t, peerIDCh, peerID)
 
 		sws, err := websocket.Accept(w, r, nil)
 		if !assert.NoError(t, err) {
@@ -332,7 +294,7 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 		ctx, nc := codersdk.WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
 		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
 			Name: "client",
-			ID:   peerID,
+			ID:   uuid.New(),
 			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
 		})
 		assert.NoError(t, err)
@@ -353,7 +315,6 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	// Sever the connection and expect it to reconnect with the resume token,
 	// which should fail and cause the client to be disconnected. The client
 	// should then reconnect with no resume token.
-	originalPeerID := testutil.RequireRecvCtx(ctx, t, peerIDCh)
 	wsConn := testutil.RequireRecvCtx(ctx, t, websocketConnCh)
 	_ = wsConn.Close(websocket.StatusGoingAway, "test")
 
@@ -363,10 +324,7 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 		return rt != nil && rt.Token != originalResumeToken.Token
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	// Peer ID should be different.
-	require.NotEqual(t, originalPeerID, testutil.RequireRecvCtx(ctx, t, peerIDCh))
-
-	// The resume token should have failed to parse.
+	// The resume token should have been rejected by the server.
 	require.EqualValues(t, 1, atomic.LoadInt64(&didFail))
 }
 
