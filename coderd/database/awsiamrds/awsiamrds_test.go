@@ -63,5 +63,9 @@ func TestDriver(t *testing.T) {
 	err = ps.Publish("test", []byte("hello"))
 	require.NoError(t, err)
 
-	<-gotChan
+	select {
+	case <-gotChan:
+	case <-ctx.Done():
+		require.Fail(t, "timed out waiting for message")
+	}
 }
