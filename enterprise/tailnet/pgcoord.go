@@ -475,6 +475,7 @@ type binder struct {
 	workQ  *workQ[bKey]
 
 	workerWG sync.WaitGroup
+	close    chan struct{}
 }
 
 func newBinder(ctx context.Context,
@@ -501,6 +502,26 @@ func newBinder(ctx context.Context,
 		<-startWorkers
 		for i := 0; i < numBinderWorkers; i++ {
 			go b.worker()
+		}
+	}()
+
+	go func() {
+		defer close(b.close)
+		<-ctx.Done()
+		b.logger.Debug(b.ctx, "binder exiting, waiting for workers")
+
+		b.workerWG.Wait()
+
+		b.logger.Debug(b.ctx, "updating peers to lost")
+
+		ctx, cancel := context.WithTimeout(ctx, time.Second*15)
+		defer cancel()
+		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
+			CoordinatorID: b.coordinatorID,
+			Status:        database.TailnetStatusLost,
+		})
+		if err != nil {
+			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
 		}
 	}()
 	return b
@@ -623,17 +644,7 @@ func (b *binder) retrieveBinding(bk bKey) binding {
 }
 
 func (b *binder) wait() {
-	b.workerWG.Wait()
-
-	b.logger.Debug(b.ctx, "binder exiting, updating peers to lost", slog.Error(b.ctx.Err()))
-
-	err := b.store.UpdateTailnetPeerStatusByCoordinator(context.Background(), database.UpdateTailnetPeerStatusByCoordinatorParams{
-		CoordinatorID: b.coordinatorID,
-		Status:        database.TailnetStatusLost,
-	})
-	if err != nil {
-		b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
-	}
+	<-b.close
 }
 
 // mapper tracks data sent to a peer, and sends updates based on changes read from the database.
