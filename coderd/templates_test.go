@@ -1412,7 +1412,7 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Validate the notification content
 			for _, n := range deleteTemplateNotifications {
-				require.Contains(t, n.TemplateID, notifications.TemplateTemplateDeleted)
+				require.Equal(t, n.TemplateID, notifications.TemplateTemplateDeleted)
 				require.Contains(t, notifiedUsers, n.UserID)
 				require.Contains(t, n.Targets, template.ID)
 				require.Contains(t, n.Targets, template.OrganizationID)
