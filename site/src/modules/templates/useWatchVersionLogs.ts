@@ -10,6 +10,7 @@ export const useWatchVersionLogs = (
   const templateVersionId = templateVersion?.id;
   const templateVersionStatus = templateVersion?.job.status;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     setLogs(undefined);
   }, [templateVersionId]);

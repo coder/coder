@@ -178,6 +178,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
   // Auto scroll
   const logsContentRef = useRef<HTMLDivElement>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     if (logsContentRef.current) {
       logsContentRef.current.scrollTop = logsContentRef.current.scrollHeight;

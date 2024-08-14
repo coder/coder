@@ -223,6 +223,7 @@ export function makeUseEmbeddedMetadata(
       manager.getMetadata,
     );
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies(manager.clearMetadataByKey): baked into containing hook
     const stableMetadataResult = useMemo<UseEmbeddedMetadataResult>(() => {
       return {
         metadata,

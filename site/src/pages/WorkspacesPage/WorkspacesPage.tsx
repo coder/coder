@@ -72,6 +72,7 @@ const WorkspacesPage: FC = () => {
 
   // We want to uncheck the selected workspaces always when the url changes
   // because of filtering or pagination
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     setCheckedWorkspaces([]);
   }, [urlSearchParams]);

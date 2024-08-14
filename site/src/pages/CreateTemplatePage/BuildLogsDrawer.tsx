@@ -38,10 +38,12 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
     }, 0);
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useLayoutEffect(() => {
     scrollToBottom();
   }, [logs]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useLayoutEffect(() => {
     if (drawerProps.open) {
       scrollToBottom();

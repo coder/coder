@@ -24,6 +24,7 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     if (location.hash === "#readme") {
       // We moved the readme to the docs page, but we known that some users

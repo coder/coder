@@ -77,6 +77,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   // By default workspace is updated every second, which can cause visual stutter
   // when the build estimate is a few seconds. The timer ensures no observable
   // stutter in all cases.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     const updateProgress = () => {
       if (

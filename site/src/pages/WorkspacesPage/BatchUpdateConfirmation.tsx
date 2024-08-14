@@ -77,6 +77,7 @@ export const BatchUpdateConfirmation: FC<BatchUpdateConfirmationProps> = ({
   const [stage, setStage] = useState<
     "consequences" | "dormantWorkspaces" | "updates" | null
   >(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     if (runningWorkspacesToUpdate.length > 0) {
       setStage("consequences");

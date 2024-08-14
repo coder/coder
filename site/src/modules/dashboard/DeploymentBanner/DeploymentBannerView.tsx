@@ -98,8 +98,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       return "just now";
     }
     return dayjs().to(dayjs(stats.collected_at));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
-  }, [timeUntilRefresh, stats]);
+  }, [stats, fetchStats]);
 
   const healthErrors = health ? getHealthErrors(health) : [];
   const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
