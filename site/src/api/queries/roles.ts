@@ -23,13 +23,27 @@ export const organizationRoles = (organization: string) => {
   };
 };
 
-export const patchOrganizationRole = (
+export const createOrganizationRole = (
   queryClient: QueryClient,
   organization: string,
 ) => {
   return {
     mutationFn: (request: Role) =>
-      API.patchOrganizationRole(organization, request),
+      API.createOrganizationRole(organization, request),
+    onSuccess: async (updatedRole: Role) =>
+      await queryClient.invalidateQueries(
+        getRoleQueryKey(organization, updatedRole.name),
+      ),
+  };
+};
+
+export const updateOrganizationRole = (
+  queryClient: QueryClient,
+  organization: string,
+) => {
+  return {
+    mutationFn: (request: Role) =>
+      API.updateOrganizationRole(organization, request),
     onSuccess: async (updatedRole: Role) =>
       await queryClient.invalidateQueries(
         getRoleQueryKey(organization, updatedRole.name),

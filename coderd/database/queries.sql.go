@@ -6547,40 +6547,33 @@ func (q *sqlQuerier) DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleP
 	return err
 }
 
-const upsertCustomRole = `-- name: UpsertCustomRole :one
+const insertCustomRole = `-- name: InsertCustomRole :one
 INSERT INTO
 	custom_roles (
-	    name,
-	    display_name,
-	    organization_id,
-	    site_permissions,
-	    org_permissions,
-	    user_permissions,
-	    created_at,
-		updated_at
+	name,
+	display_name,
+	organization_id,
+	site_permissions,
+	org_permissions,
+	user_permissions,
+	created_at,
+	updated_at
 )
 VALUES (
-        -- Always force lowercase names
-        lower($1),
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        now(),
-        now()
+		   -- Always force lowercase names
+		   lower($1),
+		   $2,
+		   $3,
+		   $4,
+		   $5,
+		   $6,
+		   now(),
+		   now()
 	   )
-ON CONFLICT (name)
-	DO UPDATE SET
-	display_name = $2,
-	site_permissions = $4,
-	org_permissions = $5,
-	user_permissions = $6,
-	updated_at = now()
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 `
 
-type UpsertCustomRoleParams struct {
+type InsertCustomRoleParams struct {
 	Name            string                `db:"name" json:"name"`
 	DisplayName     string                `db:"display_name" json:"display_name"`
 	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
@@ -6589,14 +6582,62 @@ type UpsertCustomRoleParams struct {
 	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
 }
 
-func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error) {
-	row := q.db.QueryRowContext(ctx, upsertCustomRole,
+func (q *sqlQuerier) InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, insertCustomRole,
 		arg.Name,
 		arg.DisplayName,
 		arg.OrganizationID,
 		arg.SitePermissions,
 		arg.OrgPermissions,
 		arg.UserPermissions,
+	)
+	var i CustomRole
+	err := row.Scan(
+		&i.Name,
+		&i.DisplayName,
+		&i.SitePermissions,
+		&i.OrgPermissions,
+		&i.UserPermissions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ID,
+	)
+	return i, err
+}
+
+const updateCustomRole = `-- name: UpdateCustomRole :one
+UPDATE
+	custom_roles
+SET
+	display_name = $1,
+	site_permissions = $2,
+	org_permissions = $3,
+	user_permissions = $4,
+	updated_at = now()
+WHERE
+	name = lower($5)
+	AND organization_id = $6
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
+`
+
+type UpdateCustomRoleParams struct {
+	DisplayName     string                `db:"display_name" json:"display_name"`
+	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
+	Name            string                `db:"name" json:"name"`
+	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, updateCustomRole,
+		arg.DisplayName,
+		arg.SitePermissions,
+		arg.OrgPermissions,
+		arg.UserPermissions,
+		arg.Name,
+		arg.OrganizationID,
 	)
 	var i CustomRole
 	err := row.Scan(
@@ -7378,6 +7419,25 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 	return items, nil
 }
 
+const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
+UPDATE 
+	tailnet_peers
+SET
+	status = $2
+WHERE
+	coordinator_id = $1
+`
+
+type UpdateTailnetPeerStatusByCoordinatorParams struct {
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	Status        TailnetStatus `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) error {
+	_, err := q.db.ExecContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
+	return err
+}
+
 const upsertTailnetAgent = `-- name: UpsertTailnetAgent :one
 INSERT INTO
 	tailnet_agents (
@@ -7840,11 +7900,11 @@ WHERE
 			LOWER("name") = LOWER($3)
 		ELSE true
 	END
-  	-- Filter by name, matching on substring
-  	AND CASE
-		  WHEN $4 :: text != '' THEN
-			  lower(name) ILIKE '%' || lower($4) || '%'
-		  ELSE true
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			lower(name) ILIKE '%' || lower($4) || '%'
+		ELSE true
 	END
 	-- Filter by ids
 	AND CASE

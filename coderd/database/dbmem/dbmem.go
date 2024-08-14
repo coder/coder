@@ -6161,6 +6161,37 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	return alog, nil
 }
 
+func (q *FakeQuerier) InsertCustomRole(_ context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CustomRole{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for i := range q.customRoles {
+		if strings.EqualFold(q.customRoles[i].Name, arg.Name) &&
+			q.customRoles[i].OrganizationID.UUID == arg.OrganizationID.UUID {
+			return database.CustomRole{}, errUniqueConstraint
+		}
+	}
+
+	role := database.CustomRole{
+		ID:              uuid.New(),
+		Name:            arg.Name,
+		DisplayName:     arg.DisplayName,
+		OrganizationID:  arg.OrganizationID,
+		SitePermissions: arg.SitePermissions,
+		OrgPermissions:  arg.OrgPermissions,
+		UserPermissions: arg.UserPermissions,
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+	}
+	q.customRoles = append(q.customRoles, role)
+
+	return role, nil
+}
+
 func (q *FakeQuerier) InsertDBCryptKey(_ context.Context, arg database.InsertDBCryptKeyParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -7531,6 +7562,29 @@ func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateCustomRole(_ context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CustomRole{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for i := range q.customRoles {
+		if strings.EqualFold(q.customRoles[i].Name, arg.Name) &&
+			q.customRoles[i].OrganizationID.UUID == arg.OrganizationID.UUID {
+			q.customRoles[i].DisplayName = arg.DisplayName
+			q.customRoles[i].OrganizationID = arg.OrganizationID
+			q.customRoles[i].SitePermissions = arg.SitePermissions
+			q.customRoles[i].OrgPermissions = arg.OrgPermissions
+			q.customRoles[i].UserPermissions = arg.UserPermissions
+			q.customRoles[i].UpdatedAt = dbtime.Now()
+			return q.customRoles[i], nil
+		}
+	}
+	return database.CustomRole{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -7861,6 +7915,10 @@ func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 		return replica, nil
 	}
 	return database.Replica{}, sql.ErrNoRows
+}
+
+func (*FakeQuerier) UpdateTailnetPeerStatusByCoordinator(context.Context, database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	return ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) error {
@@ -8873,42 +8931,6 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 
 	q.applicationName = data
 	return nil
-}
-
-func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.CustomRole{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	for i := range q.customRoles {
-		if strings.EqualFold(q.customRoles[i].Name, arg.Name) {
-			q.customRoles[i].DisplayName = arg.DisplayName
-			q.customRoles[i].OrganizationID = arg.OrganizationID
-			q.customRoles[i].SitePermissions = arg.SitePermissions
-			q.customRoles[i].OrgPermissions = arg.OrgPermissions
-			q.customRoles[i].UserPermissions = arg.UserPermissions
-			q.customRoles[i].UpdatedAt = dbtime.Now()
-			return q.customRoles[i], nil
-		}
-	}
-
-	role := database.CustomRole{
-		ID:              uuid.New(),
-		Name:            arg.Name,
-		DisplayName:     arg.DisplayName,
-		OrganizationID:  arg.OrganizationID,
-		SitePermissions: arg.SitePermissions,
-		OrgPermissions:  arg.OrgPermissions,
-		UserPermissions: arg.UserPermissions,
-		CreatedAt:       dbtime.Now(),
-		UpdatedAt:       dbtime.Now(),
-	}
-	q.customRoles = append(q.customRoles, role)
-
-	return role, nil
 }
 
 func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {

@@ -6,7 +6,7 @@ import StopOutlined from "@mui/icons-material/StopOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
-import type { ComponentProps } from "react";
+import type { ComponentProps, FC } from "react";
 import type { UseQueryResult } from "react-query";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
@@ -65,7 +65,7 @@ export interface WorkspacesPageViewProps {
   canChangeVersions: boolean;
 }
 
-export const WorkspacesPageView = ({
+export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
   workspaces,
   error,
   limit,
@@ -86,7 +86,7 @@ export const WorkspacesPageView = ({
   templatesFetchStatus,
   canCreateTemplate,
   canChangeVersions,
-}: WorkspacesPageViewProps) => {
+}) => {
   // Let's say the user has 5 workspaces, but tried to hit page 100, which does
   // not exist. In this case, the page is not valid and we want to show a better
   // error message.

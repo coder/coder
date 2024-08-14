@@ -740,6 +740,17 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateTemplateDeleted",
+			id:   notifications.TemplateTemplateDeleted,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":      "bobby-template",
+					"initiator": "rob",
+				},
+			},
+		},
 	}
 
 	allTemplates, err := enumerateAllTemplates(t)
