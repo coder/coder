@@ -132,8 +132,12 @@ export const AppearanceSettingsPageView: FC<
                   src={logoForm.values.logo_url}
                   // This prevent browser to display the ugly error icon if the
                   // image path is wrong or user didn't finish typing the url
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                  onLoad={(e) => (e.currentTarget.style.display = "inline")}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                  onLoad={(e) => {
+                    e.currentTarget.style.display = "inline";
+                  }}
                 />
               </InputAdornment>
             ),

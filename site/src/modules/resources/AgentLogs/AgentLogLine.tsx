@@ -46,7 +46,7 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
         {number}
       </LogLinePrefix>
       <span
-        // Output contains HTML to represent ANSI-code formatting
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: Output contains HTML to represent ANSI-code formatting
         dangerouslySetInnerHTML={{
           __html: output,
         }}

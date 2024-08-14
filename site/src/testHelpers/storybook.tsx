@@ -83,7 +83,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
     }
 
     close() {}
-  } as any;
+  } as unknown as typeof window.WebSocket;
 
   return <Story />;
 };

@@ -81,7 +81,7 @@ export const EmptyPage: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     users: undefined,
     usersQuery: {

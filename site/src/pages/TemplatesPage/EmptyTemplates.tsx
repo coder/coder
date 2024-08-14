@@ -24,13 +24,13 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
   const featuredExamples: TemplateExample[] = [];
 
   // We loop the featuredExampleIds first to keep the order
-  featuredExampleIds.forEach((exampleId) => {
-    examples.forEach((example) => {
+  for (const exampleId of featuredExampleIds) {
+    for (const example of examples) {
       if (exampleId === example.id) {
         featuredExamples.push(example);
       }
-    });
-  });
+    }
+  }
 
   return featuredExamples;
 };

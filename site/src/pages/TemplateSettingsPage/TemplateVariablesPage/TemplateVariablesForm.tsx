@@ -13,7 +13,7 @@ import {
   HorizontalForm,
   FormFooter,
 } from "components/Form/Form";
-import { getFormHelpers } from "utils/formUtils";
+import { type FormHelpers, getFormHelpers } from "utils/formUtils";
 import {
   SensitiveVariableHelperText,
   TemplateVariableField,
@@ -70,7 +70,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
       aria-label="Template variables"
     >
       {templateVariables.map((templateVariable, index) => {
-        let fieldHelpers;
+        let fieldHelpers: FormHelpers;
         if (templateVariable.sensitive) {
           fieldHelpers = getFieldHelpers(
             `user_variable_values[${index}].value`,
@@ -115,14 +115,14 @@ export const selectInitialUserVariableValues = (
   templateVariables: TemplateVersionVariable[],
 ): VariableValue[] => {
   const defaults: VariableValue[] = [];
-  templateVariables.forEach((templateVariable) => {
+  for (const templateVariable of templateVariables) {
     // Boolean variables must be always either "true" or "false"
     if (templateVariable.type === "bool" && templateVariable.value === "") {
       defaults.push({
         name: templateVariable.name,
         value: templateVariable.default_value,
       });
-      return;
+      continue;
     }
 
     if (templateVariable.sensitive) {
@@ -130,7 +130,7 @@ export const selectInitialUserVariableValues = (
         name: templateVariable.name,
         value: "",
       });
-      return;
+      continue;
     }
 
     if (templateVariable.required && templateVariable.value === "") {
@@ -138,14 +138,14 @@ export const selectInitialUserVariableValues = (
         name: templateVariable.name,
         value: templateVariable.default_value,
       });
-      return;
+      continue;
     }
 
     defaults.push({
       name: templateVariable.name,
       value: templateVariable.value,
     });
-  });
+  }
   return defaults;
 };
 
@@ -157,27 +157,26 @@ const ValidationSchemaForTemplateVariables = (
     .of(
       Yup.object().shape({
         name: Yup.string().required(),
-        value: Yup.string()
-          .test("verify with template", (val, ctx) => {
-            const name = ctx.parent.name;
-            const templateVariable = templateVariables.find(
-              (variable) => variable.name === name,
-            );
-            if (templateVariable?.sensitive) {
-              // It's possible that the secret is already stored in database,
-              // so we can't properly verify the "required" condition.
-              return true;
-            }
-            if (templateVariable?.required) {
-              if (!val || val.length === 0) {
-                return ctx.createError({
-                  path: ctx.path,
-                  message: "Variable is required.",
-                });
-              }
-            }
+        value: Yup.string().test("verify with template", (val, ctx) => {
+          const name = ctx.parent.name;
+          const templateVariable = templateVariables.find(
+            (variable) => variable.name === name,
+          );
+          if (templateVariable?.sensitive) {
+            // It's possible that the secret is already stored in database,
+            // so we can't properly verify the "required" condition.
             return true;
-          }),
+          }
+          if (templateVariable?.required) {
+            if (!val || val.length === 0) {
+              return ctx.createError({
+                path: ctx.path,
+                message: "Variable is required.",
+              });
+            }
+          }
+          return true;
+        }),
       }),
     )
     .required();

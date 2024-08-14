@@ -1,3 +1,4 @@
+// biome-ignore lint/nursery/noRestrictedImports: base theme types
 import type { PaletteColor, PaletteColorOptions } from "@mui/material/styles";
 
 declare module "@mui/material/styles" {

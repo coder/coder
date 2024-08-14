@@ -56,7 +56,7 @@ export const MonacoEditor: FC<MonacoEditorProps> = ({
       onMount={(editor) => {
         // This jank allows for Ctrl + Enter to work outside the editor.
         // We use this keybind to trigger a build.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Private type in Monaco!
+        // biome-ignore lint/suspicious/noExplicitAny: Private type in Monaco!
         (editor as any)._standaloneKeybindingService.addDynamicKeybinding(
           "-editor.action.insertLineAfter",
           monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,

@@ -121,15 +121,15 @@ const filterEmptySensitiveVariables = (
   }
 
   if (request.user_variable_values) {
-    request.user_variable_values.forEach((variableValue) => {
+    for (const variableValue of request.user_variable_values) {
       const templateVariable = templateVariables.find(
         (t) => t.name === variableValue.name,
       );
       if (templateVariable?.sensitive && variableValue.value === "") {
-        return;
+        continue;
       }
       filtered.push(variableValue);
-    });
+    }
   }
 
   return {

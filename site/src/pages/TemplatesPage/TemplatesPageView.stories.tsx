@@ -102,7 +102,7 @@ export const EmptyCannotCreate: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     error: mockApiError({
       message: "Something went wrong fetching templates.",

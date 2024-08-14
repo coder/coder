@@ -34,7 +34,7 @@ const getMissingParameters = (
   const missingParameters: TypesGen.TemplateVersionParameter[] = [];
   const requiredParameters: TypesGen.TemplateVersionParameter[] = [];
 
-  templateParameters.forEach((p) => {
+  for (const p of templateParameters) {
     // It is mutable and required. Mutable values can be changed after so we
     // don't need to ask them if they are not required.
     const isMutableAndRequired = p.mutable && p.required;
@@ -44,7 +44,7 @@ const getMissingParameters = (
     if (isMutableAndRequired || isImmutable) {
       requiredParameters.push(p);
     }
-  });
+  }
 
   for (const parameter of requiredParameters) {
     // Check if there is a new value
@@ -68,9 +68,9 @@ const getMissingParameters = (
   }
 
   // Check if parameter "options" changed and we can't use old build parameters.
-  templateParameters.forEach((templateParameter) => {
+  for (const templateParameter of templateParameters) {
     if (templateParameter.options.length === 0) {
-      return;
+      continue;
     }
 
     // Check if there is a new value
@@ -86,7 +86,7 @@ const getMissingParameters = (
     }
 
     if (!buildParameter) {
-      return;
+      continue;
     }
 
     const matchingOption = templateParameter.options.find(
@@ -95,7 +95,8 @@ const getMissingParameters = (
     if (!matchingOption) {
       missingParameters.push(templateParameter);
     }
-  });
+  }
+
   return missingParameters;
 };
 
@@ -132,13 +133,11 @@ export const getURLWithSearchParams = (
   }
 
   const searchParams = new URLSearchParams();
-  const keys = Object.keys(options) as (keyof SearchParamOptions)[];
-  keys.forEach((key) => {
-    const value = options[key];
+  for (const [key, value] of Object.entries(options)) {
     if (value !== undefined && value !== "") {
       searchParams.append(key, value.toString());
     }
-  });
+  }
 
   const searchString = searchParams.toString();
   return searchString ? `${basePath}?${searchString}` : basePath;
@@ -993,8 +992,8 @@ class ApiMethods {
         let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined;
 
         while (
-          !["succeeded", "canceled"].some((status) =>
-            latestJobInfo?.status.includes(status),
+          !["succeeded", "canceled"].some(
+            (status) => latestJobInfo?.status.includes(status),
           )
         ) {
           const { job } = await this.getWorkspaceBuildByNumber(

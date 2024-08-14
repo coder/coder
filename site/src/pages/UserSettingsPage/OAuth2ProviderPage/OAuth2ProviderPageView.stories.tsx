@@ -18,7 +18,7 @@ export const Loading: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     isLoading: false,
     error: "some error",

@@ -39,7 +39,7 @@ export const LoadingSecrets: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     app: MockOAuth2ProviderApps[0],
     secrets: MockOAuth2ProviderAppSecrets,

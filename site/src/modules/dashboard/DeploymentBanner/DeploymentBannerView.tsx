@@ -398,11 +398,11 @@ const getHealthErrors = (health: HealthcheckReport) => {
     workspace_proxy: "We're noticing workspace proxy issues.",
   } as const;
 
-  sections.forEach((section) => {
+  for (const section of sections) {
     if (health[section].severity === "error" && !health[section].dismissed) {
       warnings.push(messages[section]);
     }
-  });
+  }
 
   return warnings;
 };

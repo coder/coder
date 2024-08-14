@@ -38,7 +38,7 @@ interface GetFormHelperOptions {
   maxLength?: number;
 }
 
-interface FormHelpers {
+export interface FormHelpers {
   name: string;
   onBlur: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
   onChange: ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;

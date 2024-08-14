@@ -40,8 +40,12 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
       src={logoURL}
       // This prevent browser to display the ugly error icon if the
       // image path is wrong or user didn't finish typing the url
-      onError={(e) => (e.currentTarget.style.display = "none")}
-      onLoad={(e) => (e.currentTarget.style.display = "inline")}
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
+      onLoad={(e) => {
+        e.currentTarget.style.display = "inline";
+      }}
       css={{
         maxWidth: "200px",
       }}

@@ -204,21 +204,15 @@ export const HealthLayout: FC = () => {
 };
 
 const filterVisibleSections = <T extends object>(sections: T) => {
-  return Object.keys(sections).reduce(
-    (visible, sectionName) => {
-      const sectionValue = sections[sectionName as keyof typeof sections];
+  const visible: Partial<T> = {};
 
-      if (!sectionValue) {
-        return visible;
-      }
+  for (const [sectionName, sectionValue] of Object.entries(sections)) {
+    if (!sectionValue) {
+      continue;
+    }
 
-      return {
-        ...visible,
-        [sectionName]: sectionValue,
-      };
-    },
-    {} as Partial<typeof sections>,
-  );
+    visible[sectionName as keyof T] = sectionValue;
+  }
 };
 
 const classNames = {

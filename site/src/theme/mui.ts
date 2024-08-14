@@ -1,5 +1,6 @@
 // biome-ignore lint/nursery/noRestrictedImports: we use the classes for customization
 import { alertClasses } from "@mui/material/Alert";
+// biome-ignore lint/nursery/noRestrictedImports: we use the MUI theme as a base
 import type { ThemeOptions } from "@mui/material/styles";
 import {
   BODY_FONT_FAMILY,
@@ -22,6 +23,9 @@ export type PaletteIndex =
   | "success"
   | "action"
   | "neutral";
+
+// biome-ignore lint/suspicious/noExplicitAny: needed for MUI overrides
+type MuiStyle = any;
 
 export const components = {
   MuiCssBaseline: {
@@ -112,7 +116,7 @@ export const components = {
       sizeLarge: {
         height: BUTTON_LG_HEIGHT,
       },
-      ["sizeXlarge" as any]: {
+      ["sizeXlarge" as MuiStyle]: {
         height: BUTTON_XL_HEIGHT,
 
         // With higher size we need to increase icon spacing.
@@ -128,7 +132,7 @@ export const components = {
           border: `1px solid ${theme.palette.secondary.main}`,
         },
       }),
-      ["outlinedNeutral" as any]: {
+      ["outlinedNeutral" as MuiStyle]: {
         borderColor: tw.zinc[600],
 
         "&.Mui-disabled": {
@@ -140,7 +144,7 @@ export const components = {
           },
         },
       },
-      ["containedNeutral" as any]: {
+      ["containedNeutral" as MuiStyle]: {
         backgroundColor: tw.zinc[800],
 
         "&:hover": {
@@ -169,7 +173,7 @@ export const components = {
       }),
     },
   },
-  ["MuiLoadingButton" as any]: {
+  ["MuiLoadingButton" as MuiStyle]: {
     defaultProps: {
       variant: "outlined",
       color: "neutral",
@@ -353,7 +357,7 @@ export const components = {
       multiline: {
         height: "auto",
       },
-      ["colorPrimary" as any]: {
+      ["colorPrimary" as MuiStyle]: {
         // Same as button
         "& .MuiOutlinedInput-notchedOutline": {
           borderColor: tw.zinc[600],

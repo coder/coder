@@ -289,7 +289,9 @@ const TerminalPage: FC = () => {
 
     return () => {
       disposed = true; // Could use AbortController instead?
-      disposers.forEach((d) => d.dispose());
+      for (const d of disposers) {
+        d.dispose();
+      }
       websocket?.close(1000);
     };
   }, [

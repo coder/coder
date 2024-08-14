@@ -33,7 +33,7 @@ export const NoMembers: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     error: "Something went wrong",
   },

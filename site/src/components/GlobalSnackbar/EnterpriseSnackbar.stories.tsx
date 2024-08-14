@@ -9,7 +9,7 @@ const meta: Meta<typeof EnterpriseSnackbar> = {
 export default meta;
 type Story = StoryObj<typeof EnterpriseSnackbar>;
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     variant: "error",
     open: true,

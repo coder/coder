@@ -148,7 +148,7 @@ const getInitialValues = ({
   }
 
   if (variables) {
-    variables.forEach((variable) => {
+    for (const variable of variables) {
       if (!initialValues.user_variable_values) {
         initialValues.user_variable_values = [];
       }
@@ -156,7 +156,7 @@ const getInitialValues = ({
         name: variable.name,
         value: variable.sensitive ? "" : variable.value,
       });
-    });
+    }
   }
 
   return initialValues;

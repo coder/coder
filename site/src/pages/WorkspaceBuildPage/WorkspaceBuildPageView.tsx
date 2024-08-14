@@ -127,7 +127,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           <SidebarCaption>Builds</SidebarCaption>
           {!builds &&
             Array.from({ length: 15 }, (_, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: non-volatile elements
               <SidebarItem key={i}>
                 <WorkspaceBuildDataSkeleton />
               </SidebarItem>

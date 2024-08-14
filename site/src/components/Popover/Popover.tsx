@@ -1,7 +1,6 @@
-// This is used as base for the main Popover component
-// eslint-disable-next-line no-restricted-imports -- Read above
 import MuiPopover, {
   type PopoverProps as MuiPopoverProps,
+  // biome-ignore lint/nursery/noRestrictedImports: Used as base component
 } from "@mui/material/Popover";
 import {
   cloneElement,

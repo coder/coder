@@ -118,11 +118,11 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
       onConfirm={async () => {
         setIsDownloading(true);
         const zip = new JSZip();
-        allFiles.forEach((f) => {
+        for (const f of allFiles) {
           if (f.blob) {
             zip.file(f.name, f.blob);
           }
-        });
+        }
 
         try {
           const content = await zip.generateAsync({ type: "blob" });

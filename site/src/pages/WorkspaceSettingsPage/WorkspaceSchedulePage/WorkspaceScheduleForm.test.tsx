@@ -379,10 +379,10 @@ describe("templateInheritance", () => {
     // MUI's input is wrapped in a div so we look at the aria-attribute instead
     expect(timezoneInput).toHaveAttribute("aria-disabled");
 
-    autoStartDayLabels.forEach(async (label) => {
+    for (const label of autoStartDayLabels) {
       const checkbox = await screen.findByLabelText(label);
       expect(checkbox).toBeDisabled();
-    });
+    }
   });
   it("disables secondary autostop fields if main feature switch is toggled off", async () => {
     jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);

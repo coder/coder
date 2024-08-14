@@ -9,26 +9,18 @@
   "linter": {
     "rules": {
       "a11y": {
-        "noSvgWithoutTitle": {
-          "level": "off"
-        },
-        "useButtonType": {
-          "level": "off"
-        }
+        "noSvgWithoutTitle": { "level": "off" },
+        "useButtonType": { "level": "off" }
       },
       "style": {
-        "noNonNullAssertion": {
-          "level": "off"
-        },
+        "noNonNullAssertion": { "level": "off" },
         "noParameterAssign": { "level": "off" },
-        "useSelfClosingElements": {
-          "level": "off"
-        }
+        "useDefaultParameterLast": { "level": "off" },
+        "useSelfClosingElements": { "level": "off" }
       },
       "suspicious": {
-        "noThenProperty": {
-          "level": "off"
-        }
+        "noArrayIndexKey": { "level": "off" },
+        "noThenProperty": { "level": "off" }
       },
       "nursery": {
         "noRestrictedImports": {
