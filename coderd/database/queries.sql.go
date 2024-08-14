@@ -6223,15 +6223,15 @@ func (q *sqlQuerier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg Update
 
 const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
-	coalesce(SUM(quota_allowance), 0)::BIGINT
+	coalesce(SUM(groups.quota_allowance), 0)::BIGINT
 FROM
-	groups g
-LEFT JOIN group_members gm ON
-	g.id = gm.group_id
-WHERE
-	user_id = $1
-OR
-    g.id = g.organization_id
+	(
+		-- Select all groups this user is a member of. This will also include
+		-- the "Everyone" group for organizations the user is a member of.
+		SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded WHERE $1 = user_id
+	) AS members
+INNER JOIN groups ON
+	members.group_id = groups.id
 `
 
 func (q *sqlQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
