@@ -97,6 +97,12 @@ variable "cache_repo" {
   type        = string
 }
 
+variable "insecure_cache_repo" {
+  default     = false
+  description = "Enable this option if your cache registry does not serve HTTPS."
+  type        = bool
+}
+
 variable "cache_repo_docker_config_path" {
   default     = ""
   description = "(Optional) Path to a docker config.json containing credentials to the provided cache repo, if required."
@@ -122,7 +128,7 @@ locals {
     "ENVBUILDER_CACHE_REPO" : var.cache_repo,
     "ENVBUILDER_DOCKER_CONFIG_BASE64" : try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, ""),
     "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
-    #"ENVBUILDER_INSECURE": "true", # Uncomment if testing with an insecure registry.
+    "ENVBUILDER_INSECURE" : "${var.insecure_cache_repo}",
   }
   # Convert the above map to the format expected by the docker provider.
   docker_env = [
@@ -174,7 +180,7 @@ resource "envbuilder_cached_image" "cached" {
   git_url       = local.repo_url
   cache_repo    = var.cache_repo
   extra_env     = local.envbuilder_env
-  #insecure = true # Uncomment if testing with an insecure registry.
+  insecure      = var.insecure_cache_repo
 }
 
 resource "docker_container" "workspace" {
@@ -328,7 +334,7 @@ resource "coder_app" "code-server" {
 
 resource "coder_metadata" "container_info" {
   count       = data.coder_workspace.me.start_count
-  resource_id = docker_container.workspace.0.id
+  resource_id = coder_agent.main.id
   item {
     key   = "workspace image"
     value = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
