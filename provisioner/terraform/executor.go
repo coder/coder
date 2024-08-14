@@ -272,15 +272,15 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	// Capture the duration of the call to `terraform graph`.
 	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
-	graphTimings.ingest(createGraphTimingsEvent(graphStart))
+	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
 
 	state, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
-		graphTimings.ingest(createGraphTimingsEvent(graphErrored))
+		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
 		return nil, err
 	}
 
-	graphTimings.ingest(createGraphTimingsEvent(graphComplete))
+	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
 	return &proto.PlanComplete{
 		Parameters:            state.Parameters,

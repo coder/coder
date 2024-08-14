@@ -106,17 +106,17 @@ func (s *server) Plan(
 	// The JSON output of `terraform init` doesn't include discrete fields for capturing timings of each plugin,
 	// so we capture the whole init process.
 	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit)
-	initTimings.ingest(createInitTimingsEvent(initStart))
+	initTimings.ingest(createInitTimingsEvent(timingInitStart))
 
 	err = e.init(ctx, killCtx, sess)
 	if err != nil {
-		initTimings.ingest(createInitTimingsEvent(initErrored))
+		initTimings.ingest(createInitTimingsEvent(timingInitErrored))
 
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
 		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
 	}
 
-	initTimings.ingest(createInitTimingsEvent(initComplete))
+	initTimings.ingest(createInitTimingsEvent(timingInitComplete))
 
 	s.logger.Debug(ctx, "ran initialization")
 

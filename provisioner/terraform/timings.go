@@ -19,23 +19,23 @@ type timingKind string
 // Copied from https://github.com/hashicorp/terraform/blob/ffbcaf8bef12bb1f4d79f06437f414e280d08761/internal/command/views/json/message_types.go
 // We cannot reference these because they're in an internal package.
 const (
-	applyStart        timingKind = "apply_start"
-	applyProgress     timingKind = "apply_progress"
-	applyComplete     timingKind = "apply_complete"
-	applyErrored      timingKind = "apply_errored"
-	provisionStart    timingKind = "provision_start"
-	provisionProgress timingKind = "provision_progress"
-	provisionComplete timingKind = "provision_complete"
-	provisionErrored  timingKind = "provision_errored"
-	refreshStart      timingKind = "refresh_start"
-	refreshComplete   timingKind = "refresh_complete"
+	timingApplyStart        timingKind = "apply_start"
+	timingApplyProgress     timingKind = "apply_progress"
+	timingApplyComplete     timingKind = "apply_complete"
+	timingApplyErrored      timingKind = "apply_errored"
+	timingProvisionStart    timingKind = "provision_start"
+	timingProvisionProgress timingKind = "provision_progress"
+	timingProvisionComplete timingKind = "provision_complete"
+	timingProvisionErrored  timingKind = "provision_errored"
+	timingRefreshStart      timingKind = "refresh_start"
+	timingRefreshComplete   timingKind = "refresh_complete"
 	// These are not part of message_types, but we want to track init/graph timings as well.
-	initStart    timingKind = "init_start"
-	initComplete timingKind = "init_complete"
-	initErrored  timingKind = "init_errored"
-	graphStart    timingKind = "graph_start"
-	graphComplete timingKind = "graph_complete"
-	graphErrored  timingKind = "graph_errored"
+	timingInitStart     timingKind = "init_start"
+	timingInitComplete  timingKind = "init_complete"
+	timingInitErrored   timingKind = "init_errored"
+	timingGraphStart    timingKind = "graph_start"
+	timingGraphComplete timingKind = "graph_complete"
+	timingGraphErrored  timingKind = "graph_errored"
 )
 
 type timingAggregator struct {
@@ -74,13 +74,13 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	ts = dbtime.Time(ts)
 
 	switch s.kind {
-	case applyStart, provisionStart, refreshStart, initStart, graphStart:
+	case timingApplyStart, timingProvisionStart, timingRefreshStart, timingInitStart, timingGraphStart:
 		s.start = ts
 		s.state = proto.TimingState_STARTED
-	case applyComplete, provisionComplete, refreshComplete, initComplete, graphComplete:
+	case timingApplyComplete, timingProvisionComplete, timingRefreshComplete, timingInitComplete, timingGraphComplete:
 		s.end = ts
 		s.state = proto.TimingState_COMPLETED
-	case applyErrored, provisionErrored, initErrored, graphErrored:
+	case timingApplyErrored, timingProvisionErrored, timingInitErrored, timingGraphErrored:
 		s.end = ts
 		s.state = proto.TimingState_FAILED
 	default:
@@ -137,33 +137,58 @@ func (t *timingAggregator) aggregate() []*proto.Timing {
 
 func (l timingKind) Valid() bool {
 	return slices.Contains([]timingKind{
-		applyStart,
-		applyProgress,
-		applyComplete,
-		applyErrored,
-		provisionStart,
-		provisionProgress,
-		provisionComplete,
-		provisionErrored,
-		refreshStart,
-		refreshComplete,
-		initStart,
-		initComplete,
-		initErrored,
-		graphStart,
-		graphComplete,
-		graphErrored,
+		timingApplyStart,
+		timingApplyProgress,
+		timingApplyComplete,
+		timingApplyErrored,
+		timingProvisionStart,
+		timingProvisionProgress,
+		timingProvisionComplete,
+		timingProvisionErrored,
+		timingRefreshStart,
+		timingRefreshComplete,
+		timingInitStart,
+		timingInitComplete,
+		timingInitErrored,
+		timingGraphStart,
+		timingGraphComplete,
+		timingGraphErrored,
 	}, l)
+}
+
+// Category returns the category for a giving timing state so that timings can be aggregated by this category.
+// We can't use the state itself because we need an `apply_start` and an `apply_complete` to both hash to the same entry
+// if all other attributes are identical.
+func (l timingKind) Category() string {
+	switch l {
+	case timingInitStart, timingInitComplete, timingInitErrored:
+		return "init"
+	case timingGraphStart, timingGraphComplete, timingGraphErrored:
+		return "graph"
+	case timingApplyStart, timingApplyProgress, timingApplyComplete, timingApplyErrored:
+		return "apply"
+	case timingProvisionStart, timingProvisionProgress, timingProvisionComplete, timingProvisionErrored:
+		return "provision"
+	case timingRefreshStart, timingRefreshComplete:
+		return "state refresh"
+	default:
+		return "?"
+	}
 }
 
 // hashState computes a hash based on a timingSpan's unique properties and state.
 // The combination of resource and provider names MUST be unique across entries.
 func (e *timingSpan) hashByState(state proto.TimingState) uint64 {
-	id := fmt.Sprintf("%s:%s:%s", state.String(), e.resource, e.provider)
+	id := fmt.Sprintf("%s:%s:%s:%s", e.kind.Category(), state.String(), e.resource, e.provider)
 	return xxhash.Sum64String(id)
 }
 
 func (e *timingSpan) toProto() *proto.Timing {
+	// Some log entries, like state refreshes, don't have any "action" logged.
+	if e.action == "" {
+		e.action = e.kind.Category()
+	}
+
 	return &proto.Timing{
 		Start:    timestamppb.New(e.start),
 		End:      timestamppb.New(e.end),
