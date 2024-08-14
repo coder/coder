@@ -1699,8 +1699,7 @@ func TestNotifications(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name string
-
+			name         string
 			buildReason  database.BuildReason
 			shouldNotify bool
 		}{
@@ -1808,163 +1807,116 @@ func TestNotifications(t *testing.T) {
 	t.Run("TemplateManualBuildFailed", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("NotifyTemplateOwner", func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-			notifEnq := &testutil.FakeNotificationsEnqueuer{}
-
-			//	Otherwise `(*Server).FailJob` fails with:
-			// audit log - get build {"error": "sql: no rows in result set"}
-			ignoreLogErrors := true
-			srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
+		var (
+			ctx      = context.Background()
+			notifEnq = &testutil.FakeNotificationsEnqueuer{}
+			// To avoid spamming the output, ignore log errors. This test is
+			// designed to check a build failure, which is expected to log errors.
+			ignoreLogErrors = true
+			srv, db, ps, pd = setup(t, ignoreLogErrors, &overrides{
 				notificationEnqueuer: notifEnq,
 			})
+			userA = dbgen.User(t, db, database.User{})
+			userB = dbgen.User(t, db, database.User{})
+		)
 
-			initiator := dbgen.User(t, db, database.User{})
-			templateOwner := dbgen.User(t, db, database.User{})
+		tc := []struct {
+			name         string
+			owner        database.User
+			initiator    database.User
+			shouldNotify bool
+		}{
+			{
+				name:         "InitiatedByOwner",
+				owner:        userA,
+				initiator:    userA,
+				shouldNotify: false,
+			},
+			{
+				name:         "InitiatedBySomeoneElse",
+				owner:        userB,
+				initiator:    userA,
+				shouldNotify: true,
+			},
+		}
 
-			template := dbgen.Template(t, db, database.Template{
-				Name:           "template",
-				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.OrganizationID,
-				CreatedBy:      templateOwner.ID,
-			})
-			template, err := db.GetTemplateByID(ctx, template.ID)
-			require.NoError(t, err)
-			file := dbgen.File(t, db, database.File{CreatedBy: initiator.ID})
-			workspace := dbgen.Workspace(t, db, database.Workspace{
-				TemplateID:     template.ID,
-				OwnerID:        initiator.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				OrganizationID: pd.OrganizationID,
-				TemplateID: uuid.NullUUID{
-					UUID:  template.ID,
-					Valid: true,
-				},
-				JobID: uuid.New(),
-			})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       workspace.ID,
-				TemplateVersionID: version.ID,
-				InitiatorID:       initiator.ID,
-				Transition:        database.WorkspaceTransitionDelete,
-				Reason:            database.BuildReasonInitiator,
-			})
-			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				FileID: file.ID,
-				Type:   database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: build.ID,
-				})),
-				OrganizationID: pd.OrganizationID,
-			})
-			_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-				OrganizationID: pd.OrganizationID,
-				WorkerID: uuid.NullUUID{
-					UUID:  pd.ID,
-					Valid: true,
-				},
-				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-			})
-			require.NoError(t, err)
-
-			_, err = srv.FailJob(ctx, &proto.FailedJob{
-				JobId: job.ID.String(),
-				Type: &proto.FailedJob_WorkspaceBuild_{
-					WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
-						State: []byte{},
+		for _, c := range tc {
+			t.Run(c.name, func(t *testing.T) {
+				// Given: a template created by the owner
+				template := dbgen.Template(t, db, database.Template{
+					Name:           "template",
+					Provisioner:    database.ProvisionerTypeEcho,
+					OrganizationID: pd.OrganizationID,
+					CreatedBy:      c.owner.ID,
+				})
+				template, err := db.GetTemplateByID(ctx, template.ID)
+				require.NoError(t, err)
+				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					OrganizationID: pd.OrganizationID,
+					TemplateID: uuid.NullUUID{
+						UUID:  template.ID,
+						Valid: true,
 					},
-				},
-			})
-			require.NoError(t, err)
+					JobID: uuid.New(),
+				})
 
-			require.Len(t, notifEnq.Sent, 1)
-			require.Equal(t, notifEnq.Sent[0].UserID, templateOwner.ID)
-			require.Contains(t, notifEnq.Sent[0].Targets, template.ID)
-			require.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
-			require.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
-			require.Contains(t, notifEnq.Sent[0].Targets, templateOwner.ID)
-			require.Contains(t, notifEnq.Sent[0].Targets, initiator.ID)
-		})
-
-		t.Run("DoNotNotifyTheInitiator", func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-			notifEnq := &testutil.FakeNotificationsEnqueuer{}
-
-			//	Otherwise `(*Server).FailJob` fails with:
-			// audit log - get build {"error": "sql: no rows in result set"}
-			ignoreLogErrors := true
-			srv, db, ps, pd := setup(t, ignoreLogErrors, &overrides{
-				notificationEnqueuer: notifEnq,
-			})
-
-			initiator := dbgen.User(t, db, database.User{})
-			templateOwner := initiator
-
-			template := dbgen.Template(t, db, database.Template{
-				Name:           "template",
-				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.OrganizationID,
-				CreatedBy:      templateOwner.ID,
-			})
-			template, err := db.GetTemplateByID(ctx, template.ID)
-			require.NoError(t, err)
-			file := dbgen.File(t, db, database.File{CreatedBy: initiator.ID})
-			workspace := dbgen.Workspace(t, db, database.Workspace{
-				TemplateID:     template.ID,
-				OwnerID:        initiator.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				OrganizationID: pd.OrganizationID,
-				TemplateID: uuid.NullUUID{
-					UUID:  template.ID,
-					Valid: true,
-				},
-				JobID: uuid.New(),
-			})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       workspace.ID,
-				TemplateVersionID: version.ID,
-				InitiatorID:       initiator.ID,
-				Transition:        database.WorkspaceTransitionDelete,
-				Reason:            database.BuildReasonInitiator,
-			})
-			job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				FileID: file.ID,
-				Type:   database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: build.ID,
-				})),
-				OrganizationID: pd.OrganizationID,
-			})
-			_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-				OrganizationID: pd.OrganizationID,
-				WorkerID: uuid.NullUUID{
-					UUID:  pd.ID,
-					Valid: true,
-				},
-				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-			})
-			require.NoError(t, err)
-
-			_, err = srv.FailJob(ctx, &proto.FailedJob{
-				JobId: job.ID.String(),
-				Type: &proto.FailedJob_WorkspaceBuild_{
-					WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
-						State: []byte{},
+				// And: a workspace build initiated manually by a user
+				workspace := dbgen.Workspace(t, db, database.Workspace{
+					TemplateID:     template.ID,
+					OwnerID:        c.initiator.ID,
+					OrganizationID: pd.OrganizationID,
+				})
+				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: version.ID,
+					InitiatorID:       c.initiator.ID,
+					Transition:        database.WorkspaceTransitionDelete,
+					Reason:            database.BuildReasonInitiator,
+				})
+				file := dbgen.File(t, db, database.File{CreatedBy: c.initiator.ID})
+				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+					FileID: file.ID,
+					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: build.ID,
+					})),
+					OrganizationID: pd.OrganizationID,
+				})
+				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					OrganizationID: pd.OrganizationID,
+					WorkerID: uuid.NullUUID{
+						UUID:  pd.ID,
+						Valid: true,
 					},
-				},
-			})
-			require.NoError(t, err)
+					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				})
+				require.NoError(t, err)
 
-			require.Len(t, notifEnq.Sent, 0)
-		})
+				// When: the workspace build job fails
+				_, err = srv.FailJob(ctx, &proto.FailedJob{
+					JobId: job.ID.String(),
+					Type: &proto.FailedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
+							State: []byte{},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				// Then: send the appropriate notifications
+				if c.shouldNotify {
+					require.Len(t, notifEnq.Sent, 1)
+					require.Equal(t, notifEnq.Sent[0].UserID, c.owner.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, template.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
+					require.Contains(t, notifEnq.Sent[0].Targets, c.owner.ID)
+					require.Contains(t, notifEnq.Sent[0].Targets, c.initiator.ID)
+				} else {
+					require.Len(t, notifEnq.Sent, 0)
+				}
+			})
+		}
 	})
 }
 

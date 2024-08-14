@@ -19,7 +19,7 @@ VALUES (
             "url": "{{ base_url }}/@{{.Labels.workspaceUserName}}/{{.Labels.workspaceName}}/builds/{{.Labels.buildNumber}}"
         },
 		{
-            "label": "View Template",
+            "label": "View template",
             "url": "{{ base_url }}/templates/{{.Labels.name}}"
         }
     ]'::jsonb

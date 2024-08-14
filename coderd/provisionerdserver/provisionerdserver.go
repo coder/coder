@@ -1140,7 +1140,7 @@ func (s *server) notifyTemplateManualBuildFailed(ctx context.Context, workspace 
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID, template.CreatedBy,
 	); err != nil {
-		s.Logger.Warn(ctx, "failed to notify of failed template autobuild", slog.F("template_id", template.ID), slog.F("workspace_id", workspace.ID), slog.Error(err))
+		s.Logger.Warn(ctx, "failed to notify of failed template manual build", slog.F("template_id", template.ID), slog.F("workspace_id", workspace.ID), slog.Error(err))
 	}
 }
 
@@ -1615,42 +1615,6 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 	}
 }
 
-func (s *server) notifyTemplateOwnerAboutManualBuildFailure(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
-	var reason string
-	initiator := build.InitiatorByUsername
-	if build.Reason.Valid() {
-		switch build.Reason {
-		case database.BuildReasonInitiator:
-			if build.InitiatorID == workspace.OwnerID {
-				// Deletions initiated by self should not notify.
-				return
-			}
-
-			reason = "initiated by user"
-		case database.BuildReasonAutodelete:
-			reason = "autodeleted due to dormancy"
-			initiator = "autobuild"
-		default:
-			reason = string(build.Reason)
-		}
-	} else {
-		reason = string(build.Reason)
-		s.Logger.Warn(ctx, "invalid build reason when sending deletion notification",
-			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
-	}
-
-	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
-		map[string]string{
-			"name":      workspace.Name,
-			"reason":    reason,
-			"initiator": initiator,
-		}, "provisionerdserver",
-		// Associate this notification with all the related entities.
-		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
-	); err != nil {
-		s.Logger.Warn(ctx, "failed to notify of workspace deletion", slog.Error(err))
-	}
-}
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return s.Tracer.Start(ctx, name, append(opts, trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
