@@ -157,26 +157,27 @@ const ValidationSchemaForTemplateVariables = (
     .of(
       Yup.object().shape({
         name: Yup.string().required(),
-        value: Yup.string().test("verify with template", (val, ctx) => {
-          const name = ctx.parent.name;
-          const templateVariable = templateVariables.find(
-            (variable) => variable.name === name,
-          );
-          if (templateVariable?.sensitive) {
-            // It's possible that the secret is already stored in database,
-            // so we can't properly verify the "required" condition.
-            return true;
-          }
-          if (templateVariable?.required) {
-            if (!val || val.length === 0) {
-              return ctx.createError({
-                path: ctx.path,
-                message: "Variable is required.",
-              });
+        value: Yup.string()
+          .test("verify with template", (val, ctx) => {
+            const name = ctx.parent.name;
+            const templateVariable = templateVariables.find(
+              (variable) => variable.name === name,
+            );
+            if (templateVariable?.sensitive) {
+              // It's possible that the secret is already stored in database,
+              // so we can't properly verify the "required" condition.
+              return true;
             }
-          }
-          return true;
-        }),
+            if (templateVariable?.required) {
+              if (!val || val.length === 0) {
+                return ctx.createError({
+                  path: ctx.path,
+                  message: "Variable is required.",
+                });
+              }
+            }
+            return true;
+          }),
       }),
     )
     .required();

@@ -992,8 +992,8 @@ class ApiMethods {
         let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined;
 
         while (
-          !["succeeded", "canceled"].some(
-            (status) => latestJobInfo?.status.includes(status),
+          !["succeeded", "canceled"].some((status) =>
+            latestJobInfo?.status.includes(status),
           )
         ) {
           const { job } = await this.getWorkspaceBuildByNumber(
