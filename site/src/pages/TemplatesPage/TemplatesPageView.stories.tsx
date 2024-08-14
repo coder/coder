@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { getDefaultFilterProps } from "components/Filter/storyHelpers";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
   mockApiError,
@@ -14,6 +15,13 @@ const meta: Meta<typeof TemplatesPageView> = {
   decorators: [withDashboardProvider],
   parameters: { chromatic: chromaticWithTablet },
   component: TemplatesPageView,
+  args: {
+    ...getDefaultFilterProps({
+      query: "deprecated:false",
+      menus: {},
+      values: {},
+    }),
+  },
 };
 
 export default meta;
