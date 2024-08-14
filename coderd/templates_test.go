@@ -1359,13 +1359,19 @@ func TestTemplateNotifications(t *testing.T) {
 			// Then: verify that the notification is sent to the correct user
 			// (template admin) and targets, using the appropriate labels. Note that
 			// the owner, being the initiator, will not receive the notification.
-			require.Len(t, notifyEnq.Sent, 1)
-			require.Contains(t, notifyEnq.Sent[0].TemplateID, notifications.TemplateTemplateDeleted)
-			require.Contains(t, notifyEnq.Sent[0].UserID, templateAdmin.ID)
-			require.Contains(t, notifyEnq.Sent[0].Targets, template.ID)
-			require.Contains(t, notifyEnq.Sent[0].Targets, template.OrganizationID)
-			require.Equal(t, notifyEnq.Sent[0].Labels["name"], template.Name)
-			require.Equal(t, notifyEnq.Sent[0].Labels["initiator"], coderdtest.FirstUserParams.Username)
+			deleteNotifications := make([]*testutil.Notification, 0)
+			for _, n := range notifyEnq.Sent {
+				if n.TemplateID == notifications.TemplateTemplateDeleted {
+					deleteNotifications = append(deleteNotifications, n)
+				}
+			}
+			require.Len(t, deleteNotifications, 1)
+			require.Contains(t, deleteNotifications[0].TemplateID, notifications.TemplateTemplateDeleted)
+			require.Contains(t, deleteNotifications[0].UserID, templateAdmin.ID)
+			require.Contains(t, deleteNotifications[0].Targets, template.ID)
+			require.Contains(t, deleteNotifications[0].Targets, template.OrganizationID)
+			require.Equal(t, deleteNotifications[0].Labels["name"], template.Name)
+			require.Equal(t, deleteNotifications[0].Labels["initiator"], coderdtest.FirstUserParams.Username)
 		})
 
 		t.Run("OnlyNotifyOwnersAndTemplateAdmins", func(t *testing.T) {
