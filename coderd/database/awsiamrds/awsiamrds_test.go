@@ -23,6 +23,7 @@ func TestDriver(t *testing.T) {
 	// export DBAWSIAMRDS_TEST_URL="postgres://user@host:5432/dbname";
 	url := os.Getenv("DBAWSIAMRDS_TEST_URL")
 	if url == "" {
+		t.Log("skipping test; no DBAWSIAMRDS_TEST_URL set")
 		t.Skip()
 	}
 
