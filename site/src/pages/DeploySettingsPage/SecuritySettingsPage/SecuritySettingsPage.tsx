@@ -7,25 +7,25 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 
 const SecuritySettingsPage: FC = () => {
-	const { deploymentValues } = useDeploySettings();
-	const { entitlements } = useDashboard();
+  const { deploymentValues } = useDeploySettings();
+  const { entitlements } = useDashboard();
 
-	return (
-		<>
-			<Helmet>
-				<title>{pageTitle("Security Settings")}</title>
-			</Helmet>
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle("Security Settings")}</title>
+      </Helmet>
 
-			{deploymentValues ? (
-				<SecuritySettingsPageView
-					options={deploymentValues.options}
-					featureBrowserOnlyEnabled={entitlements.features.browser_only.enabled}
-				/>
-			) : (
-				<Loader />
-			)}
-		</>
-	);
+      {deploymentValues ? (
+        <SecuritySettingsPageView
+          options={deploymentValues.options}
+          featureBrowserOnlyEnabled={entitlements.features.browser_only.enabled}
+        />
+      ) : (
+        <Loader />
+      )}
+    </>
+  );
 };
 
 export default SecuritySettingsPage;

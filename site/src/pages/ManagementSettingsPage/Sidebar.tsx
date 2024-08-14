@@ -5,8 +5,8 @@ import { organizationsPermissions } from "api/queries/organizations";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
-	canEditOrganization,
-	useOrganizationSettings,
+  canEditOrganization,
+  useOrganizationSettings,
 } from "./ManagementSettingsLayout";
 import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
 
@@ -18,45 +18,45 @@ import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
  * DeploySettingsPage/Sidebar instead.
  */
 export const Sidebar: FC = () => {
-	const location = useLocation();
-	const { permissions } = useAuthenticated();
-	const { experiments } = useDashboard();
-	const { organizations } = useOrganizationSettings();
-	const { organization: organizationName } = useParams() as {
-		organization?: string;
-	};
+  const location = useLocation();
+  const { permissions } = useAuthenticated();
+  const { experiments } = useDashboard();
+  const { organizations } = useOrganizationSettings();
+  const { organization: organizationName } = useParams() as {
+    organization?: string;
+  };
 
-	const orgPermissionsQuery = useQuery(
-		organizationsPermissions(organizations?.map((o) => o.id)),
-	);
+  const orgPermissionsQuery = useQuery(
+    organizationsPermissions(organizations?.map((o) => o.id)),
+  );
 
-	// Sometimes a user can read an organization but cannot actually do anything
-	// with it.  For now, these are filtered out so you only see organizations you
-	// can manage in some way.
-	const editableOrgs = organizations
-		?.map((org) => {
-			return {
-				...org,
-				permissions: orgPermissionsQuery.data?.[org.id],
-			};
-		})
-		// TypeScript is not able to infer whether permissions are defined on the
-		// object even if we explicitly check org.permissions here, so add the `is`
-		// here to help out (canEditOrganization does the actual check).
-		.filter((org): org is OrganizationWithPermissions => {
-			return canEditOrganization(org.permissions);
-		});
+  // Sometimes a user can read an organization but cannot actually do anything
+  // with it.  For now, these are filtered out so you only see organizations you
+  // can manage in some way.
+  const editableOrgs = organizations
+    ?.map((org) => {
+      return {
+        ...org,
+        permissions: orgPermissionsQuery.data?.[org.id],
+      };
+    })
+    // TypeScript is not able to infer whether permissions are defined on the
+    // object even if we explicitly check org.permissions here, so add the `is`
+    // here to help out (canEditOrganization does the actual check).
+    .filter((org): org is OrganizationWithPermissions => {
+      return canEditOrganization(org.permissions);
+    });
 
-	return (
-		<SidebarView
-			// Both activeSettings and activeOrganizationName could be be falsey if
-			// the user is on /organizations but has no editable organizations to
-			// which we can redirect.
-			activeSettings={location.pathname.startsWith("/deployment")}
-			activeOrganizationName={organizationName}
-			organizations={editableOrgs}
-			permissions={permissions}
-			experiments={experiments}
-		/>
-	);
+  return (
+    <SidebarView
+      // Both activeSettings and activeOrganizationName could be be falsey if
+      // the user is on /organizations but has no editable organizations to
+      // which we can redirect.
+      activeSettings={location.pathname.startsWith("/deployment")}
+      activeOrganizationName={organizationName}
+      organizations={editableOrgs}
+      permissions={permissions}
+      experiments={experiments}
+    />
+  );
 };

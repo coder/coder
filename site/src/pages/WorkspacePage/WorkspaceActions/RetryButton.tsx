@@ -7,41 +7,41 @@ import { BuildParametersPopover } from "./BuildParametersPopover";
 import type { ActionButtonProps } from "./Buttons";
 
 type RetryButtonProps = Omit<ActionButtonProps, "loading"> & {
-	enableBuildParameters: boolean;
-	workspace: Workspace;
+  enableBuildParameters: boolean;
+  workspace: Workspace;
 };
 
 export const RetryButton: FC<RetryButtonProps> = ({
-	handleAction,
-	workspace,
-	enableBuildParameters,
+  handleAction,
+  workspace,
+  enableBuildParameters,
 }) => {
-	const mainAction = (
-		<TopbarButton startIcon={<RetryIcon />} onClick={() => handleAction()}>
-			Retry
-		</TopbarButton>
-	);
+  const mainAction = (
+    <TopbarButton startIcon={<RetryIcon />} onClick={() => handleAction()}>
+      Retry
+    </TopbarButton>
+  );
 
-	if (!enableBuildParameters) {
-		return mainAction;
-	}
+  if (!enableBuildParameters) {
+    return mainAction;
+  }
 
-	return (
-		<ButtonGroup
-			variant="outlined"
-			css={{
-				// Workaround to make the border transitions smoothly on button groups
-				"& > button:hover + button": {
-					borderLeft: "1px solid #FFF",
-				},
-			}}
-		>
-			{mainAction}
-			<BuildParametersPopover
-				label="Retry with build parameters"
-				workspace={workspace}
-				onSubmit={handleAction}
-			/>
-		</ButtonGroup>
-	);
+  return (
+    <ButtonGroup
+      variant="outlined"
+      css={{
+        // Workaround to make the border transitions smoothly on button groups
+        "& > button:hover + button": {
+          borderLeft: "1px solid #FFF",
+        },
+      }}
+    >
+      {mainAction}
+      <BuildParametersPopover
+        label="Retry with build parameters"
+        workspace={workspace}
+        onSubmit={handleAction}
+      />
+    </ButtonGroup>
+  );
 };

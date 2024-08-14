@@ -13,70 +13,70 @@ import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
 const TemplateSettings = createContext<
-	{ template: Template; permissions: AuthorizationResponse } | undefined
+  { template: Template; permissions: AuthorizationResponse } | undefined
 >(undefined);
 
 export function useTemplateSettings() {
-	const value = useContext(TemplateSettings);
-	if (!value) {
-		throw new Error("This hook can only be used from a template settings page");
-	}
+  const value = useContext(TemplateSettings);
+  if (!value) {
+    throw new Error("This hook can only be used from a template settings page");
+  }
 
-	return value;
+  return value;
 }
 
 export const TemplateSettingsLayout: FC = () => {
-	const { organization: organizationName = "default", template: templateName } =
-		useParams() as { organization?: string; template: string };
-	const templateQuery = useQuery(
-		templateByName(organizationName, templateName),
-	);
-	const permissionsQuery = useQuery({
-		...checkAuthorization({
-			checks: {
-				canUpdateTemplate: {
-					object: {
-						resource_type: "template",
-						resource_id: templateQuery.data?.id ?? "",
-					},
-					action: "update",
-				},
-			},
-		}),
-		enabled: templateQuery.isSuccess,
-	});
+  const { organization: organizationName = "default", template: templateName } =
+    useParams() as { organization?: string; template: string };
+  const templateQuery = useQuery(
+    templateByName(organizationName, templateName),
+  );
+  const permissionsQuery = useQuery({
+    ...checkAuthorization({
+      checks: {
+        canUpdateTemplate: {
+          object: {
+            resource_type: "template",
+            resource_id: templateQuery.data?.id ?? "",
+          },
+          action: "update",
+        },
+      },
+    }),
+    enabled: templateQuery.isSuccess,
+  });
 
-	if (templateQuery.isLoading || permissionsQuery.isLoading) {
-		return <Loader />;
-	}
+  if (templateQuery.isLoading || permissionsQuery.isLoading) {
+    return <Loader />;
+  }
 
-	return (
-		<>
-			<Helmet>
-				<title>{pageTitle(templateName, "Settings")}</title>
-			</Helmet>
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle(templateName, "Settings")}</title>
+      </Helmet>
 
-			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
-					{templateQuery.isError || permissionsQuery.isError ? (
-						<ErrorAlert error={templateQuery.error} />
-					) : (
-						<TemplateSettings.Provider
-							value={{
-								template: templateQuery.data,
-								permissions: permissionsQuery.data,
-							}}
-						>
-							<Sidebar template={templateQuery.data} />
-							<Suspense fallback={<Loader />}>
-								<main css={{ width: "100%" }}>
-									<Outlet />
-								</main>
-							</Suspense>
-						</TemplateSettings.Provider>
-					)}
-				</Stack>
-			</Margins>
-		</>
-	);
+      <Margins>
+        <Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
+          {templateQuery.isError || permissionsQuery.isError ? (
+            <ErrorAlert error={templateQuery.error} />
+          ) : (
+            <TemplateSettings.Provider
+              value={{
+                template: templateQuery.data,
+                permissions: permissionsQuery.data,
+              }}
+            >
+              <Sidebar template={templateQuery.data} />
+              <Suspense fallback={<Loader />}>
+                <main css={{ width: "100%" }}>
+                  <Outlet />
+                </main>
+              </Suspense>
+            </TemplateSettings.Provider>
+          )}
+        </Stack>
+      </Margins>
+    </>
+  );
 };

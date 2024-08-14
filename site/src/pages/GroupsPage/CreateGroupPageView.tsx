@@ -14,72 +14,72 @@ import { Stack } from "components/Stack/Stack";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 
 const validationSchema = Yup.object({
-	name: Yup.string().required().label("Name"),
+  name: Yup.string().required().label("Name"),
 });
 
 export type CreateGroupPageViewProps = {
-	onSubmit: (data: CreateGroupRequest) => void;
-	error?: unknown;
-	isLoading: boolean;
-	// Helpful to show field errors on Storybook
-	initialTouched?: FormikTouched<CreateGroupRequest>;
+  onSubmit: (data: CreateGroupRequest) => void;
+  error?: unknown;
+  isLoading: boolean;
+  // Helpful to show field errors on Storybook
+  initialTouched?: FormikTouched<CreateGroupRequest>;
 };
 
 export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
-	onSubmit,
-	error,
-	isLoading,
-	initialTouched,
+  onSubmit,
+  error,
+  isLoading,
+  initialTouched,
 }) => {
-	const navigate = useNavigate();
-	const form = useFormik<CreateGroupRequest>({
-		initialValues: {
-			name: "",
-			display_name: "",
-			avatar_url: "",
-			quota_allowance: 0,
-		},
-		validationSchema,
-		onSubmit,
-		initialTouched,
-	});
-	const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
-	const onCancel = () => navigate("/groups");
+  const navigate = useNavigate();
+  const form = useFormik<CreateGroupRequest>({
+    initialValues: {
+      name: "",
+      display_name: "",
+      avatar_url: "",
+      quota_allowance: 0,
+    },
+    validationSchema,
+    onSubmit,
+    initialTouched,
+  });
+  const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
+  const onCancel = () => navigate("/groups");
 
-	return (
-		<Margins>
-			<FullPageForm title="Create group">
-				<form onSubmit={form.handleSubmit}>
-					<Stack spacing={2.5}>
-						{Boolean(error) && !isApiValidationError(error) && (
-							<ErrorAlert error={error} />
-						)}
+  return (
+    <Margins>
+      <FullPageForm title="Create group">
+        <form onSubmit={form.handleSubmit}>
+          <Stack spacing={2.5}>
+            {Boolean(error) && !isApiValidationError(error) && (
+              <ErrorAlert error={error} />
+            )}
 
-						<TextField
-							{...getFieldHelpers("name")}
-							autoFocus
-							fullWidth
-							label="Name"
-						/>
-						<TextField
-							{...getFieldHelpers("display_name", {
-								helperText: "Optional: keep empty to default to the name.",
-							})}
-							fullWidth
-							label="Display Name"
-						/>
-						<IconField
-							{...getFieldHelpers("avatar_url")}
-							onChange={onChangeTrimmed(form)}
-							fullWidth
-							label="Avatar URL"
-							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
-						/>
-					</Stack>
-					<FormFooter onCancel={onCancel} isLoading={isLoading} />
-				</form>
-			</FullPageForm>
-		</Margins>
-	);
+            <TextField
+              {...getFieldHelpers("name")}
+              autoFocus
+              fullWidth
+              label="Name"
+            />
+            <TextField
+              {...getFieldHelpers("display_name", {
+                helperText: "Optional: keep empty to default to the name.",
+              })}
+              fullWidth
+              label="Display Name"
+            />
+            <IconField
+              {...getFieldHelpers("avatar_url")}
+              onChange={onChangeTrimmed(form)}
+              fullWidth
+              label="Avatar URL"
+              onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
+            />
+          </Stack>
+          <FormFooter onCancel={onCancel} isLoading={isLoading} />
+        </form>
+      </FullPageForm>
+    </Margins>
+  );
 };
 export default CreateGroupPageView;

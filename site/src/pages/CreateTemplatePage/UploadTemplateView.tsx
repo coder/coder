@@ -3,9 +3,9 @@ import { useQuery, useMutation } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { uploadFile } from "api/queries/files";
 import {
-	templateVersionLogs,
-	JobError,
-	templateVersionVariables,
+  templateVersionLogs,
+  JobError,
+  templateVersionVariables,
 } from "api/queries/templates";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -14,65 +14,65 @@ import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 
 export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
-	onCreateTemplate,
-	onOpenBuildLogsDrawer,
-	variablesSectionRef,
-	isCreating,
-	error,
+  onCreateTemplate,
+  onOpenBuildLogsDrawer,
+  variablesSectionRef,
+  isCreating,
+  error,
 }) => {
-	const navigate = useNavigate();
-	const { entitlements, experiments } = useDashboard();
-	const { multiple_organizations: organizationsEnabled } =
-		useFeatureVisibility();
-	const formPermissions = getFormPermissions(entitlements);
+  const navigate = useNavigate();
+  const { entitlements, experiments } = useDashboard();
+  const { multiple_organizations: organizationsEnabled } =
+    useFeatureVisibility();
+  const formPermissions = getFormPermissions(entitlements);
 
-	const showOrganizationPicker =
-		experiments.includes("multi-organization") && organizationsEnabled;
+  const showOrganizationPicker =
+    experiments.includes("multi-organization") && organizationsEnabled;
 
-	const uploadFileMutation = useMutation(uploadFile());
-	const uploadedFile = uploadFileMutation.data;
+  const uploadFileMutation = useMutation(uploadFile());
+  const uploadedFile = uploadFileMutation.data;
 
-	const isJobError = error instanceof JobError;
-	const templateVersionLogsQuery = useQuery({
-		...templateVersionLogs(isJobError ? error.version.id : ""),
-		enabled: isJobError,
-	});
+  const isJobError = error instanceof JobError;
+  const templateVersionLogsQuery = useQuery({
+    ...templateVersionLogs(isJobError ? error.version.id : ""),
+    enabled: isJobError,
+  });
 
-	const missedVariables = useQuery({
-		...templateVersionVariables(isJobError ? error.version.id : ""),
-		enabled:
-			isJobError && error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
-	});
+  const missedVariables = useQuery({
+    ...templateVersionVariables(isJobError ? error.version.id : ""),
+    enabled:
+      isJobError && error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
+  });
 
-	return (
-		<CreateTemplateForm
-			{...formPermissions}
-			onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
-			variablesSectionRef={variablesSectionRef}
-			variables={missedVariables.data}
-			error={error}
-			isSubmitting={isCreating}
-			onCancel={() => navigate(-1)}
-			jobError={isJobError ? error.job.error : undefined}
-			logs={templateVersionLogsQuery.data}
-			upload={{
-				onUpload: uploadFileMutation.mutateAsync,
-				isUploading: uploadFileMutation.isLoading,
-				onRemove: uploadFileMutation.reset,
-				file: uploadFileMutation.variables,
-			}}
-			showOrganizationPicker={showOrganizationPicker}
-			onSubmit={async (formData) => {
-				await onCreateTemplate({
-					organization: formData.organization,
-					version: firstVersionFromFile(
-						uploadedFile!.hash,
-						formData.user_variable_values,
-						formData.provisioner_type,
-					),
-					template: newTemplate(formData),
-				});
-			}}
-		/>
-	);
+  return (
+    <CreateTemplateForm
+      {...formPermissions}
+      onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
+      variablesSectionRef={variablesSectionRef}
+      variables={missedVariables.data}
+      error={error}
+      isSubmitting={isCreating}
+      onCancel={() => navigate(-1)}
+      jobError={isJobError ? error.job.error : undefined}
+      logs={templateVersionLogsQuery.data}
+      upload={{
+        onUpload: uploadFileMutation.mutateAsync,
+        isUploading: uploadFileMutation.isLoading,
+        onRemove: uploadFileMutation.reset,
+        file: uploadFileMutation.variables,
+      }}
+      showOrganizationPicker={showOrganizationPicker}
+      onSubmit={async (formData) => {
+        await onCreateTemplate({
+          organization: formData.organization,
+          version: firstVersionFromFile(
+            uploadedFile!.hash,
+            formData.user_variable_values,
+            formData.provisioner_type,
+          ),
+          template: newTemplate(formData),
+        });
+      }}
+    />
+  );
 };

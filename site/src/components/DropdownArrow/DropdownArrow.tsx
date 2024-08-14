@@ -4,35 +4,35 @@ import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
 import type { FC } from "react";
 
 interface ArrowProps {
-	margin?: boolean;
-	color?: string;
-	close?: boolean;
+  margin?: boolean;
+  color?: string;
+  close?: boolean;
 }
 
 export const DropdownArrow: FC<ArrowProps> = ({
-	margin = true,
-	color,
-	close,
+  margin = true,
+  color,
+  close,
 }) => {
-	const Arrow = close ? KeyboardArrowUp : KeyboardArrowDown;
+  const Arrow = close ? KeyboardArrowUp : KeyboardArrowDown;
 
-	return (
-		<Arrow
-			aria-label={close ? "close-dropdown" : "open-dropdown"}
-			css={[styles.base, margin && styles.withMargin]}
-			style={{ color }}
-		/>
-	);
+  return (
+    <Arrow
+      aria-label={close ? "close-dropdown" : "open-dropdown"}
+      css={[styles.base, margin && styles.withMargin]}
+      style={{ color }}
+    />
+  );
 };
 
 const styles = {
-	base: {
-		color: "currentcolor",
-		width: 16,
-		height: 16,
-	},
+  base: {
+    color: "currentcolor",
+    width: 16,
+    height: 16,
+  },
 
-	withMargin: {
-		marginLeft: 8,
-	},
+  withMargin: {
+    marginLeft: 8,
+  },
 } satisfies Record<string, Interpolation<Theme>>;

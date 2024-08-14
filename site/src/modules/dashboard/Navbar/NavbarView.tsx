@@ -14,172 +14,172 @@ import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 export interface NavbarViewProps {
-	logo_url?: string;
-	user?: TypesGen.User;
-	buildInfo?: TypesGen.BuildInfoResponse;
-	supportLinks?: readonly TypesGen.LinkConfig[];
-	onSignOut: () => void;
-	canViewDeployment: boolean;
-	canViewOrganizations: boolean;
-	canViewAllUsers: boolean;
-	canViewAuditLog: boolean;
-	canViewHealth: boolean;
-	proxyContextValue?: ProxyContextValue;
+  logo_url?: string;
+  user?: TypesGen.User;
+  buildInfo?: TypesGen.BuildInfoResponse;
+  supportLinks?: readonly TypesGen.LinkConfig[];
+  onSignOut: () => void;
+  canViewDeployment: boolean;
+  canViewOrganizations: boolean;
+  canViewAllUsers: boolean;
+  canViewAuditLog: boolean;
+  canViewHealth: boolean;
+  proxyContextValue?: ProxyContextValue;
 }
 
 export const Language = {
-	workspaces: "Workspaces",
-	templates: "Templates",
-	users: "Users",
-	audit: "Audit Logs",
-	deployment: "Settings",
+  workspaces: "Workspaces",
+  templates: "Templates",
+  users: "Users",
+  audit: "Audit Logs",
+  deployment: "Settings",
 };
 
 interface NavItemsProps {
-	className?: string;
+  className?: string;
 }
 
 const NavItems: FC<NavItemsProps> = ({ className }) => {
-	const location = useLocation();
-	const theme = useTheme();
+  const location = useLocation();
+  const theme = useTheme();
 
-	return (
-		<nav className={className}>
-			<NavLink
-				css={[
-					styles.link,
-					location.pathname.startsWith("/@") && {
-						color: theme.palette.text.primary,
-						fontWeight: 500,
-					},
-				]}
-				to="/workspaces"
-			>
-				{Language.workspaces}
-			</NavLink>
-			<NavLink css={styles.link} to="/templates">
-				{Language.templates}
-			</NavLink>
-		</nav>
-	);
+  return (
+    <nav className={className}>
+      <NavLink
+        css={[
+          styles.link,
+          location.pathname.startsWith("/@") && {
+            color: theme.palette.text.primary,
+            fontWeight: 500,
+          },
+        ]}
+        to="/workspaces"
+      >
+        {Language.workspaces}
+      </NavLink>
+      <NavLink css={styles.link} to="/templates">
+        {Language.templates}
+      </NavLink>
+    </nav>
+  );
 };
 
 export const NavbarView: FC<NavbarViewProps> = ({
-	user,
-	logo_url,
-	buildInfo,
-	supportLinks,
-	onSignOut,
-	canViewDeployment,
-	canViewOrganizations,
-	canViewAllUsers,
-	canViewHealth,
-	canViewAuditLog,
-	proxyContextValue,
+  user,
+  logo_url,
+  buildInfo,
+  supportLinks,
+  onSignOut,
+  canViewDeployment,
+  canViewOrganizations,
+  canViewAllUsers,
+  canViewHealth,
+  canViewAuditLog,
+  proxyContextValue,
 }) => {
-	const theme = useTheme();
-	const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const theme = useTheme();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-	return (
-		<nav
-			css={{
-				height: navHeight,
-				backgroundColor: theme.palette.background.paper,
-				borderBottom: `1px solid ${theme.palette.divider}`,
-			}}
-		>
-			<div css={styles.wrapper}>
-				<IconButton
-					aria-label="Open menu"
-					css={styles.mobileMenuButton}
-					onClick={() => {
-						setIsDrawerOpen(true);
-					}}
-					size="large"
-				>
-					<MenuIcon />
-				</IconButton>
+  return (
+    <nav
+      css={{
+        height: navHeight,
+        backgroundColor: theme.palette.background.paper,
+        borderBottom: `1px solid ${theme.palette.divider}`,
+      }}
+    >
+      <div css={styles.wrapper}>
+        <IconButton
+          aria-label="Open menu"
+          css={styles.mobileMenuButton}
+          onClick={() => {
+            setIsDrawerOpen(true);
+          }}
+          size="large"
+        >
+          <MenuIcon />
+        </IconButton>
 
-				<Drawer
-					anchor="left"
-					open={isDrawerOpen}
-					onClose={() => setIsDrawerOpen(false)}
-				>
-					<div css={{ width: 250 }}>
-						<div css={styles.drawerHeader}>
-							<div css={[styles.logo, styles.drawerLogo]}>
-								{logo_url ? (
-									<ExternalImage src={logo_url} alt="Custom Logo" />
-								) : (
-									<CoderIcon />
-								)}
-							</div>
-						</div>
-						<NavItems />
-					</div>
-				</Drawer>
+        <Drawer
+          anchor="left"
+          open={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+        >
+          <div css={{ width: 250 }}>
+            <div css={styles.drawerHeader}>
+              <div css={[styles.logo, styles.drawerLogo]}>
+                {logo_url ? (
+                  <ExternalImage src={logo_url} alt="Custom Logo" />
+                ) : (
+                  <CoderIcon />
+                )}
+              </div>
+            </div>
+            <NavItems />
+          </div>
+        </Drawer>
 
-				<NavLink css={styles.logo} to="/workspaces">
-					{logo_url ? (
-						<ExternalImage src={logo_url} alt="Custom Logo" />
-					) : (
-						<CoderIcon fill="white" opacity={1} width={125} />
-					)}
-				</NavLink>
+        <NavLink css={styles.logo} to="/workspaces">
+          {logo_url ? (
+            <ExternalImage src={logo_url} alt="Custom Logo" />
+          ) : (
+            <CoderIcon fill="white" opacity={1} width={125} />
+          )}
+        </NavLink>
 
-				<NavItems css={styles.desktopNavItems} />
+        <NavItems css={styles.desktopNavItems} />
 
-				<div css={styles.navMenus}>
-					{proxyContextValue && (
-						<ProxyMenu proxyContextValue={proxyContextValue} />
-					)}
+        <div css={styles.navMenus}>
+          {proxyContextValue && (
+            <ProxyMenu proxyContextValue={proxyContextValue} />
+          )}
 
-					<DeploymentDropdown
-						canViewAuditLog={canViewAuditLog}
-						canViewOrganizations={canViewOrganizations}
-						canViewDeployment={canViewDeployment}
-						canViewAllUsers={canViewAllUsers}
-						canViewHealth={canViewHealth}
-					/>
+          <DeploymentDropdown
+            canViewAuditLog={canViewAuditLog}
+            canViewOrganizations={canViewOrganizations}
+            canViewDeployment={canViewDeployment}
+            canViewAllUsers={canViewAllUsers}
+            canViewHealth={canViewHealth}
+          />
 
-					{user && (
-						<UserDropdown
-							user={user}
-							buildInfo={buildInfo}
-							supportLinks={supportLinks}
-							onSignOut={onSignOut}
-						/>
-					)}
-				</div>
-			</div>
-		</nav>
-	);
+          {user && (
+            <UserDropdown
+              user={user}
+              buildInfo={buildInfo}
+              supportLinks={supportLinks}
+              onSignOut={onSignOut}
+            />
+          )}
+        </div>
+      </div>
+    </nav>
+  );
 };
 
 const styles = {
-	desktopNavItems: (theme) => css`
+  desktopNavItems: (theme) => css`
     display: none;
 
     ${theme.breakpoints.up("md")} {
       display: flex;
     }
   `,
-	mobileMenuButton: (theme) => css`
+  mobileMenuButton: (theme) => css`
     ${theme.breakpoints.up("md")} {
       display: none;
     }
   `,
-	navMenus: (theme) => ({
-		display: "flex",
-		gap: 16,
-		alignItems: "center",
-		paddingRight: 16,
+  navMenus: (theme) => ({
+    display: "flex",
+    gap: 16,
+    alignItems: "center",
+    paddingRight: 16,
 
-		[theme.breakpoints.up("md")]: {
-			marginLeft: "auto",
-		},
-	}),
-	wrapper: (theme) => css`
+    [theme.breakpoints.up("md")]: {
+      marginLeft: "auto",
+    },
+  }),
+  wrapper: (theme) => css`
     position: relative;
     display: flex;
     justify-content: space-between;
@@ -189,12 +189,12 @@ const styles = {
       justify-content: flex-start;
     }
   `,
-	drawerHeader: {
-		padding: 16,
-		paddingTop: 32,
-		paddingBottom: 32,
-	},
-	logo: (theme) => css`
+  drawerHeader: {
+    padding: 16,
+    paddingTop: 32,
+    paddingBottom: 32,
+  },
+  logo: (theme) => css`
     align-items: center;
     display: flex;
     height: ${navHeight}px;
@@ -208,11 +208,11 @@ const styles = {
       object-fit: contain;
     }
   `,
-	drawerLogo: {
-		padding: 0,
-		maxHeight: 40,
-	},
-	link: (theme) => css`
+  drawerLogo: {
+    padding: 0,
+    maxHeight: 40,
+  },
+  link: (theme) => css`
     align-items: center;
     color: ${theme.palette.text.secondary};
     display: flex;

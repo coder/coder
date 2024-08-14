@@ -2,26 +2,26 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { PopoverPaywall } from "./PopoverPaywall";
 
 const meta: Meta<typeof PopoverPaywall> = {
-	title: "components/Paywall/PopoverPaywall",
-	component: PopoverPaywall,
+  title: "components/Paywall/PopoverPaywall",
+  component: PopoverPaywall,
 };
 
 export default meta;
 type Story = StoryObj<typeof PopoverPaywall>;
 
 export const Enterprise: Story = {
-	args: {
-		message: "Black Lotus",
-		description:
-			"Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
-	},
+  args: {
+    message: "Black Lotus",
+    description:
+      "Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
+  },
 };
 
 export const Premium: Story = {
-	args: {
-		message: "Black Lotus",
-		description:
-			"Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
-		licenseType: "premium",
-	},
+  args: {
+    message: "Black Lotus",
+    description:
+      "Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
+    licenseType: "premium",
+  },
 };

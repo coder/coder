@@ -7,24 +7,24 @@ import { pageTitle } from "utils/page";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
 const StarterTemplatePage: FC = () => {
-	const { exampleId } = useParams() as { exampleId: string };
-	const templateExamplesQuery = useQuery(templateExamples());
-	const starterTemplate = templateExamplesQuery.data?.find(
-		(example) => example.id === exampleId,
-	);
+  const { exampleId } = useParams() as { exampleId: string };
+  const templateExamplesQuery = useQuery(templateExamples());
+  const starterTemplate = templateExamplesQuery.data?.find(
+    (example) => example.id === exampleId,
+  );
 
-	return (
-		<>
-			<Helmet>
-				<title>{pageTitle(starterTemplate?.name ?? exampleId)}</title>
-			</Helmet>
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle(starterTemplate?.name ?? exampleId)}</title>
+      </Helmet>
 
-			<StarterTemplatePageView
-				starterTemplate={starterTemplate}
-				error={templateExamplesQuery.error}
-			/>
-		</>
-	);
+      <StarterTemplatePageView
+        starterTemplate={starterTemplate}
+        error={templateExamplesQuery.error}
+      />
+    </>
+  );
 };
 
 export default StarterTemplatePage;

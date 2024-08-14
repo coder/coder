@@ -5,163 +5,163 @@ import IconButton from "@mui/material/IconButton";
 import type { FC } from "react";
 import type { SlimRole } from "api/typesGenerated";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
+  HelpTooltip,
+  HelpTooltipContent,
+  HelpTooltipText,
+  HelpTooltipTitle,
+  HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { EditSquare } from "components/Icons/EditSquare";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
 
 const roleDescriptions: Record<string, string> = {
-	owner:
-		"Owner can manage all resources, including users, groups, templates, and workspaces.",
-	"user-admin": "User admin can manage all users and groups.",
-	"template-admin": "Template admin can manage all templates and workspaces.",
-	auditor: "Auditor can access the audit logs.",
-	member:
-		"Everybody is a member. This is a shared and default role for all users.",
+  owner:
+    "Owner can manage all resources, including users, groups, templates, and workspaces.",
+  "user-admin": "User admin can manage all users and groups.",
+  "template-admin": "Template admin can manage all templates and workspaces.",
+  auditor: "Auditor can access the audit logs.",
+  member:
+    "Everybody is a member. This is a shared and default role for all users.",
 };
 
 interface OptionProps {
-	value: string;
-	name: string;
-	description: string;
-	isChecked: boolean;
-	onChange: (roleName: string) => void;
+  value: string;
+  name: string;
+  description: string;
+  isChecked: boolean;
+  onChange: (roleName: string) => void;
 }
 
 const Option: FC<OptionProps> = ({
-	value,
-	name,
-	description,
-	isChecked,
-	onChange,
+  value,
+  name,
+  description,
+  isChecked,
+  onChange,
 }) => {
-	return (
-		<label htmlFor={name} css={styles.option}>
-			<Stack direction="row" alignItems="flex-start">
-				<Checkbox
-					id={name}
-					size="small"
-					css={styles.checkbox}
-					value={value}
-					checked={isChecked}
-					onChange={(e) => {
-						onChange(e.currentTarget.value);
-					}}
-				/>
-				<Stack spacing={0}>
-					<strong>{name}</strong>
-					<span css={styles.optionDescription}>{description}</span>
-				</Stack>
-			</Stack>
-		</label>
-	);
+  return (
+    <label htmlFor={name} css={styles.option}>
+      <Stack direction="row" alignItems="flex-start">
+        <Checkbox
+          id={name}
+          size="small"
+          css={styles.checkbox}
+          value={value}
+          checked={isChecked}
+          onChange={(e) => {
+            onChange(e.currentTarget.value);
+          }}
+        />
+        <Stack spacing={0}>
+          <strong>{name}</strong>
+          <span css={styles.optionDescription}>{description}</span>
+        </Stack>
+      </Stack>
+    </label>
+  );
 };
 
 export interface EditRolesButtonProps {
-	isLoading: boolean;
-	roles: readonly SlimRole[];
-	selectedRoleNames: Set<string>;
-	onChange: (roles: SlimRole["name"][]) => void;
-	oidcRoleSync: boolean;
-	userLoginType?: string;
+  isLoading: boolean;
+  roles: readonly SlimRole[];
+  selectedRoleNames: Set<string>;
+  onChange: (roles: SlimRole["name"][]) => void;
+  oidcRoleSync: boolean;
+  userLoginType?: string;
 }
 
 export const EditRolesButton: FC<EditRolesButtonProps> = ({
-	roles,
-	selectedRoleNames,
-	onChange,
-	isLoading,
-	userLoginType,
-	oidcRoleSync,
+  roles,
+  selectedRoleNames,
+  onChange,
+  isLoading,
+  userLoginType,
+  oidcRoleSync,
 }) => {
-	const paper = useClassName(classNames.paper, []);
+  const paper = useClassName(classNames.paper, []);
 
-	const handleChange = (roleName: string) => {
-		if (selectedRoleNames.has(roleName)) {
-			const serialized = [...selectedRoleNames];
-			onChange(serialized.filter((role) => role !== roleName));
-			return;
-		}
+  const handleChange = (roleName: string) => {
+    if (selectedRoleNames.has(roleName)) {
+      const serialized = [...selectedRoleNames];
+      onChange(serialized.filter((role) => role !== roleName));
+      return;
+    }
 
-		onChange([...selectedRoleNames, roleName]);
-	};
+    onChange([...selectedRoleNames, roleName]);
+  };
 
-	const canSetRoles =
-		userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
+  const canSetRoles =
+    userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
 
-	if (!canSetRoles) {
-		return (
-			<HelpTooltip>
-				<HelpTooltipTrigger size="small" />
-				<HelpTooltipContent>
-					<HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
-					<HelpTooltipText>
-						Roles for this user are controlled by the OIDC identity provider.
-					</HelpTooltipText>
-				</HelpTooltipContent>
-			</HelpTooltip>
-		);
-	}
+  if (!canSetRoles) {
+    return (
+      <HelpTooltip>
+        <HelpTooltipTrigger size="small" />
+        <HelpTooltipContent>
+          <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
+          <HelpTooltipText>
+            Roles for this user are controlled by the OIDC identity provider.
+          </HelpTooltipText>
+        </HelpTooltipContent>
+      </HelpTooltip>
+    );
+  }
 
-	return (
-		<Popover>
-			<PopoverTrigger>
-				<IconButton
-					size="small"
-					css={styles.editButton}
-					title="Edit user roles"
-				>
-					<EditSquare />
-				</IconButton>
-			</PopoverTrigger>
+  return (
+    <Popover>
+      <PopoverTrigger>
+        <IconButton
+          size="small"
+          css={styles.editButton}
+          title="Edit user roles"
+        >
+          <EditSquare />
+        </IconButton>
+      </PopoverTrigger>
 
-			<PopoverContent classes={{ paper }}>
-				<fieldset
-					css={styles.fieldset}
-					disabled={isLoading}
-					title="Available roles"
-				>
-					<Stack css={styles.options} spacing={3}>
-						{roles.map((role) => (
-							<Option
-								key={role.name}
-								onChange={handleChange}
-								isChecked={selectedRoleNames.has(role.name)}
-								value={role.name}
-								name={role.display_name || role.name}
-								description={roleDescriptions[role.name] ?? ""}
-							/>
-						))}
-					</Stack>
-				</fieldset>
-				<div css={styles.footer}>
-					<Stack direction="row" alignItems="flex-start">
-						<UserIcon css={styles.userIcon} />
-						<Stack spacing={0}>
-							<strong>Member</strong>
-							<span css={styles.optionDescription}>
-								{roleDescriptions.member}
-							</span>
-						</Stack>
-					</Stack>
-				</div>
-			</PopoverContent>
-		</Popover>
-	);
+      <PopoverContent classes={{ paper }}>
+        <fieldset
+          css={styles.fieldset}
+          disabled={isLoading}
+          title="Available roles"
+        >
+          <Stack css={styles.options} spacing={3}>
+            {roles.map((role) => (
+              <Option
+                key={role.name}
+                onChange={handleChange}
+                isChecked={selectedRoleNames.has(role.name)}
+                value={role.name}
+                name={role.display_name || role.name}
+                description={roleDescriptions[role.name] ?? ""}
+              />
+            ))}
+          </Stack>
+        </fieldset>
+        <div css={styles.footer}>
+          <Stack direction="row" alignItems="flex-start">
+            <UserIcon css={styles.userIcon} />
+            <Stack spacing={0}>
+              <strong>Member</strong>
+              <span css={styles.optionDescription}>
+                {roleDescriptions.member}
+              </span>
+            </Stack>
+          </Stack>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 const classNames = {
-	paper: (css, theme) => css`
+  paper: (css, theme) => css`
     width: 360px;
     margin-top: 8px;
     background: ${theme.palette.background.paper};
@@ -169,61 +169,61 @@ const classNames = {
 } satisfies Record<string, ClassName>;
 
 const styles = {
-	editButton: (theme) => ({
-		color: theme.palette.text.secondary,
+  editButton: (theme) => ({
+    color: theme.palette.text.secondary,
 
-		"& .MuiSvgIcon-root": {
-			width: 16,
-			height: 16,
-			position: "relative",
-			top: -2, // Align the pencil square
-		},
+    "& .MuiSvgIcon-root": {
+      width: 16,
+      height: 16,
+      position: "relative",
+      top: -2, // Align the pencil square
+    },
 
-		"&:hover": {
-			color: theme.palette.text.primary,
-			backgroundColor: "transparent",
-		},
-	}),
-	fieldset: {
-		border: 0,
-		margin: 0,
-		padding: 0,
+    "&:hover": {
+      color: theme.palette.text.primary,
+      backgroundColor: "transparent",
+    },
+  }),
+  fieldset: {
+    border: 0,
+    margin: 0,
+    padding: 0,
 
-		"&:disabled": {
-			opacity: 0.5,
-		},
-	},
-	options: {
-		padding: 24,
-	},
-	option: {
-		cursor: "pointer",
-		fontSize: 14,
-	},
-	checkbox: {
-		padding: 0,
-		position: "relative",
-		top: 1, // Alignment
+    "&:disabled": {
+      opacity: 0.5,
+    },
+  },
+  options: {
+    padding: 24,
+  },
+  option: {
+    cursor: "pointer",
+    fontSize: 14,
+  },
+  checkbox: {
+    padding: 0,
+    position: "relative",
+    top: 1, // Alignment
 
-		"& svg": {
-			width: 20,
-			height: 20,
-		},
-	},
-	optionDescription: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "160%",
-	}),
-	footer: (theme) => ({
-		padding: 24,
-		backgroundColor: theme.palette.background.paper,
-		borderTop: `1px solid ${theme.palette.divider}`,
-		fontSize: 14,
-	}),
-	userIcon: (theme) => ({
-		width: 20, // Same as the checkbox
-		height: 20,
-		color: theme.palette.primary.main,
-	}),
+    "& svg": {
+      width: 20,
+      height: 20,
+    },
+  },
+  optionDescription: (theme) => ({
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+    lineHeight: "160%",
+  }),
+  footer: (theme) => ({
+    padding: 24,
+    backgroundColor: theme.palette.background.paper,
+    borderTop: `1px solid ${theme.palette.divider}`,
+    fontSize: 14,
+  }),
+  userIcon: (theme) => ({
+    width: 20, // Same as the checkbox
+    height: 20,
+    color: theme.palette.primary.main,
+  }),
 } satisfies Record<string, Interpolation<Theme>>;

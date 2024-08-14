@@ -10,40 +10,40 @@ import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
 export const AccountPage: FC = () => {
-	const { permissions, user: me } = useAuthenticated();
-	const { updateProfile, updateProfileError, isUpdatingProfile } =
-		useAuthContext();
-	const { entitlements } = useDashboard();
+  const { permissions, user: me } = useAuthenticated();
+  const { updateProfile, updateProfileError, isUpdatingProfile } =
+    useAuthContext();
+  const { entitlements } = useDashboard();
 
-	const hasGroupsFeature = entitlements.features.user_role_management.enabled;
-	const groupsQuery = useQuery({
-		// TODO: This should probably list all groups, not just default org groups
-		...groupsForUser("default", me.id),
-		enabled: hasGroupsFeature,
-	});
+  const hasGroupsFeature = entitlements.features.user_role_management.enabled;
+  const groupsQuery = useQuery({
+    // TODO: This should probably list all groups, not just default org groups
+    ...groupsForUser("default", me.id),
+    enabled: hasGroupsFeature,
+  });
 
-	return (
-		<Stack spacing={6}>
-			<Section title="Account" description="Update your account info">
-				<AccountForm
-					editable={permissions?.updateUsers ?? false}
-					email={me.email}
-					updateProfileError={updateProfileError}
-					isLoading={isUpdatingProfile}
-					initialValues={{ username: me.username, name: me.name }}
-					onSubmit={updateProfile}
-				/>
-			</Section>
+  return (
+    <Stack spacing={6}>
+      <Section title="Account" description="Update your account info">
+        <AccountForm
+          editable={permissions?.updateUsers ?? false}
+          email={me.email}
+          updateProfileError={updateProfileError}
+          isLoading={isUpdatingProfile}
+          initialValues={{ username: me.username, name: me.name }}
+          onSubmit={updateProfile}
+        />
+      </Section>
 
-			{hasGroupsFeature && (
-				<AccountUserGroups
-					groups={groupsQuery.data}
-					loading={groupsQuery.isLoading}
-					error={groupsQuery.error}
-				/>
-			)}
-		</Stack>
-	);
+      {hasGroupsFeature && (
+        <AccountUserGroups
+          groups={groupsQuery.data}
+          loading={groupsQuery.isLoading}
+          error={groupsQuery.error}
+        />
+      )}
+    </Stack>
+  );
 };
 
 export default AccountPage;

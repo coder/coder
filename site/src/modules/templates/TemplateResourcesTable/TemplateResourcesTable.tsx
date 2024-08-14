@@ -4,20 +4,20 @@ import { AgentRowPreview } from "modules/resources/AgentRowPreview";
 import { Resources } from "modules/resources/Resources";
 
 export interface TemplateResourcesProps {
-	resources: WorkspaceResource[];
+  resources: WorkspaceResource[];
 }
 
 export const TemplateResourcesTable: FC<TemplateResourcesProps> = ({
-	resources,
+  resources,
 }) => {
-	return (
-		<Resources
-			resources={resources}
-			agentRow={(agent, count) => (
-				// Align values if there are more than one row
-				// When it is only one row, it is better to have it "flex" and not hard aligned
-				<AgentRowPreview key={agent.id} agent={agent} alignValues={count > 1} />
-			)}
-		/>
-	);
+  return (
+    <Resources
+      resources={resources}
+      agentRow={(agent, count) => (
+        // Align values if there are more than one row
+        // When it is only one row, it is better to have it "flex" and not hard aligned
+        <AgentRowPreview key={agent.id} agent={agent} alignValues={count > 1} />
+      )}
+    />
+  );
 };

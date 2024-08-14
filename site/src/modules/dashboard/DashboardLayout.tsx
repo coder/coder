@@ -15,108 +15,108 @@ import { Navbar } from "./Navbar/Navbar";
 import { useUpdateCheck } from "./useUpdateCheck";
 
 export const DashboardLayout: FC = () => {
-	const { permissions } = useAuthenticated();
-	const updateCheck = useUpdateCheck(permissions.viewUpdateCheck);
-	const canViewDeployment = Boolean(permissions.viewDeploymentValues);
+  const { permissions } = useAuthenticated();
+  const updateCheck = useUpdateCheck(permissions.viewUpdateCheck);
+  const canViewDeployment = Boolean(permissions.viewDeploymentValues);
 
-	return (
-		<>
-			{canViewDeployment && <LicenseBanner />}
-			<AnnouncementBanners />
+  return (
+    <>
+      {canViewDeployment && <LicenseBanner />}
+      <AnnouncementBanners />
 
-			<div
-				css={{
-					display: "flex",
-					minHeight: "100%",
-					flexDirection: "column",
-				}}
-			>
-				<Navbar />
+      <div
+        css={{
+          display: "flex",
+          minHeight: "100%",
+          flexDirection: "column",
+        }}
+      >
+        <Navbar />
 
-				<div
-					css={{
-						flex: 1,
-						paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
-						display: "flex",
-						flexDirection: "column",
-					}}
-				>
-					<Suspense fallback={<Loader />}>
-						<Outlet />
-					</Suspense>
-				</div>
+        <div
+          css={{
+            flex: 1,
+            paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Suspense fallback={<Loader />}>
+            <Outlet />
+          </Suspense>
+        </div>
 
-				<DeploymentBanner />
+        <DeploymentBanner />
 
-				<Snackbar
-					data-testid="update-check-snackbar"
-					open={updateCheck.isVisible}
-					anchorOrigin={{
-						vertical: "bottom",
-						horizontal: "right",
-					}}
-					ContentProps={{
-						sx: (theme) => ({
-							background: theme.palette.background.paper,
-							color: theme.palette.text.primary,
-							maxWidth: 440,
-							flexDirection: "row",
-							borderColor: theme.palette.info.light,
+        <Snackbar
+          data-testid="update-check-snackbar"
+          open={updateCheck.isVisible}
+          anchorOrigin={{
+            vertical: "bottom",
+            horizontal: "right",
+          }}
+          ContentProps={{
+            sx: (theme) => ({
+              background: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              maxWidth: 440,
+              flexDirection: "row",
+              borderColor: theme.palette.info.light,
 
-							"& .MuiSnackbarContent-message": {
-								flex: 1,
-							},
+              "& .MuiSnackbarContent-message": {
+                flex: 1,
+              },
 
-							"& .MuiSnackbarContent-action": {
-								marginRight: 0,
-							},
-						}),
-					}}
-					message={
-						<div css={{ display: "flex", gap: 16 }}>
-							<InfoOutlined
-								css={(theme) => ({
-									fontSize: 16,
-									height: 20, // 20 is the height of the text line so we can align them
-									color: theme.palette.info.light,
-								})}
-							/>
-							<p>
-								Coder {updateCheck.data?.version} is now available. View the{" "}
-								<Link href={updateCheck.data?.url}>release notes</Link> and{" "}
-								<Link href={docs("/admin/upgrade")}>upgrade instructions</Link>{" "}
-								for more information.
-							</p>
-						</div>
-					}
-					action={
-						<Button variant="text" size="small" onClick={updateCheck.dismiss}>
-							Dismiss
-						</Button>
-					}
-				/>
-			</div>
-		</>
-	);
+              "& .MuiSnackbarContent-action": {
+                marginRight: 0,
+              },
+            }),
+          }}
+          message={
+            <div css={{ display: "flex", gap: 16 }}>
+              <InfoOutlined
+                css={(theme) => ({
+                  fontSize: 16,
+                  height: 20, // 20 is the height of the text line so we can align them
+                  color: theme.palette.info.light,
+                })}
+              />
+              <p>
+                Coder {updateCheck.data?.version} is now available. View the{" "}
+                <Link href={updateCheck.data?.url}>release notes</Link> and{" "}
+                <Link href={docs("/admin/upgrade")}>upgrade instructions</Link>{" "}
+                for more information.
+              </p>
+            </div>
+          }
+          action={
+            <Button variant="text" size="small" onClick={updateCheck.dismiss}>
+              Dismiss
+            </Button>
+          }
+        />
+      </div>
+    </>
+  );
 };
 
 export const DashboardFullPage: FC<HTMLAttributes<HTMLDivElement>> = ({
-	children,
-	...attrs
+  children,
+  ...attrs
 }) => {
-	return (
-		<div
-			{...attrs}
-			css={{
-				marginBottom: `-${dashboardContentBottomPadding}px`,
-				flex: 1,
-				display: "flex",
-				flexDirection: "column",
-				flexBasis: 0,
-				minHeight: "100%",
-			}}
-		>
-			{children}
-		</div>
-	);
+  return (
+    <div
+      {...attrs}
+      css={{
+        marginBottom: `-${dashboardContentBottomPadding}px`,
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        flexBasis: 0,
+        minHeight: "100%",
+      }}
+    >
+      {children}
+    </div>
+  );
 };

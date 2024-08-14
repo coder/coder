@@ -9,36 +9,36 @@ import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
 export const Language = {
-	unknownError: "Oops, an unknown error occurred.",
+  unknownError: "Oops, an unknown error occurred.",
 };
 
 export const CreateUserPage: FC = () => {
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
-	const createUserMutation = useMutation(createUser(queryClient));
-	const authMethodsQuery = useQuery(authMethods());
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const createUserMutation = useMutation(createUser(queryClient));
+  const authMethodsQuery = useQuery(authMethods());
 
-	return (
-		<Margins>
-			<Helmet>
-				<title>{pageTitle("Create User")}</title>
-			</Helmet>
+  return (
+    <Margins>
+      <Helmet>
+        <title>{pageTitle("Create User")}</title>
+      </Helmet>
 
-			<CreateUserForm
-				error={createUserMutation.error}
-				authMethods={authMethodsQuery.data}
-				onSubmit={async (user) => {
-					await createUserMutation.mutateAsync(user);
-					displaySuccess("Successfully created user.");
-					navigate("..", { relative: "path" });
-				}}
-				onCancel={() => {
-					navigate("..", { relative: "path" });
-				}}
-				isLoading={createUserMutation.isLoading}
-			/>
-		</Margins>
-	);
+      <CreateUserForm
+        error={createUserMutation.error}
+        authMethods={authMethodsQuery.data}
+        onSubmit={async (user) => {
+          await createUserMutation.mutateAsync(user);
+          displaySuccess("Successfully created user.");
+          navigate("..", { relative: "path" });
+        }}
+        onCancel={() => {
+          navigate("..", { relative: "path" });
+        }}
+        isLoading={createUserMutation.isLoading}
+      />
+    </Margins>
+  );
 };
 
 export default CreateUserPage;

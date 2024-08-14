@@ -12,55 +12,55 @@ import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
 
 export const SetupPage: FC = () => {
-	const {
-		isLoading,
-		signIn,
-		isConfiguringTheFirstUser,
-		isSignedIn,
-		isSigningIn,
-	} = useAuthContext();
-	const createFirstUserMutation = useMutation(createFirstUser());
-	const setupIsComplete = !isConfiguringTheFirstUser;
-	const { metadata } = useEmbeddedMetadata();
-	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const navigate = useNavigate();
-	useEffect(() => {
-		if (!buildInfoQuery.data) {
-			return;
-		}
-		sendDeploymentEvent(buildInfoQuery.data, {
-			type: "deployment_setup",
-		});
-	}, [buildInfoQuery.data]);
+  const {
+    isLoading,
+    signIn,
+    isConfiguringTheFirstUser,
+    isSignedIn,
+    isSigningIn,
+  } = useAuthContext();
+  const createFirstUserMutation = useMutation(createFirstUser());
+  const setupIsComplete = !isConfiguringTheFirstUser;
+  const { metadata } = useEmbeddedMetadata();
+  const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!buildInfoQuery.data) {
+      return;
+    }
+    sendDeploymentEvent(buildInfoQuery.data, {
+      type: "deployment_setup",
+    });
+  }, [buildInfoQuery.data]);
 
-	if (isLoading) {
-		return <Loader fullscreen />;
-	}
+  if (isLoading) {
+    return <Loader fullscreen />;
+  }
 
-	// If the user is logged in, navigate to the app
-	if (isSignedIn) {
-		return <Navigate to="/" state={{ isRedirect: true }} replace />;
-	}
+  // If the user is logged in, navigate to the app
+  if (isSignedIn) {
+    return <Navigate to="/" state={{ isRedirect: true }} replace />;
+  }
 
-	// If we've already completed setup, navigate to the login page
-	if (setupIsComplete) {
-		return <Navigate to="/login" state={{ isRedirect: true }} replace />;
-	}
+  // If we've already completed setup, navigate to the login page
+  if (setupIsComplete) {
+    return <Navigate to="/login" state={{ isRedirect: true }} replace />;
+  }
 
-	return (
-		<>
-			<Helmet>
-				<title>{pageTitle("Set up your account")}</title>
-			</Helmet>
-			<SetupPageView
-				isLoading={isSigningIn || createFirstUserMutation.isLoading}
-				error={createFirstUserMutation.error}
-				onSubmit={async (firstUser) => {
-					await createFirstUserMutation.mutateAsync(firstUser);
-					await signIn(firstUser.email, firstUser.password);
-					navigate("/templates");
-				}}
-			/>
-		</>
-	);
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle("Set up your account")}</title>
+      </Helmet>
+      <SetupPageView
+        isLoading={isSigningIn || createFirstUserMutation.isLoading}
+        error={createFirstUserMutation.error}
+        onSubmit={async (firstUser) => {
+          await createFirstUserMutation.mutateAsync(firstUser);
+          await signIn(firstUser.email, firstUser.password);
+          navigate("/templates");
+        }}
+      />
+    </>
+  );
 };

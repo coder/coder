@@ -2,6 +2,10 @@
   "files": {
     "ignore": ["**/*Generated.ts"]
   },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
   "linter": {
     "rules": {
       "a11y": {

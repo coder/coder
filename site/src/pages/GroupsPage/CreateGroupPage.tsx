@@ -7,24 +7,24 @@ import { pageTitle } from "utils/page";
 import CreateGroupPageView from "./CreateGroupPageView";
 
 export const CreateGroupPage: FC = () => {
-	const queryClient = useQueryClient();
-	const navigate = useNavigate();
-	const createGroupMutation = useMutation(createGroup(queryClient, "default"));
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const createGroupMutation = useMutation(createGroup(queryClient, "default"));
 
-	return (
-		<>
-			<Helmet>
-				<title>{pageTitle("Create Group")}</title>
-			</Helmet>
-			<CreateGroupPageView
-				onSubmit={async (data) => {
-					const newGroup = await createGroupMutation.mutateAsync(data);
-					navigate(`/groups/${newGroup.name}`);
-				}}
-				error={createGroupMutation.error}
-				isLoading={createGroupMutation.isLoading}
-			/>
-		</>
-	);
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle("Create Group")}</title>
+      </Helmet>
+      <CreateGroupPageView
+        onSubmit={async (data) => {
+          const newGroup = await createGroupMutation.mutateAsync(data);
+          navigate(`/groups/${newGroup.name}`);
+        }}
+        error={createGroupMutation.error}
+        isLoading={createGroupMutation.isLoading}
+      />
+    </>
+  );
 };
 export default CreateGroupPage;

@@ -17,116 +17,116 @@ import { workspaceChecks, type WorkspacePermissions } from "./permissions";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 export const WorkspacePage: FC = () => {
-	const queryClient = useQueryClient();
-	const params = useParams() as {
-		username: string;
-		workspace: string;
-	};
-	const workspaceName = params.workspace;
-	const username = params.username.replace("@", "");
+  const queryClient = useQueryClient();
+  const params = useParams() as {
+    username: string;
+    workspace: string;
+  };
+  const workspaceName = params.workspace;
+  const username = params.username.replace("@", "");
 
-	// Workspace
-	const workspaceQueryOptions = workspaceByOwnerAndName(
-		username,
-		workspaceName,
-	);
-	const workspaceQuery = useQuery(workspaceQueryOptions);
-	const workspace = workspaceQuery.data;
+  // Workspace
+  const workspaceQueryOptions = workspaceByOwnerAndName(
+    username,
+    workspaceName,
+  );
+  const workspaceQuery = useQuery(workspaceQueryOptions);
+  const workspace = workspaceQuery.data;
 
-	// Template
-	const templateQuery = useQuery(
-		workspace
-			? templateQueryOptions(workspace.template_id)
-			: { enabled: false },
-	);
-	const template = templateQuery.data;
+  // Template
+  const templateQuery = useQuery(
+    workspace
+      ? templateQueryOptions(workspace.template_id)
+      : { enabled: false },
+  );
+  const template = templateQuery.data;
 
-	// Permissions
-	const checks =
-		workspace && template ? workspaceChecks(workspace, template) : {};
-	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks }),
-		enabled: workspace !== undefined && template !== undefined,
-	});
-	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
+  // Permissions
+  const checks =
+    workspace && template ? workspaceChecks(workspace, template) : {};
+  const permissionsQuery = useQuery({
+    ...checkAuthorization({ checks }),
+    enabled: workspace !== undefined && template !== undefined,
+  });
+  const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
 
-	// Watch workspace changes
-	const updateWorkspaceData = useEffectEvent(
-		async (newWorkspaceData: Workspace) => {
-			if (!workspace) {
-				throw new Error(
-					"Applying an update for a workspace that is undefined.",
-				);
-			}
+  // Watch workspace changes
+  const updateWorkspaceData = useEffectEvent(
+    async (newWorkspaceData: Workspace) => {
+      if (!workspace) {
+        throw new Error(
+          "Applying an update for a workspace that is undefined.",
+        );
+      }
 
-			queryClient.setQueryData(
-				workspaceQueryOptions.queryKey,
-				newWorkspaceData,
-			);
+      queryClient.setQueryData(
+        workspaceQueryOptions.queryKey,
+        newWorkspaceData,
+      );
 
-			const hasNewBuild =
-				newWorkspaceData.latest_build.id !== workspace.latest_build.id;
-			const lastBuildHasChanged =
-				newWorkspaceData.latest_build.status !== workspace.latest_build.status;
+      const hasNewBuild =
+        newWorkspaceData.latest_build.id !== workspace.latest_build.id;
+      const lastBuildHasChanged =
+        newWorkspaceData.latest_build.status !== workspace.latest_build.status;
 
-			if (hasNewBuild || lastBuildHasChanged) {
-				await queryClient.invalidateQueries(
-					workspaceBuildsKey(newWorkspaceData.id),
-				);
-			}
-		},
-	);
-	const workspaceId = workspace?.id;
-	useEffect(() => {
-		if (!workspaceId) {
-			return;
-		}
+      if (hasNewBuild || lastBuildHasChanged) {
+        await queryClient.invalidateQueries(
+          workspaceBuildsKey(newWorkspaceData.id),
+        );
+      }
+    },
+  );
+  const workspaceId = workspace?.id;
+  useEffect(() => {
+    if (!workspaceId) {
+      return;
+    }
 
-		const eventSource = watchWorkspace(workspaceId);
+    const eventSource = watchWorkspace(workspaceId);
 
-		eventSource.addEventListener("data", async (event) => {
-			const newWorkspaceData = JSON.parse(event.data) as Workspace;
-			await updateWorkspaceData(newWorkspaceData);
-		});
+    eventSource.addEventListener("data", async (event) => {
+      const newWorkspaceData = JSON.parse(event.data) as Workspace;
+      await updateWorkspaceData(newWorkspaceData);
+    });
 
-		eventSource.addEventListener("error", (event) => {
-			console.error("Error on getting workspace changes.", event);
-		});
+    eventSource.addEventListener("error", (event) => {
+      console.error("Error on getting workspace changes.", event);
+    });
 
-		return () => {
-			eventSource.close();
-		};
-	}, [updateWorkspaceData, workspaceId]);
+    return () => {
+      eventSource.close();
+    };
+  }, [updateWorkspaceData, workspaceId]);
 
-	// Page statuses
-	const pageError =
-		workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
-	const isLoading = !workspace || !template || !permissions;
+  // Page statuses
+  const pageError =
+    workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
+  const isLoading = !workspace || !template || !permissions;
 
-	return (
-		<>
-			<AnnouncementBanners />
-			<div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
-				<Navbar />
-				{pageError ? (
-					<Margins>
-						<ErrorAlert
-							error={pageError}
-							css={{ marginTop: 16, marginBottom: 16 }}
-						/>
-					</Margins>
-				) : isLoading ? (
-					<Loader />
-				) : (
-					<WorkspaceReadyPage
-						workspace={workspace}
-						template={template}
-						permissions={permissions}
-					/>
-				)}
-			</div>
-		</>
-	);
+  return (
+    <>
+      <AnnouncementBanners />
+      <div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <Navbar />
+        {pageError ? (
+          <Margins>
+            <ErrorAlert
+              error={pageError}
+              css={{ marginTop: 16, marginBottom: 16 }}
+            />
+          </Margins>
+        ) : isLoading ? (
+          <Loader />
+        ) : (
+          <WorkspaceReadyPage
+            workspace={workspace}
+            template={template}
+            permissions={permissions}
+          />
+        )}
+      </div>
+    </>
+  );
 };
 
 export default WorkspacePage;

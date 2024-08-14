@@ -6,16 +6,16 @@ import { cachedQuery } from "./util";
 const experimentsKey = ["experiments"] as const;
 
 export const experiments = (metadata: MetadataState<Experiments>) => {
-	return cachedQuery({
-		metadata,
-		queryKey: experimentsKey,
-		queryFn: () => API.getExperiments(),
-	});
+  return cachedQuery({
+    metadata,
+    queryKey: experimentsKey,
+    queryFn: () => API.getExperiments(),
+  });
 };
 
 export const availableExperiments = () => {
-	return {
-		queryKey: ["availableExperiments"],
-		queryFn: async () => API.getAvailableExperiments(),
-	};
+  return {
+    queryKey: ["availableExperiments"],
+    queryFn: async () => API.getAvailableExperiments(),
+  };
 };

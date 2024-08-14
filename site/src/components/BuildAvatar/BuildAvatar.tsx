@@ -9,42 +9,42 @@ import { useClassName } from "hooks/useClassName";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
 
 export interface BuildAvatarProps {
-	build: WorkspaceBuild;
-	size?: AvatarProps["size"];
+  build: WorkspaceBuild;
+  size?: AvatarProps["size"];
 }
 
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
-	const theme = useTheme();
-	const { status, type } = getDisplayWorkspaceBuildStatus(theme, build);
-	const badgeType = useClassName(
-		(css, theme) => css({ backgroundColor: theme.palette[type].light }),
-		[type],
-	);
+  const theme = useTheme();
+  const { status, type } = getDisplayWorkspaceBuildStatus(theme, build);
+  const badgeType = useClassName(
+    (css, theme) => css({ backgroundColor: theme.palette[type].light }),
+    [type],
+  );
 
-	return (
-		<Badge
-			role="status"
-			aria-label={status}
-			title={status}
-			overlap="circular"
-			anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-			badgeContent={<div></div>}
-			classes={{ badge: cx(classNames.badge, badgeType) }}
-		>
-			<Avatar background size={size}>
-				<BuildIcon transition={build.transition} />
-			</Avatar>
-		</Badge>
-	);
+  return (
+    <Badge
+      role="status"
+      aria-label={status}
+      title={status}
+      overlap="circular"
+      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      badgeContent={<div></div>}
+      classes={{ badge: cx(classNames.badge, badgeType) }}
+    >
+      <Avatar background size={size}>
+        <BuildIcon transition={build.transition} />
+      </Avatar>
+    </Badge>
+  );
 };
 
 const classNames = {
-	badge: css({
-		borderRadius: "100%",
-		width: 8,
-		minWidth: 8,
-		height: 8,
-		display: "block",
-		padding: 0,
-	}),
+  badge: css({
+    borderRadius: "100%",
+    width: 8,
+    minWidth: 8,
+    height: 8,
+    display: "block",
+    padding: 0,
+  }),
 };

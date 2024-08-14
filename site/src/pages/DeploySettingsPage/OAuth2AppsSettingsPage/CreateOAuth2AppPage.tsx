@@ -8,33 +8,33 @@ import { pageTitle } from "utils/page";
 import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 
 const CreateOAuth2AppPage: FC = () => {
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
-	const postAppMutation = useMutation(postApp(queryClient));
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const postAppMutation = useMutation(postApp(queryClient));
 
-	return (
-		<>
-			<Helmet>
-				<title>{pageTitle("New OAuth2 Application")}</title>
-			</Helmet>
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle("New OAuth2 Application")}</title>
+      </Helmet>
 
-			<CreateOAuth2AppPageView
-				isUpdating={postAppMutation.isLoading}
-				error={postAppMutation.error}
-				createApp={async (req) => {
-					try {
-						const app = await postAppMutation.mutateAsync(req);
-						displaySuccess(
-							`Successfully added the OAuth2 application "${app.name}".`,
-						);
-						navigate(`/deployment/oauth2-provider/apps/${app.id}?created=true`);
-					} catch (ignore) {
-						displayError("Failed to create OAuth2 application");
-					}
-				}}
-			/>
-		</>
-	);
+      <CreateOAuth2AppPageView
+        isUpdating={postAppMutation.isLoading}
+        error={postAppMutation.error}
+        createApp={async (req) => {
+          try {
+            const app = await postAppMutation.mutateAsync(req);
+            displaySuccess(
+              `Successfully added the OAuth2 application "${app.name}".`,
+            );
+            navigate(`/deployment/oauth2-provider/apps/${app.id}?created=true`);
+          } catch (ignore) {
+            displayError("Failed to create OAuth2 application");
+          }
+        }}
+      />
+    </>
+  );
 };
 
 export default CreateOAuth2AppPage;
