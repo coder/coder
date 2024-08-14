@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -36,6 +35,8 @@ type executor struct {
 	// cachePath and workdir must not be used by multiple processes at once.
 	cachePath string
 	workdir   string
+	// used to capture execution times at various stages
+	timings *timingAggregator
 }
 
 func (e *executor) basicEnv() []string {
@@ -254,8 +255,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		args = append(args, "-var", variable)
 	}
 
-	timingsAgg := newTimingsAggregator(database.ProvisionerJobTimingStagePlan)
-	outWriter, doneOut := e.provisionLogWriter(logr, timingsAgg)
+	outWriter, doneOut := e.provisionLogWriter(logr)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -277,7 +277,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
-		Timings:               timingsAgg.aggregate(),
+		Timings:               e.timings.aggregate(),
 	}, nil
 }
 
@@ -404,8 +404,7 @@ func (e *executor) apply(
 		getPlanFilePath(e.workdir),
 	}
 
-	timingsAgg := newTimingsAggregator(database.ProvisionerJobTimingStageApply)
-	outWriter, doneOut := e.provisionLogWriter(logr, timingsAgg)
+	outWriter, doneOut := e.provisionLogWriter(logr)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -433,7 +432,7 @@ func (e *executor) apply(
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
-		Timings:               timingsAgg.aggregate(),
+		Timings:               e.timings.aggregate(),
 	}, nil
 }
 
@@ -547,15 +546,15 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
 // closed by the caller to end logging, after which the returned channel will be closed to indicate that logging of the
 // written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func (e *executor) provisionLogWriter(sink logSink, timings *timingsAggregator) (io.WriteCloser, <-chan any) {
+func (e *executor) provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
 	r, w := io.Pipe()
 	done := make(chan any)
 
-	go e.provisionReadAndLog(sink, r, timings, done)
+	go e.provisionReadAndLog(sink, r, done)
 	return w, done
 }
 
-func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, timings *timingsAggregator, done chan<- any) {
+func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 	defer close(done)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -588,13 +587,13 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, timings *timin
 		logLevel := convertTerraformLogLevel(log.Level, sink)
 		sink.ProvisionLog(logLevel, log.Message)
 
-		ts, te, err := extractTimingsEntry(log)
+		ts, span, err := extractTimingSpan(log)
 		if err != nil {
 			e.logger.Debug(context.Background(), "failed to extract timings entry from log line",
 				slog.F("line", log.Message), slog.Error(err))
 		} else {
 			// Only ingest valid timings.
-			timings.ingest(ts, te)
+			e.timings.ingest(ts, span)
 		}
 
 		// If the diagnostic is provided, let's provide a bit more info!
@@ -608,13 +607,13 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, timings *timin
 	}
 }
 
-func extractTimingsEntry(log terraformProvisionLog) (time.Time, *timingsEntry, error) {
+func extractTimingSpan(log terraformProvisionLog) (time.Time, *timingSpan, error) {
 	// Input is not well-formed, bail out.
 	if log.Type == "" {
 		return time.Time{}, nil, xerrors.Errorf("invalid type: %q", log.Type)
 	}
 
-	typ := logType(log.Type)
+	typ := timingKind(log.Type)
 	if !typ.Valid() {
 		return time.Time{}, nil, xerrors.Errorf("invalid type: %q", log.Type)
 	}
@@ -624,9 +623,8 @@ func extractTimingsEntry(log terraformProvisionLog) (time.Time, *timingsEntry, e
 		// TODO: log
 		ts = time.Now()
 	}
-	ts = ts.UTC()
 
-	return ts, &timingsEntry{
+	return ts, &timingSpan{
 		kind:     typ,
 		action:   log.Hook.Action,
 		provider: log.Hook.Resource.Provider,

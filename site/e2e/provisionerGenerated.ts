@@ -31,10 +31,9 @@ export enum WorkspaceTransition {
 }
 
 export enum TimingState {
-  COMPLETED = 0,
-  FAILED = 1,
-  INCOMPLETE = 2,
-  UNKNOWN = 3,
+  STARTED = 0,
+  COMPLETED = 1,
+  FAILED = 2,
   UNRECOGNIZED = -1,
 }
 

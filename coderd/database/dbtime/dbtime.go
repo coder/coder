@@ -10,5 +10,5 @@ func Now() time.Time {
 // Time returns a time compatible with Postgres. Postgres only stores dates with
 // microsecond precision.
 func Time(t time.Time) time.Time {
-	return t.Round(time.Microsecond)
+	return t.UTC().Round(time.Microsecond)
 }

@@ -73,7 +73,7 @@ func (s *server) Plan(
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.WorkDirectory)
+	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStagePlan)
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.PlanErrorf(err.Error())
 	}
@@ -104,18 +104,20 @@ func (s *server) Plan(
 
 	s.logger.Debug(ctx, "running initialization")
 
-	timingsAgg := newTimingsAggregator(database.ProvisionerJobTimingStageInit)
-	timingsAgg.ingest(createInitTimingsEvent(initStart))
+	// The JSON output of `terraform init` doesn't include discrete fields for capturing timings of each plugin,
+	// so we capture the whole init process.
+	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit)
+	initTimings.ingest(createInitTimingsEvent(initStart))
 
 	err = e.init(ctx, killCtx, sess)
 	if err != nil {
-		timingsAgg.ingest(createInitTimingsEvent(initErrored))
+		initTimings.ingest(createInitTimingsEvent(initErrored))
 
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
 		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
 	}
 
-	timingsAgg.ingest(createInitTimingsEvent(initComplete))
+	initTimings.ingest(createInitTimingsEvent(initComplete))
 
 	s.logger.Debug(ctx, "ran initialization")
 
@@ -137,12 +139,12 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf(err.Error())
 	}
 
-	resp.Timings = append(resp.Timings, timingsAgg.aggregate()...)
+	resp.Timings = append(resp.Timings, initTimings.aggregate()...)
 	return resp
 }
 
-func createInitTimingsEvent(event logType) (time.Time, *timingsEntry) {
-	return dbtime.Now(), &timingsEntry{
+func createInitTimingsEvent(event timingKind) (time.Time, *timingSpan) {
+	return dbtime.Now(), &timingSpan{
 		kind:     event,
 		action:   "initialize terraform",
 		provider: "terraform",
@@ -159,7 +161,7 @@ func (s *server) Apply(
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.WorkDirectory)
+	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStageApply)
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.ApplyErrorf(err.Error())
 	}
