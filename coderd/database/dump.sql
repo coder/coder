@@ -139,6 +139,7 @@ COMMENT ON TYPE provisioner_job_status IS 'Computed status of a provisioner job.
 CREATE TYPE provisioner_job_timing_stage AS ENUM (
     'init',
     'plan',
+    'graph',
     'apply'
 );
 
@@ -848,6 +849,7 @@ SELECT
     NULL::double precision AS canceled_secs,
     NULL::double precision AS init_secs,
     NULL::double precision AS plan_secs,
+    NULL::double precision AS graph_secs,
     NULL::double precision AS apply_secs;
 
 CREATE TABLE provisioner_job_timings (
@@ -1945,6 +1947,11 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
             WHEN (pjt.stage = 'plan'::provisioner_job_timing_stage) THEN date_part('epoch'::text, (pjt.ended_at - pjt.started_at))
             ELSE NULL::double precision
         END), (0)::double precision) AS plan_secs,
+    GREATEST(max(
+        CASE
+            WHEN (pjt.stage = 'graph'::provisioner_job_timing_stage) THEN date_part('epoch'::text, (pjt.ended_at - pjt.started_at))
+            ELSE NULL::double precision
+        END), (0)::double precision) AS graph_secs,
     GREATEST(max(
         CASE
             WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN date_part('epoch'::text, (pjt.ended_at - pjt.started_at))

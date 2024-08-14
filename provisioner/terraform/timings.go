@@ -29,10 +29,13 @@ const (
 	provisionErrored  timingKind = "provision_errored"
 	refreshStart      timingKind = "refresh_start"
 	refreshComplete   timingKind = "refresh_complete"
-	// These are not part of message_types, but we want to track init timings as well.
+	// These are not part of message_types, but we want to track init/graph timings as well.
 	initStart    timingKind = "init_start"
 	initComplete timingKind = "init_complete"
 	initErrored  timingKind = "init_errored"
+	graphStart    timingKind = "graph_start"
+	graphComplete timingKind = "graph_complete"
+	graphErrored  timingKind = "graph_errored"
 )
 
 type timingAggregator struct {
@@ -71,13 +74,13 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	ts = dbtime.Time(ts)
 
 	switch s.kind {
-	case applyStart, provisionStart, refreshStart, initStart:
+	case applyStart, provisionStart, refreshStart, initStart, graphStart:
 		s.start = ts
 		s.state = proto.TimingState_STARTED
-	case applyComplete, provisionComplete, refreshComplete, initComplete:
+	case applyComplete, provisionComplete, refreshComplete, initComplete, graphComplete:
 		s.end = ts
 		s.state = proto.TimingState_COMPLETED
-	case applyErrored, provisionErrored, initErrored:
+	case applyErrored, provisionErrored, initErrored, graphErrored:
 		s.end = ts
 		s.state = proto.TimingState_FAILED
 	default:
@@ -147,6 +150,9 @@ func (l timingKind) Valid() bool {
 		initStart,
 		initComplete,
 		initErrored,
+		graphStart,
+		graphComplete,
+		graphErrored,
 	}, l)
 }
 
@@ -166,5 +172,23 @@ func (e *timingSpan) toProto() *proto.Timing {
 		Source:   e.provider,
 		Resource: e.resource,
 		State:    e.state,
+	}
+}
+
+func createInitTimingsEvent(event timingKind) (time.Time, *timingSpan) {
+	return dbtime.Now(), &timingSpan{
+		kind:     event,
+		action:   "initializing terraform",
+		provider: "terraform",
+		resource: "state file",
+	}
+}
+
+func createGraphTimingsEvent(event timingKind) (time.Time, *timingSpan) {
+	return dbtime.Now(), &timingSpan{
+		kind:     event,
+		action:   "building terraform dependency graph",
+		provider: "terraform",
+		resource: "state file",
 	}
 }

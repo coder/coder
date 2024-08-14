@@ -15,7 +15,6 @@ import (
 	"github.com/coder/terraform-provider-coder/provider"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -139,17 +138,10 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf(err.Error())
 	}
 
-	resp.Timings = append(resp.Timings, initTimings.aggregate()...)
+	// Prepend init timings since they occur prior to plan timings.
+	// Order is irrelevant; this is merely indicative.
+	resp.Timings = append(initTimings.aggregate(), resp.Timings...)
 	return resp
-}
-
-func createInitTimingsEvent(event timingKind) (time.Time, *timingSpan) {
-	return dbtime.Now(), &timingSpan{
-		kind:     event,
-		action:   "initialize terraform",
-		provider: "terraform",
-		resource: "state file",
-	}
 }
 
 func (s *server) Apply(

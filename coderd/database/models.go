@@ -1221,6 +1221,7 @@ type ProvisionerJobTimingStage string
 const (
 	ProvisionerJobTimingStageInit  ProvisionerJobTimingStage = "init"
 	ProvisionerJobTimingStagePlan  ProvisionerJobTimingStage = "plan"
+	ProvisionerJobTimingStageGraph ProvisionerJobTimingStage = "graph"
 	ProvisionerJobTimingStageApply ProvisionerJobTimingStage = "apply"
 )
 
@@ -1263,6 +1264,7 @@ func (e ProvisionerJobTimingStage) Valid() bool {
 	switch e {
 	case ProvisionerJobTimingStageInit,
 		ProvisionerJobTimingStagePlan,
+		ProvisionerJobTimingStageGraph,
 		ProvisionerJobTimingStageApply:
 		return true
 	}
@@ -1273,6 +1275,7 @@ func AllProvisionerJobTimingStageValues() []ProvisionerJobTimingStage {
 	return []ProvisionerJobTimingStage{
 		ProvisionerJobTimingStageInit,
 		ProvisionerJobTimingStagePlan,
+		ProvisionerJobTimingStageGraph,
 		ProvisionerJobTimingStageApply,
 	}
 }
@@ -2354,6 +2357,7 @@ type ProvisionerJobStat struct {
 	CanceledSecs   float64              `db:"canceled_secs" json:"canceled_secs"`
 	InitSecs       float64              `db:"init_secs" json:"init_secs"`
 	PlanSecs       float64              `db:"plan_secs" json:"plan_secs"`
+	GraphSecs      float64              `db:"graph_secs" json:"graph_secs"`
 	ApplySecs      float64              `db:"apply_secs" json:"apply_secs"`
 }
 

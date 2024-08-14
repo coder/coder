@@ -5347,7 +5347,7 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 }
 
 const getProvisionerJobStatsByWorkspace = `-- name: GetProvisionerJobStatsByWorkspace :one
-SELECT job_id, job_status, workspace_id, worker_id, error, error_code, updated_at, queued_secs, completion_secs, canceled_secs, init_secs, plan_secs, apply_secs FROM provisioner_job_stats
+SELECT job_id, job_status, workspace_id, worker_id, error, error_code, updated_at, queued_secs, completion_secs, canceled_secs, init_secs, plan_secs, graph_secs, apply_secs FROM provisioner_job_stats
 WHERE job_id = $1::uuid AND workspace_id = $2::uuid
 LIMIT 1
 `
@@ -5374,6 +5374,7 @@ func (q *sqlQuerier) GetProvisionerJobStatsByWorkspace(ctx context.Context, arg 
 		&i.CanceledSecs,
 		&i.InitSecs,
 		&i.PlanSecs,
+		&i.GraphSecs,
 		&i.ApplySecs,
 	)
 	return i, err

@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -268,16 +269,24 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
+
+	// Capture the duration of the call to `terraform graph`.
+	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
+	graphTimings.ingest(createGraphTimingsEvent(graphStart))
+
 	state, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
+		graphTimings.ingest(createGraphTimingsEvent(graphErrored))
 		return nil, err
 	}
+
+	graphTimings.ingest(createGraphTimingsEvent(graphComplete))
 
 	return &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
-		Timings:               e.timings.aggregate(),
+		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 	}, nil
 }
 
