@@ -7900,11 +7900,11 @@ WHERE
 			LOWER("name") = LOWER($3)
 		ELSE true
 	END
-  	-- Filter by name, matching on substring
-  	AND CASE
-		  WHEN $4 :: text != '' THEN
-			  lower(name) ILIKE '%' || lower($4) || '%'
-		  ELSE true
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			lower(name) ILIKE '%' || lower($4) || '%'
+		ELSE true
 	END
 	-- Filter by ids
 	AND CASE

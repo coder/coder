@@ -137,7 +137,7 @@ type FilterProps = {
   filter: ReturnType<typeof useFilter>;
   skeleton: ReactNode;
   isLoading: boolean;
-  learnMoreLink: string;
+  learnMoreLink?: string;
   learnMoreLabel2?: string;
   learnMoreLink2?: string;
   error?: unknown;
@@ -240,7 +240,7 @@ export const Filter: FC<FilterProps> = ({
 
 interface PresetMenuProps {
   presets: PresetFilter[];
-  learnMoreLink: string;
+  learnMoreLink?: string;
   learnMoreLabel2?: string;
   learnMoreLink2?: string;
   onSelect: (query: string) => void;
@@ -293,19 +293,23 @@ const PresetMenu: FC<PresetMenuProps> = ({
             {presetFilter.name}
           </MenuItem>
         ))}
-        <Divider css={{ borderColor: theme.palette.divider }} />
-        <MenuItem
-          component="a"
-          href={learnMoreLink}
-          target="_blank"
-          css={{ fontSize: 13, fontWeight: 500 }}
-          onClick={() => {
-            setIsOpen(false);
-          }}
-        >
-          <OpenInNewOutlined css={{ fontSize: "14px !important" }} />
-          View advanced filtering
-        </MenuItem>
+        {learnMoreLink && (
+          <>
+            <Divider css={{ borderColor: theme.palette.divider }} />
+            <MenuItem
+              component="a"
+              href={learnMoreLink}
+              target="_blank"
+              css={{ fontSize: 13, fontWeight: 500 }}
+              onClick={() => {
+                setIsOpen(false);
+              }}
+            >
+              <OpenInNewOutlined css={{ fontSize: "14px !important" }} />
+              View advanced filtering
+            </MenuItem>
+          </>
+        )}
         {learnMoreLink2 && learnMoreLabel2 && (
           <MenuItem
             component="a"
