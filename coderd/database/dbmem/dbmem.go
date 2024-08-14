@@ -3325,13 +3325,21 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 			}
 		}
 	}
-	// Grab the quota for the Everyone group.
-	for _, group := range q.groups {
-		if group.ID == group.OrganizationID {
-			sum += int64(group.QuotaAllowance)
-			break
+
+	// Grab the quota for the Everyone group iff the user is a member of
+	// said organization.
+	for _, mem := range q.organizationMembers {
+		if mem.UserID != userID {
+			continue
 		}
+
+		group, err := q.getGroupByIDNoLock(context.Background(), mem.OrganizationID)
+		if err != nil {
+			return -1, xerrors.Errorf("failed to get everyone group for org %q", mem.OrganizationID.String())
+		}
+		sum += int64(group.QuotaAllowance)
 	}
+
 	return sum, nil
 }
 
