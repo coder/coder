@@ -2152,6 +2152,11 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate).
 			Errors(dbmem.ErrUnimplemented)
 	}))
+	s.Run("UpdateTailnetPeerStatusByCoordinator", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.UpdateTailnetPeerStatusByCoordinatorParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
 }
 
 func (s *MethodTestSuite) TestDBCrypt() {

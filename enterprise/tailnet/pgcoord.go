@@ -144,10 +144,6 @@ func newPGCoordInternal(
 	// signals when first heartbeat has been sent, so it's safe to start binding.
 	fHB := make(chan struct{})
 
-	// we need to arrange for the querier to stop _after_ the tunneler and binder, since we delete
-	// the coordinator when the querier stops (via the heartbeats).  If the tunneler and binder are
-	// still running, they could run afoul of foreign key constraints.
-	querierCtx, querierCancel := context.WithCancel(dbauthz.As(context.Background(), pgCoordSubject))
 	c := &pgCoord{
 		ctx:              ctx,
 		cancel:           cancel,
@@ -163,18 +159,9 @@ func newPGCoordInternal(
 		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
 		handshakerCh:     rfhCh,
 		id:               id,
-		querier:          newQuerier(querierCtx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
+		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
 		closed:           make(chan struct{}),
 	}
-	go func() {
-		// when the main context is canceled, or the coordinator closed, the binder, tunneler, and
-		// handshaker always eventually stop.  Once they stop it's safe to cancel the querier context, which
-		// has the effect of deleting the coordinator from the database and ceasing heartbeats.
-		c.binder.workerWG.Wait()
-		c.tunneler.workerWG.Wait()
-		c.handshaker.workerWG.Wait()
-		querierCancel()
-	}()
 	logger.Info(ctx, "starting coordinator")
 	return c, nil
 }
@@ -239,6 +226,9 @@ func (c *pgCoord) Close() error {
 	c.cancel()
 	c.closeOnce.Do(func() { close(c.closed) })
 	c.querier.wait()
+	c.binder.wait()
+	c.tunneler.workerWG.Wait()
+	c.handshaker.workerWG.Wait()
 	return nil
 }
 
@@ -485,6 +475,7 @@ type binder struct {
 	workQ  *workQ[bKey]
 
 	workerWG sync.WaitGroup
+	close    chan struct{}
 }
 
 func newBinder(ctx context.Context,
@@ -502,6 +493,7 @@ func newBinder(ctx context.Context,
 		bindings:      bindings,
 		latest:        make(map[bKey]binding),
 		workQ:         newWorkQ[bKey](ctx),
+		close:         make(chan struct{}),
 	}
 	go b.handleBindings()
 	// add to the waitgroup immediately to avoid any races waiting for it before
@@ -513,6 +505,26 @@ func newBinder(ctx context.Context,
 			go b.worker()
 		}
 	}()
+
+	go func() {
+		defer close(b.close)
+		<-b.ctx.Done()
+		b.logger.Debug(b.ctx, "binder exiting, waiting for workers")
+
+		b.workerWG.Wait()
+
+		b.logger.Debug(b.ctx, "updating peers to lost")
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+		defer cancel()
+		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
+			CoordinatorID: b.coordinatorID,
+			Status:        database.TailnetStatusLost,
+		})
+		if err != nil {
+			b.logger.Error(b.ctx, "update peer status to lost", slog.Error(err))
+		}
+	}()
 	return b
 }
 
@@ -520,7 +532,7 @@ func (b *binder) handleBindings() {
 	for {
 		select {
 		case <-b.ctx.Done():
-			b.logger.Debug(b.ctx, "binder exiting", slog.Error(b.ctx.Err()))
+			b.logger.Debug(b.ctx, "binder exiting")
 			return
 		case bnd := <-b.bindings:
 			b.storeBinding(bnd)
@@ -630,6 +642,10 @@ func (b *binder) retrieveBinding(bk bKey) binding {
 		}
 	}
 	return bnd
+}
+
+func (b *binder) wait() {
+	<-b.close
 }
 
 // mapper tracks data sent to a peer, and sends updates based on changes read from the database.
@@ -1646,7 +1662,6 @@ func (h *heartbeats) sendBeats() {
 	// send an initial heartbeat so that other coordinators can start using our bindings right away.
 	h.sendBeat()
 	close(h.firstHeartbeat) // signal binder it can start writing
-	defer h.sendDelete()
 	tkr := h.clock.TickerFunc(h.ctx, HeartbeatPeriod, func() error {
 		h.sendBeat()
 		return nil
@@ -1675,17 +1690,6 @@ func (h *heartbeats) sendBeat() {
 		_ = agpl.SendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
 	}
 	h.failedHeartbeats = 0
-}
-
-func (h *heartbeats) sendDelete() {
-	// here we don't want to use the main context, since it will have been canceled
-	ctx := dbauthz.As(context.Background(), pgCoordSubject)
-	err := h.store.DeleteCoordinator(ctx, h.self)
-	if err != nil {
-		h.logger.Error(h.ctx, "failed to send coordinator delete", slog.Error(err))
-		return
-	}
-	h.logger.Debug(h.ctx, "deleted coordinator")
 }
 
 func (h *heartbeats) cleanupLoop() {
