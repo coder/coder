@@ -65,7 +65,7 @@ replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145
 // Adds support for a new Listener from a driver.Connector
 // This lets us use rotating authentication tokens for passwords in connection strings
 // which we use in the awsiamrds package.
-replace github.com/lib/pq => github.com/f0ssel/pq v1.10.10-0.20240813183442-0c420cb5a048
+replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048
 
 require (
 	cdr.dev/slog v1.6.2-0.20240126064726-20367d4aede6
