@@ -508,14 +508,14 @@ func newBinder(ctx context.Context,
 
 	go func() {
 		defer close(b.close)
-		<-ctx.Done()
+		<-b.ctx.Done()
 		b.logger.Debug(b.ctx, "binder exiting, waiting for workers")
 
 		b.workerWG.Wait()
 
 		b.logger.Debug(b.ctx, "updating peers to lost")
 
-		ctx, cancel := context.WithTimeout(ctx, time.Second*15)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 		defer cancel()
 		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
 			CoordinatorID: b.coordinatorID,
