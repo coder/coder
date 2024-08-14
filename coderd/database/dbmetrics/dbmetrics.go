@@ -1586,6 +1586,13 @@ func (m metricsStore) InsertAuditLog(ctx context.Context, arg database.InsertAud
 	return log, err
 }
 
+func (m metricsStore) InsertCustomRole(ctx context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCustomRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCustomRole").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertDBCryptKey(ctx context.Context, arg database.InsertDBCryptKeyParams) error {
 	start := time.Now()
 	r0 := m.s.InsertDBCryptKey(ctx, arg)
@@ -1955,6 +1962,13 @@ func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateA
 	err := m.s.UpdateAPIKeyByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m metricsStore) UpdateCustomRole(ctx context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateCustomRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateCustomRole").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -2368,13 +2382,6 @@ func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) e
 	r0 := m.s.UpsertApplicationName(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertApplicationName").Observe(time.Since(start).Seconds())
 	return r0
-}
-
-func (m metricsStore) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertCustomRole(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertCustomRole").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

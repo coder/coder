@@ -23,4 +23,5 @@ var (
 // Template-related events.
 var (
 	TemplateTemplateManualBuildFailed = uuid.MustParse("48a9d2b9-3655-430c-a31a-2442479e7519")
+	TemplateTemplateDeleted           = uuid.MustParse("29a09665-2a4c-403f-9648-54301670e7be")
 )

@@ -217,13 +217,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/members/roles \
+curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members/roles \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}/members/roles`
+`PUT /organizations/{organization}/members/roles`
 
 > Body parameter
 
@@ -257,10 +257,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/membe
 
 ### Parameters
 
-| Name           | In   | Type                                                             | Required | Description         |
-| -------------- | ---- | ---------------------------------------------------------------- | -------- | ------------------- |
-| `organization` | path | string(uuid)                                                     | true     | Organization ID     |
-| `body`         | body | [codersdk.PatchRoleRequest](schemas.md#codersdkpatchrolerequest) | true     | Upsert role request |
+| Name           | In   | Type                                                               | Required | Description         |
+| -------------- | ---- | ------------------------------------------------------------------ | -------- | ------------------- |
+| `organization` | path | string(uuid)                                                       | true     | Organization ID     |
+| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Upsert role request |
 
 ### Example responses
 
@@ -304,6 +304,164 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/membe
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
 
 <h3 id="upsert-a-custom-organization-role-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                         | Type                                                     | Required | Restrictions | Description                                                                                     |
+| ---------------------------- | -------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------- |
+| `[array item]`               | array                                                    | false    |              |                                                                                                 |
+| `» display_name`             | string                                                   | false    |              |                                                                                                 |
+| `» name`                     | string                                                   | false    |              |                                                                                                 |
+| `» organization_id`          | string(uuid)                                             | false    |              |                                                                                                 |
+| `» organization_permissions` | array                                                    | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
+| `»» action`                  | [codersdk.RBACAction](schemas.md#codersdkrbacaction)     | false    |              |                                                                                                 |
+| `»» negate`                  | boolean                                                  | false    |              | Negate makes this a negative permission                                                         |
+| `»» resource_type`           | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                                                                                 |
+| `» site_permissions`         | array                                                    | false    |              |                                                                                                 |
+| `» user_permissions`         | array                                                    | false    |              |                                                                                                 |
+
+#### Enumerated Values
+
+| Property        | Value                     |
+| --------------- | ------------------------- |
+| `action`        | `application_connect`     |
+| `action`        | `assign`                  |
+| `action`        | `create`                  |
+| `action`        | `delete`                  |
+| `action`        | `read`                    |
+| `action`        | `read_personal`           |
+| `action`        | `ssh`                     |
+| `action`        | `update`                  |
+| `action`        | `update_personal`         |
+| `action`        | `use`                     |
+| `action`        | `view_insights`           |
+| `action`        | `start`                   |
+| `action`        | `stop`                    |
+| `resource_type` | `*`                       |
+| `resource_type` | `api_key`                 |
+| `resource_type` | `assign_org_role`         |
+| `resource_type` | `assign_role`             |
+| `resource_type` | `audit_log`               |
+| `resource_type` | `debug_info`              |
+| `resource_type` | `deployment_config`       |
+| `resource_type` | `deployment_stats`        |
+| `resource_type` | `file`                    |
+| `resource_type` | `group`                   |
+| `resource_type` | `group_member`            |
+| `resource_type` | `license`                 |
+| `resource_type` | `notification_preference` |
+| `resource_type` | `notification_template`   |
+| `resource_type` | `oauth2_app`              |
+| `resource_type` | `oauth2_app_code_token`   |
+| `resource_type` | `oauth2_app_secret`       |
+| `resource_type` | `organization`            |
+| `resource_type` | `organization_member`     |
+| `resource_type` | `provisioner_daemon`      |
+| `resource_type` | `provisioner_keys`        |
+| `resource_type` | `replicas`                |
+| `resource_type` | `system`                  |
+| `resource_type` | `tailnet_coordinator`     |
+| `resource_type` | `template`                |
+| `resource_type` | `user`                    |
+| `resource_type` | `workspace`               |
+| `resource_type` | `workspace_dormant`       |
+| `resource_type` | `workspace_proxy`         |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Insert a custom organization role
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/members/roles \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /organizations/{organization}/members/roles`
+
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "name": "string",
+  "organization_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "site_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
+  "user_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                               | Required | Description         |
+| -------------- | ---- | ------------------------------------------------------------------ | -------- | ------------------- |
+| `organization` | path | string(uuid)                                                       | true     | Organization ID     |
+| `body`         | body | [codersdk.CustomRoleRequest](schemas.md#codersdkcustomrolerequest) | true     | Insert role request |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "display_name": "string",
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_permissions": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
+    "site_permissions": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ],
+    "user_permissions": [
+      {
+        "action": "application_connect",
+        "negate": true,
+        "resource_type": "*"
+      }
+    ]
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                            |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Role](schemas.md#codersdkrole) |
+
+<h3 id="insert-a-custom-organization-role-responseschema">Response Schema</h3>
 
 Status Code **200**
 

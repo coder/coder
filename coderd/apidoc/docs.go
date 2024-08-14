@@ -2500,7 +2500,7 @@ const docTemplate = `{
                     }
                 }
             },
-            "patch": {
+            "put": {
                 "security": [
                     {
                         "CoderSessionToken": []
@@ -2532,7 +2532,55 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.PatchRoleRequest"
+                            "$ref": "#/definitions/codersdk.CustomRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Role"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Insert a custom organization role",
+                "operationId": "insert-a-custom-organization-role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Insert role request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CustomRoleRequest"
                         }
                     }
                 ],
@@ -9455,6 +9503,36 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CustomRoleRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_permissions": {
+                    "description": "OrganizationPermissions are specific to the organization the role belongs to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "site_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
+                "user_permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                }
+            }
+        },
         "codersdk.DAUEntry": {
             "type": "object",
             "properties": {
@@ -11067,36 +11145,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
-                }
-            }
-        },
-        "codersdk.PatchRoleRequest": {
-            "type": "object",
-            "properties": {
-                "display_name": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_permissions": {
-                    "description": "OrganizationPermissions are specific to the organization the role belongs to.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Permission"
-                    }
-                },
-                "site_permissions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Permission"
-                    }
-                },
-                "user_permissions": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Permission"
                     }
                 }
             }
