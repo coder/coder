@@ -45,7 +45,8 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({ filter }) => {
         { query: "", name: "All templates" },
         { query: "deprecated:true", name: "Deprecated templates" },
       ]}
-      learnMoreLink={docs("/templates#template-filtering")}
+      // TODO: Add docs for this
+      // learnMoreLink={docs("/templates#template-filtering")}
       isLoading={false}
       filter={filter}
       options={

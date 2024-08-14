@@ -217,11 +217,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-        {templates && templates.length > 0 && (
-          <PageHeaderSubtitle>
-            Select a template to create a workspace.
-          </PageHeaderSubtitle>
-        )}
+        <PageHeaderSubtitle>
+          Select a template to create a workspace.
+        </PageHeaderSubtitle>
       </PageHeader>
 
       <TemplatesFilter filter={filter} />
