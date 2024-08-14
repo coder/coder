@@ -493,6 +493,7 @@ func newBinder(ctx context.Context,
 		bindings:      bindings,
 		latest:        make(map[bKey]binding),
 		workQ:         newWorkQ[bKey](ctx),
+		close:         make(chan struct{}),
 	}
 	go b.handleBindings()
 	// add to the waitgroup immediately to avoid any races waiting for it before
