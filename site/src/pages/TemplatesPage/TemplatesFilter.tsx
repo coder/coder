@@ -13,7 +13,6 @@ import {
   type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { docs } from "utils/docs";
 
 interface TemplatesFilterProps {
   filter: ReturnType<typeof useFilter>;
