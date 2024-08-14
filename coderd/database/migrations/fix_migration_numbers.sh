@@ -35,6 +35,7 @@ main() {
 	)"
 
 	declare -A prefix_map=()
+	declare -a git_add_files=()
 
 	# Renumber migrations part of this branch (as compared to main)
 	diff_files="$(diff -u <(echo "${main_files}") <(echo "${head_files}") | sed -E -ne 's;^\+(0.*);\1;p' | sort -n || true)"
@@ -59,7 +60,8 @@ main() {
 		name="${file:7:-4}"
 		new_file="${new_num}_${name}.sql"
 		echo "Renaming ${old_file} to ${new_file}"
-		git mv "${old_file}" "${new_file}"
+		mv "${old_file}" "${new_file}"
+		git_add_files+=("${new_file}" "${old_file}")
 	done <<<"${diff_files}"
 
 	# Renumber fixtures if there's a matching migration in this branch (as compared to main).
@@ -83,9 +85,11 @@ main() {
 		name="${file:7:-4}"
 		new_file="${dir}/${new_num}_${name}.sql"
 		echo "Renaming ${old_file} to ${new_file}"
-		git mv "${old_file}" "${new_file}"
+		mv "${old_file}" "${new_file}"
+		git_add_files+=("${new_file}" "${old_file}")
 	done <<<"${diff_files}"
 
+	git add "${git_add_files[@]}"
 	git status
 	echo "Run 'git commit' to commit the changes."
 }
