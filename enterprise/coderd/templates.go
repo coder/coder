@@ -50,7 +50,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	// Perm check is the template update check.
 	// nolint:gocritic
-	groups, err := api.Database.GetGroupsByOrganizationID(dbauthz.AsSystemRestricted(ctx), template.OrganizationID)
+	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		OrganizationID: template.OrganizationID,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

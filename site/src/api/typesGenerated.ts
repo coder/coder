@@ -628,6 +628,12 @@ export interface Group {
   readonly source: GroupSource
 }
 
+// From codersdk/groups.go
+export interface GroupArguments {
+  readonly Organization: string;
+  readonly HasMember: string;
+}
+
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
   readonly url: string

@@ -77,6 +77,7 @@ const meta = {
         data: { editWorkspaceProxies: true },
       },
     ],
+    chromatic: { delay: 300 },
   },
   decorators: [
     (Story) => (
