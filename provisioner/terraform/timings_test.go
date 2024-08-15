@@ -94,6 +94,7 @@ func TestTimingsFromProvision(t *testing.T) {
 	// Sort the timings stably to keep reduce flakiness.
 	terraform.StableSortTimings(t, timings)
 
+	// Then: the received timings should match the expected values below.
 	// NOTE: These timings have been encoded to JSON format to make the tests more readable.
 	planTimings := terraform.ParseTimingLines(t, []byte(`{"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195836Z", "action":"read", "source":"coder", "resource":"data.coder_parameter.memory_size", "stage":"plan", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195712Z", "action":"read", "source":"coder", "resource":"data.coder_provisioner.me", "stage":"plan", "state":"COMPLETED"}

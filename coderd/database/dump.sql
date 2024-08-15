@@ -1937,26 +1937,42 @@ CREATE OR REPLACE VIEW provisioner_job_stats AS
     GREATEST(date_part('epoch'::text, (pj.started_at - pj.created_at)), (0)::double precision) AS queued_secs,
     GREATEST(date_part('epoch'::text, (pj.completed_at - pj.started_at)), (0)::double precision) AS completion_secs,
     GREATEST(date_part('epoch'::text, (pj.canceled_at - pj.started_at)), (0)::double precision) AS canceled_secs,
-    GREATEST(max(
+    GREATEST(date_part('epoch'::text, (max(
         CASE
-            WHEN (pjt.stage = 'init'::provisioner_job_timing_stage) THEN date_part('epoch'::text, (pjt.ended_at - pjt.started_at))
-            ELSE NULL::double precision
-        END), (0)::double precision) AS init_secs,
-    GREATEST(max(
+            WHEN (pjt.stage = 'init'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
         CASE
-            WHEN (pjt.stage = 'plan'::provisioner_job_timing_stage) THEN date_part('epoch'::text, (pjt.ended_at - pjt.started_at))
-            ELSE NULL::double precision
-        END), (0)::double precision) AS plan_secs,
-    GREATEST(max(
+            WHEN (pjt.stage = 'init'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS init_secs,
+    GREATEST(date_part('epoch'::text, (max(
         CASE
-            WHEN (pjt.stage = 'graph'::provisioner_job_timing_stage) THEN date_part('epoch'::text, (pjt.ended_at - pjt.started_at))
-            ELSE NULL::double precision
-        END), (0)::double precision) AS graph_secs,
-    GREATEST(max(
+            WHEN (pjt.stage = 'plan'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
         CASE
-            WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN date_part('epoch'::text, (pjt.ended_at - pjt.started_at))
-            ELSE NULL::double precision
-        END), (0)::double precision) AS apply_secs
+            WHEN (pjt.stage = 'plan'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS plan_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'graph'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'graph'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS graph_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS apply_secs
    FROM ((provisioner_jobs pj
      JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
      LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))

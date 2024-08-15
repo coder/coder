@@ -1471,7 +1471,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		_, err = s.Database.InsertProvisionerJobTimings(ctx, params)
 		if err != nil {
 			// Don't fail the transaction for non-critical data.
-			s.Logger.Warn(ctx, "failed to update provisioner job timings", slog.Error(err))
+			s.Logger.Warn(ctx, "failed to update provisioner job timings", slog.F("job_id", jobID), slog.Error(err))
 		}
 
 		// audit the outcome of the workspace build
