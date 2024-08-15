@@ -7,12 +7,12 @@ trailingComma: all
 useTabs: true
 tabWidth: 2
 overrides:
-  - files:
-      - README.md
-      - docs/reference/api/**/*.md
-      - docs/reference/cli/**/*.md
-      - docs/changelogs/*.md
-      - .github/**/*.{yaml,yml,toml}
-      - scripts/**/*.{yaml,yml,toml}
-    options:
-      proseWrap: preserve
+	- files:
+			- README.md
+			- docs/reference/api/**/*.md
+			- docs/reference/cli/**/*.md
+			- docs/changelogs/*.md
+			- .github/**/*.{yaml,yml,toml}
+			- scripts/**/*.{yaml,yml,toml}
+		options:
+			proseWrap: preserve
