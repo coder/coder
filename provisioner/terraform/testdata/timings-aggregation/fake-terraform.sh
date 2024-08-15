@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function terraform_version() {
-  cat <<'EOL'
+	cat <<'EOL'
 {
   "terraform_version": "1.9.2",
   "platform": "darwin_arm64",
@@ -12,13 +12,13 @@ EOL
 }
 
 function terraform_show() {
-  cat <<'EOL'
+	cat <<'EOL'
 {"format_version":"1.2","terraform_version":"1.5.7","planned_values":{"root_module":{"resources":[{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","provider_name":"registry.terraform.io/coder/coder","schema_version":1,"values":{"arch":"arm64","auth":"token","connection_timeout":120,"dir":null,"env":null,"login_before_ready":true,"metadata":[{"display_name":"CPU Usage","interval":10,"key":"0_cpu_usage","order":null,"script":"coder stat cpu","timeout":1},{"display_name":"RAM Usage","interval":10,"key":"1_ram_usage","order":null,"script":"coder stat mem","timeout":1}],"motd_file":null,"order":null,"os":"linux","shutdown_script":null,"shutdown_script_timeout":300,"startup_script":null,"startup_script_behavior":null,"startup_script_timeout":300,"troubleshooting_url":null},"sensitive_values":{"display_apps":[],"metadata":[{},{}]}},{"address":"docker_container.workspace[0]","mode":"managed","type":"docker_container","name":"workspace","index":0,"provider_name":"registry.terraform.io/kreuzwerker/docker","schema_version":2,"values":{"attach":false,"capabilities":[],"cgroupns_mode":null,"container_read_refresh_timeout_milliseconds":15000,"cpu_set":null,"cpu_shares":null,"destroy_grace_seconds":null,"devices":[],"dns":null,"dns_opts":null,"dns_search":null,"domainname":null,"gpus":null,"group_add":null,"host":[{"host":"host.docker.internal","ip":"host-gateway"}],"hostname":"barry1723722791","image":"nginx:latest","labels":[{"label":"coder.owner","value":"danny"},{"label":"coder.owner_id","value":"ec669dd6-ecf6-4da3-b1c6-fbc60c782e0e"},{"label":"coder.workspace_id","value":"1b0cd26b-9e35-4107-8aab-5827419bac68"},{"label":"coder.workspace_name","value":"barry1723722791"}],"log_opts":null,"logs":false,"max_retry_count":null,"memory":100,"memory_swap":null,"mounts":[],"must_run":true,"name":"coder-danny-barry1723722791","network_mode":null,"networks_advanced":[],"pid_mode":null,"ports":[],"privileged":null,"publish_all_ports":null,"read_only":false,"remove_volumes":true,"restart":"always","rm":false,"start":true,"stdin_open":false,"storage_opts":null,"sysctls":null,"tmpfs":null,"tty":false,"ulimit":[],"upload":[],"user":null,"userns_mode":null,"volumes":[{"container_path":"/home/danny","from_container":"","host_path":"","read_only":false,"volume_name":"coder-1b0cd26b-9e35-4107-8aab-5827419bac68-home"}],"wait":false,"wait_timeout":60,"working_dir":null},"sensitive_values":{"capabilities":[],"command":[],"devices":[],"entrypoint":[],"env":true,"healthcheck":[],"host":[{}],"labels":[{},{},{},{}],"mounts":[],"network_data":[],"networks_advanced":[],"ports":[],"security_opts":[],"ulimit":[],"upload":[],"volumes":[{}]}},{"address":"docker_image.main","mode":"managed","type":"docker_image","name":"main","provider_name":"registry.terraform.io/kreuzwerker/docker","schema_version":0,"values":{"build":[],"force_remove":null,"keep_locally":true,"name":"nginx:latest","platform":null,"pull_triggers":null,"triggers":null},"sensitive_values":{"build":[]}},{"address":"docker_volume.home_volume","mode":"managed","type":"docker_volume","name":"home_volume","provider_name":"registry.terraform.io/kreuzwerker/docker","schema_version":1,"values":{"driver_opts":null,"labels":[{"label":"coder.owner","value":"danny"},{"label":"coder.owner_id","value":"ec669dd6-ecf6-4da3-b1c6-fbc60c782e0e"},{"label":"coder.workspace_id","value":"1b0cd26b-9e35-4107-8aab-5827419bac68"},{"label":"coder.workspace_name_at_creation","value":"barry1723722791"}],"name":"coder-1b0cd26b-9e35-4107-8aab-5827419bac68-home"},"sensitive_values":{"labels":[{},{},{},{}]}}]}},"resource_changes":[{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","provider_name":"registry.terraform.io/coder/coder","change":{"actions":["create"],"before":null,"after":{"arch":"arm64","auth":"token","connection_timeout":120,"dir":null,"env":null,"login_before_ready":true,"metadata":[{"display_name":"CPU Usage","interval":10,"key":"0_cpu_usage","order":null,"script":"coder stat cpu","timeout":1},{"display_name":"RAM Usage","interval":10,"key":"1_ram_usage","order":null,"script":"coder stat mem","timeout":1}],"motd_file":null,"order":null,"os":"linux","shutdown_script":null,"shutdown_script_timeout":300,"startup_script":null,"startup_script_behavior":null,"startup_script_timeout":300,"troubleshooting_url":null},"after_unknown":{"display_apps":true,"id":true,"init_script":true,"metadata":[{},{}],"token":true},"before_sensitive":false,"after_sensitive":{"display_apps":[],"metadata":[{},{}],"token":true}}},{"address":"docker_container.workspace[0]","mode":"managed","type":"docker_container","name":"workspace","index":0,"provider_name":"registry.terraform.io/kreuzwerker/docker","change":{"actions":["create"],"before":null,"after":{"attach":false,"capabilities":[],"cgroupns_mode":null,"container_read_refresh_timeout_milliseconds":15000,"cpu_set":null,"cpu_shares":null,"destroy_grace_seconds":null,"devices":[],"dns":null,"dns_opts":null,"dns_search":null,"domainname":null,"gpus":null,"group_add":null,"host":[{"host":"host.docker.internal","ip":"host-gateway"}],"hostname":"barry1723722791","image":"nginx:latest","labels":[{"label":"coder.owner","value":"danny"},{"label":"coder.owner_id","value":"ec669dd6-ecf6-4da3-b1c6-fbc60c782e0e"},{"label":"coder.workspace_id","value":"1b0cd26b-9e35-4107-8aab-5827419bac68"},{"label":"coder.workspace_name","value":"barry1723722791"}],"log_opts":null,"logs":false,"max_retry_count":null,"memory":100,"memory_swap":null,"mounts":[],"must_run":true,"name":"coder-danny-barry1723722791","network_mode":null,"networks_advanced":[],"pid_mode":null,"ports":[],"privileged":null,"publish_all_ports":null,"read_only":false,"remove_volumes":true,"restart":"always","rm":false,"start":true,"stdin_open":false,"storage_opts":null,"sysctls":null,"tmpfs":null,"tty":false,"ulimit":[],"upload":[],"user":null,"userns_mode":null,"volumes":[{"container_path":"/home/danny","from_container":"","host_path":"","read_only":false,"volume_name":"coder-1b0cd26b-9e35-4107-8aab-5827419bac68-home"}],"wait":false,"wait_timeout":60,"working_dir":null},"after_unknown":{"bridge":true,"capabilities":[],"command":true,"container_logs":true,"devices":[],"entrypoint":true,"env":true,"exit_code":true,"healthcheck":true,"host":[{}],"id":true,"init":true,"ipc_mode":true,"labels":[{},{},{},{}],"log_driver":true,"mounts":[],"network_data":true,"networks_advanced":[],"ports":[],"runtime":true,"security_opts":true,"shm_size":true,"stop_signal":true,"stop_timeout":true,"ulimit":[],"upload":[],"volumes":[{}]},"before_sensitive":false,"after_sensitive":{"capabilities":[],"command":[],"devices":[],"entrypoint":[],"env":true,"healthcheck":[],"host":[{}],"labels":[{},{},{},{}],"mounts":[],"network_data":[],"networks_advanced":[],"ports":[],"security_opts":[],"ulimit":[],"upload":[],"volumes":[{}]}}},{"address":"docker_image.main","mode":"managed","type":"docker_image","name":"main","provider_name":"registry.terraform.io/kreuzwerker/docker","change":{"actions":["create"],"before":null,"after":{"build":[],"force_remove":null,"keep_locally":true,"name":"nginx:latest","platform":null,"pull_triggers":null,"triggers":null},"after_unknown":{"build":[],"id":true,"image_id":true,"repo_digest":true},"before_sensitive":false,"after_sensitive":{"build":[]}}},{"address":"docker_volume.home_volume","mode":"managed","type":"docker_volume","name":"home_volume","provider_name":"registry.terraform.io/kreuzwerker/docker","change":{"actions":["create"],"before":null,"after":{"driver_opts":null,"labels":[{"label":"coder.owner","value":"danny"},{"label":"coder.owner_id","value":"ec669dd6-ecf6-4da3-b1c6-fbc60c782e0e"},{"label":"coder.workspace_id","value":"1b0cd26b-9e35-4107-8aab-5827419bac68"},{"label":"coder.workspace_name_at_creation","value":"barry1723722791"}],"name":"coder-1b0cd26b-9e35-4107-8aab-5827419bac68-home"},"after_unknown":{"driver":true,"id":true,"labels":[{},{},{},{}],"mountpoint":true},"before_sensitive":false,"after_sensitive":{"labels":[{},{},{},{}]}}}],"prior_state":{"format_version":"1.0","terraform_version":"1.5.7","values":{"root_module":{"resources":[{"address":"data.coder_parameter.memory_size","mode":"data","type":"coder_parameter","name":"memory_size","provider_name":"registry.terraform.io/coder/coder","schema_version":0,"values":{"default":"100","description":null,"display_name":null,"ephemeral":false,"icon":null,"id":"88f32e48-320b-4b67-a9ef-053150c3f6a7","mutable":true,"name":"Memory Allocation","option":null,"optional":true,"order":null,"type":"number","validation":[],"value":"100"},"sensitive_values":{"validation":[]}},{"address":"data.coder_provisioner.me","mode":"data","type":"coder_provisioner","name":"me","provider_name":"registry.terraform.io/coder/coder","schema_version":0,"values":{"arch":"arm64","id":"5e8c4561-b101-4c60-88e9-097c5c0f73de","os":"darwin"},"sensitive_values":{}},{"address":"data.coder_workspace.me","mode":"data","type":"coder_workspace","name":"me","provider_name":"registry.terraform.io/coder/coder","schema_version":0,"values":{"access_port":3000,"access_url":"http://localhost:3000","id":"1b0cd26b-9e35-4107-8aab-5827419bac68","name":"barry1723722791","owner":"danny","owner_email":"default@example.com","owner_groups":[],"owner_id":"ec669dd6-ecf6-4da3-b1c6-fbc60c782e0e","owner_name":"default","owner_oidc_access_token":"","owner_session_token":"","start_count":1,"template_id":"","template_name":"","template_version":"","transition":"start"},"sensitive_values":{"owner_groups":[]}}]}}},"configuration":{"provider_config":{"coder":{"name":"coder","full_name":"registry.terraform.io/coder/coder"},"docker":{"name":"docker","full_name":"registry.terraform.io/kreuzwerker/docker"}},"root_module":{"resources":[{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","provider_config_key":"coder","expressions":{"arch":{"references":["data.coder_provisioner.me.arch","data.coder_provisioner.me"]},"metadata":[{"display_name":{"constant_value":"CPU Usage"},"interval":{"constant_value":10},"key":{"constant_value":"0_cpu_usage"},"script":{"constant_value":"coder stat cpu"},"timeout":{"constant_value":1}},{"display_name":{"constant_value":"RAM Usage"},"interval":{"constant_value":10},"key":{"constant_value":"1_ram_usage"},"script":{"constant_value":"coder stat mem"},"timeout":{"constant_value":1}}],"os":{"constant_value":"linux"}},"schema_version":1},{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","provider_config_key":"docker","expressions":{"entrypoint":{"references":["coder_agent.main.init_script","coder_agent.main"]},"env":{"references":["coder_agent.main.token","coder_agent.main"]},"host":[{"host":{"constant_value":"host.docker.internal"},"ip":{"constant_value":"host-gateway"}}],"hostname":{"references":["data.coder_workspace.me.name","data.coder_workspace.me"]},"image":{"references":["docker_image.main.name","docker_image.main"]},"labels":[{"label":{"constant_value":"coder.owner"},"value":{"references":["data.coder_workspace.me.owner","data.coder_workspace.me"]}},{"label":{"constant_value":"coder.owner_id"},"value":{"references":["data.coder_workspace.me.owner_id","data.coder_workspace.me"]}},{"label":{"constant_value":"coder.workspace_id"},"value":{"references":["data.coder_workspace.me.id","data.coder_workspace.me"]}},{"label":{"constant_value":"coder.workspace_name"},"value":{"references":["data.coder_workspace.me.name","data.coder_workspace.me"]}}],"memory":{"references":["data.coder_parameter.memory_size.value","data.coder_parameter.memory_size"]},"name":{"references":["data.coder_workspace.me.owner","data.coder_workspace.me","data.coder_workspace.me.name","data.coder_workspace.me"]},"restart":{"constant_value":"always"},"volumes":[{"container_path":{"references":["local.username"]},"read_only":{"constant_value":false},"volume_name":{"references":["docker_volume.home_volume.name","docker_volume.home_volume"]}}]},"schema_version":2,"count_expression":{"references":["data.coder_workspace.me.start_count","data.coder_workspace.me"]}},{"address":"docker_image.main","mode":"managed","type":"docker_image","name":"main","provider_config_key":"docker","expressions":{"keep_locally":{"constant_value":true},"name":{"constant_value":"nginx:latest"}},"schema_version":0},{"address":"docker_volume.home_volume","mode":"managed","type":"docker_volume","name":"home_volume","provider_config_key":"docker","expressions":{"labels":[{"label":{"constant_value":"coder.owner"},"value":{"references":["data.coder_workspace.me.owner","data.coder_workspace.me"]}},{"label":{"constant_value":"coder.owner_id"},"value":{"references":["data.coder_workspace.me.owner_id","data.coder_workspace.me"]}},{"label":{"constant_value":"coder.workspace_id"},"value":{"references":["data.coder_workspace.me.id","data.coder_workspace.me"]}},{"label":{"constant_value":"coder.workspace_name_at_creation"},"value":{"references":["data.coder_workspace.me.name","data.coder_workspace.me"]}}],"name":{"references":["data.coder_workspace.me.id","data.coder_workspace.me"]}},"schema_version":1},{"address":"data.coder_parameter.memory_size","mode":"data","type":"coder_parameter","name":"memory_size","provider_config_key":"coder","expressions":{"default":{"constant_value":"100"},"mutable":{"constant_value":true},"name":{"constant_value":"Memory Allocation"},"type":{"constant_value":"number"}},"schema_version":0},{"address":"data.coder_provisioner.me","mode":"data","type":"coder_provisioner","name":"me","provider_config_key":"coder","schema_version":0},{"address":"data.coder_workspace.me","mode":"data","type":"coder_workspace","name":"me","provider_config_key":"coder","schema_version":0}]}},"relevant_attributes":[{"resource":"docker_volume.home_volume","attribute":["name"]},{"resource":"data.coder_workspace.me","attribute":["owner"]},{"resource":"data.coder_workspace.me","attribute":["owner_id"]},{"resource":"data.coder_workspace.me","attribute":["name"]},{"resource":"data.coder_parameter.memory_size","attribute":["value"]},{"resource":"coder_agent.main","attribute":["init_script"]},{"resource":"docker_image.main","attribute":["name"]},{"resource":"data.coder_provisioner.me","attribute":["arch"]},{"resource":"data.coder_workspace.me","attribute":["id"]},{"resource":"coder_agent.main","attribute":["token"]}],"timestamp":"2024-08-15T11:53:22Z"}
 EOL
 }
 
 function terraform_graph() {
-  cat <<'EOL'
+	cat <<'EOL'
 digraph {
 	compound = "true"
 	newrank = "true"
@@ -57,7 +57,7 @@ EOL
 }
 
 function terraform_init() {
-    cat <<'EOL'
+	cat <<'EOL'
 
 Initializing the backend...
 
@@ -80,7 +80,7 @@ EOL
 }
 
 function terraform_plan() {
-    cat <<'EOL'
+	cat <<'EOL'
 {"@level":"info","@message":"Terraform 1.9.2","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:38.097648+02:00","terraform":"1.9.2","type":"version","ui":"1.2"}
 {"@level":"info","@message":"data.coder_workspace.me: Refreshing...","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.194726+02:00","hook":{"resource":{"addr":"data.coder_workspace.me","module":"","resource":"data.coder_workspace.me","implied_provider":"coder","resource_type":"coder_workspace","resource_name":"me","resource_key":null},"action":"read"},"type":"apply_start"}
 {"@level":"info","@message":"data.coder_parameter.memory_size: Refreshing...","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.194726+02:00","hook":{"resource":{"addr":"data.coder_parameter.memory_size","module":"","resource":"data.coder_parameter.memory_size","implied_provider":"coder","resource_type":"coder_parameter","resource_name":"memory_size","resource_key":null},"action":"read"},"type":"apply_start"}
@@ -95,12 +95,12 @@ function terraform_plan() {
 {"@level":"info","@message":"Plan: 4 to add, 0 to change, 0 to destroy.","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.221589+02:00","changes":{"add":4,"change":0,"import":0,"remove":0,"operation":"plan"},"type":"change_summary"}
 EOL
 
-  # fake writing the state file
-  terraform_show > terraform.tfstate
+	# fake writing the state file
+	terraform_show >terraform.tfstate
 }
 
 function terraform_apply() {
-    cat <<'EOL'
+	cat <<'EOL'
 {"@level":"info","@message":"Terraform 1.9.2","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.507006+02:00","terraform":"1.9.2","type":"version","ui":"1.2"}
 {"@level":"info","@message":"coder_agent.main: Plan to create","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.572335+02:00","change":{"resource":{"addr":"coder_agent.main","module":"","resource":"coder_agent.main","implied_provider":"coder","resource_type":"coder_agent","resource_name":"main","resource_key":null},"action":"create"},"type":"planned_change"}
 {"@level":"info","@message":"docker_image.main: Plan to create","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:39.572411+02:00","change":{"resource":{"addr":"docker_image.main","module":"","resource":"docker_image.main","implied_provider":"docker","resource_type":"docker_image","resource_name":"main","resource_key":null},"action":"create"},"type":"planned_change"}
@@ -120,29 +120,29 @@ EOL
 }
 
 # TODO: remove
-echo "$@" >> /tmp/blah
+echo "$@" >>/tmp/blah
 
 case "$1" in
-    version)
-        terraform_version
-        ;;
-    show)
-        terraform_show
-        ;;
-    graph)
-        terraform_graph
-        ;;
-    init)
-        terraform_init
-        ;;
-    plan)
-        terraform_plan
-        ;;
-    apply)
-        terraform_apply
-        ;;
-    *)
-        echo "Usage: $0 {version|show|graph|init|plan|apply}"
-        exit 1
-        ;;
+version)
+	terraform_version
+	;;
+show)
+	terraform_show
+	;;
+graph)
+	terraform_graph
+	;;
+init)
+	terraform_init
+	;;
+plan)
+	terraform_plan
+	;;
+apply)
+	terraform_apply
+	;;
+*)
+	echo "Usage: $0 {version|show|graph|init|plan|apply}"
+	exit 1
+	;;
 esac
