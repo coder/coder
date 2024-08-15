@@ -39,7 +39,7 @@ var (
 		// CLI option types:
 		"github.com/coder/serpent",
 	}
-	indent = "\t"
+	indent = "  "
 )
 
 func main() {
@@ -646,7 +646,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			// Just append these as fields. We should fix this later.
 			state.Fields = append(state.Fields, tsType.AboveTypeLine)
 		}
-		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s;", indent, jsonName, optional, valueType))
+		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s", indent, jsonName, optional, valueType))
 	}
 
 	// This is implemented to ensure the correct order of generics on the
@@ -759,8 +759,12 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		//	  }
 		//  }
 		return TypescriptType{
-			ValueType:     "unknown",
-			AboveTypeLine: indentedComment("Embedded anonymous struct, please fix by naming it"),
+			ValueType: "any",
+			AboveTypeLine: fmt.Sprintf("%s\n%s",
+				indentedComment("Embedded anonymous struct, please fix by naming it"),
+				// Linter needs to be disabled here, or else it will complain about the "any" type.
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- Anonymously embedded struct"),
+			),
 		}, nil
 	case *types.Map:
 		// map[string][string] -> Record<string, string>
@@ -811,11 +815,16 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			}
 			genValue := ""
 
+			// Always wrap in parentheses for proper scoped types.
+			// Running prettier on this output will remove redundant parenthesis,
+			// so this makes our decision-making easier.
+			// The example that breaks without this is:
+			//	readonly readonly string[][]
 			if underlying.GenericValue != "" {
-				genValue = "Readonly<Array<" + underlying.GenericValue + ">>"
+				genValue = "(readonly " + underlying.GenericValue + "[])"
 			}
 			return TypescriptType{
-				ValueType:     "Readonly<Array<" + underlying.ValueType + ">>",
+				ValueType:     "(readonly " + underlying.ValueType + "[])",
 				GenericValue:  genValue,
 				AboveTypeLine: underlying.AboveTypeLine,
 				GenericTypes:  underlying.GenericTypes,
@@ -960,10 +969,11 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			// You can handle your type manually in the switch list above, otherwise "any" will be used.
 			// An easy way to fix this is to pull your external type into `codersdk` package, then it will
 			// be known by the generator.
-			return TypescriptType{
-				ValueType:     "unknown",
-				AboveTypeLine: indentedComment(fmt.Sprintf("Named type %q unknown, using \"unknown\"", n.String())),
-			}, nil
+			return TypescriptType{ValueType: "any", AboveTypeLine: fmt.Sprintf("%s\n%s",
+				indentedComment(fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())),
+				// Linter needs to be disabled here, or else it will complain about the "any" type.
+				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type"),
+			)}, nil
 		}
 
 		// Defer to the underlying type.
@@ -992,16 +1002,21 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			// This field is 'interface{}'. We can't infer any type from 'interface{}'
 			// so just use "any" as the type.
 			return TypescriptType{
-				ValueType:     "unknown",
-				AboveTypeLine: indentedComment("Empty interface{} type, cannot resolve the type."),
+				ValueType: "any",
+				AboveTypeLine: fmt.Sprintf("%s\n%s",
+					indentedComment("Empty interface{} type, cannot resolve the type."),
+					// Linter needs to be disabled here, or else it will complain about the "any" type.
+					indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}"),
+				),
 			}, nil
 		}
 
 		// Interfaces are difficult to determine the JSON type, so just return
-		// an 'unknown'.
+		// an 'any'.
 		return TypescriptType{
-			ValueType: "unknown",
-			Optional:  false,
+			ValueType:     "any",
+			AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type."),
+			Optional:      false,
 		}, nil
 	case *types.TypeParam:
 		_, ok := ty.Underlying().(*types.Interface)
