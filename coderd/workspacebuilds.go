@@ -676,6 +676,7 @@ func (api *API) workspaceBuildStats(rw http.ResponseWriter, r *http.Request) {
 			Message: "Failed to get workspace build stats",
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceBuildStats(pj))

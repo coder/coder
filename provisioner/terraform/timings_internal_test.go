@@ -54,6 +54,7 @@ func TestAggregation(t *testing.T) {
 		},
 	}
 
+	// nolint:paralleltest // Not since go v1.22.
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

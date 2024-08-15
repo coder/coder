@@ -1012,7 +1012,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			Error: applyComplete.Error,
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
-					State: applyComplete.State,
+					State:   applyComplete.State,
 					Timings: applyComplete.Timings,
 				},
 			},
@@ -1032,7 +1032,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
 				State:     applyComplete.State,
 				Resources: applyComplete.Resources,
-				Timings: applyComplete.Timings,
+				Timings:   applyComplete.Timings,
 			},
 		},
 	}, nil

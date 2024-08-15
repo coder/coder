@@ -15,11 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"

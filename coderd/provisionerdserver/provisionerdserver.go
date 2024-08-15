@@ -1442,6 +1442,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		}
 
 		// Insert timings outside transaction since it is metadata.
+		// nolint:exhaustruct // The other fields are set further down.
 		params := database.InsertProvisionerJobTimingsParams{
 			JobID: jobID,
 		}
