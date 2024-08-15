@@ -95,10 +95,6 @@ updates:
           - "@emotion*"
         exclude-patterns:
           - "jest-runner-eslint"
-      eslint:
-        patterns:
-          - "eslint*"
-          - "@typescript-eslint*"
       jest:
         patterns:
           - "jest"

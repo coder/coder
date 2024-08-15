@@ -14,10 +14,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type useDebouncedFunctionReturn<Args extends unknown[]> = Readonly<{
-  debounced: (...args: Args) => void;
+	debounced: (...args: Args) => void;
 
-  // Mainly here to make interfacing with useEffect cleanup functions easier
-  cancelDebounce: () => void;
+	// Mainly here to make interfacing with useEffect cleanup functions easier
+	cancelDebounce: () => void;
 }>;
 
 /**
@@ -33,67 +33,67 @@ type useDebouncedFunctionReturn<Args extends unknown[]> = Readonly<{
  * process by calling the returned-out function again.
  */
 export function useDebouncedFunction<
-  // Parameterizing on the args instead of the whole callback function type to
-  // avoid type contra-variance issues
-  Args extends unknown[] = unknown[],
+	// Parameterizing on the args instead of the whole callback function type to
+	// avoid type contra-variance issues
+	Args extends unknown[] = unknown[],
 >(
-  callback: (...args: Args) => void | Promise<void>,
-  debounceTimeMs: number,
+	callback: (...args: Args) => void | Promise<void>,
+	debounceTimeMs: number,
 ): useDebouncedFunctionReturn<Args> {
-  const timeoutIdRef = useRef<number | null>(null);
-  const cancelDebounce = useCallback(() => {
-    if (timeoutIdRef.current !== null) {
-      window.clearTimeout(timeoutIdRef.current);
-    }
+	const timeoutIdRef = useRef<number | null>(null);
+	const cancelDebounce = useCallback(() => {
+		if (timeoutIdRef.current !== null) {
+			window.clearTimeout(timeoutIdRef.current);
+		}
 
-    timeoutIdRef.current = null;
-  }, []);
+		timeoutIdRef.current = null;
+	}, []);
 
-  const debounceTimeRef = useRef(debounceTimeMs);
-  useEffect(() => {
-    cancelDebounce();
-    debounceTimeRef.current = debounceTimeMs;
-  }, [cancelDebounce, debounceTimeMs]);
+	const debounceTimeRef = useRef(debounceTimeMs);
+	useEffect(() => {
+		cancelDebounce();
+		debounceTimeRef.current = debounceTimeMs;
+	}, [cancelDebounce, debounceTimeMs]);
 
-  const callbackRef = useRef(callback);
-  useEffect(() => {
-    callbackRef.current = callback;
-  }, [callback]);
+	const callbackRef = useRef(callback);
+	useEffect(() => {
+		callbackRef.current = callback;
+	}, [callback]);
 
-  // Returned-out function will always be synchronous, even if the callback arg
-  // is async. Seemed dicey to try awaiting a genericized operation that can and
-  // will likely be canceled repeatedly
-  const debounced = useCallback(
-    (...args: Args): void => {
-      cancelDebounce();
+	// Returned-out function will always be synchronous, even if the callback arg
+	// is async. Seemed dicey to try awaiting a genericized operation that can and
+	// will likely be canceled repeatedly
+	const debounced = useCallback(
+		(...args: Args): void => {
+			cancelDebounce();
 
-      timeoutIdRef.current = window.setTimeout(
-        () => void callbackRef.current(...args),
-        debounceTimeRef.current,
-      );
-    },
-    [cancelDebounce],
-  );
+			timeoutIdRef.current = window.setTimeout(
+				() => void callbackRef.current(...args),
+				debounceTimeRef.current,
+			);
+		},
+		[cancelDebounce],
+	);
 
-  return { debounced, cancelDebounce } as const;
+	return { debounced, cancelDebounce } as const;
 }
 
 /**
  * Takes any value, and returns out a debounced version of it.
  */
 export function useDebouncedValue<T = unknown>(
-  value: T,
-  debounceTimeMs: number,
+	value: T,
+	debounceTimeMs: number,
 ): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
+	const [debouncedValue, setDebouncedValue] = useState(value);
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedValue(value);
-    }, debounceTimeMs);
+	useEffect(() => {
+		const timeoutId = window.setTimeout(() => {
+			setDebouncedValue(value);
+		}, debounceTimeMs);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [value, debounceTimeMs]);
+		return () => window.clearTimeout(timeoutId);
+	}, [value, debounceTimeMs]);
 
-  return debouncedValue;
+	return debouncedValue;
 }

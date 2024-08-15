@@ -9,26 +9,26 @@ import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 
 const Layout: FC = () => {
-  const { user: me } = useAuthenticated();
+	const { user: me } = useAuthenticated();
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("Settings")}</title>
-      </Helmet>
+	return (
+		<>
+			<Helmet>
+				<title>{pageTitle("Settings")}</title>
+			</Helmet>
 
-      <Margins>
-        <Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
-          <Sidebar user={me} />
-          <Suspense fallback={<Loader />}>
-            <main css={{ maxWidth: 800, width: "100%" }}>
-              <Outlet />
-            </main>
-          </Suspense>
-        </Stack>
-      </Margins>
-    </>
-  );
+			<Margins>
+				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
+					<Sidebar user={me} />
+					<Suspense fallback={<Loader />}>
+						<main css={{ maxWidth: 800, width: "100%" }}>
+							<Outlet />
+						</main>
+					</Suspense>
+				</Stack>
+			</Margins>
+		</>
+	);
 };
 
 export default Layout;

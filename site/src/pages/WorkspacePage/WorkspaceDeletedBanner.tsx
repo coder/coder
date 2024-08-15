@@ -3,21 +3,21 @@ import { Alert } from "components/Alert/Alert";
 import type { FC } from "react";
 
 export interface WorkspaceDeletedBannerProps {
-  handleClick: () => void;
+	handleClick: () => void;
 }
 
 export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
-  handleClick,
+	handleClick,
 }) => {
-  const NewWorkspaceButton = (
-    <Button onClick={handleClick} size="small" variant="text">
-      Create new workspace
-    </Button>
-  );
+	const NewWorkspaceButton = (
+		<Button onClick={handleClick} size="small" variant="text">
+			Create new workspace
+		</Button>
+	);
 
-  return (
-    <Alert severity="warning" actions={NewWorkspaceButton}>
-      This workspace has been deleted and cannot be edited.
-    </Alert>
-  );
+	return (
+		<Alert severity="warning" actions={NewWorkspaceButton}>
+			This workspace has been deleted and cannot be edited.
+		</Alert>
+	);
 };

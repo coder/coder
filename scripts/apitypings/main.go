@@ -39,7 +39,7 @@ var (
 		// CLI option types:
 		"github.com/coder/serpent",
 	}
-	indent = "  "
+	indent = "\t"
 )
 
 func main() {

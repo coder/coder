@@ -8,60 +8,60 @@ import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { User } from "api/typesGenerated";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
-  Sidebar as BaseSidebar,
-  SidebarHeader,
-  SidebarNavItem,
+	Sidebar as BaseSidebar,
+	SidebarHeader,
+	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 
 interface SidebarProps {
-  user: User;
+	user: User;
 }
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
-  const { entitlements, experiments } = useDashboard();
-  const showSchedulePage =
-    entitlements.features.advanced_template_scheduling.enabled;
+	const { entitlements, experiments } = useDashboard();
+	const showSchedulePage =
+		entitlements.features.advanced_template_scheduling.enabled;
 
-  return (
-    <BaseSidebar>
-      <SidebarHeader
-        avatar={
-          <UserAvatar username={user.username} avatarURL={user.avatar_url} />
-        }
-        title={user.username}
-        subtitle={user.email}
-      />
-      <SidebarNavItem href="account" icon={AccountIcon}>
-        Account
-      </SidebarNavItem>
-      <SidebarNavItem href="appearance" icon={AppearanceIcon}>
-        Appearance
-      </SidebarNavItem>
-      <SidebarNavItem href="external-auth" icon={GitIcon}>
-        External Authentication
-      </SidebarNavItem>
-      {showSchedulePage && (
-        <SidebarNavItem href="schedule" icon={ScheduleIcon}>
-          Schedule
-        </SidebarNavItem>
-      )}
-      <SidebarNavItem href="security" icon={SecurityIcon}>
-        Security
-      </SidebarNavItem>
-      <SidebarNavItem href="ssh-keys" icon={FingerprintOutlinedIcon}>
-        SSH Keys
-      </SidebarNavItem>
-      <SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
-        Tokens
-      </SidebarNavItem>
-      {experiments.includes("notifications") && (
-        <SidebarNavItem href="notifications" icon={NotificationsIcon}>
-          Notifications
-        </SidebarNavItem>
-      )}
-    </BaseSidebar>
-  );
+	return (
+		<BaseSidebar>
+			<SidebarHeader
+				avatar={
+					<UserAvatar username={user.username} avatarURL={user.avatar_url} />
+				}
+				title={user.username}
+				subtitle={user.email}
+			/>
+			<SidebarNavItem href="account" icon={AccountIcon}>
+				Account
+			</SidebarNavItem>
+			<SidebarNavItem href="appearance" icon={AppearanceIcon}>
+				Appearance
+			</SidebarNavItem>
+			<SidebarNavItem href="external-auth" icon={GitIcon}>
+				External Authentication
+			</SidebarNavItem>
+			{showSchedulePage && (
+				<SidebarNavItem href="schedule" icon={ScheduleIcon}>
+					Schedule
+				</SidebarNavItem>
+			)}
+			<SidebarNavItem href="security" icon={SecurityIcon}>
+				Security
+			</SidebarNavItem>
+			<SidebarNavItem href="ssh-keys" icon={FingerprintOutlinedIcon}>
+				SSH Keys
+			</SidebarNavItem>
+			<SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
+				Tokens
+			</SidebarNavItem>
+			{experiments.includes("notifications") && (
+				<SidebarNavItem href="notifications" icon={NotificationsIcon}>
+					Notifications
+				</SidebarNavItem>
+			)}
+		</BaseSidebar>
+	);
 };

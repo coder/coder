@@ -1,35 +1,35 @@
 import { API } from "api/api";
 import type { TokensFilter } from "api/typesGenerated";
 import {
-  type QueryKey,
-  useMutation,
-  useQuery,
-  useQueryClient,
+	type QueryKey,
+	useMutation,
+	useQuery,
+	useQueryClient,
 } from "react-query";
 
 // Load all tokens
 export const useTokensData = ({ include_all }: TokensFilter) => {
-  const queryKey = ["tokens", include_all];
-  const result = useQuery({
-    queryKey,
-    queryFn: () => API.getTokens({ include_all }),
-  });
+	const queryKey = ["tokens", include_all];
+	const result = useQuery({
+		queryKey,
+		queryFn: () => API.getTokens({ include_all }),
+	});
 
-  return {
-    queryKey,
-    ...result,
-  };
+	return {
+		queryKey,
+		...result,
+	};
 };
 
 // Delete a token
 export const useDeleteToken = (queryKey: QueryKey) => {
-  const queryClient = useQueryClient();
+	const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: API.deleteToken,
-    onSuccess: () => {
-      // Invalidate and refetch
-      void queryClient.invalidateQueries(queryKey);
-    },
-  });
+	return useMutation({
+		mutationFn: API.deleteToken,
+		onSuccess: () => {
+			// Invalidate and refetch
+			void queryClient.invalidateQueries(queryKey);
+		},
+	});
 };

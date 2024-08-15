@@ -4,34 +4,34 @@ import { MockToken } from "testHelpers/entities";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      cacheTime: 0,
-      refetchOnWindowFocus: false,
-    },
-  },
+	defaultOptions: {
+		queries: {
+			retry: false,
+			cacheTime: 0,
+			refetchOnWindowFocus: false,
+		},
+	},
 });
 
 const meta: Meta<typeof ConfirmDeleteDialog> = {
-  title: "pages/UserSettingsPage/TokensDeleteDialog",
-  component: ConfirmDeleteDialog,
-  decorators: [
-    (Story) => (
-      <QueryClientProvider client={queryClient}>
-        <Story />
-      </QueryClientProvider>
-    ),
-  ],
+	title: "pages/UserSettingsPage/TokensDeleteDialog",
+	component: ConfirmDeleteDialog,
+	decorators: [
+		(Story) => (
+			<QueryClientProvider client={queryClient}>
+				<Story />
+			</QueryClientProvider>
+		),
+	],
 };
 
 export default meta;
 type Story = StoryObj<typeof ConfirmDeleteDialog>;
 
 export const DeleteDialog: Story = {
-  args: {
-    queryKey: ["tokens"],
-    token: MockToken,
-    setToken: () => null,
-  },
+	args: {
+		queryKey: ["tokens"],
+		token: MockToken,
+		setToken: () => null,
+	},
 };

@@ -1,5 +1,5 @@
 import FormHelperText, {
-  type FormHelperTextProps,
+	type FormHelperTextProps,
 } from "@mui/material/FormHelperText";
 import { Stack } from "components/Stack/Stack";
 import type { ComponentProps, FC } from "react";
@@ -10,26 +10,26 @@ import type { ComponentProps, FC } from "react";
  */
 
 export const StackLabel: FC<ComponentProps<typeof Stack>> = (props) => {
-  return (
-    <Stack
-      spacing={0.5}
-      css={{ paddingLeft: 12, fontWeight: 500 }}
-      {...props}
-    />
-  );
+	return (
+		<Stack
+			spacing={0.5}
+			css={{ paddingLeft: 12, fontWeight: 500 }}
+			{...props}
+		/>
+	);
 };
 
 export const StackLabelHelperText: FC<FormHelperTextProps> = (props) => {
-  return (
-    <FormHelperText
-      css={(theme) => ({
-        marginTop: 0,
+	return (
+		<FormHelperText
+			css={(theme) => ({
+				marginTop: 0,
 
-        "& strong": {
-          color: theme.palette.text.primary,
-        },
-      })}
-      {...props}
-    />
-  );
+				"& strong": {
+					color: theme.palette.text.primary,
+				},
+			})}
+			{...props}
+		/>
+	);
 };

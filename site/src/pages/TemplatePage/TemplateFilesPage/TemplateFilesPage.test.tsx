@@ -11,46 +11,46 @@ import TemplateFilesPage from "./TemplateFilesPage";
 // Occasionally, Jest encounters HTML5 canvas errors. As the SyntaxHighlight is
 // not required for these tests, we can safely mock it.
 jest.mock("components/SyntaxHighlighter/SyntaxHighlighter", () => ({
-  SyntaxHighlighter: () => <div data-testid="syntax-highlighter" />,
+	SyntaxHighlighter: () => <div data-testid="syntax-highlighter" />,
 }));
 
 test("displays the template files even when there is no previous version", async () => {
-  server.use(
-    http.get(
-      "/api/v2/organizations/:organizationId/templates/:template/versions/:version/previous",
-      () => {
-        new HttpResponse(null, { status: 404 });
-      },
-    ),
-  );
+	server.use(
+		http.get(
+			"/api/v2/organizations/:organizationId/templates/:template/versions/:version/previous",
+			() => {
+				new HttpResponse(null, { status: 404 });
+			},
+		),
+	);
 
-  render(
-    <AppProviders>
-      <RouterProvider
-        router={createMemoryRouter(
-          [
-            {
-              element: <RequireAuth />,
-              children: [
-                {
-                  element: <TemplateLayout />,
-                  children: [
-                    {
-                      path: "/templates/:template/files",
-                      element: <TemplateFilesPage />,
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-          {
-            initialEntries: [`/templates/${MockTemplate.name}/files`],
-          },
-        )}
-      />
-    </AppProviders>,
-  );
+	render(
+		<AppProviders>
+			<RouterProvider
+				router={createMemoryRouter(
+					[
+						{
+							element: <RequireAuth />,
+							children: [
+								{
+									element: <TemplateLayout />,
+									children: [
+										{
+											path: "/templates/:template/files",
+											element: <TemplateFilesPage />,
+										},
+									],
+								},
+							],
+						},
+					],
+					{
+						initialEntries: [`/templates/${MockTemplate.name}/files`],
+					},
+				)}
+			/>
+		</AppProviders>,
+	);
 
-  await screen.findByTestId("syntax-highlighter");
+	await screen.findByTestId("syntax-highlighter");
 });

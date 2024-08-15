@@ -6,21 +6,21 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
 
 const NetworkSettingsPage: FC = () => {
-  const { deploymentValues } = useDeploySettings();
+	const { deploymentValues } = useDeploySettings();
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("Network Settings")}</title>
-      </Helmet>
+	return (
+		<>
+			<Helmet>
+				<title>{pageTitle("Network Settings")}</title>
+			</Helmet>
 
-      {deploymentValues ? (
-        <NetworkSettingsPageView options={deploymentValues.options} />
-      ) : (
-        <Loader />
-      )}
-    </>
-  );
+			{deploymentValues ? (
+				<NetworkSettingsPageView options={deploymentValues.options} />
+			) : (
+				<Loader />
+			)}
+		</>
+	);
 };
 
 export default NetworkSettingsPage;
