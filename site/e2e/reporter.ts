@@ -1,15 +1,15 @@
+import * as fs from "node:fs/promises";
+import type { Writable } from "node:stream";
 /* eslint-disable no-console -- Logging is sort of the whole point here */
 import type {
   FullConfig,
-  Suite,
-  TestCase,
-  TestResult,
   FullResult,
   Reporter,
+  Suite,
+  TestCase,
   TestError,
+  TestResult,
 } from "@playwright/test/reporter";
-import * as fs from "node:fs/promises";
-import type { Writable } from "node:stream";
 import { API } from "api/api";
 import { coderdPProfPort, enterpriseLicense } from "./constants";
 

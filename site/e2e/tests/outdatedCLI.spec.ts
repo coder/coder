@@ -1,5 +1,5 @@
-import { test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { test } from "@playwright/test";
 import {
   createTemplate,
   createWorkspace,

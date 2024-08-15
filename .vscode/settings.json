@@ -227,7 +227,7 @@
 
   "[javascript][javascriptreact][json][jsonc][typescript][typescriptreact]": {
     "editor.defaultFormatter": "biomejs.biome",
-    "editor.codeActionsOnSave":{
+    "editor.codeActionsOnSave": {
       "source.organizeImports.biome": "explicit"
     }
   },

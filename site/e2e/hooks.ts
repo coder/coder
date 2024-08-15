@@ -1,5 +1,5 @@
-import type { BrowserContext, Page } from "@playwright/test";
 import http from "node:http";
+import type { BrowserContext, Page } from "@playwright/test";
 import { coderPort, gitAuth } from "./constants";
 
 export const beforeCoderTest = async (page: Page) => {

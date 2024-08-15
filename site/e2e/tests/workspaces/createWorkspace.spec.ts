@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
   StarterTemplates,
   createTemplate,
@@ -10,14 +10,14 @@ import {
 } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import {
-  secondParameter,
-  fourthParameter,
   fifthParameter,
   firstParameter,
-  thirdParameter,
+  fourthParameter,
+  randParamName,
+  secondParameter,
   seventhParameter,
   sixthParameter,
-  randParamName,
+  thirdParameter,
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
 

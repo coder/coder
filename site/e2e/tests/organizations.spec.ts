@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { setupApiCalls } from "../api";
 import { expectUrl } from "../expectUrl";
 import { requiresEnterpriseLicense } from "../helpers";

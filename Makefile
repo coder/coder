@@ -406,11 +406,9 @@ fmt/ts:
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
-	pnpm run lint
-	pnpm run format:check
+	pnpm run check --linter-enabled=false
 else
-	pnpm run lint:fix
-	pnpm run format
+	pnpm run check:fix
 endif
 .PHONY: fmt/ts
 
@@ -448,7 +446,7 @@ lint/site-icons:
 
 lint/ts:
 	cd site
-	pnpm i && pnpm lint
+	pnpm lint
 .PHONY: lint/ts
 
 lint/go:

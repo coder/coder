@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { randomName, requiresEnterpriseLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 

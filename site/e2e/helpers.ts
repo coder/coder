@@ -1,16 +1,16 @@
-import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import express from "express";
-import capitalize from "lodash/capitalize";
 import path from "node:path";
-import * as ssh from "ssh2";
 import { Duplex } from "node:stream";
+import { type BrowserContext, type Page, expect, test } from "@playwright/test";
 import { API } from "api/api";
 import type {
-  WorkspaceBuildParameter,
   UpdateTemplateMeta,
+  WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import express from "express";
+import capitalize from "lodash/capitalize";
+import * as ssh from "ssh2";
 import { TarWriter } from "utils/tar";
 import {
   agentPProfPort,
@@ -26,13 +26,13 @@ import {
   Agent,
   type App,
   AppSharingLevel,
+  type ApplyComplete,
+  type ExternalAuthProviderResource,
   type ParseComplete,
   type PlanComplete,
-  type ApplyComplete,
   type Resource,
   Response,
   type RichParameter,
-  type ExternalAuthProviderResource,
 } from "./provisionerGenerated";
 
 // requiresEnterpriseLicense will skip the test if we're not running with an enterprise license

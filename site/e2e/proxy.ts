@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess, exec } from "node:child_process";
+import { type ChildProcess, exec, spawn } from "node:child_process";
 import { coderMain, coderPort, workspaceProxyPort } from "./constants";
 import { waitUntilUrlIsNotResponding } from "./helpers";
 

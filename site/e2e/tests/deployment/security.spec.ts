@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
-import { type DeploymentConfig, API } from "api/api";
+import { API, type DeploymentConfig } from "api/api";
 import {
   findConfigOption,
   setupApiCalls,
