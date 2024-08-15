@@ -2599,16 +2599,7 @@ func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return int64(len(users)), nil
 }
 
-func (q *FakeQuerier) GetGroups(_ context.Context) ([]database.Group, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	out := make([]database.Group, len(q.groups))
-	copy(out, q.groups)
-	return out, nil
-}
-
-func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2616,34 +2607,38 @@ func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg da
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	var groupIDs []uuid.UUID
-	for _, member := range q.groupMembers {
-		if member.UserID == arg.UserID {
-			groupIDs = append(groupIDs, member.GroupID)
+
+	groupIDs := make(map[uuid.UUID]struct{})
+	if arg.HasMemberID != uuid.Nil {
+		for _, member := range q.groupMembers {
+			if member.UserID == arg.HasMemberID {
+				groupIDs[member.GroupID] = struct{}{}
+			}
+		}
+
+		// Handle the everyone group
+		for _, orgMember := range q.organizationMembers {
+			if orgMember.UserID == arg.HasMemberID {
+				groupIDs[orgMember.OrganizationID] = struct{}{}
+			}
 		}
 	}
-	groups := []database.Group{}
+
+	filtered := make([]database.Group, 0)
 	for _, group := range q.groups {
-		if slices.Contains(groupIDs, group.ID) && group.OrganizationID == arg.OrganizationID {
-			groups = append(groups, group)
+		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
+			continue
 		}
+
+		_, ok := groupIDs[group.ID]
+		if arg.HasMemberID != uuid.Nil && !ok {
+			continue
+		}
+
+		filtered = append(filtered, group)
 	}
 
-	return groups, nil
-}
-
-func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	groups := make([]database.Group, 0, len(q.groups))
-	for _, group := range q.groups {
-		if group.OrganizationID == id {
-			groups = append(groups, group)
-		}
-	}
-
-	return groups, nil
+	return filtered, nil
 }
 
 func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
