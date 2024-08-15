@@ -3318,6 +3318,12 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		if member.UserID != userID {
 			continue
 		}
+		if _, err := q.getOrganizationByIDNoLock(member.GroupID); err == nil {
+			// This should never happen, but it has been reported in customer deployments.
+			// The SQL handles this case, and omits `group_members` rows in the
+			// Everyone group. It counts these distinctly via `organization_members` table.
+			continue
+		}
 		for _, group := range q.groups {
 			if group.ID == member.GroupID {
 				sum += int64(group.QuotaAllowance)
