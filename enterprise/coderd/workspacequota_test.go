@@ -262,6 +262,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		defer cancel()
 
 		// update everyone quotas
+		//nolint:gocritic // using owner for simplicity
 		_, err := owner.PatchGroup(ctx, first.OrganizationID, codersdk.PatchGroupRequest{
 			QuotaAllowance: ptr.Ref(30),
 		})
