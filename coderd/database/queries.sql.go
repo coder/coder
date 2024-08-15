@@ -1568,25 +1568,25 @@ FROM
 WHERE
     true
     AND CASE
-		WHEN $1:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			groups.organization_id = $1
-		ELSE true
+        WHEN $1:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            groups.organization_id = $1
+        ELSE true
     END
     AND CASE
         -- Filter to only include groups a user is a member of
         WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
             EXISTS (
-				SELECT
-					1
-				FROM
-					-- this view handles the 'everyone' group in orgs.
-					group_members_expanded
-				WHERE
-					group_members_expanded.group_id = groups.id
-				AND
-					group_members_expanded.user_id = $2
-			)
-		ELSE true
+                SELECT
+                    1
+                FROM
+                    -- this view handles the 'everyone' group in orgs.
+                    group_members_expanded
+                WHERE
+                    group_members_expanded.group_id = groups.id
+                AND
+                    group_members_expanded.user_id = $2
+            )
+        ELSE true
     END
 `
 
