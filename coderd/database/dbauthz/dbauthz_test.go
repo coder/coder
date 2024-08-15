@@ -2463,6 +2463,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			JobID: j.ID,
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
 	}))
+	s.Run("InsertProvisionerJobTimings", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: we need to create a ProvisionerJob resource
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.InsertProvisionerJobTimingsParams{
+			JobID: j.ID,
+		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
+	}))
 	s.Run("UpsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pd := rbac.ResourceProvisionerDaemon.InOrg(org.ID)

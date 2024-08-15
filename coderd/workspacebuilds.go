@@ -1011,21 +1011,3 @@ func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition 
 	// return error status since we should never get here
 	return codersdk.WorkspaceStatusFailed
 }
-
-func convertWorkspaceBuildStats(stats database.ProvisionerJobStat) codersdk.WorkspaceBuildStats {
-	return codersdk.WorkspaceBuildStats{
-		ID:             stats.JobID,
-		JobStatus:      codersdk.ProvisionerJobStatus(stats.JobStatus),
-		WorkerID:       stats.WorkspaceID,
-		WorkspaceID:    stats.WorkspaceID,
-		Error:          stats.Error.String,
-		ErrorCode:      stats.ErrorCode.String,
-		UpdatedAt:      stats.UpdatedAt,
-		QueuedSecs:     stats.QueuedSecs,
-		CompletionSecs: stats.CompletionSecs,
-		CanceledSecs:   stats.CanceledSecs,
-		InitSecs:       stats.InitSecs,
-		PlanSecs:       stats.PlanSecs,
-		ApplySecs:      stats.ApplySecs,
-	}
-}

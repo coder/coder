@@ -18,6 +18,8 @@ import (
 // This log content is then used to usher the provisioning process along as if terraform has run, and consequently
 // the timing data is extracted from the log content and validated against the expected values.
 func TestTimingsFromProvision(t *testing.T) {
+	t.Parallel()
+
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 
