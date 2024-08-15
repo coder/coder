@@ -9,4 +9,4 @@ TODO:
   - port forwarding
 - coder apps
 - VSCode
-- Jetbrains
+- JetBrains

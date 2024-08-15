@@ -90,11 +90,11 @@ Database:
 
 ## Available reference architectures
 
-[Up to 1,000 users](../../architecture/1k-users.md)
+[Up to 1,000 users](./validated-architectures/1k-users.md)
 
-[Up to 2,000 users](../../architecture/2k-users.md)
+[Up to 2,000 users](./validated-architectures/2k-users.md)
 
-[Up to 3,000 users](../../architecture/3k-users.md)
+[Up to 3,000 users](./validated-architectures/3k-users.md)
 
 ## Hardware recommendation
 
@@ -112,13 +112,14 @@ on the workload size to ensure deployment stability.
 
 #### CPU and memory usage
 
-Enabling [agent stats collection](../../cli.md#--prometheus-collect-agent-stats)
+Enabling
+[agent stats collection](../../reference/cli/README.md#--prometheus-collect-agent-stats)
 (optional) may increase memory consumption.
 
 Enabling direct connections between users and workspace agents (apps or SSH
 traffic) can help prevent an increase in CPU usage. It is recommended to keep
-[this option enabled](../../cli.md#--disable-direct-connections) unless there
-are compelling reasons to disable it.
+[this option enabled](../../reference/cli/README.md#--disable-direct-connections)
+unless there are compelling reasons to disable it.
 
 Inactive users do not consume Coder resources.
 
@@ -148,18 +149,19 @@ Terminal (bidirectional), and Workspace events/logs (unidirectional).
 If the Coder deployment expects traffic from developers spread across the globe,
 be aware that customer-facing latency might be higher because of the distance
 between users and the load balancer. Fortunately, the latency can be improved
-with a deployment of Coder [workspace proxies](../workspace-proxies.md).
+with a deployment of Coder
+[workspace proxies](../networking/workspace-proxies.md).
 
 **Node Autoscaling**
 
 We recommend disabling the autoscaling for `coderd` nodes. Autoscaling can cause
 interruptions for user connections, see
-[Autoscaling](scale-utility.md#autoscaling) for more details.
+[Autoscaling](./scale-utility.md#autoscaling) for more details.
 
 ### Control plane: Workspace Proxies
 
-When scaling [workspace proxies](../workspace-proxies.md), follow the same
-guidelines as for `coderd` above:
+When scaling [workspace proxies](../networking/workspace-proxies.md), follow the
+same guidelines as for `coderd` above:
 
 - `1 vCPU x 2 GB memory` for every 250 users.
 - Disable autoscaling.
