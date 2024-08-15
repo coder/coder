@@ -21,6 +21,10 @@ var (
 	inputError []byte
 	//go:embed testdata/timings-aggregation/complete.txtar
 	inputComplete []byte
+	//go:embed testdata/timings-aggregation/incomplete.txtar
+	inputIncomplete []byte
+	//go:embed testdata/timings-aggregation/faster-than-light.txtar
+	inputFasterThanLight []byte
 )
 
 func TestAggregation(t *testing.T) {
@@ -46,6 +50,14 @@ func TestAggregation(t *testing.T) {
 			name:  "complete",
 			input: inputComplete,
 		},
+		{
+			name:  "incomplete",
+			input: inputIncomplete,
+		},
+		{
+			name:  "faster-than-light",
+			input: inputFasterThanLight,
+		},
 	}
 
 	// nolint:paralleltest // Not since go v1.22.
@@ -64,8 +76,11 @@ func TestAggregation(t *testing.T) {
 			t.Logf("%s: %s", t.Name(), arc.Comment)
 
 			var actualTimings []*proto.Timing
+
+			// The last "file" MUST contain the expected timings.
 			expectedTimings := arc.Files[len(arc.Files)-1]
 
+			// Iterate over the initial "files" and extract their timings according to their stage.
 			for i := 0; i < len(arc.Files)-1; i++ {
 				file := arc.Files[i]
 				stage := database.ProvisionerJobTimingStage(file.Name)
@@ -77,6 +92,7 @@ func TestAggregation(t *testing.T) {
 				actualTimings = append(actualTimings, agg.aggregate()...)
 			}
 
+			// Ensure that the expected timings were produced.
 			expected := ParseTimingLines(t, expectedTimings.Data)
 			StableSortTimings(t, actualTimings) // To reduce flakiness.
 			if !assert.True(t, TimingsAreEqual(t, expected, actualTimings)) {
