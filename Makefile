@@ -601,7 +601,6 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run ./scripts/apitypings/ > $@
 	./scripts/pnpm_install.sh
-	pnpm exec prettier --write "$@"
 
 site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site
@@ -611,7 +610,7 @@ site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisio
 site/src/theme/icons.json: $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
 	go run ./scripts/gensite/ -icons "$@"
 	./scripts/pnpm_install.sh
-	pnpm exec prettier --write "$@"
+	pnpm -C site/ exec biome format --write src/theme/icons.json
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json

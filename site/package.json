@@ -150,7 +150,7 @@
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
 		"msw": "2.2.3",
-		"prettier": "3.1.0",
+		"prettier": "3.3.3",
 		"protobufjs": "7.2.5",
 		"rxjs": "7.8.1",
 		"ssh2": "1.15.0",
