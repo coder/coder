@@ -1,8 +1,6 @@
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import type { FC } from "react";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import {
   Badges,
@@ -17,6 +15,8 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
@@ -132,8 +132,12 @@ export const AppearanceSettingsPageView: FC<
                   src={logoForm.values.logo_url}
                   // This prevent browser to display the ugly error icon if the
                   // image path is wrong or user didn't finish typing the url
-                  onError={(e) => (e.currentTarget.style.display = "none")}
-                  onLoad={(e) => (e.currentTarget.style.display = "inline")}
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                  onLoad={(e) => {
+                    e.currentTarget.style.display = "inline";
+                  }}
                 />
               </InputAdornment>
             ),

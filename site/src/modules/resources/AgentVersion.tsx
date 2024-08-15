@@ -1,5 +1,5 @@
-import type { FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
+import type { FC } from "react";
 import { agentVersionStatus, getDisplayVersionStatus } from "utils/workspace";
 import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
 

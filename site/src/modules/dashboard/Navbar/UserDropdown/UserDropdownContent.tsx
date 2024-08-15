@@ -1,8 +1,8 @@
 import {
-  css,
   type CSSObject,
   type Interpolation,
   type Theme,
+  css,
 } from "@emotion/react";
 import AccountIcon from "@mui/icons-material/AccountCircleOutlined";
 import BugIcon from "@mui/icons-material/BugReportOutlined";
@@ -14,13 +14,13 @@ import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
-import type { FC } from "react";
-import { Link } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { usePopover } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
 
 export const Language = {
   accountLabel: "Account",

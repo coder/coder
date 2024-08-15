@@ -1,6 +1,3 @@
-import { createContext, type FC, Suspense, useContext } from "react";
-import { useQuery } from "react-query";
-import { Outlet } from "react-router-dom";
 import type { DeploymentConfig } from "api/api";
 import { deploymentConfig } from "api/queries/deployment";
 import { Loader } from "components/Loader/Loader";
@@ -10,6 +7,9 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
+import { type FC, Suspense, createContext, useContext } from "react";
+import { useQuery } from "react-query";
+import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 
 type DeploySettingsContextValue = {

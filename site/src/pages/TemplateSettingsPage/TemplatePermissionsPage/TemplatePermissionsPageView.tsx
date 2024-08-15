@@ -9,7 +9,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC, useState } from "react";
 import type {
   Group,
   ReducedUser,
@@ -32,6 +31,7 @@ import {
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
 import {
   UserOrGroupAutocomplete,

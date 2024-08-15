@@ -1,5 +1,5 @@
-import type { FC } from "react";
 import type { Template } from "api/typesGenerated";
+import type { FC } from "react";
 import type { TemplateAutostopRequirementDaysValue } from "utils/schedule";
 
 const autostopRequirementDescriptions = {
@@ -17,9 +17,13 @@ export const convertAutostopRequirementDaysValue = (
 ): TemplateAutostopRequirementDaysValue => {
   if (days.length === 7) {
     return "daily";
-  } else if (days.length === 1 && days[0] === "saturday") {
+  }
+
+  if (days.length === 1 && days[0] === "saturday") {
     return "saturday";
-  } else if (days.length === 1 && days[0] === "sunday") {
+  }
+
+  if (days.length === 1 && days[0] === "sunday") {
     return "sunday";
   }
 

@@ -1,22 +1,22 @@
 import {
-  render as testingLibraryRender,
   screen,
+  render as testingLibraryRender,
   waitFor,
 } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { QueryClient } from "react-query";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router-dom";
 import { AppProviders } from "App";
-import { RequireAuth } from "contexts/auth/RequireAuth";
 import { ThemeProvider } from "contexts/ThemeProvider";
+import { RequireAuth } from "contexts/auth/RequireAuth";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import type { ReactNode } from "react";
+import { QueryClient } from "react-query";
+import {
+  type RouteObject,
+  RouterProvider,
+  createMemoryRouter,
+} from "react-router-dom";
 import { MockUser } from "./entities";
 
 export function createTestQueryClient() {

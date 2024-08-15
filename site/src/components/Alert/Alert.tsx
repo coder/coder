@@ -1,14 +1,14 @@
-// eslint-disable-next-line no-restricted-imports -- It is the base component
 import MuiAlert, {
   type AlertProps as MuiAlertProps,
+  // biome-ignore lint/nursery/noRestrictedImports: Used as base component
 } from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import {
-  useState,
   type FC,
-  type ReactNode,
   type PropsWithChildren,
+  type ReactNode,
+  useState,
 } from "react";
 
 export type AlertProps = MuiAlertProps & {

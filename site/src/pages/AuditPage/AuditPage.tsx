@@ -1,13 +1,13 @@
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useSearchParams } from "react-router-dom";
 import { paginatedAudits } from "api/queries/audits";
-import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { useFilter } from "components/Filter/filter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import {
   useActionFilterMenu,
@@ -53,7 +53,7 @@ const AuditPage: FC = () => {
   });
 
   const resourceTypeMenu = useResourceTypeFilterMenu({
-    value: filter.values["resource_type"],
+    value: filter.values.resource_type,
     onChange: (option) =>
       filter.update({
         ...filter.values,

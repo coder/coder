@@ -4,8 +4,8 @@ import IconButton from "@mui/material/IconButton";
 import Snackbar, {
   type SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
-import type { FC } from "react";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import type { FC } from "react";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
@@ -77,7 +77,8 @@ const variantColor = (variant: EnterpriseSnackbarVariant, theme: Theme) => {
 const classNames = {
   content:
     (variant: EnterpriseSnackbarVariant): ClassName =>
-    (css, theme) => css`
+    (css, theme) =>
+      css`
       border: 1px solid ${theme.palette.divider};
       border-left: 4px solid ${variantColor(variant, theme)};
       border-radius: 8px;

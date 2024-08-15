@@ -1,11 +1,11 @@
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
 import { templateExamples, templates } from "api/queries/templates";
 import { useFilter } from "components/Filter/filter";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 

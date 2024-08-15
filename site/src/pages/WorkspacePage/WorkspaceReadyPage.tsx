@@ -1,22 +1,17 @@
-import dayjs from "dayjs";
-import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
-import { MissingBuildParameters, API } from "api/api";
+import { API, MissingBuildParameters } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { buildInfo } from "api/queries/buildInfo";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { templateVersion, templateVersions } from "api/queries/templates";
 import {
   activate,
+  cancelBuild,
   changeVersion,
   deleteWorkspace,
-  updateWorkspace,
-  stopWorkspace,
   startWorkspace,
+  stopWorkspace,
   toggleFavorite,
-  cancelBuild,
+  updateWorkspace,
 } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import {
@@ -27,16 +22,21 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import dayjs from "dayjs";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { type FC, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
-import type { WorkspacePermissions } from "./permissions";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
+import type { WorkspacePermissions } from "./permissions";
 
 interface WorkspaceReadyPageProps {
   template: TypesGen.Template;
@@ -249,8 +249,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
         }}
         latestVersion={latestVersion}
         canChangeVersions={canChangeVersions}
-        hideSSHButton={featureVisibility["browser_only"]}
-        hideVSCodeDesktopButton={featureVisibility["browser_only"]}
+        hideSSHButton={featureVisibility.browser_only}
+        hideVSCodeDesktopButton={featureVisibility.browser_only}
         buildInfo={buildInfoQuery.data}
         sshPrefix={sshPrefixQuery.data?.hostname_prefix}
         template={template}

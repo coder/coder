@@ -3,10 +3,10 @@ import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
-import type { FC } from "react";
 import type { TemplateVersionExternalAuth } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Pill } from "components/Pill/Pill";
+import type { FC } from "react";
 
 export interface ExternalAuthButtonProps {
   auth: TemplateVersionExternalAuth;

@@ -6,8 +6,8 @@ import TreeItem from "@mui/lab/TreeItem";
 import TreeView from "@mui/lab/TreeView";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { type CSSProperties, type FC, useState } from "react";
 import { DockerIcon } from "components/Icons/DockerIcon";
+import { type CSSProperties, type FC, useState } from "react";
 import type { FileTree } from "utils/filetree";
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
@@ -116,9 +116,11 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
           & > .MuiTreeItem-content {
             padding: 2px 16px;
-            color: ${isHiddenFile
-              ? theme.palette.text.disabled
-              : theme.palette.text.secondary};
+            color: ${
+              isHiddenFile
+                ? theme.palette.text.disabled
+                : theme.palette.text.secondary
+            };
             height: 32px;
 
             & svg {
@@ -233,7 +235,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
             if (!contextMenu) {
               return;
             }
-            onRename && onRename(contextMenu.path);
+            onRename?.(contextMenu.path);
             setContextMenu(undefined);
           }}
         >
@@ -244,7 +246,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
             if (!contextMenu) {
               return;
             }
-            onDelete && onDelete(contextMenu.path);
+            onDelete?.(contextMenu.path);
             setContextMenu(undefined);
           }}
         >

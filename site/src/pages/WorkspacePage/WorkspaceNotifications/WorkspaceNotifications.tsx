@@ -1,15 +1,15 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import WarningRounded from "@mui/icons-material/WarningRounded";
-import formatDistanceToNow from "date-fns/formatDistanceToNow";
-import dayjs from "dayjs";
-import { type FC, useEffect, useState } from "react";
-import { useQuery } from "react-query";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type { Template, TemplateVersion, Workspace } from "api/typesGenerated";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import formatDistanceToNow from "date-fns/formatDistanceToNow";
+import dayjs from "dayjs";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
+import { type FC, useEffect, useState } from "react";
+import { useQuery } from "react-query";
 import type { WorkspacePermissions } from "../permissions";
 import {
   NotificationActionButton,
@@ -90,7 +90,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
           Your workspace is running but{" "}
           {workspace.health.failing_agents.length > 1
             ? `${workspace.health.failing_agents.length} agents are unhealthy`
-            : `1 agent is unhealthy`}
+            : "1 agent is unhealthy"}
           .
         </>
       ),
@@ -105,7 +105,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
   // Dormant
   const { entitlements } = useDashboard();
   const advancedSchedulingEnabled =
-    entitlements.features["advanced_template_scheduling"].enabled;
+    entitlements.features.advanced_template_scheduling.enabled;
   if (advancedSchedulingEnabled && workspace.dormant_at) {
     const formatDate = (dateStr: string, timestamp: boolean): string => {
       const date = new Date(dateStr);
@@ -153,6 +153,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
   // figure out if this effect really should run every render (possibly meaning
   // no dependency array at all), or how to get the array stabilized (ideal)
   const now = dayjs();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     if (
       workspace.latest_build.status !== "pending" ||

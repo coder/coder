@@ -1,13 +1,13 @@
 import "testHelpers/localStorage";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
 import type { Region } from "api/typesGenerated";
+import { http, HttpResponse } from "msw";
 import {
-  MockPrimaryWorkspaceProxy,
-  MockWorkspaceProxies,
   MockHealthyWildWorkspaceProxy,
+  MockPrimaryWorkspaceProxy,
   MockUnhealthyWildWorkspaceProxy,
+  MockWorkspaceProxies,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -15,8 +15,8 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import {
-  getPreferredProxy,
   ProxyProvider,
+  getPreferredProxy,
   saveUserSelectedProxy,
   useProxy,
 } from "./ProxyContext";
@@ -99,14 +99,14 @@ describe("ProxyContextGetURLs", () => {
         // This should be ignored because it's unhealthy
         [MockUnhealthyWildWorkspaceProxy.id]: fakeLatency(25),
         // This should be ignored because it is not in the list.
-        ["not a proxy"]: fakeLatency(10),
+        "not a proxy": fakeLatency(10),
       },
       undefined,
       MockHealthyWildWorkspaceProxy.path_app_url,
       MockHealthyWildWorkspaceProxy.wildcard_hostname,
     ],
   ])(
-    `%p`,
+    "%p",
     (
       _,
       regions,
@@ -130,7 +130,7 @@ const TestingComponent = () => {
       <TestingScreen />
     </ProxyProvider>,
     {
-      route: `/proxies`,
+      route: "/proxies",
       path: "/proxies",
     },
   );
@@ -144,11 +144,8 @@ const TestingScreen = () => {
     <>
       <div data-testid="isFetched" title={isFetched.toString()}></div>
       <div data-testid="isLoading" title={isLoading.toString()}></div>
-      <div
-        data-testid="preferredProxy"
-        title={proxy.proxy && proxy.proxy.id}
-      ></div>
-      <div data-testid="userProxy" title={userProxy && userProxy.id}></div>
+      <div data-testid="preferredProxy" title={proxy.proxy?.id}></div>
+      <div data-testid="userProxy" title={userProxy?.id}></div>
       <button data-testid="clearProxy" onClick={clearProxy}></button>
       <div data-testid="userSelectProxyData"></div>
       <button
@@ -323,14 +320,14 @@ describe("ProxyContextSelection", () => {
         storageProxy: MockUnhealthyWildWorkspaceProxy,
         expUserProxyID: MockUnhealthyWildWorkspaceProxy.id,
         latencies: {
-          ["some"]: fakeLatency(500),
-          ["random"]: fakeLatency(100),
-          ["ids"]: fakeLatency(25),
+          some: fakeLatency(500),
+          random: fakeLatency(100),
+          ids: fakeLatency(25),
         },
       },
     ],
   ] as [string, ProxyContextSelectionTest][])(
-    `%s`,
+    "%s",
     async (
       _,
       {

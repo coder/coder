@@ -1,12 +1,12 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, css } from "@emotion/react";
 import UploadIcon from "@mui/icons-material/CloudUploadOutlined";
 import RemoveIcon from "@mui/icons-material/DeleteOutline";
 import FileIcon from "@mui/icons-material/FolderOutlined";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
-import { type FC, type DragEvent, useRef, type ReactNode } from "react";
 import { Stack } from "components/Stack/Stack";
 import { useClickable } from "hooks/useClickable";
+import { type DragEvent, type FC, type ReactNode, useRef } from "react";
 
 export interface FileUploadProps {
   isUploading: boolean;
@@ -31,8 +31,8 @@ export const FileUpload: FC<FileUploadProps> = ({
 }) => {
   const fileDrop = useFileDrop(onUpload, extensions);
   const inputRef = useRef<HTMLInputElement>(null);
-  const clickable = useClickable<HTMLDivElement>(
-    () => inputRef.current?.click(),
+  const clickable = useClickable<HTMLDivElement>(() =>
+    inputRef.current?.click(),
   );
 
   if (!isUploading && file) {

@@ -7,8 +7,6 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
 import type { Breakpoint } from "@mui/system/createTheme";
-import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
-import type { useSearchParams } from "react-router-dom";
 import {
   getValidationErrorMessage,
   hasError,
@@ -17,6 +15,8 @@ import {
 import { InputGroup } from "components/InputGroup/InputGroup";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
+import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+import type { useSearchParams } from "react-router-dom";
 
 export type PresetFilter = {
   name: string;

@@ -1,8 +1,7 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-// This is the only place MuiAvatar can be used
-// eslint-disable-next-line no-restricted-imports -- Read above
+import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import MuiAvatar, {
   type AvatarProps as MuiAvatarProps,
+  // biome-ignore lint/nursery/noRestrictedImports: Used as base component
 } from "@mui/material/Avatar";
 import { visuallyHidden } from "@mui/utils";
 import { type FC, useId } from "react";

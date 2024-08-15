@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess, exec } from "child_process";
+import { type ChildProcess, exec, spawn } from "node:child_process";
 import { coderMain, coderPort, workspaceProxyPort } from "./constants";
 import { waitUntilUrlIsNotResponding } from "./helpers";
 
@@ -28,10 +28,7 @@ export const startWorkspaceProxy = async (
   return cp;
 };
 
-export const stopWorkspaceProxy = async (
-  cp: ChildProcess,
-  goRun: boolean = true,
-) => {
+export const stopWorkspaceProxy = async (cp: ChildProcess, goRun = true) => {
   exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
     if (error) {
       throw new Error(`exec error: ${JSON.stringify(error)}`);

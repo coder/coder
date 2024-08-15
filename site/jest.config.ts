@@ -49,21 +49,6 @@ module.exports = {
         "^@fontsource": "<rootDir>/src/testHelpers/styleMock.ts",
       },
     },
-    {
-      displayName: "lint",
-      runner: "jest-runner-eslint",
-      testMatch: [
-        "<rootDir>/**/*.js",
-        "<rootDir>/**/*.ts",
-        "<rootDir>/**/*.tsx",
-      ],
-      testPathIgnorePatterns: [
-        "/out/",
-        "/_jest/",
-        "jest.config.js",
-        "jest-runner.*.js",
-      ],
-    },
   ],
   collectCoverageFrom: [
     // included files

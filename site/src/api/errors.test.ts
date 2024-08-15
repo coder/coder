@@ -1,9 +1,9 @@
 import { mockApiError } from "testHelpers/entities";
 import {
+  getErrorMessage,
   getValidationErrorMessage,
   isApiError,
   mapApiErrorToFieldErrors,
-  getErrorMessage,
 } from "./errors";
 
 describe("isApiError", () => {

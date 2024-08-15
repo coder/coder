@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import {
-  reactRouterOutlet,
-  reactRouterParameters,
-} from "storybook-addon-remix-react-router";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionsToCheck } from "contexts/auth/permissions";
 import { RequireAuth } from "contexts/auth/RequireAuth";
+import { permissionsToCheck } from "contexts/auth/permissions";
+import {
+  reactRouterOutlet,
+  reactRouterParameters,
+} from "storybook-addon-remix-react-router";
 import {
   MockAppearanceConfig,
   MockAuthMethodsAll,
@@ -58,7 +58,7 @@ const meta = {
       },
       routing: reactRouterOutlet(
         {
-          path: `/:username/:workspace/terminal`,
+          path: "/:username/:workspace/terminal",
         },
         <TerminalPage />,
       ),
@@ -99,7 +99,7 @@ export const Starting: Story = {
       {
         event: "message",
         // Copied and pasted this from browser
-        data: `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
+        data: "[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗",
       },
     ],
     queries: [...meta.parameters.queries, createWorkspaceWithAgent("starting")],
@@ -114,7 +114,7 @@ export const Ready: Story = {
       {
         event: "message",
         // Copied and pasted this from browser
-        data: `[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗`,
+        data: "[H[2J[1m[32m➜  [36mcoder[C[34mgit:([31mbq/refactor-web-term-notifications[34m) [33m✗",
       },
     ],
     queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],

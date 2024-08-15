@@ -1,5 +1,5 @@
-import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
-import { type FC, type HTMLAttributes, type ReactNode } from "react";
+import type { CSSObject, Interpolation, Theme } from "@emotion/react";
+import type { FC, HTMLAttributes, ReactNode } from "react";
 
 export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
   children,

@@ -3,8 +3,6 @@ import InfoIcon from "@mui/icons-material/InfoOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
-import type { FC } from "react";
-import { useQuery } from "react-query";
 import { templateVersion } from "api/queries/templates";
 import {
   HelpTooltip,
@@ -17,6 +15,8 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { usePopover } from "components/Popover/Popover";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import type { FC } from "react";
+import { useQuery } from "react-query";
 
 export const Language = {
   outdatedLabel: "Outdated",

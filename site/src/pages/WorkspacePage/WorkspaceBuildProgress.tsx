@@ -1,11 +1,11 @@
 import { css } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
+import type { Template, TransitionStats, Workspace } from "api/typesGenerated";
 import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import capitalize from "lodash/capitalize";
 import { type FC, useEffect, useState } from "react";
-import type { TransitionStats, Template, Workspace } from "api/typesGenerated";
 
 dayjs.extend(duration);
 
@@ -40,7 +40,7 @@ const estimateFinish = (
       Math.ceil(dayjs.duration((1 - sinceStart / est) * est).asSeconds()),
       0,
     );
-    return isNaN(max) ? 0 : max;
+    return Number.isNaN(max) ? 0 : max;
   };
 
   // Under-promise, over-deliver with the 95th percentile estimate.
@@ -66,7 +66,7 @@ export interface WorkspaceBuildProgressProps {
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   workspace,
-  transitionStats: transitionStats,
+  transitionStats,
 }) => {
   const job = workspace.latest_build.job;
   const [progressValue, setProgressValue] = useState<number | undefined>(0);
@@ -77,6 +77,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   // By default workspace is updated every second, which can cause visual stutter
   // when the build estimate is a few seconds. The timer ensures no observable
   // stutter in all cases.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     const updateProgress = () => {
       if (

@@ -1,6 +1,3 @@
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
 import {
   addOrganizationMember,
   organizationMembers,
@@ -12,6 +9,9 @@ import { organizationRoles } from "api/queries/roles";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useParams } from "react-router-dom";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 

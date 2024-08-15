@@ -22,7 +22,7 @@ export const Danger: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     children: "Error",
     type: "error",

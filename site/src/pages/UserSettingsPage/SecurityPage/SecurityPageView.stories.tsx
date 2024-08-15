@@ -3,8 +3,8 @@ import type { Meta, StoryObj } from "@storybook/react";
 import set from "lodash/fp/set";
 import type { ComponentProps } from "react";
 import {
-  MockAuthMethodsPasswordOnly,
   MockAuthMethodsAll,
+  MockAuthMethodsPasswordOnly,
 } from "testHelpers/entities";
 import { SecurityPageView } from "./SecurityPage";
 

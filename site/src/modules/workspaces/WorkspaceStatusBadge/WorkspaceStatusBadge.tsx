@@ -3,11 +3,11 @@ import Tooltip, {
   type TooltipProps,
   tooltipClasses,
 } from "@mui/material/Tooltip";
-import type { FC, ReactNode } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Pill } from "components/Pill/Pill";
 import { useClassName } from "hooks/useClassName";
+import type { FC, ReactNode } from "react";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 
 export type WorkspaceStatusBadgeProps = {

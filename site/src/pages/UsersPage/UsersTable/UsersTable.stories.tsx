@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  MockUser,
-  MockUser2,
   MockAssignableSiteRoles,
+  MockAuditorRole,
   MockAuthMethodsPasswordOnly,
   MockGroup,
-  MockUserAdminRole,
-  MockTemplateAdminRole,
   MockMemberRole,
-  MockAuditorRole,
+  MockTemplateAdminRole,
+  MockUser,
+  MockUser2,
+  MockUserAdminRole,
 } from "testHelpers/entities";
 import { UsersTable } from "./UsersTable";
 

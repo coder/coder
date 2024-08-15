@@ -1,11 +1,11 @@
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import set from "lodash/fp/set";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 import { TemplateFileTree } from "./TemplateFileTree";

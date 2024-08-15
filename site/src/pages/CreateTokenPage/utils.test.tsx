@@ -1,9 +1,9 @@
 import {
+  type LifetimeDay,
+  NANO_HOUR,
   determineDefaultLtValue,
   filterByMaxTokenLifetime,
-  type LifetimeDay,
   lifetimeDayPresets,
-  NANO_HOUR,
 } from "./utils";
 
 describe("unit/CreateTokenForm", () => {
@@ -34,7 +34,7 @@ describe("unit/CreateTokenForm", () => {
         expected: lifetimeDayPresets,
       },
     ])(
-      `filterByMaxTokenLifetime($maxTokenLifetime)`,
+      "filterByMaxTokenLifetime($maxTokenLifetime)",
       ({ maxTokenLifetime, expected }) => {
         expect(filterByMaxTokenLifetime(maxTokenLifetime)).toEqual(expected);
       },
@@ -62,7 +62,7 @@ describe("unit/CreateTokenForm", () => {
         expected: "custom",
       },
     ])(
-      `determineDefaultLtValue($maxTokenLifetime)`,
+      "determineDefaultLtValue($maxTokenLifetime)",
       ({ maxTokenLifetime, expected }) => {
         expect(determineDefaultLtValue(maxTokenLifetime)).toEqual(expected);
       },

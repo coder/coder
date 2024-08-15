@@ -1,6 +1,6 @@
 import AlertTitle from "@mui/material/AlertTitle";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { FC } from "react";
-import { getErrorMessage, getErrorDetail } from "api/errors";
 import { Alert, AlertDetail, type AlertProps } from "./Alert";
 
 export const ErrorAlert: FC<

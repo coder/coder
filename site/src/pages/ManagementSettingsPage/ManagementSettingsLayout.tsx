@@ -1,6 +1,3 @@
-import { type FC, Suspense } from "react";
-import { useQuery } from "react-query";
-import { Outlet } from "react-router-dom";
 import { deploymentConfig } from "api/queries/deployment";
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
@@ -9,6 +6,9 @@ import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { type FC, Suspense } from "react";
+import { useQuery } from "react-query";
+import { Outlet } from "react-router-dom";
 import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 import { Sidebar } from "./Sidebar";
 

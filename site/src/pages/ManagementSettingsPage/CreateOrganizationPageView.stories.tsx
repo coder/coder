@@ -21,7 +21,7 @@ export const NotEntitled: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: { error: "Oh no!" },
 };
 

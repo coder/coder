@@ -1,9 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import { type FC, useState } from "react";
-import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
 import type {
   Organization,
@@ -13,18 +10,21 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
   FormFields,
+  FormFooter,
   FormSection,
   HorizontalForm,
-  FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { useFormik } from "formik";
+import { type FC, useState } from "react";
 import {
+  displayNameValidator,
   getFormHelpers,
   nameValidator,
-  displayNameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
+import * as Yup from "yup";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;

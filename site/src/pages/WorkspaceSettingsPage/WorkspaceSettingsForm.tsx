@@ -1,10 +1,6 @@
 import type { Theme } from "@emotion/react";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import upperFirst from "lodash/upperFirst";
-import type { FC } from "react";
-import * as Yup from "yup";
 import {
   type AutomaticUpdates,
   AutomaticUpdateses,
@@ -16,11 +12,15 @@ import {
   FormSection,
   HorizontalForm,
 } from "components/Form/Form";
+import { useFormik } from "formik";
+import upperFirst from "lodash/upperFirst";
+import type { FC } from "react";
 import {
-  nameValidator,
   getFormHelpers,
+  nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
+import * as Yup from "yup";
 
 export type WorkspaceSettingsFormValues = {
   name: string;

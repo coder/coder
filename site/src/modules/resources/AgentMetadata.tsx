@@ -1,6 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
+import { watchAgentMetadata } from "api/api";
+import type {
+  WorkspaceAgent,
+  WorkspaceAgentMetadata,
+} from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
   type FC,
@@ -10,12 +16,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { watchAgentMetadata } from "api/api";
-import type {
-  WorkspaceAgent,
-  WorkspaceAgentMetadata,
-} from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 type ItemStatus = "stale" | "valid" | "loading";
@@ -130,7 +130,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 
   const status: ItemStatus = (() => {
     const year = dayjs(item.result.collected_at).year();
-    if (year <= 1970 || isNaN(year)) {
+    if (year <= 1970 || Number.isNaN(year)) {
       return "loading";
     }
     // There is a special circumstance for metadata with `interval: 0`. It is
@@ -181,6 +181,7 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 }) => {
   const ref = useRef<HTMLDivElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useLayoutEffect(() => {
     // Ignore this in storybook
     if (!ref.current || process.env.STORYBOOK === "true") {

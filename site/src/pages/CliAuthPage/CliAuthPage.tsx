@@ -1,7 +1,7 @@
+import { apiKey } from "api/queries/users";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { apiKey } from "api/queries/users";
 import { pageTitle } from "utils/page";
 import { CliAuthPageView } from "./CliAuthPageView";
 

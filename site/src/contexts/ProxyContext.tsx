@@ -1,18 +1,18 @@
+import { API } from "api/api";
+import { cachedQuery } from "api/queries/util";
+import type { Region, WorkspaceProxy } from "api/typesGenerated";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
-  createContext,
   type FC,
   type PropsWithChildren,
+  createContext,
   useCallback,
   useContext,
   useEffect,
   useState,
 } from "react";
 import { useQuery } from "react-query";
-import { API } from "api/api";
-import { cachedQuery } from "api/queries/util";
-import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
 
 export interface ProxyContextValue {
@@ -142,9 +142,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   // This useEffect ensures the proxy to be used is updated whenever the state changes.
   // This includes proxies being loaded, latencies being calculated, and the user selecting a proxy.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Only update if the source data changes
   useEffect(() => {
     updateProxy();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only update if the source data changes
   }, [proxiesResp, proxyLatencies]);
 
   return (

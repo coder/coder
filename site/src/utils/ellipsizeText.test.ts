@@ -9,7 +9,7 @@ describe("ellipsizeText", () => {
     ["Hello World", "Hello World".length, "Hello World"],
     ["Hello World", "Hello...".length, "Hello..."],
   ])(
-    `ellipsizeText(%p, %p) returns %p`,
+    "ellipsizeText(%p, %p) returns %p",
     (
       str: Nullable<string>,
       maxLength: number | undefined,

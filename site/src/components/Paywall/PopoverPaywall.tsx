@@ -2,9 +2,9 @@ import type { Interpolation, Theme } from "@emotion/react";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import type { FC, ReactNode } from "react";
 import { EnterpriseBadge, PremiumBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
+import type { FC, ReactNode } from "react";
 import { docs } from "utils/docs";
 
 export interface PopoverPaywallProps {

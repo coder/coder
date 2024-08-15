@@ -13,6 +13,7 @@ export type ClassName = (cssFn: typeof css, theme: Theme) => string;
  */
 export function useClassName(styles: ClassName, deps: DependencyList): string {
   const theme = useTheme();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: depends on deps
   const className = useMemo(() => {
     return styles(css, theme);
   }, [...deps, theme]);

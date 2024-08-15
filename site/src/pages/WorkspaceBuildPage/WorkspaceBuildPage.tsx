@@ -1,11 +1,11 @@
+import { API } from "api/api";
+import { workspaceBuildByNumber } from "api/queries/workspaceBuilds";
 import dayjs from "dayjs";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
-import { API } from "api/api";
-import { workspaceBuildByNumber } from "api/queries/workspaceBuilds";
-import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { pageTitle } from "utils/page";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 

@@ -1,13 +1,13 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  mockApiError,
   MockTemplateVersion,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
   MockTemplateVersionVariable3,
   MockTemplateVersionVariable4,
   MockTemplateVersionVariable5,
+  mockApiError,
 } from "testHelpers/entities";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
@@ -67,7 +67,7 @@ export const WithErrors: Story = {
         message: "buildError",
         validations: [
           {
-            field: `user_variable_values[0].value`,
+            field: "user_variable_values[0].value",
             detail: "Variable is required.",
           },
         ],

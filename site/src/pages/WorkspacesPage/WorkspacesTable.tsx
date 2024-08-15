@@ -9,8 +9,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { FC, ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -26,6 +24,8 @@ import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
+import type { FC, ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
@@ -108,130 +108,125 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
               canCreateTemplate={canCreateTemplate}
             />
           )}
-          {workspaces &&
-            workspaces.map((workspace) => {
-              const checked = checkedWorkspaces.some(
-                (w) => w.id === workspace.id,
-              );
-              return (
-                <WorkspacesRow
-                  workspace={workspace}
-                  key={workspace.id}
-                  checked={checked}
-                >
-                  <TableCell>
-                    <div
-                      css={{ display: "flex", alignItems: "center", gap: 8 }}
-                    >
-                      {canCheckWorkspaces && (
-                        <Checkbox
-                          // Remove the extra padding added for the first cell in the
-                          // table
-                          css={{
-                            marginLeft: "-20px",
-                          }}
-                          data-testid={`checkbox-${workspace.id}`}
-                          size="xsmall"
-                          disabled={cantBeChecked(workspace)}
-                          checked={checked}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                          onChange={(e) => {
-                            if (e.currentTarget.checked) {
-                              onCheckChange([...checkedWorkspaces, workspace]);
-                            } else {
-                              onCheckChange(
-                                checkedWorkspaces.filter(
-                                  (w) => w.id !== workspace.id,
-                                ),
-                              );
-                            }
-                          }}
-                        />
-                      )}
-                      <AvatarData
-                        title={
-                          <Stack
-                            direction="row"
-                            spacing={0.5}
-                            alignItems="center"
-                          >
-                            {workspace.name}
-                            {workspace.favorite && (
-                              <Star css={{ width: 16, height: 16 }} />
-                            )}
-                            {workspace.outdated && (
-                              <WorkspaceOutdatedTooltip
-                                organizationName={workspace.organization_name}
-                                templateName={workspace.template_name}
-                                latestVersionId={
-                                  workspace.template_active_version_id
-                                }
-                                onUpdateVersion={() => {
-                                  onUpdateWorkspace(workspace);
-                                }}
-                              />
-                            )}
-                          </Stack>
-                        }
-                        subtitle={workspace.owner_name}
-                        avatar={
-                          <ExternalAvatar
-                            src={workspace.template_icon}
-                            variant={
-                              workspace.template_icon ? "square" : undefined
-                            }
-                            fitImage={Boolean(workspace.template_icon)}
-                          >
-                            {workspace.name}
-                          </ExternalAvatar>
-                        }
-                      />
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    {getDisplayWorkspaceTemplateName(workspace)}
-                  </TableCell>
-
-                  <TableCell>
-                    <LastUsed lastUsedAt={workspace.last_used_at} />
-                  </TableCell>
-
-                  <TableCell>
-                    <div
-                      css={{ display: "flex", alignItems: "center", gap: 8 }}
-                    >
-                      <WorkspaceStatusBadge workspace={workspace} />
-                      {workspace.latest_build.status === "running" &&
-                        !workspace.health.healthy && (
-                          <InfoTooltip
-                            type="notice"
-                            title="Workspace is unhealthy"
-                            message="Your workspace is running but some agents are unhealthy."
-                          />
-                        )}
-                      {workspace.dormant_at && (
-                        <WorkspaceDormantBadge workspace={workspace} />
-                      )}
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    <div css={{ display: "flex", paddingLeft: 16 }}>
-                      <KeyboardArrowRight
+          {workspaces?.map((workspace) => {
+            const checked = checkedWorkspaces.some(
+              (w) => w.id === workspace.id,
+            );
+            return (
+              <WorkspacesRow
+                workspace={workspace}
+                key={workspace.id}
+                checked={checked}
+              >
+                <TableCell>
+                  <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {canCheckWorkspaces && (
+                      <Checkbox
+                        // Remove the extra padding added for the first cell in the
+                        // table
                         css={{
-                          color: theme.palette.text.secondary,
-                          width: 20,
-                          height: 20,
+                          marginLeft: "-20px",
+                        }}
+                        data-testid={`checkbox-${workspace.id}`}
+                        size="xsmall"
+                        disabled={cantBeChecked(workspace)}
+                        checked={checked}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                        onChange={(e) => {
+                          if (e.currentTarget.checked) {
+                            onCheckChange([...checkedWorkspaces, workspace]);
+                          } else {
+                            onCheckChange(
+                              checkedWorkspaces.filter(
+                                (w) => w.id !== workspace.id,
+                              ),
+                            );
+                          }
                         }}
                       />
-                    </div>
-                  </TableCell>
-                </WorkspacesRow>
-              );
-            })}
+                    )}
+                    <AvatarData
+                      title={
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          alignItems="center"
+                        >
+                          {workspace.name}
+                          {workspace.favorite && (
+                            <Star css={{ width: 16, height: 16 }} />
+                          )}
+                          {workspace.outdated && (
+                            <WorkspaceOutdatedTooltip
+                              organizationName={workspace.organization_name}
+                              templateName={workspace.template_name}
+                              latestVersionId={
+                                workspace.template_active_version_id
+                              }
+                              onUpdateVersion={() => {
+                                onUpdateWorkspace(workspace);
+                              }}
+                            />
+                          )}
+                        </Stack>
+                      }
+                      subtitle={workspace.owner_name}
+                      avatar={
+                        <ExternalAvatar
+                          src={workspace.template_icon}
+                          variant={
+                            workspace.template_icon ? "square" : undefined
+                          }
+                          fitImage={Boolean(workspace.template_icon)}
+                        >
+                          {workspace.name}
+                        </ExternalAvatar>
+                      }
+                    />
+                  </div>
+                </TableCell>
+
+                <TableCell>
+                  {getDisplayWorkspaceTemplateName(workspace)}
+                </TableCell>
+
+                <TableCell>
+                  <LastUsed lastUsedAt={workspace.last_used_at} />
+                </TableCell>
+
+                <TableCell>
+                  <div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <WorkspaceStatusBadge workspace={workspace} />
+                    {workspace.latest_build.status === "running" &&
+                      !workspace.health.healthy && (
+                        <InfoTooltip
+                          type="notice"
+                          title="Workspace is unhealthy"
+                          message="Your workspace is running but some agents are unhealthy."
+                        />
+                      )}
+                    {workspace.dormant_at && (
+                      <WorkspaceDormantBadge workspace={workspace} />
+                    )}
+                  </div>
+                </TableCell>
+
+                <TableCell>
+                  <div css={{ display: "flex", paddingLeft: 16 }}>
+                    <KeyboardArrowRight
+                      css={{
+                        color: theme.palette.text.secondary,
+                        width: 20,
+                        height: 20,
+                      }}
+                    />
+                  </div>
+                </TableCell>
+              </WorkspacesRow>
+            );
+          })}
         </TableBody>
       </Table>
     </TableContainer>

@@ -15,7 +15,7 @@ describe(useSearchParamsKey.name, () => {
     it("Returns empty string if hook key does not exist in URL, and there is no default value", async () => {
       const { result } = await renderHookWithAuth(
         () => useSearchParamsKey({ key: "blah" }),
-        { routingOptions: { route: `/` } },
+        { routingOptions: { route: "/" } },
       );
 
       expect(result.current.value).toEqual("");
@@ -25,7 +25,7 @@ describe(useSearchParamsKey.name, () => {
       const defaultValue = "dogs";
       const { result } = await renderHookWithAuth(
         () => useSearchParamsKey({ key: "blah", defaultValue }),
-        { routingOptions: { route: `/` } },
+        { routingOptions: { route: "/" } },
       );
 
       expect(result.current.value).toEqual(defaultValue);

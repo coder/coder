@@ -4,6 +4,11 @@ import type { Interpolation, Theme } from "@emotion/react";
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
 import Button from "@mui/material/Button";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "components/Popover/Popover";
+import {
   addDays,
   addHours,
   format,
@@ -14,11 +19,6 @@ import {
 } from "date-fns";
 import { type ComponentProps, type FC, useRef, useState } from "react";
 import { DateRangePicker, createStaticRanges } from "react-date-range";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "components/Popover/Popover";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {

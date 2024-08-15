@@ -4,9 +4,6 @@ import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
 import { ExternalAvatar } from "components/Avatar/Avatar";
@@ -25,11 +22,14 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { Link as RouterLink } from "react-router-dom";
 import { displayDormantDeletion } from "utils/dormant";
-import type { WorkspacePermissions } from "./permissions";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
+import type { WorkspacePermissions } from "./permissions";
 
 export type WorkspaceError =
   | "getBuildsError"
@@ -100,7 +100,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
   // Dormant
   const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled;
+    entitlements.features.advanced_template_scheduling.enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
   const shouldDisplayDormantData = displayDormantDeletion(

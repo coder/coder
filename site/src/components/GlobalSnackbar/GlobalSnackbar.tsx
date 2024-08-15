@@ -1,26 +1,27 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { type FC, useState } from "react";
 import { useCustomEvent } from "hooks/events";
+import { type FC, useState } from "react";
 import { ErrorIcon } from "../Icons/ErrorIcon";
 import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 import {
   type AdditionalMessage,
-  isNotificationList,
-  isNotificationText,
-  isNotificationTextPrefixed,
   MsgType,
   type NotificationMsg,
   SnackbarEventType,
+  isNotificationList,
+  isNotificationText,
+  isNotificationTextPrefixed,
 } from "./utils";
 
 const variantFromMsgType = (type: MsgType) => {
   if (type === MsgType.Error) {
     return "error";
-  } else if (type === MsgType.Success) {
-    return "success";
-  } else {
-    return "info";
   }
+
+  if (type === MsgType.Success) {
+    return "success";
+  }
+  return "info";
 };
 
 export const GlobalSnackbar: FC = () => {
@@ -53,10 +54,9 @@ export const GlobalSnackbar: FC = () => {
           <div css={{ maxWidth: 670 }}>
             <span css={styles.messageTitle}>{notificationMsg.msg}</span>
 
-            {notificationMsg.additionalMsgs &&
-              notificationMsg.additionalMsgs.map((msg, index) => (
-                <AdditionalMessageDisplay key={index} message={msg} />
-              ))}
+            {notificationMsg.additionalMsgs?.map((msg, index) => (
+              <AdditionalMessageDisplay key={index} message={msg} />
+            ))}
           </div>
         </div>
       }

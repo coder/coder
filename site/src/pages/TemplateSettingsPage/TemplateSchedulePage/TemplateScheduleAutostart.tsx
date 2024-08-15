@@ -1,10 +1,10 @@
 import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
-import type { FC } from "react";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 import {
-  sortedDays,
   type TemplateAutostartRequirementDaysValue,
+  sortedDays,
 } from "utils/schedule";
 
 export interface TemplateScheduleAutostartProps {

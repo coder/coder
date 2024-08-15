@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
-import { Language as navLanguage, NavbarView } from "./NavbarView";
+import { NavbarView, Language as navLanguage } from "./NavbarView";
 
 const proxyContextValue: ProxyContextValue = {
   proxy: {

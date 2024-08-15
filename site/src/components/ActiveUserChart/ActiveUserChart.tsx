@@ -4,27 +4,27 @@ import {
   CategoryScale,
   Chart as ChartJS,
   type ChartOptions,
-  defaults,
   Filler,
   Legend,
-  LinearScale,
   LineElement,
+  LinearScale,
+  PointElement,
   TimeScale,
   Title,
   Tooltip,
-  PointElement,
+  defaults,
 } from "chart.js";
 import annotationPlugin from "chartjs-plugin-annotation";
+import {
+  HelpTooltip,
+  HelpTooltipContent,
+  HelpTooltipText,
+  HelpTooltipTitle,
+  HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
 import dayjs from "dayjs";
 import type { FC } from "react";
 import { Line } from "react-chartjs-2";
-import {
-  HelpTooltip,
-  HelpTooltipTitle,
-  HelpTooltipText,
-  HelpTooltipContent,
-  HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
 
 ChartJS.register(
   CategoryScale,

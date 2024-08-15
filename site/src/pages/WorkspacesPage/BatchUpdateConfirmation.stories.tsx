@@ -1,15 +1,15 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
-import { useQueryClient } from "react-query";
 import type { Workspace } from "api/typesGenerated";
+import { useQueryClient } from "react-query";
 import { chromatic } from "testHelpers/chromatic";
 import {
-  MockWorkspace,
-  MockRunningOutdatedWorkspace,
   MockDormantOutdatedWorkspace,
   MockOutdatedWorkspace,
+  MockRunningOutdatedWorkspace,
   MockTemplateVersion,
   MockUser2,
+  MockWorkspace,
 } from "testHelpers/entities";
 import {
   BatchUpdateConfirmation,

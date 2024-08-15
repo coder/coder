@@ -1,8 +1,8 @@
-import fs from "fs";
-import { http, HttpResponse } from "msw";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
 import { permissionsToCheck } from "contexts/auth/permissions";
+import { http, HttpResponse } from "msw";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 
@@ -71,7 +71,7 @@ export const handlers = [
     ]);
   }),
   http.delete(
-    `/api/v2/organizations/:organizationId/members/:userId`,
+    "/api/v2/organizations/:organizationId/members/:userId",
     async () => {
       return new HttpResponse(null, { status: 204 });
     },
@@ -177,12 +177,9 @@ export const handlers = [
       "canUpdateTemplate",
       "updateWorkspace",
     ];
-    const response = permissions.reduce((obj, permission) => {
-      return {
-        ...obj,
-        [permission]: true,
-      };
-    }, {});
+    const response = Object.fromEntries(
+      permissions.map((permission) => [permission, true]),
+    );
 
     return HttpResponse.json(response);
   }),

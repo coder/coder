@@ -1,10 +1,10 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, css } from "@emotion/react";
 import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined";
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC, useState } from "react";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { type FC, useState } from "react";
 
 const Language = {
   showLabel: "Show value",

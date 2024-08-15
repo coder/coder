@@ -1,8 +1,9 @@
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
-  StyledEngineProvider,
   ThemeProvider as MuiThemeProvider,
+  StyledEngineProvider,
+  // biome-ignore lint/nursery/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
 import {
   type FC,

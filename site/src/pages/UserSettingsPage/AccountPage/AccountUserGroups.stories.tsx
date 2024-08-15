@@ -51,7 +51,7 @@ export const Loading: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     groups: undefined,
     error: mockError,

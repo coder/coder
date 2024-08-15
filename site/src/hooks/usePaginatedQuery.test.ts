@@ -396,9 +396,9 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
       await jest.runAllTimersAsync();
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      result.current.onPageChange(NaN);
-      result.current.onPageChange(Infinity);
-      result.current.onPageChange(-Infinity);
+      result.current.onPageChange(Number.NaN);
+      result.current.onPageChange(Number.POSITIVE_INFINITY);
+      result.current.onPageChange(Number.NEGATIVE_INFINITY);
 
       setTimeout(() => {
         expect(result.current.currentPage).toBe(1);

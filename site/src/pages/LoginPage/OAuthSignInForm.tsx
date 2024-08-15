@@ -2,8 +2,8 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
 import { visuallyHidden } from "@mui/utils";
-import { type FC, useId } from "react";
 import type { AuthMethods } from "api/typesGenerated";
+import { type FC, useId } from "react";
 import { Language } from "./SignInForm";
 
 const iconStyles = {

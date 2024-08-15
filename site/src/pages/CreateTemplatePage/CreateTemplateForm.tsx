@@ -1,12 +1,5 @@
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import camelCase from "lodash/camelCase";
-import capitalize from "lodash/capitalize";
-import { useState, type FC } from "react";
-import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
-import * as Yup from "yup";
 import { provisionerDaemons } from "api/queries/organizations";
 import type {
   Organization,
@@ -19,26 +12,33 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import {
-  HorizontalForm,
-  FormSection,
   FormFields,
   FormFooter,
+  FormSection,
+  HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { useFormik } from "formik";
+import camelCase from "lodash/camelCase";
+import capitalize from "lodash/capitalize";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
+import { type FC, useState } from "react";
+import { useQuery } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import {
-  nameValidator,
-  getFormHelpers,
-  onChangeTrimmed,
   displayNameValidator,
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
 } from "utils/formUtils";
 import {
-  sortedDays,
   type TemplateAutostartRequirementDaysValue,
   type TemplateAutostopRequirementDaysValue,
+  sortedDays,
 } from "utils/schedule";
+import * as Yup from "yup";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 
@@ -148,7 +148,7 @@ const getInitialValues = ({
   }
 
   if (variables) {
-    variables.forEach((variable) => {
+    for (const variable of variables) {
       if (!initialValues.user_variable_values) {
         initialValues.user_variable_values = [];
       }
@@ -156,7 +156,7 @@ const getInitialValues = ({
         name: variable.name,
         value: variable.sensitive ? "" : variable.value,
       });
-    });
+    }
   }
 
   return initialValues;
@@ -339,7 +339,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
                 disabled={isSubmitting}
                 key={variable.name}
                 onChange={async (value) => {
-                  await form.setFieldValue("user_variable_values." + index, {
+                  await form.setFieldValue(`user_variable_values.${index}`, {
                     name: variable.name,
                     value,
                   });

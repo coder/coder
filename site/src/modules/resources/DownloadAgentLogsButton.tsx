@@ -1,11 +1,11 @@
 import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import Button from "@mui/material/Button";
-import { saveAs } from "file-saver";
-import { useState, type FC } from "react";
-import { useQueryClient } from "react-query";
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { saveAs } from "file-saver";
+import { type FC, useState } from "react";
+import { useQueryClient } from "react-query";
 
 type DownloadAgentLogsButtonProps = {
   workspaceId: string;

@@ -1,4 +1,3 @@
-import type { QueryClient, UseMutationOptions } from "react-query";
 import { API } from "api/api";
 import type {
   NotificationPreference,
@@ -6,6 +5,7 @@ import type {
   UpdateNotificationTemplateMethod,
   UpdateUserNotificationPreferences,
 } from "api/typesGenerated";
+import type { QueryClient, UseMutationOptions } from "react-query";
 
 export const userNotificationPreferencesKey = (userId: string) => [
   "users",
@@ -98,7 +98,7 @@ export const notificationDispatchMethodsKey = [
 
 export const notificationDispatchMethods = () => {
   return {
-    staleTime: Infinity,
+    staleTime: Number.POSITIVE_INFINITY,
     queryKey: notificationDispatchMethodsKey,
     queryFn: () => API.getNotificationDispatchMethods(),
   };

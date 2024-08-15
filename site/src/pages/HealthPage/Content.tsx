@@ -5,15 +5,15 @@ import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import Link from "@mui/material/Link";
+import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import {
-  cloneElement,
   type ComponentProps,
   type FC,
-  forwardRef,
   type HTMLAttributes,
   type ReactElement,
+  cloneElement,
+  forwardRef,
 } from "react";
-import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import { docs } from "utils/docs";
 import { healthyColor } from "./healthyColor";
 

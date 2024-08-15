@@ -1,20 +1,20 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { MockUser, MockWorkspace } from "testHelpers/entities";
 import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import {
+  Language as FormLanguage,
+  type WorkspaceScheduleFormValues,
+} from "./WorkspaceScheduleForm";
+import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "./formToRequest";
 import { scheduleToAutostart } from "./schedule";
 import { ttlMsToAutostop } from "./ttl";
-import {
-  Language as FormLanguage,
-  type WorkspaceScheduleFormValues,
-} from "./WorkspaceScheduleForm";
-import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
 
 const validValues: WorkspaceScheduleFormValues = {
   autostartEnabled: true,
@@ -135,7 +135,7 @@ describe("WorkspaceSchedulePage", () => {
         },
       ],
     ] as const)(
-      `formValuesToAutostartRequest(%p) return %p`,
+      "formValuesToAutostartRequest(%p) return %p",
       (values, request) => {
         expect(formValuesToAutostartRequest(values)).toEqual(request);
       },
@@ -174,7 +174,7 @@ describe("WorkspaceSchedulePage", () => {
           ttl_ms: 28_800_000,
         },
       ],
-    ] as const)(`formValuesToTTLRequest(%p) returns %p`, (values, request) => {
+    ] as const)("formValuesToTTLRequest(%p) returns %p", (values, request) => {
       expect(formValuesToTTLRequest(values)).toEqual(request);
     });
   });
@@ -231,7 +231,7 @@ describe("WorkspaceSchedulePage", () => {
           timezone: "Canada/Eastern",
         },
       ],
-    ] as const)(`scheduleToAutostart(%p) returns %p`, (schedule, autostart) => {
+    ] as const)("scheduleToAutostart(%p) returns %p", (schedule, autostart) => {
       expect(scheduleToAutostart(schedule)).toEqual(autostart);
     });
   });
@@ -244,7 +244,7 @@ describe("WorkspaceSchedulePage", () => {
       [0, { autostopEnabled: false, ttl: 0 }],
       // basic case
       [28_800_000, { autostopEnabled: true, ttl: 8 }],
-    ] as const)(`ttlMsToAutostop(%p) returns %p`, (ttlMs, autostop) => {
+    ] as const)("ttlMsToAutostop(%p) returns %p", (ttlMs, autostop) => {
       expect(ttlMsToAutostop(ttlMs)).toEqual(autostop);
     });
   });

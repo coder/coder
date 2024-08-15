@@ -18,10 +18,10 @@ export const terminalWebsocketUrl = async (
   const url = new URL(baseUrl || `${location.protocol}//${location.host}`);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   if (!url.pathname.endsWith("/")) {
-    url.pathname + "/";
+    `${url.pathname}/`;
   }
   url.pathname += `api/v2/workspaceagents/${agentId}/pty`;
-  url.search = "?" + query.toString();
+  url.search = `?${query.toString()}`;
 
   // If the URL is just the primary API, we don't need a signed token to
   // connect.
@@ -35,7 +35,7 @@ export const terminalWebsocketUrl = async (
     agentID: agentId,
   });
   query.set("coder_signed_app_token_23db1dde", tokenRes.signed_token);
-  url.search = "?" + query.toString();
+  url.search = `?${query.toString()}`;
 
   return url.toString();
 };

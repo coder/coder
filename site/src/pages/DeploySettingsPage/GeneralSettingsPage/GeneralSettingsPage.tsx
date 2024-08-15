@@ -1,11 +1,11 @@
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
 import { deploymentDAUs } from "api/queries/deployment";
 import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { useDeploySettings } from "../DeploySettingsLayout";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";

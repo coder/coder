@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  MockOAuth2ProviderApps,
   MockOAuth2ProviderAppSecrets,
+  MockOAuth2ProviderApps,
   mockApiError,
 } from "testHelpers/entities";
 import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
@@ -39,7 +39,7 @@ export const LoadingSecrets: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     app: MockOAuth2ProviderApps[0],
     secrets: MockOAuth2ProviderAppSecrets,

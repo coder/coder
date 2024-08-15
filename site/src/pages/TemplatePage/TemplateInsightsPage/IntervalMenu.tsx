@@ -3,7 +3,7 @@ import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { type FC, useState, useRef } from "react";
+import { type FC, useRef, useState } from "react";
 
 export const insightsIntervals = {
   day: {

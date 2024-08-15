@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { fn, userEvent, within } from "@storybook/test";
 import { getAuthorizationKey } from "api/queries/authCheck";
+import { getPreferredProxy } from "contexts/ProxyContext";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { permissionsToCheck } from "contexts/auth/permissions";
-import { getPreferredProxy } from "contexts/ProxyContext";
 import {
   MockAuthMethodsAll,
   MockPermissions,

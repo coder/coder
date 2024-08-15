@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
 import { watchBuildLogsByTemplateVersionId } from "api/api";
 import type { ProvisionerJobLog, TemplateVersion } from "api/typesGenerated";
+import { useEffect, useState } from "react";
 
 export const useWatchVersionLogs = (
   templateVersion: TemplateVersion | undefined,
@@ -10,6 +10,7 @@ export const useWatchVersionLogs = (
   const templateVersionId = templateVersion?.id;
   const templateVersionStatus = templateVersion?.job.status;
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     setLogs(undefined);
   }, [templateVersionId]);

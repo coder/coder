@@ -1,25 +1,25 @@
 import { useTheme } from "@emotion/react";
 import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
 import Button from "@mui/material/Button";
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { Link, useOutletContext } from "react-router-dom";
 import type {
   HealthMessage,
   HealthSeverity,
   HealthcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { Link, useOutletContext } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import {
+  BooleanPill,
   Header,
   HeaderTitle,
   HealthMessageDocsLink,
+  HealthyDot,
+  Logs,
   Main,
   SectionLabel,
-  BooleanPill,
-  Logs,
-  HealthyDot,
 } from "./Content";
 import { DismissWarningButton } from "./DismissWarningButton";
 import { healthyColor } from "./healthyColor";

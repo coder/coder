@@ -1,8 +1,8 @@
-import type { FC } from "react";
 import type { SerpentOption } from "api/typesGenerated";
-import { Badges, EnabledBadge, DisabledBadge } from "components/Badges/Badges";
+import { Badges, DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
@@ -15,7 +15,7 @@ export type NetworkSettingsPageViewProps = {
 };
 
 export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
-  options: options,
+  options,
 }) => (
   <Stack direction="column" spacing={6}>
     <div>

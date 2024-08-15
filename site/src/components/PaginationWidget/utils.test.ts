@@ -67,7 +67,15 @@ describe(getOffset.name, () => {
   });
 
   it("Returns the results for page 1 when input is invalid", () => {
-    const inputs = [0, -1, -Infinity, NaN, Infinity, 3.6, 7.4545435];
+    const inputs = [
+      0,
+      -1,
+      Number.NEGATIVE_INFINITY,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      3.6,
+      7.4545435,
+    ];
 
     for (const input of inputs) {
       expect(getOffset(input, 10)).toEqual(0);
@@ -95,7 +103,14 @@ describe(isNonInitialPage.name, () => {
   });
 
   it("Should act as if you are on page 1 if input is set but invalid", () => {
-    const inputs = ["", Infinity, -Infinity, NaN, 3.74, -3];
+    const inputs = [
+      "",
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      Number.NaN,
+      3.74,
+      -3,
+    ];
 
     for (const input of inputs) {
       const params = new URLSearchParams({ page: String(input) });

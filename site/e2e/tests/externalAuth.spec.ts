@@ -26,8 +26,7 @@ test.beforeAll(async ({ baseURL }) => {
   });
   srv.use(gitAuth.authPath, (req, res) => {
     res.redirect(
-      `${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=` +
-        req.query.state,
+      `${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=${req.query.state}`,
     );
   });
 });

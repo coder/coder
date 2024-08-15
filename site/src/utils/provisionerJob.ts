@@ -6,5 +6,5 @@ export const getPendingStatusLabel = (
   if (!provisionerJob || provisionerJob.queue_size === 0) {
     return "Pending";
   }
-  return "Position in queue: " + provisionerJob.queue_position;
+  return `Position in queue: ${provisionerJob.queue_position}`;
 };

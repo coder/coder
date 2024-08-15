@@ -13,11 +13,11 @@ import { act, renderHook, screen } from "@testing-library/react";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import {
+  COPY_FAILED_MESSAGE,
+  HTTP_FALLBACK_DATA_ID,
   type UseClipboardInput,
   type UseClipboardResult,
-  COPY_FAILED_MESSAGE,
   useClipboard,
-  HTTP_FALLBACK_DATA_ID,
 } from "./useClipboard";
 
 // Need to mock console.error because we deliberately need to trigger errors in

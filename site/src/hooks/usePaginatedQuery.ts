@@ -5,8 +5,8 @@ import {
   type QueryKey,
   type UseQueryOptions,
   type UseQueryResult,
-  useQueryClient,
   useQuery,
+  useQueryClient,
 } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router-dom";
 import { useEffectEvent } from "./hookPolyfills";

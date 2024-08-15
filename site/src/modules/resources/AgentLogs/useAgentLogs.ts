@@ -1,5 +1,3 @@
-import { useEffect, useRef } from "react";
-import { useQuery, useQueryClient } from "react-query";
 import { watchWorkspaceAgentLogs } from "api/api";
 import { agentLogs } from "api/queries/workspaces";
 import type {
@@ -7,6 +5,8 @@ import type {
   WorkspaceAgentLog,
 } from "api/typesGenerated";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "react-query";
 
 export type UseAgentLogsOptions = Readonly<{
   workspaceId: string;

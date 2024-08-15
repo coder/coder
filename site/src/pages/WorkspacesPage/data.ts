@@ -1,10 +1,3 @@
-import { useState } from "react";
-import {
-  type QueryKey,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "react-query";
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import type {
@@ -13,6 +6,13 @@ import type {
   WorkspacesResponse,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { useState } from "react";
+import {
+  type QueryKey,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "react-query";
 
 type UseWorkspacesDataParams = {
   page: number;

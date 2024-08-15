@@ -1,11 +1,11 @@
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQueryClient } from "react-query";
 import { getErrorMessage } from "api/errors";
 import { appearanceConfigKey, updateAppearance } from "api/queries/appearance";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQueryClient } from "react-query";
 import { pageTitle } from "utils/page";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 

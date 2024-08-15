@@ -1,5 +1,5 @@
 import type { CSSInterpolation } from "@emotion/css";
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import BuildingIcon from "@mui/icons-material/Build";
 import DownloadIcon from "@mui/icons-material/CloudDownload";
 import UploadIcon from "@mui/icons-material/CloudUpload";
@@ -11,16 +11,6 @@ import WebTerminalIcon from "@mui/icons-material/WebAsset";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import dayjs from "dayjs";
-import prettyBytes from "pretty-bytes";
-import {
-  type FC,
-  type PropsWithChildren,
-  useMemo,
-  useEffect,
-  useState,
-} from "react";
-import { Link as RouterLink } from "react-router-dom";
 import type {
   DeploymentStats,
   HealthcheckReport,
@@ -32,7 +22,17 @@ import { RocketIcon } from "components/Icons/RocketIcon";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
+import dayjs from "dayjs";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import prettyBytes from "pretty-bytes";
+import {
+  type FC,
+  type PropsWithChildren,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import colors from "theme/tailwindColors";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
@@ -89,6 +89,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
     };
   }, [fetchStats, stats]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies(timeUntilRefresh): periodic refresh
   const lastAggregated = useMemo(() => {
     if (!stats) {
       return;
@@ -98,8 +99,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
       return "just now";
     }
     return dayjs().to(dayjs(stats.collected_at));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
-  }, [timeUntilRefresh, stats]);
+  }, [timeUntilRefresh, stats, fetchStats]);
 
   const healthErrors = health ? getHealthErrors(health) : [];
   const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
@@ -219,7 +219,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           >
             <div css={styles.value}>
               <LatencyIcon />
-              {displayLatency > 0 ? displayLatency?.toFixed(2) + " ms" : "-"}
+              {displayLatency > 0 ? `${displayLatency?.toFixed(2)} ms` : "-"}
             </div>
           </Tooltip>
         </div>
@@ -352,7 +352,7 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
     <Tooltip title={`${statusText} Workspaces`}>
       <Link
         component={RouterLink}
-        to={`/workspaces?filter=${encodeURIComponent("status:" + status)}`}
+        to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
       >
         <div css={styles.value}>
           {icon}
@@ -398,11 +398,11 @@ const getHealthErrors = (health: HealthcheckReport) => {
     workspace_proxy: "We're noticing workspace proxy issues.",
   } as const;
 
-  sections.forEach((section) => {
+  for (const section of sections) {
     if (health[section].severity === "error" && !health[section].dismissed) {
       warnings.push(messages[section]);
     }
-  });
+  }
 
   return warnings;
 };

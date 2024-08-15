@@ -1,7 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import Button from "@mui/material/Button";
-import type { FC } from "react";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
   HelpTooltipLink,
@@ -15,6 +14,7 @@ import {
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 
 export interface SSHButtonProps {

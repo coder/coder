@@ -1,8 +1,8 @@
-import type { FC } from "react";
 import {
   SearchField,
   type SearchFieldProps,
 } from "components/SearchField/SearchField";
+import type { FC } from "react";
 
 export const MenuSearch: FC<SearchFieldProps> = (props) => {
   return (

@@ -44,24 +44,24 @@ export const formValuesToAutostartRequest = (
     return {
       schedule: makeCronString("*"),
     };
-  } else if (isMonThroughFri) {
+  }
+
+  if (isMonThroughFri) {
     return {
       schedule: makeCronString("1-5"),
     };
-  } else {
-    const dow = days.reduce((previous, current, idx) => {
-      if (!current) {
-        return previous;
-      } else {
-        const prefix = previous ? "," : "";
-        return previous + prefix + idx;
-      }
-    }, "");
-
-    return {
-      schedule: makeCronString(dow),
-    };
   }
+  const dow = days.reduce((previous, current, idx) => {
+    if (!current) {
+      return previous;
+    }
+    const prefix = previous ? "," : "";
+    return previous + prefix + idx;
+  }, "");
+
+  return {
+    schedule: makeCronString(dow),
+  };
 };
 
 export const formValuesToTTLRequest = (

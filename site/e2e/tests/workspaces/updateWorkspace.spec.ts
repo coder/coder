@@ -12,9 +12,9 @@ import { beforeCoderTest } from "../../hooks";
 import {
   fifthParameter,
   firstParameter,
+  secondBuildOption,
   secondParameter,
   sixthParameter,
-  secondBuildOption,
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
 

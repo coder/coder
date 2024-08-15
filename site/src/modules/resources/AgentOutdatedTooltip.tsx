@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import RefreshIcon from "@mui/icons-material/RefreshOutlined";
-import type { FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import {
   HelpTooltip,
@@ -12,6 +11,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { PopoverTrigger } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 import { agentVersionStatus } from "../../utils/workspace";
 
 type AgentOutdatedTooltipProps = {
@@ -40,10 +40,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
     status === agentVersionStatus.Outdated
       ? "This agent is an older version than the Coder server."
       : "This agent is using a deprecated version of the API.";
-  const text =
-    opener +
-    " This can happen after you update Coder with running workspaces. " +
-    "To fix this, you can stop and start the workspace.";
+  const text = `${opener} This can happen after you update Coder with running workspaces. To fix this, you can stop and start the workspace.`;
 
   return (
     <HelpTooltip>

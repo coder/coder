@@ -2,7 +2,6 @@ import VariablesIcon from "@mui/icons-material/CodeOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import ScheduleIcon from "@mui/icons-material/TimerOutlined";
-import type { FC } from "react";
 import type { Template } from "api/typesGenerated";
 import { ExternalAvatar } from "components/Avatar/Avatar";
 import {
@@ -11,6 +10,7 @@ import {
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import type { FC } from "react";
 
 interface SidebarProps {
   template: Template;

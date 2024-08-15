@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import { API } from "api/api";
 import { setupApiCalls } from "../../api";
 import { coderPort, workspaceProxyPort } from "../../constants";
@@ -23,7 +23,7 @@ test("default proxy is online", async ({ page }) => {
   const workspaceProxyStatus = workspaceProxyPrimary.locator("td.status span");
 
   await expect(workspaceProxyName).toHaveText("Default");
-  await expect(workspaceProxyURL).toHaveText("http://localhost:" + coderPort);
+  await expect(workspaceProxyURL).toHaveText(`http://localhost:${coderPort}`);
   await expect(workspaceProxyStatus).toHaveText("Healthy");
 });
 
@@ -50,7 +50,7 @@ test("custom proxy is online", async ({ page }) => {
     waitUntil: "domcontentloaded",
   });
 
-  const workspaceProxy = page.locator(`table.MuiTable-root tr`, {
+  const workspaceProxy = page.locator("table.MuiTable-root tr", {
     hasText: proxyName,
   });
 
@@ -82,7 +82,7 @@ const waitUntilWorkspaceProxyIsHealthy = async (
   while (retries < maxRetries) {
     await page.reload();
 
-    const workspaceProxy = page.locator(`table.MuiTable-root tr`, {
+    const workspaceProxy = page.locator("table.MuiTable-root tr", {
       hasText: proxyName,
     });
     const workspaceProxyStatus = workspaceProxy.locator("td.status span");

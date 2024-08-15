@@ -1,5 +1,5 @@
-import dayjs from "dayjs";
 import type * as TypesGen from "api/typesGenerated";
+import dayjs from "dayjs";
 import * as Mocks from "testHelpers/entities";
 import {
   agentVersionStatus,
@@ -36,7 +36,7 @@ describe("util > workspace", () => {
       ["start", "running", false],
       ["start", "succeeded", true],
     ])(
-      `transition=%p, status=%p, isWorkspaceOn=%p`,
+      "transition=%p, status=%p, isWorkspaceOn=%p",
       (transition, status, isOn) => {
         const workspace: TypesGen.Workspace = {
           ...Mocks.MockWorkspace,
@@ -71,7 +71,7 @@ describe("util > workspace", () => {
           deadline: "2022-06-02T18:56:20Z",
         },
       ],
-    ])(`defaultWorkspaceExtension(%p) returns %p`, (startTime, request) => {
+    ])("defaultWorkspaceExtension(%p) returns %p", (startTime, request) => {
       expect(defaultWorkspaceExtension(dayjs(startTime))).toEqual(request);
     });
   });
@@ -94,7 +94,7 @@ describe("util > workspace", () => {
         "Coder",
       ],
     ])(
-      `getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`,
+      "getDisplayWorkspaceBuildInitiatedBy(%p) returns %p",
       (build, initiatedBy) => {
         expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy);
       },
@@ -119,7 +119,7 @@ describe("util > workspace", () => {
         agentVersionStatus.Deprecated,
       ],
     ])(
-      `getDisplayVersionStatus(theme, %p, %p, %p, %p) returns (%p, %p)`,
+      "getDisplayVersionStatus(theme, %p, %p, %p, %p) returns (%p, %p)",
       (
         agentVersion,
         serverVersion,

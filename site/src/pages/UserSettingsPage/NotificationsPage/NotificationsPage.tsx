@@ -7,9 +7,6 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
-import { Fragment, type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQueries, useQueryClient } from "react-query";
 import {
   notificationDispatchMethods,
   selectTemplatesByGroup,
@@ -30,6 +27,9 @@ import {
   methodIcons,
   methodLabels,
 } from "modules/notifications/utils";
+import { type FC, Fragment } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQueries, useQueryClient } from "react-query";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
@@ -49,7 +49,7 @@ export const NotificationsPage: FC = () => {
             ? groups
             : {
                 // Members only have access to the "Workspace Notifications" group
-                ["Workspace Events"]: groups["Workspace Events"],
+                "Workspace Events": groups["Workspace Events"],
               };
         },
       },

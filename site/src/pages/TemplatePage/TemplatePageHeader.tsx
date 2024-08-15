@@ -5,9 +5,6 @@ import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { workspaces } from "api/queries/workspaces";
 import type {
   AuthorizationResponse,
@@ -28,12 +25,15 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import {
   PageHeader,
-  PageHeaderTitle,
   PageHeaderSubtitle,
+  PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
@@ -141,13 +141,11 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
                 </>
               )}
 
-              {workspaceCountQuery.isLoading && (
-                <>Loading information about workspaces used by this template.</>
-              )}
+              {workspaceCountQuery.isLoading &&
+                "Loading information about workspaces used by this template."}
 
-              {workspaceCountQuery.isError && (
-                <>Unable to determine workspaces used by this template.</>
-              )}
+              {workspaceCountQuery.isError &&
+                "Unable to determine workspaces used by this template."}
             </>
           }
         />

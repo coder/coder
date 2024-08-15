@@ -6,19 +6,19 @@ import Sell from "@mui/icons-material/Sell";
 import SwapHoriz from "@mui/icons-material/SwapHoriz";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import type { HealthcheckReport } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router-dom";
-import type { HealthcheckReport } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
 import {
   BooleanPill,
   Header,
   HeaderTitle,
-  HealthyDot,
   HealthMessageDocsLink,
+  HealthyDot,
   Main,
   Pill,
 } from "./Content";
@@ -57,7 +57,7 @@ export const ProvisionerDaemonsPage: FC = () => {
         })}
 
         {daemons.items.map(({ provisioner_daemon: daemon, warnings }) => {
-          const daemonScope = daemon.tags["scope"] || "organization";
+          const daemonScope = daemon.tags.scope || "organization";
           const iconScope =
             daemonScope === "organization" ? <Business /> : <Person />;
           const extraTags = Object.keys(daemon.tags)
@@ -203,7 +203,7 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({ k, v, onDelete }) => {
     <>
       {kv}
       <IconButton
-        aria-label={"delete-" + k}
+        aria-label={`delete-${k}`}
         size="small"
         color="secondary"
         onClick={() => {

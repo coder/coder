@@ -1,8 +1,8 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
-import { formatDuration, intervalToDuration } from "date-fns";
-import { type DeploymentConfig, API } from "api/api";
+import { API, type DeploymentConfig } from "api/api";
 import type { SerpentOption } from "api/typesGenerated";
+import { formatDuration, intervalToDuration } from "date-fns";
 import { coderPort } from "./constants";
 import { findSessionToken, randomName } from "./helpers";
 

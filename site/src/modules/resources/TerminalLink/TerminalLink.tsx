@@ -1,7 +1,7 @@
 import Link from "@mui/material/Link";
-import type { FC, MouseEvent } from "react";
 import type * as TypesGen from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
+import type { FC, MouseEvent } from "react";
 import { generateRandomString } from "utils/random";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
@@ -50,7 +50,7 @@ export const TerminalLink: FC<TerminalLinkProps> = ({
       }}
       data-testid="terminal"
     >
-      {DisplayAppNameMap["web_terminal"]}
+      {DisplayAppNameMap.web_terminal}
     </Link>
   );
 };

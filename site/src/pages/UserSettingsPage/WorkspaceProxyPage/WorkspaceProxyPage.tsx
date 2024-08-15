@@ -1,5 +1,5 @@
-import type { FC } from "react";
 import { useProxy } from "contexts/ProxyContext";
+import type { FC } from "react";
 import { Section } from "../Section";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 

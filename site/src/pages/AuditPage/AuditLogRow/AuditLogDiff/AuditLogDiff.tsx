@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { FC } from "react";
 import type { AuditDiff } from "api/typesGenerated";
+import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import colors from "theme/tailwindColors";
 

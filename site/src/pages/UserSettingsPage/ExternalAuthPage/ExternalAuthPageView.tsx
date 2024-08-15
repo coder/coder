@@ -3,7 +3,6 @@ import AutorenewIcon from "@mui/icons-material/Autorenew";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
-import { styled } from "@mui/material/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -11,14 +10,14 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
+// biome-ignore lint/nursery/noRestrictedImports: styled
+import { styled } from "@mui/material/styles";
 import visuallyHidden from "@mui/utils/visuallyHidden";
-import { type FC, useState, useCallback, useEffect } from "react";
-import { useQuery } from "react-query";
 import { externalAuthProvider } from "api/queries/externalAuth";
 import type {
-  ListUserExternalAuthResponse,
-  ExternalAuthLinkProvider,
   ExternalAuthLink,
+  ExternalAuthLinkProvider,
+  ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -33,6 +32,8 @@ import {
 } from "components/MoreMenu/MoreMenu";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
+import { type FC, useCallback, useEffect, useState } from "react";
+import { useQuery } from "react-query";
 
 export type ExternalAuthPageViewProps = {
   isLoading: boolean;
@@ -137,7 +138,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 }) => {
   const theme = useTheme();
   const name = app.display_name || app.id || app.type;
-  const authURL = "/external-auth/" + app.id;
+  const authURL = `/external-auth/${app.id}`;
 
   const {
     externalAuth,

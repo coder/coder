@@ -1,8 +1,6 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
-import type { FC } from "react";
-import { NavLink } from "react-router-dom";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
   Popover,
@@ -11,6 +9,8 @@ import {
   usePopover,
 } from "components/Popover/Popover";
 import { linkToAuditing, linkToUsers } from "modules/navigation";
+import type { FC } from "react";
+import { NavLink } from "react-router-dom";
 
 interface DeploymentDropdownProps {
   canViewDeployment: boolean;

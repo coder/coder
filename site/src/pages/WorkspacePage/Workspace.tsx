@@ -3,24 +3,24 @@ import { useTheme } from "@emotion/react";
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
 import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
-import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { AgentRow } from "modules/resources/AgentRow";
+import type { FC } from "react";
+import { useNavigate } from "react-router-dom";
 import { HistorySidebar } from "./HistorySidebar";
-import type { WorkspacePermissions } from "./permissions";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
-import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
+import type { WorkspacePermissions } from "./permissions";
+import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 
 export interface WorkspaceProps {
   handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -201,7 +201,7 @@ export const Workspace: FC<WorkspaceProps> = ({
         >
           {workspace.latest_build.status === "deleted" && (
             <WorkspaceDeletedBanner
-              handleClick={() => navigate(`/templates`)}
+              handleClick={() => navigate("/templates")}
             />
           )}
 

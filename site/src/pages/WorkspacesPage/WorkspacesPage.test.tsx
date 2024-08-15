@@ -1,15 +1,15 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
 import { API } from "api/api";
 import type { Workspace } from "api/typesGenerated";
+import { http, HttpResponse } from "msw";
 import {
-  MockStoppedWorkspace,
-  MockWorkspace,
-  MockDormantWorkspace,
   MockDormantOutdatedWorkspace,
+  MockDormantWorkspace,
   MockOutdatedWorkspace,
   MockRunningOutdatedWorkspace,
+  MockStoppedWorkspace,
+  MockWorkspace,
   MockWorkspacesResponse,
 } from "testHelpers/entities";
 import {

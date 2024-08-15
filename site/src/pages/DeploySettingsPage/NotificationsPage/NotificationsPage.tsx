@@ -8,10 +8,6 @@ import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
-import { Fragment, type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQueries, useQueryClient } from "react-query";
-import { useSearchParams } from "react-router-dom";
 import {
   notificationDispatchMethods,
   selectTemplatesByGroup,
@@ -25,12 +21,16 @@ import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import {
+  type NotificationMethod,
   castNotificationMethod,
   methodIcons,
   methodLabels,
-  type NotificationMethod,
 } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
+import { type FC, Fragment } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQueries, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";

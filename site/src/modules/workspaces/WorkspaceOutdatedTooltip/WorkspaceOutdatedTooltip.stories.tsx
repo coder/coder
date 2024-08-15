@@ -1,7 +1,7 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
-import { MockTemplateVersion, MockTemplate } from "testHelpers/entities";
+import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceOutdatedTooltip } from "./WorkspaceOutdatedTooltip";
 

@@ -139,7 +139,7 @@ describe("optionValue", () => {
       expected: 30000000000,
     },
   ])(
-    `[$option.name]optionValue($option.value)`,
+    "[$option.name]optionValue($option.value)",
     ({ option, expected, additionalValues }) => {
       expect(optionValue(option, additionalValues)).toEqual(expected);
     },

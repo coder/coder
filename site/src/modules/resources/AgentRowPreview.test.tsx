@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import {
-  DisplayApps,
   type DisplayApp,
+  DisplayApps,
   type WorkspaceAgent,
 } from "api/typesGenerated";
 import { MockWorkspaceAgent } from "testHelpers/entities";
@@ -88,26 +88,27 @@ describe("AgentRowPreviewApps", () => {
       testName: "EmptyAppPreview",
     },
   ])(
-    `<AgentRowPreview agent={$testName} /> displays appropriately`,
+    "<AgentRowPreview agent={$testName} /> displays appropriately",
     ({ workspaceAgent }) => {
       renderComponent(<AgentRowPreview agent={workspaceAgent} />);
-      workspaceAgent.apps.forEach((module) => {
+      for (const module of workspaceAgent.apps) {
         expect(screen.getByText(module.display_name)).toBeInTheDocument();
-      });
-      workspaceAgent.display_apps
-        .filter((app) => app !== "vscode" && app !== "vscode_insiders") // these get special treatment
-        .forEach((app) => {
-          expect(screen.getByText(DisplayAppNameMap[app])).toBeInTheDocument();
-        });
+      }
+
+      for (const app of workspaceAgent.display_apps) {
+        // These get special treatment
+        if (app === "vscode" || app === "vscode_insiders") {
+          continue;
+        }
+        expect(screen.getByText(DisplayAppNameMap[app])).toBeInTheDocument();
+      }
 
       // test VS Code display
       if (workspaceAgent.display_apps.includes("vscode")) {
-        expect(
-          screen.getByText(DisplayAppNameMap["vscode"]),
-        ).toBeInTheDocument();
+        expect(screen.getByText(DisplayAppNameMap.vscode)).toBeInTheDocument();
       } else if (workspaceAgent.display_apps.includes("vscode_insiders")) {
         expect(
-          screen.getByText(DisplayAppNameMap["vscode_insiders"]),
+          screen.getByText(DisplayAppNameMap.vscode_insiders),
         ).toBeInTheDocument();
       } else {
         expect(screen.queryByText("vscode")).not.toBeInTheDocument();
@@ -119,11 +120,11 @@ describe("AgentRowPreviewApps", () => {
         (a) => !workspaceAgent.display_apps.includes(a),
       );
 
-      excludedApps.forEach((app) => {
+      for (const app of excludedApps) {
         expect(
           screen.queryByText(DisplayAppNameMap[app]),
         ).not.toBeInTheDocument();
-      });
+      }
 
       // test empty state
       if (

@@ -17,4 +17,4 @@ const monaco = {
 
 module.exports = monaco;
 
-export {};
+export type {};

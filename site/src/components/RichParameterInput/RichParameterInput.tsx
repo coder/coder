@@ -7,12 +7,12 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC, type ReactNode, useState } from "react";
 import type { TemplateVersionParameter } from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { type FC, type ReactNode, useState } from "react";
 import type {
   AutofillBuildParameter,
   AutofillSource,

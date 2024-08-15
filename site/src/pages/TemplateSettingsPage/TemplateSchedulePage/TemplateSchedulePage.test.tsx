@@ -10,11 +10,11 @@ import {
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import {
-  getValidationSchema,
-  type TemplateScheduleFormValues,
-} from "./formHelpers";
 import TemplateSchedulePage from "./TemplateSchedulePage";
+import {
+  type TemplateScheduleFormValues,
+  getValidationSchema,
+} from "./formHelpers";
 
 const validFormValues: TemplateScheduleFormValues = {
   default_ttl_ms: 1,
@@ -45,7 +45,7 @@ const validFormValues: TemplateScheduleFormValues = {
 const renderTemplateSchedulePage = async () => {
   renderWithTemplateSettingsLayout(<TemplateSchedulePage />, {
     route: `/templates/${MockTemplate.name}/settings/schedule`,
-    path: `/templates/:template/settings/schedule`,
+    path: "/templates/:template/settings/schedule",
   });
   await waitForLoaderToBeRemoved();
 };

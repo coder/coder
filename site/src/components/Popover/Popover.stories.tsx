@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, screen, userEvent, within, waitFor } from "@storybook/test";
-import { Popover, PopoverTrigger, PopoverContent } from "./Popover";
+import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
+import { Popover, PopoverContent, PopoverTrigger } from "./Popover";
 
 const meta: Meta<typeof Popover> = {
   title: "components/Popover",

@@ -17,14 +17,14 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
-import type { FC } from "react";
 import type { LoginType, SlimRole } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import {
   Popover,
-  PopoverTrigger,
   PopoverContent,
+  PopoverTrigger,
 } from "components/Popover/Popover";
+import type { FC } from "react";
 import { EditRolesButton } from "./EditRolesButton";
 
 type UserRoleCellProps = {

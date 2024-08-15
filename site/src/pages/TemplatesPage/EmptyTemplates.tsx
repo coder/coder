@@ -1,13 +1,13 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import type { TemplateExample } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
@@ -24,13 +24,13 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
   const featuredExamples: TemplateExample[] = [];
 
   // We loop the featuredExampleIds first to keep the order
-  featuredExampleIds.forEach((exampleId) => {
-    examples.forEach((example) => {
+  for (const exampleId of featuredExampleIds) {
+    for (const example of examples) {
       if (exampleId === example.id) {
         featuredExamples.push(example);
       }
-    });
-  });
+    }
+  }
 
   return featuredExamples;
 };

@@ -1,14 +1,14 @@
-import type { FC } from "react";
-import { useQuery, useMutation } from "react-query";
-import { useNavigate } from "react-router-dom";
 import { uploadFile } from "api/queries/files";
 import {
-  templateVersionLogs,
   JobError,
+  templateVersionLogs,
   templateVersionVariables,
 } from "api/queries/templates";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import type { FC } from "react";
+import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";

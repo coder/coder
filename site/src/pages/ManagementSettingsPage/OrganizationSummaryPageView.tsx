@@ -1,12 +1,12 @@
-import type { FC } from "react";
 import type { Organization } from "api/typesGenerated";
 import {
   PageHeader,
-  PageHeaderTitle,
   PageHeaderSubtitle,
+  PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import type { FC } from "react";
 
 interface OrganizationSummaryPageViewProps {
   organization: Organization;

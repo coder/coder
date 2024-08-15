@@ -46,7 +46,7 @@ export const newTemplate = (
 
 export const getFormPermissions = (entitlements: Entitlements) => {
   const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled;
+    entitlements.features.advanced_template_scheduling.enabled;
 
   return {
     allowAdvancedScheduling,

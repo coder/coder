@@ -2,6 +2,12 @@ import { css } from "@emotion/css";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
+import { checkAuthorization } from "api/queries/authCheck";
+import { organizations } from "api/queries/organizations";
+import type { AuthorizationCheck, Organization } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { useDebouncedFunction } from "hooks/debounce";
 import {
   type ChangeEvent,
   type ComponentProps,
@@ -9,12 +15,6 @@ import {
   useState,
 } from "react";
 import { useQuery } from "react-query";
-import { checkAuthorization } from "api/queries/authCheck";
-import { organizations } from "api/queries/organizations";
-import type { AuthorizationCheck, Organization } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { useDebouncedFunction } from "hooks/debounce";
 
 export type OrganizationAutocompleteProps = {
   value: Organization | null;

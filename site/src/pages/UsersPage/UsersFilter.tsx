@@ -1,4 +1,7 @@
-import type { FC } from "react";
+import {
+  SelectFilter,
+  type SelectFilterOption,
+} from "components/Filter/SelectFilter";
 import {
   Filter,
   MenuSkeleton,
@@ -9,11 +12,8 @@ import {
   type UseFilterMenuOptions,
   useFilterMenu,
 } from "components/Filter/menu";
-import {
-  SelectFilter,
-  type SelectFilterOption,
-} from "components/Filter/SelectFilter";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 
 const userFilterQuery = {

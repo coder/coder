@@ -5,22 +5,22 @@ import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { isAxiosError } from "axios";
-import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
+import { isAxiosError } from "axios";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
+import { type FormikContextType, useFormik } from "formik";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
+import * as Yup from "yup";
 import { countries } from "./countries";
 
 export const Language = {

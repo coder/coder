@@ -2,13 +2,13 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import {
-  MockWorkspace,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
+  MockTemplateVersionParameter4,
+  MockWorkspace,
+  MockWorkspaceBuild,
   MockWorkspaceBuildParameter1,
   MockWorkspaceBuildParameter2,
-  MockWorkspaceBuild,
-  MockTemplateVersionParameter4,
   MockWorkspaceBuildParameter4,
 } from "testHelpers/entities";
 import {

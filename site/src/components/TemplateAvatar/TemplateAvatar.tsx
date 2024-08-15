@@ -1,6 +1,6 @@
-import type { FC } from "react";
 import type { Template } from "api/typesGenerated";
 import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
+import type { FC } from "react";
 
 interface TemplateAvatarProps extends AvatarProps {
   template: Template;

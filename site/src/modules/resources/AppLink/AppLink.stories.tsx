@@ -2,11 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import {
   MockPrimaryWorkspaceProxy,
-  MockWorkspaceProxies,
+  MockProxyLatencies,
   MockWorkspace,
   MockWorkspaceAgent,
   MockWorkspaceApp,
-  MockProxyLatencies,
+  MockWorkspaceProxies,
 } from "testHelpers/entities";
 import { AppLink } from "./AppLink";
 

@@ -1,10 +1,10 @@
-import type { QueryClient, UseQueryOptions } from "react-query";
 import { API } from "api/api";
 import type {
   CreateGroupRequest,
   Group,
   PatchGroupRequest,
 } from "api/typesGenerated";
+import type { QueryClient, UseQueryOptions } from "react-query";
 
 type GroupSortOrder = "asc" | "desc";
 
@@ -120,7 +120,7 @@ export const patchGroup = (queryClient: QueryClient) => {
 export const deleteGroup = (queryClient: QueryClient) => {
   return {
     mutationFn: API.deleteGroup,
-    onSuccess: async (_: void, groupId: string) =>
+    onSuccess: async (_: unknown, groupId: string) =>
       invalidateGroup(queryClient, "default", groupId),
   };
 };
@@ -159,15 +159,12 @@ export function sortGroupsByName(
 ) {
   return [...groups].sort((g1, g2) => {
     const key = g1.display_name && g2.display_name ? "display_name" : "name";
+    const direction = order === "asc" ? 1 : -1;
 
     if (g1[key] === g2[key]) {
       return 0;
     }
 
-    if (order === "asc") {
-      return g1[key] < g2[key] ? -1 : 1;
-    } else {
-      return g1[key] < g2[key] ? 1 : -1;
-    }
+    return (g1[key] < g2[key] ? -1 : 1) * direction;
   });
 }

@@ -1,5 +1,5 @@
-import { Fragment } from "react";
 import { TimelineDateRow } from "components/Timeline/TimelineDateRow";
+import { Fragment } from "react";
 
 type GetDateFn<TData> = (data: TData) => Date;
 
@@ -9,7 +9,7 @@ const groupByDate = <TData,>(
 ): Record<string, TData[]> => {
   const itemsByDate: Record<string, TData[]> = {};
 
-  items.forEach((item) => {
+  for (const item of items) {
     const dateKey = getDate(item).toDateString();
 
     if (dateKey in itemsByDate) {
@@ -17,7 +17,7 @@ const groupByDate = <TData,>(
     } else {
       itemsByDate[dateKey] = [item];
     }
-  });
+  }
 
   return itemsByDate;
 };

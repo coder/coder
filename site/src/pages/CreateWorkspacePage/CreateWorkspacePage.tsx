@@ -1,7 +1,3 @@
-import { type FC, useCallback, useEffect, useState, useRef } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { API } from "api/api";
 import type { ApiErrorResponse } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
@@ -21,11 +17,15 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
-import { createWorkspaceChecks, type CreateWSPermissions } from "./permissions";
+import { type CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -297,13 +297,13 @@ const getAutofillParameters = (
       return { name, value, source: "url" };
     });
 
-  userParamMap.forEach((param) => {
+  for (const param of userParamMap.values()) {
     buildValues.push({
       name: param.name,
       value: param.value,
       source: "user_history",
     });
-  });
+  }
   return buildValues;
 };
 

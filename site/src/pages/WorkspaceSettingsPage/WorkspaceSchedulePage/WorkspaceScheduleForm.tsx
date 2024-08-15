@@ -7,6 +7,18 @@ import FormLabel from "@mui/material/FormLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
+import type { Template } from "api/typesGenerated";
+import {
+  FormFields,
+  FormFooter,
+  FormSection,
+  HorizontalForm,
+} from "components/Form/Form";
+import { Stack } from "components/Stack/Stack";
+import {
+  StackLabel,
+  StackLabelHelperText,
+} from "components/StackLabel/StackLabel";
 import { formatDuration, intervalToDuration } from "date-fns";
 import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat";
@@ -15,26 +27,14 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import { type FormikTouched, useFormik } from "formik";
-import type { ChangeEvent, FC } from "react";
-import * as Yup from "yup";
-import type { Template } from "api/typesGenerated";
-import {
-  HorizontalForm,
-  FormFooter,
-  FormSection,
-  FormFields,
-} from "components/Form/Form";
-import { Stack } from "components/Stack/Stack";
-import {
-  StackLabel,
-  StackLabelHelperText,
-} from "components/StackLabel/StackLabel";
 import {
   defaultSchedule,
   emptySchedule,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import type { ChangeEvent, FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { timeZones } from "utils/timeZones";
+import * as Yup from "yup";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -109,17 +109,18 @@ export const validationSchema = Yup.object({
 
       if (!parent.autostartEnabled) {
         return true;
-      } else {
-        return ![
-          parent.sunday,
-          value,
-          parent.tuesday,
-          parent.wednesday,
-          parent.thursday,
-          parent.friday,
-          parent.saturday,
-        ].every((day) => day === false);
       }
+
+      // Ensure at least one day is enabled
+      return [
+        parent.sunday,
+        value,
+        parent.tuesday,
+        parent.wednesday,
+        parent.thursday,
+        parent.friday,
+        parent.saturday,
+      ].some((day) => day);
     },
   ),
   tuesday: Yup.boolean(),
@@ -134,21 +135,20 @@ export const validationSchema = Yup.object({
       const parent = this.parent as WorkspaceScheduleFormValues;
       if (parent.autostartEnabled) {
         return value !== "";
-      } else {
-        return true;
       }
+      return true;
     })
     .test("is-time-string", Language.errorTime, (value) => {
       if (value === "") {
         return true;
-      } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
-        return false;
-      } else {
-        const parts = value.split(":");
-        const HH = Number(parts[0]);
-        const mm = Number(parts[1]);
-        return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59;
       }
+      if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
+        return false;
+      }
+      const parts = value.split(":");
+      const HH = Number(parts[0]);
+      const mm = Number(parts[1]);
+      return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59;
     }),
   timezone: Yup.string()
     .ensure()
@@ -157,16 +157,15 @@ export const validationSchema = Yup.object({
 
       if (!parent.startTime) {
         return true;
-      } else {
-        // Unfortunately, there's not a good API on dayjs at this time for
-        // evaluating a timezone. Attempt to parse today in the supplied timezone
-        // and return as valid if the function doesn't throw.
-        try {
-          dayjs.tz(dayjs(), value);
-          return true;
-        } catch (e) {
-          return false;
-        }
+      }
+      // Unfortunately, there's not a good API on dayjs at this time for
+      // evaluating a timezone. Attempt to parse today in the supplied timezone
+      // and return as valid if the function doesn't throw.
+      try {
+        dayjs.tz(dayjs(), value);
+        return true;
+      } catch (e) {
+        return false;
       }
     }),
   ttl: Yup.number()
@@ -176,9 +175,8 @@ export const validationSchema = Yup.object({
       const parent = this.parent as WorkspaceScheduleFormValues;
       if (parent.autostopEnabled) {
         return Boolean(value);
-      } else {
-        return true;
       }
+      return true;
     }),
 });
 

@@ -1,7 +1,7 @@
 import PerformanceObserver from "@fastly/performance-observer-polyfill";
-import { useEffect, useReducer, useState } from "react";
 import { API } from "api/api";
 import type { Region } from "api/typesGenerated";
+import { useEffect, useReducer, useState } from "react";
 import { generateRandomString } from "utils/random";
 
 const proxyIntervalSeconds = 30; // seconds
@@ -99,8 +99,7 @@ export const useProxyLatency = (
         // 1. Fetch the latest stored latency for the given proxy.
         // 2. If the latest latency is after the latestFetchRequest, then skip the latency check.
         if (
-          storedLatencies &&
-          storedLatencies[proxy.id] &&
+          storedLatencies?.[proxy.id] &&
           storedLatencies[proxy.id].length > 0
         ) {
           const fetchRequestDate = new Date(latestFetchRequest);
@@ -189,9 +188,9 @@ export const useProxyLatency = (
     // to the proxies.
     const observer = new PerformanceObserver((list) => {
       // If we get entries via this callback, then dispatch the events to the latency reducer.
-      list.getEntries().forEach((entry) => {
+      for (const entry of list.getEntries()) {
         dispatchProxyLatenciesGuarded(entry);
-      });
+      }
     });
 
     // The resource requests include xmlhttp requests.
@@ -215,9 +214,9 @@ export const useProxyLatency = (
         // takeRecords will return any entries that were not called via the callback yet.
         // We want to call this before we disconnect the observer to make sure we get all the
         // proxy requests recorded.
-        observer.takeRecords().forEach((entry) => {
+        for (const entry of observer.takeRecords()) {
           dispatchProxyLatenciesGuarded(entry);
-        });
+        }
         // At this point, we can be confident that all the proxy requests have been recorded
         // via the performance observer. So we can disconnect the observer.
         observer.disconnect();
@@ -291,19 +290,18 @@ const cleanupLatencies = (
   now: Date,
   maxStored: number,
 ): Record<string, ProxyLatencyReport[]> => {
-  Object.keys(stored).forEach((proxyID) => {
-    if (!regions.find((region) => region.id === proxyID)) {
-      delete stored[proxyID];
-      return;
+  for (const [proxyId, reports] of Object.entries(stored)) {
+    if (!regions.find((region) => region.id === proxyId)) {
+      delete stored[proxyId];
+      continue;
     }
-    const reports = stored[proxyID];
     const nowMS = now.getTime();
-    stored[proxyID] = reports.filter((report) => {
+    stored[proxyId] = reports.filter((report) => {
       // Only keep the reports that are less then 1 week old.
       return new Date(report.at).getTime() > nowMS - 1000 * 60 * 60 * 24 * 7;
     });
     // Only keep the 5 latest
-    stored[proxyID] = stored[proxyID].slice(-1 * maxStored);
-  });
+    stored[proxyId] = stored[proxyId].slice(-1 * maxStored);
+  }
   return stored;
 };

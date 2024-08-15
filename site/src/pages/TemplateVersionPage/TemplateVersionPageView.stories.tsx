@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  mockApiError,
   MockTemplate,
   MockTemplateVersion,
   MockTemplateVersionWithMarkdownMessage,
+  mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import {
@@ -29,8 +29,8 @@ const defaultArgs: TemplateVersionPageViewProps = {
   currentVersion: MockTemplateVersion,
   currentFiles: {
     "README.md": readmeContent,
-    "main.tf": `{}`,
-    "some.tpl": `{{.Name}}`,
+    "main.tf": "{}",
+    "some.tpl": "{{.Name}}",
     "some.sh": `echo "Hello world"`,
   },
   baseFiles: undefined,
@@ -55,7 +55,7 @@ export const LongVersionMessage: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     ...defaultArgs,
     currentVersion: undefined,

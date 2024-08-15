@@ -1,17 +1,17 @@
-import { useState, type FC, useRef } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation } from "react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
 import { createTemplate } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import { type FC, useRef, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation } from "react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
 import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
-import type { CreateTemplatePageViewProps } from "./types";
 import { UploadTemplateView } from "./UploadTemplateView";
+import type { CreateTemplatePageViewProps } from "./types";
 
 const CreateTemplatePage: FC = () => {
   const navigate = useNavigate();

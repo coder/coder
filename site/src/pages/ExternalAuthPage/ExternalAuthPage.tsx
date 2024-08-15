@@ -1,17 +1,17 @@
 import Button from "@mui/material/Button";
-import { isAxiosError } from "axios";
-import type { FC } from "react";
-import { useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
 import type { ApiErrorResponse } from "api/errors";
 import {
+  exchangeExternalAuthDevice,
   externalAuthDevice,
   externalAuthProvider,
-  exchangeExternalAuthDevice,
 } from "api/queries/externalAuth";
+import { isAxiosError } from "axios";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import type { FC } from "react";
+import { useQuery, useQueryClient } from "react-query";
+import { useParams, useSearchParams } from "react-router-dom";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {

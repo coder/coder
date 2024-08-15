@@ -29,7 +29,7 @@ export const Debug: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     level: "error",
   },

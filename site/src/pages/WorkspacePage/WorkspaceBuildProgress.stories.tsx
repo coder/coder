@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import dayjs from "dayjs";
 import {
+  MockProvisionerJob,
   MockStartingWorkspace,
   MockWorkspaceBuild,
-  MockProvisionerJob,
 } from "testHelpers/entities";
 import { WorkspaceBuildProgress } from "./WorkspaceBuildProgress";
 

@@ -1,11 +1,11 @@
 import type { Interpolation } from "@emotion/react";
 import { visuallyHidden } from "@mui/utils";
-import type { FC } from "react";
 import type { UpdateUserAppearanceSettingsRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { PreviewBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import type { FC } from "react";
 import themes, { DEFAULT_THEME, type Theme } from "theme";
 
 export interface AppearanceFormProps {

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within, screen } from "@storybook/test";
-import { addHours, addMinutes } from "date-fns";
+import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
 import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
+import { addHours, addMinutes } from "date-fns";
 import {
   MockTemplate,
   MockTemplateVersion,

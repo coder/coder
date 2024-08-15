@@ -2,7 +2,7 @@
  * Not testing hslToHex, because it's code directly copied from a reliable
  * source
  */
-import { isHslColor, isHexColor } from "./colors";
+import { isHexColor, isHslColor } from "./colors";
 
 describe(`${isHslColor.name}`, () => {
   it("Should reject obviously wrong or malformed inputs", () => {

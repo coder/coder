@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { FC } from "react";
-import { Link, useSearchParams } from "react-router-dom";
 import { Stack } from "components/Stack/Stack";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
+import type { FC } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
@@ -64,17 +64,16 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
           height: "max-content",
         }}
       >
-        {visibleTemplates &&
-          visibleTemplates.map((example) => (
-            <TemplateExampleCard
-              css={(theme) => ({
-                backgroundColor: theme.palette.background.paper,
-              })}
-              example={example}
-              key={example.id}
-              activeTag={activeTag}
-            />
-          ))}
+        {visibleTemplates?.map((example) => (
+          <TemplateExampleCard
+            css={(theme) => ({
+              backgroundColor: theme.palette.background.paper,
+            })}
+            example={example}
+            key={example.id}
+            activeTag={activeTag}
+          />
+        ))}
       </div>
     </Stack>
   );

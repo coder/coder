@@ -3,37 +3,32 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
-import { type FormikTouched, useFormik } from "formik";
-import { type ChangeEvent, type FC, useState, useEffect } from "react";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { DurationField } from "components/DurationField/DurationField";
 import {
+  FormFields,
+  FormFooter,
   FormSection,
   HorizontalForm,
-  FormFooter,
-  FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
 import {
   StackLabel,
   StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
+import { type FormikTouched, useFormik } from "formik";
+import { type ChangeEvent, type FC, useEffect, useState } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import {
-  calculateAutostopRequirementDaysValue,
   type TemplateAutostartRequirementDaysValue,
+  calculateAutostopRequirementDaysValue,
 } from "utils/schedule";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
-import {
-  getValidationSchema,
-  type TemplateScheduleFormValues,
-} from "./formHelpers";
 import { ScheduleDialog } from "./ScheduleDialog";
-import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 import {
   ActivityBumpHelperText,
   DefaultTTLHelperText,
@@ -41,9 +36,14 @@ import {
   DormancyTTLHelperText,
   FailureTTLHelperText,
 } from "./TTLHelperText";
+import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 import {
-  useWorkspacesToGoDormant,
+  type TemplateScheduleFormValues,
+  getValidationSchema,
+} from "./formHelpers";
+import {
   useWorkspacesToBeDeleted,
+  useWorkspacesToGoDormant,
 } from "./useWorkspacesToBeDeleted";
 
 const MS_HOUR_CONVERSION = 3600000;

@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
-import type { FC, ReactNode } from "react";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
+import type { FC, ReactNode } from "react";
 
 export interface AvatarDataProps {
   title: ReactNode;

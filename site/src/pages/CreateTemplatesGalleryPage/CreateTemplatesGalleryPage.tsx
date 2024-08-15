@@ -1,9 +1,9 @@
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
 import { templateExamples } from "api/queries/templates";
 import type { TemplateExample } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { getTemplatesByTag } from "utils/starterTemplates";
 import { CreateTemplatesPageView } from "./CreateTemplatesPageView";

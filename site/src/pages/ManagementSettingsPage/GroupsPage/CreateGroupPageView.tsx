@@ -1,8 +1,4 @@
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
-import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
 import type { CreateGroupRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -14,7 +10,11 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import { useNavigate } from "react-router-dom";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import * as Yup from "yup";
 
 const validationSchema = Yup.object({
   name: Yup.string().required().label("Name"),

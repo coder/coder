@@ -1,10 +1,10 @@
-import type { QueryClient } from "react-query";
 import { API } from "api/api";
 import type {
   AuthorizationResponse,
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import type { QueryClient } from "react-query";
 import { meKey } from "./users";
 
 export const createOrganization = (queryClient: QueryClient) => {
@@ -221,14 +221,12 @@ export const organizationsPermissions = (
 
       // The endpoint takes a flat array, so to avoid collisions prepend each
       // check with the org ID (the key can be anything we want).
-      const prefixedChecks = organizationIds
-        .map((orgId) =>
-          Object.entries(checks(orgId)).map(([key, val]) => [
-            `${orgId}.${key}`,
-            val,
-          ]),
-        )
-        .flat();
+      const prefixedChecks = organizationIds.flatMap((orgId) =>
+        Object.entries(checks(orgId)).map(([key, val]) => [
+          `${orgId}.${key}`,
+          val,
+        ]),
+      );
 
       const response = await API.checkAuthorization({
         checks: Object.fromEntries(prefixedChecks),

@@ -1,5 +1,5 @@
-import { intervalToDuration, formatDuration } from "date-fns";
 import type { SerpentOption } from "api/typesGenerated";
+import { formatDuration, intervalToDuration } from "date-fns";
 
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(
@@ -32,7 +32,7 @@ export function optionValue(
       if (option.value === 0) {
         return "Disabled";
       }
-      return (option.value as number).toString() + "s";
+      return `${(option.value as number).toString()}s`;
     case "OIDC Group Mapping":
       return Object.entries(option.value as Record<string, string>).map(
         ([key, value]) => `"${key}"->"${value}"`,

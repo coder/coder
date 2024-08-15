@@ -1,12 +1,12 @@
-import type { FC } from "react";
 import { API } from "api/api";
 import {
   SelectFilter,
-  SelectFilterSearch,
   type SelectFilterOption,
+  SelectFilterSearch,
 } from "components/Filter/SelectFilter";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import type { FC } from "react";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
 export const useUserFilterMenu = ({

@@ -6,10 +6,6 @@ import IconButton from "@mui/material/IconButton";
 import Link, { type LinkProps } from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
-import dayjs, { type Dayjs } from "dayjs";
-import { type FC, forwardRef, type ReactNode, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import {
   updateDeadline,
@@ -18,8 +14,12 @@ import {
 import type { Template, Workspace } from "api/typesGenerated";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
+import { type FC, type ReactNode, forwardRef, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { Link as RouterLink } from "react-router-dom";
 import {
   autostartDisplay,
   autostopDisplay,

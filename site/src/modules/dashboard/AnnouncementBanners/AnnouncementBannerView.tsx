@@ -1,6 +1,6 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
-import type { FC } from "react";
+import { type Interpolation, type Theme, css } from "@emotion/react";
 import { InlineMarkdown } from "components/Markdown/Markdown";
+import type { FC } from "react";
 import { readableForegroundColor } from "utils/colors";
 
 export interface AnnouncementBannerViewProps {

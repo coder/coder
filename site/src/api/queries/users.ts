@@ -1,24 +1,24 @@
+import { API } from "api/api";
+import type {
+  AuthorizationRequest,
+  GenerateAPIKeyResponse,
+  GetUsersResponse,
+  UpdateUserAppearanceSettingsRequest,
+  UpdateUserPasswordRequest,
+  UpdateUserProfileRequest,
+  User,
+  UsersRequest,
+} from "api/typesGenerated";
+import {
+  type MetadataState,
+  defaultMetadataManager,
+} from "hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type {
   QueryClient,
   UseMutationOptions,
   UseQueryOptions,
 } from "react-query";
-import { API } from "api/api";
-import type {
-  AuthorizationRequest,
-  GetUsersResponse,
-  UpdateUserPasswordRequest,
-  UpdateUserProfileRequest,
-  UpdateUserAppearanceSettingsRequest,
-  UsersRequest,
-  User,
-  GenerateAPIKeyResponse,
-} from "api/typesGenerated";
-import {
-  defaultMetadataManager,
-  type MetadataState,
-} from "hooks/useEmbeddedMetadata";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import { prepareQuery } from "utils/filters";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";

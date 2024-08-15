@@ -1,11 +1,11 @@
-import { screen, renderHook } from "@testing-library/react";
+import { renderHook, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { MockPermissions, MockUser } from "testHelpers/entities";
 import {
-  renderWithAuth,
   createTestQueryClient,
+  renderWithAuth,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { AuthContext, type AuthContextValue } from "./AuthProvider";

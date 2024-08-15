@@ -1,14 +1,14 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  MockWorkspaceBuildParameter1,
-  MockWorkspaceBuildParameter2,
+  MockOutdatedStoppedWorkspaceRequireActiveVersion,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
-  MockWorkspaceBuildParameter3,
   MockWorkspace,
-  MockOutdatedStoppedWorkspaceRequireActiveVersion,
+  MockWorkspaceBuildParameter1,
+  MockWorkspaceBuildParameter2,
+  MockWorkspaceBuildParameter3,
 } from "testHelpers/entities";
 import { WorkspaceParametersPageView } from "./WorkspaceParametersPage";
 

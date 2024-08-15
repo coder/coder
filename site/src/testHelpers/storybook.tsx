@@ -1,6 +1,4 @@
 import type { StoryContext } from "@storybook/react";
-import type { FC } from "react";
-import { useQueryClient } from "react-query";
 import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
@@ -10,6 +8,8 @@ import { AuthProvider } from "contexts/auth/AuthProvider";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploySettingsContext } from "pages/DeploySettingsPage/DeploySettingsLayout";
+import type { FC } from "react";
+import { useQueryClient } from "react-query";
 import {
   MockAppearanceConfig,
   MockDefaultOrganization,
@@ -63,29 +63,27 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
   const listeners = new Map<string, CallbackFn>();
   let callEventsDelay: number;
 
-  // @ts-expect-error -- TS doesn't know about the global WebSocket
-  window.WebSocket = function () {
-    return {
-      addEventListener: (type: string, callback: CallbackFn) => {
-        listeners.set(type, callback);
+  window.WebSocket = class WebSocket {
+    addEventListener(type: string, callback: CallbackFn) {
+      listeners.set(type, callback);
 
-        // Runs when the last event listener is added
-        clearTimeout(callEventsDelay);
-        callEventsDelay = window.setTimeout(() => {
-          for (const entry of events) {
-            const callback = listeners.get(entry.event);
+      // Runs when the last event listener is added
+      clearTimeout(callEventsDelay);
+      callEventsDelay = window.setTimeout(() => {
+        for (const entry of events) {
+          const callback = listeners.get(entry.event);
 
-            if (callback) {
-              entry.event === "message"
-                ? callback({ data: entry.data })
-                : callback();
-            }
+          if (callback) {
+            entry.event === "message"
+              ? callback({ data: entry.data })
+              : callback();
           }
-        }, 0);
-      },
-      close: () => {},
-    };
-  };
+        }
+      }, 0);
+    }
+
+    close() {}
+  } as unknown as typeof window.WebSocket;
 
   return <Story />;
 };

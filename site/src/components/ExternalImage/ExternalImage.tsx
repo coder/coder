@@ -9,9 +9,9 @@ export const ExternalImage = forwardRef<
   const theme = useTheme();
 
   return (
+    // biome-ignore lint/a11y/useAltText: no reasonable alt to provide
     <img
       ref={ref}
-      alt=""
       css={getExternalImageStylesFromUrl(theme.externalImages, attrs.src)}
       {...attrs}
     />

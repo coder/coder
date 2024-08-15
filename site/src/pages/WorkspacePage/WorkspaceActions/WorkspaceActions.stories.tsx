@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within, expect } from "@storybook/test";
-import { buildLogsKey, agentLogsKey } from "api/queries/workspaces";
+import { expect, userEvent, within } from "@storybook/test";
+import { agentLogsKey, buildLogsKey } from "api/queries/workspaces";
 import * as Mocks from "testHelpers/entities";
 import {
   withDashboardProvider,

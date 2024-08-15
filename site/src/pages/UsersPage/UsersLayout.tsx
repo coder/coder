@@ -1,13 +1,6 @@
 import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import PersonAdd from "@mui/icons-material/PersonAddOutlined";
 import Button from "@mui/material/Button";
-import { type FC, Suspense } from "react";
-import {
-  Link as RouterLink,
-  Outlet,
-  useNavigate,
-  useLocation,
-} from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -16,6 +9,13 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { linkToUsers } from "modules/navigation";
+import { type FC, Suspense } from "react";
+import {
+  Outlet,
+  Link as RouterLink,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 export const UsersLayout: FC = () => {
   const { permissions } = useAuthenticated();

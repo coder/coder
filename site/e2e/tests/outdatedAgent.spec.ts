@@ -1,5 +1,5 @@
+import { randomUUID } from "node:crypto";
 import { test } from "@playwright/test";
-import { randomUUID } from "crypto";
 import {
   createTemplate,
   createWorkspace,
@@ -16,7 +16,7 @@ const agentVersion = "v2.12.1";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
-test("ssh with agent " + agentVersion, async ({ page }) => {
+test(`ssh with agent ${agentVersion}`, async ({ page }) => {
   test.setTimeout(40_000); // This is a slow test, 20s may not be enough on Mac.
 
   const token = randomUUID();

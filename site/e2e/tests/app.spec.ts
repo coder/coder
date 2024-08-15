@@ -1,6 +1,6 @@
+import { randomUUID } from "node:crypto";
+import * as http from "node:http";
 import { test } from "@playwright/test";
-import { randomUUID } from "crypto";
-import * as http from "http";
 import {
   createTemplate,
   createWorkspace,
@@ -37,7 +37,7 @@ test("app", async ({ context, page }) => {
                   token,
                   apps: [
                     {
-                      url: "http://localhost:" + addr.port,
+                      url: `http://localhost:${addr.port}`,
                       displayName: appName,
                       order: 0,
                     },

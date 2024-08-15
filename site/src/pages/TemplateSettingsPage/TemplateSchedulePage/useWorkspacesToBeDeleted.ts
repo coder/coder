@@ -1,5 +1,5 @@
+import type { Template, Workspace } from "api/typesGenerated";
 import { compareAsc } from "date-fns";
-import type { Workspace, Template } from "api/typesGenerated";
 import { useWorkspacesData } from "pages/WorkspacesPage/data";
 import type { TemplateScheduleFormValues } from "./formHelpers";
 
@@ -11,7 +11,7 @@ export const useWorkspacesToGoDormant = (
   const { data } = useWorkspacesData({
     page: 0,
     limit: 0,
-    query: "template:" + template.name,
+    query: `template:${template.name}`,
   });
 
   return data?.workspaces?.filter((workspace: Workspace) => {
@@ -42,7 +42,7 @@ export const useWorkspacesToBeDeleted = (
   const { data } = useWorkspacesData({
     page: 0,
     limit: 0,
-    query: "template:" + template.name + " dormant:true",
+    query: `template:${template.name} dormant:true`,
   });
   return data?.workspaces?.filter((workspace: Workspace) => {
     if (!workspace.dormant_at || !formValues.time_til_dormant_autodelete_ms) {

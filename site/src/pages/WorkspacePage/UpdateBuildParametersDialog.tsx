@@ -6,9 +6,6 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import type {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
@@ -16,11 +13,14 @@ import type {
 import type { DialogProps } from "components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
+import * as Yup from "yup";
 
 export type UpdateBuildParametersDialogProps = DialogProps & {
   onClose: () => void;
@@ -76,13 +76,13 @@ export const UpdateBuildParametersDialog: FC<
                 return (
                   <RichParameterInput
                     {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
+                      `rich_parameter_values[${index}].value`,
                     )}
                     key={parameter.name}
                     parameter={parameter}
                     onChange={async (value) => {
                       await form.setFieldValue(
-                        "rich_parameter_values." + index,
+                        `rich_parameter_values.${index}`,
                         {
                           name: parameter.name,
                           value: value,

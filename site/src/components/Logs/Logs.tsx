@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import dayjs from "dayjs";
 import type { FC } from "react";
-import { LogLinePrefix, LogLine, type Line } from "./LogLine";
+import { type Line, LogLine, LogLinePrefix } from "./LogLine";
 
 export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
 
@@ -19,11 +19,11 @@ export const Logs: FC<LogsProps> = ({
   return (
     <div css={styles.root} className={`${className} logs-container`}>
       <div css={{ minWidth: "fit-content" }}>
-        {lines.map((line, idx) => (
-          <LogLine key={idx} level={line.level}>
+        {lines.map((line) => (
+          <LogLine key={line.output} level={line.level}>
             {!hideTimestamps && (
               <LogLinePrefix>
-                {dayjs(line.time).format(`HH:mm:ss.SSS`)}
+                {dayjs(line.time).format("HH:mm:ss.SSS")}
               </LogLinePrefix>
             )}
             <span>{line.output}</span>

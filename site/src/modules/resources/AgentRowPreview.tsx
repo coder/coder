@@ -1,9 +1,9 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";
@@ -104,28 +104,28 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               {agent.display_apps.includes("web_terminal") && (
                 <AppPreview>
                   <TerminalIcon sx={{ width: 12, height: 12 }} />
-                  {DisplayAppNameMap["web_terminal"]}
+                  {DisplayAppNameMap.web_terminal}
                 </AppPreview>
               )}
               {agent.display_apps.includes("ssh_helper") && (
-                <AppPreview>{DisplayAppNameMap["ssh_helper"]}</AppPreview>
+                <AppPreview>{DisplayAppNameMap.ssh_helper}</AppPreview>
               )}
               {agent.display_apps.includes("port_forwarding_helper") && (
                 <AppPreview>
-                  {DisplayAppNameMap["port_forwarding_helper"]}
+                  {DisplayAppNameMap.port_forwarding_helper}
                 </AppPreview>
               )}
               {/* VSCode display apps (vscode, vscode_insiders) get special presentation */}
               {agent.display_apps.includes("vscode") ? (
                 <AppPreview>
                   <VSCodeIcon sx={{ width: 12, height: 12 }} />
-                  {DisplayAppNameMap["vscode"]}
+                  {DisplayAppNameMap.vscode}
                 </AppPreview>
               ) : (
                 agent.display_apps.includes("vscode_insiders") && (
                   <AppPreview>
                     <VSCodeIcon sx={{ width: 12, height: 12 }} />
-                    {DisplayAppNameMap["vscode_insiders"]}
+                    {DisplayAppNameMap.vscode_insiders}
                   </AppPreview>
                 )
               )}

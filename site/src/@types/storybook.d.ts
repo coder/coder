@@ -1,13 +1,13 @@
 import * as _storybook_types from "@storybook/react";
-import type { QueryKey } from "react-query";
 import type {
+  DeploymentValues,
   Experiments,
   FeatureName,
   SerpentOption,
   User,
-  DeploymentValues,
 } from "api/typesGenerated";
 import type { Permissions } from "contexts/auth/permissions";
+import type { QueryKey } from "react-query";
 
 declare module "@storybook/react" {
   type WebSocketEvent =

@@ -1,9 +1,11 @@
-/* eslint-disable @typescript-eslint/no-explicit-any
--- we need to hack around the MUI types a little */
+// biome-ignore lint/nursery/noRestrictedImports: createTheme
 import { createTheme } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "../constants";
 import { components } from "../mui";
 import tw from "../tailwindColors";
+
+// biome-ignore lint/suspicious/noExplicitAny: needed for MUI overrides
+type MuiStyle = any;
 
 const muiTheme = createTheme({
   palette: {
@@ -120,7 +122,7 @@ const muiTheme = createTheme({
             boxShadow: "none !important",
           },
         }),
-        ["outlinedNeutral" as any]: {
+        ["outlinedNeutral" as MuiStyle]: {
           borderColor: tw.zinc[300],
 
           "&.Mui-disabled": {
@@ -141,7 +143,7 @@ const muiTheme = createTheme({
             boxShadow: "0 1px 4px #0001",
           },
         },
-        ["containedNeutral" as any]: {
+        ["containedNeutral" as MuiStyle]: {
           backgroundColor: tw.zinc[100],
           border: `1px solid ${tw.zinc[200]}`,
 
@@ -178,7 +180,7 @@ const muiTheme = createTheme({
       ...components.MuiInputBase,
       styleOverrides: {
         ...components.MuiInputBase.styleOverrides,
-        ["colorPrimary" as any]: {
+        ["colorPrimary" as MuiStyle]: {
           // Same as button
           "& .MuiOutlinedInput-notchedOutline": {
             borderColor: tw.zinc[300],

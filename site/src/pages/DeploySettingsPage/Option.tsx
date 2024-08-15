@@ -1,7 +1,7 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import BuildCircleOutlinedIcon from "@mui/icons-material/BuildCircleOutlined";
-import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
+import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {

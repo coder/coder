@@ -4,9 +4,9 @@ import CircularProgress, {
 } from "@mui/material/CircularProgress";
 import {
   type FC,
-  forwardRef,
   type HTMLAttributes,
   type ReactNode,
+  forwardRef,
   useMemo,
 } from "react";
 import type { ThemeRole } from "theme/roles";

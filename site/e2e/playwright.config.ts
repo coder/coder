@@ -1,6 +1,6 @@
+import { execSync } from "node:child_process";
+import * as path from "node:path";
 import { defineConfig } from "@playwright/test";
-import { execSync } from "child_process";
-import * as path from "path";
 import {
   coderMain,
   coderPort,
@@ -38,14 +38,15 @@ try {
 }
 
 if (!hasTerraform || !hasDocker) {
-  const msg =
-    "Terraform provisioners require docker & terraform binaries to function. \n" +
-    (hasTerraform
+  const msg = `Terraform provisioners require docker & terraform binaries to function. \n${
+    hasTerraform
       ? ""
-      : "\tThe `terraform` executable is not present in the runtime environment.\n") +
-    (hasDocker
+      : "\tThe `terraform` executable is not present in the runtime environment.\n"
+  }${
+    hasDocker
       ? ""
-      : "\tThe `docker` executable is not present in the runtime environment.\n");
+      : "\tThe `docker` executable is not present in the runtime environment.\n"
+  }`;
   throw new Error(msg);
 }
 
@@ -96,7 +97,7 @@ export default defineConfig({
       "--provisioner-daemons 10",
       // TODO: Enable some terraform provisioners
       `--provisioner-types=echo${requireTerraformTests ? ",terraform" : ""}`,
-      `--provisioner-daemons=10`,
+      "--provisioner-daemons=10",
       "--web-terminal-renderer=dom",
       "--pprof-enable",
     ]
@@ -146,7 +147,7 @@ export default defineConfig({
         gitAuth.webPort,
         gitAuth.validatePath,
       ),
-      CODER_PPROF_ADDRESS: "127.0.0.1:" + coderdPProfPort,
+      CODER_PPROF_ADDRESS: `127.0.0.1:${coderdPProfPort}`,
       CODER_EXPERIMENTS: `multi-organization,${e2eFakeExperiment1},${e2eFakeExperiment2}`,
 
       // Tests for Deployment / User Authentication / OIDC

@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { type Page, expect } from "@playwright/test";
 
 type PollingOptions = { timeout?: number; intervals?: number[] };
 
@@ -11,7 +11,10 @@ export const expectUrl = expect.extend({
     let pass: boolean;
     try {
       await expect
-        .poll(() => (actual = new URL(page.url()).pathname), options)
+        .poll(() => {
+          actual = new URL(page.url()).pathname;
+          return actual;
+        }, options)
         .toBe(expected);
       pass = true;
     } catch {
@@ -24,11 +27,11 @@ export const expectUrl = expect.extend({
       actual,
       expected,
       message: () =>
-        "The page does not have the expected URL pathname.\n" +
-        `Expected: ${this.isNot ? "not" : ""}${this.utils.printExpected(
+        `The page does not have the expected URL pathname.\nExpected: ${
+          this.isNot ? "not" : ""
+        }${this.utils.printExpected(
           expected,
-        )}\n` +
-        `Actual: ${this.utils.printReceived(actual)}`,
+        )}\nActual: ${this.utils.printReceived(actual)}`,
     };
   },
 });

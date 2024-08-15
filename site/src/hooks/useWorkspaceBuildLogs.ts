@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from "react";
 import { watchBuildLogsByBuildId } from "api/api";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { useEffect, useRef, useState } from "react";
 
 export const useWorkspaceBuildLogs = (
   // buildId is optional because sometimes the build is not loaded yet
   buildId: string | undefined,
-  enabled: boolean = true,
+  enabled = true,
 ) => {
   const [logs, setLogs] = useState<ProvisionerJobLog[]>();
   const socket = useRef<WebSocket>();

@@ -1,10 +1,9 @@
 import AlertTitle from "@mui/material/AlertTitle";
-import type { FC } from "react";
 import type {
-  SerpentOption,
   DAUsResponse,
   Entitlements,
   Experiments,
+  SerpentOption,
 } from "api/typesGenerated";
 import {
   ActiveUserChart,
@@ -13,6 +12,7 @@ import {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import { Alert } from "../../../components/Alert/Alert";

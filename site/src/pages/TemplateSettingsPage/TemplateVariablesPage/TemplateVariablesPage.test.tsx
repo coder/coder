@@ -5,9 +5,9 @@ import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter
 import {
   MockTemplate,
   MockTemplateVersion,
+  MockTemplateVersion2,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
-  MockTemplateVersion2,
 } from "testHelpers/entities";
 import {
   renderWithTemplateSettingsLayout,
@@ -24,7 +24,7 @@ const validFormValues = {
 const renderTemplateVariablesPage = async () => {
   renderWithTemplateSettingsLayout(<TemplateVariablesPage />, {
     route: `/templates/${MockTemplate.name}/variables`,
-    path: `/templates/:template/variables`,
+    path: "/templates/:template/variables",
     extraRoutes: [{ path: `/templates/${MockTemplate.name}`, element: <></> }],
   });
   await waitForLoaderToBeRemoved();

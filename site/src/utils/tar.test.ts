@@ -18,7 +18,7 @@ test("tar", async () => {
     mtime,
     user: "coder",
     group: "codergroup",
-    mode: parseInt("777", 8),
+    mode: 0o777,
   });
   const blob = (await writer.write()) as Blob;
 
@@ -46,7 +46,7 @@ test("tar", async () => {
   });
   expect(fileInfos[4].group).toEqual("codergroup");
   expect(fileInfos[4].user).toEqual("coder");
-  expect(fileInfos[4].mode).toEqual(parseInt("777", 8));
+  expect(fileInfos[4].mode).toEqual(0o777);
 });
 
 function verifyFile(

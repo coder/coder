@@ -1,10 +1,4 @@
-import type { Dayjs } from "dayjs";
-import type {
-  QueryClient,
-  QueryOptions,
-  UseMutationOptions,
-} from "react-query";
-import { type DeleteWorkspaceOptions, API } from "api/api";
+import { API, type DeleteWorkspaceOptions } from "api/api";
 import { DetailedError, isApiValidationError } from "api/errors";
 import type {
   CreateWorkspaceRequest,
@@ -16,7 +10,13 @@ import type {
   WorkspacesRequest,
   WorkspacesResponse,
 } from "api/typesGenerated";
+import type { Dayjs } from "dayjs";
 import type { ConnectionStatus } from "pages/TerminalPage/types";
+import type {
+  QueryClient,
+  QueryOptions,
+  UseMutationOptions,
+} from "react-query";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
 
@@ -88,7 +88,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
         }
       }
 
-      let templateVersionParameters;
+      let templateVersionParameters: Partial<CreateWorkspaceRequest>;
 
       if (templateVersionId) {
         templateVersionParameters = { template_version_id: templateVersionId };
@@ -307,9 +307,8 @@ export const toggleFavorite = (
     mutationFn: () => {
       if (workspace.favorite) {
         return API.deleteFavoriteWorkspace(workspace.id);
-      } else {
-        return API.putFavoriteWorkspace(workspace.id);
       }
+      return API.putFavoriteWorkspace(workspace.id);
     },
     onSuccess: async () => {
       queryClient.setQueryData(

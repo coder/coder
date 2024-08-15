@@ -1,14 +1,14 @@
 import { API } from "api/api";
 import type { WorkspaceStatus } from "api/typesGenerated";
 import {
-  useFilterMenu,
-  type UseFilterMenuOptions,
-} from "components/Filter/menu";
-import {
   SelectFilter,
-  SelectFilterSearch,
   type SelectFilterOption,
+  SelectFilterSearch,
 } from "components/Filter/SelectFilter";
+import {
+  type UseFilterMenuOptions,
+  useFilterMenu,
+} from "components/Filter/menu";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
 import { getDisplayWorkspaceStatus } from "utils/workspace";

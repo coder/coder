@@ -1,7 +1,3 @@
-import { useCallback, type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
 import {
   createAndBuildTemplateVersion,
   templateVersion,
@@ -17,6 +13,10 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import { type FC, useCallback } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
@@ -121,19 +121,15 @@ const filterEmptySensitiveVariables = (
   }
 
   if (request.user_variable_values) {
-    request.user_variable_values.forEach((variableValue) => {
+    for (const variableValue of request.user_variable_values) {
       const templateVariable = templateVariables.find(
         (t) => t.name === variableValue.name,
       );
-      if (
-        templateVariable &&
-        templateVariable.sensitive &&
-        variableValue.value === ""
-      ) {
-        return;
+      if (templateVariable?.sensitive && variableValue.value === "") {
+        continue;
       }
       filtered.push(variableValue);
-    });
+    }
   }
 
   return {

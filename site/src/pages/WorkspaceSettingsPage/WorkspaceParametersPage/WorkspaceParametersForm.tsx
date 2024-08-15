@@ -1,6 +1,3 @@
-import { useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import type {
   TemplateVersionParameter,
   Workspace,
@@ -14,12 +11,15 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import {
   type AutofillBuildParameter,
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
+import * as Yup from "yup";
 
 export type WorkspaceParametersFormValues = {
   rich_parameter_values: WorkspaceBuildParameter[];
@@ -98,13 +98,13 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
                 !parameter.ephemeral ? (
                   <RichParameterInput
                     {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
+                      `rich_parameter_values[${index}].value`,
                     )}
                     disabled={isSubmitting || disabled || !parameter.mutable}
                     key={parameter.name}
                     onChange={async (value) => {
                       await form.setFieldValue(
-                        "rich_parameter_values." + index,
+                        `rich_parameter_values.${index}`,
                         {
                           name: parameter.name,
                           value: value,
@@ -130,13 +130,13 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
                 parameter.mutable && parameter.ephemeral ? (
                   <RichParameterInput
                     {...getFieldHelpers(
-                      "rich_parameter_values[" + index + "].value",
+                      `rich_parameter_values[${index}].value`,
                     )}
                     disabled={isSubmitting || disabled}
                     key={parameter.name}
                     onChange={async (value) => {
                       await form.setFieldValue(
-                        "rich_parameter_values." + index,
+                        `rich_parameter_values.${index}`,
                         {
                           name: parameter.name,
                           value: value,

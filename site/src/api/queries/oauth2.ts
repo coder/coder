@@ -1,6 +1,6 @@
-import type { QueryClient } from "react-query";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
+import type { QueryClient } from "react-query";
 
 const appsKey = ["oauth2-provider", "apps"];
 const userAppsKey = (userId: string) => appsKey.concat(userId);
@@ -85,7 +85,7 @@ export const deleteAppSecret = (queryClient: QueryClient) => {
   return {
     mutationFn: ({ appId, secretId }: { appId: string; secretId: string }) =>
       API.deleteOAuth2ProviderAppSecret(appId, secretId),
-    onSuccess: async (_: void, { appId }: { appId: string }) => {
+    onSuccess: async (_: unknown, { appId }: { appId: string }) => {
       await queryClient.invalidateQueries({
         queryKey: appSecretsKey(appId),
       });

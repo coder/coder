@@ -1,12 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import { Children, type FC, type PropsWithChildren, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
+import { Children, type FC, type PropsWithChildren, useState } from "react";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
 

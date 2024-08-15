@@ -1,9 +1,9 @@
-import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
 import { createOrganization } from "api/queries/organizations";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import type { FC } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const CreateOrganizationPage: FC = () => {

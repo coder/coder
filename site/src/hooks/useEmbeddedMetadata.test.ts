@@ -8,12 +8,12 @@ import {
   MockUser,
 } from "testHelpers/entities";
 import {
+  DEFAULT_METADATA_KEY,
   type MetadataKey,
+  MetadataManager,
   type MetadataValue,
   type RuntimeHtmlMetadata,
-  DEFAULT_METADATA_KEY,
   makeUseEmbeddedMetadata,
-  MetadataManager,
   useEmbeddedMetadata,
 } from "./useEmbeddedMetadata";
 
@@ -21,9 +21,11 @@ import {
 // eventually deleted
 const allAppendedNodes = new Set<Set<Element>>();
 afterAll(() => {
-  allAppendedNodes.forEach((tracker) => {
-    tracker.forEach((node) => node.remove());
-  });
+  for (const tracker of allAppendedNodes) {
+    for (const node of tracker) {
+      node.remove();
+    }
+  }
 });
 
 // Using empty array for now, because we don't have a separate mock regions
@@ -121,7 +123,9 @@ function seedInitialMetadata(metadataKey: string): () => void {
   }
 
   return () => {
-    trackedNodes.forEach((node) => node.remove());
+    for (const node of trackedNodes) {
+      node.remove();
+    }
   };
 }
 

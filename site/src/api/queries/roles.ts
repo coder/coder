@@ -1,6 +1,6 @@
-import type { QueryClient } from "react-query";
 import { API } from "api/api";
 import type { Role } from "api/typesGenerated";
+import type { QueryClient } from "react-query";
 
 const getRoleQueryKey = (organizationId: string, roleName: string) => [
   "organization",
@@ -58,7 +58,7 @@ export const deleteOrganizationRole = (
   return {
     mutationFn: (roleName: string) =>
       API.deleteOrganizationRole(organization, roleName),
-    onSuccess: async (_: void, roleName: string) =>
+    onSuccess: async (_: unknown, roleName: string) =>
       await queryClient.invalidateQueries(
         getRoleQueryKey(organization, roleName),
       ),

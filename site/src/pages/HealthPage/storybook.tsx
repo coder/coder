@@ -1,10 +1,10 @@
 import type { Meta } from "@storybook/react";
-import {
-  reactRouterParameters,
-  reactRouterOutlet,
-  type RouteDefinition,
-} from "storybook-addon-remix-react-router";
 import { HEALTH_QUERY_KEY, HEALTH_QUERY_SETTINGS_KEY } from "api/queries/debug";
+import {
+  type RouteDefinition,
+  reactRouterOutlet,
+  reactRouterParameters,
+} from "storybook-addon-remix-react-router";
 import { chromatic } from "testHelpers/chromatic";
 import {
   MockAppearanceConfig,

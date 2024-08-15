@@ -3,16 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import {
   MockTemplate,
+  MockTemplateVersionExternalAuthGithub,
+  MockTemplateVersionExternalAuthGithubAuthenticated,
+  MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
+  MockTemplateVersionParameter3,
   MockUser,
   MockWorkspace,
   MockWorkspaceQuota,
   MockWorkspaceRequest,
   MockWorkspaceRichParametersRequest,
-  MockTemplateVersionParameter1,
-  MockTemplateVersionParameter2,
-  MockTemplateVersionParameter3,
-  MockTemplateVersionExternalAuthGithub,
-  MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -272,10 +272,7 @@ describe("CreateWorkspacePage", () => {
     const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
 
     renderWithAuth(<CreateWorkspacePage />, {
-      route:
-        "/templates/default/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}&mode=auto`,
+      route: `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto`,
       path: "/templates/:organization/:template/workspace",
     });
 
@@ -306,10 +303,7 @@ describe("CreateWorkspacePage", () => {
       .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
     renderWithAuth(<CreateWorkspacePage />, {
-      route:
-        "/templates/default/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}&mode=auto`,
+      route: `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto`,
       path: "/templates/:organization/:template/workspace",
     });
     await waitForLoaderToBeRemoved();
@@ -331,10 +325,7 @@ describe("CreateWorkspacePage", () => {
     const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
 
     renderWithAuth(<CreateWorkspacePage />, {
-      route:
-        "/templates/default/" +
-        MockTemplate.name +
-        `/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
+      route: `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
       path: "/templates/:organization/:template/workspace",
     });
 

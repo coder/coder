@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery } from "react-query";
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+import { useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery } from "react-query";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";
 

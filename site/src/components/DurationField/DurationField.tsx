@@ -163,7 +163,7 @@ function intMask(value: string): string {
 }
 
 function durationInMs(durationFieldValue: string, unit: TimeUnit): number {
-  const durationInMs = parseInt(durationFieldValue, 10);
+  const durationInMs = Number.parseInt(durationFieldValue, 10);
 
   if (Number.isNaN(durationInMs)) {
     return 0;

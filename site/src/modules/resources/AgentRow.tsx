@@ -3,6 +3,16 @@ import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
+import { xrayScan } from "api/queries/integrations";
+import type {
+  Template,
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceAgentMetadata,
+} from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Stack } from "components/Stack/Stack";
+import { useProxy } from "contexts/ProxyContext";
 import {
   type FC,
   useCallback,
@@ -15,16 +25,6 @@ import {
 import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
-import { xrayScan } from "api/queries/integrations";
-import type {
-  Template,
-  Workspace,
-  WorkspaceAgent,
-  WorkspaceAgentMetadata,
-} from "api/typesGenerated";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Stack } from "components/Stack/Stack";
-import { useProxy } from "contexts/ProxyContext";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";
@@ -121,37 +121,35 @@ export const AgentRow: FC<AgentRowProps> = ({
   }, [agent.lifecycle_state, hasStartupFeatures]);
 
   // This is a layout effect to remove flicker when we're scrolling to the bottom.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useLayoutEffect(() => {
     // If we're currently watching the bottom, we always want to stay at the bottom.
     if (bottomOfLogs && logListRef.current) {
       logListRef.current.scrollToItem(startupLogs.length - 1, "end");
     }
-  }, [showLogs, startupLogs, logListRef, bottomOfLogs]);
+  }, [showLogs, startupLogs, bottomOfLogs]);
 
   // This is a bit of a hack on the react-window API to get the scroll position.
   // If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
   // This makes it feel similar to a terminal that auto-scrolls downwards!
-  const handleLogScroll = useCallback(
-    (props: ListOnScrollProps) => {
-      if (
-        props.scrollOffset === 0 ||
-        props.scrollUpdateWasRequested ||
-        !logListDivRef.current
-      ) {
-        return;
-      }
-      // The parent holds the height of the list!
-      const parent = logListDivRef.current.parentElement;
-      if (!parent) {
-        return;
-      }
-      const distanceFromBottom =
-        logListDivRef.current.scrollHeight -
-        (props.scrollOffset + parent.clientHeight);
-      setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
-    },
-    [logListDivRef],
-  );
+  const handleLogScroll = useCallback((props: ListOnScrollProps) => {
+    if (
+      props.scrollOffset === 0 ||
+      props.scrollUpdateWasRequested ||
+      !logListDivRef.current
+    ) {
+      return;
+    }
+    // The parent holds the height of the list!
+    const parent = logListDivRef.current.parentElement;
+    if (!parent) {
+      return;
+    }
+    const distanceFromBottom =
+      logListDivRef.current.scrollHeight -
+      (props.scrollOffset + parent.clientHeight);
+    setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
+  }, []);
 
   return (
     <Stack

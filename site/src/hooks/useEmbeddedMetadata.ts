@@ -1,4 +1,3 @@
-import { useMemo, useSyncExternalStore } from "react";
 import type {
   AppearanceConfig,
   BuildInfoResponse,
@@ -7,6 +6,7 @@ import type {
   Region,
   User,
 } from "api/typesGenerated";
+import { useMemo, useSyncExternalStore } from "react";
 
 export const DEFAULT_METADATA_KEY = "property";
 
@@ -92,7 +92,9 @@ export class MetadataManager implements MetadataManagerApi {
 
   private notifySubscriptionsOfStateChange(): void {
     const metadataBinding = this.metadata;
-    this.subscriptions.forEach((cb) => cb(metadataBinding));
+    for (const cb of this.subscriptions) {
+      cb(metadataBinding);
+    }
   }
 
   /**
@@ -221,6 +223,7 @@ export function makeUseEmbeddedMetadata(
       manager.getMetadata,
     );
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies(manager.clearMetadataByKey): baked into containing hook
     const stableMetadataResult = useMemo<UseEmbeddedMetadataResult>(() => {
       return {
         metadata,

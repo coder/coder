@@ -2,30 +2,29 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
-import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState, useMemo, useCallback } from "react";
-import * as Yup from "yup";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import {
   FormFields,
-  FormSection,
   FormFooter,
+  FormSection,
   HorizontalForm,
 } from "components/Form/Form";
 import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
-  PageHeaderTitle,
   PageHeaderSubtitle,
+  PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { type FormikContextType, useFormik } from "formik";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
+import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import {
   getFormHelpers,
   nameValidator,
@@ -36,6 +35,7 @@ import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
+import * as Yup from "yup";
 import type {
   CreateWorkspaceMode,
   ExternalAuthPollingState,

@@ -1,6 +1,3 @@
-import { type FC, useEffect } from "react";
-import { useQuery, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
 import { watchWorkspace } from "api/api";
 import { checkAuthorization } from "api/queries/authCheck";
 import { template as templateQueryOptions } from "api/queries/templates";
@@ -13,8 +10,11 @@ import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
-import { workspaceChecks, type WorkspacePermissions } from "./permissions";
+import { type FC, useEffect } from "react";
+import { useQuery, useQueryClient } from "react-query";
+import { useParams } from "react-router-dom";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
+import { type WorkspacePermissions, workspaceChecks } from "./permissions";
 
 export const WorkspacePage: FC = () => {
   const queryClient = useQueryClient();

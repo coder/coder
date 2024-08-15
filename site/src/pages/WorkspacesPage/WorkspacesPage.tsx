@@ -1,22 +1,22 @@
-import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
 import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
-import { useFilter } from "components/Filter/filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
+import { useFilter } from "components/Filter/filter";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { type FC, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { useBatchActions } from "./batchActions";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
-import { useWorkspacesData, useWorkspaceUpdate } from "./data";
-import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus";
 import { WorkspacesPageView } from "./WorkspacesPageView";
+import { useBatchActions } from "./batchActions";
+import { useWorkspaceUpdate, useWorkspacesData } from "./data";
+import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
 
 function useSafeSearchParams() {
   // Have to wrap setSearchParams because React Router doesn't make sure that
@@ -62,7 +62,7 @@ const WorkspacesPage: FC = () => {
   >(null);
   const [urlSearchParams] = searchParamsResult;
   const canCheckWorkspaces =
-    entitlements.features["workspace_batch_actions"].enabled;
+    entitlements.features.workspace_batch_actions.enabled;
   const batchActions = useBatchActions({
     onSuccess: async () => {
       await refetch();
@@ -72,6 +72,7 @@ const WorkspacesPage: FC = () => {
 
   // We want to uncheck the selected workspaces always when the url changes
   // because of filtering or pagination
+  // biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
   useEffect(() => {
     setCheckedWorkspaces([]);
   }, [urlSearchParams]);

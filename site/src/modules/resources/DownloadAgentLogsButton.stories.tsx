@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { waitFor, within, userEvent, expect, fn } from "@storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import { agentLogsKey } from "api/queries/workspaces";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";

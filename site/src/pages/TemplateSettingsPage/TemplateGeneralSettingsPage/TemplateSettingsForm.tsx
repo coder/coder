@@ -3,20 +3,17 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import {
-  WorkspaceAppSharingLevels,
   type Template,
   type UpdateTemplateMeta,
+  WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
 import { EnterpriseBadge } from "components/Badges/Badges";
 import {
   FormFields,
+  FormFooter,
   FormSection,
   HorizontalForm,
-  FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { Stack } from "components/Stack/Stack";
@@ -24,13 +21,16 @@ import {
   StackLabel,
   StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
+import { type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
 import {
-  getFormHelpers,
-  nameValidator,
   displayNameValidator,
-  onChangeTrimmed,
+  getFormHelpers,
   iconValidator,
+  nameValidator,
+  onChangeTrimmed,
 } from "utils/formUtils";
+import * as Yup from "yup";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;

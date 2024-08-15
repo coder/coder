@@ -1,10 +1,10 @@
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "api/errors";
 import { getApps, revokeApp } from "api/queries/oauth2";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Section } from "../Section";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 

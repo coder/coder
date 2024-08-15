@@ -1,10 +1,10 @@
+import { authMethods, createUser } from "api/queries/users";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Margins } from "components/Margins/Margins";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
-import { authMethods, createUser } from "api/queries/users";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { Margins } from "components/Margins/Margins";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 

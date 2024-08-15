@@ -5,16 +5,16 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import kebabCase from "lodash/fp/kebabCase";
-import { type FC, Suspense } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { NavLink, Outlet } from "react-router-dom";
 import { health, refreshHealth } from "api/queries/debug";
 import type { HealthSeverity } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import kebabCase from "lodash/fp/kebabCase";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
+import { type FC, Suspense } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { NavLink, Outlet } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
 import { HealthIcon } from "./Content";
@@ -204,21 +204,17 @@ export const HealthLayout: FC = () => {
 };
 
 const filterVisibleSections = <T extends object>(sections: T) => {
-  return Object.keys(sections).reduce(
-    (visible, sectionName) => {
-      const sectionValue = sections[sectionName as keyof typeof sections];
+  const visible: Partial<T> = {};
 
-      if (!sectionValue) {
-        return visible;
-      }
+  for (const [sectionName, sectionValue] of Object.entries(sections)) {
+    if (!sectionValue) {
+      continue;
+    }
 
-      return {
-        ...visible,
-        [sectionName]: sectionValue,
-      };
-    },
-    {} as Partial<typeof sections>,
-  );
+    visible[sectionName as keyof T] = sectionValue;
+  }
+
+  return visible;
 };
 
 const classNames = {

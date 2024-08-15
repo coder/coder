@@ -16,7 +16,7 @@ export const Updating: Story = {
   },
 };
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     error: mockApiError({
       message: "Validation failed",

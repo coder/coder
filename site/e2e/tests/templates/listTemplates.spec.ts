@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));

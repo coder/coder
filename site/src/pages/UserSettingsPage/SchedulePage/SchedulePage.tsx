@@ -1,5 +1,3 @@
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   updateUserQuietHoursSchedule,
   userQuietHoursSchedule,
@@ -8,6 +6,8 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Section } from "../Section";
 import { ScheduleForm } from "./ScheduleForm";
 
