@@ -1,8 +1,6 @@
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import type { FC } from "react";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import {
   Badges,
@@ -17,6 +15,8 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";

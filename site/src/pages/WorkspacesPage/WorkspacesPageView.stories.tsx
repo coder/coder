@@ -1,7 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import dayjs from "dayjs";
-import uniqueId from "lodash/uniqueId";
-import type { ComponentProps } from "react";
 import {
   type Workspace,
   type WorkspaceStatus,
@@ -12,13 +9,16 @@ import {
   getDefaultFilterProps,
 } from "components/Filter/storyHelpers";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
+import dayjs from "dayjs";
+import uniqueId from "lodash/uniqueId";
+import type { ComponentProps } from "react";
 import {
-  MockWorkspace,
   MockBuildInfo,
-  mockApiError,
-  MockUser,
   MockPendingProvisionerJob,
   MockTemplate,
+  MockUser,
+  MockWorkspace,
+  mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";

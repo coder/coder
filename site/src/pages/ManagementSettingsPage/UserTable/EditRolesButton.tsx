@@ -2,7 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import UserIcon from "@mui/icons-material/PersonOutline";
 import Checkbox from "@mui/material/Checkbox";
 import IconButton from "@mui/material/IconButton";
-import type { FC } from "react";
 import type { SlimRole } from "api/typesGenerated";
 import {
   HelpTooltip,
@@ -19,6 +18,7 @@ import {
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import type { FC } from "react";
 
 const roleDescriptions: Record<string, string> = {
   owner:

@@ -391,7 +391,7 @@ BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
 RESET := $(shell tput sgr0 2>/dev/null)
 
-fmt: fmt/ts fmt/terraform fmt/shfmt fmt/go
+fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/prettier
 .PHONY: fmt
 
 fmt/go:
@@ -413,6 +413,16 @@ else
 	pnpm run format
 endif
 .PHONY: fmt/ts
+
+fmt/prettier: .prettierignore
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/prettier$(RESET)"
+# Avoid writing files in CI to reduce file write activity
+ifdef CI
+	pnpm run format:check
+else
+	pnpm run format
+endif
+.PHONY: fmt/prettier
 
 fmt/terraform: $(wildcard *.tf)
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/terraform$(RESET)"
@@ -521,8 +531,6 @@ gen/mark-fresh:
 		coderd/apidoc/swagger.json \
 		.prettierignore.include \
 		.prettierignore \
-		site/.prettierrc.yaml \
-		site/.prettierignore \
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \

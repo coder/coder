@@ -1,21 +1,21 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
 import * as apiModule from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
+import { http, HttpResponse } from "msw";
 import {
-  MockTemplate,
-  MockWorkspace,
+  MockDeploymentConfig,
   MockFailedWorkspace,
-  MockWorkspaceBuild,
-  MockStoppedWorkspace,
-  MockStartingWorkspace,
   MockOutdatedWorkspace,
+  MockStartingWorkspace,
+  MockStoppedWorkspace,
+  MockTemplate,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockUser,
-  MockDeploymentConfig,
+  MockWorkspace,
+  MockWorkspaceBuild,
   MockWorkspaceBuildDelete,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";

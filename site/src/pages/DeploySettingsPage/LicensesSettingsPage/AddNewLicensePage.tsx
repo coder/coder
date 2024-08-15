@@ -1,9 +1,9 @@
+import { API } from "api/api";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
 import { useNavigate } from "react-router-dom";
-import { API } from "api/api";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { pageTitle } from "utils/page";
 import { AddNewLicensePageView } from "./AddNewLicensePageView";
 

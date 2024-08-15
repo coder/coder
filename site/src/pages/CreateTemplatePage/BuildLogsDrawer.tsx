@@ -5,12 +5,12 @@ import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import { visuallyHidden } from "@mui/utils";
-import { type FC, useLayoutEffect, useRef } from "react";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { type FC, useLayoutEffect, useRef } from "react";
 import { navHeight } from "theme/constants";
 
 type BuildLogsDrawerProps = {

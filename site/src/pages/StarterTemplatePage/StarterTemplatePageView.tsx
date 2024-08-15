@@ -2,8 +2,6 @@ import { useTheme } from "@emotion/react";
 import PlusIcon from "@mui/icons-material/AddOutlined";
 import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
-import type { FC } from "react";
-import { Link } from "react-router-dom";
 import type { TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -16,6 +14,8 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
 
 export interface StarterTemplatePageViewProps {
   starterTemplate?: TemplateExample;

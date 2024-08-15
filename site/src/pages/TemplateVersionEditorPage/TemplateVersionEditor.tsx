@@ -9,11 +9,6 @@ import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import {
-  Link as RouterLink,
-  unstable_usePrompt as usePrompt,
-} from "react-router-dom";
 import type {
   ProvisionerJobLog,
   Template,
@@ -34,16 +29,21 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
+import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Link as RouterLink,
+  unstable_usePrompt as usePrompt,
+} from "react-router-dom";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import {
+  type FileTree,
   createFile,
   existsFile,
-  type FileTree,
   getFileText,
   isFolder,
   moveFile,

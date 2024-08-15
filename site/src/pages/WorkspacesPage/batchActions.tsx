@@ -1,7 +1,7 @@
-import { useMutation } from "react-query";
 import { API } from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { useMutation } from "react-query";
 
 interface UseBatchActionsProps {
   onSuccess: () => Promise<void>;

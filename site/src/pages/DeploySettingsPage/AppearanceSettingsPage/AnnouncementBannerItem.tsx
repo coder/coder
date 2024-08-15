@@ -2,7 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
-import type { FC } from "react";
 import type { BannerConfig } from "api/typesGenerated";
 import {
   MoreMenu,
@@ -11,6 +10,7 @@ import {
   MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import type { FC } from "react";
 
 interface AnnouncementBannerItemProps {
   enabled: boolean;

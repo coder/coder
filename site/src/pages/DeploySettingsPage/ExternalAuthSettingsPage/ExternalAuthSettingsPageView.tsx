@@ -5,11 +5,11 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { FC } from "react";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { EnterpriseBadge } from "components/Badges/Badges";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 
 export type ExternalAuthSettingsPageViewProps = {

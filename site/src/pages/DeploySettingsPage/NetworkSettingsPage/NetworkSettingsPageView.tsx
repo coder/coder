@@ -1,8 +1,8 @@
-import type { FC } from "react";
 import type { SerpentOption } from "api/typesGenerated";
-import { Badges, EnabledBadge, DisabledBadge } from "components/Badges/Badges";
+import { Badges, DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,

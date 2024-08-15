@@ -4,10 +4,10 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { FC } from "react";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 import { TableColumnHelpTooltip } from "../../ManagementSettingsPage/UserTable/TableColumnHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
 

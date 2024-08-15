@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import type { ComponentProps } from "react";
 import {
   MockMenu,
   getDefaultFilterProps,
@@ -9,6 +8,7 @@ import {
   mockSuccessResult,
 } from "components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import type { ComponentProps } from "react";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
   MockAuditLog,

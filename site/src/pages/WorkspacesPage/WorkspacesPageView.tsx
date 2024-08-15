@@ -6,8 +6,6 @@ import StopOutlined from "@mui/icons-material/StopOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
-import type { ComponentProps, FC } from "react";
-import type { UseQueryResult } from "react-query";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -25,10 +23,12 @@ import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidg
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
+import type { ComponentProps, FC } from "react";
+import type { UseQueryResult } from "react-query";
 import { mustUpdateWorkspace } from "utils/workspace";
-import { WorkspacesFilter } from "./filter/filter";
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesButton } from "./WorkspacesButton";
+import { WorkspacesFilter } from "./filter/filter";
 
 export const Language = {
   pageTitle: "Workspaces",

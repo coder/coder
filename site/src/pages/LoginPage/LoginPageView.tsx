@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { type FC, useState } from "react";
-import { useLocation } from "react-router-dom";
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { Loader } from "components/Loader/Loader";
+import { type FC, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { getApplicationName, getLogoURL } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { SignInForm } from "./SignInForm";

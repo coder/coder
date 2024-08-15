@@ -1,11 +1,11 @@
-import { type FC, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
 import { getErrorMessage } from "api/errors";
 import { groups } from "api/queries/groups";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { type FC, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
 

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { useEffect, useRef, useState } from "react";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
 export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";

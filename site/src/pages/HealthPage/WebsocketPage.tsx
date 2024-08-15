@@ -1,10 +1,10 @@
 import { useTheme } from "@emotion/react";
 import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import Tooltip from "@mui/material/Tooltip";
-import { Helmet } from "react-helmet-async";
-import { useOutletContext } from "react-router-dom";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Helmet } from "react-helmet-async";
+import { useOutletContext } from "react-router-dom";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import {

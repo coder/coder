@@ -1,8 +1,8 @@
-import type { FC } from "react";
 import { getErrorMessage } from "api/errors";
 import type { APIKeyWithOwner } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import type { FC } from "react";
 import { useDeleteToken } from "./hooks";
 
 export interface ConfirmDeleteDialogProps {

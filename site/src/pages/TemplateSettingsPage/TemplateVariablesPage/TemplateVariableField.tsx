@@ -2,8 +2,8 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField from "@mui/material/TextField";
-import { type FC, useState } from "react";
 import type { TemplateVersionVariable } from "api/typesGenerated";
+import { type FC, useState } from "react";
 
 export const SensitiveVariableHelperText: FC = () => {
   return (

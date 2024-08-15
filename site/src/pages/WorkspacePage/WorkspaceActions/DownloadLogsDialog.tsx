@@ -1,9 +1,5 @@
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import { saveAs } from "file-saver";
-import JSZip from "jszip";
-import { type FC, useMemo, useState, useRef, useEffect } from "react";
-import { useQueries, useQuery } from "react-query";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -13,6 +9,10 @@ import {
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
+import { saveAs } from "file-saver";
+import JSZip from "jszip";
+import { type FC, useEffect, useMemo, useRef, useState } from "react";
+import { useQueries, useQuery } from "react-query";
 
 type DownloadLogsDialogProps = Pick<
   ConfirmDialogProps,

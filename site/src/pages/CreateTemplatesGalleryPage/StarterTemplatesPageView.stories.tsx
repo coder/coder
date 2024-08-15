@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import {
-  mockApiError,
   MockTemplateExample,
   MockTemplateExample2,
+  mockApiError,
 } from "testHelpers/entities";
 import { getTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";

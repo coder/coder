@@ -1,6 +1,3 @@
-import { type FormikContextType, type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import type {
   CreateTemplateVersionRequest,
   TemplateVersion,
@@ -9,11 +6,14 @@ import type {
 } from "api/typesGenerated";
 import {
   FormFields,
+  FormFooter,
   FormSection,
   HorizontalForm,
-  FormFooter,
 } from "components/Form/Form";
+import { type FormikContextType, type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
 import { type FormHelpers, getFormHelpers } from "utils/formUtils";
+import * as Yup from "yup";
 import {
   SensitiveVariableHelperText,
   TemplateVariableField,

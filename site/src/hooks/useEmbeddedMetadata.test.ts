@@ -8,12 +8,12 @@ import {
   MockUser,
 } from "testHelpers/entities";
 import {
+  DEFAULT_METADATA_KEY,
   type MetadataKey,
+  MetadataManager,
   type MetadataValue,
   type RuntimeHtmlMetadata,
-  DEFAULT_METADATA_KEY,
   makeUseEmbeddedMetadata,
-  MetadataManager,
   useEmbeddedMetadata,
 } from "./useEmbeddedMetadata";
 

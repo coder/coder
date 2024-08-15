@@ -10,8 +10,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
 import type { Group } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
@@ -24,6 +22,8 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import type { FC } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
 
 export type GroupsPageViewProps = {

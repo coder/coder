@@ -4,8 +4,8 @@ import type { WorkspaceBuild } from "api/typesGenerated";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
 import { createDayString } from "utils/createDayString";
 import {
-  getDisplayWorkspaceBuildStatus,
   getDisplayWorkspaceBuildInitiatedBy,
+  getDisplayWorkspaceBuildStatus,
 } from "utils/workspace";
 
 export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {

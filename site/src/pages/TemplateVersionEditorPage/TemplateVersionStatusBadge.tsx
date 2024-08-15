@@ -1,9 +1,9 @@
 import CheckIcon from "@mui/icons-material/CheckOutlined";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import QueuedIcon from "@mui/icons-material/HourglassEmpty";
-import type { FC, ReactNode } from "react";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Pill, PillSpinner } from "components/Pill/Pill";
+import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 import { getPendingStatusLabel } from "utils/provisionerJob";
 

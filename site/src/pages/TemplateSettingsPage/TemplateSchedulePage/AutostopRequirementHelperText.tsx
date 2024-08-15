@@ -1,5 +1,5 @@
-import type { FC } from "react";
 import type { Template } from "api/typesGenerated";
+import type { FC } from "react";
 import type { TemplateAutostopRequirementDaysValue } from "utils/schedule";
 
 const autostopRequirementDescriptions = {

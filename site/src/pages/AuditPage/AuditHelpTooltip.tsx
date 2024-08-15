@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import {
   HelpTooltip,
   HelpTooltipContent,
@@ -8,6 +7,7 @@ import {
   HelpTooltipTitle,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 
 export const Language = {

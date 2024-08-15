@@ -7,8 +7,8 @@ import {
   MockWorkspaceAgent,
 } from "testHelpers/entities";
 import {
-  renderComponent,
   createTestQueryClient,
+  renderComponent,
 } from "testHelpers/renderHelpers";
 import { PortForwardPopoverView } from "./PortForwardButton";
 

@@ -1,5 +1,3 @@
-import { createContext, type FC, type PropsWithChildren } from "react";
-import { useQuery } from "react-query";
 import { appearance } from "api/queries/appearance";
 import { entitlements } from "api/queries/entitlements";
 import { experiments } from "api/queries/experiments";
@@ -13,6 +11,8 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { type FC, type PropsWithChildren, createContext } from "react";
+import { useQuery } from "react-query";
 import { selectFeatureVisibility } from "./entitlements";
 
 export interface DashboardValue {

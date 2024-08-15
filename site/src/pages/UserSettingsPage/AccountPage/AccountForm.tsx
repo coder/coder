@@ -1,16 +1,16 @@
 import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
-import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import type { UpdateUserProfileRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
+import { type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
+import * as Yup from "yup";
 
 export const Language = {
   usernameLabel: "Username",

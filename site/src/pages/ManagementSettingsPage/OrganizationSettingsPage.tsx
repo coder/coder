@@ -1,15 +1,15 @@
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
-  updateOrganization,
   deleteOrganization,
   organizationsPermissions,
+  updateOrganization,
 } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   canEditOrganization,
   useOrganizationSettings,

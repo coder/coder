@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
 import { App } from "App";
+import { http, HttpResponse } from "msw";
 import {
   MockEntitlementsWithAuditLog,
   MockMemberPermissions,

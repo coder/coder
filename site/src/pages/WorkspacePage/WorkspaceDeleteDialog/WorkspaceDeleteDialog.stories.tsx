@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MockWorkspace, MockFailedWorkspace } from "testHelpers/entities";
+import { MockFailedWorkspace, MockWorkspace } from "testHelpers/entities";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 
 const meta: Meta<typeof WorkspaceDeleteDialog> = {

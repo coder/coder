@@ -4,7 +4,6 @@ import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
-import { type FC, useRef, useState } from "react";
 import type { Template, TemplateVersion } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -16,6 +15,7 @@ import { Loader } from "components/Loader/Loader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
+import { type FC, useRef, useState } from "react";
 import { createDayString } from "utils/createDayString";
 
 export type ChangeVersionDialogProps = DialogProps & {

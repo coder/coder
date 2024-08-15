@@ -1,10 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import WS from "jest-websocket-mock";
-import { type QueryClient, QueryClientProvider } from "react-query";
 import { API } from "api/api";
 import * as APIModule from "api/api";
 import { agentLogsKey } from "api/queries/workspaces";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
+import WS from "jest-websocket-mock";
+import { type QueryClient, QueryClientProvider } from "react-query";
 import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { type UseAgentLogsOptions, useAgentLogs } from "./useAgentLogs";

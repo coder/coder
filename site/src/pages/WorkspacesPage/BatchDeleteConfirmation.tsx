@@ -1,13 +1,13 @@
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import { visuallyHidden } from "@mui/utils";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { type FC, type ReactNode, useState } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Stack } from "components/Stack/Stack";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { type FC, type ReactNode, useState } from "react";
 import { getResourceIconPath } from "utils/workspace";
 
 dayjs.extend(relativeTime);

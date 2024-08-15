@@ -1,12 +1,12 @@
-import { lazy, Suspense } from "react";
+import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
+import { Suspense, lazy } from "react";
 import {
-  createBrowserRouter,
-  createRoutesFromChildren,
   Navigate,
   Outlet,
   Route,
+  createBrowserRouter,
+  createRoutesFromChildren,
 } from "react-router-dom";
-import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";

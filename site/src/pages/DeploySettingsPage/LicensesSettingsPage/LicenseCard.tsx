@@ -1,13 +1,13 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
-import { compareAsc } from "date-fns";
-import dayjs from "dayjs";
-import { type FC, useState } from "react";
 import type { GetLicensesResponse } from "api/api";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { compareAsc } from "date-fns";
+import dayjs from "dayjs";
+import { type FC, useState } from "react";
 
 type LicenseCardProps = {
   license: GetLicensesResponse;

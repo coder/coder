@@ -2,7 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import type { FC } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
@@ -12,6 +11,7 @@ import {
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { PopoverTrigger } from "components/Popover/Popover";
+import type { FC } from "react";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,

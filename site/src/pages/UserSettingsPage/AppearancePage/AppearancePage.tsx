@@ -1,9 +1,9 @@
 import CircularProgress from "@mui/material/CircularProgress";
-import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
 import { updateAppearanceSettings } from "api/queries/users";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import type { FC } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Section } from "../Section";
 import { AppearanceForm } from "./AppearanceForm";
 

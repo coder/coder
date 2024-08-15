@@ -1,5 +1,5 @@
-import { intervalToDuration, formatDuration } from "date-fns";
 import type { SerpentOption } from "api/typesGenerated";
+import { formatDuration, intervalToDuration } from "date-fns";
 
 // optionValue is a helper function to format the value of a specific deployment options
 export function optionValue(

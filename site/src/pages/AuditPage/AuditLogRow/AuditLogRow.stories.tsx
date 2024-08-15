@@ -9,9 +9,9 @@ import { chromatic } from "testHelpers/chromatic";
 import {
   MockAuditLog,
   MockAuditLog2,
-  MockAuditLogWithWorkspaceBuild,
-  MockAuditLogWithDeletedResource,
   MockAuditLogGitSSH,
+  MockAuditLogWithDeletedResource,
+  MockAuditLogWithWorkspaceBuild,
   MockUser,
 } from "testHelpers/entities";
 import { AuditLogRow } from "./AuditLogRow";

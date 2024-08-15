@@ -1,7 +1,11 @@
-import capitalize from "lodash/capitalize";
-import type { FC } from "react";
 import { API } from "api/api";
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
+import {
+  SelectFilter,
+  type SelectFilterOption,
+  SelectFilterSearch,
+} from "components/Filter/SelectFilter";
+import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import {
   Filter,
   MenuSkeleton,
@@ -9,16 +13,12 @@ import {
   type useFilter,
 } from "components/Filter/filter";
 import {
-  useFilterMenu,
   type UseFilterMenuOptions,
+  useFilterMenu,
 } from "components/Filter/menu";
-import {
-  SelectFilter,
-  SelectFilterSearch,
-  type SelectFilterOption,
-} from "components/Filter/SelectFilter";
-import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import capitalize from "lodash/capitalize";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [

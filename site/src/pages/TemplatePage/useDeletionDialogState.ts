@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { useState } from "react";
 
 type DeleteTemplateState =
   | { status: "idle" }

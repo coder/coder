@@ -1,10 +1,10 @@
-import type { FC } from "react";
-import { useQuery } from "react-query";
 import { groupsForUser } from "api/queries/groups";
 import { Stack } from "components/Stack/Stack";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
+import { useQuery } from "react-query";
 import { Section } from "../Section";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";

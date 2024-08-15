@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  MockUser,
   MockOrganizationMember,
   MockOrganizationMember2,
+  MockUser,
 } from "testHelpers/entities";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 

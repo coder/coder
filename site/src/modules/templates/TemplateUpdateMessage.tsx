@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { FC } from "react";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import type { FC } from "react";
 
 interface TemplateUpdateMessageProps {
   children: string;

@@ -10,8 +10,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -23,6 +21,8 @@ import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { type FC, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 

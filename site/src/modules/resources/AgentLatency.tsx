@@ -1,14 +1,14 @@
 import { type Theme, useTheme } from "@emotion/react";
-import type { FC } from "react";
-import type { WorkspaceAgent, DERPRegion } from "api/typesGenerated";
+import type { DERPRegion, WorkspaceAgent } from "api/typesGenerated";
 import {
-  HelpTooltipText,
   HelpTooltip,
-  HelpTooltipTitle,
   HelpTooltipContent,
+  HelpTooltipText,
+  HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { PopoverTrigger } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 
 const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {

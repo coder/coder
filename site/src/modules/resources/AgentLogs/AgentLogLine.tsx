@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import AnsiToHTML from "ansi-to-html";
-import { type FC, type ReactNode, useMemo } from "react";
 import { type Line, LogLine, LogLinePrefix } from "components/Logs/LogLine";
+import { type FC, type ReactNode, useMemo } from "react";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're

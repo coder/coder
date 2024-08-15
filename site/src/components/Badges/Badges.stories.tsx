@@ -1,16 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  Badges,
   AlphaBadge,
-  PreviewBadge,
+  Badges,
   DisabledBadge,
   EnabledBadge,
-  EntitledBadge,
   EnterpriseBadge,
+  EntitledBadge,
   HealthyBadge,
   NotHealthyBadge,
-  NotRegisteredBadge,
   NotReachableBadge,
+  NotRegisteredBadge,
+  PreviewBadge,
 } from "./Badges";
 
 const meta: Meta<typeof Badges> = {

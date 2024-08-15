@@ -1,17 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import type { ComponentProps } from "react";
 import {
   MockMenu,
   getDefaultFilterProps,
 } from "components/Filter/storyHelpers";
 import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import type { ComponentProps } from "react";
 import {
+  MockAssignableSiteRoles,
+  MockAuthMethodsPasswordOnly,
   MockUser,
   MockUser2,
-  MockAssignableSiteRoles,
   mockApiError,
-  MockAuthMethodsPasswordOnly,
 } from "testHelpers/entities";
 import { UsersPageView } from "./UsersPageView";
 

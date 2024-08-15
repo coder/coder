@@ -2,10 +2,10 @@ import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlin
 import NotificationOutlined from "@mui/icons-material/NotificationsOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Skeleton from "@mui/material/Skeleton";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { healthSettings, updateHealthSettings } from "api/queries/debug";
 import type { HealthSection } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 
 export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
   const queryClient = useQueryClient();

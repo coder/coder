@@ -15,10 +15,6 @@ import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
-import { type FormikContextType, useFormik } from "formik";
-import { useState, type FC } from "react";
-import { useQuery, useMutation } from "react-query";
-import * as Yup from "yup";
 import { API } from "api/api";
 import {
   deleteWorkspacePortShare,
@@ -27,10 +23,10 @@ import {
 } from "api/queries/workspaceportsharing";
 import {
   type Template,
+  type UpsertWorkspaceAgentPortShareRequest,
   type WorkspaceAgent,
   type WorkspaceAgentListeningPort,
   type WorkspaceAgentPortShareLevel,
-  type UpsertWorkspaceAgentPortShareRequest,
   type WorkspaceAgentPortShareProtocol,
   WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
@@ -44,8 +40,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "components/Popover/Popover";
+import { type FormikContextType, useFormik } from "formik";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { type FC, useState } from "react";
+import { useMutation, useQuery } from "react-query";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {
@@ -53,6 +52,7 @@ import {
   portForwardURL,
   saveWorkspaceListeningPortsProtocol,
 } from "utils/portForward";
+import * as Yup from "yup";
 
 export interface PortForwardButtonProps {
   host: string;

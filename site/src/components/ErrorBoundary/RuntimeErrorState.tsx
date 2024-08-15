@@ -1,15 +1,15 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, css } from "@emotion/react";
 import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import type { BuildInfoResponse } from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
+import { type FC, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { getStaticBuildInfo } from "utils/buildInfo";
 
 const fetchDynamicallyImportedModuleError =

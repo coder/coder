@@ -1,11 +1,11 @@
 import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
-import type { FC } from "react";
 import type { GitSSHKey } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 
 export interface SSHKeysPageViewProps {
   isLoading: boolean;

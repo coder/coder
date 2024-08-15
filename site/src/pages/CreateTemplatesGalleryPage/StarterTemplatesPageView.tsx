@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -7,6 +6,7 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
+import type { FC } from "react";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 

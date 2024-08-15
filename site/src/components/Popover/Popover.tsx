@@ -3,13 +3,13 @@ import MuiPopover, {
   // biome-ignore lint/nursery/noRestrictedImports: Used as base component
 } from "@mui/material/Popover";
 import {
-  cloneElement,
-  createContext,
   type FC,
   type HTMLAttributes,
   type ReactElement,
   type ReactNode,
   type RefObject,
+  cloneElement,
+  createContext,
   useContext,
   useId,
   useRef,

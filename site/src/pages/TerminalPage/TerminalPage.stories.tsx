@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import {
-  reactRouterOutlet,
-  reactRouterParameters,
-} from "storybook-addon-remix-react-router";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { AuthProvider } from "contexts/auth/AuthProvider";
-import { permissionsToCheck } from "contexts/auth/permissions";
 import { RequireAuth } from "contexts/auth/RequireAuth";
+import { permissionsToCheck } from "contexts/auth/permissions";
+import {
+  reactRouterOutlet,
+  reactRouterParameters,
+} from "storybook-addon-remix-react-router";
 import {
   MockAppearanceConfig,
   MockAuthMethodsAll,

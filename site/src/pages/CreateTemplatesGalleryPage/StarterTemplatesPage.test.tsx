@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
+import { http, HttpResponse } from "msw";
+import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import {
   MockTemplateExample,
   MockTemplateExample2,

@@ -3,10 +3,6 @@ import InstallDesktopIcon from "@mui/icons-material/InstallDesktop";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { type FC, type ReactNode, useMemo, useState, useEffect } from "react";
-import { useQueries } from "react-query";
 import { API } from "api/api";
 import type { TemplateVersion, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -14,6 +10,10 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Loader } from "components/Loader/Loader";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
+import { useQueries } from "react-query";
 
 dayjs.extend(relativeTime);
 

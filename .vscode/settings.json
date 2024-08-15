@@ -190,7 +190,6 @@
       }
     ]
   },
-  "eslint.workingDirectories": ["./site"],
   "search.exclude": {
     "**.pb.go": true,
     "**/*.gen.json": true,
@@ -224,5 +223,16 @@
   // with VS Code.
   "typescript.tsdk": "./site/node_modules/typescript/lib",
   // Playwright tests in VSCode will open a browser to live "view" the test.
-  "playwright.reuseBrowser": true
+  "playwright.reuseBrowser": true,
+
+  "[javascript][javascriptreact][json][jsonc][typescript][typescriptreact]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.codeActionsOnSave":{
+      "source.organizeImports.biome": "explicit"
+    }
+  },
+
+  "[css][html][markdown]": {
+    "editor.defaultFormatter": "biomejs.biome"
+  }
 }

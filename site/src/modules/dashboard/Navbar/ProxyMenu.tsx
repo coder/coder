@@ -6,14 +6,14 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Skeleton from "@mui/material/Skeleton";
 import { visuallyHidden } from "@mui/utils";
-import { type FC, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import type { ProxyContextValue } from "contexts/ProxyContext";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { type FC, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BUTTON_SM_HEIGHT } from "theme/constants";
 
 interface ProxyMenuProps {

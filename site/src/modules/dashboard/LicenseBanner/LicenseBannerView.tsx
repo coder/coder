@@ -1,14 +1,14 @@
 import {
-  css,
   type CSSObject,
   type Interpolation,
   type Theme,
+  css,
   useTheme,
 } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { type FC, useState } from "react";
 import { Expander } from "components/Expander/Expander";
 import { Pill } from "components/Pill/Pill";
+import { type FC, useState } from "react";
 
 export const Language = {
   licenseIssue: "License Issue",

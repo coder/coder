@@ -3,16 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import {
   MockTemplate,
+  MockTemplateVersionExternalAuthGithub,
+  MockTemplateVersionExternalAuthGithubAuthenticated,
+  MockTemplateVersionParameter1,
+  MockTemplateVersionParameter2,
+  MockTemplateVersionParameter3,
   MockUser,
   MockWorkspace,
   MockWorkspaceQuota,
   MockWorkspaceRequest,
   MockWorkspaceRichParametersRequest,
-  MockTemplateVersionParameter1,
-  MockTemplateVersionParameter2,
-  MockTemplateVersionParameter3,
-  MockTemplateVersionExternalAuthGithub,
-  MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,

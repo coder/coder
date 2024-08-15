@@ -6,11 +6,6 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { v4 as uuidv4 } from "uuid";
 import { deploymentConfig } from "api/queries/deployment";
 import {
   workspaceByOwnerAndName,
@@ -18,12 +13,17 @@ import {
 } from "api/queries/workspaces";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import themes from "theme";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
 import { openMaybePortForwardedURL } from "utils/portForward";
 import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
+import { v4 as uuidv4 } from "uuid";
 import { TerminalAlerts } from "./TerminalAlerts";
 import type { ConnectionStatus } from "./types";
 

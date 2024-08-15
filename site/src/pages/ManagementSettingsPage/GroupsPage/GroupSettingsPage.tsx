@@ -1,12 +1,12 @@
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { group, patchGroup } from "api/queries/groups";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 

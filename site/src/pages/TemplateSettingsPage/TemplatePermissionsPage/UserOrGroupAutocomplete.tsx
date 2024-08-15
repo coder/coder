@@ -2,12 +2,12 @@ import { css } from "@emotion/react";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
-import { type ChangeEvent, type FC, useState } from "react";
-import { useQuery } from "react-query";
 import { templaceACLAvailable } from "api/queries/templates";
 import type { Group, ReducedUser } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
+import { type ChangeEvent, type FC, useState } from "react";
+import { useQuery } from "react-query";
 import { prepareQuery } from "utils/filters";
 import { getGroupSubtitle } from "utils/groups";
 

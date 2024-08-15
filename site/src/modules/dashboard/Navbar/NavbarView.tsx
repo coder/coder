@@ -1,13 +1,13 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import MenuIcon from "@mui/icons-material/Menu";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
-import { type FC, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
+import { type FC, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import { navHeight } from "theme/constants";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { ProxyMenu } from "./ProxyMenu";

@@ -9,9 +9,9 @@ import Star from "@mui/icons-material/Star";
 import StarBorder from "@mui/icons-material/StarBorder";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
-import type { FC } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
+import type { FC } from "react";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 
 export interface ActionButtonProps {

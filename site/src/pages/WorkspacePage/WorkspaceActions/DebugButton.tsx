@@ -1,8 +1,8 @@
 import DebugIcon from "@mui/icons-material/BugReportOutlined";
 import ButtonGroup from "@mui/material/ButtonGroup";
-import type { FC } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
+import type { FC } from "react";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 import type { ActionButtonProps } from "./Buttons";
 

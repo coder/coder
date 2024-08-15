@@ -1,6 +1,6 @@
+import type { Workspace } from "api/typesGenerated";
 import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
-import type { Workspace } from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
 import {
   deadlineExtensionMax,
@@ -9,8 +9,8 @@ import {
   getMaxDeadline,
   getMaxDeadlineChange,
   getMinDeadline,
-  stripTimezone,
   quietHoursDisplay,
+  stripTimezone,
 } from "./schedule";
 
 dayjs.extend(duration);

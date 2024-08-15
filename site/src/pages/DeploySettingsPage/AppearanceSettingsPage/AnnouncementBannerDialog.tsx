@@ -1,13 +1,13 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import { BlockPicker } from "react-color";
 import type { BannerConfig } from "api/typesGenerated";
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
 import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
 import { AnnouncementBannerView } from "modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
+import type { FC } from "react";
+import { BlockPicker } from "react-color";
 import { getFormHelpers } from "utils/formUtils";
 
 interface AnnouncementBannerDialogProps {

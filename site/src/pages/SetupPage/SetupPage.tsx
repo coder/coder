@@ -1,12 +1,12 @@
-import { useEffect, type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery } from "react-query";
-import { Navigate, useNavigate } from "react-router-dom";
 import { buildInfo } from "api/queries/buildInfo";
 import { createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { type FC, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery } from "react-query";
+import { Navigate, useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";

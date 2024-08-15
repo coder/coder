@@ -1,13 +1,13 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
 import { API } from "api/api";
 import type { SlimRole } from "api/typesGenerated";
+import { http, HttpResponse } from "msw";
 import {
+  MockAuditorRole,
   MockUser,
   MockUser2,
   SuspendedMockUser,
-  MockAuditorRole,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";

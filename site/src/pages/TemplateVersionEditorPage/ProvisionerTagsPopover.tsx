@@ -4,9 +4,6 @@ import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import useTheme from "@mui/system/useTheme";
-import { useFormik } from "formik";
-import { Fragment, type FC } from "react";
-import * as Yup from "yup";
 import { FormFields, FormSection, VerticalForm } from "components/Form/Form";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
@@ -15,9 +12,12 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
 import { ProvisionerTag } from "pages/HealthPage/ProvisionerDaemonsPage";
+import { type FC, Fragment } from "react";
 import { docs } from "utils/docs";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import * as Yup from "yup";
 
 const initialValues = {
   key: "",

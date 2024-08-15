@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
-import type { FC, ReactNode } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import type { FC, ReactNode } from "react";
 
 export interface ExpanderProps {
   expanded: boolean;

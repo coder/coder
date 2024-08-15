@@ -4,8 +4,8 @@ import IconButton from "@mui/material/IconButton";
 import Snackbar, {
   type SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
-import type { FC } from "react";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import type { FC } from "react";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 

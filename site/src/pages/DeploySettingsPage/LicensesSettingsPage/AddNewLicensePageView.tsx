@@ -1,13 +1,13 @@
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FileUpload } from "components/FileUpload/FileUpload";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
 

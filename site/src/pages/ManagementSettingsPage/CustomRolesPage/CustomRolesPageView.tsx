@@ -8,8 +8,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
 import type { Role } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -25,6 +23,8 @@ import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import type { FC } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
 
 export type CustomRolesPageViewProps = {

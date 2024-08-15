@@ -1,18 +1,18 @@
-import type { FC } from "react";
+import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import {
   Filter,
   MenuSkeleton,
   SearchFieldSkeleton,
   type useFilter,
 } from "components/Filter/filter";
-import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
-  TemplateMenu,
+  type StatusFilterMenu,
   StatusMenu,
   type TemplateFilterMenu,
-  type StatusFilterMenu,
+  TemplateMenu,
 } from "./menus";
 
 export const workspaceFilterQuery = {

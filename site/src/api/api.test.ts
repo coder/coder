@@ -6,7 +6,7 @@ import {
   MockWorkspaceBuild,
   MockWorkspaceBuildParameter1,
 } from "testHelpers/entities";
-import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
+import { API, MissingBuildParameters, getURLWithSearchParams } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();

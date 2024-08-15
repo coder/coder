@@ -5,7 +5,6 @@ import SecurityIcon from "@mui/icons-material/LockOutlined";
 import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import AccountIcon from "@mui/icons-material/Person";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
-import type { FC } from "react";
 import type { User } from "api/typesGenerated";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
@@ -15,6 +14,7 @@ import {
 } from "components/Sidebar/Sidebar";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
 
 interface SidebarProps {
   user: User;

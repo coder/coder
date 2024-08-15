@@ -1,24 +1,24 @@
 import type { CSSObject } from "@emotion/css";
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Link from "@mui/material/Link";
 import {
-  type FC,
-  type PropsWithChildren,
-  type HTMLAttributes,
-  type ReactNode,
-  forwardRef,
-} from "react";
-import {
   Popover,
-  type PopoverProps,
   PopoverContent,
   type PopoverContentProps,
+  type PopoverProps,
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import {
+  type FC,
+  type HTMLAttributes,
+  type PropsWithChildren,
+  type ReactNode,
+  forwardRef,
+} from "react";
 
 type Icon = typeof HelpIcon;
 

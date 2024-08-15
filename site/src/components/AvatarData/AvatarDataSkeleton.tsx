@@ -1,6 +1,6 @@
 import Skeleton from "@mui/material/Skeleton";
-import type { FC } from "react";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 
 export const AvatarDataSkeleton: FC = () => {
   return (

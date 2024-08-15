@@ -6,8 +6,8 @@ import TreeItem from "@mui/lab/TreeItem";
 import TreeView from "@mui/lab/TreeView";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { type CSSProperties, type FC, useState } from "react";
 import { DockerIcon } from "components/Icons/DockerIcon";
+import { type CSSProperties, type FC, useState } from "react";
 import type { FileTree } from "utils/filetree";
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {

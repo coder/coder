@@ -1,11 +1,11 @@
 import {
-  displayError,
-  displaySuccess,
-  isNotificationTextPrefixed,
   MsgType,
   type NotificationMsg,
   type NotificationTextPrefixed,
   SnackbarEventType,
+  displayError,
+  displaySuccess,
+  isNotificationTextPrefixed,
 } from "./utils";
 
 describe("Snackbar", () => {

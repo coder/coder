@@ -1,8 +1,8 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { type FC, useState, useEffect, useRef } from "react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { Alert, type AlertProps } from "components/Alert/Alert";
+import { type FC, useEffect, useRef, useState } from "react";
 import { docs } from "utils/docs";
 import type { ConnectionStatus } from "./types";
 

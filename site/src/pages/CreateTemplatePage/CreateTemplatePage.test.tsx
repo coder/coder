@@ -2,12 +2,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import {
+  MockTemplate,
   MockTemplateExample,
   MockTemplateVersion,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
   MockTemplateVersionVariable3,
-  MockTemplate,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import CreateTemplatePage from "./CreateTemplatePage";

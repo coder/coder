@@ -1,10 +1,10 @@
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";

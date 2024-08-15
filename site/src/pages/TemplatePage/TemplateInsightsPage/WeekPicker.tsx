@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { differenceInWeeks } from "date-fns";
-import { type FC, useState, useRef } from "react";
+import { type FC, useRef, useState } from "react";
 import type { DateRangeValue } from "./DateRange";
 import { lastWeeks } from "./utils";
 

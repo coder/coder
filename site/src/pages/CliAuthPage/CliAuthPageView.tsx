@@ -1,11 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { visuallyHidden } from "@mui/utils";
-import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Loader } from "components/Loader/Loader";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 
 export interface CliAuthPageViewProps {
   sessionToken?: string;

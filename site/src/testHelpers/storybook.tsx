@@ -1,6 +1,4 @@
 import type { StoryContext } from "@storybook/react";
-import type { FC } from "react";
-import { useQueryClient } from "react-query";
 import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
@@ -10,6 +8,8 @@ import { AuthProvider } from "contexts/auth/AuthProvider";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import { DeploySettingsContext } from "pages/DeploySettingsPage/DeploySettingsLayout";
+import type { FC } from "react";
+import { useQueryClient } from "react-query";
 import {
   MockAppearanceConfig,
   MockDefaultOrganization,

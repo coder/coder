@@ -1,13 +1,13 @@
 import "testHelpers/localStorage";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
 import type { Region } from "api/typesGenerated";
+import { http, HttpResponse } from "msw";
 import {
-  MockPrimaryWorkspaceProxy,
-  MockWorkspaceProxies,
   MockHealthyWildWorkspaceProxy,
+  MockPrimaryWorkspaceProxy,
   MockUnhealthyWildWorkspaceProxy,
+  MockWorkspaceProxies,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -15,8 +15,8 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import {
-  getPreferredProxy,
   ProxyProvider,
+  getPreferredProxy,
   saveUserSelectedProxy,
   useProxy,
 } from "./ProxyContext";

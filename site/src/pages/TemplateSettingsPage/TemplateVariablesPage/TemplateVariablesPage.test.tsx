@@ -5,9 +5,9 @@ import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter
 import {
   MockTemplate,
   MockTemplateVersion,
+  MockTemplateVersion2,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
-  MockTemplateVersion2,
 } from "testHelpers/entities";
 import {
   renderWithTemplateSettingsLayout,

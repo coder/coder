@@ -1,9 +1,8 @@
-import { css, Global, useTheme } from "@emotion/react";
+import { Global, css, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { visuallyHidden } from "@mui/utils";
-import { type FC, lazy, Suspense, useState } from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
@@ -13,6 +12,7 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import { type FC, Suspense, lazy, useState } from "react";
 
 // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
 const urlFromUnifiedCode = (unified: string) =>

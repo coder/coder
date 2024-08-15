@@ -1,10 +1,10 @@
-import { type FC, Suspense } from "react";
-import { Helmet } from "react-helmet-async";
-import { Outlet } from "react-router-dom";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { type FC, Suspense } from "react";
+import { Helmet } from "react-helmet-async";
+import { Outlet } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { Sidebar } from "./Sidebar";
 

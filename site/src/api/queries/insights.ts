@@ -1,4 +1,4 @@
-import { type InsightsParams, type InsightsTemplateParams, API } from "api/api";
+import { API, type InsightsParams, type InsightsTemplateParams } from "api/api";
 
 export const insightsTemplate = (params: InsightsTemplateParams) => {
   return {

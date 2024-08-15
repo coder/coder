@@ -9,8 +9,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { FC, ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -26,6 +24,8 @@ import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
+import type { FC, ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 

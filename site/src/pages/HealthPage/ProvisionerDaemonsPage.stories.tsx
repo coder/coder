@@ -1,4 +1,4 @@
-import type { StoryObj, Meta } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { ProvisionerDaemonsPage } from "./ProvisionerDaemonsPage";
 import { generateMeta } from "./storybook";
 

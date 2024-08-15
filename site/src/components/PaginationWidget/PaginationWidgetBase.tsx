@@ -3,7 +3,7 @@ import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import type { FC } from "react";
-import { PlaceholderPageButton, NumberedPageButton } from "./PageButtons";
+import { NumberedPageButton, PlaceholderPageButton } from "./PageButtons";
 import { PaginationNavButton } from "./PaginationNavButton";
 import { buildPagedList } from "./utils";
 

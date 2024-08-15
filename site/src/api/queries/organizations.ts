@@ -1,10 +1,10 @@
-import type { QueryClient } from "react-query";
 import { API } from "api/api";
 import type {
   AuthorizationResponse,
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import type { QueryClient } from "react-query";
 import { meKey } from "./users";
 
 export const createOrganization = (queryClient: QueryClient) => {

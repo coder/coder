@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  mockApiError,
-  MockWorkspaceProxies,
-  MockPrimaryWorkspaceProxy,
   MockHealthyWildWorkspaceProxy,
+  MockPrimaryWorkspaceProxy,
   MockProxyLatencies,
+  MockWorkspaceProxies,
+  mockApiError,
 } from "testHelpers/entities";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 

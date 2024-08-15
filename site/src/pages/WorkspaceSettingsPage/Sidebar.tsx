@@ -1,7 +1,6 @@
 import ParameterIcon from "@mui/icons-material/CodeOutlined";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import ScheduleIcon from "@mui/icons-material/TimerOutlined";
-import type { FC } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
@@ -9,6 +8,7 @@ import {
   SidebarHeader,
   SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import type { FC } from "react";
 
 interface SidebarProps {
   username: string;

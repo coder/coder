@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import type { SerpentGroup, SerpentOption } from "api/typesGenerated";
+import { useMemo } from "react";
 
 const deploymentOptions = (
   options: SerpentOption[],

@@ -1,4 +1,3 @@
-import { useMemo, useSyncExternalStore } from "react";
 import type {
   AppearanceConfig,
   BuildInfoResponse,
@@ -7,6 +6,7 @@ import type {
   Region,
   User,
 } from "api/typesGenerated";
+import { useMemo, useSyncExternalStore } from "react";
 
 export const DEFAULT_METADATA_KEY = "property";
 

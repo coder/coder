@@ -1,10 +1,12 @@
 import {
   type RenderHookOptions,
   type RenderHookResult,
-  waitFor,
-  renderHook,
   act,
+  renderHook,
+  waitFor,
 } from "@testing-library/react";
+import { AppProviders } from "App";
+import { RequireAuth } from "contexts/auth/RequireAuth";
 import {
   type FC,
   type PropsWithChildren,
@@ -14,12 +16,10 @@ import {
 import type { QueryClient } from "react-query";
 import {
   type Location,
-  createMemoryRouter,
   RouterProvider,
+  createMemoryRouter,
   useLocation,
 } from "react-router-dom";
-import { AppProviders } from "App";
-import { RequireAuth } from "contexts/auth/RequireAuth";
 import {
   type RenderWithAuthOptions,
   createTestQueryClient,

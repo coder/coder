@@ -1,10 +1,10 @@
-import type { FC } from "react";
-import { useQuery } from "react-query";
 import { buildInfo } from "api/queries/buildInfo";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useProxy } from "contexts/ProxyContext";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
+import { useQuery } from "react-query";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 

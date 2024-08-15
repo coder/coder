@@ -7,8 +7,8 @@ import type {
 } from "react";
 import { PaginationContainer } from "./PaginationContainer";
 import {
-  mockPaginationResultBase,
   mockInitialRenderResult,
+  mockPaginationResultBase,
 } from "./PaginationContainer.mocks";
 
 // Filtering out optional <div> props to give better auto-complete experience

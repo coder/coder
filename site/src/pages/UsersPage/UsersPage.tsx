@@ -1,24 +1,15 @@
-import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-  useSearchParams,
-  useNavigate,
-  Navigate,
-  useLocation,
-} from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import { deploymentConfig } from "api/queries/deployment";
 import { groupsByUserId } from "api/queries/groups";
 import { roles } from "api/queries/roles";
 import {
+  activateUser,
+  authMethods,
+  deleteUser,
   paginatedUsers,
   suspendUser,
-  activateUser,
-  deleteUser,
   updatePassword,
   updateRoles,
-  authMethods,
 } from "api/queries/users";
 import type { User } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -29,6 +20,15 @@ import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { type FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";

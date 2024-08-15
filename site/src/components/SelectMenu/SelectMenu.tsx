@@ -2,15 +2,6 @@ import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import Button, { type ButtonProps } from "@mui/material/Button";
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
-import {
-  type FC,
-  forwardRef,
-  Children,
-  isValidElement,
-  type HTMLProps,
-  type ReactElement,
-  useMemo,
-} from "react";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
   Popover,
@@ -21,6 +12,15 @@ import {
   SearchField,
   type SearchFieldProps,
 } from "components/SearchField/SearchField";
+import {
+  Children,
+  type FC,
+  type HTMLProps,
+  type ReactElement,
+  forwardRef,
+  isValidElement,
+  useMemo,
+} from "react";
 
 const SIDE_PADDING = 16;
 

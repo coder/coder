@@ -1,9 +1,5 @@
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
-import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery } from "react-query";
-import { useNavigate } from "react-router-dom";
 import { API } from "api/api";
 import { isApiValidationError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
@@ -13,16 +9,20 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import type { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import {
-  workspaceChecks,
   type WorkspacePermissions,
+  workspaceChecks,
 } from "../../WorkspacePage/permissions";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import {
-  type WorkspaceParametersFormValues,
   WorkspaceParametersForm,
+  type WorkspaceParametersFormValues,
 } from "./WorkspaceParametersForm";
 
 const WorkspaceParametersPage: FC = () => {

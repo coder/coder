@@ -1,6 +1,3 @@
-import { useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import type {
   TemplateVersionParameter,
   Workspace,
@@ -14,12 +11,15 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import {
   type AutofillBuildParameter,
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
+import * as Yup from "yup";
 
 export type WorkspaceParametersFormValues = {
   rich_parameter_values: WorkspaceBuildParameter[];

@@ -1,18 +1,18 @@
-import {
-  createContext,
-  type FC,
-  type PropsWithChildren,
-  Suspense,
-  useContext,
-} from "react";
-import { useQuery } from "react-query";
-import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { API } from "api/api";
 import type { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import {
+  type FC,
+  type PropsWithChildren,
+  Suspense,
+  createContext,
+  useContext,
+} from "react";
+import { useQuery } from "react-query";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (

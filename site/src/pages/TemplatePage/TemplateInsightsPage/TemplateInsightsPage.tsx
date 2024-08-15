@@ -5,25 +5,6 @@ import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import chroma from "chroma-js";
-import {
-  subDays,
-  addWeeks,
-  format,
-  startOfDay,
-  startOfHour,
-  addHours,
-} from "date-fns";
-import {
-  type FC,
-  type HTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-  useId,
-} from "react";
-import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
 import { entitlements } from "api/queries/entitlements";
 import {
   insightsTemplate,
@@ -40,28 +21,47 @@ import type {
   UserActivityInsightsResponse,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
+import chroma from "chroma-js";
 import {
-  ActiveUsersTitle,
   ActiveUserChart,
+  ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
 import {
   HelpTooltip,
-  HelpTooltipTitle,
-  HelpTooltipText,
   HelpTooltipContent,
+  HelpTooltipText,
+  HelpTooltipTitle,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import {
+  addHours,
+  addWeeks,
+  format,
+  startOfDay,
+  startOfHour,
+  subDays,
+} from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+import {
+  type FC,
+  type HTMLAttributes,
+  type PropsWithChildren,
+  type ReactNode,
+  useId,
+} from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
-import { lastWeeks } from "./utils";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
+import { lastWeeks } from "./utils";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 

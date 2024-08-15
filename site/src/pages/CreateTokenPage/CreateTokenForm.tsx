@@ -1,25 +1,25 @@
 import { css } from "@emotion/css";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import type { FormikContextType } from "formik";
-import { type FC, useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   FormFields,
-  FormSection,
   FormFooter,
+  FormSection,
   HorizontalForm,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
-import { onChangeTrimmed, getFormHelpers } from "utils/formUtils";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import type { FormikContextType } from "formik";
+import { type FC, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import {
-  NANO_HOUR,
   type CreateTokenData,
+  NANO_HOUR,
+  customLifetimeDay,
   determineDefaultLtValue,
   filterByMaxTokenLifetime,
-  customLifetimeDay,
 } from "./utils";
 
 dayjs.extend(utc);

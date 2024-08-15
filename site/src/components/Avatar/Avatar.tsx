@@ -1,4 +1,4 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import MuiAvatar, {
   type AvatarProps as MuiAvatarProps,
   // biome-ignore lint/nursery/noRestrictedImports: Used as base component

@@ -1,13 +1,13 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import type { TemplateExample } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates

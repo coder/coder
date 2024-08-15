@@ -6,13 +6,13 @@ import Button from "@mui/material/Button";
 import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
-import type { FC } from "react";
-import Confetti from "react-confetti";
-import { Link } from "react-router-dom";
 import type { GetLicensesResponse } from "api/api";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useWindowSize } from "hooks/useWindowSize";
+import type { FC } from "react";
+import Confetti from "react-confetti";
+import { Link } from "react-router-dom";
 import { LicenseCard } from "./LicenseCard";
 
 type Props = {

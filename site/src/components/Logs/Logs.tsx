@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import dayjs from "dayjs";
 import type { FC } from "react";
-import { LogLinePrefix, LogLine, type Line } from "./LogLine";
+import { type Line, LogLine, LogLinePrefix } from "./LogLine";
 
 export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
 

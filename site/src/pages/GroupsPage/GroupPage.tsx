@@ -10,10 +10,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "api/errors";
 import {
   addMember,
@@ -50,6 +46,10 @@ import {
 } from "components/TableToolbar/TableToolbar";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { type FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 

@@ -1,15 +1,15 @@
-import { useState, type FC, type ReactNode } from "react";
 import { Loader } from "components/Loader/Loader";
 import {
   SelectMenu,
-  SelectMenuTrigger,
   SelectMenuButton,
   SelectMenuContent,
-  SelectMenuSearch,
-  SelectMenuList,
-  SelectMenuItem,
   SelectMenuIcon,
+  SelectMenuItem,
+  SelectMenuList,
+  SelectMenuSearch,
+  SelectMenuTrigger,
 } from "components/SelectMenu/SelectMenu";
+import { type FC, type ReactNode, useState } from "react";
 
 const BASE_WIDTH = 200;
 const POPOVER_WIDTH = 320;

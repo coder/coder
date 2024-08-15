@@ -3,16 +3,16 @@ import GroupIcon from "@mui/icons-material/Group";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import TableCell from "@mui/material/TableCell";
-import type { FC } from "react";
 import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
 import {
   Popover,
-  PopoverTrigger,
   PopoverContent,
+  PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import type { FC } from "react";
 
 type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;

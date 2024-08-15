@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-  MockOAuth2ProviderApps,
   MockOAuth2ProviderAppSecrets,
+  MockOAuth2ProviderApps,
   mockApiError,
 } from "testHelpers/entities";
 import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";

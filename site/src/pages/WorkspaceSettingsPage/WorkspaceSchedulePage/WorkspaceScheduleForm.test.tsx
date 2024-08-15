@@ -6,11 +6,11 @@ import { render } from "testHelpers/renderHelpers";
 import { timeZones } from "utils/timeZones";
 import {
   Language,
-  ttlShutdownAt,
-  validationSchema,
   WorkspaceScheduleForm,
   type WorkspaceScheduleFormProps,
   type WorkspaceScheduleFormValues,
+  ttlShutdownAt,
+  validationSchema,
 } from "./WorkspaceScheduleForm";
 
 const valid: WorkspaceScheduleFormValues = {

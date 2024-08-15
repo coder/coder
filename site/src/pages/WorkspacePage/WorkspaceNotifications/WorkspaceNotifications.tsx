@@ -1,15 +1,15 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import WarningRounded from "@mui/icons-material/WarningRounded";
-import formatDistanceToNow from "date-fns/formatDistanceToNow";
-import dayjs from "dayjs";
-import { type FC, useEffect, useState } from "react";
-import { useQuery } from "react-query";
 import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
 import type { Template, TemplateVersion, Workspace } from "api/typesGenerated";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
+import formatDistanceToNow from "date-fns/formatDistanceToNow";
+import dayjs from "dayjs";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
+import { type FC, useEffect, useState } from "react";
+import { useQuery } from "react-query";
 import type { WorkspacePermissions } from "../permissions";
 import {
   NotificationActionButton,

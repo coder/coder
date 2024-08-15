@@ -1,5 +1,5 @@
-import { Fragment } from "react";
 import { TimelineDateRow } from "components/Timeline/TimelineDateRow";
+import { Fragment } from "react";
 
 type GetDateFn<TData> = (data: TData) => Date;
 

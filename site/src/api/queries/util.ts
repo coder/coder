@@ -1,5 +1,5 @@
-import type { UseQueryOptions, QueryKey } from "react-query";
 import type { MetadataState, MetadataValue } from "hooks/useEmbeddedMetadata";
+import type { QueryKey, UseQueryOptions } from "react-query";
 
 export const disabledRefetchOptions = {
   cacheTime: Number.POSITIVE_INFINITY,

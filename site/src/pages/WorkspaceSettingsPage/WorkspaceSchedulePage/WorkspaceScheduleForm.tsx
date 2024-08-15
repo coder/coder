@@ -7,6 +7,18 @@ import FormLabel from "@mui/material/FormLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
+import type { Template } from "api/typesGenerated";
+import {
+  FormFields,
+  FormFooter,
+  FormSection,
+  HorizontalForm,
+} from "components/Form/Form";
+import { Stack } from "components/Stack/Stack";
+import {
+  StackLabel,
+  StackLabelHelperText,
+} from "components/StackLabel/StackLabel";
 import { formatDuration, intervalToDuration } from "date-fns";
 import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat";
@@ -15,26 +27,14 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import { type FormikTouched, useFormik } from "formik";
-import type { ChangeEvent, FC } from "react";
-import * as Yup from "yup";
-import type { Template } from "api/typesGenerated";
-import {
-  HorizontalForm,
-  FormFooter,
-  FormSection,
-  FormFields,
-} from "components/Form/Form";
-import { Stack } from "components/Stack/Stack";
-import {
-  StackLabel,
-  StackLabelHelperText,
-} from "components/StackLabel/StackLabel";
 import {
   defaultSchedule,
   emptySchedule,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import type { ChangeEvent, FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { timeZones } from "utils/timeZones";
+import * as Yup from "yup";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.

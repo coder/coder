@@ -5,8 +5,6 @@ import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { type FC, useState } from "react";
-import { useMutation } from "react-query";
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import type {
@@ -18,6 +16,8 @@ import type {
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
+import { type FC, useState } from "react";
+import { useMutation } from "react-query";
 import { docs } from "utils/docs";
 import { Section } from "../Section";
 

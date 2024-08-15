@@ -2,8 +2,6 @@ import { cx } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
-import type { FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
 import type {
   AuthorizationResponse,
   Experiments,
@@ -16,6 +14,8 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToUsers } from "modules/navigation";
+import type { FC, ReactNode } from "react";
+import { Link, NavLink } from "react-router-dom";
 
 export interface OrganizationWithPermissions extends Organization {
   permissions: AuthorizationResponse;

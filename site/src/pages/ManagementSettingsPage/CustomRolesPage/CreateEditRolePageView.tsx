@@ -12,25 +12,25 @@ import TableFooter from "@mui/material/TableFooter";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import { type ChangeEvent, useState, type FC } from "react";
-import { useNavigate } from "react-router-dom";
-import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
 import { RBACResourceActions } from "api/rbacresources_gen";
 import type {
-  Role,
+  AssignableRoles,
   CustomRoleRequest,
   Permission,
-  AssignableRoles,
-  RBACResource,
   RBACAction,
+  RBACResource,
+  Role,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FormFields, FormFooter, VerticalForm } from "components/Form/Form";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
+import { type ChangeEvent, type FC, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
+import * as Yup from "yup";
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),

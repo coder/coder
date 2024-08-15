@@ -1,12 +1,12 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
 import type { SlimRole } from "api/typesGenerated";
+import { http, HttpResponse } from "msw";
 import {
   MockEntitlementsWithMultiOrg,
-  MockUser,
   MockOrganization,
   MockOrganizationAuditorRole,
+  MockUser,
 } from "testHelpers/entities";
 import {
   renderWithManagementSettingsLayout,

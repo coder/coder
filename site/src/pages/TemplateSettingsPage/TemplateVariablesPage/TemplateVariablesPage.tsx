@@ -1,7 +1,3 @@
-import { useCallback, type FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
 import {
   createAndBuildTemplateVersion,
   templateVersion,
@@ -17,6 +13,10 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import { type FC, useCallback } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";

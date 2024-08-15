@@ -1,14 +1,14 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
-import WS from "jest-websocket-mock";
-import { HttpResponse, http } from "msw";
-import { QueryClient } from "react-query";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { AppProviders } from "App";
 import * as apiModule from "api/api";
 import { templateVersionVariablesKey } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
-import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
+import WS from "jest-websocket-mock";
+import { http, HttpResponse } from "msw";
+import { QueryClient } from "react-query";
+import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import {
   MockTemplate,
   MockTemplateVersion,

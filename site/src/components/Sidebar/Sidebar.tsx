@@ -1,9 +1,9 @@
 import { cx } from "@emotion/css";
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import type { ElementType, FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import type { ElementType, FC, ReactNode } from "react";
+import { Link, NavLink } from "react-router-dom";
 
 interface SidebarProps {
   children?: ReactNode;

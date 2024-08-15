@@ -1,6 +1,6 @@
-import type { QueryClient } from "react-query";
 import { API } from "api/api";
 import type { GitSSHKey } from "api/typesGenerated";
+import type { QueryClient } from "react-query";
 
 const getUserSSHKeyQueryKey = (userId: string) => [userId, "sshKey"];
 

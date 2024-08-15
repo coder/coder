@@ -1,20 +1,20 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { MockUser, MockWorkspace } from "testHelpers/entities";
 import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import {
+  Language as FormLanguage,
+  type WorkspaceScheduleFormValues,
+} from "./WorkspaceScheduleForm";
+import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
 } from "./formToRequest";
 import { scheduleToAutostart } from "./schedule";
 import { ttlMsToAutostop } from "./ttl";
-import {
-  Language as FormLanguage,
-  type WorkspaceScheduleFormValues,
-} from "./WorkspaceScheduleForm";
-import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
 
 const validValues: WorkspaceScheduleFormValues = {
   autostartEnabled: true,

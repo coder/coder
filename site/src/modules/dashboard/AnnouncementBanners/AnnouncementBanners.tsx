@@ -1,5 +1,5 @@
-import type { FC } from "react";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
 import { AnnouncementBannerView } from "./AnnouncementBannerView";
 
 export const AnnouncementBanners: FC = () => {

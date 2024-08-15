@@ -3,6 +3,16 @@ import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
+import { xrayScan } from "api/queries/integrations";
+import type {
+  Template,
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceAgentMetadata,
+} from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Stack } from "components/Stack/Stack";
+import { useProxy } from "contexts/ProxyContext";
 import {
   type FC,
   useCallback,
@@ -15,16 +25,6 @@ import {
 import { useQuery } from "react-query";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
-import { xrayScan } from "api/queries/integrations";
-import type {
-  Template,
-  Workspace,
-  WorkspaceAgent,
-  WorkspaceAgentMetadata,
-} from "api/typesGenerated";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Stack } from "components/Stack/Stack";
-import { useProxy } from "contexts/ProxyContext";
 import { AgentLatency } from "./AgentLatency";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
 import { AgentLogs } from "./AgentLogs/AgentLogs";

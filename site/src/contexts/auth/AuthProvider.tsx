@@ -1,11 +1,3 @@
-import {
-  type FC,
-  type PropsWithChildren,
-  createContext,
-  useCallback,
-  useContext,
-} from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { isApiError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
@@ -18,7 +10,15 @@ import {
 import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { permissionsToCheck, type Permissions } from "./permissions";
+import {
+  type FC,
+  type PropsWithChildren,
+  createContext,
+  useCallback,
+  useContext,
+} from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { type Permissions, permissionsToCheck } from "./permissions";
 
 export type AuthContextValue = {
   isLoading: boolean;

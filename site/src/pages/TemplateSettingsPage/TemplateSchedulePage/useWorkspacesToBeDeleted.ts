@@ -1,5 +1,5 @@
+import type { Template, Workspace } from "api/typesGenerated";
 import { compareAsc } from "date-fns";
-import type { Workspace, Template } from "api/typesGenerated";
 import { useWorkspacesData } from "pages/WorkspacesPage/data";
 import type { TemplateScheduleFormValues } from "./formHelpers";
 

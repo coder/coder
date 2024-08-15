@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { within, userEvent } from "@storybook/test";
+import { userEvent, within } from "@storybook/test";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import { MockUser, MockUser2 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";

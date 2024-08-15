@@ -1,10 +1,10 @@
 import AutoDeleteIcon from "@mui/icons-material/AutoDelete";
 import RecyclingIcon from "@mui/icons-material/Recycling";
 import Tooltip from "@mui/material/Tooltip";
-import { formatDistanceToNow } from "date-fns";
-import type { FC } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
+import { formatDistanceToNow } from "date-fns";
+import type { FC } from "react";
 
 export type WorkspaceDormantBadgeProps = {
   workspace: Workspace;

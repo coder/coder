@@ -3,8 +3,8 @@ import HelpOutline from "@mui/icons-material/HelpOutline";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
-import type { FC } from "react";
 import { Abbr } from "components/Abbr/Abbr";
+import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 
 interface LatencyProps {

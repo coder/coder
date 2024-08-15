@@ -1,5 +1,5 @@
 import { action } from "@storybook/addon-actions";
-import type { StoryObj, Meta } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError } from "testHelpers/entities";
 import { CreateUserForm } from "./CreateUserForm";
 

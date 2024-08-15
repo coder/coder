@@ -1,5 +1,4 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { FC, ReactNode } from "react";
+import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import {
   HelpTooltip,
   HelpTooltipContent,
@@ -8,6 +7,7 @@ import {
   HelpTooltipTitle,
   HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 
 interface InfoTooltipProps {

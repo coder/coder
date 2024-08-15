@@ -1,7 +1,5 @@
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import Button from "@mui/material/Button";
-import type { ComponentProps, FC } from "react";
-import { useNavigate } from "react-router-dom";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -9,6 +7,8 @@ import {
   PaginationContainer,
   type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
+import type { ComponentProps, FC } from "react";
+import { useNavigate } from "react-router-dom";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
 

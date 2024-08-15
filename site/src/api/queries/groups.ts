@@ -1,10 +1,10 @@
-import type { QueryClient, UseQueryOptions } from "react-query";
 import { API } from "api/api";
 import type {
   CreateGroupRequest,
   Group,
   PatchGroupRequest,
 } from "api/typesGenerated";
+import type { QueryClient, UseQueryOptions } from "react-query";
 
 type GroupSortOrder = "asc" | "desc";
 

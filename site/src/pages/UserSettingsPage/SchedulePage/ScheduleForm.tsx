@@ -1,9 +1,6 @@
 import LoadingButton from "@mui/lab/LoadingButton";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
-import * as Yup from "yup";
 import type {
   UpdateUserQuietHoursScheduleRequest,
   UserQuietHoursScheduleResponse,
@@ -12,9 +9,12 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
+import { type FormikContextType, useFormik } from "formik";
+import { type FC, useEffect, useState } from "react";
 import { getFormHelpers } from "utils/formUtils";
-import { timeToCron, quietHoursDisplay, validTime } from "utils/schedule";
-import { timeZones, getPreferredTimezone } from "utils/timeZones";
+import { quietHoursDisplay, timeToCron, validTime } from "utils/schedule";
+import { getPreferredTimezone, timeZones } from "utils/timeZones";
+import * as Yup from "yup";
 
 export interface ScheduleFormValues {
   time: string;

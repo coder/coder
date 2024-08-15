@@ -8,9 +8,6 @@ import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import type { FC } from "react";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -21,15 +18,18 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import {
   MoreMenu,
-  MoreMenuTrigger,
   MoreMenuContent,
   MoreMenuItem,
+  MoreMenuTrigger,
   ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import type { FC } from "react";
 import { UserRoleCell } from "../../ManagementSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
 

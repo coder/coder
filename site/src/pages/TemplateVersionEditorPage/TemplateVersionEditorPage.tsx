@@ -1,7 +1,3 @@
-import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { API } from "api/api";
 import { file, uploadFile } from "api/queries/files";
 import {
@@ -20,6 +16,10 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
+import { type FC, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";

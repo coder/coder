@@ -1,6 +1,6 @@
-import type { ComponentProps, FC } from "react";
 import type { Workspace } from "api/typesGenerated";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import type { ComponentProps, FC } from "react";
 import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm";
 
 export type WorkspaceSettingsPageViewProps = {

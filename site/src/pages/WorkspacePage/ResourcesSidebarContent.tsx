@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import type { Workspace } from "api/typesGenerated";
-import { SidebarLink, SidebarCaption } from "components/FullPageLayout/Sidebar";
+import { SidebarCaption, SidebarLink } from "components/FullPageLayout/Sidebar";
 
 export const ResourcesSidebarContent = ({
   workspace,

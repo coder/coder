@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button, { type ButtonProps } from "@mui/material/Button";
-import type { FC, ReactNode } from "react";
 import type { AlertProps } from "components/Alert/Alert";
 import { Pill } from "components/Pill/Pill";
 import {
@@ -9,6 +8,7 @@ import {
   PopoverTrigger,
   usePopover,
 } from "components/Popover/Popover";
+import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 
 export type NotificationItem = {

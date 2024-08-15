@@ -5,7 +5,6 @@ import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import Divider from "@mui/material/Divider";
-import { type FC, type ReactNode, Fragment, useState } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { TopbarIconButton } from "components/FullPageLayout/Topbar";
 import {
@@ -15,23 +14,24 @@ import {
   MoreMenuTrigger,
 } from "components/MoreMenu/MoreMenu";
 import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/useWorkspaceDuplication";
+import { type FC, Fragment, type ReactNode, useState } from "react";
 import { mustUpdateWorkspace } from "utils/workspace";
 import {
+  ActivateButton,
   CancelButton,
   DisabledButton,
+  FavoriteButton,
+  RestartButton,
   StartButton,
   StopButton,
-  RestartButton,
-  UpdateButton,
-  ActivateButton,
-  FavoriteButton,
-  UpdateAndStartButton,
   UpdateAndRestartButton,
+  UpdateAndStartButton,
+  UpdateButton,
 } from "./Buttons";
-import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 import { DebugButton } from "./DebugButton";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
 import { RetryButton } from "./RetryButton";
+import { type ActionType, abilitiesByWorkspaceStatus } from "./constants";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;

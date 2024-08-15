@@ -4,9 +4,9 @@ import type { ProvisionerJobLog } from "api/typesGenerated";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import * as Mocks from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
-import type { WorkspacePermissions } from "./permissions";
 import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
+import type { WorkspacePermissions } from "./permissions";
 
 const permissions: WorkspacePermissions = {
   readWorkspace: true,

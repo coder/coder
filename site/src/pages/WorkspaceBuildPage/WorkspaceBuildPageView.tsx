@@ -1,6 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { FC } from "react";
-import { Link } from "react-router-dom";
 import type {
   ProvisionerJobLog,
   WorkspaceAgent,
@@ -11,8 +9,8 @@ import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { Loader } from "components/Loader/Loader";
 import {
   FullWidthPageHeader,
-  PageHeaderTitle,
   PageHeaderSubtitle,
+  PageHeaderTitle,
 } from "components/PageHeader/FullWidthPageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
@@ -26,6 +24,8 @@ import {
   WorkspaceBuildDataSkeleton,
 } from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 

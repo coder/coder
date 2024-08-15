@@ -1,7 +1,7 @@
-import type { FC } from "react";
 import type { WorkspaceResource } from "api/typesGenerated";
 import { AgentRowPreview } from "modules/resources/AgentRowPreview";
 import { Resources } from "modules/resources/Resources";
+import type { FC } from "react";
 
 export interface TemplateResourcesProps {
   resources: WorkspaceResource[];

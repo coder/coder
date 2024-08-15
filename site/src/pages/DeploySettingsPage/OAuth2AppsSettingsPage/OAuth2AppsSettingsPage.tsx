@@ -1,7 +1,7 @@
+import { getApps } from "api/queries/oauth2";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { getApps } from "api/queries/oauth2";
 import { pageTitle } from "utils/page";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
 

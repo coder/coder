@@ -1,21 +1,18 @@
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import { isApiValidationError } from "api/errors";
 import type { CreateOrganizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
   Badges,
   DisabledBadge,
-  PremiumBadge,
   EntitledBadge,
+  PremiumBadge,
 } from "components/Badges/Badges";
 import {
   FormFields,
+  FormFooter,
   FormSection,
   HorizontalForm,
-  FormFooter,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
@@ -25,13 +22,16 @@ import {
   PopoverTrigger,
 } from "components/Popover/Popover";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
+  displayNameValidator,
   getFormHelpers,
   nameValidator,
-  displayNameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
+import * as Yup from "yup";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;

@@ -2,10 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { getDefaultFilterProps } from "components/Filter/storyHelpers";
 import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
-  mockApiError,
   MockTemplate,
   MockTemplateExample,
   MockTemplateExample2,
+  mockApiError,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { TemplatesPageView } from "./TemplatesPageView";

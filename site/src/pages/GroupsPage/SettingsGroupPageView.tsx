@@ -1,7 +1,4 @@
 import TextField from "@mui/material/TextField";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import * as Yup from "yup";
 import type { Group } from "api/typesGenerated";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
@@ -9,12 +6,15 @@ import { IconField } from "components/IconField/IconField";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
+import type { FC } from "react";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
 import { isEveryoneGroup } from "utils/groups";
+import * as Yup from "yup";
 
 type FormData = {
   name: string;

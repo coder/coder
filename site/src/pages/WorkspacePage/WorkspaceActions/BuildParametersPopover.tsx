@@ -2,9 +2,6 @@ import { useTheme } from "@emotion/react";
 import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
 import visuallyHidden from "@mui/utils/visuallyHidden";
-import { useFormik } from "formik";
-import type { FC } from "react";
-import { useQuery } from "react-query";
 import { API } from "api/api";
 import type {
   TemplateVersionParameter,
@@ -27,6 +24,9 @@ import {
   usePopover,
 } from "components/Popover/Popover";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import { useQuery } from "react-query";
 import { docs } from "utils/docs";
 import { getFormHelpers } from "utils/formUtils";
 import {

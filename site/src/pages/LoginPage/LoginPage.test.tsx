@@ -1,6 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { http, HttpResponse } from "msw";
 import { createMemoryRouter } from "react-router-dom";
 import {
   render,

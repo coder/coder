@@ -3,7 +3,6 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
-import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -14,13 +13,14 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import {
-  type PaginationResult,
   PaginationContainer,
+  type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { Timeline } from "components/Timeline/Timeline";
+import type { ComponentProps, FC } from "react";
 import { docs } from "utils/docs";
 import { AuditFilter } from "./AuditFilter";
 import { AuditHelpTooltip } from "./AuditHelpTooltip";

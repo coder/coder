@@ -1,12 +1,12 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
-import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
 import type { WorkspaceBuild } from "api/typesGenerated";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { useClickable } from "hooks/useClickable";
+import type { FC } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   displayWorkspaceBuildDuration,
   getDisplayWorkspaceBuildInitiatedBy,

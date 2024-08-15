@@ -8,8 +8,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { FC } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -18,6 +16,8 @@ import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import type { FC } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 type OAuth2AppsSettingsProps = {
   apps?: TypesGen.OAuth2ProviderApp[];

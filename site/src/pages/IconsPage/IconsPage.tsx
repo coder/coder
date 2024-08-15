@@ -6,9 +6,6 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
-import { type FC, type ReactNode, useMemo, useState } from "react";
-import { Helmet } from "react-helmet-async";
-import uFuzzy from "ufuzzy";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
@@ -18,11 +15,14 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
+import { type FC, type ReactNode, useMemo, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import {
   defaultParametersForBuiltinIcons,
   parseImageParameters,
 } from "theme/externalImages";
 import icons from "theme/icons.json";
+import uFuzzy from "ufuzzy";
 import { pageTitle } from "utils/page";
 
 const iconsWithoutSuffix = icons.map((icon) => icon.split(".")[0]);

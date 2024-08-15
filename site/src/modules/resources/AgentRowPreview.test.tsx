@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import {
-  DisplayApps,
   type DisplayApp,
+  DisplayApps,
   type WorkspaceAgent,
 } from "api/typesGenerated";
 import { MockWorkspaceAgent } from "testHelpers/entities";
