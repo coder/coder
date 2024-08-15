@@ -127,7 +127,7 @@
 		"@types/file-saver": "2.0.7",
 		"@types/jest": "29.5.12",
 		"@types/lodash": "4.17.6",
-		"@types/node": "18.19.0",
+		"@types/node": "18.19.44",
 		"@types/react": "18.2.6",
 		"@types/react-color": "3.0.6",
 		"@types/react-date-range": "1.4.4",
