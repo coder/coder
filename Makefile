@@ -491,7 +491,7 @@ gen: \
 	site/src/api/typesGenerated.ts \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
-	site/src/api/rbacresources_gen.ts \
+	site/src/api/rbacresourcesGenerated.ts \
 	docs/admin/prometheus.md \
 	docs/reference/cli/README.md \
 	docs/admin/audit-logs.md \
@@ -520,7 +520,7 @@ gen/mark-fresh:
 		site/src/api/typesGenerated.ts \
 		coderd/rbac/object_gen.go \
 		codersdk/rbacresources_gen.go \
-		site/src/api/rbacresources_gen.ts \
+		site/src/api/rbacresourcesGenerated.ts \
 		docs/admin/prometheus.md \
 		docs/reference/cli/README.md \
 		docs/admin/audit-logs.md \
