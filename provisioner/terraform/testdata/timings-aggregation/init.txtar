@@ -1,0 +1,38 @@
+Init produces JSON logs, but not with discrete fields which we can parse.
+It only gained the ability to output JSON logs in v1.9.0 (https://github.com/hashicorp/terraform/blob/v1.9/CHANGELOG.md#190-june-26-2024),
+so I've included the non-JSON logs as well.
+
+Neither one produces any timings.
+
+-- init --
+# Before v1.9.0
+Initializing the backend...
+Initializing modules...
+Initializing provider plugins...
+- Reusing previous version of hashicorp/http from the dependency lock file
+- Reusing previous version of coder/coder from the dependency lock file
+- Using previously-installed hashicorp/http v3.4.4
+- Using previously-installed coder/coder v1.0.1
+
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your working directory. If you forget, other
+commands will detect it and remind you to do so if necessary.
+
+# After v1.9.0
+{"@level":"info","@message":"Terraform 1.9.2","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:30.835464+02:00","terraform":"1.9.2","type":"version","ui":"1.2"}
+{"@level":"info","@message":"Initializing the backend...","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:30Z","message_code":"initializing_backend_message","type":"init_output"}
+{"@level":"info","@message":"Initializing modules...","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:30Z","message_code":"initializing_modules_message","type":"init_output"}
+{"@level":"info","@message":"Initializing provider plugins...","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:30Z","message_code":"initializing_provider_plugin_message","type":"init_output"}
+{"@level":"info","@message":"coder/coder: Reusing previous version from the dependency lock file","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:30.870861+02:00","type":"log"}
+{"@level":"info","@message":"hashicorp/http: Reusing previous version from the dependency lock file","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:31.282247+02:00","type":"log"}
+{"@level":"info","@message":"coder/coder v1.0.1: Using previously-installed provider version","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:31.466355+02:00","type":"log"}
+{"@level":"info","@message":"hashicorp/http v3.4.4: Using previously-installed provider version","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:31.479221+02:00","type":"log"}
+{"@level":"info","@message":"Terraform has been successfully initialized!","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:31Z","message_code":"output_init_success_message","type":"init_output"}
+{"@level":"info","@message":"You may now begin working with Terraform. Try running \"terraform plan\" to see\nany changes that are required for your infrastructure. All Terraform commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for Terraform,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary.","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:31Z","message_code":"output_init_success_cli_message","type":"init_output"}
+-- timings --

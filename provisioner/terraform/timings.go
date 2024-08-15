@@ -16,7 +16,7 @@ import (
 
 type timingKind string
 
-// Copied from https://github.com/hashicorp/terraform/blob/ffbcaf8bef12bb1f4d79f06437f414e280d08761/internal/command/views/json/message_types.go
+// Copied from https://github.com/hashicorp/terraform/blob/01c0480e77263933b2b086dc8d600a69f80fad2d/internal/command/jsonformat/renderer.go
 // We cannot reference these because they're in an internal package.
 const (
 	timingApplyStart        timingKind = "apply_start"
@@ -29,6 +29,13 @@ const (
 	timingProvisionErrored  timingKind = "provision_errored"
 	timingRefreshStart      timingKind = "refresh_start"
 	timingRefreshComplete   timingKind = "refresh_complete"
+	// Ignored.
+	timingChangeSummary timingKind = "change_summary"
+	timingDiagnostic    timingKind = "diagnostic"
+	timingPlannedChange timingKind = "planned_change"
+	timingOutputs       timingKind = "outputs"
+	timingResourceDrift timingKind = "resource_drift"
+	timingVersion       timingKind = "version"
 	// These are not part of message_types, but we want to track init/graph timings as well.
 	timingInitStart     timingKind = "init_start"
 	timingInitComplete  timingKind = "init_complete"
@@ -36,6 +43,9 @@ const (
 	timingGraphStart    timingKind = "graph_start"
 	timingGraphComplete timingKind = "graph_complete"
 	timingGraphErrored  timingKind = "graph_errored"
+	// Other terraform log types which we ignore.
+	timingLog        timingKind = "log"
+	timingInitOutput timingKind = "init_output"
 )
 
 type timingAggregator struct {
@@ -84,7 +94,7 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 		s.end = ts
 		s.state = proto.TimingState_FAILED
 	default:
-		// Don't capture progress messages (or unhandled kinds); we just want start/end timings.
+		// We just want start/end timings, ignore all other events.
 		return
 	}
 
@@ -95,8 +105,9 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	t.mu.Unlock()
 }
 
-// aggregate performs a pass through all memoized events to build up a set of *proto.Timing instances which represent
+// aggregate performs a pass through all memoized events to build up a slice of *proto.Timing instances which represent
 // the total time taken to perform a certain action.
+// The resulting slice of *proto.Timing is NOT sorted.
 func (t *timingAggregator) aggregate() []*proto.Timing {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -147,12 +158,20 @@ func (l timingKind) Valid() bool {
 		timingProvisionErrored,
 		timingRefreshStart,
 		timingRefreshComplete,
+		timingChangeSummary,
+		timingDiagnostic,
+		timingPlannedChange,
+		timingOutputs,
+		timingResourceDrift,
+		timingVersion,
 		timingInitStart,
 		timingInitComplete,
 		timingInitErrored,
 		timingGraphStart,
 		timingGraphComplete,
 		timingGraphErrored,
+		timingLog,
+		timingInitOutput,
 	}, l)
 }
 

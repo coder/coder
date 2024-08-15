@@ -565,32 +565,14 @@ func (e *executor) provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any)
 
 func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 	defer close(done)
+
+	errCount := 0
+
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		var log terraformProvisionLog
-		err := json.Unmarshal(scanner.Bytes(), &log)
-		if err != nil {
-			// Sometimes terraform doesn't log JSON, even though we asked it to.
-			// The terraform maintainers have said on the issue tracker that
-			// they don't guarantee that non-JSON lines won't get printed.
-			// https://github.com/hashicorp/terraform/issues/29252#issuecomment-887710001
-			//
-			// > I think as a practical matter it isn't possible for us to
-			// > promise that the output will always be entirely JSON, because
-			// > there's plenty of code that runs before command line arguments
-			// > are parsed and thus before we even know we're in JSON mode.
-			// > Given that, I'd suggest writing code that consumes streaming
-			// > JSON output from Terraform in such a way that it can tolerate
-			// > the output not having JSON in it at all.
-			//
-			// Log lines such as:
-			// - Acquiring state lock. This may take a few moments...
-			// - Releasing state lock. This may take a few moments...
-			if strings.TrimSpace(scanner.Text()) == "" {
-				continue
-			}
-			log.Level = "info"
-			log.Message = scanner.Text()
+		log := parseTerraformLogLine(scanner.Bytes())
+		if log == nil {
+			continue
 		}
 
 		logLevel := convertTerraformLogLevel(log.Level, sink)
@@ -598,8 +580,12 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 
 		ts, span, err := extractTimingSpan(log)
 		if err != nil {
-			e.logger.Debug(context.Background(), "failed to extract timings entry from log line",
-				slog.F("line", log.Message), slog.Error(err))
+			// It's too noisy to log all of these as timings are not an essential feature, but we do need to log *some*.
+			if errCount%10 == 0 {
+				e.logger.Warn(context.Background(), "(sampled) failed to extract timings entry from log line",
+					slog.F("line", log.Message), slog.Error(err))
+			}
+			errCount++
 		} else {
 			// Only ingest valid timings.
 			e.timings.ingest(ts, span)
@@ -616,15 +602,44 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 	}
 }
 
-func extractTimingSpan(log terraformProvisionLog) (time.Time, *timingSpan, error) {
+func parseTerraformLogLine(line []byte) *terraformProvisionLog {
+	var log terraformProvisionLog
+	err := json.Unmarshal(line, &log)
+	if err != nil {
+		// Sometimes terraform doesn't log JSON, even though we asked it to.
+		// The terraform maintainers have said on the issue tracker that
+		// they don't guarantee that non-JSON lines won't get printed.
+		// https://github.com/hashicorp/terraform/issues/29252#issuecomment-887710001
+		//
+		// > I think as a practical matter it isn't possible for us to
+		// > promise that the output will always be entirely JSON, because
+		// > there's plenty of code that runs before command line arguments
+		// > are parsed and thus before we even know we're in JSON mode.
+		// > Given that, I'd suggest writing code that consumes streaming
+		// > JSON output from Terraform in such a way that it can tolerate
+		// > the output not having JSON in it at all.
+		//
+		// Log lines such as:
+		// - Acquiring state lock. This may take a few moments...
+		// - Releasing state lock. This may take a few moments...
+		if len(bytes.TrimSpace(line)) == 0 {
+			return nil
+		}
+		log.Level = "info"
+		log.Message = string(line)
+	}
+	return &log
+}
+
+func extractTimingSpan(log *terraformProvisionLog) (time.Time, *timingSpan, error) {
 	// Input is not well-formed, bail out.
 	if log.Type == "" {
-		return time.Time{}, nil, xerrors.Errorf("invalid type: %q", log.Type)
+		return time.Time{}, nil, xerrors.Errorf("invalid timing kind: %q", log.Type)
 	}
 
 	typ := timingKind(log.Type)
 	if !typ.Valid() {
-		return time.Time{}, nil, xerrors.Errorf("invalid type: %q", log.Type)
+		return time.Time{}, nil, xerrors.Errorf("unexpected timing kind: %q", log.Type)
 	}
 
 	ts, err := time.Parse("2006-01-02T15:04:05.000000Z07:00", log.Timestamp)
