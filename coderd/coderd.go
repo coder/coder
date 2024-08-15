@@ -1153,7 +1153,6 @@ func New(options *Options) *API {
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
 			r.Get("/state", api.workspaceBuildState)
-			r.Get("/stats", api.workspaceBuildStats)
 		})
 		r.Route("/authcheck", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

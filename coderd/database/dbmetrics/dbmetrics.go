@@ -921,13 +921,6 @@ func (m metricsStore) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	return job, err
 }
 
-func (m metricsStore) GetProvisionerJobStatsByWorkspace(ctx context.Context, arg database.GetProvisionerJobStatsByWorkspaceParams) (database.ProvisionerJobStat, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetProvisionerJobStatsByWorkspace(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetProvisionerJobStatsByWorkspace").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	start := time.Now()
 	jobs, err := m.s.GetProvisionerJobsByIDs(ctx, ids)

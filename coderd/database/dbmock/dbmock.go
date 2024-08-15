@@ -1869,21 +1869,6 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobByID(arg0, arg1 any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByID", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByID), arg0, arg1)
 }
 
-// GetProvisionerJobStatsByWorkspace mocks base method.
-func (m *MockStore) GetProvisionerJobStatsByWorkspace(arg0 context.Context, arg1 database.GetProvisionerJobStatsByWorkspaceParams) (database.ProvisionerJobStat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProvisionerJobStatsByWorkspace", arg0, arg1)
-	ret0, _ := ret[0].(database.ProvisionerJobStat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetProvisionerJobStatsByWorkspace indicates an expected call of GetProvisionerJobStatsByWorkspace.
-func (mr *MockStoreMockRecorder) GetProvisionerJobStatsByWorkspace(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobStatsByWorkspace", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobStatsByWorkspace), arg0, arg1)
-}
-
 // GetProvisionerJobsByIDs mocks base method.
 func (m *MockStore) GetProvisionerJobsByIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()

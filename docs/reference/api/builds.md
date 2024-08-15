@@ -976,55 +976,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get stats for workspace build
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/stats \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /workspacebuilds/{workspacebuild}/stats`
-
-### Parameters
-
-| Name             | In   | Type   | Required | Description        |
-| ---------------- | ---- | ------ | -------- | ------------------ |
-| `workspacebuild` | path | string | true     | Workspace build ID |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "apply_secs": 0,
-  "canceled_secs": 0,
-  "completion_secs": 0,
-  "error": "string",
-  "error_code": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "init_secs": 0,
-  "job_status": "pending",
-  "plan_secs": 0,
-  "queued_secs": 0,
-  "updated_at": "2019-08-24T14:15:22Z",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                 |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuildStats](schemas.md#codersdkworkspacebuildstats) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get workspace builds by workspace ID
 
 ### Code samples

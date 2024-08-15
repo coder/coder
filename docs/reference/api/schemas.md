@@ -7104,44 +7104,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
 
-## codersdk.WorkspaceBuildStats
-
-```json
-{
-  "apply_secs": 0,
-  "canceled_secs": 0,
-  "completion_secs": 0,
-  "error": "string",
-  "error_code": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "init_secs": 0,
-  "job_status": "pending",
-  "plan_secs": 0,
-  "queued_secs": 0,
-  "updated_at": "2019-08-24T14:15:22Z",
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-}
-```
-
-### Properties
-
-| Name              | Type                                                           | Required | Restrictions | Description |
-| ----------------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `apply_secs`      | number                                                         | false    |              |             |
-| `canceled_secs`   | number                                                         | false    |              |             |
-| `completion_secs` | number                                                         | false    |              |             |
-| `error`           | string                                                         | false    |              |             |
-| `error_code`      | string                                                         | false    |              |             |
-| `id`              | string                                                         | false    |              |             |
-| `init_secs`       | number                                                         | false    |              |             |
-| `job_status`      | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
-| `plan_secs`       | number                                                         | false    |              |             |
-| `queued_secs`     | number                                                         | false    |              |             |
-| `updated_at`      | string                                                         | false    |              |             |
-| `worker_id`       | string                                                         | false    |              |             |
-| `workspace_id`    | string                                                         | false    |              |             |
-
 ## codersdk.WorkspaceConnectionLatencyMS
 
 ```json

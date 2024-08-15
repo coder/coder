@@ -1775,15 +1775,6 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 	return job, nil
 }
 
-func (q *querier) GetProvisionerJobStatsByWorkspace(ctx context.Context, arg database.GetProvisionerJobStatsByWorkspaceParams) (database.ProvisionerJobStat, error) {
-	// Use the workspace ID to authorize the request.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.WithID(arg.WorkspaceID)); err != nil {
-		return database.ProvisionerJobStat{}, err
-	}
-
-	return q.db.GetProvisionerJobStatsByWorkspace(ctx, arg)
-}
-
 // TODO: we need to add a provisioner job resource
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
