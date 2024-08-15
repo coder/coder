@@ -38,8 +38,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ```json
 {
-  "document": "string",
-  "signature": "string"
+	"document": "string",
+	"signature": "string"
 }
 ```
 
@@ -55,7 +55,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ```json
 {
-  "session_token": "string"
+	"session_token": "string"
 }
 ```
 
@@ -85,8 +85,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ```json
 {
-  "encoding": "string",
-  "signature": "string"
+	"encoding": "string",
+	"signature": "string"
 }
 ```
 
@@ -102,7 +102,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ```json
 {
-  "session_token": "string"
+	"session_token": "string"
 }
 ```
 
@@ -132,7 +132,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ```json
 {
-  "json_web_token": "string"
+	"json_web_token": "string"
 }
 ```
 
@@ -148,7 +148,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ```json
 {
-  "session_token": "string"
+	"session_token": "string"
 }
 ```
 
@@ -187,12 +187,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 
 ```json
 {
-  "access_token": "string",
-  "password": "string",
-  "token_extra": {},
-  "type": "string",
-  "url": "string",
-  "username": "string"
+	"access_token": "string",
+	"password": "string",
+	"token_extra": {},
+	"type": "string",
+	"url": "string",
+	"username": "string"
 }
 ```
 
@@ -231,12 +231,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 
 ```json
 {
-  "access_token": "string",
-  "password": "string",
-  "token_extra": {},
-  "type": "string",
-  "url": "string",
-  "username": "string"
+	"access_token": "string",
+	"password": "string",
+	"token_extra": {},
+	"type": "string",
+	"url": "string",
+	"username": "string"
 }
 ```
 
@@ -267,8 +267,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 
 ```json
 {
-  "private_key": "string",
-  "public_key": "string"
+	"private_key": "string",
+	"public_key": "string"
 }
 ```
 
@@ -298,9 +298,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 ```json
 {
-  "display_name": "string",
-  "icon": "string",
-  "id": "string"
+	"display_name": "string",
+	"icon": "string",
+	"id": "string"
 }
 ```
 
@@ -316,11 +316,11 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+	"created_at": "2019-08-24T14:15:22Z",
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
 }
 ```
 
@@ -350,14 +350,14 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 ```json
 {
-  "log_source_id": "string",
-  "logs": [
-    {
-      "created_at": "string",
-      "level": "trace",
-      "output": "string"
-    }
-  ]
+	"log_source_id": "string",
+	"logs": [
+		{
+			"created_at": "string",
+			"level": "trace",
+			"output": "string"
+		}
+	]
 }
 ```
 
@@ -373,14 +373,14 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -417,91 +417,91 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 
 ```json
 {
-  "api_version": "string",
-  "apps": [
-    {
-      "command": "string",
-      "display_name": "string",
-      "external": true,
-      "health": "disabled",
-      "healthcheck": {
-        "interval": 0,
-        "threshold": 0,
-        "url": "string"
-      },
-      "icon": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "sharing_level": "owner",
-      "slug": "string",
-      "subdomain": true,
-      "subdomain_name": "string",
-      "url": "string"
-    }
-  ],
-  "architecture": "string",
-  "connection_timeout_seconds": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "directory": "string",
-  "disconnected_at": "2019-08-24T14:15:22Z",
-  "display_apps": ["vscode"],
-  "environment_variables": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "expanded_directory": "string",
-  "first_connected_at": "2019-08-24T14:15:22Z",
-  "health": {
-    "healthy": false,
-    "reason": "agent has lost connection"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "instance_id": "string",
-  "last_connected_at": "2019-08-24T14:15:22Z",
-  "latency": {
-    "property1": {
-      "latency_ms": 0,
-      "preferred": true
-    },
-    "property2": {
-      "latency_ms": 0,
-      "preferred": true
-    }
-  },
-  "lifecycle_state": "created",
-  "log_sources": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "display_name": "string",
-      "icon": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-    }
-  ],
-  "logs_length": 0,
-  "logs_overflowed": true,
-  "name": "string",
-  "operating_system": "string",
-  "ready_at": "2019-08-24T14:15:22Z",
-  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "scripts": [
-    {
-      "cron": "string",
-      "log_path": "string",
-      "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-      "run_on_start": true,
-      "run_on_stop": true,
-      "script": "string",
-      "start_blocks_login": true,
-      "timeout": 0
-    }
-  ],
-  "started_at": "2019-08-24T14:15:22Z",
-  "startup_script_behavior": "blocking",
-  "status": "connecting",
-  "subsystems": ["envbox"],
-  "troubleshooting_url": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string"
+	"api_version": "string",
+	"apps": [
+		{
+			"command": "string",
+			"display_name": "string",
+			"external": true,
+			"health": "disabled",
+			"healthcheck": {
+				"interval": 0,
+				"threshold": 0,
+				"url": "string"
+			},
+			"icon": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"sharing_level": "owner",
+			"slug": "string",
+			"subdomain": true,
+			"subdomain_name": "string",
+			"url": "string"
+		}
+	],
+	"architecture": "string",
+	"connection_timeout_seconds": 0,
+	"created_at": "2019-08-24T14:15:22Z",
+	"directory": "string",
+	"disconnected_at": "2019-08-24T14:15:22Z",
+	"display_apps": ["vscode"],
+	"environment_variables": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"expanded_directory": "string",
+	"first_connected_at": "2019-08-24T14:15:22Z",
+	"health": {
+		"healthy": false,
+		"reason": "agent has lost connection"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"instance_id": "string",
+	"last_connected_at": "2019-08-24T14:15:22Z",
+	"latency": {
+		"property1": {
+			"latency_ms": 0,
+			"preferred": true
+		},
+		"property2": {
+			"latency_ms": 0,
+			"preferred": true
+		}
+	},
+	"lifecycle_state": "created",
+	"log_sources": [
+		{
+			"created_at": "2019-08-24T14:15:22Z",
+			"display_name": "string",
+			"icon": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+		}
+	],
+	"logs_length": 0,
+	"logs_overflowed": true,
+	"name": "string",
+	"operating_system": "string",
+	"ready_at": "2019-08-24T14:15:22Z",
+	"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+	"scripts": [
+		{
+			"cron": "string",
+			"log_path": "string",
+			"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+			"run_on_start": true,
+			"run_on_stop": true,
+			"script": "string",
+			"start_blocks_login": true,
+			"timeout": 0
+		}
+	],
+	"started_at": "2019-08-24T14:15:22Z",
+	"startup_script_behavior": "blocking",
+	"status": "connecting",
+	"subsystems": ["envbox"],
+	"troubleshooting_url": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"version": "string"
 }
 ```
 
@@ -538,67 +538,67 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ```json
 {
-  "derp_force_websockets": true,
-  "derp_map": {
-    "homeParams": {
-      "regionScore": {
-        "property1": 0,
-        "property2": 0
-      }
-    },
-    "omitDefaultRegions": true,
-    "regions": {
-      "property1": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      },
-      "property2": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      }
-    }
-  },
-  "disable_direct_connections": true
+	"derp_force_websockets": true,
+	"derp_map": {
+		"homeParams": {
+			"regionScore": {
+				"property1": 0,
+				"property2": 0
+			}
+		},
+		"omitDefaultRegions": true,
+		"regions": {
+			"property1": {
+				"avoid": true,
+				"embeddedRelay": true,
+				"nodes": [
+					{
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					}
+				],
+				"regionCode": "string",
+				"regionID": 0,
+				"regionName": "string"
+			},
+			"property2": {
+				"avoid": true,
+				"embeddedRelay": true,
+				"nodes": [
+					{
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					}
+				],
+				"regionCode": "string",
+				"regionID": 0,
+				"regionName": "string"
+			}
+		}
+	},
+	"disable_direct_connections": true
 }
 ```
 
@@ -661,13 +661,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 ```json
 {
-  "ports": [
-    {
-      "network": "string",
-      "port": 0,
-      "process_name": "string"
-    }
-  ]
+	"ports": [
+		{
+			"network": "string",
+			"port": 0,
+			"process_name": "string"
+		}
+	]
 }
 ```
 
@@ -708,13 +708,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
 
 ```json
 [
-  {
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": 0,
-    "level": "trace",
-    "output": "string",
-    "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
-  }
+	{
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": 0,
+		"level": "trace",
+		"output": "string",
+		"source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
+	}
 ]
 ```
 
@@ -804,13 +804,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 ```json
 [
-  {
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": 0,
-    "level": "trace",
-    "output": "string",
-    "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
-  }
+	{
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": 0,
+		"level": "trace",
+		"output": "string",
+		"source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
+	}
 ]
 ```
 
