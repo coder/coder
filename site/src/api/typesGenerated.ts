@@ -630,8 +630,8 @@ export interface Group {
 
 // From codersdk/groups.go
 export interface GroupArguments {
-  readonly Organization: string;
-  readonly HasMember: string;
+  readonly Organization: string
+  readonly HasMember: string
 }
 
 // From codersdk/workspaceapps.go
