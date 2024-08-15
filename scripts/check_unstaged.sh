@@ -5,8 +5,6 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
-cat site/src/api/typesGenerated.ts
-
 FILES="$(git ls-files --other --modified --exclude-standard)"
 if [[ "$FILES" != "" ]]; then
 	mapfile -t files <<<"$FILES"
