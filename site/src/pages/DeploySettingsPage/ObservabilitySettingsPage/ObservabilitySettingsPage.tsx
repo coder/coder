@@ -7,25 +7,25 @@ import { useDeploySettings } from "../DeploySettingsLayout";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
 const ObservabilitySettingsPage: FC = () => {
-  const { deploymentValues } = useDeploySettings();
-  const { entitlements } = useDashboard();
+	const { deploymentValues } = useDeploySettings();
+	const { entitlements } = useDashboard();
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("Observability Settings")}</title>
-      </Helmet>
+	return (
+		<>
+			<Helmet>
+				<title>{pageTitle("Observability Settings")}</title>
+			</Helmet>
 
-      {deploymentValues ? (
-        <ObservabilitySettingsPageView
-          options={deploymentValues.options}
-          featureAuditLogEnabled={entitlements.features.audit_log.enabled}
-        />
-      ) : (
-        <Loader />
-      )}
-    </>
-  );
+			{deploymentValues ? (
+				<ObservabilitySettingsPageView
+					options={deploymentValues.options}
+					featureAuditLogEnabled={entitlements.features.audit_log.enabled}
+				/>
+			) : (
+				<Loader />
+			)}
+		</>
+	);
 };
 
 export default ObservabilitySettingsPage;

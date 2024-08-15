@@ -4,64 +4,64 @@ import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
 
 export interface AvatarDataProps {
-  title: ReactNode;
-  subtitle?: ReactNode;
-  src?: string;
-  avatar?: React.ReactNode;
+	title: ReactNode;
+	subtitle?: ReactNode;
+	src?: string;
+	avatar?: React.ReactNode;
 }
 
 export const AvatarData: FC<AvatarDataProps> = ({
-  title,
-  subtitle,
-  src,
-  avatar,
+	title,
+	subtitle,
+	src,
+	avatar,
 }) => {
-  const theme = useTheme();
+	const theme = useTheme();
 
-  if (!avatar) {
-    avatar = <Avatar src={src}>{title}</Avatar>;
-  }
+	if (!avatar) {
+		avatar = <Avatar src={src}>{title}</Avatar>;
+	}
 
-  return (
-    <Stack
-      spacing={1.5}
-      direction="row"
-      alignItems="center"
-      css={{
-        minHeight: 40, // Make it predictable for the skeleton
-        width: "100%",
-        lineHeight: "150%",
-      }}
-    >
-      {avatar}
+	return (
+		<Stack
+			spacing={1.5}
+			direction="row"
+			alignItems="center"
+			css={{
+				minHeight: 40, // Make it predictable for the skeleton
+				width: "100%",
+				lineHeight: "150%",
+			}}
+		>
+			{avatar}
 
-      <Stack
-        spacing={0}
-        css={{
-          width: "100%",
-        }}
-      >
-        <span
-          css={{
-            color: theme.palette.text.primary,
-            fontWeight: 600,
-          }}
-        >
-          {title}
-        </span>
-        {subtitle && (
-          <span
-            css={{
-              fontSize: 13,
-              color: theme.palette.text.secondary,
-              lineHeight: "150%",
-              maxWidth: 540,
-            }}
-          >
-            {subtitle}
-          </span>
-        )}
-      </Stack>
-    </Stack>
-  );
+			<Stack
+				spacing={0}
+				css={{
+					width: "100%",
+				}}
+			>
+				<span
+					css={{
+						color: theme.palette.text.primary,
+						fontWeight: 600,
+					}}
+				>
+					{title}
+				</span>
+				{subtitle && (
+					<span
+						css={{
+							fontSize: 13,
+							color: theme.palette.text.secondary,
+							lineHeight: "150%",
+							maxWidth: 540,
+						}}
+					>
+						{subtitle}
+					</span>
+				)}
+			</Stack>
+		</Stack>
+	);
 };

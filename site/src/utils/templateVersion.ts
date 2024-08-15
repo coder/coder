@@ -7,34 +7,34 @@ import { TarFileTypeCodes, TarReader } from "./tar";
 export type TemplateVersionFiles = Record<string, string>;
 
 export const getTemplateVersionFiles = async (
-  tarFile: ArrayBuffer,
+	tarFile: ArrayBuffer,
 ): Promise<TemplateVersionFiles> => {
-  const files: TemplateVersionFiles = {};
-  const tarReader = new TarReader();
-  await tarReader.readFile(tarFile);
-  for (const file of tarReader.fileInfo) {
-    if (file.type === TarFileTypeCodes.File) {
-      const content = tarReader.getTextFile(file.name) as string;
-      if (!isBinaryData(content)) {
-        files[file.name] = tarReader.getTextFile(file.name) as string;
-      }
-    }
-  }
-  return files;
+	const files: TemplateVersionFiles = {};
+	const tarReader = new TarReader();
+	await tarReader.readFile(tarFile);
+	for (const file of tarReader.fileInfo) {
+		if (file.type === TarFileTypeCodes.File) {
+			const content = tarReader.getTextFile(file.name) as string;
+			if (!isBinaryData(content)) {
+				files[file.name] = tarReader.getTextFile(file.name) as string;
+			}
+		}
+	}
+	return files;
 };
 
 export const createTemplateVersionFileTree = (
-  tarReader: TarReader,
+	tarReader: TarReader,
 ): FileTree => {
-  let fileTree: FileTree = {};
-  for (const file of tarReader.fileInfo) {
-    fileTree = set(
-      fileTree,
-      file.name.split("/"),
-      file.type === TarFileTypeCodes.Dir
-        ? {}
-        : (tarReader.getTextFile(file.name) as string),
-    );
-  }
-  return fileTree;
+	let fileTree: FileTree = {};
+	for (const file of tarReader.fileInfo) {
+		fileTree = set(
+			fileTree,
+			file.name.split("/"),
+			file.type === TarFileTypeCodes.Dir
+				? {}
+				: (tarReader.getTextFile(file.name) as string),
+		);
+	}
+	return fileTree;
 };

@@ -4,45 +4,45 @@ import { type FC, type ReactNode, cloneElement, isValidElement } from "react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
-  return (
-    <TableRow>
-      <TableCell colSpan={999} css={{ textAlign: "center", height: 160 }}>
-        <Loader />
-      </TableCell>
-    </TableRow>
-  );
+	return (
+		<TableRow>
+			<TableCell colSpan={999} css={{ textAlign: "center", height: 160 }}>
+				<Loader />
+			</TableCell>
+		</TableRow>
+	);
 };
 
 interface TableLoaderSkeletonProps {
-  rows?: number;
-  children?: ReactNode;
+	rows?: number;
+	children?: ReactNode;
 }
 
 export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
-  rows = 4,
-  children,
+	rows = 4,
+	children,
 }) => {
-  if (!isValidElement(children)) {
-    throw new Error(
-      "TableLoaderSkeleton children must be a valid React element",
-    );
-  }
-  return (
-    <>
-      {Array.from({ length: rows }, (_, i) =>
-        cloneElement(children, { key: i }),
-      )}
-    </>
-  );
+	if (!isValidElement(children)) {
+		throw new Error(
+			"TableLoaderSkeleton children must be a valid React element",
+		);
+	}
+	return (
+		<>
+			{Array.from({ length: rows }, (_, i) =>
+				cloneElement(children, { key: i }),
+			)}
+		</>
+	);
 };
 
 export const TableRowSkeleton: FC<TableRowProps> = ({
-  children,
-  ...rowProps
+	children,
+	...rowProps
 }) => {
-  return (
-    <TableRow role="progressbar" data-testid="loader" {...rowProps}>
-      {children}
-    </TableRow>
-  );
+	return (
+		<TableRow role="progressbar" data-testid="loader" {...rowProps}>
+			{children}
+		</TableRow>
+	);
 };

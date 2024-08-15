@@ -7,13 +7,13 @@ import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
 export const Language = {
-  terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
+	terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
 };
 
 export interface TerminalLinkProps {
-  agentName?: TypesGen.WorkspaceAgent["name"];
-  userName?: TypesGen.User["username"];
-  workspaceName: TypesGen.Workspace["name"];
+	agentName?: TypesGen.WorkspaceAgent["name"];
+	userName?: TypesGen.User["username"];
+	workspaceName: TypesGen.Workspace["name"];
 }
 
 /**
@@ -24,33 +24,33 @@ export interface TerminalLinkProps {
  * shareable.
  */
 export const TerminalLink: FC<TerminalLinkProps> = ({
-  agentName,
-  userName = "me",
-  workspaceName,
+	agentName,
+	userName = "me",
+	workspaceName,
 }) => {
-  // Always use the primary for the terminal link. This is a relative link.
-  const href = `/@${userName}/${workspaceName}${
-    agentName ? `.${agentName}` : ""
-  }/terminal`;
+	// Always use the primary for the terminal link. This is a relative link.
+	const href = `/@${userName}/${workspaceName}${
+		agentName ? `.${agentName}` : ""
+	}/terminal`;
 
-  return (
-    <Link
-      underline="none"
-      color="inherit"
-      component={AgentButton}
-      startIcon={<TerminalIcon />}
-      href={href}
-      onClick={(event: MouseEvent<HTMLElement>) => {
-        event.preventDefault();
-        window.open(
-          href,
-          Language.terminalTitle(generateRandomString(12)),
-          "width=900,height=600",
-        );
-      }}
-      data-testid="terminal"
-    >
-      {DisplayAppNameMap.web_terminal}
-    </Link>
-  );
+	return (
+		<Link
+			underline="none"
+			color="inherit"
+			component={AgentButton}
+			startIcon={<TerminalIcon />}
+			href={href}
+			onClick={(event: MouseEvent<HTMLElement>) => {
+				event.preventDefault();
+				window.open(
+					href,
+					Language.terminalTitle(generateRandomString(12)),
+					"width=900,height=600",
+				);
+			}}
+			data-testid="terminal"
+		>
+			{DisplayAppNameMap.web_terminal}
+		</Link>
+	);
 };

@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { test } from "@playwright/test";
 import {
-  createTemplate,
-  createWorkspace,
-  downloadCoderVersion,
-  sshIntoWorkspace,
-  startAgent,
-  stopAgent,
-  stopWorkspace,
+	createTemplate,
+	createWorkspace,
+	downloadCoderVersion,
+	sshIntoWorkspace,
+	startAgent,
+	stopAgent,
+	stopWorkspace,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
@@ -17,46 +17,46 @@ const clientVersion = "v0.27.0";
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test(`ssh with client ${clientVersion}`, async ({ page }) => {
-  const token = randomUUID();
-  const template = await createTemplate(page, {
-    apply: [
-      {
-        apply: {
-          resources: [
-            {
-              agents: [
-                {
-                  token,
-                  order: 0,
-                },
-              ],
-            },
-          ],
-        },
-      },
-    ],
-  });
-  const workspaceName = await createWorkspace(page, template);
-  const agent = await startAgent(page, token);
-  const binaryPath = await downloadCoderVersion(clientVersion);
+	const token = randomUUID();
+	const template = await createTemplate(page, {
+		apply: [
+			{
+				apply: {
+					resources: [
+						{
+							agents: [
+								{
+									token,
+									order: 0,
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+	});
+	const workspaceName = await createWorkspace(page, template);
+	const agent = await startAgent(page, token);
+	const binaryPath = await downloadCoderVersion(clientVersion);
 
-  const client = await sshIntoWorkspace(page, workspaceName, binaryPath);
-  await new Promise<void>((resolve, reject) => {
-    // We just exec a command to be certain the agent is running!
-    client.exec("exit 0", (err, stream) => {
-      if (err) {
-        return reject(err);
-      }
-      stream.on("exit", (code) => {
-        if (code !== 0) {
-          return reject(new Error(`Command exited with code ${code}`));
-        }
-        client.end();
-        resolve();
-      });
-    });
-  });
+	const client = await sshIntoWorkspace(page, workspaceName, binaryPath);
+	await new Promise<void>((resolve, reject) => {
+		// We just exec a command to be certain the agent is running!
+		client.exec("exit 0", (err, stream) => {
+			if (err) {
+				return reject(err);
+			}
+			stream.on("exit", (code) => {
+				if (code !== 0) {
+					return reject(new Error(`Command exited with code ${code}`));
+				}
+				client.end();
+				resolve();
+			});
+		});
+	});
 
-  await stopWorkspace(page, workspaceName);
-  await stopAgent(agent);
+	await stopWorkspace(page, workspaceName);
+	await stopAgent(agent);
 });
