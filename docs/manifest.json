@@ -178,7 +178,7 @@
             {
               "title": "Scaling Utilities",
               "description": "Tools to help you scale your deployment",
-              "path": "./admin/infrastructure/scaling-utility.md"
+              "path": "./admin/infrastructure/scale-utility.md"
             }
           ]
         },
