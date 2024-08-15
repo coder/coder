@@ -1020,25 +1020,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 			return nil, err
 		}
 
-		manualBuild := build.Reason.Valid() && build.Reason == database.BuildReasonInitiator
-		if !manualBuild {
-			s.notifyWorkspaceAutoBuildFailed(ctx, workspace, build)
-		} else {
-			template, err := s.Database.GetTemplateByID(ctx, workspace.TemplateID)
-			if err != nil {
-				return nil, xerrors.Errorf("get template to notify manual build failed: %w", err)
-			}
-
-			owner, err := s.Database.GetUserByID(ctx, workspace.OwnerID)
-			if err != nil {
-				return nil, xerrors.Errorf("get owner to notify manual build failed: %w", err)
-			}
-
-			// Only notify the template creator if the build was initiated by someone else
-			if build.InitiatorID != template.CreatedBy {
-				s.notifyTemplateManualBuildFailed(ctx, workspace, owner, template, build)
-			}
-		}
+		s.notifyWorkspaceBuildFailed(ctx, workspace, build)
 
 		err = s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		if err != nil {
@@ -1113,8 +1095,13 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	return &proto.Empty{}, nil
 }
 
-func (s *server) notifyWorkspaceAutoBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
-	reason := string(build.Reason)
+func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
+	var reason string
+	if build.Reason.Valid() && build.Reason == database.BuildReasonInitiator {
+		return // failed workspace build initiated by a user should not notify
+	}
+	reason = string(build.Reason)
+
 	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceAutobuildFailed,
 		map[string]string{
 			"name":   workspace.Name,
@@ -1123,24 +1110,7 @@ func (s *server) notifyWorkspaceAutoBuildFailed(ctx context.Context, workspace d
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 	); err != nil {
-		s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.F("workspace_id", workspace.ID), slog.Error(err))
-	}
-}
-
-func (s *server) notifyTemplateManualBuildFailed(ctx context.Context, workspace database.Workspace, owner database.User, template database.Template, build database.WorkspaceBuild) {
-	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, template.CreatedBy, notifications.TemplateTemplateManualBuildFailed,
-		map[string]string{
-			"name":              template.Name,
-			"workspaceName":     workspace.Name,
-			"transition":        string(build.Transition),
-			"initiator":         build.InitiatorByUsername,
-			"workspaceUserName": owner.Username,
-			"buildNumber":       strconv.FormatInt(int64(build.BuildNumber), 10),
-		}, "provisionerdserver",
-		// Associate this notification with all the related entities.
-		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID, template.CreatedBy,
-	); err != nil {
-		s.Logger.Warn(ctx, "failed to notify of failed template manual build", slog.F("template_id", template.ID), slog.F("workspace_id", workspace.ID), slog.Error(err))
+		s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
 	}
 }
 
