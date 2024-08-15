@@ -1,0 +1,20 @@
+name: release-validation
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  network-performance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run Schmoder CI
+        uses: benc-uk/workflow-dispatch@v1.2.4
+        with:
+          workflow: ci.yaml
+          repo: coder/schmoder
+          inputs: '{ "num_releases": "3", "commit": "${{ github.sha }}" }'
+          token: ${{ secrets.CDRCI_SCHMODER_ACTIONS_TOKEN }}
+          ref: main
