@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1804,7 +1805,7 @@ func TestNotifications(t *testing.T) {
 		}
 	})
 
-	t.Run("TemplateManualBuildFailed", func(t *testing.T) {
+	t.Run("TemplateBuildFailed", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -1816,38 +1817,55 @@ func TestNotifications(t *testing.T) {
 			srv, db, ps, pd = setup(t, ignoreLogErrors, &overrides{
 				notificationEnqueuer: notifEnq,
 			})
-			userA = dbgen.User(t, db, database.User{})
-			userB = dbgen.User(t, db, database.User{})
+			// Create users with different roles to ensure that notifications are sent
+			// to the appropriate users
+			ownerA   = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleOwner}})
+			ownerB   = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleOwner}})
+			tplAdmin = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
+			_        = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleUserAdmin}})
+			member   = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleMember}})
 		)
 
 		tc := []struct {
-			name         string
-			owner        database.User
-			initiator    database.User
-			shouldNotify bool
+			name           string
+			tplOwner       database.User
+			buildInitiator *database.User
+			reason         database.BuildReason
+			transition     database.WorkspaceTransition
+			receivers      []uuid.UUID
 		}{
 			{
-				name:         "InitiatedByOwner",
-				owner:        userA,
-				initiator:    userA,
-				shouldNotify: false,
+				name:           "ManualBuild",
+				tplOwner:       ownerA,
+				buildInitiator: &ownerB,
+				reason:         database.BuildReasonInitiator,
+				transition:     database.WorkspaceTransitionStart,
+				// Ensure that during manual builds, the initiator does not receive a
+				// notification. In this scenario, ownerB should not receive a
+				// notification.
+				receivers: []uuid.UUID{ownerA.ID, tplAdmin.ID},
 			},
 			{
-				name:         "InitiatedBySomeoneElse",
-				owner:        userB,
-				initiator:    userA,
-				shouldNotify: true,
+				name:           "AutoBuild",
+				tplOwner:       ownerA,
+				buildInitiator: nil,
+				reason:         database.BuildReasonAutostart,
+				transition:     database.WorkspaceTransitionStart,
+				// Ensure that during automated builds, all template admins and owners
+				// receive notifications.
+				receivers: []uuid.UUID{ownerA.ID, ownerB.ID, tplAdmin.ID},
 			},
 		}
 
 		for _, c := range tc {
 			t.Run(c.name, func(t *testing.T) {
-				// Given: a template created by the owner
+				// Given: a template and a workspace build
+				isManualBuild := c.buildInitiator != nil && c.reason == database.BuildReasonInitiator
 				template := dbgen.Template(t, db, database.Template{
 					Name:           "template",
 					Provisioner:    database.ProvisionerTypeEcho,
 					OrganizationID: pd.OrganizationID,
-					CreatedBy:      c.owner.ID,
+					CreatedBy:      c.tplOwner.ID,
 				})
 				template, err := db.GetTemplateByID(ctx, template.ID)
 				require.NoError(t, err)
@@ -1859,21 +1877,23 @@ func TestNotifications(t *testing.T) {
 					},
 					JobID: uuid.New(),
 				})
-
-				// And: a workspace build initiated manually by a user
+				workspaceOwner := member
 				workspace := dbgen.Workspace(t, db, database.Workspace{
 					TemplateID:     template.ID,
-					OwnerID:        c.initiator.ID,
+					OwnerID:        workspaceOwner.ID,
 					OrganizationID: pd.OrganizationID,
 				})
-				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				build := database.WorkspaceBuild{
 					WorkspaceID:       workspace.ID,
 					TemplateVersionID: version.ID,
-					InitiatorID:       c.initiator.ID,
-					Transition:        database.WorkspaceTransitionDelete,
-					Reason:            database.BuildReasonInitiator,
-				})
-				file := dbgen.File(t, db, database.File{CreatedBy: c.initiator.ID})
+					Transition:        c.transition,
+					Reason:            c.reason,
+				}
+				// Set the build initiator if the test case specifies one for manual builds.
+				if isManualBuild {
+					build.InitiatorID = c.buildInitiator.ID
+				}
+				file := dbgen.File(t, db, database.File{CreatedBy: c.buildInitiator.ID})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 					FileID: file.ID,
 					Type:   database.ProvisionerJobTypeWorkspaceBuild,
@@ -1892,7 +1912,7 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// When: the workspace build job fails
+				// When: the build fails
 				_, err = srv.FailJob(ctx, &proto.FailedJob{
 					JobId: job.ID.String(),
 					Type: &proto.FailedJob_WorkspaceBuild_{
@@ -1903,17 +1923,31 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Then: send the appropriate notifications
-				if c.shouldNotify {
-					require.Len(t, notifEnq.Sent, 1)
-					require.Equal(t, notifEnq.Sent[0].UserID, c.owner.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, template.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
-					require.Contains(t, notifEnq.Sent[0].Targets, c.owner.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, c.initiator.ID)
-				} else {
-					require.Len(t, notifEnq.Sent, 0)
+				// Then: send the template build failed notifications
+				var buildFailedNotifications []*testutil.Notification
+				for _, n := range notifEnq.Sent {
+					if n.TemplateID == notifications.TemplateTemplateBuildFailed {
+						buildFailedNotifications = append(buildFailedNotifications, n)
+					}
+				}
+				require.Len(t, buildFailedNotifications, len(c.receivers))
+
+				for _, n := range buildFailedNotifications {
+					require.Contains(t, n.Targets, template.ID)
+					require.Contains(t, n.Targets, workspace.ID)
+					require.Contains(t, n.Targets, workspace.OrganizationID)
+					require.Contains(t, n.Targets, c.tplOwner.ID)
+
+					require.Equal(t, n.Labels["name"], template.Name)
+					require.Equal(t, n.Labels["version"], version.Name)
+					require.Equal(t, n.Labels["workspaceName"], workspace.Name)
+					require.Equal(t, n.Labels["transition"], string(build.Transition))
+					require.Equal(t, n.Labels["reason"], string(build.Reason))
+					require.Equal(t, n.Labels["workspaceOwnerName"], workspaceOwner.Name)
+					require.Equal(t, n.Labels["buildNumber"], strconv.FormatInt(int64(build.BuildNumber), 10))
+					if isManualBuild {
+						require.Equal(t, n.Labels["initiator"], c.buildInitiator.Username)
+					}
 				}
 			})
 		}

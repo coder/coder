@@ -1020,7 +1020,23 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 			return nil, err
 		}
 
-		s.notifyWorkspaceBuildFailed(ctx, workspace, build)
+		// Only notify auto build failures
+		autoBuild := build.Reason.Valid() && build.Reason != database.BuildReasonInitiator
+		if autoBuild {
+			s.notifyWorkspaceBuildFailed(ctx, workspace, build, workspace.OwnerID)
+		}
+
+		// Notify template admins including owners
+		admins, err := findTemplateAdmins(ctx, s.Database)
+		if err != nil {
+			s.Logger.Warn(ctx, "failed to find template admins for template build failed notification", slog.Error(err))
+		} else {
+			for _, admin := range admins {
+				if admin.ID != build.InitiatorID {
+					s.notifyTemplateBuildFailed(ctx, workspace, build, admin.ID)
+				}
+			}
+		}
 
 		err = s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), []byte{})
 		if err != nil {
@@ -1095,22 +1111,59 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	return &proto.Empty{}, nil
 }
 
-func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
-	var reason string
-	if build.Reason.Valid() && build.Reason == database.BuildReasonInitiator {
-		return // failed workspace build initiated by a user should not notify
-	}
-	reason = string(build.Reason)
-
-	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceAutobuildFailed,
+func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild, receiverID uuid.UUID) {
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateWorkspaceAutobuildFailed,
 		map[string]string{
 			"name":   workspace.Name,
-			"reason": reason,
+			"reason": string(build.Reason),
 		}, "provisionerdserver",
 		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 	); err != nil {
 		s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
+	}
+}
+
+func (s *server) notifyTemplateBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild, receiverID uuid.UUID) {
+	template, err := s.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		s.Logger.Warn(ctx, "failed to get template", slog.Error(err))
+		return
+	}
+
+	owner, err := s.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		s.Logger.Warn(ctx, "failed to get workspace owner", slog.Error(err))
+		return
+	}
+
+	version, err := s.Database.GetTemplateVersionByID(ctx, build.TemplateVersionID)
+	if err != nil {
+		s.Logger.Warn(ctx, "failed to get template version", slog.Error(err))
+		return
+	}
+
+	// We only need to know the reason when it is not initiated by the user.
+	var reason string
+	if build.Reason != database.BuildReasonInitiator {
+		reason = string(build.Reason)
+	}
+
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateBuildFailed,
+		map[string]string{
+			"name":               template.Name,
+			"version":            version.Name,
+			"workspaceName":      workspace.Name,
+			"transition":         string(build.Transition),
+			"reason":             reason,
+			"initiator":          build.InitiatorByUsername,
+			"workspaceOwnerName": owner.Username,
+			"buildNumber":        strconv.FormatInt(int64(build.BuildNumber), 10),
+		}, "provisionerdserver",
+		// Associate this notification with all the related entities.
+		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID, template.CreatedBy,
+	); err != nil {
+		s.Logger.Warn(ctx, "failed to notify of failed template manual build", slog.F("template_id", template.ID), slog.F("workspace_id", workspace.ID), slog.Error(err))
 	}
 }
 
@@ -2099,4 +2152,21 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 		dapps = append(dapps, database.DisplayAppWebTerminal)
 	}
 	return dapps
+}
+
+// findTemplateAdmins fetches all users with template admin permission including owners.
+func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
+	owners, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get owners: %w", err)
+	}
+	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get template admins: %w", err)
+	}
+	return append(owners, templateAdmins...), nil
 }
