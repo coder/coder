@@ -3,16 +3,14 @@ import type { BrowserContext, Page } from "@playwright/test";
 import { coderPort, gitAuth } from "./constants";
 
 export const beforeCoderTest = async (page: Page) => {
-	// eslint-disable-next-line no-console -- Show everything that was printed with console.log()
-	page.on("console", (msg) => console.log(`[onConsole] ${msg.text()}`));
+	page.on("console", (msg) => console.info(`[onConsole] ${msg.text()}`));
 
 	page.on("request", (request) => {
 		if (!isApiCall(request.url())) {
 			return;
 		}
 
-		// eslint-disable-next-line no-console -- Log HTTP requests for debugging purposes
-		console.log(
+		console.info(
 			`[onRequest] method=${request.method()} url=${request.url()} postData=${
 				request.postData() ? request.postData() : ""
 			}`,
@@ -40,8 +38,7 @@ export const beforeCoderTest = async (page: Page) => {
 			responseText = "not_available";
 		}
 
-		// eslint-disable-next-line no-console -- Log HTTP requests for debugging purposes
-		console.log(
+		console.info(
 			`[onResponse] url=${response.url()} status=${response.status()} body=${responseText}`,
 		);
 	});
