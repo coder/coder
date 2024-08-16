@@ -181,7 +181,7 @@ require (
 	golang.org/x/text v0.16.0
 	golang.org/x/tools v0.23.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
-	google.golang.org/api v0.190.0
+	google.golang.org/api v0.192.0
 	google.golang.org/grpc v1.65.0
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/DataDog/dd-trace-go.v1 v1.66.0
@@ -205,7 +205,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/auth v0.7.3 // indirect
+	cloud.google.com/go/auth v0.8.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.3 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.2.1 // indirect
@@ -409,7 +409,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.28.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13 // indirect
-	golang.org/x/time v0.5.0 // indirect
+	golang.org/x/time v0.6.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230429144221-925a1e7659e6 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
