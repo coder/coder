@@ -190,8 +190,8 @@ importers:
         specifier: 7.6.2
         version: 7.6.2
       tzdata:
-        specifier: 1.0.30
-        version: 1.0.30
+        specifier: 1.0.40
+        version: 1.0.40
       ua-parser-js:
         specifier: 1.0.33
         version: 1.0.33
@@ -6709,8 +6709,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  tzdata@1.0.30:
-    resolution: {integrity: sha512-/0yogZsIRUVhGIEGZahL+Nnl9gpMD6jtQ9MlVtPVofFwhaqa+cFTgRy1desTAKqdmIJjS6CL+i6F/mnetrLaxw==}
+  tzdata@1.0.40:
+    resolution: {integrity: sha512-IsWNGfC5GrVPG4ejYJtf3tOlBdJYs0uNzv1a+vkdANHDq2kPg4oAN2UlCfpqrCwErPZVhI6MLA2gkeuXAVnpLg==}
 
   ua-parser-js@1.0.33:
     resolution: {integrity: sha512-RqshF7TPTE0XLYAqmjlu5cLLuGdKrNu9O1KLA/qp39QtbZwuzwv1dT46DZSopoUMsYgXpB3Cv8a03FI8b74oFQ==}
@@ -14737,7 +14737,7 @@ snapshots:
 
   typescript@5.5.4: {}
 
-  tzdata@1.0.30: {}
+  tzdata@1.0.40: {}
 
   ua-parser-js@1.0.33: {}
 
