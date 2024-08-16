@@ -87,8 +87,7 @@ export interface AuditLog {
 	readonly id: string;
 	readonly request_id: string;
 	readonly time: string;
-	// external type "net/netip.Addr", using "unknown"
-	readonly ip: unknown;
+	readonly ip: string;
 	readonly user_agent: string;
 	readonly resource_type: ResourceType;
 	readonly resource_id: string;
@@ -2210,8 +2209,8 @@ export interface BaseReport {
 export interface DERPHealthReport extends BaseReport {
 	readonly healthy: boolean;
 	readonly regions: Record<number, DERPRegionReport>;
-	// external type "tailscale.com/net/netcheck.Report", using "unknown"
-	readonly netcheck?: unknown;
+	// TODO: narrow this type
+	readonly netcheck?: any;
 	readonly netcheck_err?: string;
 	readonly netcheck_logs: Readonly<Array<string>>;
 }
@@ -2222,10 +2221,10 @@ export interface DERPNodeReport {
 	readonly severity: HealthSeverity;
 	readonly warnings: Readonly<Array<HealthMessage>>;
 	readonly error?: string;
-	// external type "tailscale.com/tailcfg.DERPNode", using "unknown"
-	readonly node?: unknown;
-	// external type "tailscale.com/derp.ServerInfoMessage", using "unknown"
-	readonly node_info: unknown;
+	// TODO: narrow this type
+	readonly node?: any;
+	// TODO: narrow this type
+	readonly node_info: any;
 	readonly can_exchange_messages: boolean;
 	readonly round_trip_ping: string;
 	readonly round_trip_ping_ms: number;
@@ -2241,8 +2240,8 @@ export interface DERPRegionReport {
 	readonly severity: HealthSeverity;
 	readonly warnings: Readonly<Array<HealthMessage>>;
 	readonly error?: string;
-	// external type "tailscale.com/tailcfg.DERPRegion", using "unknown"
-	readonly region?: unknown;
+	// TODO: narrow this type
+	readonly region?: any;
 	readonly node_reports: Readonly<Array<DERPNodeReport>>;
 }
 
@@ -2353,8 +2352,8 @@ export interface SerpentOption {
 	readonly env?: string;
 	readonly yaml?: string;
 	readonly default?: string;
-	// interface type, falling back to unknown
-	readonly value?: unknown;
+	// TODO: narrow this type
+	readonly value?: any;
 	readonly annotations?: SerpentAnnotations;
 	readonly group?: SerpentGroup;
 	readonly use_instead?: Readonly<Array<SerpentOption>>;

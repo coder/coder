@@ -849,6 +849,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "boolean"}, nil
 		case "github.com/coder/serpent.Duration":
 			return TypescriptType{ValueType: "number"}, nil
+		case "net/netip.Addr":
+			return TypescriptType{ValueType: "string"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		case "time.Time":
@@ -880,6 +882,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "HealthSection"}, nil
 		case "github.com/coder/coder/v2/codersdk.ProvisionerDaemon":
 			return TypescriptType{ValueType: "ProvisionerDaemon"}, nil
+
+		// Some very unfortunate `any` types that leaked into the frontend.
+		case "tailscale.com/tailcfg.DERPNode",
+			"tailscale.com/derp.ServerInfoMessage",
+			"tailscale.com/tailcfg.DERPRegion",
+			"tailscale.com/net/netcheck.Report",
+			"github.com/spf13/pflag.Value":
+			return TypescriptType{AboveTypeLine: indentedComment("TODO: narrow this type"), ValueType: "any"}, nil
 		}
 
 		// Some hard codes are a bit trickier.
