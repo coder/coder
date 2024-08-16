@@ -2,7 +2,7 @@
 indent_style = space
 indent_size = 2
 
-[*.go]
+[*.{go,tsx,ts}]
 indent_style = tab
 indent_size = unset
 
