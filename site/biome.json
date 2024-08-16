@@ -16,6 +16,7 @@
 			},
 			"suspicious": {
 				"noArrayIndexKey": { "level": "off" },
+				"noConsoleLog": { "level": "error" },
 				"noThenProperty": { "level": "off" }
 			},
 			"nursery": {
