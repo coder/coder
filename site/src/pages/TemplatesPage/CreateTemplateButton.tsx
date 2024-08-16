@@ -3,13 +3,13 @@ import Inventory2 from "@mui/icons-material/Inventory2";
 import NoteAddOutlined from "@mui/icons-material/NoteAddOutlined";
 import UploadOutlined from "@mui/icons-material/UploadOutlined";
 import Button from "@mui/material/Button";
-import type { FC } from "react";
 import {
 	MoreMenu,
 	MoreMenuContent,
 	MoreMenuItem,
 	MoreMenuTrigger,
 } from "components/MoreMenu/MoreMenu";
+import type { FC } from "react";
 
 type CreateTemplateButtonProps = {
 	onNavigate: (path: string) => void;
