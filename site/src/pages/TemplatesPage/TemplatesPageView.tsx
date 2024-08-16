@@ -197,7 +197,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	const isEmpty = templates && templates.length === 0;
 	const navigate = useNavigate();
 	const multiOrgExperimentEnabled = experiments.includes("multi-organization");
-	console.log("multiOrgExperimentEnabled", multiOrgExperimentEnabled);
+
 	const createTemplateAction = () => {
 		return multiOrgExperimentEnabled ? (
 			<Button
