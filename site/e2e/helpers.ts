@@ -386,14 +386,12 @@ export const startAgentWithCommand = async (
 		},
 	});
 	cp.stdout.on("data", (data: Buffer) => {
-		// eslint-disable-next-line no-console -- Log agent activity
-		console.log(
+		console.info(
 			`[agent] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
 		);
 	});
 	cp.stderr.on("data", (data: Buffer) => {
-		// eslint-disable-next-line no-console -- Log agent activity
-		console.log(
+		console.info(
 			`[agent] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
 		);
 	});

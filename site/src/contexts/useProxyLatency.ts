@@ -162,8 +162,8 @@ export const useProxyLatency = (
 			} else {
 				// This is the total duration of the request and will be off by a good margin.
 				// This is a fallback if the better timing is not available.
-				// eslint-disable-next-line no-console -- We can remove this when we display the "accurate" bool on the UI
-				console.log(
+				// We can remove this when we display the "accurate" bool on the UI
+				console.warn(
 					`Using fallback latency calculation for "${entry.name}". Latency will be incorrect and larger then actual.`,
 				);
 				latencyMS = entry.duration;
