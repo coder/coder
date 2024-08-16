@@ -11,9 +11,8 @@ terraform {
 }
 
 locals {
-  // These are cluster service addresses mapped to Tailscale nodes.
-  // Ask #dogfood-admins for help.
-  // NOTE: keep these up to date with those in ../dogfood/main.tf!
+  // These are cluster service addresses mapped to Tailscale nodes. Ask Dean or
+  // Kyle for help.
   docker_host = {
     ""              = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
     "us-pittsburgh" = "tcp://dogfood-ts-cdr-dev.tailscale.svc.cluster.local:2375"
@@ -23,26 +22,34 @@ locals {
     "za-jnb"        = "tcp://greenhill-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  envbuilder_repo = "ghcr.io/coder/envbuilder-preview"
-  container_name  = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  // Envbuilder clones repos to /workspaces by default.
-  repo_dir = "/workspaces/coder"
+  repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
+  repo_dir       = replace(module.git-clone.repo_dir, "/^~\\//", "/home/coder/")
+  container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
-data "coder_parameter" "devcontainer_repo" {
+data "coder_parameter" "repo_base_dir" {
   type        = "string"
-  name        = "Devcontainer Repository"
-  default     = "https://github.com/coder/coder"
-  description = "Repo containing a devcontainer.json. This is only cloned once."
-  mutable     = false
-}
-
-data "coder_parameter" "devcontainer_dir" {
-  type        = "string"
-  name        = "Devcontainer Directory"
-  default     = "dogfood/contents/"
-  description = "Directory containing a devcontainer.json relative to the repository root"
+  name        = "Coder Repository Base Directory"
+  default     = "~"
+  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
   mutable     = true
+}
+
+data "coder_parameter" "image_type" {
+  type        = "string"
+  name        = "Coder Image"
+  default     = "codercom/oss-dogfood:latest"
+  description = "The Docker image used to run your workspace. Choose between nix and non-nix images."
+  option {
+    icon  = "/icon/coder.svg"
+    name  = "Dogfood (Default)"
+    value = "codercom/oss-dogfood:latest"
+  }
+  option {
+    icon  = "/icon/nix.svg"
+    name  = "Dogfood Nix (Experimental)"
+    value = "codercom/oss-dogfood-nix:latest"
+  }
 }
 
 data "coder_parameter" "region" {
@@ -101,6 +108,14 @@ module "dotfiles" {
   source   = "registry.coder.com/modules/dotfiles/coder"
   version  = "1.0.15"
   agent_id = coder_agent.dev.id
+}
+
+module "git-clone" {
+  source   = "registry.coder.com/modules/git-clone/coder"
+  version  = "1.0.12"
+  agent_id = coder_agent.dev.id
+  url      = "https://github.com/coder/coder"
+  base_dir = local.repo_base_dir
 }
 
 module "personalize" {
@@ -240,22 +255,8 @@ resource "coder_agent" "dev" {
     # Allow synchronization between scripts.
     trap 'touch /tmp/.coder-startup-script.done' EXIT
 
-    # BUG: Kaniko does not symlink /run => /var/run properly, resulting in
-    # /var/run/ owned by root:root
-    # WORKAROUND: symlink it manually
-    sudo ln -s /run /var/run
     # Start Docker service
     sudo service docker start
-
-    # Chown /var/run/docker.sock as even though we are a member of the Docker group
-    # it did not exist at the start of the workspace. This can be worked around with
-    # `newgrp docker` but this is annoying to have to do manually.
-    for attempt in $(seq 1 10); do
-      if sudo docker info > /dev/null; then break; fi
-      sleep 1
-    done
-    sudo chmod a+rw /var/run/docker.sock
-
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
     # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone might not exist yet.
@@ -293,75 +294,35 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-resource "docker_volume" "workspaces" {
-  name = "coder-${data.coder_workspace.me.id}"
-  # Protect the volume from being deleted due to changes in attributes.
-  lifecycle {
-    ignore_changes = all
-  }
-  # Add labels in Docker to keep track of orphan resources.
-  labels {
-    label = "coder.owner"
-    value = data.coder_workspace_owner.me.name
-  }
-  labels {
-    label = "coder.owner_id"
-    value = data.coder_workspace_owner.me.id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = data.coder_workspace.me.id
-  }
-  # This field becomes outdated if the workspace is renamed but can
-  # be useful for debugging or cleaning out dangling volumes.
-  labels {
-    label = "coder.workspace_name_at_creation"
-    value = data.coder_workspace.me.name
-  }
+data "docker_registry_image" "dogfood" {
+  name = data.coder_parameter.image_type.value
 }
 
-# This file is mounted as a Kubernetes secret on provisioner pods.
-# It contains the required credentials for the envbuilder cache repo.
-data "local_sensitive_file" "envbuilder_cache_dockerconfigjson" {
-  filename = "/home/coder/envbuilder-cache-dockerconfig.json"
-}
-
-data "docker_registry_image" "envbuilder" {
-  name = "${local.envbuilder_repo}:latest"
-}
-
-resource "docker_image" "envbuilder" {
-  name          = "${local.envbuilder_repo}@${data.docker_registry_image.envbuilder.sha256_digest}"
-  pull_triggers = [data.docker_registry_image.envbuilder.sha256_digest]
-  keep_locally  = true
+resource "docker_image" "dogfood" {
+  name = "${data.coder_parameter.image_type.value}@${data.docker_registry_image.dogfood.sha256_digest}"
+  pull_triggers = [
+    data.docker_registry_image.dogfood.sha256_digest,
+    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
+    filesha1("Dockerfile"),
+    filesha1("Dockerfile.nix"),
+  ]
+  keep_locally = true
 }
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = docker_image.envbuilder.name
+  image = docker_image.dogfood.name
   name  = local.container_name
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
+  # Use the docker gateway if the access URL is 127.0.0.1
+  entrypoint = ["sh", "-c", coder_agent.dev.init_script]
   # CPU limits are unnecessary since Docker will load balance automatically
-  memory  = 32768
+  memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
-    "CODER_AGENT_URL=${data.coder_workspace.me.access_url}",
-    "ENVBUILDER_GIT_USERNAME=${data.coder_external_auth.github.access_token}",
-    "ENVBUILDER_GIT_URL=${data.coder_parameter.devcontainer_repo.value}",
-    "ENVBUILDER_DEVCONTAINER_DIR=${data.coder_parameter.devcontainer_dir.value}",
-    "ENVBUILDER_INIT_SCRIPT=${coder_agent.dev.init_script}",
-    "ENVBUILDER_FALLBACK_IMAGE=codercom/oss-dogfood:latest", # This image runs if builds fail
-    # "ENVBUILDER_PUSH_IMAGE=1", # Push the image to the remote cache
-    "ENVBUILDER_CACHE_REPO=us-central1-docker.pkg.dev/coder-dogfood-v2/envbuilder-cache/coder-dogfood",
-    "ENVBUILDER_DOCKER_CONFIG_BASE64=${data.local_sensitive_file.envbuilder_cache_dockerconfigjson.content_base64}",
     "USE_CAP_NET_ADMIN=true",
-    # Set git commit details correctly
-    "GIT_AUTHOR_NAME=${coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)}",
-    "GIT_AUTHOR_EMAIL=${data.coder_workspace_owner.me.email}",
-    "GIT_COMMITTER_NAME=${coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)}",
-    "GIT_COMMITTER_EMAIL=${data.coder_workspace_owner.me.email}",
   ]
   host {
     host = "host.docker.internal"
@@ -370,11 +331,6 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
-    read_only      = false
-  }
-  volumes {
-    container_path = local.repo_dir
-    volume_name    = docker_volume.workspaces.name
     read_only      = false
   }
   capabilities {
