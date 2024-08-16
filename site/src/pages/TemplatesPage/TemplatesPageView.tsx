@@ -37,6 +37,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -46,6 +47,7 @@ import {
 	formatTemplateActiveDevelopers,
 	formatTemplateBuildTime,
 } from "utils/templates";
+import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
 
@@ -190,27 +192,31 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	examples,
 	templates,
 }) => {
+	const { experiments } = useDashboard();
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
 	const navigate = useNavigate();
+	const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+	console.log("multiOrgExperimentEnabled", multiOrgExperimentEnabled);
+	const createTemplateAction = () => {
+		return multiOrgExperimentEnabled ? (
+			<Button
+				startIcon={<AddIcon />}
+				variant="contained"
+				onClick={() => {
+					navigate("/starter-templates");
+				}}
+			>
+				Create Template
+			</Button>
+		) : (
+			<CreateTemplateButton onNavigate={navigate} />
+		);
+	};
 
 	return (
 		<Margins>
-			<PageHeader
-				actions={
-					canCreateTemplates && (
-						<Button
-							startIcon={<AddIcon />}
-							variant="contained"
-							onClick={() => {
-								navigate("/starter-templates");
-							}}
-						>
-							Create Template
-						</Button>
-					)
-				}
-			>
+			<PageHeader actions={canCreateTemplates && createTemplateAction()}>
 				<PageHeaderTitle>
 					<Stack spacing={1} direction="row" alignItems="center">
 						Templates
@@ -237,7 +243,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 								</TableCell>
 								<TableCell width="10%">{Language.buildTimeLabel}</TableCell>
 								<TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-								<TableCell width="1%"></TableCell>
+								<TableCell width="1%" />
 							</TableRow>
 						</TableHead>
 						<TableBody>
