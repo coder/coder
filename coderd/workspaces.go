@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	duration "github.com/coder/coder/v2/coderd/util/time"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -1062,7 +1063,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				map[string]string{
 					"name":           workspace.Name,
 					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
+					"timeTilDormant": duration.Humanize(time.Duration(tmpl.TimeTilDormant)),
 				},
 				"api",
 				workspace.ID,

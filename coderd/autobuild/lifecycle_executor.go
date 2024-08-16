@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
+	duration "github.com/coder/coder/v2/coderd/util/time"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 )
 
@@ -330,7 +331,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
+							"timeTilDormant": duration.Humanize(time.Duration(tmpl.TimeTilDormant)),
 						},
 						"lifecycle_executor",
 						ws.ID,

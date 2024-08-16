@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
+	duration "github.com/coder/coder/v2/coderd/util/time"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -212,7 +213,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			map[string]string{
 				"name":           ws.Name,
 				"reason":         "an update to the template's dormancy",
-				"timeTilDormant": opts.TimeTilDormantAutoDelete.String(),
+				"timeTilDormant": duration.Humanize(opts.TimeTilDormantAutoDelete),
 			},
 			"scheduletemplate",
 			// Associate this notification with all the related entities.
