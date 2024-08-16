@@ -1,8 +1,10 @@
 # Using Organizations (Alpha)
 
 > Note: Organizations is still under active development and requires a
-> non-standard enterprise license to use. For more details,
-> [contact your account team](https://coder.com/contact).
+> non-standard enterprise license to use. Do not use organizations on your
+> production instance!
+>
+> For more details, [contact your account team](https://coder.com/contact).
 
 Organizations allow you to run a Coder deployment with multiple platform teams,
 all with uniquely scoped templates, provisioners, users, groups, and workspaces.
@@ -14,14 +16,31 @@ all with uniquely scoped templates, provisioners, users, groups, and workspaces.
 - User with `Owner` role
 - Coder CLI installed on local machine
 
-## Enable the experiment
+## Switch to the preview image and enable the experiment
 
-Organizations is still under an
-[experimental flag](../cli/server.md#--experiments). To enable it, set the
-following environment variable for the Coder server:
+To try the latest organizations features, switch to a preview image in your Helm
+chart and enable the [experimental flag](../cli/server.md#--experiments).
+
+For example, with Kubernetes, set the following in your `values.yaml`:
+
+```yaml
+coderd:
+  image:
+    repo: ghcr.io/coder/coder-preview
+    tag: orgs-preview-aug-16
+  env:
+    - name: CODER_EXPERIMENTS
+      value: multi-organization
+```
+
+> See all
+> [preview images](https://github.com/coder/coder/pkgs/container/coder-preview)
+> in GitHub. Preview images prefixed with `main-` expire after a week.
+
+Then, upgrade your deployment:
 
 ```sh
-CODER_EXPERIMENTS=multi-organization
+helm upgrade coder coder-v2/coder -f values.yaml
 ```
 
 ## The default organization
@@ -31,11 +50,11 @@ All Coder deployments start with one organization called `Default`.
 To edit the organization details, navigate to `Deployment -> Organizations` in
 the top bar:
 
-![](../images/guides/using-organizations/deployment-organizations.png)
+![Organizations Menu](../images/guides/using-organizations/deployment-organizations.png)
 
 From there, you can manage the name, icon, description, users, and groups:
 
-![](../images/guides/using-organizations/default-organization.png)
+![Organization Settings](../images/guides/using-organizations/default-organization.png)
 
 ## Guide: Your first organization
 
@@ -71,21 +90,24 @@ additional platforms (e.g. Kubernetes). In this example, we'll start it directly
 with the Coder CLI on a host with Docker:
 
 ```sh
-coder provisionerd start --org <org-id> --key=<key>
+export CODER_URL=https://<your-coder-url>
+export CODER_PROVISIONER_DAEMON_KEY=<key>
+coder provisionerd start --org <org-name>
 ```
-
-> To get the organization ID, run `coder orgs show me` using the Coder CLI.
 
 ### 3. Create a template
 
-WIP!
+Once you've started a provisioner, you can create a template. You'll notice the
+"Create Template" screen now has an organization dropdown:
+
+![Template Org Picker](../images/guides/using-organizations/template-org-picker.png)
 
 ### 4. Create a workspace
 
-Navigate back to the `Templates` page. Templates are now separated by
-Organization in the sidebar:
+Now, users in the data platform organization will see the templates related to
+their organization. Users can be in multiple organizations.
 
-WIP
+![Workspace List](../images/guides/using-organizations/workspace-list.png)
 
 ### 4. Add members
 
@@ -99,6 +121,12 @@ Once added, they will be able to see the organization-specific templates.
 Organizations is under active development. The following features are planned
 before organizations are generally available:
 
+- [ ] Per-Organization Quotas
 - [ ] Sync OIDC claims to auto-assign users to organizations / roles + SCIM
       support
-- [ ] View provisioner health and create provisioner keys via the Coder UI
+- [ ] View provisioner health via the Coder UI
+
+## Support & Feedback
+
+[Contact your account team](https://coder.com/contact) if you have any questions
+or feedback.
