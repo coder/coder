@@ -42,11 +42,9 @@ export const StartingUnknown: Story = {
 		transitionStats: {
 			// HACK: the codersdk type generator doesn't support null values, but this
 			// can be null when the template is new.
-			// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Read comment above
-			// @ts-ignore-error
+			// @ts-expect-error
 			P50: null,
-			// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Read comment above
-			// @ts-ignore-error
+			// @ts-expect-error
 			P95: null,
 		},
 	},

@@ -1,6 +1,5 @@
 import * as fs from "node:fs/promises";
 import type { Writable } from "node:stream";
-/* eslint-disable no-console -- Logging is sort of the whole point here */
 import type {
 	FullConfig,
 	FullResult,
@@ -170,5 +169,4 @@ const reportError = (error: TestError) => {
 	}
 };
 
-// eslint-disable-next-line no-unused-vars -- Playwright config uses it
 export default CoderReporter;
