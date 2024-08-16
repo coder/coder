@@ -345,12 +345,12 @@ locals {
     "CODER_AGENT_TOKEN" : coder_agent.dev.token,
     "CODER_AGENT_URL" : data.coder_workspace.me.access_url,
     "ENVBUILDER_GIT_USERNAME" : data.coder_external_auth.github.access_token,
-    "ENVBUILDER_GIT_URL" : data.coder_parameter.devcontainer_repo.value,
+    # "ENVBUILDER_GIT_URL" : data.coder_parameter.devcontainer_repo.value, # This is set automatically by the provider.
     "ENVBUILDER_DEVCONTAINER_DIR" : data.coder_parameter.devcontainer_dir.value,
     "ENVBUILDER_INIT_SCRIPT" : coder_agent.dev.init_script,
     "ENVBUILDER_FALLBACK_IMAGE" : "codercom/oss-dogfood:latest", # This image runs if builds fail
     "ENVBUILDER_PUSH_IMAGE" : "true",                            # Push the image to the remote cache
-    "ENVBUILDER_CACHE_REPO" : local.cache_repo,
+    # "ENVBUILDER_CACHE_REPO" : local.cache_repo, # This is set automatically by the provider.
     "ENVBUILDER_DOCKER_CONFIG_BASE64" : data.local_sensitive_file.envbuilder_cache_dockerconfigjson.content_base64,
     "USE_CAP_NET_ADMIN" : "true",
     # Set git commit details correctly
