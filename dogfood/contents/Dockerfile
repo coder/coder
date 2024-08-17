@@ -73,7 +73,7 @@ RUN mkdir --parents "$GOPATH" && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
 	go install go.uber.org/mock/mockgen@v0.4.0
 
-FROM gcr.io/coder-dev-1/alpine:3.20 as proto
+FROM alpine:3.20 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
 RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-linux-x86_64.zip
