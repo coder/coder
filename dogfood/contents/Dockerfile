@@ -38,7 +38,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# migrate for migration support for v2
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.1 && \
 	# goreleaser for compiling v2 binaries
-	go install github.com/goreleaser/goreleaser@v2.2.0 && \
+	go install github.com/goreleaser/goreleaser/v2@v2.2.0 && \
 	# Install the latest version of gopls for editors that support
 	# the language server protocol
 	go install golang.org/x/tools/gopls@latest && \
@@ -55,7 +55,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# sqlc for Go code generation
 	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.25.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
-	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.12.0 && \
+	go install github.com/GoogleCloudPlatform/gcr-cleaner/cmd/gcr-cleaner-cli@v0.12.0 && \
 	# ruleguard for checking custom rules, without needing to run all of
 	# golangci-lint. Check the go.mod in the release of golangci-lint that
 	# we're using for the version of go-critic that it embeds, then check
