@@ -24,6 +24,7 @@ export const withDashboardProvider = (
 
 	const entitlements: Entitlements = {
 		...MockEntitlements,
+		has_license: features.length > 0,
 		features: withDefaultFeatures(
 			Object.fromEntries(
 				features.map((feature) => [
