@@ -26,59 +26,57 @@ RUN mkdir --parents "$GOPATH" && \
 	# moq for Go tests.
 	go install github.com/matryer/moq@v0.2.3 && \
 	# swag for Swagger doc generation
-	go install github.com/swaggo/swag/cmd/swag@v1.7.4 && \
+	go install github.com/swaggo/swag/cmd/swag@v1.16.3 && \
 	# go-swagger tool to generate the go coder api client
-	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0 && \
+	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.31.0 && \
 	# goimports for updating imports
-	go install golang.org/x/tools/cmd/goimports@v0.1.7 && \
+	go install golang.org/x/tools/cmd/goimports@v0.24.0 && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
 	# drpc support for v2
-	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
 	# migrate for migration support for v2
-	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
+	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.1 && \
 	# goreleaser for compiling v2 binaries
-	go install github.com/goreleaser/goreleaser@v1.6.1 && \
+	go install github.com/goreleaser/goreleaser@v2.2.0 && \
 	# Install the latest version of gopls for editors that support
 	# the language server protocol
 	go install golang.org/x/tools/gopls@latest && \
 	# gotestsum makes test output more readable
-	go install gotest.tools/gotestsum@v1.9.0 && \
+	go install gotest.tools/gotestsum@v1.12.0 && \
 	# goveralls collects code coverage metrics from tests
 	# and sends to Coveralls
-	go install github.com/mattn/goveralls@v0.0.11 && \
+	go install github.com/mattn/goveralls@v0.0.12 && \
 	# kind for running Kubernetes-in-Docker, needed for tests
-	go install sigs.k8s.io/kind@v0.10.0 && \
+	go install sigs.k8s.io/kind@v0.24.0 && \
 	# helm-docs generates our Helm README based on a template and the
 	# charts and values files
-	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
+	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2 && \
 	# sqlc for Go code generation
 	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.25.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
-	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
+	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.12.0 && \
 	# ruleguard for checking custom rules, without needing to run all of
 	# golangci-lint. Check the go.mod in the release of golangci-lint that
 	# we're using for the version of go-critic that it embeds, then check
 	# the version of ruleguard in go-critic for that tag.
-	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
+	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.4.2 && \
 	# go-fuzz for fuzzy testing. they don't publish releases so we rely on latest.
 	go install github.com/dvyukov/go-fuzz/go-fuzz@latest && \
 	go install github.com/dvyukov/go-fuzz/go-fuzz-build@latest && \
-	# go-releaser for building 'fat binaries' that work cross-platform
-	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@latest && \
 	# nfpm is used with `make build` to make release packages
-	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
+	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.39.0 && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
-	go install github.com/mikefarah/yq/v4@v4.30.6 && \
+	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
 	go install go.uber.org/mock/mockgen@v0.4.0
 
-FROM gcr.io/coder-dev-1/alpine:3.18 as proto
+FROM gcr.io/coder-dev-1/alpine:3.20 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
-RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-linux-x86_64.zip
 RUN unzip protoc.zip
 
 FROM ubuntu:jammy
@@ -235,17 +233,17 @@ RUN systemctl enable \
 
 # Install tools with published releases, where that is the
 # preferred/recommended installation method.
-ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
-	DIVE_VERSION=0.10.0 \
-	DOCKER_GCR_VERSION=2.1.8 \
+ARG CLOUD_SQL_PROXY_VERSION=2.13.0 \
+	DIVE_VERSION=0.12.0 \
+	DOCKER_GCR_VERSION=2.1.23 \
 	GOLANGCI_LINT_VERSION=1.55.2 \
-	GRYPE_VERSION=0.61.1 \
-	HELM_VERSION=3.12.0 \
-	KUBE_LINTER_VERSION=0.6.3 \
-	KUBECTX_VERSION=0.9.4 \
-	STRIPE_VERSION=1.14.5 \
-	TERRAGRUNT_VERSION=0.45.11 \
-	TRIVY_VERSION=0.41.0
+	GRYPE_VERSION=0.79.6 \
+	HELM_VERSION=3.15.4 \
+	KUBE_LINTER_VERSION=0.6.8 \
+	KUBECTX_VERSION=0.9.5 \
+	STRIPE_VERSION=1.21.2 \
+	TERRAGRUNT_VERSION=0.66.8 \
+	TRIVY_VERSION=0.54.1
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
@@ -297,15 +295,9 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 RUN curl --silent --show-error --location --output /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/3.3.0/yq_linux_amd64" && \
 	chmod a=rx /usr/local/bin/yq
 
-# Install GoLand.
-RUN mkdir --parents /usr/local/goland && \
-	curl --silent --show-error --location "https://download.jetbrains.com/go/goland-2021.2.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/goland --file=- --strip-components=1 && \
-	ln --symbolic /usr/local/goland/bin/goland.sh /usr/local/bin/goland
-
 # Install Antlrv4, needed to generate paramlang lexer/parser
-RUN curl --silent --show-error --location --output /usr/local/lib/antlr-4.9.2-complete.jar "https://www.antlr.org/download/antlr-4.9.2-complete.jar"
-ENV CLASSPATH="/usr/local/lib/antlr-4.9.2-complete.jar:${PATH}"
+RUN curl --silent --show-error --location --output /usr/local/lib/antlr-4.13.2-complete.jar "https://www.antlr.org/download/antlr-4.13.2-complete.jar"
+ENV CLASSPATH="/usr/local/lib/antlr-4.13.2-complete.jar:${PATH}"
 
 # Add coder user and allow use of docker/sudo
 RUN useradd coder \
