@@ -82,7 +82,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, quartz.NewReal(), &websocket.DialOptions{})
 	uut.runConnector(fConn)
 
 	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
@@ -135,7 +135,7 @@ func TestTailnetAPIConnector_UplevelVersion(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, quartz.NewReal(), &websocket.DialOptions{})
 	uut.runConnector(fConn)
 
 	err := testutil.RequireRecvCtx(ctx, t, uut.connected)
@@ -160,7 +160,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	derpMapCh := make(chan *tailcfg.DERPMap)
 	defer close(derpMapCh)
 
-	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider([64]byte{1}, quartz.NewReal(), time.Second)
+	resumeTokenProvider := tailnet.NewInsecureTestResumeTokenProvider()
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
@@ -173,7 +173,6 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 
 	var (
 		websocketConnCh   = make(chan *websocket.Conn, 64)
-		peerIDCh          = make(chan uuid.UUID, 64)
 		expectResumeToken = ""
 	)
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +198,6 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 				return
 			}
 		}
-		testutil.AssertSendCtx(ctx, t, peerIDCh, peerID)
 
 		sws, err := websocket.Accept(w, r, nil)
 		if !assert.NoError(t, err) {
@@ -217,32 +215,50 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	clock := quartz.NewMock(t)
+	newTickerTrap := clock.Trap().NewTicker("tailnetAPIConnector", "refreshToken")
+	tickerResetTrap := clock.Trap().TickerReset("tailnetAPIConnector", "refreshToken", "reset")
+	defer newTickerTrap.Close()
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, clock, &websocket.DialOptions{})
 	uut.runConnector(fConn)
 
-	// Wait for the resume token to be fetched for the first time.
-	require.Eventually(t, func() bool {
-		return uut.resumeToken.Load() != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
-	originalResumeToken := uut.resumeToken.Load()
-	require.NotNil(t, originalResumeToken)
-	expectResumeToken = originalResumeToken.Token
+	// Fetch first token.
+	trappedTicker := newTickerTrap.MustWait(ctx)
+	trappedTicker.Release()
+	waiter := clock.Advance(trappedTicker.Duration)
+	waiter.MustWait(ctx)
+	// We call ticker.Reset after each token fetch to apply the refresh duration
+	// requested by the server.
+	trappedReset := tickerResetTrap.MustWait(ctx)
+	trappedReset.Release()
+	require.NotNil(t, uut.resumeToken)
+	originalResumeToken := uut.resumeToken.Token
+
+	// Fetch second token.
+	waiter = clock.Advance(trappedReset.Duration)
+	waiter.MustWait(ctx)
+	trappedReset = tickerResetTrap.MustWait(ctx)
+	trappedReset.Release()
+	require.NotNil(t, uut.resumeToken)
+	require.NotEqual(t, originalResumeToken, uut.resumeToken.Token)
+	expectResumeToken = uut.resumeToken.Token
 	t.Logf("expecting resume token: %s", expectResumeToken)
 
-	// Sever the connection and expect it to reconnect with the resume token and
-	// assume the same peer ID.
-	originalPeerID := testutil.RequireRecvCtx(ctx, t, peerIDCh)
+	// Sever the connection and expect it to reconnect with the resume token.
 	wsConn := testutil.RequireRecvCtx(ctx, t, websocketConnCh)
 	_ = wsConn.Close(websocket.StatusGoingAway, "test")
 
 	// Wait for the resume token to be refreshed.
-	require.Eventually(t, func() bool {
-		rt := uut.resumeToken.Load()
-		return rt != nil && rt.Token != originalResumeToken.Token
-	}, testutil.WaitShort, testutil.IntervalFast)
+	trappedTicker = newTickerTrap.MustWait(ctx)
+	trappedTicker.Release()
+	waiter = clock.Advance(trappedTicker.Duration)
+	waiter.MustWait(ctx)
+	trappedReset = tickerResetTrap.MustWait(ctx)
+	trappedReset.Release()
 
-	// Peer ID should be identical.
-	require.Equal(t, originalPeerID, testutil.RequireRecvCtx(ctx, t, peerIDCh))
+	// The resume token should have changed again.
+	require.NotNil(t, uut.resumeToken)
+	require.NotEqual(t, expectResumeToken, uut.resumeToken.Token)
 }
 
 func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
@@ -301,15 +317,21 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	clock := quartz.NewMock(t)
+	newTickerTrap := clock.Trap().NewTicker("tailnetAPIConnector", "refreshToken")
+	tickerResetTrap := clock.Trap().TickerReset("tailnetAPIConnector", "refreshToken", "reset")
+	defer newTickerTrap.Close()
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, clock, &websocket.DialOptions{})
 	uut.runConnector(fConn)
 
 	// Wait for the resume token to be fetched for the first time.
-	require.Eventually(t, func() bool {
-		return uut.resumeToken.Load() != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
-	originalResumeToken := uut.resumeToken.Load()
-	require.NotNil(t, originalResumeToken)
+	trappedTicker := newTickerTrap.MustWait(ctx)
+	trappedTicker.Release()
+	waiter := clock.Advance(trappedTicker.Duration)
+	waiter.MustWait(ctx)
+	trappedReset := tickerResetTrap.MustWait(ctx)
+	trappedReset.Release()
+	originalResumeToken := uut.resumeToken.Token
 
 	// Sever the connection and expect it to reconnect with the resume token,
 	// which should fail and cause the client to be disconnected. The client
@@ -317,11 +339,20 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	wsConn := testutil.RequireRecvCtx(ctx, t, websocketConnCh)
 	_ = wsConn.Close(websocket.StatusGoingAway, "test")
 
-	// Wait for the resume token to be refreshed.
-	require.Eventually(t, func() bool {
-		rt := uut.resumeToken.Load()
-		return rt != nil && rt.Token != originalResumeToken.Token
-	}, testutil.WaitShort, testutil.IntervalFast)
+	// Wait for the resume token to be refreshed, which indicates a successful
+	// reconnect.
+	trappedTicker = newTickerTrap.MustWait(ctx)
+	trappedTicker.Release()
+	// Since we failed the initial reconnect and we're definitely reconnected
+	// now, the stored resume token should now be nil.
+	require.Nil(t, uut.resumeToken)
+	// Continue to the next token fetch.
+	waiter = clock.Advance(trappedTicker.Duration)
+	waiter.MustWait(ctx)
+	trappedReset = tickerResetTrap.MustWait(ctx)
+	trappedReset.Release()
+	require.NotNil(t, uut.resumeToken)
+	require.NotEqual(t, originalResumeToken, uut.resumeToken.Token)
 
 	// The resume token should have been rejected by the server.
 	require.EqualValues(t, 1, atomic.LoadInt64(&didFail))
@@ -368,7 +399,7 @@ func TestTailnetAPIConnector_TelemetrySuccess(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, &websocket.DialOptions{})
+	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, quartz.NewReal(), &websocket.DialOptions{})
 	uut.runConnector(fConn)
 	require.Eventually(t, func() bool {
 		uut.clientMu.Lock()
@@ -399,6 +430,7 @@ func TestTailnetAPIConnector_TelemetryUnimplemented(t *testing.T) {
 		logger:        logger,
 		agentID:       agentID,
 		coordinateURL: "",
+		clock:         quartz.NewReal(),
 		dialOptions:   &websocket.DialOptions{},
 		conn:          nil,
 		connected:     make(chan error, 1),
@@ -439,6 +471,7 @@ func TestTailnetAPIConnector_TelemetryNotRecognised(t *testing.T) {
 		logger:        logger,
 		agentID:       agentID,
 		coordinateURL: "",
+		clock:         quartz.NewReal(),
 		dialOptions:   &websocket.DialOptions{},
 		conn:          nil,
 		connected:     make(chan error, 1),

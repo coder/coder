@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 // AgentIP is a static IPv6 address with the Tailscale prefix that is used to route
@@ -236,7 +237,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	q.Add("version", "2.0")
 	coordinateURL.RawQuery = q.Encode()
 
-	connector := newTailnetAPIConnector(ctx, options.Logger, agentID, coordinateURL.String(),
+	connector := newTailnetAPIConnector(ctx, options.Logger, agentID, coordinateURL.String(), quartz.NewReal(),
 		&websocket.DialOptions{
 			HTTPClient: c.client.HTTPClient,
 			HTTPHeader: headers,

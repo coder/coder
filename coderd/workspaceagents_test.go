@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -21,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -43,6 +41,8 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -512,111 +512,138 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	require.Equal(t, "version", sdkErr.Validations[0].Field)
 }
 
+type resumeTokenTestFakeCoordinator struct {
+	tailnet.Coordinator
+	lastPeerID uuid.UUID
+}
+
+var _ tailnet.Coordinator = &resumeTokenTestFakeCoordinator{}
+
+func (c *resumeTokenTestFakeCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agentID uuid.UUID) error {
+	c.lastPeerID = id
+	return c.Coordinator.ServeClient(conn, id, agentID)
+}
+
+func (c *resumeTokenTestFakeCoordinator) Coordinate(ctx context.Context, id uuid.UUID, name string, a tailnet.CoordinateeAuth) (chan<- *tailnetproto.CoordinateRequest, <-chan *tailnetproto.CoordinateResponse) {
+	c.lastPeerID = id
+	return c.Coordinator.Coordinate(ctx, id, name, a)
+}
+
 func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-
-	// We block direct in this test to ensure that even if there's no direct
-	// connection, no shenanigans happen with the peer IDs on either side.
-	dv := coderdtest.DeploymentValues(t)
-	err := dv.DERP.Config.BlockDirect.Set("true")
-	require.NoError(t, err)
+	coordinator := &resumeTokenTestFakeCoordinator{
+		Coordinator: tailnet.NewCoordinator(logger),
+	}
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues: dv,
+		Coordinator: coordinator,
 	})
 	defer closer.Close()
 	user := coderdtest.CreateFirstUser(t, client)
 
-	// Change the DERP mapper to our custom one.
-	var currentDerpMap atomic.Pointer[tailcfg.DERPMap]
-	originalDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
-	currentDerpMap.Store(originalDerpMap)
-	derpMapFn := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
-		return currentDerpMap.Load().Clone()
-	}
-	api.DERPMapper.Store(&derpMapFn)
-
-	// Start workspace a workspace agent.
+	// Create a workspace with an agent. No need to connect it since clients can
+	// still connect to the coordinator while the agent isn't connected.
 	r := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent().Do()
-
-	agentCloser := agenttest.New(t, client.URL, r.AgentToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
-	agentID := resources[0].Agents[0].ID
-
-	// Create a new "proxy" server that we can use to kill the connection
-	// whenever we want.
-	l, err := netListenDroppable("tcp", "localhost:0")
+	agentTokenUUID, err := uuid.Parse(r.AgentToken)
 	require.NoError(t, err)
-	defer l.Close()
-	srv := &httptest.Server{
-		Listener: l,
-		//nolint:gosec
-		Config: &http.Server{Handler: api.RootHandler},
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
+	require.NoError(t, err)
+
+	// Connect with no resume token, and ensure that the peer ID is set to a
+	// random value.
+	coordinator.lastPeerID = uuid.Nil
+	originalResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "")
+	require.NoError(t, err)
+	originalPeerID := coordinator.lastPeerID
+	require.NotEqual(t, originalPeerID, uuid.Nil)
+
+	// Connect with a valid resume token, and ensure that the peer ID is set to
+	// the stored value.
+	coordinator.lastPeerID = uuid.Nil
+	newResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, originalResumeToken)
+	require.NoError(t, err)
+	require.Equal(t, originalPeerID, coordinator.lastPeerID)
+	require.NotEqual(t, originalResumeToken, newResumeToken)
+
+	// Connect with an invalid resume token, and ensure that the request is
+	// rejected.
+	coordinator.lastPeerID = uuid.Nil
+	_, err = connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "invalid")
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	require.Len(t, sdkErr.Validations, 1)
+	require.Equal(t, "resume_token", sdkErr.Validations[0].Field)
+	require.Equal(t, uuid.Nil, coordinator.lastPeerID)
+}
+
+// connectToCoordinatorAndFetchResumeToken connects to the tailnet coordinator
+// with a given resume token. It returns an error if the connection is rejected.
+// If the connection is accepted, it is immediately closed and no error is
+// returned.
+func connectToCoordinatorAndFetchResumeToken(ctx context.Context, logger slog.Logger, sdkClient *codersdk.Client, agentID uuid.UUID, resumeToken string) (string, error) {
+	u, err := sdkClient.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
+	if err != nil {
+		return "", xerrors.Errorf("parse URL: %w", err)
 	}
-	srv.Start()
-	proxyURL, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-	proxyClient := codersdk.New(proxyURL)
-	proxyClient.SetSessionToken(client.SessionToken())
+	q := u.Query()
+	q.Set("version", "2.0")
+	if resumeToken != "" {
+		q.Set("resume_token", resumeToken)
+	}
+	u.RawQuery = q.Encode()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Connect from a client.
-	conn, err := workspacesdk.New(proxyClient).
-		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
-			Logger: logger.Named("client"),
-		})
-	require.NoError(t, err)
-	defer conn.Close()
-
-	ok := conn.AwaitReachable(ctx)
-	require.True(t, ok)
-	originalAgentPeers := agentCloser.TailnetConn().GetKnownPeerIDs()
-
-	// Drop client conn's coordinator connection.
-	l.DropAllConns()
-
-	// HACK: Change the DERP map and add a second "marker" region so we know
-	//       when the client has reconnected to the coordinator.
-	//
-	//       With some refactoring of the client connection to expose the
-	//       coordinator connection status, this wouldn't be needed, but this
-	//       also works.
-	derpMap := currentDerpMap.Load().Clone()
-	newDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
-	derpMap.Regions[2] = newDerpMap.Regions[1]
-	currentDerpMap.Store(derpMap)
-
-	// Wait for the agent's DERP map to be updated.
-	require.Eventually(t, func() bool {
-		conn := agentCloser.TailnetConn()
-		if conn == nil {
-			return false
+	//nolint:bodyclose
+	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Coder-Session-Token": []string{sdkClient.SessionToken()},
+		},
+	})
+	if err != nil {
+		if resp.StatusCode != http.StatusSwitchingProtocols {
+			err = codersdk.ReadBodyAsError(resp)
 		}
-		regionIDs := conn.DERPMap().RegionIDs()
-		return len(regionIDs) == 2 && regionIDs[1] == 2
-	}, testutil.WaitLong, testutil.IntervalFast)
+		return "", xerrors.Errorf("websocket dial: %w", err)
+	}
+	defer wsConn.Close(websocket.StatusNormalClosure, "done")
 
-	// Wait for the DERP map to be updated on the client. This means that the
-	// client has reconnected to the coordinator.
-	require.Eventually(t, func() bool {
-		regionIDs := conn.Conn.DERPMap().RegionIDs()
-		return len(regionIDs) == 2 && regionIDs[1] == 2
-	}, testutil.WaitLong, testutil.IntervalFast)
+	// Send a request to the server to ensure that we're plumbed all the way
+	// through.
+	rpcClient, err := tailnet.NewDRPCClient(
+		websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+		logger,
+	)
+	if err != nil {
+		return "", xerrors.Errorf("new dRPC client: %w", err)
+	}
 
-	// The first client should still be able to reach the agent.
-	ok = conn.AwaitReachable(ctx)
-	require.True(t, ok)
-	_, err = conn.ListeningPorts(ctx)
-	require.NoError(t, err)
+	// Send an empty coordination request. This will do nothing on the server,
+	// but ensures our wrapped coordinator can record the peer ID.
+	coordinateClient, err := rpcClient.Coordinate(ctx)
+	if err != nil {
+		return "", xerrors.Errorf("coordinate: %w", err)
+	}
+	err = coordinateClient.Send(&tailnetproto.CoordinateRequest{})
+	if err != nil {
+		return "", xerrors.Errorf("send empty coordination request: %w", err)
+	}
+	err = coordinateClient.Close()
+	if err != nil {
+		return "", xerrors.Errorf("close coordination request: %w", err)
+	}
 
-	// The agent should not see any new peers.
-	require.ElementsMatch(t, originalAgentPeers, agentCloser.TailnetConn().GetKnownPeerIDs())
+	// Fetch a resume token.
+	newResumeToken, err := rpcClient.RefreshResumeToken(ctx, &tailnetproto.RefreshResumeTokenRequest{})
+	if err != nil {
+		return "", xerrors.Errorf("fetch resume token: %w", err)
+	}
+	return newResumeToken.Token, nil
 }
 
 func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
@@ -1831,41 +1858,4 @@ func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup
 	aAPI := agentproto.NewDRPCAgentClient(conn)
 	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
 	return err
-}
-
-type droppableTCPListener struct {
-	net.Listener
-	mu    sync.Mutex
-	conns []net.Conn
-}
-
-var _ net.Listener = &droppableTCPListener{}
-
-func netListenDroppable(network, addr string) (*droppableTCPListener, error) {
-	l, err := net.Listen(network, addr)
-	if err != nil {
-		return nil, err
-	}
-	return &droppableTCPListener{Listener: l}, nil
-}
-
-func (l *droppableTCPListener) Accept() (net.Conn, error) {
-	conn, err := l.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.conns = append(l.conns, conn)
-	return conn, nil
-}
-
-func (l *droppableTCPListener) DropAllConns() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, c := range l.conns {
-		_ = c.Close()
-	}
-	l.conns = nil
 }

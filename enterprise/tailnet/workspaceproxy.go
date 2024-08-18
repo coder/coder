@@ -24,14 +24,7 @@ type ClientService struct {
 // NewClientService returns a ClientService based on the given Coordinator pointer.  The pointer is
 // loaded on each processed connection.
 func NewClientService(options agpl.ClientServiceOptions) (*ClientService, error) {
-	s, err := agpl.NewClientService(agpl.ClientServiceOptions{
-		Logger:                  options.Logger,
-		CoordPtr:                options.CoordPtr,
-		DERPMapUpdateFrequency:  options.DERPMapUpdateFrequency,
-		DERPMapFn:               options.DERPMapFn,
-		NetworkTelemetryHandler: options.NetworkTelemetryHandler,
-		ResumeTokenProvider:     options.ResumeTokenProvider,
-	})
+	s, err := agpl.NewClientService(options)
 	if err != nil {
 		return nil, err
 	}

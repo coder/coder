@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 	"github.com/coder/retry"
 )
 
@@ -62,6 +63,7 @@ type tailnetAPIConnector struct {
 
 	agentID       uuid.UUID
 	coordinateURL string
+	clock         quartz.Clock
 	dialOptions   *websocket.DialOptions
 	conn          tailnetConn
 	customDialFn  func() (proto.DRPCTailnetClient, error)
@@ -70,7 +72,7 @@ type tailnetAPIConnector struct {
 	client   proto.DRPCTailnetClient
 
 	connected   chan error
-	resumeToken atomic.Pointer[proto.RefreshResumeTokenResponse]
+	resumeToken *proto.RefreshResumeTokenResponse
 	isFirst     bool
 	closed      chan struct{}
 
@@ -80,12 +82,13 @@ type tailnetAPIConnector struct {
 }
 
 // Create a new tailnetAPIConnector without running it
-func newTailnetAPIConnector(ctx context.Context, logger slog.Logger, agentID uuid.UUID, coordinateURL string, dialOptions *websocket.DialOptions) *tailnetAPIConnector {
+func newTailnetAPIConnector(ctx context.Context, logger slog.Logger, agentID uuid.UUID, coordinateURL string, clock quartz.Clock, dialOptions *websocket.DialOptions) *tailnetAPIConnector {
 	return &tailnetAPIConnector{
 		ctx:           ctx,
 		logger:        logger,
 		agentID:       agentID,
 		coordinateURL: coordinateURL,
+		clock:         clock,
 		dialOptions:   dialOptions,
 		conn:          nil,
 		connected:     make(chan error, 1),
@@ -98,7 +101,7 @@ func newTailnetAPIConnector(ctx context.Context, logger slog.Logger, agentID uui
 func (tac *tailnetAPIConnector) manageGracefulTimeout() {
 	defer tac.cancelGracefulCtx()
 	<-tac.ctx.Done()
-	timer := time.NewTimer(tailnetConnectorGracefulTimeout)
+	timer := tac.clock.NewTimer(tailnetConnectorGracefulTimeout, "tailnetAPIClient", "gracefulTimeout")
 	defer timer.Stop()
 	select {
 	case <-tac.closed:
@@ -114,6 +117,8 @@ func (tac *tailnetAPIConnector) runConnector(conn tailnetConn) {
 	go func() {
 		tac.isFirst = true
 		defer close(tac.closed)
+		// Sadly retry doesn't support quartz.Clock yet so this is not
+		// influenced by the configured clock.
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(tac.ctx); {
 			tailnetClient, err := tac.dial()
 			if err != nil {
@@ -145,12 +150,11 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("parse URL %q: %w", tac.coordinateURL, err)
 	}
-	resumeToken := tac.resumeToken.Load()
-	if resumeToken != nil {
+	if tac.resumeToken != nil {
 		q := u.Query()
-		q.Set("resume_token", resumeToken.Token)
+		q.Set("resume_token", tac.resumeToken.Token)
 		u.RawQuery = q.Encode()
-		tac.logger.Debug(tac.ctx, "using resume token", slog.F("resume_token", resumeToken))
+		tac.logger.Debug(tac.ctx, "using resume token", slog.F("resume_token", tac.resumeToken))
 	}
 
 	coordinateURL := u.String()
@@ -186,7 +190,7 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 				if v.Field == "resume_token" {
 					// Unset the resume token for the next attempt
 					tac.logger.Warn(tac.ctx, "failed to dial tailnet v2+ API: server replied invalid resume token; unsetting for next connection attempt")
-					tac.resumeToken.Store(nil)
+					tac.resumeToken = nil
 					didLog = true
 				}
 			}
@@ -317,7 +321,7 @@ func (tac *tailnetAPIConnector) derpMap(client proto.DRPCTailnetClient) error {
 }
 
 func (tac *tailnetAPIConnector) refreshToken(ctx context.Context, client proto.DRPCTailnetClient) {
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := tac.clock.NewTicker(15*time.Second, "tailnetAPIConnector", "refreshToken")
 	defer ticker.Stop()
 
 	initialCh := make(chan struct{}, 1)
@@ -341,8 +345,13 @@ func (tac *tailnetAPIConnector) refreshToken(ctx context.Context, client proto.D
 			return
 		}
 		tac.logger.Debug(tac.ctx, "refreshed coordinator resume token", slog.F("resume_token", res))
-		tac.resumeToken.Store(res)
-		ticker.Reset(res.RefreshIn.AsDuration())
+		tac.resumeToken = res
+		dur := res.RefreshIn.AsDuration()
+		if dur <= 0 {
+			// A sensible delay to refresh again.
+			dur = 30 * time.Minute
+		}
+		ticker.Reset(dur, "tailnetAPIConnector", "refreshToken", "reset")
 	}
 }
 

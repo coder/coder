@@ -24,6 +24,11 @@ const (
 	resumeTokenSigningAlgorithm = jose.HS512
 )
 
+// resumeTokenSigningKeyID is a fixed key ID for the resume token signing key.
+// If/when we add support for multiple keys (e.g. key rotation), this will move
+// to the database instead.
+var resumeTokenSigningKeyID = uuid.MustParse("97166747-9309-4d7f-9071-a230e257c2a4")
+
 // NewInsecureTestResumeTokenProvider returns a ResumeTokenProvider that uses a
 // random key with short expiry for testing purposes. If any errors occur while
 // generating the key, the function panics.
@@ -127,7 +132,11 @@ func (p ResumeTokenKeyProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.Re
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: resumeTokenSigningAlgorithm,
 		Key:       p.key[:],
-	}, nil)
+	}, &jose.SignerOptions{
+		ExtraHeaders: map[jose.HeaderKey]interface{}{
+			"kid": resumeTokenSigningKeyID.String(),
+		},
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("create signer: %w", err)
 	}
@@ -162,6 +171,9 @@ func (p ResumeTokenKeyProvider) VerifyResumeToken(str string) (uuid.UUID, error)
 	}
 	if object.Signatures[0].Header.Algorithm != string(resumeTokenSigningAlgorithm) {
 		return uuid.Nil, xerrors.Errorf("expected token signing algorithm to be %q, got %q", resumeTokenSigningAlgorithm, object.Signatures[0].Header.Algorithm)
+	}
+	if object.Signatures[0].Header.KeyID != resumeTokenSigningKeyID.String() {
+		return uuid.Nil, xerrors.Errorf("expected token key ID to be %q, got %q", resumeTokenSigningKeyID, object.Signatures[0].Header.KeyID)
 	}
 
 	output, err := object.Verify(p.key[:])
