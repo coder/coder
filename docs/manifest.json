@@ -1126,7 +1126,7 @@
           "title": "Using Organizations",
           "description": "Learn how to onboard multiple platform teams with Organizations",
           "path": "./guides/using-organizations.md",
-          "state": "alpha"
+          "state": "enterprise"
         },
         {
           "title": "Generate a Support Bundle",

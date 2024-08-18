@@ -1,4 +1,4 @@
-# Using Organizations (Alpha)
+# Using Organizations
 
 > Note: Organizations is still under active development and requires a
 > non-standard enterprise license to use. Do not use organizations on your
@@ -63,7 +63,7 @@ From there, you can manage the name, icon, description, users, and groups:
 Within the sidebar, click `New organization` to create an organization. In this
 example, we'll create the `data-platform` org.
 
-![](../images/guides/using-organizations/new-organization.png)
+![New Organization](../images/guides/using-organizations/new-organization.png)
 
 From there, let's deploy a provisioner and template for this organization.
 
@@ -114,17 +114,18 @@ their organization. Users can be in multiple organizations.
 Navigate to `Deployment->Organizations` to add members to your organization.
 Once added, they will be able to see the organization-specific templates.
 
-![](../images/guides/using-organizations/organization-members.png)
+![Add members](../images/guides/using-organizations/organization-members.png)
 
 ## Planned work
 
-Organizations is under active development. The following features are planned
-before organizations are generally available:
+Organizations is under active development. The work is planned before
+organizations is generally available:
 
-- [ ] Per-Organization Quotas
-- [ ] Sync OIDC claims to auto-assign users to organizations / roles + SCIM
-      support
-- [ ] View provisioner health via the Coder UI
+- View provisioner health via the Coder UI
+- Custom Role support in Coder UI
+- Per-organization quotas
+- Improved visibility of organization-specific resources throughout the UI
+- Sync OIDC claims to auto-assign users to organizations / roles + SCIM support
 
 ## Support & Feedback
 
