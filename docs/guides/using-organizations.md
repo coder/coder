@@ -72,7 +72,8 @@ From there, let's deploy a provisioner and template for this organization.
 [Provisioners](../admin/provisioners.md) are organization-scoped and are
 responsible for executing Terraform/OpenTofu to provision the infrastructure for
 workspaces and testing templates. Before creating templates, we must deploy at
-least one provisioner:
+least one provisioner as the built-in provisioners are scoped to the default
+organization.
 
 using Coder CLI, run the following command to create a key that will be used to
 authenticate the provisioner:
@@ -84,10 +85,10 @@ Successfully created provisioner key data-cluster! Save this authentication toke
 < key omitted >
 ```
 
-Next, on your desired platform, start the provisioner with the key. See our
-[provisioner documentation](../admin/provisioners.md) for details on running on
-additional platforms (e.g. Kubernetes). In this example, we'll start it directly
-with the Coder CLI on a host with Docker:
+Next, start the provisioner with the key on your desired platform. In this
+example, we'll start it using the Coder CLI on a host with Docker. For
+instructions on using other platforms like Kubernetes, see our
+[provisioner documentation](../admin/provisioners.md).
 
 ```sh
 export CODER_URL=https://<your-coder-url>
@@ -102,19 +103,19 @@ Once you've started a provisioner, you can create a template. You'll notice the
 
 ![Template Org Picker](../images/guides/using-organizations/template-org-picker.png)
 
-### 4. Create a workspace
-
-Now, users in the data platform organization will see the templates related to
-their organization. Users can be in multiple organizations.
-
-![Workspace List](../images/guides/using-organizations/workspace-list.png)
-
-### 4. Add members
+### 5. Add members
 
 Navigate to `Deployment->Organizations` to add members to your organization.
 Once added, they will be able to see the organization-specific templates.
 
 ![Add members](../images/guides/using-organizations/organization-members.png)
+
+### 6. Create a workspace
+
+Now, users in the data platform organization will see the templates related to
+their organization. Users can be in multiple organizations.
+
+![Workspace List](../images/guides/using-organizations/workspace-list.png)
 
 ## Planned work
 
