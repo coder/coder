@@ -19,7 +19,8 @@ all with uniquely scoped templates, provisioners, users, groups, and workspaces.
 ## Switch to the preview image and enable the experiment
 
 To try the latest organizations features, switch to a preview image in your Helm
-chart and enable the [experimental flag](../cli/server.md#--experiments).
+chart and enable the
+[experimental flag](../reference/cli/server.md#--experiments).
 
 For example, with Kubernetes, set the following in your `values.yaml`:
 
