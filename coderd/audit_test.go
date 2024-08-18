@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -95,92 +94,6 @@ func TestAuditLogs(t *testing.T) {
 		require.Equal(t, foundUser, *alogs.AuditLogs[0].User)
 	})
 
-	t.Run("IncludeOrganization", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-
-		o, err := client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name:        "new-org",
-			DisplayName: "New organization",
-			Description: "A new organization to love and cherish until the test is over.",
-			Icon:        "/emojis/1f48f-1f3ff.png",
-		})
-		require.NoError(t, err)
-
-		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			OrganizationID: o.ID,
-			ResourceID:     user.UserID,
-		})
-		require.NoError(t, err)
-
-		alogs, err := client.AuditLogs(ctx, codersdk.AuditLogsRequest{
-			Pagination: codersdk.Pagination{
-				Limit: 1,
-			},
-		})
-		require.NoError(t, err)
-		require.Equal(t, int64(1), alogs.Count)
-		require.Len(t, alogs.AuditLogs, 1)
-
-		// Make sure the organization is fully populated.
-		require.Equal(t, &codersdk.MinimalOrganization{
-			ID:          o.ID,
-			Name:        o.Name,
-			DisplayName: o.DisplayName,
-			Icon:        o.Icon,
-		}, alogs.AuditLogs[0].Organization)
-
-		// OrganizationID is deprecated, but make sure it is set.
-		require.Equal(t, o.ID, alogs.AuditLogs[0].OrganizationID)
-
-		// Delete the org and try again, should be mostly empty.
-		err = client.DeleteOrganization(ctx, o.ID.String())
-		require.NoError(t, err)
-
-		alogs, err = client.AuditLogs(ctx, codersdk.AuditLogsRequest{
-			Pagination: codersdk.Pagination{
-				Limit: 1,
-			},
-		})
-		require.NoError(t, err)
-		require.Equal(t, int64(1), alogs.Count)
-		require.Len(t, alogs.AuditLogs, 1)
-
-		require.Equal(t, &codersdk.MinimalOrganization{
-			ID: o.ID,
-		}, alogs.AuditLogs[0].Organization)
-
-		// OrganizationID is deprecated, but make sure it is set.
-		require.Equal(t, o.ID, alogs.AuditLogs[0].OrganizationID)
-
-		// Some audit entries do not have an organization at all, in which case the
-		// response omits the organization.
-		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
-			ResourceType: codersdk.ResourceTypeAPIKey,
-			ResourceID:   user.UserID,
-		})
-		require.NoError(t, err)
-
-		alogs, err = client.AuditLogs(ctx, codersdk.AuditLogsRequest{
-			SearchQuery: "resource_type:api_key",
-			Pagination: codersdk.Pagination{
-				Limit: 1,
-			},
-		})
-		require.NoError(t, err)
-		require.Equal(t, int64(1), alogs.Count)
-		require.Len(t, alogs.AuditLogs, 1)
-
-		// The other will have no organization.
-		require.Equal(t, (*codersdk.MinimalOrganization)(nil), alogs.AuditLogs[0].Organization)
-
-		// OrganizationID is deprecated, but make sure it is empty.
-		require.Equal(t, uuid.Nil, alogs.AuditLogs[0].OrganizationID)
-	})
-
 	t.Run("WorkspaceBuildAuditLink", func(t *testing.T) {
 		t.Parallel()
 
@@ -193,7 +106,7 @@ func TestAuditLogs(t *testing.T) {
 		)
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		buildResourceInfo := audit.AdditionalFields{
@@ -249,19 +162,18 @@ func TestAuditLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Fetching audit logs without an organization selector should fail
-		_, err = orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		// Fetching audit logs without an organization selector should only
+		// return organization audit logs the org admin is an admin of.
+		alogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			Pagination: codersdk.Pagination{
 				Limit: 5,
 			},
 		})
-		var sdkError *codersdk.Error
-		require.Error(t, err)
-		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
-		require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+		require.NoError(t, err)
+		require.Len(t, alogs.AuditLogs, 1)
 
 		// Using the organization selector allows the org admin to fetch audit logs
-		alogs, err := orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
+		alogs, err = orgAdmin.AuditLogs(ctx, codersdk.AuditLogsRequest{
 			SearchQuery: fmt.Sprintf("organization:%s", owner.OrganizationID.String()),
 			Pagination: codersdk.Pagination{
 				Limit: 5,
@@ -322,7 +234,7 @@ func TestAuditLogsFilter(t *testing.T) {
 		)
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 
 		// Create two logs with "Create"
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{

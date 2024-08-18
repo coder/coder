@@ -1,18 +1,16 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import type { FC } from "react";
-import { Link } from "react-router-dom";
 import type {
-  ProvisionerJobLog,
-  WorkspaceAgent,
-  WorkspaceBuild,
+	ProvisionerJobLog,
+	WorkspaceAgent,
+	WorkspaceBuild,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { Loader } from "components/Loader/Loader";
 import {
-  FullWidthPageHeader,
-  PageHeaderTitle,
-  PageHeaderSubtitle,
+	FullWidthPageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
 } from "components/PageHeader/FullWidthPageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
@@ -22,264 +20,264 @@ import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/AgentLogs/useAgentLogs";
 import {
-  WorkspaceBuildData,
-  WorkspaceBuildDataSkeleton,
+	WorkspaceBuildData,
+	WorkspaceBuildDataSkeleton,
 } from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import type { FC } from "react";
+import { Link } from "react-router-dom";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
-  return [...logs].sort(
-    (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  );
+	return [...logs].sort(
+		(a, b) =>
+			new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+	);
 };
 
 export interface WorkspaceBuildPageViewProps {
-  logs: ProvisionerJobLog[] | undefined;
-  build: WorkspaceBuild | undefined;
-  builds: WorkspaceBuild[] | undefined;
-  activeBuildNumber: number;
+	logs: ProvisionerJobLog[] | undefined;
+	build: WorkspaceBuild | undefined;
+	builds: WorkspaceBuild[] | undefined;
+	activeBuildNumber: number;
 }
 
 export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
-  logs,
-  build,
-  builds,
-  activeBuildNumber,
+	logs,
+	build,
+	builds,
+	activeBuildNumber,
 }) => {
-  const theme = useTheme();
-  const tabState = useSearchParamsKey({
-    key: LOGS_TAB_KEY,
-    defaultValue: "build",
-  });
+	const theme = useTheme();
+	const tabState = useSearchParamsKey({
+		key: LOGS_TAB_KEY,
+		defaultValue: "build",
+	});
 
-  if (!build) {
-    return <Loader />;
-  }
+	if (!build) {
+		return <Loader />;
+	}
 
-  const agents = build.resources.flatMap((r) => r.agents ?? []);
-  const selectedAgent = agents.find((a) => a.id === tabState.value);
+	const agents = build.resources.flatMap((r) => r.agents ?? []);
+	const selectedAgent = agents.find((a) => a.id === tabState.value);
 
-  return (
-    <DashboardFullPage>
-      <FullWidthPageHeader sticky={false}>
-        <Stack direction="row" alignItems="center" spacing={3}>
-          <BuildAvatar build={build} />
-          <div>
-            <PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
-            <PageHeaderSubtitle>{build.initiator_name}</PageHeaderSubtitle>
-          </div>
-        </Stack>
+	return (
+		<DashboardFullPage>
+			<FullWidthPageHeader sticky={false}>
+				<Stack direction="row" alignItems="center" spacing={3}>
+					<BuildAvatar build={build} />
+					<div>
+						<PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
+						<PageHeaderSubtitle>{build.initiator_name}</PageHeaderSubtitle>
+					</div>
+				</Stack>
 
-        <Stats aria-label="Build details" css={styles.stats}>
-          <StatsItem
-            css={styles.statsItem}
-            label="Workspace"
-            value={
-              <Link
-                to={`/@${build.workspace_owner_name}/${build.workspace_name}`}
-              >
-                {build.workspace_name}
-              </Link>
-            }
-          />
-          <StatsItem
-            css={styles.statsItem}
-            label="Template version"
-            value={build.template_version_name}
-          />
-          <StatsItem
-            css={styles.statsItem}
-            label="Duration"
-            value={displayWorkspaceBuildDuration(build)}
-          />
-          <StatsItem
-            css={styles.statsItem}
-            label="Started at"
-            value={new Date(build.created_at).toLocaleString()}
-          />
-          <StatsItem
-            css={styles.statsItem}
-            label="Action"
-            value={
-              <span css={{ textTransform: "capitalize" }}>
-                {build.transition}
-              </span>
-            }
-          />
-        </Stats>
-      </FullWidthPageHeader>
+				<Stats aria-label="Build details" css={styles.stats}>
+					<StatsItem
+						css={styles.statsItem}
+						label="Workspace"
+						value={
+							<Link
+								to={`/@${build.workspace_owner_name}/${build.workspace_name}`}
+							>
+								{build.workspace_name}
+							</Link>
+						}
+					/>
+					<StatsItem
+						css={styles.statsItem}
+						label="Template version"
+						value={build.template_version_name}
+					/>
+					<StatsItem
+						css={styles.statsItem}
+						label="Duration"
+						value={displayWorkspaceBuildDuration(build)}
+					/>
+					<StatsItem
+						css={styles.statsItem}
+						label="Started at"
+						value={new Date(build.created_at).toLocaleString()}
+					/>
+					<StatsItem
+						css={styles.statsItem}
+						label="Action"
+						value={
+							<span css={{ textTransform: "capitalize" }}>
+								{build.transition}
+							</span>
+						}
+					/>
+				</Stats>
+			</FullWidthPageHeader>
 
-      <div
-        css={{
-          display: "flex",
-          alignItems: "start",
-          overflow: "hidden",
-          flex: 1,
-          flexBasis: 0,
-        }}
-      >
-        <Sidebar>
-          <SidebarCaption>Builds</SidebarCaption>
-          {!builds &&
-            Array.from({ length: 15 }, (_, i) => (
-              <SidebarItem key={i}>
-                <WorkspaceBuildDataSkeleton />
-              </SidebarItem>
-            ))}
+			<div
+				css={{
+					display: "flex",
+					alignItems: "start",
+					overflow: "hidden",
+					flex: 1,
+					flexBasis: 0,
+				}}
+			>
+				<Sidebar>
+					<SidebarCaption>Builds</SidebarCaption>
+					{!builds &&
+						Array.from({ length: 15 }, (_, i) => (
+							<SidebarItem key={i}>
+								<WorkspaceBuildDataSkeleton />
+							</SidebarItem>
+						))}
 
-          {builds?.map((build) => (
-            <Link
-              key={build.id}
-              to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
-            >
-              <SidebarItem active={build.build_number === activeBuildNumber}>
-                <WorkspaceBuildData build={build} />
-              </SidebarItem>
-            </Link>
-          ))}
-        </Sidebar>
+					{builds?.map((build) => (
+						<Link
+							key={build.id}
+							to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
+						>
+							<SidebarItem active={build.build_number === activeBuildNumber}>
+								<WorkspaceBuildData build={build} />
+							</SidebarItem>
+						</Link>
+					))}
+				</Sidebar>
 
-        <div css={{ height: "100%", overflowY: "auto", width: "100%" }}>
-          <Tabs active={tabState.value}>
-            <TabsList>
-              <TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
-                Build
-              </TabLink>
+				<div css={{ height: "100%", overflowY: "auto", width: "100%" }}>
+					<Tabs active={tabState.value}>
+						<TabsList>
+							<TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
+								Build
+							</TabLink>
 
-              {agents.map((a) => (
-                <TabLink
-                  to={`?${LOGS_TAB_KEY}=${a.id}`}
-                  value={a.id}
-                  key={a.id}
-                >
-                  coder_agent.{a.name}
-                </TabLink>
-              ))}
-            </TabsList>
-          </Tabs>
-          {build.transition === "delete" && build.job.status === "failed" && (
-            <Alert
-              severity="error"
-              css={{
-                borderRadius: 0,
-                border: 0,
-                background: theme.roles.error.background,
-                borderBottom: `1px solid ${theme.palette.divider}`,
-              }}
-            >
-              <div>
-                The workspace may have failed to delete due to a Terraform state
-                mismatch. A template admin may run{" "}
-                <code
-                  css={{
-                    display: "inline-block",
-                    width: "fit-content",
-                    fontWeight: 600,
-                  }}
-                >
-                  {`coder rm ${
-                    build.workspace_owner_name + "/" + build.workspace_name
-                  } --orphan`}
-                </code>{" "}
-                to delete the workspace skipping resource destruction.
-              </div>
-            </Alert>
-          )}
+							{agents.map((a) => (
+								<TabLink
+									to={`?${LOGS_TAB_KEY}=${a.id}`}
+									value={a.id}
+									key={a.id}
+								>
+									coder_agent.{a.name}
+								</TabLink>
+							))}
+						</TabsList>
+					</Tabs>
+					{build.transition === "delete" && build.job.status === "failed" && (
+						<Alert
+							severity="error"
+							css={{
+								borderRadius: 0,
+								border: 0,
+								background: theme.roles.error.background,
+								borderBottom: `1px solid ${theme.palette.divider}`,
+							}}
+						>
+							<div>
+								The workspace may have failed to delete due to a Terraform state
+								mismatch. A template admin may run{" "}
+								<code
+									css={{
+										display: "inline-block",
+										width: "fit-content",
+										fontWeight: 600,
+									}}
+								>
+									{`coder rm ${`${build.workspace_owner_name}/${build.workspace_name}`} --orphan`}
+								</code>{" "}
+								to delete the workspace skipping resource destruction.
+							</div>
+						</Alert>
+					)}
 
-          {tabState.value === "build" ? (
-            <BuildLogsContent logs={logs} />
-          ) : (
-            <AgentLogsContent
-              workspaceId={build.workspace_id}
-              agent={selectedAgent!}
-            />
-          )}
-        </div>
-      </div>
-    </DashboardFullPage>
-  );
+					{tabState.value === "build" ? (
+						<BuildLogsContent logs={logs} />
+					) : (
+						<AgentLogsContent
+							workspaceId={build.workspace_id}
+							agent={selectedAgent!}
+						/>
+					)}
+				</div>
+			</div>
+		</DashboardFullPage>
+	);
 };
 
 const BuildLogsContent: FC<{ logs?: ProvisionerJobLog[] }> = ({ logs }) => {
-  if (!logs) {
-    return <Loader />;
-  }
+	if (!logs) {
+		return <Loader />;
+	}
 
-  return (
-    <WorkspaceBuildLogs
-      css={{
-        border: 0,
-        "--log-line-side-padding": `${TAB_PADDING_X}px`,
-        // Add extra spacing to the first log header to prevent it from being
-        // too close to the tabs
-        "& .logs-header:first-of-type": {
-          paddingTop: 16,
-        },
-      }}
-      logs={sortLogsByCreatedAt(logs)}
-    />
-  );
+	return (
+		<WorkspaceBuildLogs
+			css={{
+				border: 0,
+				"--log-line-side-padding": `${TAB_PADDING_X}px`,
+				// Add extra spacing to the first log header to prevent it from being
+				// too close to the tabs
+				"& .logs-header:first-of-type": {
+					paddingTop: 16,
+				},
+			}}
+			logs={sortLogsByCreatedAt(logs)}
+		/>
+	);
 };
 
 const AgentLogsContent: FC<{ workspaceId: string; agent: WorkspaceAgent }> = ({
-  agent,
-  workspaceId,
+	agent,
+	workspaceId,
 }) => {
-  const logs = useAgentLogs({
-    workspaceId,
-    agentId: agent.id,
-    agentLifeCycleState: agent.lifecycle_state,
-  });
+	const logs = useAgentLogs({
+		workspaceId,
+		agentId: agent.id,
+		agentLifeCycleState: agent.lifecycle_state,
+	});
 
-  if (!logs) {
-    return <Loader />;
-  }
+	if (!logs) {
+		return <Loader />;
+	}
 
-  return (
-    <AgentLogs
-      sources={agent.log_sources}
-      logs={logs.map((l) => ({
-        id: l.id,
-        output: l.output,
-        time: l.created_at,
-        level: l.level,
-        sourceId: l.source_id,
-      }))}
-      height={560}
-      width="100%"
-    />
-  );
+	return (
+		<AgentLogs
+			sources={agent.log_sources}
+			logs={logs.map((l) => ({
+				id: l.id,
+				output: l.output,
+				time: l.created_at,
+				level: l.level,
+				sourceId: l.source_id,
+			}))}
+			height={560}
+			width="100%"
+		/>
+	);
 };
 
 const styles = {
-  stats: (theme) => ({
-    padding: 0,
-    border: 0,
-    gap: 48,
-    rowGap: 24,
-    flex: 1,
+	stats: (theme) => ({
+		padding: 0,
+		border: 0,
+		gap: 48,
+		rowGap: 24,
+		flex: 1,
 
-    [theme.breakpoints.down("md")]: {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "flex-start",
-      gap: 8,
-    },
-  }),
+		[theme.breakpoints.down("md")]: {
+			display: "flex",
+			flexDirection: "column",
+			alignItems: "flex-start",
+			gap: 8,
+		},
+	}),
 
-  statsItem: {
-    flexDirection: "column",
-    gap: 0,
-    padding: 0,
+	statsItem: {
+		flexDirection: "column",
+		gap: 0,
+		padding: 0,
 
-    "& > span:first-of-type": {
-      fontSize: 12,
-      fontWeight: 500,
-    },
-  },
+		"& > span:first-of-type": {
+			fontSize: 12,
+			fontWeight: 500,
+		},
+	},
 } satisfies Record<string, Interpolation<Theme>>;

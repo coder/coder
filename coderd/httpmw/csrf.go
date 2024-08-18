@@ -22,7 +22,9 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 		mw.SetBaseCookie(http.Cookie{Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie})
 		mw.SetFailureHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sessCookie, err := r.Cookie(codersdk.SessionTokenCookie)
-			if err == nil && r.Header.Get(codersdk.SessionTokenHeader) != sessCookie.Value {
+			if err == nil &&
+				r.Header.Get(codersdk.SessionTokenHeader) != "" &&
+				r.Header.Get(codersdk.SessionTokenHeader) != sessCookie.Value {
 				// If a user is using header authentication and cookie auth, but the values
 				// do not match, the cookie value takes priority.
 				// At the very least, return a more helpful error to the user.
@@ -87,6 +89,13 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 			}
 
 			if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" {
+				// If present, the provisioner daemon also is providing an api key
+				// that will make them exempt from CSRF. But this is still useful
+				// for enumerating the external auths.
+				return true
+			}
+
+			if r.Header.Get(codersdk.ProvisionerDaemonKey) != "" {
 				// If present, the provisioner daemon also is providing an api key
 				// that will make them exempt from CSRF. But this is still useful
 				// for enumerating the external auths.

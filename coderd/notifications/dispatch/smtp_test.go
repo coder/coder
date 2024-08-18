@@ -417,7 +417,11 @@ func TestSMTP(t *testing.T) {
 			require.NoError(t, hp.Set(listen.Addr().String()))
 			tc.cfg.Smarthost = hp
 
-			handler := dispatch.NewSMTPHandler(tc.cfg, logger.Named("smtp"))
+			helpers := map[string]any{
+				"base_url":     func() string { return "http://test.com" },
+				"current_year": func() string { return "2024" },
+			}
+			handler := dispatch.NewSMTPHandler(tc.cfg, helpers, logger.Named("smtp"))
 
 			// Start mock SMTP server in the background.
 			var wg sync.WaitGroup

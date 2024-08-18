@@ -159,11 +159,12 @@ resource "coder_agent" "coder" {
   startup_script = <<EOT
 #!/bin/bash
 
-# Install code-server 4.8.3 under /tmp/code-server using the "standalone" installation
-# that does not require root permissions. Note that /tmp may be mounted in tmpfs which
-# can lead to increased RAM usage. To avoid this, you can pre-install code-server inside
-# the Docker image or VM image.
-curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
+# Install the latest code-server under /tmp/code-server using the "standalone"
+# installation that does not require root permissions. Note that /tmp may be
+# mounted in tmpfs which can lead to increased RAM usage. To avoid this, you can
+# pre-install code-server inside the Docker image or VM image.
+# Append "--version x.x.x" to install a specific version of code-server.
+curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
 
 # The & prevents the startup_script from blocking so the next commands can run.
 # The stdout and stderr of code-server is redirected to /tmp/code-server.log.

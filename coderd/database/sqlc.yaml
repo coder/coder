@@ -44,6 +44,9 @@ sql:
           - column: "provisioner_daemons.tags"
             go_type:
               type: "StringMap"
+          - column: "provisioner_keys.tags"
+            go_type:
+              type: "StringMap"
           - column: "provisioner_jobs.tags"
             go_type:
               type: "StringMap"
@@ -71,6 +74,8 @@ sql:
             go_type:
               type: "[]byte"
         rename:
+          group_member: GroupMemberTable
+          group_members_expanded: GroupMember
           template: TemplateTable
           template_with_name: Template
           workspace_build: WorkspaceBuildTable

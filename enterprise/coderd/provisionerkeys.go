@@ -54,7 +54,7 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params, token, err := provisionerkey.New(organization.ID, req.Name)
+	params, token, err := provisionerkey.New(organization.ID, req.Name, req.Tags)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -142,6 +142,7 @@ func convertProvisionerKeys(dbKeys []database.ProvisionerKey) []codersdk.Provisi
 			CreatedAt:      dbKey.CreatedAt,
 			OrganizationID: dbKey.OrganizationID,
 			Name:           dbKey.Name,
+			Tags:           dbKey.Tags,
 			// HashedSecret - never include the access token in the API response
 		})
 	}

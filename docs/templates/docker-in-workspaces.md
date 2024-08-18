@@ -269,7 +269,7 @@ Before using Podman, please review the following documentation:
 ## Privileged sidecar container
 
 A
-[privileged container](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities)
+[privileged container](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities)
 can be added to your templates to add docker support. This may come in handy if
 your nodes cannot run Sysbox.
 

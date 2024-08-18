@@ -18,9 +18,10 @@ const (
 // NOTE: "owner" must NEVER be nil. Otherwise it will end up being
 // duplicated in the database, as idx_provisioner_daemons_name_owner_key
 // is a partial unique index that includes a JSON field.
-func MutateTags(userID uuid.UUID, tags map[string]string) map[string]string {
-	if tags == nil {
-		tags = map[string]string{}
+func MutateTags(userID uuid.UUID, provided map[string]string) map[string]string {
+	tags := map[string]string{}
+	for k, v := range provided {
+		tags[k] = v
 	}
 	_, ok := tags[TagScope]
 	if !ok {

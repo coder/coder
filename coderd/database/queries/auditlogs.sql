@@ -2,7 +2,7 @@
 -- ID.
 -- name: GetAuditLogsOffset :many
 SELECT
-    audit_logs.*,
+    sqlc.embed(audit_logs),
     -- sqlc.embed(users) would be nice but it does not seem to play well with
     -- left joins.
     users.username AS user_username,
@@ -117,6 +117,9 @@ WHERE
             workspace_builds.reason::text = @build_reason
         ELSE true
     END
+
+	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
+	-- @authorize_filter
 ORDER BY
     "time" DESC
 LIMIT

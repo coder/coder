@@ -1,6 +1,3 @@
--- name: GetGroups :many
-SELECT * FROM groups;
-
 -- name: GetGroupByID :one
 SELECT
 	*
@@ -23,38 +20,35 @@ AND
 LIMIT
 	1;
 
--- name: GetGroupsByOrganizationID :many
+-- name: GetGroups :many
 SELECT
-	*
-FROM
-	groups
-WHERE
-	organization_id = $1;
-
--- name: GetGroupsByOrganizationAndUserID :many
-SELECT
-    groups.*
+    *
 FROM
     groups
-	-- If the group is a user made group, then we need to check the group_members table.
-LEFT JOIN
-    group_members
-ON
-    group_members.group_id = groups.id AND
-    group_members.user_id = @user_id
-	-- If it is the "Everyone" group, then we need to check the organization_members table.
-LEFT JOIN
-    organization_members
-ON
-    organization_members.organization_id = groups.id AND
-    organization_members.user_id = @user_id
 WHERE
-    -- In either case, the group_id will only match an org or a group.
-    (group_members.user_id = @user_id OR organization_members.user_id = @user_id)
-AND
-    -- Ensure the group or organization is the specified organization.
-    groups.organization_id = @organization_id;
-
+    true
+    AND CASE
+        WHEN @organization_id:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            groups.organization_id = @organization_id
+        ELSE true
+    END
+    AND CASE
+        -- Filter to only include groups a user is a member of
+        WHEN @has_member_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            EXISTS (
+                SELECT
+                    1
+                FROM
+                    -- this view handles the 'everyone' group in orgs.
+                    group_members_expanded
+                WHERE
+                    group_members_expanded.group_id = groups.id
+                AND
+                    group_members_expanded.user_id = @has_member_id
+            )
+        ELSE true
+    END
+;
 
 -- name: InsertGroup :one
 INSERT INTO groups (
@@ -76,15 +70,15 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-    source
+    	    	source
 )
 SELECT
-    gen_random_uuid(),
-    group_name,
-    @organization_id,
-    @source
+    	    	gen_random_uuid(),
+    	    	group_name,
+    	    	@organization_id,
+    	    	@source
 FROM
-    UNNEST(@group_names :: text[]) AS group_name
+    	    	UNNEST(@group_names :: text[]) AS group_name
 -- If the name conflicts, do nothing.
 ON CONFLICT DO NOTHING
 RETURNING *;

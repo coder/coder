@@ -51,7 +51,7 @@ func TestMetrics(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Millisecond * 50)
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100) // Twice as long as fetch interval to ensure we catch pending updates.
 
-	mgr, err := notifications.NewManager(cfg, store, metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -218,7 +218,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 
 	syncer := &syncInterceptor{Store: store}
 	interceptor := newUpdateSignallingInterceptor(syncer)
-	mgr, err := notifications.NewManager(cfg, interceptor, metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -292,7 +292,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
 
-	mgr, err := notifications.NewManager(cfg, store, metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -336,6 +336,81 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	// Wait for the updates to be synced and the metric to reflect that.
 	require.Eventually(t, func() bool {
 		return promtest.ToFloat64(metrics.InflightDispatches) == 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestCustomMethodMetricCollection(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		// UpdateNotificationTemplateMethodByID only makes sense with a real database.
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
+	}
+	ctx, logger, store := setup(t)
+
+	var (
+		reg             = prometheus.NewRegistry()
+		metrics         = notifications.NewMetrics(reg)
+		template        = notifications.TemplateWorkspaceDeleted
+		anotherTemplate = notifications.TemplateWorkspaceDormant
+	)
+
+	const (
+		customMethod  = database.NotificationMethodWebhook
+		defaultMethod = database.NotificationMethodSmtp
+	)
+
+	// GIVEN: a template whose notification method differs from the default.
+	out, err := store.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
+		ID:     template,
+		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, customMethod, out.Method.NotificationMethod)
+
+	// WHEN: two notifications (each with different templates) are enqueued.
+	cfg := defaultNotificationsConfig(defaultMethod)
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+
+	smtpHandler := &fakeHandler{}
+	webhookHandler := &fakeHandler{}
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		defaultMethod: smtpHandler,
+		customMethod:  webhookHandler,
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+
+	user := createSampleUser(t, store)
+
+	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test")
+	require.NoError(t, err)
+	_, err = enq.Enqueue(ctx, user.ID, anotherTemplate, map[string]string{"type": "success"}, "test")
+	require.NoError(t, err)
+
+	mgr.Run(ctx)
+
+	// THEN: the fake handlers to "dispatch" the notifications.
+	require.Eventually(t, func() bool {
+		smtpHandler.mu.RLock()
+		webhookHandler.mu.RLock()
+		defer smtpHandler.mu.RUnlock()
+		defer webhookHandler.mu.RUnlock()
+
+		return len(smtpHandler.succeeded) == 1 && len(smtpHandler.failed) == 0 &&
+			len(webhookHandler.succeeded) == 1 && len(webhookHandler.failed) == 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// THEN: we should have metric series for both the default and custom notification methods.
+	require.Eventually(t, func() bool {
+		return promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(defaultMethod), anotherTemplate.String(), notifications.ResultSuccess)) > 0 &&
+			promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(customMethod), template.String(), notifications.ResultSuccess)) > 0
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 

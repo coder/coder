@@ -2,7 +2,7 @@ package provisionerkey
 
 import (
 	"crypto/sha256"
-	"fmt"
+	"crypto/subtle"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -12,20 +12,43 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-func New(organizationID uuid.UUID, name string) (database.InsertProvisionerKeyParams, string, error) {
-	id := uuid.New()
-	secret, err := cryptorand.HexString(64)
+const (
+	secretLength = 43
+)
+
+func New(organizationID uuid.UUID, name string, tags map[string]string) (database.InsertProvisionerKeyParams, string, error) {
+	secret, err := cryptorand.String(secretLength)
 	if err != nil {
-		return database.InsertProvisionerKeyParams{}, "", xerrors.Errorf("generate token: %w", err)
+		return database.InsertProvisionerKeyParams{}, "", xerrors.Errorf("generate secret: %w", err)
 	}
-	hashedSecret := sha256.Sum256([]byte(secret))
-	token := fmt.Sprintf("%s:%s", id, secret)
+
+	if tags == nil {
+		tags = map[string]string{}
+	}
 
 	return database.InsertProvisionerKeyParams{
-		ID:             id,
+		ID:             uuid.New(),
 		CreatedAt:      dbtime.Now(),
 		OrganizationID: organizationID,
 		Name:           name,
-		HashedSecret:   hashedSecret[:],
-	}, token, nil
+		HashedSecret:   HashSecret(secret),
+		Tags:           tags,
+	}, secret, nil
+}
+
+func Validate(token string) error {
+	if len(token) != secretLength {
+		return xerrors.Errorf("must be %d characters", secretLength)
+	}
+
+	return nil
+}
+
+func HashSecret(secret string) []byte {
+	h := sha256.Sum256([]byte(secret))
+	return h[:]
+}
+
+func Compare(a []byte, b []byte) bool {
+	return subtle.ConstantTimeCompare(a, b) != 1
 }

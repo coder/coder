@@ -56,8 +56,11 @@ resource "coder_agent" "main" {
   os             = "linux"
   startup_script = <<EOF
     #!/bin/sh
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --version 4.8.3
+    # Install the latest code-server.
+    # Append "-s -- --version x.x.x" to install a specific version of code-server.
+    curl -fsSL https://code-server.dev/install.sh | sh
+
+    # Start code-server.
     code-server --auth none --port 13337
     EOF
 

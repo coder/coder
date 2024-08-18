@@ -2,10 +2,11 @@
 -- This is used to build up the notification_message's JSON payload.
 SELECT nt.name                                                    AS notification_name,
        nt.actions                                                 AS actions,
+       nt.method                                                  AS custom_method,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
        COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
-       COALESCE(u.username, '')                                   AS user_username
+       u.username                                                 AS user_username
 FROM notification_templates nt,
      users u
 WHERE nt.id = @notification_template_id
@@ -79,14 +80,18 @@ SELECT
     nm.id,
     nm.payload,
     nm.method,
-    nm.attempt_count::int AS attempt_count,
-    nm.queued_seconds::float AS queued_seconds,
+    nm.attempt_count::int                                                 AS attempt_count,
+    nm.queued_seconds::float                                              AS queued_seconds,
     -- template
-    nt.id AS template_id,
+    nt.id                                                                 AS template_id,
     nt.title_template,
-    nt.body_template
+    nt.body_template,
+    -- preferences
+    (CASE WHEN np.disabled IS NULL THEN false ELSE np.disabled END)::bool AS disabled
 FROM acquired nm
-         JOIN notification_templates nt ON nm.notification_template_id = nt.id;
+         JOIN notification_templates nt ON nm.notification_template_id = nt.id
+         LEFT JOIN notification_preferences AS np
+                   ON (np.user_id = nm.user_id AND np.notification_template_id = nm.notification_template_id);
 
 -- name: BulkMarkNotificationMessagesFailed :execrows
 UPDATE notification_messages
@@ -131,5 +136,39 @@ WHERE id IN
        WHERE nested.updated_at < NOW() - INTERVAL '7 days');
 
 -- name: GetNotificationMessagesByStatus :many
-SELECT * FROM notification_messages WHERE status = @status LIMIT sqlc.arg('limit')::int;
+SELECT *
+FROM notification_messages
+WHERE status = @status
+LIMIT sqlc.arg('limit')::int;
 
+-- name: GetUserNotificationPreferences :many
+SELECT *
+FROM notification_preferences
+WHERE user_id = @user_id::uuid;
+
+-- name: UpdateUserNotificationPreferences :execrows
+INSERT
+INTO notification_preferences (user_id, notification_template_id, disabled)
+SELECT @user_id::uuid, new_values.notification_template_id, new_values.disabled
+FROM (SELECT UNNEST(@notification_template_ids::uuid[]) AS notification_template_id,
+             UNNEST(@disableds::bool[])                 AS disabled) AS new_values
+ON CONFLICT (user_id, notification_template_id) DO UPDATE
+    SET disabled   = EXCLUDED.disabled,
+        updated_at = CURRENT_TIMESTAMP;
+
+-- name: UpdateNotificationTemplateMethodByID :one
+UPDATE notification_templates
+SET method = sqlc.narg('method')::notification_method
+WHERE id = @id::uuid
+RETURNING *;
+
+-- name: GetNotificationTemplateByID :one
+SELECT *
+FROM notification_templates
+WHERE id = @id::uuid;
+
+-- name: GetNotificationTemplatesByKind :many
+SELECT *
+FROM notification_templates
+WHERE kind = @kind::notification_template_kind
+ORDER BY name ASC;

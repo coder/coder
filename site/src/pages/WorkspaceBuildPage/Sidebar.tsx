@@ -1,79 +1,79 @@
 import type { FC, HTMLAttributes } from "react";
 
 export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
-  children,
-  ...attrs
+	children,
+	...attrs
 }) => {
-  return (
-    <nav
-      css={(theme) => ({
-        width: 256,
-        flexShrink: 0,
-        borderRight: `1px solid ${theme.palette.divider}`,
-        height: "100%",
-        overflowY: "auto",
-      })}
-      {...attrs}
-    >
-      {children}
-    </nav>
-  );
+	return (
+		<nav
+			css={(theme) => ({
+				width: 256,
+				flexShrink: 0,
+				borderRight: `1px solid ${theme.palette.divider}`,
+				height: "100%",
+				overflowY: "auto",
+			})}
+			{...attrs}
+		>
+			{children}
+		</nav>
+	);
 };
 
 interface SidebarItemProps extends HTMLAttributes<HTMLElement> {
-  active?: boolean;
+	active?: boolean;
 }
 
 export const SidebarItem: FC<SidebarItemProps> = ({
-  children,
-  active,
-  ...attrs
+	children,
+	active,
+	...attrs
 }) => {
-  return (
-    <button
-      css={(theme) => ({
-        background: active ? theme.experimental.l2.background : "none",
-        border: "none",
-        fontSize: 14,
-        width: "100%",
-        textAlign: "left",
-        padding: "0 24px",
-        cursor: "pointer",
-        pointerEvents: active ? "none" : "auto",
-        color: active
-          ? theme.palette.text.primary
-          : theme.palette.text.secondary,
-        "&:hover": {
-          background: theme.palette.action.hover,
-          color: theme.palette.text.primary,
-        },
-        paddingTop: 10,
-        paddingBottom: 10,
-      })}
-      {...attrs}
-    >
-      {children}
-    </button>
-  );
+	return (
+		<button
+			css={(theme) => ({
+				background: active ? theme.experimental.l2.background : "none",
+				border: "none",
+				fontSize: 14,
+				width: "100%",
+				textAlign: "left",
+				padding: "0 24px",
+				cursor: "pointer",
+				pointerEvents: active ? "none" : "auto",
+				color: active
+					? theme.palette.text.primary
+					: theme.palette.text.secondary,
+				"&:hover": {
+					background: theme.palette.action.hover,
+					color: theme.palette.text.primary,
+				},
+				paddingTop: 10,
+				paddingBottom: 10,
+			})}
+			{...attrs}
+		>
+			{children}
+		</button>
+	);
 };
 
 export const SidebarCaption: FC<HTMLAttributes<HTMLDivElement>> = ({
-  children,
-  ...attrs
+	children,
+	...attrs
 }) => {
-  return (
-    <div
-      css={(theme) => ({
-        fontSize: 10,
-        textTransform: "uppercase",
-        fontWeight: 500,
-        color: theme.palette.text.secondary,
-        padding: "12px 24px",
-        letterSpacing: "0.5px",
-      })}
-      {...attrs}
-    >
-      {children}
-    </div>
-  );
+	return (
+		<div
+			css={(theme) => ({
+				fontSize: 10,
+				textTransform: "uppercase",
+				fontWeight: 500,
+				color: theme.palette.text.secondary,
+				padding: "12px 24px",
+				letterSpacing: "0.5px",
+			})}
+			{...attrs}
+		>
+			{children}
+		</div>
+	);
 };

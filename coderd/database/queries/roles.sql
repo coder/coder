@@ -25,36 +25,49 @@ WHERE
   END
 ;
 
+-- name: DeleteCustomRole :exec
+DELETE FROM
+	custom_roles
+WHERE
+	name = lower(@name)
+	AND organization_id = @organization_id
+;
 
--- name: UpsertCustomRole :one
+-- name: InsertCustomRole :one
 INSERT INTO
 	custom_roles (
-	    name,
-	    display_name,
-	    organization_id,
-	    site_permissions,
-	    org_permissions,
-	    user_permissions,
-	    created_at,
-		updated_at
+	name,
+	display_name,
+	organization_id,
+	site_permissions,
+	org_permissions,
+	user_permissions,
+	created_at,
+	updated_at
 )
 VALUES (
-        -- Always force lowercase names
-        lower(@name),
-        @display_name,
-        @organization_id,
-        @site_permissions,
-        @org_permissions,
-        @user_permissions,
-        now(),
-        now()
+		   -- Always force lowercase names
+		   lower(@name),
+		   @display_name,
+		   @organization_id,
+		   @site_permissions,
+		   @org_permissions,
+		   @user_permissions,
+		   now(),
+		   now()
 	   )
-ON CONFLICT (name)
-	DO UPDATE SET
+RETURNING *;
+
+-- name: UpdateCustomRole :one
+UPDATE
+	custom_roles
+SET
 	display_name = @display_name,
 	site_permissions = @site_permissions,
 	org_permissions = @org_permissions,
 	user_permissions = @user_permissions,
 	updated_at = now()
-RETURNING *
-;
+WHERE
+	name = lower(@name)
+	AND organization_id = @organization_id
+RETURNING *;

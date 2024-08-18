@@ -1,258 +1,62 @@
-import { cx } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/Add";
-import SettingsIcon from "@mui/icons-material/Settings";
-import type { FC, ReactNode } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
-import type { Organization } from "api/typesGenerated";
-import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
-import { Stack } from "components/Stack/Stack";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { type ClassName, useClassName } from "hooks/useClassName";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
+import { organizationsPermissions } from "api/queries/organizations";
+import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { useLocation, useParams } from "react-router-dom";
+import {
+	canEditOrganization,
+	useOrganizationSettings,
+} from "./ManagementSettingsLayout";
+import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
 
+/**
+ * A combined deployment settings and organization menu.
+ *
+ * This should only be used with multi-org support.  If multi-org support is
+ * disabled or not licensed, this is the wrong sidebar to use.  See
+ * DeploySettingsPage/Sidebar instead.
+ */
 export const Sidebar: FC = () => {
-  const { currentOrganizationId, organizations } = useOrganizationSettings();
+	const location = useLocation();
+	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
+	const { organizations } = useOrganizationSettings();
+	const { organization: organizationName } = useParams() as {
+		organization?: string;
+	};
 
-  // TODO: Do something nice to scroll to the active org.
+	const orgPermissionsQuery = useQuery(
+		organizationsPermissions(organizations?.map((o) => o.id)),
+	);
 
-  return (
-    <BaseSidebar>
-      <header css={styles.sidebarHeader}>Deployment</header>
-      <DeploymentSettingsNavigation />
-      <header css={styles.sidebarHeader}>Organizations</header>
-      <SidebarNavItem
-        active="auto"
-        href="/organizations/new"
-        icon={<AddIcon />}
-      >
-        New organization
-      </SidebarNavItem>
-      {organizations.map((organization) => (
-        <OrganizationSettingsNavigation
-          key={organization.id}
-          organization={organization}
-          active={organization.id === currentOrganizationId}
-        />
-      ))}
-    </BaseSidebar>
-  );
+	// Sometimes a user can read an organization but cannot actually do anything
+	// with it.  For now, these are filtered out so you only see organizations you
+	// can manage in some way.
+	const editableOrgs = organizations
+		?.map((org) => {
+			return {
+				...org,
+				permissions: orgPermissionsQuery.data?.[org.id],
+			};
+		})
+		// TypeScript is not able to infer whether permissions are defined on the
+		// object even if we explicitly check org.permissions here, so add the `is`
+		// here to help out (canEditOrganization does the actual check).
+		.filter((org): org is OrganizationWithPermissions => {
+			return canEditOrganization(org.permissions);
+		});
+
+	return (
+		<SidebarView
+			// Both activeSettings and activeOrganizationName could be be falsey if
+			// the user is on /organizations but has no editable organizations to
+			// which we can redirect.
+			activeSettings={location.pathname.startsWith("/deployment")}
+			activeOrganizationName={organizationName}
+			organizations={editableOrgs}
+			permissions={permissions}
+			experiments={experiments}
+		/>
+	);
 };
-
-const DeploymentSettingsNavigation: FC = () => {
-  const location = useLocation();
-  const active = location.pathname.startsWith("/deployment");
-
-  return (
-    <div css={{ paddingBottom: 12 }}>
-      <SidebarNavItem
-        active={active}
-        href="/deployment/general"
-        // 24px matches the width of the organization icons, and the component is smart enough
-        // to keep the icon itself square. It looks too big if it's 24x24.
-        icon={<SettingsIcon css={{ width: 24, height: 20 }} />}
-      >
-        Deployment
-      </SidebarNavItem>
-      {active && (
-        <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          <SidebarNavSubItem href="general">General</SidebarNavSubItem>
-          <SidebarNavSubItem href="licenses">Licenses</SidebarNavSubItem>
-          <SidebarNavSubItem href="appearance">Appearance</SidebarNavSubItem>
-          <SidebarNavSubItem href="userauth">
-            User Authentication
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href="external-auth">
-            External Authentication
-          </SidebarNavSubItem>
-          {/* Not exposing this yet since token exchange is not finished yet.
-          <SidebarNavSubItem href="oauth2-provider/ap>
-            OAuth2 Applications
-          </SidebarNavSubItem>*/}
-          <SidebarNavSubItem href="network">Network</SidebarNavSubItem>
-          <SidebarNavSubItem href="workspace-proxies">
-            Workspace Proxies
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href="security">Security</SidebarNavSubItem>
-          <SidebarNavSubItem href="observability">
-            Observability
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href="/users">Users</SidebarNavSubItem>
-        </Stack>
-      )}
-    </div>
-  );
-};
-
-function urlForSubpage(organizationName: string, subpage: string = ""): string {
-  return `/organizations/${organizationName}/${subpage}`;
-}
-
-interface OrganizationSettingsNavigationProps {
-  organization: Organization;
-  active: boolean;
-}
-
-export const OrganizationSettingsNavigation: FC<
-  OrganizationSettingsNavigationProps
-> = ({ organization, active }) => {
-  return (
-    <>
-      <SidebarNavItem
-        active={active}
-        href={urlForSubpage(organization.name)}
-        icon={
-          <UserAvatar
-            key={organization.id}
-            size="sm"
-            username={organization.display_name}
-            avatarURL={organization.icon}
-          />
-        }
-      >
-        {organization.display_name}
-      </SidebarNavItem>
-      {active && (
-        <Stack spacing={0.5} css={{ marginBottom: 8, marginTop: 8 }}>
-          <SidebarNavSubItem end href={urlForSubpage(organization.name)}>
-            Organization settings
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href={urlForSubpage(organization.name, "members")}>
-            Members
-          </SidebarNavSubItem>
-          <SidebarNavSubItem href={urlForSubpage(organization.name, "groups")}>
-            Groups
-          </SidebarNavSubItem>
-          <SidebarNavSubItem
-            href={urlForSubpage(organization.name, "auditing")}
-          >
-            Auditing
-          </SidebarNavSubItem>
-        </Stack>
-      )}
-    </>
-  );
-};
-
-interface SidebarNavItemProps {
-  active?: boolean | "auto";
-  children?: ReactNode;
-  icon?: ReactNode;
-  href: string;
-}
-
-export const SidebarNavItem: FC<SidebarNavItemProps> = ({
-  active,
-  children,
-  href,
-  icon,
-}) => {
-  const link = useClassName(classNames.link, []);
-  const activeLink = useClassName(classNames.activeLink, []);
-
-  const content = (
-    <Stack alignItems="center" spacing={1.5} direction="row">
-      {icon}
-      {children}
-    </Stack>
-  );
-
-  if (active === "auto") {
-    return (
-      <NavLink
-        to={href}
-        className={({ isActive }) => cx([link, isActive && activeLink])}
-      >
-        {content}
-      </NavLink>
-    );
-  }
-
-  return (
-    <Link to={href} className={cx([link, active && activeLink])}>
-      {content}
-    </Link>
-  );
-};
-
-interface SidebarNavSubItemProps {
-  children?: ReactNode;
-  href: string;
-  end?: boolean;
-}
-
-export const SidebarNavSubItem: FC<SidebarNavSubItemProps> = ({
-  children,
-  href,
-  end,
-}) => {
-  const link = useClassName(classNames.subLink, []);
-  const activeLink = useClassName(classNames.activeSubLink, []);
-
-  return (
-    <NavLink
-      end={end}
-      to={href}
-      className={({ isActive }) => cx([link, isActive && activeLink])}
-    >
-      {children}
-    </NavLink>
-  );
-};
-
-const styles = {
-  sidebarHeader: {
-    textTransform: "uppercase",
-    letterSpacing: "0.15em",
-    fontSize: 11,
-    fontWeight: 500,
-    paddingBottom: 4,
-  },
-} satisfies Record<string, Interpolation<Theme>>;
-
-const classNames = {
-  link: (css, theme) => css`
-    color: inherit;
-    display: block;
-    font-size: 14px;
-    text-decoration: none;
-    padding: 10px 12px 10px 16px;
-    border-radius: 4px;
-    transition: background-color 0.15s ease-in-out;
-    position: relative;
-
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-    }
-
-    border-left: 3px solid transparent;
-  `,
-
-  activeLink: (css, theme) => css`
-    border-left-color: ${theme.palette.primary.main};
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  `,
-
-  subLink: (css, theme) => css`
-    color: inherit;
-    text-decoration: none;
-
-    display: block;
-    font-size: 13px;
-    margin-left: 44px;
-    padding: 4px 12px;
-    border-radius: 4px;
-    transition: background-color 0.15s ease-in-out;
-    margin-bottom: 1px;
-    position: relative;
-
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-    }
-  `,
-
-  activeSubLink: (css) => css`
-    font-weight: 600;
-  `,
-} satisfies Record<string, ClassName>;

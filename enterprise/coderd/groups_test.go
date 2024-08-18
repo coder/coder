@@ -2,7 +2,9 @@ package coderd_test
 
 import (
 	"net/http"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -10,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -567,6 +570,24 @@ func TestPatchGroup(t *testing.T) {
 	})
 }
 
+func normalizeAllGroups(groups []codersdk.Group) {
+	for i := range groups {
+		normalizeGroupMembers(&groups[i])
+	}
+}
+
+// normalizeGroupMembers removes comparison noise from the group members.
+func normalizeGroupMembers(group *codersdk.Group) {
+	for i := range group.Members {
+		group.Members[i].LastSeenAt = time.Time{}
+		group.Members[i].CreatedAt = time.Time{}
+		group.Members[i].UpdatedAt = time.Time{}
+	}
+	sort.Slice(group.Members, func(i, j int) bool {
+		return group.Members[i].ID.String() < group.Members[j].ID.String()
+	})
+}
+
 // TODO: test auth.
 func TestGroup(t *testing.T) {
 	t.Parallel()
@@ -638,6 +659,9 @@ func TestGroup(t *testing.T) {
 
 		ggroup, err := userAdminClient.Group(ctx, group.ID)
 		require.NoError(t, err)
+		normalizeGroupMembers(&group)
+		normalizeGroupMembers(&ggroup)
+
 		require.Equal(t, group, ggroup)
 	})
 
@@ -783,6 +807,8 @@ func TestGroup(t *testing.T) {
 func TestGroups(t *testing.T) {
 	t.Parallel()
 
+	// 5 users
+	// 2 custom groups + original org group
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -795,7 +821,7 @@ func TestGroups(t *testing.T) {
 		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		_, user5 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		user5Client, user5 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		group1, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
@@ -812,18 +838,64 @@ func TestGroups(t *testing.T) {
 			AddUsers: []string{user2.ID.String(), user3.ID.String()},
 		})
 		require.NoError(t, err)
+		normalizeGroupMembers(&group1)
 
 		group2, err = userAdminClient.PatchGroup(ctx, group2.ID, codersdk.PatchGroupRequest{
 			AddUsers: []string{user4.ID.String(), user5.ID.String()},
 		})
 		require.NoError(t, err)
+		normalizeGroupMembers(&group2)
 
-		groups, err := userAdminClient.GroupsByOrganization(ctx, user.OrganizationID)
+		// Fetch everyone group for comparison
+		everyoneGroup, err := userAdminClient.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
+		normalizeGroupMembers(&everyoneGroup)
+
+		groups, err := userAdminClient.Groups(ctx, codersdk.GroupArguments{
+			Organization: user.OrganizationID.String(),
+		})
+		require.NoError(t, err)
+		normalizeAllGroups(groups)
+
 		// 'Everyone' group + 2 custom groups.
-		require.Len(t, groups, 3)
-		require.Contains(t, groups, group1)
-		require.Contains(t, groups, group2)
+		require.ElementsMatch(t, []codersdk.Group{
+			everyoneGroup,
+			group1,
+			group2,
+		}, groups)
+
+		// Filter by user
+		user5Groups, err := userAdminClient.Groups(ctx, codersdk.GroupArguments{
+			HasMember: user5.Username,
+		})
+		require.NoError(t, err)
+		normalizeAllGroups(user5Groups)
+		// Everyone group and group 2
+		require.ElementsMatch(t, []codersdk.Group{
+			everyoneGroup,
+			group2,
+		}, user5Groups)
+
+		// Query from the user's perspective
+		user5View, err := user5Client.Groups(ctx, codersdk.GroupArguments{})
+		require.NoError(t, err)
+		normalizeAllGroups(user5Groups)
+
+		// Everyone group and group 2
+		require.Len(t, user5View, 2)
+		user5ViewIDs := db2sdk.List(user5View, func(g codersdk.Group) uuid.UUID {
+			return g.ID
+		})
+
+		require.ElementsMatch(t, []uuid.UUID{
+			everyoneGroup.ID,
+			group2.ID,
+		}, user5ViewIDs)
+		for _, g := range user5View {
+			// Only expect the 1 member, themselves
+			require.Len(t, g.Members, 1)
+			require.Equal(t, user5.ReducedUser.ID, g.Members[0].MinimalUser.ID)
+		}
 	})
 }
 

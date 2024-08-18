@@ -1,102 +1,82 @@
-import { createContext, type FC, Suspense, useContext } from "react";
-import { useQuery } from "react-query";
-import { Outlet, useLocation, useParams } from "react-router-dom";
 import { deploymentConfig } from "api/queries/deployment";
-import { organizations } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
+import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import NotFoundPage from "pages/404Page/404Page";
+import { type FC, Suspense } from "react";
+import { useQuery } from "react-query";
+import { Outlet } from "react-router-dom";
 import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 import { Sidebar } from "./Sidebar";
 
-type OrganizationSettingsContextValue = {
-  currentOrganizationId?: string;
-  organizations: Organization[];
+type OrganizationSettingsValue = {
+	organizations: Organization[];
 };
 
-const OrganizationSettingsContext = createContext<
-  OrganizationSettingsContextValue | undefined
->(undefined);
-
-export const useOrganizationSettings = (): OrganizationSettingsContextValue => {
-  const context = useContext(OrganizationSettingsContext);
-  if (!context) {
-    throw new Error(
-      "useOrganizationSettings should be used inside of OrganizationSettingsLayout",
-    );
-  }
-  return context;
+export const useOrganizationSettings = (): OrganizationSettingsValue => {
+	const { organizations } = useDashboard();
+	return { organizations };
 };
 
+/**
+ * Return true if the user can edit the organization settings or its members.
+ */
+export const canEditOrganization = (
+	permissions: AuthorizationResponse | undefined,
+) => {
+	return (
+		permissions !== undefined &&
+		(permissions.editOrganization ||
+			permissions.editMembers ||
+			permissions.editGroups)
+	);
+};
+
+/**
+ * A multi-org capable settings page layout.
+ *
+ * If multi-org is not enabled or licensed, this is the wrong layout to use.
+ * See DeploySettingsLayoutInner instead.
+ */
 export const ManagementSettingsLayout: FC = () => {
-  const location = useLocation();
-  const { permissions } = useAuthenticated();
-  const { experiments } = useDashboard();
-  const { organization } = useParams() as { organization: string };
-  const deploymentConfigQuery = useQuery(deploymentConfig());
-  const organizationsQuery = useQuery(organizations());
+	const { permissions } = useAuthenticated();
+	const deploymentConfigQuery = useQuery(
+		// TODO: This is probably normally fine because we will not show links to
+		//       pages that need this data, but if you manually visit the page you
+		//       will see an endless loader when maybe we should show a "permission
+		//       denied" error or at least a 404 instead.
+		permissions.viewDeploymentValues ? deploymentConfig() : { enabled: false },
+	);
 
-  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+	// The deployment settings page also contains users, audit logs, groups and
+	// organizations, so this page must be visible if you can see any of these.
+	const canViewDeploymentSettingsPage =
+		permissions.viewDeploymentValues ||
+		permissions.viewAllUsers ||
+		permissions.editAnyOrganization ||
+		permissions.viewAnyAuditLog;
 
-  const inOrganizationSettings =
-    location.pathname.startsWith("/organizations") &&
-    location.pathname !== "/organizations/new";
-
-  if (!multiOrgExperimentEnabled) {
-    return <NotFoundPage />;
-  }
-
-  return (
-    <RequirePermission isFeatureVisible={permissions.viewDeploymentValues}>
-      <Margins>
-        <Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
-          {organizationsQuery.data ? (
-            <OrganizationSettingsContext.Provider
-              value={{
-                currentOrganizationId: !inOrganizationSettings
-                  ? undefined
-                  : !organization
-                    ? getOrganizationIdByDefault(organizationsQuery.data)
-                    : getOrganizationIdByName(
-                        organizationsQuery.data,
-                        organization,
-                      ),
-                organizations: organizationsQuery.data,
-              }}
-            >
-              <Sidebar />
-              <main css={{ width: "100%" }}>
-                {deploymentConfigQuery.data ? (
-                  <DeploySettingsContext.Provider
-                    value={{
-                      deploymentValues: deploymentConfigQuery.data,
-                    }}
-                  >
-                    <Suspense fallback={<Loader />}>
-                      <Outlet />
-                    </Suspense>
-                  </DeploySettingsContext.Provider>
-                ) : (
-                  <Loader />
-                )}
-              </main>
-            </OrganizationSettingsContext.Provider>
-          ) : (
-            <Loader />
-          )}
-        </Stack>
-      </Margins>
-    </RequirePermission>
-  );
+	return (
+		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
+			<Margins>
+				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
+					<Sidebar />
+					<main css={{ width: "100%" }}>
+						<DeploySettingsContext.Provider
+							value={{
+								deploymentValues: deploymentConfigQuery.data,
+							}}
+						>
+							<Suspense fallback={<Loader />}>
+								<Outlet />
+							</Suspense>
+						</DeploySettingsContext.Provider>
+					</main>
+				</Stack>
+			</Margins>
+		</RequirePermission>
+	);
 };
-
-const getOrganizationIdByName = (organizations: Organization[], name: string) =>
-  organizations.find((org) => org.name === name)?.id;
-
-const getOrganizationIdByDefault = (organizations: Organization[]) =>
-  organizations.find((org) => org.is_default)?.id;

@@ -33,7 +33,7 @@ Aliases:
 | Name |   Purpose |
 | ---- |   ----- |
 {{- end }}
-| [{{ $cmd.Name | wrapCode }}](./{{if atRoot $}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
+| [{{ $cmd.Name | wrapCode }}](./{{commandURI $cmd}}) | {{ $cmd.Short }} |
 {{- end}}
 {{ "" }}
 {{- range $index, $opt := visibleOptions . }}

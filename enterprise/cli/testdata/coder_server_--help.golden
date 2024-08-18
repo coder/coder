@@ -23,7 +23,8 @@ OPTIONS:
       --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           The directory to cache temporary files. If unspecified and
           $CACHE_DIRECTORY is set, it will be used for compatibility with
-          systemd.
+          systemd. This directory is NOT safe to be configured as a shared
+          directory across coderd/provisionerd replicas.
 
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution

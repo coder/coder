@@ -245,6 +245,7 @@ var (
 					rbac.ResourceOrganization.Type:       {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type: {policy.ActionCreate},
 					rbac.ResourceProvisionerDaemon.Type:  {policy.ActionCreate, policy.ActionUpdate},
+					rbac.ResourceProvisionerKeys.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceUser.Type:               rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
@@ -814,6 +815,86 @@ func (q *querier) customRoleEscalationCheck(ctx context.Context, actor rbac.Subj
 	return nil
 }
 
+// customRoleCheck will validate a custom role for inserting or updating.
+// If the role is not valid, an error will be returned.
+// - Check custom roles are valid for their resource types + actions
+// - Check the actor can create the custom role
+// - Check the custom role does not grant perms the actor does not have
+// - Prevent negative perms
+// - Prevent roles with site and org permissions.
+func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole) error {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return NoActorError
+	}
+
+	// Org permissions require an org role
+	if role.OrganizationID.UUID == uuid.Nil && len(role.OrgPermissions) > 0 {
+		return xerrors.Errorf("organization permissions require specifying an organization id")
+	}
+
+	// Org roles can only specify org permissions
+	if role.OrganizationID.UUID != uuid.Nil && (len(role.SitePermissions) > 0 || len(role.UserPermissions) > 0) {
+		return xerrors.Errorf("organization roles specify site or user permissions")
+	}
+
+	// The rbac.Role has a 'Valid()' function on it that will do a lot
+	// of checks.
+	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
+		Name:            role.Name,
+		DisplayName:     role.DisplayName,
+		SitePermissions: role.SitePermissions,
+		OrgPermissions:  role.OrgPermissions,
+		UserPermissions: role.UserPermissions,
+		OrganizationID:  role.OrganizationID,
+	})
+	if err != nil {
+		return xerrors.Errorf("invalid args: %w", err)
+	}
+
+	err = rbacRole.Valid()
+	if err != nil {
+		return xerrors.Errorf("invalid role: %w", err)
+	}
+
+	if len(rbacRole.Org) > 0 && len(rbacRole.Site) > 0 {
+		// This is a choice to keep roles simple. If we allow mixing site and org scoped perms, then knowing who can
+		// do what gets more complicated.
+		return xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
+	}
+
+	if len(rbacRole.Org) > 1 {
+		// Again to avoid more complexity in our roles
+		return xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
+	}
+
+	// Prevent escalation
+	for _, sitePerm := range rbacRole.Site {
+		err := q.customRoleEscalationCheck(ctx, act, sitePerm, rbac.Object{Type: sitePerm.ResourceType})
+		if err != nil {
+			return xerrors.Errorf("site permission: %w", err)
+		}
+	}
+
+	for orgID, perms := range rbacRole.Org {
+		for _, orgPerm := range perms {
+			err := q.customRoleEscalationCheck(ctx, act, orgPerm, rbac.Object{OrgID: orgID, Type: orgPerm.ResourceType})
+			if err != nil {
+				return xerrors.Errorf("org=%q: %w", orgID, err)
+			}
+		}
+	}
+
+	for _, userPerm := range rbacRole.User {
+		err := q.customRoleEscalationCheck(ctx, act, userPerm, rbac.Object{Type: userPerm.ResourceType, Owner: act.ID})
+		if err != nil {
+			return xerrors.Errorf("user permission: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -955,6 +1036,20 @@ func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	return q.db.DeleteCoordinator(ctx, id)
+}
+
+func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCustomRoleParams) error {
+	if arg.OrganizationID.UUID != uuid.Nil {
+		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+			return err
+		}
+	} else {
+		if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAssignRole); err != nil {
+			return err
+		}
+	}
+
+	return q.db.DeleteCustomRole(ctx, arg)
 }
 
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
@@ -1247,22 +1342,19 @@ func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
-	// To optimize the authz checks for audit logs, do not run an authorize
-	// check on each individual audit log row. In practice, audit logs are either
-	// fetched from a global or an organization scope.
-	// Applying a SQL filter would slow down the query for no benefit on how this query is
-	// actually used.
-
-	object := rbac.ResourceAuditLog
-	if arg.OrganizationID != uuid.Nil {
-		object = object.InOrg(arg.OrganizationID)
+	// Shortcut if the user is an owner. The SQL filter is noticeable,
+	// and this is an easy win for owners. Which is the common case.
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog)
+	if err == nil {
+		return q.db.GetAuditLogsOffset(ctx, arg)
 	}
 
-	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
-		return nil, err
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAuditLog.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 
-	return q.db.GetAuditLogsOffset(ctx, arg)
+	return q.db.GetAuthorizedAuditLogsOffset(ctx, arg, prep)
 }
 
 func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
@@ -1384,26 +1476,31 @@ func (q *querier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, 
 	return q.db.GetGroupMembers(ctx)
 }
 
-func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.User, error) {
-	if _, err := q.GetGroupByID(ctx, id); err != nil { // AuthZ check
-		return nil, err
+func (q *querier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, id)
+}
+
+func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
+		return 0, err
 	}
-	return q.db.GetGroupMembersByGroupID(ctx, id)
-}
-
-func (q *querier) GetGroups(ctx context.Context) ([]database.Group, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+	memberCount, err := q.db.GetGroupMembersCountByGroupID(ctx, groupID)
+	if err != nil {
+		return 0, err
 	}
-	return q.db.GetGroups(ctx)
+	return memberCount, nil
 }
 
-func (q *querier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupsByOrganizationAndUserID)(ctx, arg)
-}
+func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err == nil {
+		// Optimize this query for system users as it is used in telemetry.
+		// Calling authz on all groups in a deployment for telemetry jobs is
+		// excessive. Most user calls should have some filtering applied to reduce
+		// the size of the set.
+		return q.db.GetGroups(ctx, arg)
+	}
 
-func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroups)(ctx, arg)
 }
 
 func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
@@ -1481,6 +1578,23 @@ func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.GetNotificationMessagesByStatus(ctx, arg)
+}
+
+func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationTemplate); err != nil {
+		return database.NotificationTemplate{}, err
+	}
+	return q.db.GetNotificationTemplateByID(ctx, id)
+}
+
+func (q *querier) GetNotificationTemplatesByKind(ctx context.Context, kind database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	// Anyone can read the system notification templates.
+	if kind == database.NotificationTemplateKindSystem {
+		return q.db.GetNotificationTemplatesByKind(ctx, kind)
+	}
+
+	// TODO(dannyk): handle template ownership when we support user-default notification templates.
+	return nil, sql.ErrNoRows
 }
 
 func (q *querier) GetNotificationsSettings(ctx context.Context) (string, error) {
@@ -1677,6 +1791,10 @@ func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt 
 	// return nil, err
 	// }
 	return q.db.GetProvisionerJobsCreatedAfter(ctx, createdAt)
+}
+
+func (q *querier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.ProvisionerKey, error) {
+	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByHashedSecret)(ctx, hashedSecret)
 }
 
 func (q *querier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
@@ -2090,6 +2208,13 @@ func (q *querier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([
 	return q.db.GetUserLinksByUserID(ctx, userID)
 }
 
+func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationPreference.WithOwner(userID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserNotificationPreferences(ctx, userID)
+}
+
 func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	u, err := q.db.GetUserByID(ctx, params.OwnerID)
 	if err != nil {
@@ -2501,6 +2626,34 @@ func (q *querier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.U
 
 func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
+}
+
+func (q *querier) InsertCustomRole(ctx context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
+	// Org and site role upsert share the same query. So switch the assertion based on the org uuid.
+	if arg.OrganizationID.UUID != uuid.Nil {
+		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+			return database.CustomRole{}, err
+		}
+	} else {
+		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
+			return database.CustomRole{}, err
+		}
+	}
+
+	if err := q.customRoleCheck(ctx, database.CustomRole{
+		Name:            arg.Name,
+		DisplayName:     arg.DisplayName,
+		SitePermissions: arg.SitePermissions,
+		OrgPermissions:  arg.OrgPermissions,
+		UserPermissions: arg.UserPermissions,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+		OrganizationID:  arg.OrganizationID,
+		ID:              uuid.New(),
+	}); err != nil {
+		return database.CustomRole{}, err
+	}
+	return q.db.InsertCustomRole(ctx, arg)
 }
 
 func (q *querier) InsertDBCryptKey(ctx context.Context, arg database.InsertDBCryptKeyParams) error {
@@ -2954,6 +3107,33 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
 }
 
+func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
+	if arg.OrganizationID.UUID != uuid.Nil {
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
+			return database.CustomRole{}, err
+		}
+	} else {
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAssignRole); err != nil {
+			return database.CustomRole{}, err
+		}
+	}
+
+	if err := q.customRoleCheck(ctx, database.CustomRole{
+		Name:            arg.Name,
+		DisplayName:     arg.DisplayName,
+		SitePermissions: arg.SitePermissions,
+		OrgPermissions:  arg.OrgPermissions,
+		UserPermissions: arg.UserPermissions,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+		OrganizationID:  arg.OrganizationID,
+		ID:              uuid.New(),
+	}); err != nil {
+		return database.CustomRole{}, err
+	}
+	return q.db.UpdateCustomRole(ctx, arg)
+}
+
 func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -3014,6 +3194,13 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	}
 
 	return q.db.UpdateMemberRoles(ctx, arg)
+}
+
+func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationTemplate); err != nil {
+		return database.NotificationTemplate{}, err
+	}
+	return q.db.UpdateNotificationTemplateMethodByID(ctx, arg)
 }
 
 func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
@@ -3132,6 +3319,13 @@ func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaP
 		return database.Replica{}, err
 	}
 	return q.db.UpdateReplica(ctx, arg)
+}
+
+func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
@@ -3265,6 +3459,23 @@ func (q *querier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error
 	return deleteQ(q.log, q.auth, q.db.GetUserByID, q.db.UpdateUserDeletedByID)(ctx, id)
 }
 
+func (q *querier) UpdateUserGithubComUserID(ctx context.Context, arg database.UpdateUserGithubComUserIDParams) error {
+	user, err := q.db.GetUserByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionUpdatePersonal, user)
+	if err != nil {
+		// System user can also update
+		err = q.authorizeContext(ctx, policy.ActionUpdate, user)
+		if err != nil {
+			return err
+		}
+	}
+	return q.db.UpdateUserGithubComUserID(ctx, arg)
+}
+
 func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	user, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
@@ -3312,6 +3523,13 @@ func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUs
 		return database.User{}, err
 	}
 	return q.db.UpdateUserLoginType(ctx, arg)
+}
+
+func (q *querier) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationPreference.WithOwner(arg.UserID.String())); err != nil {
+		return -1, err
+	}
+	return q.db.UpdateUserNotificationPreferences(ctx, arg)
 }
 
 func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
@@ -3585,91 +3803,6 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 	return q.db.UpsertApplicationName(ctx, value)
 }
 
-// UpsertCustomRole does a series of authz checks to protect custom roles.
-// - Check custom roles are valid for their resource types + actions
-// - Check the actor can create the custom role
-// - Check the custom role does not grant perms the actor does not have
-// - Prevent negative perms
-// - Prevent roles with site and org permissions.
-func (q *querier) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
-	act, ok := ActorFromContext(ctx)
-	if !ok {
-		return database.CustomRole{}, NoActorError
-	}
-
-	// Org and site role upsert share the same query. So switch the assertion based on the org uuid.
-	if arg.OrganizationID.UUID != uuid.Nil {
-		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignOrgRole.InOrg(arg.OrganizationID.UUID)); err != nil {
-			return database.CustomRole{}, err
-		}
-	} else {
-		if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAssignRole); err != nil {
-			return database.CustomRole{}, err
-		}
-	}
-
-	if arg.OrganizationID.UUID == uuid.Nil && len(arg.OrgPermissions) > 0 {
-		return database.CustomRole{}, xerrors.Errorf("organization permissions require specifying an organization id")
-	}
-
-	// There is quite a bit of validation we should do here.
-	// The rbac.Role has a 'Valid()' function on it that will do a lot
-	// of checks.
-	rbacRole, err := rolestore.ConvertDBRole(database.CustomRole{
-		Name:            arg.Name,
-		DisplayName:     arg.DisplayName,
-		SitePermissions: arg.SitePermissions,
-		OrgPermissions:  arg.OrgPermissions,
-		UserPermissions: arg.UserPermissions,
-		OrganizationID:  arg.OrganizationID,
-	})
-	if err != nil {
-		return database.CustomRole{}, xerrors.Errorf("invalid args: %w", err)
-	}
-
-	err = rbacRole.Valid()
-	if err != nil {
-		return database.CustomRole{}, xerrors.Errorf("invalid role: %w", err)
-	}
-
-	if len(rbacRole.Org) > 0 && len(rbacRole.Site) > 0 {
-		// This is a choice to keep roles simple. If we allow mixing site and org scoped perms, then knowing who can
-		// do what gets more complicated.
-		return database.CustomRole{}, xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
-	}
-
-	if len(rbacRole.Org) > 1 {
-		// Again to avoid more complexity in our roles
-		return database.CustomRole{}, xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
-	}
-
-	// Prevent escalation
-	for _, sitePerm := range rbacRole.Site {
-		err := q.customRoleEscalationCheck(ctx, act, sitePerm, rbac.Object{Type: sitePerm.ResourceType})
-		if err != nil {
-			return database.CustomRole{}, xerrors.Errorf("site permission: %w", err)
-		}
-	}
-
-	for orgID, perms := range rbacRole.Org {
-		for _, orgPerm := range perms {
-			err := q.customRoleEscalationCheck(ctx, act, orgPerm, rbac.Object{OrgID: orgID, Type: orgPerm.ResourceType})
-			if err != nil {
-				return database.CustomRole{}, xerrors.Errorf("org=%q: %w", orgID, err)
-			}
-		}
-	}
-
-	for _, userPerm := range rbacRole.User {
-		err := q.customRoleEscalationCheck(ctx, act, userPerm, rbac.Object{Type: userPerm.ResourceType, Owner: act.ID})
-		if err != nil {
-			return database.CustomRole{}, xerrors.Errorf("user permission: %w", err)
-		}
-	}
-
-	return q.db.UpsertCustomRole(ctx, arg)
-}
-
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -3846,4 +3979,8 @@ func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetW
 func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, _ rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
 	// GetUsers is authenticated.
 	return q.GetUsers(ctx, arg)
+}
+
+func (q *querier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, _ rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
+	return q.GetAuditLogsOffset(ctx, arg)
 }

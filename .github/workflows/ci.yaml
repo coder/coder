@@ -126,6 +126,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -133,7 +135,19 @@ jobs:
       - name: Update Nix Flake SRI Hash
         run: ./scripts/update-flake.sh
 
+      # auto update flake for dependabot
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        if: github.actor == 'dependabot[bot]'
+        with:
+          # Allows dependabot to still rebase!
+          commit_message: "[dependabot skip] Update Nix Flake SRI Hash"
+          commit_user_name: "dependabot[bot]"
+          commit_user_email: "49699333+dependabot[bot]@users.noreply.github.com>"
+          commit_author: "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>"
+
+      # require everyone else to update it themselves
       - name: Ensure No Changes
+        if: github.actor != 'dependabot[bot]'
         run: git diff --exit-code
 
   lint:
@@ -170,7 +184,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.23.2
+        uses: crate-ci/typos@v1.23.6
         with:
           config: .github/workflows/typos.toml
 
@@ -695,7 +709,6 @@ jobs:
       - test-e2e
       - offlinedocs
       - sqlc-vet
-      - dependency-license-review
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
@@ -712,7 +725,6 @@ jobs:
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
           echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
-          echo "- dependency-license-review: ${{ needs.dependency-license-review.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
@@ -788,13 +800,15 @@ jobs:
           echo "tag=$tag" >> $GITHUB_OUTPUT
 
           # build images for each architecture
-          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+          # note: omitting the -j argument to avoid race conditions when pushing
+          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # only push if we are on main branch
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             # build and push multi-arch manifest, this depends on the other images
             # being pushed so will automatically push them
-            make -j push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+            # note: omitting the -j argument to avoid race conditions when pushing
+            make push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
             # Define specific tags
             tags=("$tag" "main" "latest")
@@ -952,63 +966,3 @@ jobs:
       - name: Setup and run sqlc vet
         run: |
           make sqlc-vet
-
-  # dependency-license-review checks that no license-incompatible dependencies have been introduced.
-  # This action is not intended to do a vulnerability check since that is handled by a separate action.
-  dependency-license-review:
-    runs-on: ubuntu-latest
-    if: github.ref != 'refs/heads/main' && github.actor != 'dependabot[bot]'
-    steps:
-      - name: "Checkout Repository"
-        uses: actions/checkout@v4
-      - name: "Dependency Review"
-        id: review
-        uses: actions/dependency-review-action@v4.3.2
-        with:
-          allow-licenses: Apache-2.0, 0BSD, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, MIT, MIT-0, MPL-2.0
-          allow-dependencies-licenses: "pkg:golang/github.com/coder/wgtunnel@0.1.13-0.20240522110300-ade90dfb2da0, pkg:npm/pako@1.0.11, pkg:npm/caniuse-lite@1.0.30001639, pkg:githubactions/alwaysmeticulous/report-diffs-action/cloud-compute"
-          license-check: true
-          vulnerability-check: false
-      - name: "Report"
-        # make sure this step runs even if the previous failed
-        if: always()
-        shell: bash
-        env:
-          VULNERABLE_CHANGES: ${{ steps.review.outputs.invalid-license-changes }}
-        run: |
-          fields=( "unlicensed" "unresolved" "forbidden" )
-
-          # This is unfortunate that we have to do this but the action does not support failing on
-          # an unknown license. The unknown dependency could easily have a GPL license which
-          # would be problematic for us.
-          # Track https://github.com/actions/dependency-review-action/issues/672 for when
-          # we can remove this brittle workaround.
-          for field in "${fields[@]}"; do
-            # Use jq to check if the array is not empty
-            if [[ $(echo "$VULNERABLE_CHANGES" | jq ".${field} | length") -ne 0 ]]; then
-              echo "Invalid or unknown licenses detected, contact @sreya to ensure your added dependency falls under one of our allowed licenses."
-              echo "$VULNERABLE_CHANGES" | jq
-              exit 1
-            fi
-          done
-          echo "No incompatible licenses detected"
-  meticulous:
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Checkout Repository"
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-      - name: Build
-        working-directory: ./site
-        run: pnpm build
-      - name: Serve
-        working-directory: ./site
-        run: |
-          pnpm vite preview &
-          sleep 5
-      - name: Run Meticulous tests
-        uses: alwaysmeticulous/report-diffs-action/cloud-compute@v1
-        with:
-          api-token: ${{ secrets.METICULOUS_API_TOKEN }}
-          app-url: "http://127.0.0.1:4173/"

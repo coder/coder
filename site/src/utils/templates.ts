@@ -6,15 +6,15 @@ dayjs.extend(duration);
 dayjs.extend(relativeTime);
 
 export const formatTemplateActiveDevelopers = (num?: number): string => {
-  if (num === undefined || num < 0) {
-    // Loading
-    return "-";
-  }
-  return num.toString();
+	if (num === undefined || num < 0) {
+		// Loading
+		return "-";
+	}
+	return num.toString();
 };
 
 export const formatTemplateBuildTime = (buildTimeMs?: number): string => {
-  return buildTimeMs === undefined
-    ? "Unknown"
-    : `${Math.round(dayjs.duration(buildTimeMs, "milliseconds").asSeconds())}s`;
+	return buildTimeMs === undefined
+		? "Unknown"
+		: `${Math.round(dayjs.duration(buildTimeMs, "milliseconds").asSeconds())}s`;
 };

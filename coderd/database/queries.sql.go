@@ -558,6 +558,9 @@ WHERE
             workspace_builds.reason::text = $11
         ELSE true
     END
+
+	-- Authorize Filter clause will be injected below in GetAuthorizedAuditLogsOffset
+	-- @authorize_filter
 ORDER BY
     "time" DESC
 LIMIT
@@ -586,38 +589,24 @@ type GetAuditLogsOffsetParams struct {
 }
 
 type GetAuditLogsOffsetRow struct {
-	ID                      uuid.UUID       `db:"id" json:"id"`
-	Time                    time.Time       `db:"time" json:"time"`
-	UserID                  uuid.UUID       `db:"user_id" json:"user_id"`
-	OrganizationID          uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Ip                      pqtype.Inet     `db:"ip" json:"ip"`
-	UserAgent               sql.NullString  `db:"user_agent" json:"user_agent"`
-	ResourceType            ResourceType    `db:"resource_type" json:"resource_type"`
-	ResourceID              uuid.UUID       `db:"resource_id" json:"resource_id"`
-	ResourceTarget          string          `db:"resource_target" json:"resource_target"`
-	Action                  AuditAction     `db:"action" json:"action"`
-	Diff                    json.RawMessage `db:"diff" json:"diff"`
-	StatusCode              int32           `db:"status_code" json:"status_code"`
-	AdditionalFields        json.RawMessage `db:"additional_fields" json:"additional_fields"`
-	RequestID               uuid.UUID       `db:"request_id" json:"request_id"`
-	ResourceIcon            string          `db:"resource_icon" json:"resource_icon"`
-	UserUsername            sql.NullString  `db:"user_username" json:"user_username"`
-	UserName                sql.NullString  `db:"user_name" json:"user_name"`
-	UserEmail               sql.NullString  `db:"user_email" json:"user_email"`
-	UserCreatedAt           sql.NullTime    `db:"user_created_at" json:"user_created_at"`
-	UserUpdatedAt           sql.NullTime    `db:"user_updated_at" json:"user_updated_at"`
-	UserLastSeenAt          sql.NullTime    `db:"user_last_seen_at" json:"user_last_seen_at"`
-	UserStatus              NullUserStatus  `db:"user_status" json:"user_status"`
-	UserLoginType           NullLoginType   `db:"user_login_type" json:"user_login_type"`
-	UserRoles               pq.StringArray  `db:"user_roles" json:"user_roles"`
-	UserAvatarUrl           sql.NullString  `db:"user_avatar_url" json:"user_avatar_url"`
-	UserDeleted             sql.NullBool    `db:"user_deleted" json:"user_deleted"`
-	UserThemePreference     sql.NullString  `db:"user_theme_preference" json:"user_theme_preference"`
-	UserQuietHoursSchedule  sql.NullString  `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
-	OrganizationName        string          `db:"organization_name" json:"organization_name"`
-	OrganizationDisplayName string          `db:"organization_display_name" json:"organization_display_name"`
-	OrganizationIcon        string          `db:"organization_icon" json:"organization_icon"`
-	Count                   int64           `db:"count" json:"count"`
+	AuditLog                AuditLog       `db:"audit_log" json:"audit_log"`
+	UserUsername            sql.NullString `db:"user_username" json:"user_username"`
+	UserName                sql.NullString `db:"user_name" json:"user_name"`
+	UserEmail               sql.NullString `db:"user_email" json:"user_email"`
+	UserCreatedAt           sql.NullTime   `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt           sql.NullTime   `db:"user_updated_at" json:"user_updated_at"`
+	UserLastSeenAt          sql.NullTime   `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserStatus              NullUserStatus `db:"user_status" json:"user_status"`
+	UserLoginType           NullLoginType  `db:"user_login_type" json:"user_login_type"`
+	UserRoles               pq.StringArray `db:"user_roles" json:"user_roles"`
+	UserAvatarUrl           sql.NullString `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted             sql.NullBool   `db:"user_deleted" json:"user_deleted"`
+	UserThemePreference     sql.NullString `db:"user_theme_preference" json:"user_theme_preference"`
+	UserQuietHoursSchedule  sql.NullString `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	OrganizationName        string         `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string         `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string         `db:"organization_icon" json:"organization_icon"`
+	Count                   int64          `db:"count" json:"count"`
 }
 
 // GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -646,21 +635,21 @@ func (q *sqlQuerier) GetAuditLogsOffset(ctx context.Context, arg GetAuditLogsOff
 	for rows.Next() {
 		var i GetAuditLogsOffsetRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Time,
-			&i.UserID,
-			&i.OrganizationID,
-			&i.Ip,
-			&i.UserAgent,
-			&i.ResourceType,
-			&i.ResourceID,
-			&i.ResourceTarget,
-			&i.Action,
-			&i.Diff,
-			&i.StatusCode,
-			&i.AdditionalFields,
-			&i.RequestID,
-			&i.ResourceIcon,
+			&i.AuditLog.ID,
+			&i.AuditLog.Time,
+			&i.AuditLog.UserID,
+			&i.AuditLog.OrganizationID,
+			&i.AuditLog.Ip,
+			&i.AuditLog.UserAgent,
+			&i.AuditLog.ResourceType,
+			&i.AuditLog.ResourceID,
+			&i.AuditLog.ResourceTarget,
+			&i.AuditLog.Action,
+			&i.AuditLog.Diff,
+			&i.AuditLog.StatusCode,
+			&i.AuditLog.AdditionalFields,
+			&i.AuditLog.RequestID,
+			&i.AuditLog.ResourceIcon,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -1333,7 +1322,7 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many
-SELECT user_id, group_id FROM group_members
+SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded
 `
 
 func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error) {
@@ -1345,7 +1334,27 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 	var items []GroupMember
 	for rows.Next() {
 		var i GroupMember
-		if err := rows.Scan(&i.UserID, &i.GroupID); err != nil {
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserEmail,
+			&i.UserUsername,
+			&i.UserHashedPassword,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRbacRoles),
+			&i.UserLoginType,
+			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserLastSeenAt,
+			&i.UserQuietHoursSchedule,
+			&i.UserThemePreference,
+			&i.UserName,
+			&i.UserGithubComUserID,
+			&i.OrganizationID,
+			&i.GroupName,
+			&i.GroupID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1360,56 +1369,38 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 }
 
 const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
-SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference, users.name
-FROM
-	users
-LEFT JOIN
-	group_members
-ON
-	group_members.user_id = users.id AND
-	group_members.group_id = $1
-LEFT JOIN
-	organization_members
-ON
-	organization_members.user_id = users.id AND
-	organization_members.organization_id = $1
-WHERE
-	-- In either case, the group_id will only match an org or a group.
-    (group_members.group_id = $1
-         OR
-     organization_members.organization_id = $1)
-AND
-	users.deleted = 'false'
+SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded WHERE group_id = $1
 `
 
-// If the group is a user made group, then we need to check the group_members table.
-// If it is the "Everyone" group, then we need to check the organization_members table.
-func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GroupMember, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID, groupID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []GroupMember
 	for rows.Next() {
-		var i User
+		var i GroupMember
 		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Username,
-			&i.HashedPassword,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Status,
-			&i.RBACRoles,
-			&i.LoginType,
-			&i.AvatarURL,
-			&i.Deleted,
-			&i.LastSeenAt,
-			&i.QuietHoursSchedule,
-			&i.ThemePreference,
-			&i.Name,
+			&i.UserID,
+			&i.UserEmail,
+			&i.UserUsername,
+			&i.UserHashedPassword,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRbacRoles),
+			&i.UserLoginType,
+			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserLastSeenAt,
+			&i.UserQuietHoursSchedule,
+			&i.UserThemePreference,
+			&i.UserName,
+			&i.UserGithubComUserID,
+			&i.OrganizationID,
+			&i.GroupName,
+			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}
@@ -1422,6 +1413,20 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.
 		return nil, err
 	}
 	return items, nil
+}
+
+const getGroupMembersCountByGroupID = `-- name: GetGroupMembersCountByGroupID :one
+SELECT COUNT(*) FROM group_members_expanded WHERE group_id = $1
+`
+
+// Returns the total count of members in a group. Shows the total
+// count even if the caller does not have read access to ResourceGroupMember.
+// They only need ResourceGroup read access.
+func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getGroupMembersCountByGroupID, groupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const insertGroupMember = `-- name: InsertGroupMember :exec
@@ -1556,112 +1561,42 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 }
 
 const getGroups = `-- name: GetGroups :many
-SELECT id, name, organization_id, avatar_url, quota_allowance, display_name, source FROM groups
-`
-
-func (q *sqlQuerier) GetGroups(ctx context.Context) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroups)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-			&i.DisplayName,
-			&i.Source,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getGroupsByOrganizationAndUserID = `-- name: GetGroupsByOrganizationAndUserID :many
 SELECT
-    groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source
+    id, name, organization_id, avatar_url, quota_allowance, display_name, source
 FROM
     groups
-	-- If the group is a user made group, then we need to check the group_members table.
-LEFT JOIN
-    group_members
-ON
-    group_members.group_id = groups.id AND
-    group_members.user_id = $1
-	-- If it is the "Everyone" group, then we need to check the organization_members table.
-LEFT JOIN
-    organization_members
-ON
-    organization_members.organization_id = groups.id AND
-    organization_members.user_id = $1
 WHERE
-    -- In either case, the group_id will only match an org or a group.
-    (group_members.user_id = $1 OR organization_members.user_id = $1)
-AND
-    -- Ensure the group or organization is the specified organization.
-    groups.organization_id = $2
+    true
+    AND CASE
+        WHEN $1:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            groups.organization_id = $1
+        ELSE true
+    END
+    AND CASE
+        -- Filter to only include groups a user is a member of
+        WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            EXISTS (
+                SELECT
+                    1
+                FROM
+                    -- this view handles the 'everyone' group in orgs.
+                    group_members_expanded
+                WHERE
+                    group_members_expanded.group_id = groups.id
+                AND
+                    group_members_expanded.user_id = $2
+            )
+        ELSE true
+    END
 `
 
-type GetGroupsByOrganizationAndUserIDParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+type GetGroupsParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	HasMemberID    uuid.UUID `db:"has_member_id" json:"has_member_id"`
 }
 
-func (q *sqlQuerier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationAndUserID, arg.UserID, arg.OrganizationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-			&i.DisplayName,
-			&i.Source,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
-SELECT
-	id, name, organization_id, avatar_url, quota_allowance, display_name, source
-FROM
-	groups
-WHERE
-	organization_id = $1
-`
-
-func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationID, organizationID)
+func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroups, arg.OrganizationID, arg.HasMemberID)
 	if err != nil {
 		return nil, err
 	}
@@ -1768,15 +1703,15 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-    source
+    	    	source
 )
 SELECT
-    gen_random_uuid(),
-    group_name,
-    $1,
-    $2
+    	    	gen_random_uuid(),
+    	    	group_name,
+    	    	$1,
+    	    	$2
 FROM
-    UNNEST($3 :: text[]) AS group_name
+    	    	UNNEST($3 :: text[]) AS group_name
 ON CONFLICT DO NOTHING
 RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source
 `
@@ -3345,14 +3280,18 @@ SELECT
     nm.id,
     nm.payload,
     nm.method,
-    nm.attempt_count::int AS attempt_count,
-    nm.queued_seconds::float AS queued_seconds,
+    nm.attempt_count::int                                                 AS attempt_count,
+    nm.queued_seconds::float                                              AS queued_seconds,
     -- template
-    nt.id AS template_id,
+    nt.id                                                                 AS template_id,
     nt.title_template,
-    nt.body_template
+    nt.body_template,
+    -- preferences
+    (CASE WHEN np.disabled IS NULL THEN false ELSE np.disabled END)::bool AS disabled
 FROM acquired nm
          JOIN notification_templates nt ON nm.notification_template_id = nt.id
+         LEFT JOIN notification_preferences AS np
+                   ON (np.user_id = nm.user_id AND np.notification_template_id = nm.notification_template_id)
 `
 
 type AcquireNotificationMessagesParams struct {
@@ -3371,6 +3310,7 @@ type AcquireNotificationMessagesRow struct {
 	TemplateID    uuid.UUID          `db:"template_id" json:"template_id"`
 	TitleTemplate string             `db:"title_template" json:"title_template"`
 	BodyTemplate  string             `db:"body_template" json:"body_template"`
+	Disabled      bool               `db:"disabled" json:"disabled"`
 }
 
 // Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
@@ -3406,6 +3346,7 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 			&i.TemplateID,
 			&i.TitleTemplate,
 			&i.BodyTemplate,
+			&i.Disabled,
 		); err != nil {
 			return nil, err
 		}
@@ -3544,10 +3485,11 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one
 SELECT nt.name                                                    AS notification_name,
        nt.actions                                                 AS actions,
+       nt.method                                                  AS custom_method,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
        COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
-       COALESCE(u.username, '')                                   AS user_username
+       u.username                                                 AS user_username
 FROM notification_templates nt,
      users u
 WHERE nt.id = $1
@@ -3560,12 +3502,13 @@ type FetchNewMessageMetadataParams struct {
 }
 
 type FetchNewMessageMetadataRow struct {
-	NotificationName string    `db:"notification_name" json:"notification_name"`
-	Actions          []byte    `db:"actions" json:"actions"`
-	UserID           uuid.UUID `db:"user_id" json:"user_id"`
-	UserEmail        string    `db:"user_email" json:"user_email"`
-	UserName         string    `db:"user_name" json:"user_name"`
-	UserUsername     string    `db:"user_username" json:"user_username"`
+	NotificationName string                 `db:"notification_name" json:"notification_name"`
+	Actions          []byte                 `db:"actions" json:"actions"`
+	CustomMethod     NullNotificationMethod `db:"custom_method" json:"custom_method"`
+	UserID           uuid.UUID              `db:"user_id" json:"user_id"`
+	UserEmail        string                 `db:"user_email" json:"user_email"`
+	UserName         string                 `db:"user_name" json:"user_name"`
+	UserUsername     string                 `db:"user_username" json:"user_username"`
 }
 
 // This is used to build up the notification_message's JSON payload.
@@ -3575,6 +3518,7 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 	err := row.Scan(
 		&i.NotificationName,
 		&i.Actions,
+		&i.CustomMethod,
 		&i.UserID,
 		&i.UserEmail,
 		&i.UserName,
@@ -3584,7 +3528,10 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 }
 
 const getNotificationMessagesByStatus = `-- name: GetNotificationMessagesByStatus :many
-SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds FROM notification_messages WHERE status = $1 LIMIT $2::int
+SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds
+FROM notification_messages
+WHERE status = $1
+LIMIT $2::int
 `
 
 type GetNotificationMessagesByStatusParams struct {
@@ -3629,6 +3576,155 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 		return nil, err
 	}
 	return items, nil
+}
+
+const getNotificationTemplateByID = `-- name: GetNotificationTemplateByID :one
+SELECT id, name, title_template, body_template, actions, "group", method, kind
+FROM notification_templates
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (NotificationTemplate, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationTemplateByID, id)
+	var i NotificationTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TitleTemplate,
+		&i.BodyTemplate,
+		&i.Actions,
+		&i.Group,
+		&i.Method,
+		&i.Kind,
+	)
+	return i, err
+}
+
+const getNotificationTemplatesByKind = `-- name: GetNotificationTemplatesByKind :many
+SELECT id, name, title_template, body_template, actions, "group", method, kind
+FROM notification_templates
+WHERE kind = $1::notification_template_kind
+ORDER BY name ASC
+`
+
+func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error) {
+	rows, err := q.db.QueryContext(ctx, getNotificationTemplatesByKind, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationTemplate
+	for rows.Next() {
+		var i NotificationTemplate
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TitleTemplate,
+			&i.BodyTemplate,
+			&i.Actions,
+			&i.Group,
+			&i.Method,
+			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserNotificationPreferences = `-- name: GetUserNotificationPreferences :many
+SELECT user_id, notification_template_id, disabled, created_at, updated_at
+FROM notification_preferences
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error) {
+	rows, err := q.db.QueryContext(ctx, getUserNotificationPreferences, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationPreference
+	for rows.Next() {
+		var i NotificationPreference
+		if err := rows.Scan(
+			&i.UserID,
+			&i.NotificationTemplateID,
+			&i.Disabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateNotificationTemplateMethodByID = `-- name: UpdateNotificationTemplateMethodByID :one
+UPDATE notification_templates
+SET method = $1::notification_method
+WHERE id = $2::uuid
+RETURNING id, name, title_template, body_template, actions, "group", method, kind
+`
+
+type UpdateNotificationTemplateMethodByIDParams struct {
+	Method NullNotificationMethod `db:"method" json:"method"`
+	ID     uuid.UUID              `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg UpdateNotificationTemplateMethodByIDParams) (NotificationTemplate, error) {
+	row := q.db.QueryRowContext(ctx, updateNotificationTemplateMethodByID, arg.Method, arg.ID)
+	var i NotificationTemplate
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TitleTemplate,
+		&i.BodyTemplate,
+		&i.Actions,
+		&i.Group,
+		&i.Method,
+		&i.Kind,
+	)
+	return i, err
+}
+
+const updateUserNotificationPreferences = `-- name: UpdateUserNotificationPreferences :execrows
+INSERT
+INTO notification_preferences (user_id, notification_template_id, disabled)
+SELECT $1::uuid, new_values.notification_template_id, new_values.disabled
+FROM (SELECT UNNEST($2::uuid[]) AS notification_template_id,
+             UNNEST($3::bool[])                 AS disabled) AS new_values
+ON CONFLICT (user_id, notification_template_id) DO UPDATE
+    SET disabled   = EXCLUDED.disabled,
+        updated_at = CURRENT_TIMESTAMP
+`
+
+type UpdateUserNotificationPreferencesParams struct {
+	UserID                  uuid.UUID   `db:"user_id" json:"user_id"`
+	NotificationTemplateIds []uuid.UUID `db:"notification_template_ids" json:"notification_template_ids"`
+	Disableds               []bool      `db:"disableds" json:"disableds"`
+}
+
+func (q *sqlQuerier) UpdateUserNotificationPreferences(ctx context.Context, arg UpdateUserNotificationPreferencesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserNotificationPreferences, arg.UserID, pq.Array(arg.NotificationTemplateIds), pq.Array(arg.Disableds))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
@@ -4861,16 +4957,13 @@ VALUES (
 	$6,
 	$7,
 	$8
-) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
+) ON CONFLICT("organization_id", "name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
 	"version" = $6,
 	api_version = $8,
 	organization_id = $7
-WHERE
-	-- Only ones with the same tags are allowed clobber
-	provisioner_daemons.tags <@ $4 :: jsonb
 RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
 `
 
@@ -5531,9 +5624,32 @@ func (q *sqlQuerier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) err
 	return err
 }
 
+const getProvisionerKeyByHashedSecret = `-- name: GetProvisionerKeyByHashedSecret :one
+SELECT
+    id, created_at, organization_id, name, hashed_secret, tags
+FROM
+    provisioner_keys
+WHERE
+    hashed_secret = $1
+`
+
+func (q *sqlQuerier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerKeyByHashedSecret, hashedSecret)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+		&i.Tags,
+	)
+	return i, err
+}
+
 const getProvisionerKeyByID = `-- name: GetProvisionerKeyByID :one
 SELECT
-    id, created_at, organization_id, name, hashed_secret
+    id, created_at, organization_id, name, hashed_secret, tags
 FROM
     provisioner_keys
 WHERE
@@ -5549,13 +5665,14 @@ func (q *sqlQuerier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (P
 		&i.OrganizationID,
 		&i.Name,
 		&i.HashedSecret,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const getProvisionerKeyByName = `-- name: GetProvisionerKeyByName :one
 SELECT
-    id, created_at, organization_id, name, hashed_secret
+    id, created_at, organization_id, name, hashed_secret, tags
 FROM
     provisioner_keys
 WHERE
@@ -5578,21 +5695,23 @@ func (q *sqlQuerier) GetProvisionerKeyByName(ctx context.Context, arg GetProvisi
 		&i.OrganizationID,
 		&i.Name,
 		&i.HashedSecret,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const insertProvisionerKey = `-- name: InsertProvisionerKey :one
 INSERT INTO
-	provisioner_keys (
-		id,
+    provisioner_keys (
+        id,
         created_at,
         organization_id,
-		name,
-		hashed_secret
-	)
+        name,
+        hashed_secret,
+        tags
+    )
 VALUES
-	($1, $2, $3, lower($5), $4) RETURNING id, created_at, organization_id, name, hashed_secret
+    ($1, $2, $3, lower($6), $4, $5) RETURNING id, created_at, organization_id, name, hashed_secret, tags
 `
 
 type InsertProvisionerKeyParams struct {
@@ -5600,6 +5719,7 @@ type InsertProvisionerKeyParams struct {
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	HashedSecret   []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Tags           StringMap `db:"tags" json:"tags"`
 	Name           string    `db:"name" json:"name"`
 }
 
@@ -5609,6 +5729,7 @@ func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisi
 		arg.CreatedAt,
 		arg.OrganizationID,
 		arg.HashedSecret,
+		arg.Tags,
 		arg.Name,
 	)
 	var i ProvisionerKey
@@ -5618,13 +5739,14 @@ func (q *sqlQuerier) InsertProvisionerKey(ctx context.Context, arg InsertProvisi
 		&i.OrganizationID,
 		&i.Name,
 		&i.HashedSecret,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const listProvisionerKeysByOrganization = `-- name: ListProvisionerKeysByOrganization :many
 SELECT
-    id, created_at, organization_id, name, hashed_secret
+    id, created_at, organization_id, name, hashed_secret, tags
 FROM
     provisioner_keys
 WHERE
@@ -5646,6 +5768,7 @@ func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, orga
 			&i.OrganizationID,
 			&i.Name,
 			&i.HashedSecret,
+			&i.Tags,
 		); err != nil {
 			return nil, err
 		}
@@ -6037,15 +6160,15 @@ func (q *sqlQuerier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg Update
 
 const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
-	coalesce(SUM(quota_allowance), 0)::BIGINT
+	coalesce(SUM(groups.quota_allowance), 0)::BIGINT
 FROM
-	groups g
-LEFT JOIN group_members gm ON
-	g.id = gm.group_id
-WHERE
-	user_id = $1
-OR
-    g.id = g.organization_id
+	(
+		-- Select all groups this user is a member of. This will also include
+		-- the "Everyone" group for organizations the user is a member of.
+		SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded WHERE $1 = user_id
+	) AS members
+INNER JOIN groups ON
+	members.group_id = groups.id
 `
 
 func (q *sqlQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -6343,40 +6466,51 @@ func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]
 	return items, nil
 }
 
-const upsertCustomRole = `-- name: UpsertCustomRole :one
+const deleteCustomRole = `-- name: DeleteCustomRole :exec
+DELETE FROM
+	custom_roles
+WHERE
+	name = lower($1)
+	AND organization_id = $2
+`
+
+type DeleteCustomRoleParams struct {
+	Name           string        `db:"name" json:"name"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomRole, arg.Name, arg.OrganizationID)
+	return err
+}
+
+const insertCustomRole = `-- name: InsertCustomRole :one
 INSERT INTO
 	custom_roles (
-	    name,
-	    display_name,
-	    organization_id,
-	    site_permissions,
-	    org_permissions,
-	    user_permissions,
-	    created_at,
-		updated_at
+	name,
+	display_name,
+	organization_id,
+	site_permissions,
+	org_permissions,
+	user_permissions,
+	created_at,
+	updated_at
 )
 VALUES (
-        -- Always force lowercase names
-        lower($1),
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        now(),
-        now()
+		   -- Always force lowercase names
+		   lower($1),
+		   $2,
+		   $3,
+		   $4,
+		   $5,
+		   $6,
+		   now(),
+		   now()
 	   )
-ON CONFLICT (name)
-	DO UPDATE SET
-	display_name = $2,
-	site_permissions = $4,
-	org_permissions = $5,
-	user_permissions = $6,
-	updated_at = now()
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 `
 
-type UpsertCustomRoleParams struct {
+type InsertCustomRoleParams struct {
 	Name            string                `db:"name" json:"name"`
 	DisplayName     string                `db:"display_name" json:"display_name"`
 	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
@@ -6385,14 +6519,62 @@ type UpsertCustomRoleParams struct {
 	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
 }
 
-func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error) {
-	row := q.db.QueryRowContext(ctx, upsertCustomRole,
+func (q *sqlQuerier) InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, insertCustomRole,
 		arg.Name,
 		arg.DisplayName,
 		arg.OrganizationID,
 		arg.SitePermissions,
 		arg.OrgPermissions,
 		arg.UserPermissions,
+	)
+	var i CustomRole
+	err := row.Scan(
+		&i.Name,
+		&i.DisplayName,
+		&i.SitePermissions,
+		&i.OrgPermissions,
+		&i.UserPermissions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ID,
+	)
+	return i, err
+}
+
+const updateCustomRole = `-- name: UpdateCustomRole :one
+UPDATE
+	custom_roles
+SET
+	display_name = $1,
+	site_permissions = $2,
+	org_permissions = $3,
+	user_permissions = $4,
+	updated_at = now()
+WHERE
+	name = lower($5)
+	AND organization_id = $6
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
+`
+
+type UpdateCustomRoleParams struct {
+	DisplayName     string                `db:"display_name" json:"display_name"`
+	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
+	Name            string                `db:"name" json:"name"`
+	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, updateCustomRole,
+		arg.DisplayName,
+		arg.SitePermissions,
+		arg.OrgPermissions,
+		arg.UserPermissions,
+		arg.Name,
+		arg.OrganizationID,
 	)
 	var i CustomRole
 	err := row.Scan(
@@ -7174,6 +7356,25 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 	return items, nil
 }
 
+const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
+UPDATE 
+	tailnet_peers
+SET
+	status = $2
+WHERE
+	coordinator_id = $1
+`
+
+type UpdateTailnetPeerStatusByCoordinatorParams struct {
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	Status        TailnetStatus `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) error {
+	_, err := q.db.ExecContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
+	return err
+}
+
 const upsertTailnetAgent = `-- name: UpsertTailnetAgent :one
 INSERT INTO
 	tailnet_agents (
@@ -7636,17 +7837,23 @@ WHERE
 			LOWER("name") = LOWER($3)
 		ELSE true
 	END
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			lower(name) ILIKE '%' || lower($4) || '%'
+		ELSE true
+	END
 	-- Filter by ids
 	AND CASE
-		WHEN array_length($4 :: uuid[], 1) > 0 THEN
-			id = ANY($4)
+		WHEN array_length($5 :: uuid[], 1) > 0 THEN
+			id = ANY($5)
 		ELSE true
 	END
 	-- Filter by deprecated
 	AND CASE
-		WHEN $5 :: boolean IS NOT NULL THEN
+		WHEN $6 :: boolean IS NOT NULL THEN
 			CASE
-				WHEN $5 :: boolean THEN
+				WHEN $6 :: boolean THEN
 					deprecated != ''
 				ELSE
 					deprecated = ''
@@ -7662,6 +7869,7 @@ type GetTemplatesWithFilterParams struct {
 	Deleted        bool         `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
 	ExactName      string       `db:"exact_name" json:"exact_name"`
+	FuzzyName      string       `db:"fuzzy_name" json:"fuzzy_name"`
 	IDs            []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
 }
@@ -7671,6 +7879,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.ExactName,
+		arg.FuzzyName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 	)
@@ -9203,7 +9412,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 FROM
 	users
 WHERE
@@ -9237,13 +9446,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 FROM
 	users
 WHERE
@@ -9271,6 +9481,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
@@ -9293,7 +9504,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -9392,6 +9603,7 @@ type GetUsersRow struct {
 	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 	ThemePreference    string         `db:"theme_preference" json:"theme_preference"`
 	Name               string         `db:"name" json:"name"`
+	GithubComUserID    sql.NullInt64  `db:"github_com_user_id" json:"github_com_user_id"`
 	Count              int64          `db:"count" json:"count"`
 }
 
@@ -9430,6 +9642,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.QuietHoursSchedule,
 			&i.ThemePreference,
 			&i.Name,
+			&i.GithubComUserID,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -9446,7 +9659,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -9477,6 +9690,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.QuietHoursSchedule,
 			&i.ThemePreference,
 			&i.Name,
+			&i.GithubComUserID,
 		); err != nil {
 			return nil, err
 		}
@@ -9505,7 +9719,7 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 `
 
 type InsertUserParams struct {
@@ -9549,6 +9763,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
@@ -9607,7 +9822,7 @@ SET
 	updated_at = $3
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 `
 
 type UpdateUserAppearanceSettingsParams struct {
@@ -9635,6 +9850,7 @@ func (q *sqlQuerier) UpdateUserAppearanceSettings(ctx context.Context, arg Updat
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
@@ -9650,6 +9866,25 @@ WHERE
 
 func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, updateUserDeletedByID, id)
+	return err
+}
+
+const updateUserGithubComUserID = `-- name: UpdateUserGithubComUserID :exec
+UPDATE
+	users
+SET
+	github_com_user_id = $2
+WHERE
+	id = $1
+`
+
+type UpdateUserGithubComUserIDParams struct {
+	ID              uuid.UUID     `db:"id" json:"id"`
+	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
+}
+
+func (q *sqlQuerier) UpdateUserGithubComUserID(ctx context.Context, arg UpdateUserGithubComUserIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserGithubComUserID, arg.ID, arg.GithubComUserID)
 	return err
 }
 
@@ -9679,7 +9914,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -9707,6 +9942,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
@@ -9724,7 +9960,7 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -9751,6 +9987,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
@@ -9766,7 +10003,7 @@ SET
 	name = $6
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 `
 
 type UpdateUserProfileParams struct {
@@ -9804,6 +10041,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
@@ -9815,7 +10053,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -9842,6 +10080,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
@@ -9854,7 +10093,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 `
 
 type UpdateUserRolesParams struct {
@@ -9881,6 +10120,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }
@@ -9892,7 +10132,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id
 `
 
 type UpdateUserStatusParams struct {
@@ -9920,6 +10160,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.QuietHoursSchedule,
 		&i.ThemePreference,
 		&i.Name,
+		&i.GithubComUserID,
 	)
 	return i, err
 }

@@ -37,19 +37,23 @@ func TestEnterpriseCreate(t *testing.T) {
 	// setupMultipleOrganizations creates an extra organization, assigns a member
 	// both organizations, and optionally creates templates in each organization.
 	setupMultipleOrganizations := func(t *testing.T, args setupArgs) setupData {
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
+				DeploymentValues: dv,
 				// This only affects the first org.
 				IncludeProvisionerDaemon: true,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
 		})
 
-		second := coderdtest.CreateOrganization(t, ownerClient, coderdtest.CreateOrganizationOptions{
+		second := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{
 			IncludeProvisionerDaemon: true,
 		})
 		member, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.ScopedRoleOrgMember(second.ID))

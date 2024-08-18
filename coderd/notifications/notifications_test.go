@@ -1,9 +1,14 @@
 package notifications_test
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -24,12 +29,15 @@ import (
 
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -57,7 +65,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	interceptor := &syncInterceptor{Store: db}
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
-	mgr, err := notifications.NewManager(cfg, interceptor, createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -130,8 +138,8 @@ func TestSMTPDispatch(t *testing.T) {
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
-	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, defaultHelpers(), logger.Named("smtp")))
+	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -192,7 +200,7 @@ func TestWebhookDispatch(t *testing.T) {
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -290,7 +298,7 @@ func TestBackpressure(t *testing.T) {
 	storeInterceptor := &syncInterceptor{Store: db}
 
 	// GIVEN: a notification manager whose updates will be intercepted
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
@@ -385,7 +393,7 @@ func TestRetries(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: db}
 
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -446,7 +454,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	mgrCtx, cancelManagerCtx := context.WithCancel(context.Background())
 	t.Cleanup(cancelManagerCtx)
 
-	mgr, err := notifications.NewManager(cfg, noopInterceptor, createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
 	require.NoError(t, err)
@@ -493,7 +501,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: db}
 	handler := newDispatchInterceptor(&fakeHandler{})
-	mgr, err = notifications.NewManager(cfg, storeInterceptor, createMetrics(), logger.Named("manager"))
+	mgr, err = notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 
@@ -534,7 +542,7 @@ func TestInvalidConfig(t *testing.T) {
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
 
 	// WHEN: the manager is created with invalid config
-	_, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	_, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
 
 	// THEN: the manager will fail to be created, citing invalid config as error
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
@@ -552,7 +560,7 @@ func TestNotifierPaused(t *testing.T) {
 	user := createSampleUser(t, db)
 
 	cfg := defaultNotificationsConfig(method)
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
@@ -601,6 +609,415 @@ func TestNotifierPaused(t *testing.T) {
 		defer handler.mu.RUnlock()
 		return slices.Contains(handler.succeeded, sid.String())
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+//go:embed events.go
+var events []byte
+
+// enumerateAllTemplates gets all the template names from the coderd/notifications/events.go file.
+// TODO(dannyk): use code-generation to create a list of all templates: https://github.com/coder/team-coconut/issues/36
+func enumerateAllTemplates(t *testing.T) ([]string, error) {
+	t.Helper()
+
+	fset := token.NewFileSet()
+
+	node, err := parser.ParseFile(fset, "", bytes.NewBuffer(events), parser.AllErrors)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []string
+	// Traverse the AST and extract variable names.
+	ast.Inspect(node, func(n ast.Node) bool {
+		// Check if the node is a declaration statement.
+		if decl, ok := n.(*ast.GenDecl); ok && decl.Tok == token.VAR {
+			for _, spec := range decl.Specs {
+				// Type assert the spec to a ValueSpec.
+				if valueSpec, ok := spec.(*ast.ValueSpec); ok {
+					for _, name := range valueSpec.Names {
+						out = append(out, name.String())
+					}
+				}
+			}
+		}
+		return true
+	})
+
+	return out, nil
+}
+
+func TestNotificationTemplatesCanRender(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it relies on the notification templates added by migrations in the database")
+	}
+
+	tests := []struct {
+		name    string
+		id      uuid.UUID
+		payload types.MessagePayload
+	}{
+		{
+			name: "TemplateWorkspaceDeleted",
+			id:   notifications.TemplateWorkspaceDeleted,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":      "bobby-workspace",
+					"reason":    "autodeleted due to dormancy",
+					"initiator": "autobuild",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceAutobuildFailed",
+			id:   notifications.TemplateWorkspaceAutobuildFailed,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":   "bobby-workspace",
+					"reason": "autostart",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceDormant",
+			id:   notifications.TemplateWorkspaceDormant,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":           "bobby-workspace",
+					"reason":         "breached the template's threshold for inactivity",
+					"initiator":      "autobuild",
+					"dormancyHours":  "24",
+					"timeTilDormant": "24h",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceAutoUpdated",
+			id:   notifications.TemplateWorkspaceAutoUpdated,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":                     "bobby-workspace",
+					"template_version_name":    "1.0",
+					"template_version_message": "template now includes catnip",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceMarkedForDeletion",
+			id:   notifications.TemplateWorkspaceMarkedForDeletion,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":           "bobby-workspace",
+					"reason":         "template updated to new dormancy policy",
+					"dormancyHours":  "24",
+					"timeTilDormant": "24h",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountCreated",
+			id:   notifications.TemplateUserAccountCreated,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"created_account_name": "bobby",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountDeleted",
+			id:   notifications.TemplateUserAccountDeleted,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"deleted_account_name": "bobby",
+				},
+			},
+		},
+		{
+			name: "TemplateTemplateDeleted",
+			id:   notifications.TemplateTemplateDeleted,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":      "bobby-template",
+					"initiator": "rob",
+				},
+			},
+		},
+	}
+
+	allTemplates, err := enumerateAllTemplates(t)
+	require.NoError(t, err)
+	for _, name := range allTemplates {
+		var found bool
+		for _, tc := range tests {
+			if tc.name == name {
+				found = true
+			}
+		}
+
+		require.Truef(t, found, "could not find test case for %q", name)
+	}
+
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, sql := dbtestutil.NewDBWithSQLDB(t)
+
+			var (
+				titleTmpl string
+				bodyTmpl  string
+			)
+			err := sql.
+				QueryRow("SELECT title_template, body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
+				Scan(&titleTmpl, &bodyTmpl)
+			require.NoError(t, err, "failed to query body template for template:", tc.id)
+
+			title, err := render.GoTemplate(titleTmpl, tc.payload, nil)
+			require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
+			require.NoError(t, err, "failed to render notification title template")
+			require.NotEmpty(t, title, "title should not be empty")
+
+			body, err := render.GoTemplate(bodyTmpl, tc.payload, nil)
+			require.NoError(t, err, "failed to render notification body template")
+			require.NotEmpty(t, body, "body should not be empty")
+		})
+	}
+}
+
+// TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template
+func TestDisabledBeforeEnqueue(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	// GIVEN: an enqueuer & a sample user
+	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+	user := createSampleUser(t, db)
+
+	// WHEN: the user has a preference set to not receive the "workspace deleted" notification
+	templateID := notifications.TemplateWorkspaceDeleted
+	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+		UserID:                  user.ID,
+		NotificationTemplateIds: []uuid.UUID{templateID},
+		Disableds:               []bool{true},
+	})
+	require.NoError(t, err, "failed to set preferences")
+	require.EqualValues(t, 1, n, "unexpected number of affected rows")
+
+	// THEN: enqueuing the "workspace deleted" notification should fail with an error
+	_, err = enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	require.ErrorIs(t, err, notifications.ErrCannotEnqueueDisabledNotification, "enqueueing did not fail with expected error")
+}
+
+// TestDisabledAfterEnqueue ensures that notifications enqueued before a notification template was disabled will not be
+// sent, and will instead be marked as "inhibited".
+func TestDisabledAfterEnqueue(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	method := database.NotificationMethodSmtp
+	cfg := defaultNotificationsConfig(method)
+
+	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	require.NoError(t, err)
+	user := createSampleUser(t, db)
+
+	// GIVEN: a notification is enqueued which has not (yet) been disabled
+	templateID := notifications.TemplateWorkspaceDeleted
+	msgID, err := enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	require.NoError(t, err)
+
+	// Disable the notification template.
+	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+		UserID:                  user.ID,
+		NotificationTemplateIds: []uuid.UUID{templateID},
+		Disableds:               []bool{true},
+	})
+	require.NoError(t, err, "failed to set preferences")
+	require.EqualValues(t, 1, n, "unexpected number of affected rows")
+
+	// WHEN: running the manager to trigger dequeueing of (now-disabled) messages
+	mgr.Run(ctx)
+
+	// THEN: the message should not be sent, and must be set to "inhibited"
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		m, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+			Status: database.NotificationMessageStatusInhibited,
+			Limit:  10,
+		})
+		assert.NoError(ct, err)
+		if assert.Equal(ct, len(m), 1) {
+			assert.Equal(ct, m[0].ID.String(), msgID.String())
+			assert.Contains(ct, m[0].StatusReason.String, "disabled by user")
+		}
+	}, testutil.WaitLong, testutil.IntervalFast, "did not find the expected inhibited message")
+}
+
+func TestCustomNotificationMethod(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	received := make(chan uuid.UUID, 1)
+
+	// SETUP:
+	// Start mock server to simulate webhook endpoint.
+	mockWebhookSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload dispatch.WebhookPayload
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		assert.NoError(t, err)
+
+		received <- payload.MsgID
+		close(received)
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write([]byte("noted."))
+		require.NoError(t, err)
+	}))
+	defer mockWebhookSrv.Close()
+
+	// Start mock SMTP server.
+	mockSMTPSrv := smtpmock.New(smtpmock.ConfigurationAttr{
+		LogToStdout:       false,
+		LogServerActivity: true,
+	})
+	require.NoError(t, mockSMTPSrv.Start())
+	t.Cleanup(func() {
+		assert.NoError(t, mockSMTPSrv.Stop())
+	})
+
+	endpoint, err := url.Parse(mockWebhookSrv.URL)
+	require.NoError(t, err)
+
+	// GIVEN: a notification template which has a method explicitly set
+	var (
+		template      = notifications.TemplateWorkspaceDormant
+		defaultMethod = database.NotificationMethodSmtp
+		customMethod  = database.NotificationMethodWebhook
+	)
+	out, err := db.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
+		ID:     template,
+		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, customMethod, out.Method.NotificationMethod)
+
+	// GIVEN: a manager configured with multiple dispatch methods
+	cfg := defaultNotificationsConfig(defaultMethod)
+	cfg.SMTP = codersdk.NotificationsEmailConfig{
+		From:      "danny@coder.com",
+		Hello:     "localhost",
+		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
+	}
+	cfg.Webhook = codersdk.NotificationsWebhookConfig{
+		Endpoint: *serpent.URLOf(endpoint),
+	}
+
+	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = mgr.Stop(ctx)
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger)
+	require.NoError(t, err)
+
+	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
+	user := createSampleUser(t, db)
+	msgID, err := enq.Enqueue(ctx, user.ID, template, map[string]string{}, "test")
+	require.NoError(t, err)
+
+	// THEN: the notification should be received by the custom dispatch method
+	mgr.Run(ctx)
+
+	receivedMsgID := testutil.RequireRecvCtx(ctx, t, received)
+	require.Equal(t, msgID.String(), receivedMsgID.String())
+
+	// Ensure no messages received by default method (SMTP):
+	msgs := mockSMTPSrv.MessagesAndPurge()
+	require.Len(t, msgs, 0)
+
+	// Enqueue a notification which does not have a custom method set to ensure default works correctly.
+	msgID, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		msgs := mockSMTPSrv.MessagesAndPurge()
+		if assert.Len(ct, msgs, 1) {
+			assert.Contains(ct, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID))
+		}
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func TestNotificationsTemplates(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		// Notification system templates are only served from the database and not dbmem at this time.
+		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	api := coderdtest.New(t, createOpts(t))
+
+	// GIVEN: the first user (owner) and a regular member
+	firstUser := coderdtest.CreateFirstUser(t, api)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, api, firstUser.OrganizationID, rbac.RoleMember())
+
+	// WHEN: requesting system notification templates as owner should work
+	templates, err := api.GetSystemNotificationTemplates(ctx)
+	require.NoError(t, err)
+	require.True(t, len(templates) > 1)
+
+	// WHEN: requesting system notification templates as member should work
+	templates, err = memberClient.GetSystemNotificationTemplates(ctx)
+	require.NoError(t, err)
+	require.True(t, len(templates) > 1)
+}
+
+func createOpts(t *testing.T) *coderdtest.Options {
+	t.Helper()
+
+	dt := coderdtest.DeploymentValues(t)
+	dt.Experiments = []string{string(codersdk.ExperimentNotifications)}
+	return &coderdtest.Options{
+		DeploymentValues: dt,
+	}
 }
 
 type fakeHandler struct {

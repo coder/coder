@@ -125,17 +125,17 @@ within the component's story.
 
 ```tsx
 export const WithQuota: Story = {
-  parameters: {
-    queries: [
-      {
-        key: getWorkspaceQuotaQueryKey(MockUser.username),
-        data: {
-          credits_consumed: 2,
-          budget: 40,
-        },
-      },
-    ],
-  },
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceQuotaQueryKey(MockUser.username),
+				data: {
+					credits_consumed: 2,
+					budget: 40,
+				},
+			},
+		],
+	},
 };
 ```
 
@@ -150,12 +150,12 @@ example below:
 
 ```ts
 export const getAgentListeningPorts = async (
-  agentID: string,
+	agentID: string,
 ): Promise<TypesGen.ListeningPortsResponse> => {
-  const response = await axiosInstance.get(
-    `/api/v2/workspaceagents/${agentID}/listening-ports`,
-  );
-  return response.data;
+	const response = await axiosInstance.get(
+		`/api/v2/workspaceagents/${agentID}/listening-ports`,
+	);
+	return response.data;
 };
 ```
 
@@ -164,10 +164,10 @@ wrap it as a single function.
 
 ```ts
 export const updateWorkspaceVersion = async (
-  workspace: TypesGen.Workspace,
+	workspace: TypesGen.Workspace,
 ): Promise<TypesGen.WorkspaceBuild> => {
-  const template = await getTemplate(workspace.template_id);
-  return startWorkspace(workspace.id, template.active_version_id);
+	const template = await getTemplate(workspace.template_id);
+	return startWorkspace(workspace.id, template.active_version_id);
 };
 ```
 
@@ -214,10 +214,10 @@ inside the component itself using MUI's `visuallyHidden` utility function.
 import { visuallyHidden } from "@mui/utils";
 
 <Button>
-  <GearIcon />
-  <Box component="span" sx={visuallyHidden}>
-    Settings
-  </Box>
+	<GearIcon />
+	<Box component="span" sx={visuallyHidden}>
+		Settings
+	</Box>
 </Button>;
 ```
 

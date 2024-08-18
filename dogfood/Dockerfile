@@ -94,7 +94,7 @@ COPY files /
 # We used to copy /etc/sudoers.d/* in from files/ but this causes issues with
 # permissions and layer caching. Instead, create the file directly.
 RUN mkdir -p /etc/sudoers.d && \
-    echo 'coder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd && \
+	echo 'coder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd && \
 	chmod 750 /etc/sudoers.d/ && \
 	chmod 640 /etc/sudoers.d/nopasswd
 
@@ -178,10 +178,10 @@ RUN apt-get update --quiet && apt-get install --yes \
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.9.2.
 # Installing the same version here to match.
 RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.9.2/terraform_1.9.2_linux_amd64.zip" && \
-		unzip /tmp/terraform.zip -d /usr/local/bin && \
-		rm -f /tmp/terraform.zip && \
-		chmod +x /usr/local/bin/terraform && \
-		terraform --version
+	unzip /tmp/terraform.zip -d /usr/local/bin && \
+	rm -f /tmp/terraform.zip && \
+	chmod +x /usr/local/bin/terraform && \
+	terraform --version
 
 # Install the docker buildx component.
 RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
@@ -203,16 +203,17 @@ RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygi
 	tar xf lazygit.tar.gz -C /usr/local/bin lazygit
 
 # Install frontend utilities
-RUN apt-get update && \
-	# Node.js (from nodesource) and Yarn (from yarnpkg)
-	apt-get install --yes --quiet \
-	nodejs yarn \
-	# Install browsers for e2e testing
-	google-chrome-stable microsoft-edge-beta && \
-	# Pre-install system dependencies that Playwright needs. npx doesn't work here
-	# for some reason. See https://github.com/microsoft/playwright-cli/issues/136
-	npm i -g playwright@1.36.2 pnpm@^9 corepack && playwright install-deps && \
-	npm cache clean --force
+ENV NVM_DIR=/usr/local/nvm
+ENV NODE_VERSION=20.16.0
+RUN mkdir -p $NVM_DIR
+RUN curl https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
+RUN source $NVM_DIR/nvm.sh && \
+	nvm install $NODE_VERSION && \
+	nvm use $NODE_VERSION
+ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
+# Allow patch updates for npm and pnpm
+RUN npm install -g npm@^10.8
+RUN npm install -g pnpm@^9.6
 
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/16/bin/initdb 100 && \
@@ -283,15 +284,6 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	# AquaSec Trivy for scanning container images for security issues
 	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- trivy
-
-# Add Vercel globally. We can't install it in packages.json, because it
-# includes Go files which make golangci-lint unhappy.
-RUN yarn global add --prefix=/usr/local \
-	vercel \
-	typescript \
-	typescript-language-server \
-	prettier && \
-	yarn cache clean
 
 # We use yq during "make deploy" to manually substitute out fields in
 # our helm values.yaml file. See https://github.com/helm/helm/issues/3141

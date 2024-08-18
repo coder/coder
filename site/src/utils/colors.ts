@@ -13,9 +13,9 @@ const hexMatcher = /^#[0-9A-Fa-f]{6}$/;
  * Mainly here to validate input before sending it to the server.
  */
 export function isHexColor(input: string): boolean {
-  // Length check isn't necessary; it's just an fast way to validate before
-  // kicking things off to the slower regex check
-  return input.length === 7 && hexMatcher.test(input);
+	// Length check isn't necessary; it's just an fast way to validate before
+	// kicking things off to the slower regex check
+	return input.length === 7 && hexMatcher.test(input);
 }
 
 /**
@@ -36,62 +36,62 @@ export function isHexColor(input: string): boolean {
  *   exists) can only ever be 1. Other digits have no constraints.
  */
 const hslMatcher =
-  /^hsl\(((?:[1-3]?\d)?\d)(?:deg)?, *((?:1?\d)?\d)%, *((?:1?\d)?\d)%\)$/i;
+	/^hsl\(((?:[1-3]?\d)?\d)(?:deg)?, *((?:1?\d)?\d)%, *((?:1?\d)?\d)%\)$/i;
 
 export function isHslColor(input: string): boolean {
-  const [, hue, sat, lum] = hslMatcher.exec(input) ?? [];
-  if (hue === undefined || sat === undefined || lum === undefined) {
-    return false;
-  }
+	const [, hue, sat, lum] = hslMatcher.exec(input) ?? [];
+	if (hue === undefined || sat === undefined || lum === undefined) {
+		return false;
+	}
 
-  const hueN = Number(hue);
-  if (!Number.isInteger(hueN) || hueN < 0 || hueN > 359) {
-    return false;
-  }
+	const hueN = Number(hue);
+	if (!Number.isInteger(hueN) || hueN < 0 || hueN > 359) {
+		return false;
+	}
 
-  const satN = Number(sat);
-  if (!Number.isInteger(satN) || satN < 0 || satN > 100) {
-    return false;
-  }
+	const satN = Number(sat);
+	if (!Number.isInteger(satN) || satN < 0 || satN > 100) {
+		return false;
+	}
 
-  const lumN = Number(lum);
-  if (!Number.isInteger(lumN) || lumN < 0 || lumN > 100) {
-    return false;
-  }
+	const lumN = Number(lum);
+	if (!Number.isInteger(lumN) || lumN < 0 || lumN > 100) {
+		return false;
+	}
 
-  return true;
+	return true;
 }
 
 // Used to convert our theme colors to Hex since monaco theme only support hex colors
 // From https://www.jameslmilner.com/posts/converting-rgb-hex-hsl-colors/
 export function hslToHex(hsl: string): string {
-  const [h, s, l] = hsl
-    .replace("hsl(", "")
-    .replace(")", "")
-    .replaceAll("%", "")
-    .split(",")
-    .map(Number);
+	const [h, s, l] = hsl
+		.replace("hsl(", "")
+		.replace(")", "")
+		.replaceAll("%", "")
+		.split(",")
+		.map(Number);
 
-  const hDecimal = l / 100;
-  const a = (s * Math.min(hDecimal, 1 - hDecimal)) / 100;
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    const color = hDecimal - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+	const hDecimal = l / 100;
+	const a = (s * Math.min(hDecimal, 1 - hDecimal)) / 100;
+	const f = (n: number) => {
+		const k = (n + h / 30) % 12;
+		const color = hDecimal - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
 
-    // Convert to Hex and prefix with "0" if required
-    return Math.round(255 * color)
-      .toString(16)
-      .padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
+		// Convert to Hex and prefix with "0" if required
+		return Math.round(255 * color)
+			.toString(16)
+			.padStart(2, "0");
+	};
+	return `#${f(0)}${f(8)}${f(4)}`;
 }
 
 export const readableForegroundColor = (backgroundColor: string): string => {
-  const rgb = hex.rgb(backgroundColor);
+	const rgb = hex.rgb(backgroundColor);
 
-  // Logic taken from here:
-  // https://github.com/casesandberg/react-color/blob/bc9a0e1dc5d11b06c511a8e02a95bd85c7129f4b/src/helpers/color.js#L56
-  // to be consistent with the color-picker label.
-  const yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
-  return yiq >= 128 ? "#000" : "#fff";
+	// Logic taken from here:
+	// https://github.com/casesandberg/react-color/blob/bc9a0e1dc5d11b06c511a8e02a95bd85c7129f4b/src/helpers/color.js#L56
+	// to be consistent with the color-picker label.
+	const yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+	return yiq >= 128 ? "#000" : "#fff";
 };

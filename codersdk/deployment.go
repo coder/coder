@@ -154,7 +154,7 @@ func (set FeatureSet) Features() []FeatureName {
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
 			switch f {
 			// Add all features that should be excluded in the Enterprise feature set.
-			case FeatureMultipleOrganizations:
+			case FeatureMultipleOrganizations, FeatureCustomRoles:
 				return true
 			default:
 				return false
@@ -1977,13 +1977,14 @@ when required by your organization's security policy.`,
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
-			Name:        "Cache Directory",
-			Description: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd.",
-			Flag:        "cache-dir",
-			Env:         "CODER_CACHE_DIRECTORY",
-			Default:     DefaultCacheDir(),
-			Value:       &c.CacheDir,
-			YAML:        "cacheDir",
+			Name: "Cache Directory",
+			Description: "The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. " +
+				"This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.",
+			Flag:    "cache-dir",
+			Env:     "CODER_CACHE_DIRECTORY",
+			Default: DefaultCacheDir(),
+			Value:   &c.CacheDir,
+			YAML:    "cacheDir",
 		},
 		{
 			Name:        "In Memory Database",

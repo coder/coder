@@ -117,7 +117,7 @@ func TestWorkspaceQuota(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+				workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 				build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 				assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 			}()
@@ -126,7 +126,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		verifyQuota(ctx, t, client, 4, 4)
 
 		// Next one must fail
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Consumed shouldn't bump
@@ -151,7 +151,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		}
 
 		// Next one should now succeed
-		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace = coderdtest.CreateWorkspace(t, client, template.ID)
 		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		verifyQuota(ctx, t, client, 4, 4)
@@ -202,7 +202,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		var wg sync.WaitGroup
 		var workspaces []codersdk.Workspace
 		for i := 0; i < 2; i++ {
-			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 			workspaces = append(workspaces, workspace)
 			build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 			assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
@@ -211,7 +211,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		verifyQuota(ctx, t, client, 4, 4)
 
 		// Next one must fail
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		require.Contains(t, build.Job.Error, "quota")
 
@@ -232,6 +232,51 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Quota goes back up
 		verifyQuota(ctx, t, client, 4, 4)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+	})
+
+	// Ensures allowance from everyone groups only counts if you are an org member.
+	// This was a bug where the group "Everyone" was being counted for all users,
+	// regardless of membership.
+	t.Run("AllowanceEveryone", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		member, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Create a second organization
+		second := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// update everyone quotas
+		//nolint:gocritic // using owner for simplicity
+		_, err := owner.PatchGroup(ctx, first.OrganizationID, codersdk.PatchGroupRequest{
+			QuotaAllowance: ptr.Ref(30),
+		})
+		require.NoError(t, err)
+
+		_, err = owner.PatchGroup(ctx, second.ID, codersdk.PatchGroupRequest{
+			QuotaAllowance: ptr.Ref(15),
+		})
+		require.NoError(t, err)
+
+		verifyQuota(ctx, t, member, 0, 30)
+		// This currently reports the total site wide quotas. We might want to
+		// org scope this api call in the future.
+		verifyQuota(ctx, t, owner, 0, 45)
 	})
 }
 

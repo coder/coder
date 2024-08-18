@@ -7,6 +7,9 @@ terraform {
     kubernetes = {
       source = "hashicorp/kubernetes"
     }
+    envbuilder = {
+      source = "coder/envbuilder"
+    }
   }
 }
 
@@ -15,6 +18,7 @@ provider "kubernetes" {
   # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
   config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
 }
+provider "envbuilder" {}
 
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
@@ -43,8 +47,13 @@ variable "namespace" {
 variable "cache_repo" {
   default     = ""
   description = "Use a container registry as a cache to speed up builds."
-  sensitive   = true
   type        = string
+}
+
+variable "insecure_cache_repo" {
+  default     = false
+  description = "Enable this option if your cache registry does not serve HTTPS."
+  type        = bool
 }
 
 data "coder_parameter" "cpu" {
@@ -139,20 +148,45 @@ data "kubernetes_secret" "cache_repo_dockerconfig_secret" {
 }
 
 locals {
-  deployment_name            = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  deployment_name            = "coder-${lower(data.coder_workspace.me.id)}"
   devcontainer_builder_image = data.coder_parameter.devcontainer_builder.value
   git_author_name            = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
   git_author_email           = data.coder_workspace_owner.me.email
   repo_url                   = data.coder_parameter.repo.value
+  # The envbuilder provider requires a key-value map of environment variables.
+  envbuilder_env = {
+    "CODER_AGENT_TOKEN" : coder_agent.main.token,
+    # Use the docker gateway if the access URL is 127.0.0.1
+    "CODER_AGENT_URL" : replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    "ENVBUILDER_GIT_URL" : local.repo_url,
+    # Use the docker gateway if the access URL is 127.0.0.1
+    "ENVBUILDER_INIT_SCRIPT" : replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
+    "ENVBUILDER_CACHE_REPO" : var.cache_repo,
+    "ENVBUILDER_DOCKER_CONFIG_BASE64" : try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], ""),
+    "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
+    "ENVBUILDER_INSECURE" : "${var.insecure_cache_repo}",
+  }
 }
 
-resource "kubernetes_persistent_volume_claim" "home" {
+# Check for the presence of a prebuilt image in the cache repo
+# that we can use instead.
+resource "envbuilder_cached_image" "cached" {
+  count         = var.cache_repo == "" ? 0 : data.coder_workspace.me.start_count
+  builder_image = local.devcontainer_builder_image
+  git_url       = local.repo_url
+  cache_repo    = var.cache_repo
+  extra_env     = local.envbuilder_env
+  insecure      = var.insecure_cache_repo
+}
+
+resource "kubernetes_persistent_volume_claim" "workspaces" {
   metadata {
-    name      = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}-home"
+    name      = "coder-${lower(data.coder_workspace.me.id)}-workspaces"
     namespace = var.namespace
     labels = {
-      "app.kubernetes.io/name"     = "coder-pvc"
-      "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/name"     = "coder-${lower(data.coder_workspace.me.id)}-workspaces"
+      "app.kubernetes.io/instance" = "coder-${lower(data.coder_workspace.me.id)}-workspaces"
       "app.kubernetes.io/part-of"  = "coder"
       //Coder-specific labels.
       "com.coder.resource"       = "true"
@@ -173,13 +207,14 @@ resource "kubernetes_persistent_volume_claim" "home" {
         storage = "${data.coder_parameter.workspaces_volume_size.value}Gi"
       }
     }
+    # storage_class_name = "local-path" # Configure the StorageClass to use here, if required.
   }
 }
 
 resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
   depends_on = [
-    kubernetes_persistent_volume_claim.home
+    kubernetes_persistent_volume_claim.workspaces
   ]
   wait_for_rollout = false
   metadata {
@@ -222,7 +257,7 @@ resource "kubernetes_deployment" "main" {
 
         container {
           name              = "dev"
-          image             = local.devcontainer_builder_image
+          image             = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
           image_pull_policy = "Always"
           security_context {}
           env {
@@ -250,6 +285,14 @@ resource "kubernetes_deployment" "main" {
             value = var.cache_repo
           }
           env {
+            name  = "ENVBUILDER_PUSH_IMAGE"
+            value = var.cache_repo == "" ? "" : "true"
+          }
+          env {
+            name  = "ENVBUILDER_INSECURE"
+            value = var.insecure_cache_repo
+          }
+          env {
             name  = "ENVBUILDER_DOCKER_CONFIG_BASE64"
             value = try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], "")
           }
@@ -271,16 +314,16 @@ resource "kubernetes_deployment" "main" {
             }
           }
           volume_mount {
-            mount_path = "/home/coder"
-            name       = "home"
+            mount_path = "/workspaces"
+            name       = "workspaces"
             read_only  = false
           }
         }
 
         volume {
-          name = "home"
+          name = "workspaces"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.home.metadata.0.name
+            claim_name = kubernetes_persistent_volume_claim.workspaces.metadata.0.name
             read_only  = false
           }
         }
@@ -315,8 +358,11 @@ resource "coder_agent" "main" {
   startup_script = <<-EOT
     set -e
 
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
+    # Install the latest code-server.
+    # Append "--version x.x.x" to install a specific version of code-server.
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
+
+    # Start code-server in the background.
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
   dir            = "/workspaces"
@@ -354,9 +400,9 @@ resource "coder_agent" "main" {
   }
 
   metadata {
-    display_name = "Home Disk"
-    key          = "3_home_disk"
-    script       = "coder stat disk --path $HOME"
+    display_name = "Workspaces Disk"
+    key          = "3_workspaces_disk"
+    script       = "coder stat disk --path /workspaces"
     interval     = 60
     timeout      = 1
   }
@@ -412,5 +458,22 @@ resource "coder_app" "code-server" {
     url       = "http://localhost:13337/healthz"
     interval  = 5
     threshold = 6
+  }
+}
+
+resource "coder_metadata" "container_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = coder_agent.main.id
+  item {
+    key   = "workspace image"
+    value = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
+  }
+  item {
+    key   = "git url"
+    value = local.repo_url
+  }
+  item {
+    key   = "cache repo"
+    value = var.cache_repo == "" ? "not enabled" : var.cache_repo
   }
 }

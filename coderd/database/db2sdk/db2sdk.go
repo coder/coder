@@ -159,6 +159,35 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 	}
 }
 
+func UserFromGroupMember(member database.GroupMember) database.User {
+	return database.User{
+		ID:                 member.UserID,
+		Email:              member.UserEmail,
+		Username:           member.UserUsername,
+		HashedPassword:     member.UserHashedPassword,
+		CreatedAt:          member.UserCreatedAt,
+		UpdatedAt:          member.UserUpdatedAt,
+		Status:             member.UserStatus,
+		RBACRoles:          member.UserRbacRoles,
+		LoginType:          member.UserLoginType,
+		AvatarURL:          member.UserAvatarUrl,
+		Deleted:            member.UserDeleted,
+		LastSeenAt:         member.UserLastSeenAt,
+		QuietHoursSchedule: member.UserQuietHoursSchedule,
+		ThemePreference:    member.UserThemePreference,
+		Name:               member.UserName,
+		GithubComUserID:    member.UserGithubComUserID,
+	}
+}
+
+func ReducedUserFromGroupMember(member database.GroupMember) codersdk.ReducedUser {
+	return ReducedUser(UserFromGroupMember(member))
+}
+
+func ReducedUsersFromGroupMembers(members []database.GroupMember) []codersdk.ReducedUser {
+	return List(members, ReducedUserFromGroupMember)
+}
+
 func ReducedUsers(users []database.User) []codersdk.ReducedUser {
 	return List(users, ReducedUser)
 }
@@ -179,16 +208,17 @@ func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []c
 	})
 }
 
-func Group(group database.Group, members []database.User) codersdk.Group {
+func Group(group database.Group, members []database.GroupMember, totalMemberCount int) codersdk.Group {
 	return codersdk.Group{
-		ID:             group.ID,
-		Name:           group.Name,
-		DisplayName:    group.DisplayName,
-		OrganizationID: group.OrganizationID,
-		AvatarURL:      group.AvatarURL,
-		Members:        ReducedUsers(members),
-		QuotaAllowance: int(group.QuotaAllowance),
-		Source:         codersdk.GroupSource(group.Source),
+		ID:               group.ID,
+		Name:             group.Name,
+		DisplayName:      group.DisplayName,
+		OrganizationID:   group.OrganizationID,
+		AvatarURL:        group.AvatarURL,
+		Members:          ReducedUsersFromGroupMembers(members),
+		TotalMemberCount: totalMemberCount,
+		QuotaAllowance:   int(group.QuotaAllowance),
+		Source:           codersdk.GroupSource(group.Source),
 	}
 }
 
@@ -584,5 +614,20 @@ func RBACPermission(permission rbac.Permission) codersdk.Permission {
 		Negate:       permission.Negate,
 		ResourceType: codersdk.RBACResource(permission.ResourceType),
 		Action:       codersdk.RBACAction(permission.Action),
+	}
+}
+
+func Organization(organization database.Organization) codersdk.Organization {
+	return codersdk.Organization{
+		MinimalOrganization: codersdk.MinimalOrganization{
+			ID:          organization.ID,
+			Name:        organization.Name,
+			DisplayName: organization.DisplayName,
+			Icon:        organization.Icon,
+		},
+		Description: organization.Description,
+		CreatedAt:   organization.CreatedAt,
+		UpdatedAt:   organization.UpdatedAt,
+		IsDefault:   organization.IsDefault,
 	}
 }

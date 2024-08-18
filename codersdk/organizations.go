@@ -405,9 +405,10 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 }
 
 type TemplateFilter struct {
-	OrganizationID uuid.UUID `json:"organization_id,omitempty" format:"uuid" typescript:"-"`
-	FilterQuery    string    `json:"q,omitempty"`
-	ExactName      string    `json:"exact_name,omitempty" typescript:"-"`
+	OrganizationID uuid.UUID `typescript:"-"`
+	ExactName      string    `typescript:"-"`
+	FuzzyName      string    `typescript:"-"`
+	SearchQuery    string    `json:"q,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -425,9 +426,11 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 			params = append(params, fmt.Sprintf("exact_name:%q", f.ExactName))
 		}
 
-		if f.FilterQuery != "" {
-			// If custom stuff is added, just add it on here.
-			params = append(params, f.FilterQuery)
+		if f.FuzzyName != "" {
+			params = append(params, fmt.Sprintf("name:%q", f.FuzzyName))
+		}
+		if f.SearchQuery != "" {
+			params = append(params, f.SearchQuery)
 		}
 
 		q := r.URL.Query()
@@ -479,8 +482,15 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 }
 
 // CreateWorkspace creates a new workspace for the template specified.
-func (c *Client) CreateWorkspace(ctx context.Context, organizationID uuid.UUID, user string, request CreateWorkspaceRequest) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s/workspaces", organizationID, user), request)
+//
+// Deprecated: Use CreateUserWorkspace instead.
+func (c *Client) CreateWorkspace(ctx context.Context, _ uuid.UUID, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	return c.CreateUserWorkspace(ctx, user, request)
+}
+
+// CreateUserWorkspace creates a new workspace for the template specified.
+func (c *Client) CreateUserWorkspace(ctx context.Context, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
 	if err != nil {
 		return Workspace{}, err
 	}

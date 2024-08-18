@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -33,12 +34,11 @@ type notifier struct {
 	quit     chan any
 	done     chan any
 
-	method   database.NotificationMethod
 	handlers map[database.NotificationMethod]Handler
 	metrics  *Metrics
 }
 
-func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler, method database.NotificationMethod, metrics *Metrics) *notifier {
+func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler, metrics *Metrics) *notifier {
 	return &notifier{
 		id:       id,
 		cfg:      cfg,
@@ -48,7 +48,6 @@ func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger
 		tick:     time.NewTicker(cfg.FetchInterval.Value()),
 		store:    db,
 		handlers: hr,
-		method:   method,
 		metrics:  metrics,
 	}
 }
@@ -144,6 +143,12 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 
 	var eg errgroup.Group
 	for _, msg := range msgs {
+		// If a notification template has been disabled by the user after a notification was enqueued, mark it as inhibited
+		if msg.Disabled {
+			failure <- n.newInhibitedDispatch(msg)
+			continue
+		}
+
 		// A message failing to be prepared correctly should not affect other messages.
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
@@ -234,17 +239,17 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 	logger := n.log.With(slog.F("msg_id", msg.ID), slog.F("method", msg.Method), slog.F("attempt", msg.AttemptCount+1))
 
 	if msg.AttemptCount > 0 {
-		n.metrics.RetryCount.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
+		n.metrics.RetryCount.WithLabelValues(string(msg.Method), msg.TemplateID.String()).Inc()
 	}
 
-	n.metrics.InflightDispatches.WithLabelValues(string(n.method), msg.TemplateID.String()).Inc()
-	n.metrics.QueuedSeconds.WithLabelValues(string(n.method)).Observe(msg.QueuedSeconds)
+	n.metrics.InflightDispatches.WithLabelValues(string(msg.Method), msg.TemplateID.String()).Inc()
+	n.metrics.QueuedSeconds.WithLabelValues(string(msg.Method)).Observe(msg.QueuedSeconds)
 
 	start := time.Now()
 	retryable, err := deliver(ctx, msg.ID)
 
-	n.metrics.DispatcherSendSeconds.WithLabelValues(string(n.method)).Observe(time.Since(start).Seconds())
-	n.metrics.InflightDispatches.WithLabelValues(string(n.method), msg.TemplateID.String()).Dec()
+	n.metrics.DispatcherSendSeconds.WithLabelValues(string(msg.Method)).Observe(time.Since(start).Seconds())
+	n.metrics.InflightDispatches.WithLabelValues(string(msg.Method), msg.TemplateID.String()).Dec()
 
 	if err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
@@ -281,12 +286,12 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 }
 
 func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessagesRow) dispatchResult {
-	n.metrics.DispatchAttempts.WithLabelValues(string(n.method), msg.TemplateID.String(), ResultSuccess).Inc()
+	n.metrics.DispatchAttempts.WithLabelValues(string(msg.Method), msg.TemplateID.String(), ResultSuccess).Inc()
 
 	return dispatchResult{
 		notifier: n.id,
 		msg:      msg.ID,
-		ts:       time.Now(),
+		ts:       dbtime.Now(),
 	}
 }
 
@@ -301,14 +306,24 @@ func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow
 		result = ResultPermFail
 	}
 
-	n.metrics.DispatchAttempts.WithLabelValues(string(n.method), msg.TemplateID.String(), result).Inc()
+	n.metrics.DispatchAttempts.WithLabelValues(string(msg.Method), msg.TemplateID.String(), result).Inc()
 
 	return dispatchResult{
 		notifier:  n.id,
 		msg:       msg.ID,
-		ts:        time.Now(),
+		ts:        dbtime.Now(),
 		err:       err,
 		retryable: retryable,
+	}
+}
+
+func (n *notifier) newInhibitedDispatch(msg database.AcquireNotificationMessagesRow) dispatchResult {
+	return dispatchResult{
+		notifier:  n.id,
+		msg:       msg.ID,
+		ts:        dbtime.Now(),
+		retryable: false,
+		inhibited: true,
 	}
 }
 

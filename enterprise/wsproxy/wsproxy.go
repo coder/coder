@@ -463,7 +463,7 @@ func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
 	errStr := pingSiblingReplicas(ctx, s.Logger, &s.replicaPingSingleflight, s.derpMeshTLSConfig, replicas)
 	s.replicaErrMut.Lock()
 	s.replicaErr = errStr
-	s.replicaErrMut.Unlock()
+	defer s.replicaErrMut.Unlock()
 	if s.Options.ReplicaErrCallback != nil {
 		s.Options.ReplicaErrCallback(replicas, s.replicaErr)
 	}
