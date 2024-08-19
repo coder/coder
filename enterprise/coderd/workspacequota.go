@@ -118,8 +118,8 @@ func (c *committer) CommitQuota(
 	}, nil
 }
 
-// @Summary Get workspace quota by user
-// @ID get-workspace-quota-by-user
+// @Summary Get workspace quota by user deprecated
+// @ID get-workspace-quota-by-user-deprecated
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
