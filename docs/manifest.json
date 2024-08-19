@@ -1,7 +1,5 @@
 {
-	"versions": [
-		"main"
-	],
+	"versions": ["main"],
 	"routes": [
 		{
 			"title": "About",
