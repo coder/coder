@@ -374,13 +374,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 	defer commitAudit()
 
-	// Do this upfront to save work.
-	if !api.Authorize(r, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(member.UserID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var req codersdk.CreateWorkspaceRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -518,6 +511,22 @@ func createWorkspace(
 	if template.Deleted {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
+		})
+		return
+	}
+
+	// This is a premature auth check to avoid doing unnecessary work if the user
+	// doesn't have permission to create a workspace.
+	if !api.Authorize(r, policy.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
+		// If this check fails, return a proper unauthorized error to the user to indicate
+		// what is going on.
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Unauthorized to create workspace.",
+			Detail: "You are unable to create a workspace in this organization. " +
+				"It is possible to have access to the template, but not be able to create a workspace. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+			Validations: nil,
 		})
 		return
 	}
