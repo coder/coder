@@ -488,6 +488,47 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		require.Equal(t, displayName, o.DisplayName) // didn't change
 		require.Equal(t, icon, o.Icon)
 	})
+
+	t.Run("RevokedLicense", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		const displayName = "New Organization"
+		var err error
+		o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{}, func(request *codersdk.CreateOrganizationRequest) {
+			request.DisplayName = displayName
+			request.Icon = "/emojis/random.png"
+			request.Name = "new-org"
+		})
+
+		// Remove the license to block enterprise functionality.
+		licenses, err := client.Licenses(ctx)
+		require.NoError(t, err, "get licenses")
+		for _, license := range licenses {
+			// Should be only 1...
+			err := client.DeleteLicense(ctx, license.ID)
+			require.NoError(t, err, "delete license")
+		}
+
+		// Verify functionality is lost.
+		const icon = "/emojis/1f48f-1f3ff.png"
+		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
+			Icon: ptr.Ref(icon),
+		})
+		require.ErrorContains(t, err, "Multiple Organizations is a Premium feature")
+	})
 }
 
 func TestPostOrganizationsByUser(t *testing.T) {
