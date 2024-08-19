@@ -662,25 +662,11 @@ func (m metricsStore) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return r0, r1
 }
 
-func (m metricsStore) GetGroups(ctx context.Context) ([]database.Group, error) {
+func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetGroups(ctx)
+	r0, r1 := m.s.GetGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroups").Observe(time.Since(start).Seconds())
 	return r0, r1
-}
-
-func (m metricsStore) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetGroupsByOrganizationAndUserID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationAndUserID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	start := time.Now()
-	groups, err := m.s.GetGroupsByOrganizationID(ctx, organizationID)
-	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationID").Observe(time.Since(start).Seconds())
-	return groups, err
 }
 
 func (m metricsStore) GetHealthSettings(ctx context.Context) (string, error) {

@@ -316,7 +316,7 @@ OIDC provider will be added to the `myCoderGroupName` group in Coder.
 > **Note:** Groups are only updated on login.
 
 [azure-gids]:
-  https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
+	https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
 
 ### Group allowlist
 

@@ -5,33 +5,33 @@ import type { FC } from "react";
 import { createDisplayDate } from "./utils";
 
 export interface TimelineDateRow {
-  date: Date;
+	date: Date;
 }
 
 export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
-  const theme = useTheme();
+	const theme = useTheme();
 
-  return (
-    <TableRow
-      css={css`
+	return (
+		<TableRow
+			css={css`
         &:not(:first-of-type) td {
           border-top: 1px solid ${theme.palette.divider};
         }
       `}
-    >
-      <TableCell
-        css={{
-          padding: `8px 32px !important`,
-          background: `${theme.palette.background.paper} !important`,
-          fontSize: 12,
-          position: "relative",
-          color: theme.palette.text.secondary,
-          textTransform: "capitalize",
-        }}
-        title={date.toLocaleDateString()}
-      >
-        {createDisplayDate(date)}
-      </TableCell>
-    </TableRow>
-  );
+		>
+			<TableCell
+				css={{
+					padding: "8px 32px !important",
+					background: `${theme.palette.background.paper} !important`,
+					fontSize: 12,
+					position: "relative",
+					color: theme.palette.text.secondary,
+					textTransform: "capitalize",
+				}}
+				title={date.toLocaleDateString()}
+			>
+				{createDisplayDate(date)}
+			</TableCell>
+		</TableRow>
+	);
 };

@@ -2,18 +2,18 @@ import type { Interpolation, Theme } from "@emotion/react";
 import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@mui/material/IconButton";
 import Snackbar, {
-  type SnackbarProps as MuiSnackbarProps,
+	type SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
-import type { FC } from "react";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import type { FC } from "react";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
 export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
-  /** Called when the snackbar should close, either from timeout or clicking close */
-  onClose: () => void;
-  /** Variant of snackbar, for theming */
-  variant?: EnterpriseSnackbarVariant;
+	/** Called when the snackbar should close, either from timeout or clicking close */
+	onClose: () => void;
+	/** Variant of snackbar, for theming */
+	variant?: EnterpriseSnackbarVariant;
 }
 
 /**
@@ -28,56 +28,57 @@ export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
  * See original component's Material UI documentation here: https://material-ui.com/components/snackbars/
  */
 export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
-  children,
-  onClose,
-  variant = "info",
-  ContentProps = {},
-  action,
-  ...snackbarProps
+	children,
+	onClose,
+	variant = "info",
+	ContentProps = {},
+	action,
+	...snackbarProps
 }) => {
-  const content = useClassName(classNames.content(variant), [variant]);
+	const content = useClassName(classNames.content(variant), [variant]);
 
-  return (
-    <Snackbar
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "right",
-      }}
-      action={
-        <div css={styles.actionWrapper}>
-          {action}
-          <IconButton onClick={onClose} css={{ padding: 0 }}>
-            <CloseIcon css={styles.closeIcon} aria-label="close" />
-          </IconButton>
-        </div>
-      }
-      ContentProps={{
-        ...ContentProps,
-        className: content,
-      }}
-      onClose={onClose}
-      {...snackbarProps}
-    >
-      {children}
-    </Snackbar>
-  );
+	return (
+		<Snackbar
+			anchorOrigin={{
+				vertical: "bottom",
+				horizontal: "right",
+			}}
+			action={
+				<div css={styles.actionWrapper}>
+					{action}
+					<IconButton onClick={onClose} css={{ padding: 0 }}>
+						<CloseIcon css={styles.closeIcon} aria-label="close" />
+					</IconButton>
+				</div>
+			}
+			ContentProps={{
+				...ContentProps,
+				className: content,
+			}}
+			onClose={onClose}
+			{...snackbarProps}
+		>
+			{children}
+		</Snackbar>
+	);
 };
 
 const variantColor = (variant: EnterpriseSnackbarVariant, theme: Theme) => {
-  switch (variant) {
-    case "error":
-      return theme.palette.error.main;
-    case "info":
-      return theme.palette.info.main;
-    case "success":
-      return theme.palette.success.main;
-  }
+	switch (variant) {
+		case "error":
+			return theme.palette.error.main;
+		case "info":
+			return theme.palette.info.main;
+		case "success":
+			return theme.palette.success.main;
+	}
 };
 
 const classNames = {
-  content:
-    (variant: EnterpriseSnackbarVariant): ClassName =>
-    (css, theme) => css`
+	content:
+		(variant: EnterpriseSnackbarVariant): ClassName =>
+		(css, theme) =>
+			css`
       border: 1px solid ${theme.palette.divider};
       border-left: 4px solid ${variantColor(variant, theme)};
       border-radius: 8px;
@@ -90,13 +91,13 @@ const classNames = {
 };
 
 const styles = {
-  actionWrapper: {
-    display: "flex",
-    alignItems: "center",
-  },
-  closeIcon: (theme) => ({
-    width: 25,
-    height: 25,
-    color: theme.palette.primary.contrastText,
-  }),
+	actionWrapper: {
+		display: "flex",
+		alignItems: "center",
+	},
+	closeIcon: (theme) => ({
+		width: 25,
+		height: 25,
+		color: theme.palette.primary.contrastText,
+	}),
 } satisfies Record<string, Interpolation<Theme>>;

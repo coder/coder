@@ -114,9 +114,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		s.methodAccounting[methodName]++
 
 		db := dbmem.New()
-		fakeAuthorizer := &coderdtest.FakeAuthorizer{
-			AlwaysReturn: nil,
-		}
+		fakeAuthorizer := &coderdtest.FakeAuthorizer{}
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
 		}
@@ -174,7 +172,11 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		// Always run
 		s.Run("Success", func() {
 			rec.Reset()
-			fakeAuthorizer.AlwaysReturn = nil
+			if testCase.successAuthorizer != nil {
+				fakeAuthorizer.ConditionalReturn = testCase.successAuthorizer
+			} else {
+				fakeAuthorizer.AlwaysReturn(nil)
+			}
 
 			outputs, err := callMethod(ctx)
 			if testCase.err == nil {
@@ -232,7 +234,7 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 // Asserts that the error returned is a NotAuthorizedError.
 func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, testCase expects, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
-		az.AlwaysReturn = rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil)
+		az.AlwaysReturn(rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil))
 
 		// If we have assertions, that means the method should FAIL
 		// if RBAC will disallow the request. The returned error should
@@ -257,8 +259,8 @@ func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderd
 		// Pass in a canceled context
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
-		az.AlwaysReturn = rbac.ForbiddenWithInternal(&topdown.Error{Code: topdown.CancelErr},
-			rbac.Subject{}, "", rbac.Object{}, nil)
+		az.AlwaysReturn(rbac.ForbiddenWithInternal(&topdown.Error{Code: topdown.CancelErr},
+			rbac.Subject{}, "", rbac.Object{}, nil))
 
 		// If we have assertions, that means the method should FAIL
 		// if RBAC will disallow the request. The returned error should
@@ -324,6 +326,7 @@ type expects struct {
 	// instead.
 	notAuthorizedExpect string
 	cancelledCtxExpect  string
+	successAuthorizer   func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
@@ -351,6 +354,23 @@ func (m *expects) Returns(rets ...any) *expects {
 // Errors is optional. If it is never called, it will not be asserted.
 func (m *expects) Errors(err error) *expects {
 	m.err = err
+	return m
+}
+
+func (m *expects) FailSystemObjectChecks() *expects {
+	return m.WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
+		if obj.Type == rbac.ResourceSystem.Type {
+			return xerrors.Errorf("hard coded system authz failed")
+		}
+		return nil
+	})
+}
+
+// WithSuccessAuthorizer is helpful when an optimization authz check is made
+// to skip some RBAC checks. This check in testing would prevent the ability
+// to assert the more nuanced RBAC checks.
+func (m *expects) WithSuccessAuthorizer(f func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error) *expects {
+	m.successAuthorizer = f
 	return m
 }
 

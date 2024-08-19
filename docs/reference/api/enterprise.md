@@ -19,27 +19,27 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "announcement_banners": [
-    {
-      "background_color": "string",
-      "enabled": true,
-      "message": "string"
-    }
-  ],
-  "application_name": "string",
-  "logo_url": "string",
-  "service_banner": {
-    "background_color": "string",
-    "enabled": true,
-    "message": "string"
-  },
-  "support_links": [
-    {
-      "icon": "bug",
-      "name": "string",
-      "target": "string"
-    }
-  ]
+	"announcement_banners": [
+		{
+			"background_color": "string",
+			"enabled": true,
+			"message": "string"
+		}
+	],
+	"application_name": "string",
+	"logo_url": "string",
+	"service_banner": {
+		"background_color": "string",
+		"enabled": true,
+		"message": "string"
+	},
+	"support_links": [
+		{
+			"icon": "bug",
+			"name": "string",
+			"target": "string"
+		}
+	]
 }
 ```
 
@@ -69,20 +69,20 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "announcement_banners": [
-    {
-      "background_color": "string",
-      "enabled": true,
-      "message": "string"
-    }
-  ],
-  "application_name": "string",
-  "logo_url": "string",
-  "service_banner": {
-    "background_color": "string",
-    "enabled": true,
-    "message": "string"
-  }
+	"announcement_banners": [
+		{
+			"background_color": "string",
+			"enabled": true,
+			"message": "string"
+		}
+	],
+	"application_name": "string",
+	"logo_url": "string",
+	"service_banner": {
+		"background_color": "string",
+		"enabled": true,
+		"message": "string"
+	}
 }
 ```
 
@@ -98,20 +98,20 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
-  "announcement_banners": [
-    {
-      "background_color": "string",
-      "enabled": true,
-      "message": "string"
-    }
-  ],
-  "application_name": "string",
-  "logo_url": "string",
-  "service_banner": {
-    "background_color": "string",
-    "enabled": true,
-    "message": "string"
-  }
+	"announcement_banners": [
+		{
+			"background_color": "string",
+			"enabled": true,
+			"message": "string"
+		}
+	],
+	"application_name": "string",
+	"logo_url": "string",
+	"service_banner": {
+		"background_color": "string",
+		"enabled": true,
+		"message": "string"
+	}
 }
 ```
 
@@ -142,26 +142,26 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 
 ```json
 {
-  "errors": ["string"],
-  "features": {
-    "property1": {
-      "actual": 0,
-      "enabled": true,
-      "entitlement": "entitled",
-      "limit": 0
-    },
-    "property2": {
-      "actual": 0,
-      "enabled": true,
-      "entitlement": "entitled",
-      "limit": 0
-    }
-  },
-  "has_license": true,
-  "refreshed_at": "2019-08-24T14:15:22Z",
-  "require_telemetry": true,
-  "trial": true,
-  "warnings": ["string"]
+	"errors": ["string"],
+	"features": {
+		"property1": {
+			"actual": 0,
+			"enabled": true,
+			"entitlement": "entitled",
+			"limit": 0
+		},
+		"property2": {
+			"actual": 0,
+			"enabled": true,
+			"entitlement": "entitled",
+			"limit": 0
+		}
+	},
+	"has_license": true,
+	"refreshed_at": "2019-08-24T14:15:22Z",
+	"require_telemetry": true,
+	"trial": true,
+	"warnings": ["string"]
 }
 ```
 
@@ -170,6 +170,111 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 | Status | Meaning                                                 | Description | Schema                                                   |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Entitlements](schemas.md#codersdkentitlements) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get groups
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_member=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /groups`
+
+### Parameters
+
+| Name           | In    | Type   | Required | Description             |
+| -------------- | ----- | ------ | -------- | ----------------------- |
+| `organization` | query | string | true     | Organization ID or name |
+| `has_member`   | query | string | true     | User ID or name         |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+	{
+		"avatar_url": "string",
+		"display_name": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"members": [
+			{
+				"avatar_url": "http://example.com",
+				"created_at": "2019-08-24T14:15:22Z",
+				"email": "user@example.com",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"last_seen_at": "2019-08-24T14:15:22Z",
+				"login_type": "",
+				"name": "string",
+				"status": "active",
+				"theme_preference": "string",
+				"updated_at": "2019-08-24T14:15:22Z",
+				"username": "string"
+			}
+		],
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"quota_allowance": 0,
+		"source": "user",
+		"total_member_count": 0
+	}
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                              |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Group](schemas.md#codersdkgroup) |
+
+<h3 id="get-groups-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                   | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`         | array                                                  | false    |              |                                                                                                                                                                       |
+| `» avatar_url`         | string                                                 | false    |              |                                                                                                                                                                       |
+| `» display_name`       | string                                                 | false    |              |                                                                                                                                                                       |
+| `» id`                 | string(uuid)                                           | false    |              |                                                                                                                                                                       |
+| `» members`            | array                                                  | false    |              |                                                                                                                                                                       |
+| `»» avatar_url`        | string(uri)                                            | false    |              |                                                                                                                                                                       |
+| `»» created_at`        | string(date-time)                                      | true     |              |                                                                                                                                                                       |
+| `»» email`             | string(email)                                          | true     |              |                                                                                                                                                                       |
+| `»» id`                | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»» last_seen_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                       |
+| `»» login_type`        | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
+| `»» name`              | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» status`            | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
+| `»» theme_preference`  | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» updated_at`        | string(date-time)                                      | false    |              |                                                                                                                                                                       |
+| `»» username`          | string                                                 | true     |              |                                                                                                                                                                       |
+| `» name`               | string                                                 | false    |              |                                                                                                                                                                       |
+| `» organization_id`    | string(uuid)                                           | false    |              |                                                                                                                                                                       |
+| `» quota_allowance`    | integer                                                | false    |              |                                                                                                                                                                       |
+| `» source`             | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |                                                                                                                                                                       |
+| `» total_member_count` | integer                                                | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property     | Value       |
+| ------------ | ----------- |
+| `login_type` | ``          |
+| `login_type` | `password`  |
+| `login_type` | `github`    |
+| `login_type` | `oidc`      |
+| `login_type` | `token`     |
+| `login_type` | `none`      |
+| `status`     | `active`    |
+| `status`     | `suspended` |
+| `source`     | `user`      |
+| `source`     | `oidc`      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -198,29 +303,29 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 
 ```json
 {
-  "avatar_url": "string",
-  "display_name": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0,
-  "source": "user",
-  "total_member_count": 0
+	"avatar_url": "string",
+	"display_name": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"members": [
+		{
+			"avatar_url": "http://example.com",
+			"created_at": "2019-08-24T14:15:22Z",
+			"email": "user@example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"login_type": "",
+			"name": "string",
+			"status": "active",
+			"theme_preference": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"username": "string"
+		}
+	],
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"quota_allowance": 0,
+	"source": "user",
+	"total_member_count": 0
 }
 ```
 
@@ -257,29 +362,29 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 
 ```json
 {
-  "avatar_url": "string",
-  "display_name": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0,
-  "source": "user",
-  "total_member_count": 0
+	"avatar_url": "string",
+	"display_name": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"members": [
+		{
+			"avatar_url": "http://example.com",
+			"created_at": "2019-08-24T14:15:22Z",
+			"email": "user@example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"login_type": "",
+			"name": "string",
+			"status": "active",
+			"theme_preference": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"username": "string"
+		}
+	],
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"quota_allowance": 0,
+	"source": "user",
+	"total_member_count": 0
 }
 ```
 
@@ -309,12 +414,12 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 ```json
 {
-  "add_users": ["string"],
-  "avatar_url": "string",
-  "display_name": "string",
-  "name": "string",
-  "quota_allowance": 0,
-  "remove_users": ["string"]
+	"add_users": ["string"],
+	"avatar_url": "string",
+	"display_name": "string",
+	"name": "string",
+	"quota_allowance": 0,
+	"remove_users": ["string"]
 }
 ```
 
@@ -331,29 +436,29 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 
 ```json
 {
-  "avatar_url": "string",
-  "display_name": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0,
-  "source": "user",
-  "total_member_count": 0
+	"avatar_url": "string",
+	"display_name": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"members": [
+		{
+			"avatar_url": "http://example.com",
+			"created_at": "2019-08-24T14:15:22Z",
+			"email": "user@example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"login_type": "",
+			"name": "string",
+			"status": "active",
+			"theme_preference": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"username": "string"
+		}
+	],
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"quota_allowance": 0,
+	"source": "user",
+	"total_member_count": 0
 }
 ```
 
@@ -391,12 +496,12 @@ curl -X GET http://coder-server:8080/api/v2/integrations/jfrog/xray-scan?workspa
 
 ```json
 {
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "critical": 0,
-  "high": 0,
-  "medium": 0,
-  "results_url": "string",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+	"agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+	"critical": 0,
+	"high": 0,
+	"medium": 0,
+	"results_url": "string",
+	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
@@ -426,12 +531,12 @@ curl -X POST http://coder-server:8080/api/v2/integrations/jfrog/xray-scan \
 
 ```json
 {
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "critical": 0,
-  "high": 0,
-  "medium": 0,
-  "results_url": "string",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+	"agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+	"critical": 0,
+	"high": 0,
+	"medium": 0,
+	"results_url": "string",
+	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
@@ -447,14 +552,14 @@ curl -X POST http://coder-server:8080/api/v2/integrations/jfrog/xray-scan \
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -485,12 +590,12 @@ curl -X GET http://coder-server:8080/api/v2/licenses \
 
 ```json
 [
-  {
-    "claims": {},
-    "id": 0,
-    "uploaded_at": "2019-08-24T14:15:22Z",
-    "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
-  }
+	{
+		"claims": {},
+		"id": 0,
+		"uploaded_at": "2019-08-24T14:15:22Z",
+		"uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
+	}
 ]
 ```
 
@@ -592,17 +697,17 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ```json
 [
-  {
-    "callback_url": "string",
-    "endpoints": {
-      "authorization": "string",
-      "device_authorization": "string",
-      "token": "string"
-    },
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string"
-  }
+	{
+		"callback_url": "string",
+		"endpoints": {
+			"authorization": "string",
+			"device_authorization": "string",
+			"token": "string"
+		},
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"name": "string"
+	}
 ]
 ```
 
@@ -648,9 +753,9 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ```json
 {
-  "callback_url": "string",
-  "icon": "string",
-  "name": "string"
+	"callback_url": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -666,15 +771,15 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ```json
 {
-  "callback_url": "string",
-  "endpoints": {
-    "authorization": "string",
-    "device_authorization": "string",
-    "token": "string"
-  },
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+	"callback_url": "string",
+	"endpoints": {
+		"authorization": "string",
+		"device_authorization": "string",
+		"token": "string"
+	},
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string"
 }
 ```
 
@@ -711,15 +816,15 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
-  "callback_url": "string",
-  "endpoints": {
-    "authorization": "string",
-    "device_authorization": "string",
-    "token": "string"
-  },
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+	"callback_url": "string",
+	"endpoints": {
+		"authorization": "string",
+		"device_authorization": "string",
+		"token": "string"
+	},
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string"
 }
 ```
 
@@ -749,9 +854,9 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
-  "callback_url": "string",
-  "icon": "string",
-  "name": "string"
+	"callback_url": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -768,15 +873,15 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 
 ```json
 {
-  "callback_url": "string",
-  "endpoints": {
-    "authorization": "string",
-    "device_authorization": "string",
-    "token": "string"
-  },
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+	"callback_url": "string",
+	"endpoints": {
+		"authorization": "string",
+		"device_authorization": "string",
+		"token": "string"
+	},
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string"
 }
 ```
 
@@ -839,11 +944,11 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets \
 
 ```json
 [
-  {
-    "client_secret_truncated": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_used_at": "string"
-  }
+	{
+		"client_secret_truncated": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"last_used_at": "string"
+	}
 ]
 ```
 
@@ -891,10 +996,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps/{app}/secrets 
 
 ```json
 [
-  {
-    "client_secret_full": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-  }
+	{
+		"client_secret_full": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+	}
 ]
 ```
 
@@ -1025,10 +1130,10 @@ grant_type: authorization_code
 
 ```json
 {
-  "access_token": "string",
-  "expiry": "string",
-  "refresh_token": "string",
-  "token_type": "string"
+	"access_token": "string",
+	"expiry": "string",
+	"refresh_token": "string",
+	"token_type": "string"
 }
 ```
 
@@ -1089,31 +1194,31 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 
 ```json
 [
-  {
-    "avatar_url": "string",
-    "display_name": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "members": [
-      {
-        "avatar_url": "http://example.com",
-        "created_at": "2019-08-24T14:15:22Z",
-        "email": "user@example.com",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "last_seen_at": "2019-08-24T14:15:22Z",
-        "login_type": "",
-        "name": "string",
-        "status": "active",
-        "theme_preference": "string",
-        "updated_at": "2019-08-24T14:15:22Z",
-        "username": "string"
-      }
-    ],
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "quota_allowance": 0,
-    "source": "user",
-    "total_member_count": 0
-  }
+	{
+		"avatar_url": "string",
+		"display_name": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"members": [
+			{
+				"avatar_url": "http://example.com",
+				"created_at": "2019-08-24T14:15:22Z",
+				"email": "user@example.com",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"last_seen_at": "2019-08-24T14:15:22Z",
+				"login_type": "",
+				"name": "string",
+				"status": "active",
+				"theme_preference": "string",
+				"updated_at": "2019-08-24T14:15:22Z",
+				"username": "string"
+			}
+		],
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"quota_allowance": 0,
+		"source": "user",
+		"total_member_count": 0
+	}
 ]
 ```
 
@@ -1186,10 +1291,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 ```json
 {
-  "avatar_url": "string",
-  "display_name": "string",
-  "name": "string",
-  "quota_allowance": 0
+	"avatar_url": "string",
+	"display_name": "string",
+	"name": "string",
+	"quota_allowance": 0
 }
 ```
 
@@ -1206,29 +1311,29 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 ```json
 {
-  "avatar_url": "string",
-  "display_name": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0,
-  "source": "user",
-  "total_member_count": 0
+	"avatar_url": "string",
+	"display_name": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"members": [
+		{
+			"avatar_url": "http://example.com",
+			"created_at": "2019-08-24T14:15:22Z",
+			"email": "user@example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"login_type": "",
+			"name": "string",
+			"status": "active",
+			"theme_preference": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"username": "string"
+		}
+	],
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"quota_allowance": 0,
+	"source": "user",
+	"total_member_count": 0
 }
 ```
 
@@ -1266,29 +1371,29 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 ```json
 {
-  "avatar_url": "string",
-  "display_name": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0,
-  "source": "user",
-  "total_member_count": 0
+	"avatar_url": "string",
+	"display_name": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"members": [
+		{
+			"avatar_url": "http://example.com",
+			"created_at": "2019-08-24T14:15:22Z",
+			"email": "user@example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"login_type": "",
+			"name": "string",
+			"status": "active",
+			"theme_preference": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"username": "string"
+		}
+	],
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"quota_allowance": 0,
+	"source": "user",
+	"total_member_count": 0
 }
 ```
 
@@ -1325,20 +1430,20 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ```json
 [
-  {
-    "api_version": "string",
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "provisioners": ["string"],
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "version": "string"
-  }
+	{
+		"api_version": "string",
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"last_seen_at": "2019-08-24T14:15:22Z",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"provisioners": ["string"],
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"version": "string"
+	}
 ]
 ```
 
@@ -1419,16 +1524,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ```json
 [
-  {
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string",
-    "organization": "452c1a86-a0af-475b-b03f-724878b0f387",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    }
-  }
+	{
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"name": "string",
+		"organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		}
+	}
 ]
 ```
 
@@ -1479,7 +1584,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provis
 
 ```json
 {
-  "key": "string"
+	"key": "string"
 }
 ```
 
@@ -1537,15 +1642,15 @@ curl -X GET http://coder-server:8080/api/v2/replicas \
 
 ```json
 [
-  {
-    "created_at": "2019-08-24T14:15:22Z",
-    "database_latency": 0,
-    "error": "string",
-    "hostname": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "region_id": 0,
-    "relay_address": "string"
-  }
+	{
+		"created_at": "2019-08-24T14:15:22Z",
+		"database_latency": 0,
+		"error": "string",
+		"hostname": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"region_id": 0,
+		"relay_address": "string"
+	}
 ]
 ```
 
@@ -1610,26 +1715,26 @@ curl -X POST http://coder-server:8080/api/v2/scim/v2/Users \
 
 ```json
 {
-  "active": true,
-  "emails": [
-    {
-      "display": "string",
-      "primary": true,
-      "type": "string",
-      "value": "user@example.com"
-    }
-  ],
-  "groups": [null],
-  "id": "string",
-  "meta": {
-    "resourceType": "string"
-  },
-  "name": {
-    "familyName": "string",
-    "givenName": "string"
-  },
-  "schemas": ["string"],
-  "userName": "string"
+	"active": true,
+	"emails": [
+		{
+			"display": "string",
+			"primary": true,
+			"type": "string",
+			"value": "user@example.com"
+		}
+	],
+	"groups": [null],
+	"id": "string",
+	"meta": {
+		"resourceType": "string"
+	},
+	"name": {
+		"familyName": "string",
+		"givenName": "string"
+	},
+	"schemas": ["string"],
+	"userName": "string"
 }
 ```
 
@@ -1645,26 +1750,26 @@ curl -X POST http://coder-server:8080/api/v2/scim/v2/Users \
 
 ```json
 {
-  "active": true,
-  "emails": [
-    {
-      "display": "string",
-      "primary": true,
-      "type": "string",
-      "value": "user@example.com"
-    }
-  ],
-  "groups": [null],
-  "id": "string",
-  "meta": {
-    "resourceType": "string"
-  },
-  "name": {
-    "familyName": "string",
-    "givenName": "string"
-  },
-  "schemas": ["string"],
-  "userName": "string"
+	"active": true,
+	"emails": [
+		{
+			"display": "string",
+			"primary": true,
+			"type": "string",
+			"value": "user@example.com"
+		}
+	],
+	"groups": [null],
+	"id": "string",
+	"meta": {
+		"resourceType": "string"
+	},
+	"name": {
+		"familyName": "string",
+		"givenName": "string"
+	},
+	"schemas": ["string"],
+	"userName": "string"
 }
 ```
 
@@ -1720,26 +1825,26 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 
 ```json
 {
-  "active": true,
-  "emails": [
-    {
-      "display": "string",
-      "primary": true,
-      "type": "string",
-      "value": "user@example.com"
-    }
-  ],
-  "groups": [null],
-  "id": "string",
-  "meta": {
-    "resourceType": "string"
-  },
-  "name": {
-    "familyName": "string",
-    "givenName": "string"
-  },
-  "schemas": ["string"],
-  "userName": "string"
+	"active": true,
+	"emails": [
+		{
+			"display": "string",
+			"primary": true,
+			"type": "string",
+			"value": "user@example.com"
+		}
+	],
+	"groups": [null],
+	"id": "string",
+	"meta": {
+		"resourceType": "string"
+	},
+	"name": {
+		"familyName": "string",
+		"givenName": "string"
+	},
+	"schemas": ["string"],
+	"userName": "string"
 }
 ```
 
@@ -1756,25 +1861,25 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 
 ```json
 {
-  "avatar_url": "http://example.com",
-  "created_at": "2019-08-24T14:15:22Z",
-  "email": "user@example.com",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
-  "login_type": "",
-  "name": "string",
-  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "status": "active",
-  "theme_preference": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "username": "string"
+	"avatar_url": "http://example.com",
+	"created_at": "2019-08-24T14:15:22Z",
+	"email": "user@example.com",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"last_seen_at": "2019-08-24T14:15:22Z",
+	"login_type": "",
+	"name": "string",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"status": "active",
+	"theme_preference": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"username": "string"
 }
 ```
 
@@ -1811,28 +1916,28 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
 
 ```json
 [
-  {
-    "avatar_url": "http://example.com",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "user@example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "login_type": "",
-    "name": "string",
-    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "role": "admin",
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string",
-        "organization_id": "string"
-      }
-    ],
-    "status": "active",
-    "theme_preference": "string",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "username": "string"
-  }
+	{
+		"avatar_url": "http://example.com",
+		"created_at": "2019-08-24T14:15:22Z",
+		"email": "user@example.com",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"last_seen_at": "2019-08-24T14:15:22Z",
+		"login_type": "",
+		"name": "string",
+		"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+		"role": "admin",
+		"roles": [
+			{
+				"display_name": "string",
+				"name": "string",
+				"organization_id": "string"
+			}
+		],
+		"status": "active",
+		"theme_preference": "string",
+		"updated_at": "2019-08-24T14:15:22Z",
+		"username": "string"
+	}
 ]
 ```
 
@@ -1902,14 +2007,14 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 ```json
 {
-  "group_perms": {
-    "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-    "<user_id>>": "admin"
-  },
-  "user_perms": {
-    "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-    "<group_id>": "admin"
-  }
+	"group_perms": {
+		"8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
+		"<user_id>>": "admin"
+	},
+	"user_perms": {
+		"4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
+		"<group_id>": "admin"
+	}
 }
 ```
 
@@ -1926,14 +2031,14 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -1970,50 +2075,50 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
 
 ```json
 [
-  {
-    "groups": [
-      {
-        "avatar_url": "string",
-        "display_name": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "members": [
-          {
-            "avatar_url": "http://example.com",
-            "created_at": "2019-08-24T14:15:22Z",
-            "email": "user@example.com",
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "last_seen_at": "2019-08-24T14:15:22Z",
-            "login_type": "",
-            "name": "string",
-            "status": "active",
-            "theme_preference": "string",
-            "updated_at": "2019-08-24T14:15:22Z",
-            "username": "string"
-          }
-        ],
-        "name": "string",
-        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "quota_allowance": 0,
-        "source": "user",
-        "total_member_count": 0
-      }
-    ],
-    "users": [
-      {
-        "avatar_url": "http://example.com",
-        "created_at": "2019-08-24T14:15:22Z",
-        "email": "user@example.com",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "last_seen_at": "2019-08-24T14:15:22Z",
-        "login_type": "",
-        "name": "string",
-        "status": "active",
-        "theme_preference": "string",
-        "updated_at": "2019-08-24T14:15:22Z",
-        "username": "string"
-      }
-    ]
-  }
+	{
+		"groups": [
+			{
+				"avatar_url": "string",
+				"display_name": "string",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"members": [
+					{
+						"avatar_url": "http://example.com",
+						"created_at": "2019-08-24T14:15:22Z",
+						"email": "user@example.com",
+						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+						"last_seen_at": "2019-08-24T14:15:22Z",
+						"login_type": "",
+						"name": "string",
+						"status": "active",
+						"theme_preference": "string",
+						"updated_at": "2019-08-24T14:15:22Z",
+						"username": "string"
+					}
+				],
+				"name": "string",
+				"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+				"quota_allowance": 0,
+				"source": "user",
+				"total_member_count": 0
+			}
+		],
+		"users": [
+			{
+				"avatar_url": "http://example.com",
+				"created_at": "2019-08-24T14:15:22Z",
+				"email": "user@example.com",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"last_seen_at": "2019-08-24T14:15:22Z",
+				"login_type": "",
+				"name": "string",
+				"status": "active",
+				"theme_preference": "string",
+				"updated_at": "2019-08-24T14:15:22Z",
+				"username": "string"
+			}
+		]
+	}
 ]
 ```
 
@@ -2095,14 +2200,14 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 ```json
 [
-  {
-    "next": "2019-08-24T14:15:22Z",
-    "raw_schedule": "string",
-    "time": "string",
-    "timezone": "string",
-    "user_can_set": true,
-    "user_set": true
-  }
+	{
+		"next": "2019-08-24T14:15:22Z",
+		"raw_schedule": "string",
+		"time": "string",
+		"timezone": "string",
+		"user_can_set": true,
+		"user_set": true
+	}
 ]
 ```
 
@@ -2146,7 +2251,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 ```json
 {
-  "schedule": "string"
+	"schedule": "string"
 }
 ```
 
@@ -2163,14 +2268,14 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 
 ```json
 [
-  {
-    "next": "2019-08-24T14:15:22Z",
-    "raw_schedule": "string",
-    "time": "string",
-    "timezone": "string",
-    "user_can_set": true,
-    "user_set": true
-  }
+	{
+		"next": "2019-08-24T14:15:22Z",
+		"raw_schedule": "string",
+		"time": "string",
+		"timezone": "string",
+		"user_can_set": true,
+		"user_set": true
+	}
 ]
 ```
 
@@ -2221,8 +2326,8 @@ curl -X GET http://coder-server:8080/api/v2/workspace-quota/{user} \
 
 ```json
 {
-  "budget": 0,
-  "credits_consumed": 0
+	"budget": 0,
+	"credits_consumed": 0
 }
 ```
 
@@ -2253,33 +2358,33 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
 
 ```json
 [
-  {
-    "regions": [
-      {
-        "created_at": "2019-08-24T14:15:22Z",
-        "deleted": true,
-        "derp_enabled": true,
-        "derp_only": true,
-        "display_name": "string",
-        "healthy": true,
-        "icon_url": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "name": "string",
-        "path_app_url": "string",
-        "status": {
-          "checked_at": "2019-08-24T14:15:22Z",
-          "report": {
-            "errors": ["string"],
-            "warnings": ["string"]
-          },
-          "status": "ok"
-        },
-        "updated_at": "2019-08-24T14:15:22Z",
-        "version": "string",
-        "wildcard_hostname": "string"
-      }
-    ]
-  }
+	{
+		"regions": [
+			{
+				"created_at": "2019-08-24T14:15:22Z",
+				"deleted": true,
+				"derp_enabled": true,
+				"derp_only": true,
+				"display_name": "string",
+				"healthy": true,
+				"icon_url": "string",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"name": "string",
+				"path_app_url": "string",
+				"status": {
+					"checked_at": "2019-08-24T14:15:22Z",
+					"report": {
+						"errors": ["string"],
+						"warnings": ["string"]
+					},
+					"status": "ok"
+				},
+				"updated_at": "2019-08-24T14:15:22Z",
+				"version": "string",
+				"wildcard_hostname": "string"
+			}
+		]
+	}
 ]
 ```
 
@@ -2346,9 +2451,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 
 ```json
 {
-  "display_name": "string",
-  "icon": "string",
-  "name": "string"
+	"display_name": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -2364,27 +2469,27 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "deleted": true,
-  "derp_enabled": true,
-  "derp_only": true,
-  "display_name": "string",
-  "healthy": true,
-  "icon_url": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "path_app_url": "string",
-  "status": {
-    "checked_at": "2019-08-24T14:15:22Z",
-    "report": {
-      "errors": ["string"],
-      "warnings": ["string"]
-    },
-    "status": "ok"
-  },
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string",
-  "wildcard_hostname": "string"
+	"created_at": "2019-08-24T14:15:22Z",
+	"deleted": true,
+	"derp_enabled": true,
+	"derp_only": true,
+	"display_name": "string",
+	"healthy": true,
+	"icon_url": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"path_app_url": "string",
+	"status": {
+		"checked_at": "2019-08-24T14:15:22Z",
+		"report": {
+			"errors": ["string"],
+			"warnings": ["string"]
+		},
+		"status": "ok"
+	},
+	"updated_at": "2019-08-24T14:15:22Z",
+	"version": "string",
+	"wildcard_hostname": "string"
 }
 ```
 
@@ -2421,27 +2526,27 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "deleted": true,
-  "derp_enabled": true,
-  "derp_only": true,
-  "display_name": "string",
-  "healthy": true,
-  "icon_url": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "path_app_url": "string",
-  "status": {
-    "checked_at": "2019-08-24T14:15:22Z",
-    "report": {
-      "errors": ["string"],
-      "warnings": ["string"]
-    },
-    "status": "ok"
-  },
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string",
-  "wildcard_hostname": "string"
+	"created_at": "2019-08-24T14:15:22Z",
+	"deleted": true,
+	"derp_enabled": true,
+	"derp_only": true,
+	"display_name": "string",
+	"healthy": true,
+	"icon_url": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"path_app_url": "string",
+	"status": {
+		"checked_at": "2019-08-24T14:15:22Z",
+		"report": {
+			"errors": ["string"],
+			"warnings": ["string"]
+		},
+		"status": "ok"
+	},
+	"updated_at": "2019-08-24T14:15:22Z",
+	"version": "string",
+	"wildcard_hostname": "string"
 }
 ```
 
@@ -2478,14 +2583,14 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy}
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -2515,11 +2620,11 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 
 ```json
 {
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "regenerate_token": true
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"regenerate_token": true
 }
 ```
 
@@ -2536,27 +2641,27 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "deleted": true,
-  "derp_enabled": true,
-  "derp_only": true,
-  "display_name": "string",
-  "healthy": true,
-  "icon_url": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "path_app_url": "string",
-  "status": {
-    "checked_at": "2019-08-24T14:15:22Z",
-    "report": {
-      "errors": ["string"],
-      "warnings": ["string"]
-    },
-    "status": "ok"
-  },
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string",
-  "wildcard_hostname": "string"
+	"created_at": "2019-08-24T14:15:22Z",
+	"deleted": true,
+	"derp_enabled": true,
+	"derp_only": true,
+	"display_name": "string",
+	"healthy": true,
+	"icon_url": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"path_app_url": "string",
+	"status": {
+		"checked_at": "2019-08-24T14:15:22Z",
+		"report": {
+			"errors": ["string"],
+			"warnings": ["string"]
+		},
+		"status": "ok"
+	},
+	"updated_at": "2019-08-24T14:15:22Z",
+	"version": "string",
+	"wildcard_hostname": "string"
 }
 ```
 

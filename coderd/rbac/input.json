@@ -1,46 +1,46 @@
 {
-  "action": "never-match-action",
-  "object": {
-    "id": "9046b041-58ed-47a3-9c3a-de302577875a",
-    "owner": "00000000-0000-0000-0000-000000000000",
-    "org_owner": "bf7b72bd-a2b1-4ef2-962c-1d698e0483f6",
-    "type": "workspace",
-    "acl_user_list": {
-      "f041847d-711b-40da-a89a-ede39f70dc7f": ["create"]
-    },
-    "acl_group_list": {}
-  },
-  "subject": {
-    "id": "10d03e62-7703-4df5-a358-4f76577d4e2f",
-    "roles": [
-      {
-        "name": "owner",
-        "display_name": "Owner",
-        "site": [
-          {
-            "negate": false,
-            "resource_type": "*",
-            "action": "*"
-          }
-        ],
-        "org": {},
-        "user": []
-      }
-    ],
-    "groups": ["b617a647-b5d0-4cbe-9e40-26f89710bf18"],
-    "scope": {
-      "name": "Scope_all",
-      "display_name": "All operations",
-      "site": [
-        {
-          "negate": false,
-          "resource_type": "*",
-          "action": "*"
-        }
-      ],
-      "org": {},
-      "user": [],
-      "allow_list": ["*"]
-    }
-  }
+	"action": "never-match-action",
+	"object": {
+		"id": "9046b041-58ed-47a3-9c3a-de302577875a",
+		"owner": "00000000-0000-0000-0000-000000000000",
+		"org_owner": "bf7b72bd-a2b1-4ef2-962c-1d698e0483f6",
+		"type": "workspace",
+		"acl_user_list": {
+			"f041847d-711b-40da-a89a-ede39f70dc7f": ["create"]
+		},
+		"acl_group_list": {}
+	},
+	"subject": {
+		"id": "10d03e62-7703-4df5-a358-4f76577d4e2f",
+		"roles": [
+			{
+				"name": "owner",
+				"display_name": "Owner",
+				"site": [
+					{
+						"negate": false,
+						"resource_type": "*",
+						"action": "*"
+					}
+				],
+				"org": {},
+				"user": []
+			}
+		],
+		"groups": ["b617a647-b5d0-4cbe-9e40-26f89710bf18"],
+		"scope": {
+			"name": "Scope_all",
+			"display_name": "All operations",
+			"site": [
+				{
+					"negate": false,
+					"resource_type": "*",
+					"action": "*"
+				}
+			],
+			"org": {},
+			"user": [],
+			"allow_list": ["*"]
+		}
+	}
 }

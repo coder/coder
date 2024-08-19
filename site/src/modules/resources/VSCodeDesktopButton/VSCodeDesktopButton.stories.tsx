@@ -3,24 +3,24 @@ import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton";
 
 const meta: Meta<typeof VSCodeDesktopButton> = {
-  title: "modules/resources/VSCodeDesktopButton",
-  component: VSCodeDesktopButton,
+	title: "modules/resources/VSCodeDesktopButton",
+	component: VSCodeDesktopButton,
 };
 
 export default meta;
 type Story = StoryObj<typeof VSCodeDesktopButton>;
 
 export const Default: Story = {
-  args: {
-    userName: MockWorkspace.owner_name,
-    workspaceName: MockWorkspace.name,
-    agentName: MockWorkspaceAgent.name,
-    displayApps: [
-      "vscode",
-      "port_forwarding_helper",
-      "ssh_helper",
-      "vscode_insiders",
-      "web_terminal",
-    ],
-  },
+	args: {
+		userName: MockWorkspace.owner_name,
+		workspaceName: MockWorkspace.name,
+		agentName: MockWorkspaceAgent.name,
+		displayApps: [
+			"vscode",
+			"port_forwarding_helper",
+			"ssh_helper",
+			"vscode_insiders",
+			"web_terminal",
+		],
+	},
 };

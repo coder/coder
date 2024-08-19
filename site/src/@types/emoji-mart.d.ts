@@ -1,44 +1,44 @@
 declare module "@emoji-mart/react" {
-  interface CustomCategory {
-    id: string;
-    name: string;
-    emojis: CustomEmoji[];
-  }
+	interface CustomCategory {
+		id: string;
+		name: string;
+		emojis: CustomEmoji[];
+	}
 
-  interface CustomEmoji {
-    id: string;
-    name: string;
-    keywords: string[];
-    skins: CustomEmojiSkin[];
-  }
+	interface CustomEmoji {
+		id: string;
+		name: string;
+		keywords: string[];
+		skins: CustomEmojiSkin[];
+	}
 
-  interface CustomEmojiSkin {
-    src: string;
-  }
+	interface CustomEmojiSkin {
+		src: string;
+	}
 
-  type EmojiData = EmojiResource & {
-    id: string;
-    keywords: string[];
-    name: string;
-    native?: string;
-    shortcodes: string;
-  };
+	type EmojiData = EmojiResource & {
+		id: string;
+		keywords: string[];
+		name: string;
+		native?: string;
+		shortcodes: string;
+	};
 
-  type EmojiResource =
-    | { unified: undefined; src: string }
-    | { unified: string; src: undefined };
+	type EmojiResource =
+		| { unified: undefined; src: string }
+		| { unified: string; src: undefined };
 
-  export interface EmojiMartProps {
-    set: "native" | "apple" | "facebook" | "google" | "twitter";
-    theme: "dark" | "light";
-    data: unknown;
-    custom: CustomCategory[];
-    emojiButtonSize?: number;
-    emojiSize?: number;
-    onEmojiSelect: (emoji: EmojiData) => void;
-  }
+	export interface EmojiMartProps {
+		set: "native" | "apple" | "facebook" | "google" | "twitter";
+		theme: "dark" | "light";
+		data: unknown;
+		custom: CustomCategory[];
+		emojiButtonSize?: number;
+		emojiSize?: number;
+		onEmojiSelect: (emoji: EmojiData) => void;
+	}
 
-  const EmojiMart: React.FC<EmojiMartProps>;
+	const EmojiMart: React.FC<EmojiMartProps>;
 
-  export default EmojiMart;
+	export default EmojiMart;
 }

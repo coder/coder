@@ -1561,105 +1561,42 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 }
 
 const getGroups = `-- name: GetGroups :many
-SELECT id, name, organization_id, avatar_url, quota_allowance, display_name, source FROM groups
-`
-
-func (q *sqlQuerier) GetGroups(ctx context.Context) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroups)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-			&i.DisplayName,
-			&i.Source,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getGroupsByOrganizationAndUserID = `-- name: GetGroupsByOrganizationAndUserID :many
 SELECT
-    groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source
+    id, name, organization_id, avatar_url, quota_allowance, display_name, source
 FROM
     groups
 WHERE
-    groups.id IN (
-        SELECT
-            group_id
-        FROM
-            group_members_expanded gme
-        WHERE
-            gme.user_id = $1
-        AND
-            gme.organization_id = $2
-    )
+    true
+    AND CASE
+        WHEN $1:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            groups.organization_id = $1
+        ELSE true
+    END
+    AND CASE
+        -- Filter to only include groups a user is a member of
+        WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            EXISTS (
+                SELECT
+                    1
+                FROM
+                    -- this view handles the 'everyone' group in orgs.
+                    group_members_expanded
+                WHERE
+                    group_members_expanded.group_id = groups.id
+                AND
+                    group_members_expanded.user_id = $2
+            )
+        ELSE true
+    END
 `
 
-type GetGroupsByOrganizationAndUserIDParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+type GetGroupsParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	HasMemberID    uuid.UUID `db:"has_member_id" json:"has_member_id"`
 }
 
-func (q *sqlQuerier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationAndUserID, arg.UserID, arg.OrganizationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-			&i.DisplayName,
-			&i.Source,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
-SELECT
-	id, name, organization_id, avatar_url, quota_allowance, display_name, source
-FROM
-	groups
-WHERE
-	organization_id = $1
-`
-
-func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationID, organizationID)
+func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroups, arg.OrganizationID, arg.HasMemberID)
 	if err != nil {
 		return nil, err
 	}
@@ -1766,15 +1703,15 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-    source
+    	    	source
 )
 SELECT
-    gen_random_uuid(),
-    group_name,
-    $1,
-    $2
+    	    	gen_random_uuid(),
+    	    	group_name,
+    	    	$1,
+    	    	$2
 FROM
-    UNNEST($3 :: text[]) AS group_name
+    	    	UNNEST($3 :: text[]) AS group_name
 ON CONFLICT DO NOTHING
 RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source
 `
@@ -6285,15 +6222,15 @@ func (q *sqlQuerier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg Update
 
 const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
-	coalesce(SUM(quota_allowance), 0)::BIGINT
+	coalesce(SUM(groups.quota_allowance), 0)::BIGINT
 FROM
-	groups g
-LEFT JOIN group_members gm ON
-	g.id = gm.group_id
-WHERE
-	user_id = $1
-OR
-    g.id = g.organization_id
+	(
+		-- Select all groups this user is a member of. This will also include
+		-- the "Everyone" group for organizations the user is a member of.
+		SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded WHERE $1 = user_id
+	) AS members
+INNER JOIN groups ON
+	members.group_id = groups.id
 `
 
 func (q *sqlQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {

@@ -5,9 +5,9 @@ import muiTheme from "./mui";
 import roles from "./roles";
 
 export default {
-  ...muiTheme,
-  externalImages: forDarkThemes,
-  experimental,
-  monaco,
-  roles,
+	...muiTheme,
+	externalImages: forDarkThemes,
+	experimental,
+	monaco,
+	roles,
 };

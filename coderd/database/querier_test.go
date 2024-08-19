@@ -545,6 +545,84 @@ func TestAuditLogDefaultLimit(t *testing.T) {
 	require.Len(t, rows, 100)
 }
 
+func TestWorkspaceQuotas(t *testing.T) {
+	t.Parallel()
+	orgMemberIDs := func(o database.OrganizationMember) uuid.UUID {
+		return o.UserID
+	}
+	groupMemberIDs := func(m database.GroupMember) uuid.UUID {
+		return m.UserID
+	}
+
+	t.Run("CorruptedEveryone", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		db, _ := dbtestutil.NewDB(t)
+		// Create an extra org as a distraction
+		distract := dbgen.Organization(t, db, database.Organization{})
+		_, err := db.InsertAllUsersGroup(ctx, distract.ID)
+		require.NoError(t, err)
+
+		_, err = db.UpdateGroupByID(ctx, database.UpdateGroupByIDParams{
+			QuotaAllowance: 15,
+			ID:             distract.ID,
+		})
+		require.NoError(t, err)
+
+		// Create an org with 2 users
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		everyoneGroup, err := db.InsertAllUsersGroup(ctx, org.ID)
+		require.NoError(t, err)
+
+		// Add a quota to the everyone group
+		_, err = db.UpdateGroupByID(ctx, database.UpdateGroupByIDParams{
+			QuotaAllowance: 50,
+			ID:             everyoneGroup.ID,
+		})
+		require.NoError(t, err)
+
+		// Add people to the org
+		one := dbgen.User(t, db, database.User{})
+		two := dbgen.User(t, db, database.User{})
+		memOne := dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         one.ID,
+		})
+		memTwo := dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         two.ID,
+		})
+
+		// Fetch the 'Everyone' group members
+		everyoneMembers, err := db.GetGroupMembersByGroupID(ctx, org.ID)
+		require.NoError(t, err)
+
+		require.ElementsMatch(t, db2sdk.List(everyoneMembers, groupMemberIDs),
+			db2sdk.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
+
+		// Check the quota is correct.
+		allowance, err := db.GetQuotaAllowanceForUser(ctx, one.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(50), allowance)
+
+		// Now try to corrupt the DB
+		// Insert rows into the everyone group
+		err = db.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+			UserID:  memOne.UserID,
+			GroupID: org.ID,
+		})
+		require.NoError(t, err)
+
+		// Ensure allowance remains the same
+		allowance, err = db.GetQuotaAllowanceForUser(ctx, one.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(50), allowance)
+	})
+}
+
 // TestReadCustomRoles tests the input params returns the correct set of roles.
 func TestReadCustomRoles(t *testing.T) {
 	t.Parallel()
