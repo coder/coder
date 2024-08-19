@@ -27,8 +27,8 @@ const muiTheme = createTheme({
 		},
 		text: {
 			primary: tw.zinc[950],
-			secondary: tw.zinc[700],
-			disabled: tw.zinc[600],
+			secondary: tw.zinc[600],
+			disabled: tw.zinc[500],
 		},
 		divider: tw.zinc[200],
 		warning: {
