@@ -37,25 +37,25 @@ export const getStatus = (
 	switch (version.job.status) {
 		case "running":
 			return {
-				type: "info",
+				type: "active",
 				text: "Running",
 				icon: <PillSpinner />,
 			};
 		case "pending":
 			return {
-				type: "info",
+				type: "active",
 				text: getPendingStatusLabel(version.job),
 				icon: <QueuedIcon />,
 			};
 		case "canceling":
 			return {
-				type: "warning",
+				type: "inactive",
 				text: "Canceling",
 				icon: <PillSpinner />,
 			};
 		case "canceled":
 			return {
-				type: "warning",
+				type: "inactive",
 				text: "Canceled",
 				icon: <ErrorIcon />,
 			};
