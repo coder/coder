@@ -128,14 +128,14 @@ func (n FeatureName) AlwaysEnable() bool {
 	}[n]
 }
 
-// Premium returns true if the feature is a premium feature.
-func (n FeatureName) Premium() bool {
+// Enterprise returns true if the feature is an enterprise feature.
+func (n FeatureName) Enterprise() bool {
 	switch n {
 	// Add all features that should be excluded in the Enterprise feature set.
 	case FeatureMultipleOrganizations, FeatureCustomRoles:
-		return true
-	default:
 		return false
+	default:
+		return true
 	}
 }
 
@@ -163,7 +163,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			return f.Premium()
+			return !f.Enterprise()
 		})
 
 		return enterpriseFeatures
