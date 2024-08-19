@@ -42,7 +42,7 @@ export const getDisplayWorkspaceBuildStatus = (
 			} as const;
 		case "pending":
 			return {
-				type: "secondary",
+				type: "inactive",
 				color: theme.roles.active.text,
 				status: DisplayWorkspaceBuildStatusLanguage.pending,
 			} as const;
@@ -68,7 +68,7 @@ export const getDisplayWorkspaceBuildStatus = (
 			} as const;
 		case "canceled":
 			return {
-				type: "secondary",
+				type: "inactive",
 				color: theme.roles.warning.text,
 				status: DisplayWorkspaceBuildStatusLanguage.canceled,
 			} as const;
