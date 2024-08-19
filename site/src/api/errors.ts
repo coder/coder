@@ -115,16 +115,16 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 		return error.detail;
 	}
 
-	if (error instanceof Error) {
-		return "Please check the developer console for more details.";
-	}
-
 	if (isApiError(error)) {
 		return error.response.data.detail;
 	}
 
 	if (isApiErrorResponse(error)) {
 		return error.detail;
+	}
+
+	if (error instanceof Error) {
+		return "Please check the developer console for more details.";
 	}
 
 	return undefined;
