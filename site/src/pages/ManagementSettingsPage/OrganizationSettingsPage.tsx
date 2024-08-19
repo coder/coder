@@ -7,6 +7,7 @@ import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
@@ -22,6 +23,7 @@ const OrganizationSettingsPage: FC = () => {
 		organization?: string;
 	};
 	const { organizations } = useOrganizationSettings();
+	const feats = useFeatureVisibility();
 
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -69,7 +71,12 @@ const OrganizationSettingsPage: FC = () => {
 	// The user may not be able to edit this org but they can still see it because
 	// they can edit members, etc.  In this case they will be shown a read-only
 	// summary page instead of the settings form.
-	if (!permissions[organization.id]?.editOrganization) {
+	// Similarly, if the feature is not entitled then the user will not be able to
+	// edit the organization.
+	if (
+		!permissions[organization.id]?.editOrganization ||
+		!feats.multiple_organizations
+	) {
 		return <OrganizationSummaryPageView organization={organization} />;
 	}
 
