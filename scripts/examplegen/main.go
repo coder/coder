@@ -98,7 +98,7 @@ func run(lint bool) error {
 	}
 
 	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
+	enc.SetIndent("", "\t")
 	return enc.Encode(examples)
 }
 

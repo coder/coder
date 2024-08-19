@@ -2,128 +2,128 @@ import type { FC, PropsWithChildren, ReactNode } from "react";
 import { Stack } from "../Stack/Stack";
 
 export interface PageHeaderProps {
-  actions?: ReactNode;
-  className?: string;
-  children?: ReactNode;
+	actions?: ReactNode;
+	className?: string;
+	children?: ReactNode;
 }
 
 export const PageHeader: FC<PageHeaderProps> = ({
-  children,
-  actions,
-  className,
+	children,
+	actions,
+	className,
 }) => {
-  return (
-    <header
-      className={className}
-      css={(theme) => ({
-        display: "flex",
-        alignItems: "center",
-        paddingTop: 48,
-        paddingBottom: 48,
-        gap: 32,
+	return (
+		<header
+			className={className}
+			css={(theme) => ({
+				display: "flex",
+				alignItems: "center",
+				paddingTop: 48,
+				paddingBottom: 48,
+				gap: 32,
 
-        [theme.breakpoints.down("md")]: {
-          flexDirection: "column",
-          alignItems: "flex-start",
-        },
-      })}
-      data-testid="header"
-    >
-      <hgroup>{children}</hgroup>
-      {actions && (
-        <Stack
-          direction="row"
-          css={(theme) => ({
-            marginLeft: "auto",
+				[theme.breakpoints.down("md")]: {
+					flexDirection: "column",
+					alignItems: "flex-start",
+				},
+			})}
+			data-testid="header"
+		>
+			<hgroup>{children}</hgroup>
+			{actions && (
+				<Stack
+					direction="row"
+					css={(theme) => ({
+						marginLeft: "auto",
 
-            [theme.breakpoints.down("md")]: {
-              marginLeft: "initial",
-              width: "100%",
-            },
-          })}
-        >
-          {actions}
-        </Stack>
-      )}
-    </header>
-  );
+						[theme.breakpoints.down("md")]: {
+							marginLeft: "initial",
+							width: "100%",
+						},
+					})}
+				>
+					{actions}
+				</Stack>
+			)}
+		</header>
+	);
 };
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
-  return (
-    <h1
-      css={{
-        fontSize: 24,
-        fontWeight: 400,
-        margin: 0,
-        display: "flex",
-        alignItems: "center",
-        lineHeight: "140%",
-      }}
-    >
-      {children}
-    </h1>
-  );
+	return (
+		<h1
+			css={{
+				fontSize: 24,
+				fontWeight: 400,
+				margin: 0,
+				display: "flex",
+				alignItems: "center",
+				lineHeight: "140%",
+			}}
+		>
+			{children}
+		</h1>
+	);
 };
 
 interface PageHeaderSubtitleProps {
-  children?: ReactNode;
-  condensed?: boolean;
+	children?: ReactNode;
+	condensed?: boolean;
 }
 
 export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
-  children,
-  condensed,
+	children,
+	condensed,
 }) => {
-  return (
-    <h2
-      css={(theme) => ({
-        fontSize: 16,
-        color: theme.palette.text.secondary,
-        fontWeight: 400,
-        display: "block",
-        margin: 0,
-        marginTop: condensed ? 4 : 8,
-        lineHeight: "140%",
-      })}
-    >
-      {children}
-    </h2>
-  );
+	return (
+		<h2
+			css={(theme) => ({
+				fontSize: 16,
+				color: theme.palette.text.secondary,
+				fontWeight: 400,
+				display: "block",
+				margin: 0,
+				marginTop: condensed ? 4 : 8,
+				lineHeight: "140%",
+			})}
+		>
+			{children}
+		</h2>
+	);
 };
 
 export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
-  return (
-    <span
-      css={(theme) => ({
-        fontSize: 12,
-        color: theme.palette.text.secondary,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: "0.1em",
-      })}
-    >
-      {children}
-    </span>
-  );
+	return (
+		<span
+			css={(theme) => ({
+				fontSize: 12,
+				color: theme.palette.text.secondary,
+				fontWeight: 600,
+				textTransform: "uppercase",
+				letterSpacing: "0.1em",
+			})}
+		>
+			{children}
+		</span>
+	);
 };
 
 interface ResourcePageHeaderProps extends Omit<PageHeaderProps, "children"> {
-  displayName?: string;
-  name: string;
+	displayName?: string;
+	name: string;
 }
 
 export const ResourcePageHeader: FC<ResourcePageHeaderProps> = ({
-  displayName,
-  name,
-  ...props
+	displayName,
+	name,
+	...props
 }) => {
-  const title = displayName || name;
+	const title = displayName || name;
 
-  return (
-    <PageHeader {...props}>
-      <PageHeaderTitle>{title}</PageHeaderTitle>
-      {name !== title && <PageHeaderSubtitle>{name}</PageHeaderSubtitle>}
-    </PageHeader>
-  );
+	return (
+		<PageHeader {...props}>
+			<PageHeaderTitle>{title}</PageHeaderTitle>
+			{name !== title && <PageHeaderSubtitle>{name}</PageHeaderSubtitle>}
+		</PageHeader>
+	);
 };

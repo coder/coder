@@ -25,30 +25,30 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ```json
 [
-  {
-    "avatar_url": "string",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "string",
-    "global_roles": [
-      {
-        "display_name": "string",
-        "name": "string",
-        "organization_id": "string"
-      }
-    ],
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string",
-        "organization_id": "string"
-      }
-    ],
-    "updated_at": "2019-08-24T14:15:22Z",
-    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-    "username": "string"
-  }
+	{
+		"avatar_url": "string",
+		"created_at": "2019-08-24T14:15:22Z",
+		"email": "string",
+		"global_roles": [
+			{
+				"display_name": "string",
+				"name": "string",
+				"organization_id": "string"
+			}
+		],
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"roles": [
+			{
+				"display_name": "string",
+				"name": "string",
+				"organization_id": "string"
+			}
+		],
+		"updated_at": "2019-08-24T14:15:22Z",
+		"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+		"username": "string"
+	}
 ]
 ```
 
@@ -106,34 +106,34 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ```json
 [
-  {
-    "assignable": true,
-    "built_in": true,
-    "display_name": "string",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "organization_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "site_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "user_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ]
-  }
+	{
+		"assignable": true,
+		"built_in": true,
+		"display_name": "string",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"organization_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"site_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"user_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		]
+	}
 ]
 ```
 
@@ -229,29 +229,29 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ```json
 {
-  "display_name": "string",
-  "name": "string",
-  "organization_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "site_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "user_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ]
+	"display_name": "string",
+	"name": "string",
+	"organization_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"site_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"user_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	]
 }
 ```
 
@@ -268,32 +268,32 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ```json
 [
-  {
-    "display_name": "string",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "organization_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "site_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "user_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ]
-  }
+	{
+		"display_name": "string",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"organization_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"site_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"user_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		]
+	}
 ]
 ```
 
@@ -387,29 +387,29 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ```json
 {
-  "display_name": "string",
-  "name": "string",
-  "organization_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "site_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "user_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ]
+	"display_name": "string",
+	"name": "string",
+	"organization_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"site_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"user_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	]
 }
 ```
 
@@ -426,32 +426,32 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ```json
 [
-  {
-    "display_name": "string",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "organization_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "site_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "user_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ]
-  }
+	{
+		"display_name": "string",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"organization_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"site_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"user_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		]
+	}
 ]
 ```
 
@@ -553,32 +553,32 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/memb
 
 ```json
 [
-  {
-    "display_name": "string",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "organization_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "site_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "user_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ]
-  }
+	{
+		"display_name": "string",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"organization_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"site_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"user_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		]
+	}
 ]
 ```
 
@@ -680,17 +680,17 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "updated_at": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+	"created_at": "2019-08-24T14:15:22Z",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"updated_at": "2019-08-24T14:15:22Z",
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
@@ -747,7 +747,7 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ```json
 {
-  "roles": ["string"]
+	"roles": ["string"]
 }
 ```
 
@@ -765,17 +765,17 @@ curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "updated_at": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+	"created_at": "2019-08-24T14:15:22Z",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"updated_at": "2019-08-24T14:15:22Z",
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
@@ -806,34 +806,34 @@ curl -X GET http://coder-server:8080/api/v2/users/roles \
 
 ```json
 [
-  {
-    "assignable": true,
-    "built_in": true,
-    "display_name": "string",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "organization_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "site_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ],
-    "user_permissions": [
-      {
-        "action": "application_connect",
-        "negate": true,
-        "resource_type": "*"
-      }
-    ]
-  }
+	{
+		"assignable": true,
+		"built_in": true,
+		"display_name": "string",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"organization_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"site_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		],
+		"user_permissions": [
+			{
+				"action": "application_connect",
+				"negate": true,
+				"resource_type": "*"
+			}
+		]
+	}
 ]
 ```
 

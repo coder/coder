@@ -396,10 +396,6 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 		UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
 		Times(3).
 		Return(database.TailnetCoordinator{}, xerrors.New("badness"))
-	mStore.EXPECT().
-		DeleteCoordinator(gomock.Any(), gomock.Any()).
-		Times(1).
-		Return(nil)
 	// But, in particular we DO NOT want the coordinator to call DeleteTailnetPeer, as this is
 	// unnecessary and can spam the database. c.f. https://github.com/coder/coder/issues/12923
 
@@ -407,6 +403,7 @@ func TestPGCoordinatorUnhealthy(t *testing.T) {
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
 	coordinator, err := newPGCoordInternal(ctx, logger, ps, mStore, mClock)
 	require.NoError(t, err)

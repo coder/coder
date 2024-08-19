@@ -2599,16 +2599,7 @@ func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return int64(len(users)), nil
 }
 
-func (q *FakeQuerier) GetGroups(_ context.Context) ([]database.Group, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	out := make([]database.Group, len(q.groups))
-	copy(out, q.groups)
-	return out, nil
-}
-
-func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2616,34 +2607,38 @@ func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg da
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	var groupIDs []uuid.UUID
-	for _, member := range q.groupMembers {
-		if member.UserID == arg.UserID {
-			groupIDs = append(groupIDs, member.GroupID)
+
+	groupIDs := make(map[uuid.UUID]struct{})
+	if arg.HasMemberID != uuid.Nil {
+		for _, member := range q.groupMembers {
+			if member.UserID == arg.HasMemberID {
+				groupIDs[member.GroupID] = struct{}{}
+			}
+		}
+
+		// Handle the everyone group
+		for _, orgMember := range q.organizationMembers {
+			if orgMember.UserID == arg.HasMemberID {
+				groupIDs[orgMember.OrganizationID] = struct{}{}
+			}
 		}
 	}
-	groups := []database.Group{}
+
+	filtered := make([]database.Group, 0)
 	for _, group := range q.groups {
-		if slices.Contains(groupIDs, group.ID) && group.OrganizationID == arg.OrganizationID {
-			groups = append(groups, group)
+		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
+			continue
 		}
+
+		_, ok := groupIDs[group.ID]
+		if arg.HasMemberID != uuid.Nil && !ok {
+			continue
+		}
+
+		filtered = append(filtered, group)
 	}
 
-	return groups, nil
-}
-
-func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	groups := make([]database.Group, 0, len(q.groups))
-	for _, group := range q.groups {
-		if group.OrganizationID == id {
-			groups = append(groups, group)
-		}
-	}
-
-	return groups, nil
+	return filtered, nil
 }
 
 func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
@@ -3318,6 +3313,12 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		if member.UserID != userID {
 			continue
 		}
+		if _, err := q.getOrganizationByIDNoLock(member.GroupID); err == nil {
+			// This should never happen, but it has been reported in customer deployments.
+			// The SQL handles this case, and omits `group_members` rows in the
+			// Everyone group. It counts these distinctly via `organization_members` table.
+			continue
+		}
 		for _, group := range q.groups {
 			if group.ID == member.GroupID {
 				sum += int64(group.QuotaAllowance)
@@ -3325,13 +3326,21 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 			}
 		}
 	}
-	// Grab the quota for the Everyone group.
-	for _, group := range q.groups {
-		if group.ID == group.OrganizationID {
-			sum += int64(group.QuotaAllowance)
-			break
+
+	// Grab the quota for the Everyone group iff the user is a member of
+	// said organization.
+	for _, mem := range q.organizationMembers {
+		if mem.UserID != userID {
+			continue
 		}
+
+		group, err := q.getGroupByIDNoLock(context.Background(), mem.OrganizationID)
+		if err != nil {
+			return -1, xerrors.Errorf("failed to get everyone group for org %q", mem.OrganizationID.String())
+		}
+		sum += int64(group.QuotaAllowance)
 	}
+
 	return sum, nil
 }
 
@@ -7915,6 +7924,10 @@ func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 		return replica, nil
 	}
 	return database.Replica{}, sql.ErrNoRows
+}
+
+func (*FakeQuerier) UpdateTailnetPeerStatusByCoordinator(context.Context, database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	return ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) error {

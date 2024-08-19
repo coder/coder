@@ -481,8 +481,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			ownerSSHPublicKey = ownerSSHKey.PublicKey
 			ownerSSHPrivateKey = ownerSSHKey.PrivateKey
 		}
-		ownerGroups, err := s.Database.GetGroupsByOrganizationAndUserID(ctx, database.GetGroupsByOrganizationAndUserIDParams{
-			UserID:         owner.ID,
+		ownerGroups, err := s.Database.GetGroups(ctx, database.GetGroupsParams{
+			HasMemberID:    owner.ID,
 			OrganizationID: s.OrganizationID,
 		})
 		if err != nil {

@@ -4,7 +4,7 @@
 printWidth: 80
 proseWrap: always
 trailingComma: all
-useTabs: false
+useTabs: true
 tabWidth: 2
 overrides:
   - files:

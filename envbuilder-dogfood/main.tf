@@ -40,7 +40,7 @@ data "coder_parameter" "devcontainer_repo" {
 data "coder_parameter" "devcontainer_dir" {
   type        = "string"
   name        = "Devcontainer Directory"
-  default     = "dogfood/"
+  default     = "dogfood/contents/"
   description = "Directory containing a devcontainer.json relative to the repository root"
   mutable     = true
 }
@@ -255,7 +255,7 @@ resource "coder_agent" "dev" {
       sleep 1
     done
     sudo chmod a+rw /var/run/docker.sock
-    
+
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
     # Check if the directory exists At workspace creation as the coder_script runs in parallel so clone might not exist yet.

@@ -691,7 +691,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 					"reason":         "breached the template's threshold for inactivity",
 					"initiator":      "autobuild",
 					"dormancyHours":  "24",
-					"timeTilDormant": "24h",
+					"timeTilDormant": "24 hours",
 				},
 			},
 		},
@@ -716,7 +716,20 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 					"name":           "bobby-workspace",
 					"reason":         "template updated to new dormancy policy",
 					"dormancyHours":  "24",
-					"timeTilDormant": "24h",
+					"timeTilDormant": "24 hours",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceMarkedForDeletionInOneWeek",
+			id:   notifications.TemplateWorkspaceMarkedForDeletion,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":           "bobby-workspace",
+					"reason":         "template updated to new dormancy policy",
+					"dormancyHours":  "168", // 168 hours = 7 days = 1 week
+					"timeTilDormant": "1 week",
 				},
 			},
 		},
