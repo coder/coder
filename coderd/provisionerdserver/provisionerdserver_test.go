@@ -1883,12 +1883,12 @@ func TestNotifications(t *testing.T) {
 					OwnerID:        workspaceOwner.ID,
 					OrganizationID: pd.OrganizationID,
 				})
-				build := database.WorkspaceBuild{
+				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 					WorkspaceID:       workspace.ID,
 					TemplateVersionID: version.ID,
 					Transition:        c.transition,
 					Reason:            c.reason,
-				}
+				})
 				// Set the build initiator if the test case specifies one for manual builds.
 				if isManualBuild {
 					build.InitiatorID = c.buildInitiator.ID
