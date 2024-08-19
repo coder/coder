@@ -134,10 +134,11 @@ func (api *API) workspaceQuotaByUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	chi.RouteContext(r.Context()).URLParams.Add("organization", defaultOrg.ID.String())
 
-	// defer to the new endpoint
-	api.workspaceQuota(rw, r)
+	// defer to the new endpoint using default org as the organization
+	chi.RouteContext(r.Context()).URLParams.Add("organization", defaultOrg.ID.String())
+	mw := httpmw.ExtractOrganizationParam(api.Database)
+	mw(http.HandlerFunc(api.workspaceQuota)).ServeHTTP(rw, r)
 }
 
 // @Summary Get workspace quota by user
@@ -151,10 +152,8 @@ func (api *API) workspaceQuotaByUser(rw http.ResponseWriter, r *http.Request) {
 func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 	var (
 		organization = httpmw.OrganizationParam(r)
-		member       = httpmw.OrganizationMemberParam(r)
+		user         = httpmw.UserParam(r)
 	)
-
-	//defaultOrg, _ := api.Database.GetDefaultOrganization(r.Context())
 
 	api.entitlementsMu.RLock()
 	licensed := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
@@ -165,7 +164,7 @@ func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 	if licensed {
 		var err error
 		quotaAllowance, err = api.Database.GetQuotaAllowanceForUser(r.Context(), database.GetQuotaAllowanceForUserParams{
-			UserID:         member.UserID,
+			UserID:         user.ID,
 			OrganizationID: organization.ID,
 		})
 		if err != nil {
@@ -178,7 +177,7 @@ func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	quotaConsumed, err := api.Database.GetQuotaConsumedForUser(r.Context(), database.GetQuotaConsumedForUserParams{
-		OwnerID:        member.UserID,
+		OwnerID:        user.ID,
 		OrganizationID: organization.ID,
 	})
 	if err != nil {

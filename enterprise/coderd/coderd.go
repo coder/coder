@@ -275,6 +275,19 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
 		})
 
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				// Intentionally using ExtractUser instead of ExtractMember.
+				// It is possible for a member to be removed from an org, in which
+				// case their orphaned workspaces still exist. We only need
+				// the user_id for the query.
+				httpmw.ExtractUserParam(api.Database),
+			)
+			r.Get("/organizations/{organization}/members/{user}/workspace-quota", api.workspaceQuota)
+		})
+
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -365,7 +378,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/", api.workspaceQuota)
+				r.Get("/", api.workspaceQuotaByUser)
 			})
 		})
 		r.Route("/appearance", func(r chi.Router) {
