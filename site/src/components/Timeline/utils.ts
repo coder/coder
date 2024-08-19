@@ -1,5 +1,3 @@
-/* eslint-disable eslint-comments/disable-enable-pair -- Solve below */
-/* eslint-disable import/no-duplicates -- https://github.com/date-fns/date-fns/issues/1677 */
 import formatRelative from "date-fns/formatRelative";
 import subDays from "date-fns/subDays";
 

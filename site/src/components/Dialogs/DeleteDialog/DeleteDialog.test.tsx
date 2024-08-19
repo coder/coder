@@ -15,8 +15,6 @@ async function fillInputField(inputElement: HTMLElement, text: string) {
 	// Tried everything under the sun to catch the state changes the proper way,
 	// but the only way to get around it for now might be to manually make React
 	// DOM aware of the changes
-
-	// eslint-disable-next-line testing-library/no-unnecessary-act -- have to make sure state updates don't slip through cracks
 	return act(() => userEvent.type(inputElement, text));
 }
 

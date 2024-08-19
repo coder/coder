@@ -646,7 +646,7 @@ func (g *Generator) buildStruct(obj types.Object, st *types.Struct) (string, err
 			// Just append these as fields. We should fix this later.
 			state.Fields = append(state.Fields, tsType.AboveTypeLine)
 		}
-		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s", indent, jsonName, optional, valueType))
+		state.Fields = append(state.Fields, fmt.Sprintf("%sreadonly %s%s: %s;", indent, jsonName, optional, valueType))
 	}
 
 	// This is implemented to ensure the correct order of generics on the
@@ -759,12 +759,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		//	  }
 		//  }
 		return TypescriptType{
-			ValueType: "any",
-			AboveTypeLine: fmt.Sprintf("%s\n%s",
-				indentedComment("Embedded anonymous struct, please fix by naming it"),
-				// Linter needs to be disabled here, or else it will complain about the "any" type.
-				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- Anonymously embedded struct"),
-			),
+			AboveTypeLine: indentedComment("Embedded anonymous struct, please fix by naming it"),
+			ValueType:     "unknown",
 		}, nil
 	case *types.Map:
 		// map[string][string] -> Record<string, string>
@@ -815,16 +811,11 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			}
 			genValue := ""
 
-			// Always wrap in parentheses for proper scoped types.
-			// Running prettier on this output will remove redundant parenthesis,
-			// so this makes our decision-making easier.
-			// The example that breaks without this is:
-			//	readonly readonly string[][]
 			if underlying.GenericValue != "" {
-				genValue = "(readonly " + underlying.GenericValue + "[])"
+				genValue = "Readonly<Array<" + underlying.GenericValue + ">>"
 			}
 			return TypescriptType{
-				ValueType:     "(readonly " + underlying.ValueType + "[])",
+				ValueType:     "Readonly<Array<" + underlying.ValueType + ">>",
 				GenericValue:  genValue,
 				AboveTypeLine: underlying.AboveTypeLine,
 				GenericTypes:  underlying.GenericTypes,
@@ -858,6 +849,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "boolean"}, nil
 		case "github.com/coder/serpent.Duration":
 			return TypescriptType{ValueType: "number"}, nil
+		case "net/netip.Addr":
+			return TypescriptType{ValueType: "string"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		case "time.Time":
@@ -889,6 +882,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "HealthSection"}, nil
 		case "github.com/coder/coder/v2/codersdk.ProvisionerDaemon":
 			return TypescriptType{ValueType: "ProvisionerDaemon"}, nil
+
+		// Some very unfortunate `any` types that leaked into the frontend.
+		case "tailscale.com/tailcfg.DERPNode",
+			"tailscale.com/derp.ServerInfoMessage",
+			"tailscale.com/tailcfg.DERPRegion",
+			"tailscale.com/net/netcheck.Report",
+			"github.com/spf13/pflag.Value":
+			return TypescriptType{AboveTypeLine: indentedComment("TODO: narrow this type"), ValueType: "any"}, nil
 		}
 
 		// Some hard codes are a bit trickier.
@@ -965,15 +966,15 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		// If it's a struct, just use the name of the struct type
 		if _, ok := n.Underlying().(*types.Struct); ok {
-			// External structs cannot be introspected, as we only parse the codersdk package.
-			// You can handle your type manually in the switch list above, otherwise "any" will be used.
-			// An easy way to fix this is to pull your external type into `codersdk` package, then it will
-			// be known by the generator.
-			return TypescriptType{ValueType: "any", AboveTypeLine: fmt.Sprintf("%s\n%s",
-				indentedComment(fmt.Sprintf("Named type %q unknown, using \"any\"", n.String())),
-				// Linter needs to be disabled here, or else it will complain about the "any" type.
-				indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type"),
-			)}, nil
+			// External structs cannot be introspected, as we only parse the codersdk
+			// package. You can handle your type manually in the switch list above,
+			// otherwise `unknown` will be used. An easy way to fix this is to pull
+			// your external type into codersdk, then it will be known by the
+			// generator.
+			return TypescriptType{
+				AboveTypeLine: indentedComment(fmt.Sprintf("external type %q, using \"unknown\"", n.String())),
+				ValueType:     "unknown",
+			}, nil
 		}
 
 		// Defer to the underlying type.
@@ -1002,20 +1003,16 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			// This field is 'interface{}'. We can't infer any type from 'interface{}'
 			// so just use "any" as the type.
 			return TypescriptType{
-				ValueType: "any",
-				AboveTypeLine: fmt.Sprintf("%s\n%s",
-					indentedComment("Empty interface{} type, cannot resolve the type."),
-					// Linter needs to be disabled here, or else it will complain about the "any" type.
-					indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}"),
-				),
+				AboveTypeLine: indentedComment("empty interface{} type, falling back to unknown"),
+				ValueType:     "unknown",
 			}, nil
 		}
 
 		// Interfaces are difficult to determine the JSON type, so just return
-		// an 'any'.
+		// an 'unknown'.
 		return TypescriptType{
-			ValueType:     "any",
-			AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type."),
+			AboveTypeLine: indentedComment("interface type, falling back to unknown"),
+			ValueType:     "unknown",
 			Optional:      false,
 		}, nil
 	case *types.TypeParam:
@@ -1040,13 +1037,13 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				// If we don't have the type constraint defined somewhere in the package,
 				// then we have to resort to using any.
 				return TypescriptType{
+					AboveTypeLine: fmt.Sprintf("// %q is an external type, falling back to unknown", name),
 					GenericTypes: map[string]string{
-						ty.Obj().Name(): "any",
+						ty.Obj().Name(): "unknown",
 					},
-					GenericValue:  ty.Obj().Name(),
-					ValueType:     "any",
-					AboveTypeLine: fmt.Sprintf("// %q is an external type, so we use any", name),
-					Optional:      false,
+					GenericValue: ty.Obj().Name(),
+					ValueType:    "unknown",
+					Optional:     false,
 				}, nil
 			}
 			// Include the builtin for this type to reference
@@ -1097,7 +1094,7 @@ func (Generator) isBuiltIn(name string) (bool, string) {
 	case "comparable":
 		// To be complete, we include "any". Kinda sucks :(
 		return true, "export type comparable = boolean | number | string | any"
-	case "any":
+	case "any", "unknown":
 		// This is supported in typescript, we don't need to write anything
 		return true, ""
 	default:
