@@ -8,6 +8,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -19,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
-	duration "github.com/coder/coder/v2/coderd/util/time"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -206,6 +206,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}
 
 	for _, ws := range markedForDeletion {
+		dormantTime := time.Now().Add(opts.TimeTilDormantAutoDelete)
 		_, err = s.enqueuer.Enqueue(
 			ctx,
 			ws.OwnerID,
@@ -213,7 +214,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			map[string]string{
 				"name":           ws.Name,
 				"reason":         "an update to the template's dormancy",
-				"timeTilDormant": duration.Humanize(opts.TimeTilDormantAutoDelete),
+				"timeTilDormant": humanize.Time(dormantTime),
 			},
 			"scheduletemplate",
 			// Associate this notification with all the related entities.

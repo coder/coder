@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -22,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/schedule"
-	duration "github.com/coder/coder/v2/coderd/util/time"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 )
 
@@ -324,6 +324,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
+					dormantTime := time.Now().Add(time.Duration(tmpl.TimeTilDormant))
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
@@ -331,7 +332,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": duration.Humanize(time.Duration(tmpl.TimeTilDormant)),
+							"timeTilDormant": humanize.Time(dormantTime),
 						},
 						"lifecycle_executor",
 						ws.ID,

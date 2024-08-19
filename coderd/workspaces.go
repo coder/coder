@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -32,7 +33,6 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	duration "github.com/coder/coder/v2/coderd/util/time"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -1056,6 +1056,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if initiatorErr == nil && tmplErr == nil {
+			dormantTime := time.Now().Add(time.Duration(tmpl.TimeTilDormant))
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				ctx,
 				workspace.OwnerID,
@@ -1063,7 +1064,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				map[string]string{
 					"name":           workspace.Name,
 					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": duration.Humanize(time.Duration(tmpl.TimeTilDormant)),
+					"timeTilDormant": humanize.Time(dormantTime),
 				},
 				"api",
 				workspace.ID,
