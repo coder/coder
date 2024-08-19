@@ -48,7 +48,7 @@ export const getDisplayWorkspaceBuildStatus = (
 			} as const;
 		case "running":
 			return {
-				type: "info",
+				type: "active",
 				color: theme.roles.active.text,
 				status: DisplayWorkspaceBuildStatusLanguage.running,
 			} as const;
