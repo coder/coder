@@ -32,7 +32,7 @@ const muiTheme = createTheme({
 		},
 		divider: tw.zinc[200],
 		warning: {
-			light: tw.amber[500],
+			light: tw.amber[400],
 			main: tw.amber[800],
 			dark: tw.amber[950],
 		},
@@ -80,25 +80,25 @@ const muiTheme = createTheme({
 		...components,
 		MuiCssBaseline: {
 			styleOverrides: (theme) => `
-        html, body, #root, #storybook-root {
-          height: 100%;
-        }
+				html, body, #root, #storybook-root {
+					height: 100%;
+				}
 
-        button, input {
-          font-family: ${BODY_FONT_FAMILY};
-        }
+				button, input {
+					font-family: ${BODY_FONT_FAMILY};
+				}
 
-        input:-webkit-autofill,
-        input:-webkit-autofill:hover,
-        input:-webkit-autofill:focus,
-        input:-webkit-autofill:active  {
-          -webkit-box-shadow: 0 0 0 100px ${theme.palette.background.default} inset !important;
-        }
+				input:-webkit-autofill,
+				input:-webkit-autofill:hover,
+				input:-webkit-autofill:focus,
+				input:-webkit-autofill:active  {
+					-webkit-box-shadow: 0 0 0 100px ${theme.palette.background.default} inset !important;
+				}
 
-        ::placeholder {
-          color: ${theme.palette.text.disabled};
-        }
-      `,
+				::placeholder {
+					color: ${theme.palette.text.disabled};
+				}
+			`,
 		},
 		MuiAvatar: {
 			styleOverrides: {
