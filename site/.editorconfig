@@ -1,6 +1,6 @@
 [*]
 indent_style = tab
-indent_size = 2
+indent_size = unset
 
 [node_modules/**]
 ignore = true
