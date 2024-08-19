@@ -125,7 +125,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 		// Verify functionality is lost
 		_, err = owner.UpdateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
-		require.ErrorContains(t, err, "Custom Roles is an Enterprise feature")
+		require.ErrorContains(t, err, "Custom Roles is a Premium feature")
 
 		// Assign the custom template admin role
 		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleIdentifier{Name: role.Name, OrganizationID: first.OrganizationID})
