@@ -506,14 +506,13 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		const displayName = "New Organization"
-		var err error
 		o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{}, func(request *codersdk.CreateOrganizationRequest) {
 			request.DisplayName = displayName
 			request.Icon = "/emojis/random.png"
 			request.Name = "new-org"
 		})
 
-		// Remove the license to block enterprise functionality.
+		// Remove the license to block premium functionality.
 		licenses, err := client.Licenses(ctx)
 		require.NoError(t, err, "get licenses")
 		for _, license := range licenses {

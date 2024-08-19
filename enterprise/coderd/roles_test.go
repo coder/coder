@@ -114,7 +114,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		role, err := owner.CreateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
 		require.NoError(t, err, "upsert role")
 
-		// Remove the license to block enterprise functionality
+		// Remove the license to block premium functionality
 		licenses, err := owner.Licenses(ctx)
 		require.NoError(t, err, "get licenses")
 		for _, license := range licenses {
