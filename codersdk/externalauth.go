@@ -103,6 +103,7 @@ type ExternalAuthAppInstallation struct {
 }
 
 type ExternalAuthUser struct {
+	ID         int64  `json:"id"`
 	Login      string `json:"login"`
 	AvatarURL  string `json:"avatar_url"`
 	ProfileURL string `json:"profile_url"`

@@ -200,6 +200,7 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 	filter := database.GetTemplatesWithFilterParams{
 		Deleted:    parser.Boolean(values, false, "deleted"),
 		ExactName:  parser.String(values, "", "exact_name"),
+		FuzzyName:  parser.String(values, "", "name"),
 		IDs:        parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated: parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 	}

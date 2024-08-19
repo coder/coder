@@ -1,6 +1,6 @@
 Coder server's primary configuration is done via environment variables. For a
 full list of the options, run `coder server --help` or see our
-[CLI documentation](../cli/server.md).
+[CLI documentation](../reference/cli/server.md).
 
 ## Access URL
 
@@ -48,10 +48,11 @@ If you are providing TLS certificates directly to the Coder server, either
 1. Use a single certificate and key for both the root and wildcard domains.
 2. Configure multiple certificates and keys via
    [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
-   in the Helm Chart, or [`--tls-cert-file`](../cli/server.md#--tls-cert-file)
-   and [`--tls-key-file`](../cli/server.md#--tls-key-file) command line options
-   (these both take a comma separated list of files; list certificates and their
-   respective keys in the same order).
+   in the Helm Chart, or
+   [`--tls-cert-file`](../reference/cli/server.md#--tls-cert-file) and
+   [`--tls-key-file`](../reference/cli/server.md#--tls-key-file) command line
+   options (these both take a comma separated list of files; list certificates
+   and their respective keys in the same order).
 
 ## TLS & Reverse Proxy
 

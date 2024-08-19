@@ -288,7 +288,7 @@ func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int, opts ...func(
 // BenchmarkCacher benchmarks the performance of the cacher.
 func BenchmarkCacher(b *testing.B) {
 	ctx := context.Background()
-	authz := rbac.Cacher(&coderdtest.FakeAuthorizer{AlwaysReturn: nil})
+	authz := rbac.Cacher(&coderdtest.FakeAuthorizer{})
 
 	rats := []int{1, 10, 100}
 
@@ -322,7 +322,7 @@ func TestCache(t *testing.T) {
 
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		subj, obj, action := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
 
@@ -340,7 +340,7 @@ func TestCache(t *testing.T) {
 
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		authz := rbac.Cacher(rec)
 		subj, obj, action := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
@@ -400,7 +400,7 @@ func TestCache(t *testing.T) {
 
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		authz := rbac.Cacher(rec)
 		subj1, obj1, action1 := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()

@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -12,12 +13,15 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -56,6 +60,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 // @Router /templates/{template} [delete]
 func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	var (
+		apiKey            = httpmw.APIKey(r)
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
@@ -101,9 +106,45 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	admins, err := findTemplateAdmins(ctx, api.Database)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template admins.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	for _, admin := range admins {
+		// Don't send notification to user which initiated the event.
+		if admin.ID == apiKey.UserID {
+			continue
+		}
+		api.notifyTemplateDeleted(ctx, template, apiKey.UserID, admin.ID)
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Template has been deleted!",
 	})
+}
+
+func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Template, initiatorID uuid.UUID, receiverID uuid.UUID) {
+	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to fetch initiator for template deletion notification", slog.F("initiator_id", initiatorID), slog.Error(err))
+		return
+	}
+
+	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateDeleted,
+		map[string]string{
+			"name":      template.Name,
+			"initiator": initiator.Username,
+		}, "api-templates-delete",
+		// Associate this notification with all the related entities.
+		template.ID, template.OrganizationID,
+	); err != nil {
+		api.Logger.Warn(ctx, "failed to notify of template deletion", slog.F("deleted_template_id", template.ID), slog.Error(err))
+	}
 }
 
 // Create a new template in an organization.
@@ -821,13 +862,41 @@ func (api *API) templateDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.TemplateExample
 // @Router /organizations/{organization}/templates/examples [get]
-func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
+// @Deprecated Use /templates/examples instead
+func (api *API) templateExamplesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
 		organization = httpmw.OrganizationParam(r)
 	)
 
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.InOrg(organization.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	ex, err := examples.List()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching examples.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, ex)
+}
+
+// @Summary Get template examples
+// @ID get-template-examples
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Success 200 {array} codersdk.TemplateExample
+// @Router /templates/examples [get]
+func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.AnyOrganization()) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -919,4 +988,23 @@ func (api *API) convertTemplate(
 		DeprecationMessage:   templateAccessControl.Deprecated,
 		MaxPortShareLevel:    maxPortShareLevel,
 	}
+}
+
+// findTemplateAdmins fetches all users with template admin permission including owners.
+func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
+	// Notice: we can't scrape the user information in parallel as pq
+	// fails with: unexpected describe rows response: 'D'
+	owners, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get owners: %w", err)
+	}
+	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get template admins: %w", err)
+	}
+	return append(owners, templateAdmins...), nil
 }

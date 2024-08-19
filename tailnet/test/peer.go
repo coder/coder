@@ -19,18 +19,24 @@ type PeerStatus struct {
 }
 
 type Peer struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	t      testing.TB
-	ID     uuid.UUID
-	name   string
-	resps  <-chan *proto.CoordinateResponse
-	reqs   chan<- *proto.CoordinateRequest
-	peers  map[uuid.UUID]PeerStatus
+	ctx         context.Context
+	cancel      context.CancelFunc
+	t           testing.TB
+	ID          uuid.UUID
+	name        string
+	resps       <-chan *proto.CoordinateResponse
+	reqs        chan<- *proto.CoordinateRequest
+	peers       map[uuid.UUID]PeerStatus
+	peerUpdates map[uuid.UUID][]*proto.CoordinateResponse_PeerUpdate
 }
 
 func NewPeer(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, name string, id ...uuid.UUID) *Peer {
-	p := &Peer{t: t, name: name, peers: make(map[uuid.UUID]PeerStatus)}
+	p := &Peer{
+		t:           t,
+		name:        name,
+		peers:       make(map[uuid.UUID]PeerStatus),
+		peerUpdates: make(map[uuid.UUID][]*proto.CoordinateResponse_PeerUpdate),
+	}
 	p.ctx, p.cancel = context.WithCancel(ctx)
 	if len(id) > 1 {
 		t.Fatal("too many")
@@ -43,6 +49,12 @@ func NewPeer(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, nam
 	// SingleTailnetTunnelAuth allows connections to arbitrary peers
 	p.reqs, p.resps = coord.Coordinate(p.ctx, p.ID, name, tailnet.SingleTailnetCoordinateeAuth{})
 	return p
+}
+
+func (p *Peer) ConnectToCoordinator(ctx context.Context, c tailnet.CoordinatorV2) {
+	p.t.Helper()
+
+	p.reqs, p.resps = c.Coordinate(ctx, p.ID, p.name, tailnet.SingleTailnetCoordinateeAuth{})
 }
 
 func (p *Peer) AddTunnel(other uuid.UUID) {
@@ -180,6 +192,19 @@ func (p *Peer) AssertEventuallyGetsError(match string) {
 	}
 }
 
+// AssertNeverUpdateKind asserts that we have not received
+// any updates on the provided peer for the provided kind.
+func (p *Peer) AssertNeverUpdateKind(peer uuid.UUID, kind proto.CoordinateResponse_PeerUpdate_Kind) {
+	p.t.Helper()
+
+	updates, ok := p.peerUpdates[peer]
+	assert.True(p.t, ok, "expected updates for peer %s", peer)
+
+	for _, update := range updates {
+		assert.NotEqual(p.t, kind, update.Kind, update)
+	}
+}
+
 var responsesClosed = xerrors.New("responses closed")
 
 func (p *Peer) handleOneResp() error {
@@ -198,6 +223,8 @@ func (p *Peer) handleOneResp() error {
 			if err != nil {
 				return err
 			}
+			p.peerUpdates[id] = append(p.peerUpdates[id], update)
+
 			switch update.Kind {
 			case proto.CoordinateResponse_PeerUpdate_NODE, proto.CoordinateResponse_PeerUpdate_LOST:
 				peer := p.peers[id]

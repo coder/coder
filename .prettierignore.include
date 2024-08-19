@@ -2,19 +2,13 @@
 # by Prettier.
 helm/**/templates/*.yaml
 
-# Terraform state files used in tests, these are automatically generated.
-# Example: provisioner/terraform/testdata/instance-id/instance-id.tfstate.json
-**/testdata/**/*.tf*.json
-
 # Testdata shouldn't be formatted.
-scripts/apitypings/testdata/**/*.ts
-enterprise/tailnet/testdata/*.golden.html
-tailnet/testdata/*.golden.html
+testdata/
 
-# Generated files shouldn't be formatted.
-site/e2e/provisionerGenerated.ts
-
+# Ignore generated files
 **/pnpm-lock.yaml
-
-# Ignore generated JSON (e.g. examples/examples.gen.json).
 **/*.gen.json
+
+# Everything in site/ is formatted by Biome. For the rest of the repo though, we
+# need broader language support.
+site/

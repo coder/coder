@@ -50,13 +50,23 @@ type Permission struct {
 	Action       RBACAction   `json:"action"`
 }
 
-// Role is a longer form of SlimRole used to edit custom roles.
+// Role is a longer form of SlimRole that includes permissions details.
 type Role struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
 	OrganizationID  string       `json:"organization_id,omitempty" table:"organization_id" format:"uuid"`
 	DisplayName     string       `json:"display_name" table:"display_name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
 	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
+	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization_permissions"`
+	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
+}
+
+// CustomRoleRequest is used to edit custom roles.
+type CustomRoleRequest struct {
+	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
+	DisplayName     string       `json:"display_name" table:"display_name"`
+	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
+	// OrganizationPermissions are specific to the organization the role belongs to.
 	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization_permissions"`
 	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
 }
@@ -72,10 +82,18 @@ func (r Role) FullName() string {
 	return r.Name + ":" + r.OrganizationID
 }
 
-// PatchOrganizationRole will upsert a custom organization role
-func (c *Client) PatchOrganizationRole(ctx context.Context, organizationID uuid.UUID, req Role) (Role, error) {
-	res, err := c.Request(ctx, http.MethodPatch,
-		fmt.Sprintf("/api/v2/organizations/%s/members/roles", organizationID.String()), req)
+// CreateOrganizationRole will create a custom organization role
+func (c *Client) CreateOrganizationRole(ctx context.Context, role Role) (Role, error) {
+	req := CustomRoleRequest{
+		Name:                    role.Name,
+		DisplayName:             role.DisplayName,
+		SitePermissions:         role.SitePermissions,
+		OrganizationPermissions: role.OrganizationPermissions,
+		UserPermissions:         role.UserPermissions,
+	}
+
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/organizations/%s/members/roles", role.OrganizationID), req)
 	if err != nil {
 		return Role{}, err
 	}
@@ -83,8 +101,45 @@ func (c *Client) PatchOrganizationRole(ctx context.Context, organizationID uuid.
 	if res.StatusCode != http.StatusOK {
 		return Role{}, ReadBodyAsError(res)
 	}
-	var role Role
-	return role, json.NewDecoder(res.Body).Decode(&role)
+	var r Role
+	return r, json.NewDecoder(res.Body).Decode(&r)
+}
+
+// UpdateOrganizationRole will update an existing custom organization role
+func (c *Client) UpdateOrganizationRole(ctx context.Context, role Role) (Role, error) {
+	req := CustomRoleRequest{
+		Name:                    role.Name,
+		DisplayName:             role.DisplayName,
+		SitePermissions:         role.SitePermissions,
+		OrganizationPermissions: role.OrganizationPermissions,
+		UserPermissions:         role.UserPermissions,
+	}
+
+	res, err := c.Request(ctx, http.MethodPut,
+		fmt.Sprintf("/api/v2/organizations/%s/members/roles", role.OrganizationID), req)
+	if err != nil {
+		return Role{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Role{}, ReadBodyAsError(res)
+	}
+	var r Role
+	return r, json.NewDecoder(res.Body).Decode(&r)
+}
+
+// DeleteOrganizationRole will delete a custom organization role
+func (c *Client) DeleteOrganizationRole(ctx context.Context, organizationID uuid.UUID, roleName string) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/organizations/%s/members/roles/%s", organizationID.String(), roleName), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ListSiteRoles lists all assignable site wide roles.

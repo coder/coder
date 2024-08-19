@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -296,10 +297,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
 						map[string]string{
-							"name":                  ws.Name,
-							"initiator":             "autobuild",
-							"reason":                nextBuildReason,
-							"template_version_name": activeTemplateVersion.Name,
+							"name":                     ws.Name,
+							"initiator":                "autobuild",
+							"reason":                   nextBuildReason,
+							"template_version_name":    activeTemplateVersion.Name,
+							"template_version_message": activeTemplateVersion.Message,
 						}, "autobuild",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,

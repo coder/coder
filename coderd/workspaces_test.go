@@ -3441,7 +3441,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 	})
 }
 
-func TestNotifications(t *testing.T) {
+func TestWorkspaceNotifications(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Dormant", func(t *testing.T) {

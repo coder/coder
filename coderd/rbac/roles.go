@@ -301,10 +301,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: Permissions(map[string][]policy.Action{
 			// Should be able to read all template details, even in orgs they
 			// are not in.
-			ResourceTemplate.Type: {policy.ActionRead, policy.ActionViewInsights},
-			ResourceAuditLog.Type: {policy.ActionRead},
-			ResourceUser.Type:     {policy.ActionRead},
-			ResourceGroup.Type:    {policy.ActionRead},
+			ResourceTemplate.Type:    {policy.ActionRead, policy.ActionViewInsights},
+			ResourceAuditLog.Type:    {policy.ActionRead},
+			ResourceUser.Type:        {policy.ActionRead},
+			ResourceGroup.Type:       {policy.ActionRead},
+			ResourceGroupMember.Type: {policy.ActionRead},
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
@@ -331,6 +332,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOrganization.Type: {policy.ActionRead},
 			ResourceUser.Type:         {policy.ActionRead},
 			ResourceGroup.Type:        {policy.ActionRead},
+			ResourceGroupMember.Type:  {policy.ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
 			ResourceOrganizationMember.Type: {policy.ActionRead},
 		}),
@@ -353,6 +355,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Full perms to manage org members
 			ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			ResourceGroup.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			ResourceGroupMember.Type:        {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -463,6 +466,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceAssignOrgRole.Type:      {policy.ActionAssign, policy.ActionDelete, policy.ActionRead},
 						ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 						ResourceGroup.Type:              ResourceGroup.AvailableActions(),
+						ResourceGroupMember.Type:        ResourceGroupMember.AvailableActions(),
 					}),
 				},
 				User: []Permission{},
@@ -482,6 +486,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						// Assigning template perms requires this permission.
 						ResourceOrganizationMember.Type: {policy.ActionRead},
 						ResourceGroup.Type:              {policy.ActionRead},
+						ResourceGroupMember.Type:        {policy.ActionRead},
 					}),
 				},
 				User: []Permission{},

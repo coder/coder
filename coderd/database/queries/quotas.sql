@@ -1,14 +1,15 @@
 -- name: GetQuotaAllowanceForUser :one
 SELECT
-	coalesce(SUM(quota_allowance), 0)::BIGINT
+	coalesce(SUM(groups.quota_allowance), 0)::BIGINT
 FROM
-	groups g
-LEFT JOIN group_members gm ON
-	g.id = gm.group_id
-WHERE
-	user_id = $1
-OR
-    g.id = g.organization_id;
+	(
+		-- Select all groups this user is a member of. This will also include
+		-- the "Everyone" group for organizations the user is a member of.
+		SELECT * FROM group_members_expanded WHERE @user_id = user_id
+	) AS members
+INNER JOIN groups ON
+	members.group_id = groups.id
+;
 
 -- name: GetQuotaConsumedForUser :one
 WITH latest_builds AS (

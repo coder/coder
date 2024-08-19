@@ -464,7 +464,6 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		CustomRoleHandler:           atomic.Pointer[CustomRoleHandler]{},
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
@@ -476,9 +475,8 @@ func New(options *Options) *API {
 		dbRolluper: options.DatabaseRolluper,
 	}
 
-	var customRoleHandler CustomRoleHandler = &agplCustomRoleHandler{}
-	api.CustomRoleHandler.Store(&customRoleHandler)
-	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:     buildinfo.ExternalURL(),
@@ -874,7 +872,7 @@ func New(options *Options) *API {
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization())
-					r.Get("/examples", api.templateExamples)
+					r.Get("/examples", api.templateExamplesByOrganization)
 					r.Route("/{templatename}", func(r chi.Router) {
 						r.Get("/", api.templateByOrganizationAndName)
 						r.Route("/versions/{templateversionname}", func(r chi.Router) {
@@ -887,8 +885,6 @@ func New(options *Options) *API {
 					r.Get("/", api.listMembers)
 					r.Route("/roles", func(r chi.Router) {
 						r.Get("/", api.assignableOrgRoles)
-						r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
-							Patch("/", api.patchOrgRoles)
 					})
 
 					r.Route("/{user}", func(r chi.Router) {
@@ -920,6 +916,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.fetchTemplates(nil))
+			r.Get("/examples", api.templateExamples)
 			r.Route("/{template}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractTemplateParam(options.Database),
@@ -1050,6 +1047,12 @@ func New(options *Options) *API {
 					})
 					r.Get("/gitsshkey", api.gitSSHKey)
 					r.Put("/gitsshkey", api.regenerateGitSSHKey)
+					r.Route("/notifications", func(r chi.Router) {
+						r.Route("/preferences", func(r chi.Router) {
+							r.Get("/", api.userNotificationPreferences)
+							r.Put("/", api.putUserNotificationPreferences)
+						})
+					})
 				})
 			})
 		})
@@ -1243,9 +1246,16 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/notifications", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentNotifications),
+			)
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
+			r.Route("/templates", func(r chi.Router) {
+				r.Get("/system", api.systemNotificationTemplates)
+			})
+			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 		})
 		r.Route("/frobulators", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -1338,8 +1348,6 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
-	// CustomRoleHandler is the AGPL/Enterprise implementation for custom roles.
-	CustomRoleHandler atomic.Pointer[CustomRoleHandler]
 
 	HTTPAuth *HTTPAuthorizer
 

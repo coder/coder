@@ -464,6 +464,12 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 		loginType = database.LoginTypePassword
 	case codersdk.LoginTypeOIDC:
+		if api.OIDCConfig == nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "You must configure OIDC before creating OIDC users.",
+			})
+			return
+		}
 		loginType = database.LoginTypeOIDC
 	case codersdk.LoginTypeGithub:
 		loginType = database.LoginTypeGithub
@@ -471,6 +477,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported login type %q for manually creating new users.", req.UserLoginType),
 		})
+		return
 	}
 
 	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
@@ -506,7 +513,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Success 204
+// @Success 200
 // @Router /users/{user} [delete]
 func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -560,7 +567,30 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 	user.Deleted = true
 	aReq.New = user
-	rw.WriteHeader(http.StatusNoContent)
+
+	userAdmins, err := findUserAdmins(ctx, api.Database)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user admins.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	for _, u := range userAdmins {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountDeleted,
+			map[string]string{
+				"deleted_account_name": user.Username,
+			}, "api-users-delete",
+			user.ID,
+		); err != nil {
+			api.Logger.Warn(ctx, "unable to notify about deleted user", slog.F("deleted_user", user.Username), slog.Error(err))
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "User has been deleted!",
+	})
 }
 
 // Returns the parameterized user requested. All validation
@@ -1280,23 +1310,12 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		return user, req.OrganizationID, err
 	}
 
-	// Notify all users with user admin permission including owners
-	// Notice: we can't scrape the user information in parallel as pq
-	// fails with: unexpected describe rows response: 'D'
-	owners, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleOwner},
-	})
+	userAdmins, err := findUserAdmins(ctx, store)
 	if err != nil {
-		return user, req.OrganizationID, xerrors.Errorf("get owners: %w", err)
-	}
-	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleUserAdmin},
-	})
-	if err != nil {
-		return user, req.OrganizationID, xerrors.Errorf("get user admins: %w", err)
+		return user, req.OrganizationID, xerrors.Errorf("find user admins: %w", err)
 	}
 
-	for _, u := range append(owners, userAdmins...) {
+	for _, u := range userAdmins {
 		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
 			map[string]string{
 				"created_account_name": user.Username,
@@ -1307,6 +1326,25 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 	}
 	return user, req.OrganizationID, err
+}
+
+// findUserAdmins fetches all users with user admin permission including owners.
+func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
+	// Notice: we can't scrape the user information in parallel as pq
+	// fails with: unexpected describe rows response: 'D'
+	owners, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get owners: %w", err)
+	}
+	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleUserAdmin},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get user admins: %w", err)
+	}
+	return append(owners, userAdmins...), nil
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {

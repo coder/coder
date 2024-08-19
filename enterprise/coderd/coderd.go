@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
@@ -261,6 +262,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Delete("/organizations/{organization}", api.deleteOrganization)
 		})
 
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureCustomRoles),
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentCustomRoles),
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Post("/organizations/{organization}/members/roles", api.postOrgRoles)
+			r.Put("/organizations/{organization}/members/roles", api.putOrgRoles)
+			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
+		})
+
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -330,15 +343,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.templateACL)
 			r.Patch("/", api.patchTemplateACL)
 		})
-		r.Route("/groups/{group}", func(r chi.Router) {
+		r.Route("/groups", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
 				apiKeyMiddleware,
-				httpmw.ExtractGroupParam(api.Database),
 			)
-			r.Get("/", api.group)
-			r.Patch("/", api.patchGroup)
-			r.Delete("/", api.deleteGroup)
+			r.Get("/", api.groups)
+			r.Route("/{group}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractGroupParam(api.Database),
+				)
+				r.Get("/", api.group)
+				r.Patch("/", api.patchGroup)
+				r.Delete("/", api.deleteGroup)
+			})
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(
@@ -368,7 +386,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Put("/", api.putAppearance)
 			})
 		})
-
 		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
 			r.Use(
 				api.autostopRequirementEnabledMW,
@@ -388,6 +405,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Post("/jfrog/xray-scan", api.postJFrogXrayScan)
 			r.Get("/jfrog/xray-scan", api.jFrogXrayScan)
 		})
+
+		// The /notifications base route is mounted by the AGPL router, so we can't group it here.
+		// Additionally, because we have a static route for /notifications/templates/system which conflicts
+		// with the below route, we need to register this route without any mounts or groups to make both work.
+		r.With(
+			apiKeyMiddleware,
+			httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentNotifications),
+			httpmw.ExtractNotificationTemplateParam(options.Database),
+		).Put("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
@@ -772,10 +798,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			f := newAppearanceFetcher(
 				api.Database,
 				api.DeploymentValues.Support.Links.Value,
+				api.DeploymentValues.DocsURL.String(),
+				buildinfo.Version(),
 			)
 			api.AGPL.AppearanceFetcher.Store(&f)
 		} else {
-			api.AGPL.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+			f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+			api.AGPL.AppearanceFetcher.Store(&f)
 		}
 	}
 
@@ -785,16 +814,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			ps = portsharing.NewEnterprisePortSharer()
 		}
 		api.AGPL.PortSharer.Store(&ps)
-	}
-
-	if initial, changed, enabled := featureChanged(codersdk.FeatureCustomRoles); shouldUpdate(initial, changed, enabled) {
-		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
-		api.AGPL.CustomRoleHandler.Store(&handler)
-	}
-
-	if initial, changed, enabled := featureChanged(codersdk.FeatureMultipleOrganizations); shouldUpdate(initial, changed, enabled) {
-		var handler coderd.CustomRoleHandler = &enterpriseCustomRoleHandler{API: api, Enabled: enabled}
-		api.AGPL.CustomRoleHandler.Store(&handler)
 	}
 
 	// External token encryption is soft-enforced

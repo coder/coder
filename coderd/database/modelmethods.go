@@ -5,12 +5,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 type WorkspaceStatus string
@@ -74,18 +76,18 @@ func (m OrganizationMember) Auditable(username string) AuditableOrganizationMemb
 
 type AuditableGroup struct {
 	Group
-	Members []GroupMember `json:"members"`
+	Members []GroupMemberTable `json:"members"`
 }
 
 // Auditable returns an object that can be used in audit logs.
 // Covers both group and group member changes.
-func (g Group) Auditable(users []User) AuditableGroup {
-	members := make([]GroupMember, 0, len(users))
-	for _, u := range users {
-		members = append(members, GroupMember{
-			UserID:  u.ID,
-			GroupID: g.ID,
-		})
+func (g Group) Auditable(members []GroupMember) AuditableGroup {
+	membersTable := make([]GroupMemberTable, len(members))
+	for i, member := range members {
+		membersTable[i] = GroupMemberTable{
+			UserID:  member.UserID,
+			GroupID: member.GroupID,
+		}
 	}
 
 	// consistent ordering
@@ -95,11 +97,24 @@ func (g Group) Auditable(users []User) AuditableGroup {
 
 	return AuditableGroup{
 		Group:   g,
-		Members: members,
+		Members: membersTable,
 	}
 }
 
 const EveryoneGroup = "Everyone"
+
+func (w GetAuditLogsOffsetRow) RBACObject() rbac.Object {
+	return w.AuditLog.RBACObject()
+}
+
+func (w AuditLog) RBACObject() rbac.Object {
+	obj := rbac.ResourceAuditLog.WithID(w.ID)
+	if w.OrganizationID != uuid.Nil {
+		obj = obj.InOrg(w.OrganizationID)
+	}
+
+	return obj
+}
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
@@ -163,7 +178,17 @@ func (v TemplateVersion) RBACObjectNoTemplate() rbac.Object {
 
 func (g Group) RBACObject() rbac.Object {
 	return rbac.ResourceGroup.WithID(g.ID).
-		InOrg(g.OrganizationID)
+		InOrg(g.OrganizationID).
+		// Group members can read the group.
+		WithGroupACL(map[string][]policy.Action{
+			g.ID.String(): {
+				policy.ActionRead,
+			},
+		})
+}
+
+func (gm GroupMember) RBACObject() rbac.Object {
+	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
 func (w GetWorkspaceByAgentIDRow) RBACObject() rbac.Object {

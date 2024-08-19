@@ -149,6 +149,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update a group"),
 		},
 	},
+	"group_member": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead: actDef("read group members"),
+		},
+	},
 	"file": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create a file"),
@@ -222,6 +227,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   actDef("view what roles are assignable"),
 			ActionDelete: actDef("ability to unassign roles"),
 			ActionCreate: actDef("ability to create/delete/edit custom roles"),
+			ActionUpdate: actDef("ability to edit custom roles"),
 		},
 	},
 	"assign_org_role": {
@@ -229,7 +235,8 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionAssign: actDef("ability to assign org scoped roles"),
 			ActionRead:   actDef("view what roles are assignable"),
 			ActionDelete: actDef("ability to delete org scoped roles"),
-			ActionCreate: actDef("ability to create/delete/edit custom roles within an organization"),
+			ActionCreate: actDef("ability to create/delete custom roles within an organization"),
+			ActionUpdate: actDef("ability to edit custom roles within an organization"),
 		},
 	},
 	"oauth2_app": {
@@ -253,6 +260,18 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: actDef(""),
 			ActionRead:   actDef(""),
 			ActionDelete: actDef(""),
+		},
+	},
+	"notification_template": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read notification templates"),
+			ActionUpdate: actDef("update notification templates"),
+		},
+	},
+	"notification_preference": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read notification preferences"),
+			ActionUpdate: actDef("update notification preferences"),
 		},
 	},
 	"frobulator": {

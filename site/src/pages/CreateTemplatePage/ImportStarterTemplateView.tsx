@@ -1,86 +1,93 @@
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  templateVersionLogs,
-  JobError,
-  templateExamples,
-  templateVersionVariables,
+	JobError,
+	templateExamples,
+	templateVersionLogs,
+	templateVersionVariables,
 } from "api/queries/templates";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import {
-  firstVersionFromExample,
-  getFormPermissions,
-  newTemplate,
+	firstVersionFromExample,
+	getFormPermissions,
+	newTemplate,
 } from "./utils";
 
 export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
-  onCreateTemplate,
-  onOpenBuildLogsDrawer,
-  variablesSectionRef,
-  error,
-  isCreating,
+	onCreateTemplate,
+	onOpenBuildLogsDrawer,
+	variablesSectionRef,
+	error,
+	isCreating,
 }) => {
-  const navigate = useNavigate();
-  const { entitlements, organizationId } = useDashboard();
-  const [searchParams] = useSearchParams();
-  const templateExamplesQuery = useQuery(templateExamples(organizationId));
-  const templateExample = templateExamplesQuery.data?.find(
-    (e) => e.id === searchParams.get("exampleId")!,
-  );
+	const navigate = useNavigate();
+	const { entitlements, experiments } = useDashboard();
+	const { multiple_organizations: organizationsEnabled } =
+		useFeatureVisibility();
+	const [searchParams] = useSearchParams();
+	const templateExamplesQuery = useQuery(templateExamples());
+	const templateExample = templateExamplesQuery.data?.find(
+		(e) => e.id === searchParams.get("exampleId")!,
+	);
 
-  const isLoading = templateExamplesQuery.isLoading;
-  const loadingError = templateExamplesQuery.error;
+	const showOrganizationPicker =
+		experiments.includes("multi-organization") && organizationsEnabled;
 
-  const formPermissions = getFormPermissions(entitlements);
+	const isLoading = templateExamplesQuery.isLoading;
+	const loadingError = templateExamplesQuery.error;
 
-  const isJobError = error instanceof JobError;
-  const templateVersionLogsQuery = useQuery({
-    ...templateVersionLogs(isJobError ? error.version.id : ""),
-    enabled: isJobError,
-  });
+	const formPermissions = getFormPermissions(entitlements);
 
-  const missedVariables = useQuery({
-    ...templateVersionVariables(isJobError ? error.version.id : ""),
-    keepPreviousData: true,
-    enabled:
-      isJobError && error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
-  });
+	const isJobError = error instanceof JobError;
+	const templateVersionLogsQuery = useQuery({
+		...templateVersionLogs(isJobError ? error.version.id : ""),
+		enabled: isJobError,
+	});
 
-  if (isLoading) {
-    return <Loader />;
-  }
+	const missedVariables = useQuery({
+		...templateVersionVariables(isJobError ? error.version.id : ""),
+		keepPreviousData: true,
+		enabled:
+			isJobError && error.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
+	});
 
-  if (loadingError) {
-    return <ErrorAlert error={loadingError} />;
-  }
+	if (isLoading) {
+		return <Loader />;
+	}
 
-  return (
-    <CreateTemplateForm
-      {...formPermissions}
-      variablesSectionRef={variablesSectionRef}
-      onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
-      starterTemplate={templateExample!}
-      variables={missedVariables.data}
-      error={error}
-      isSubmitting={isCreating}
-      onCancel={() => navigate(-1)}
-      jobError={isJobError ? error.job.error : undefined}
-      logs={templateVersionLogsQuery.data}
-      onSubmit={async (formData) => {
-        await onCreateTemplate({
-          organizationId,
-          version: firstVersionFromExample(
-            templateExample!,
-            formData.user_variable_values,
-          ),
-          template: newTemplate(formData),
-        });
-      }}
-    />
-  );
+	if (loadingError) {
+		return <ErrorAlert error={loadingError} />;
+	}
+
+	return (
+		<CreateTemplateForm
+			{...formPermissions}
+			variablesSectionRef={variablesSectionRef}
+			onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
+			starterTemplate={templateExample!}
+			variables={missedVariables.data}
+			error={error}
+			isSubmitting={isCreating}
+			onCancel={() => navigate(-1)}
+			jobError={isJobError ? error.job.error : undefined}
+			logs={templateVersionLogsQuery.data}
+			showOrganizationPicker={showOrganizationPicker}
+			onSubmit={async (formData) => {
+				await onCreateTemplate({
+					organization: formData.organization,
+					version: firstVersionFromExample(
+						templateExample!,
+						formData.user_variable_values,
+					),
+					template: newTemplate(formData),
+				});
+			}}
+		/>
+	);
 };

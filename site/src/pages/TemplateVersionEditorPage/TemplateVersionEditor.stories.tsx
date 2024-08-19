@@ -2,44 +2,46 @@ import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import {
-  MockFailedProvisionerJob,
-  MockRunningProvisionerJob,
-  MockTemplate,
-  MockTemplateVersion,
-  MockTemplateVersionFileTree,
-  MockWorkspaceBuildLogs,
-  MockWorkspaceContainerResource,
-  MockWorkspaceExtendedBuildLogs,
-  MockWorkspaceImageResource,
-  MockWorkspaceResource,
-  MockWorkspaceResourceMultipleAgents,
-  MockWorkspaceResourceSensitive,
-  MockWorkspaceVolumeResource,
+	MockFailedProvisionerJob,
+	MockRunningProvisionerJob,
+	MockTemplate,
+	MockTemplateVersion,
+	MockTemplateVersionFileTree,
+	MockWorkspaceBuildLogs,
+	MockWorkspaceContainerResource,
+	MockWorkspaceExtendedBuildLogs,
+	MockWorkspaceImageResource,
+	MockWorkspaceResource,
+	MockWorkspaceResourceMultipleAgents,
+	MockWorkspaceResourceSensitive,
+	MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
-  title: "pages/TemplateVersionEditor",
-  parameters: {
-    chromatic,
-    layout: "fullscreen",
-  },
-  component: TemplateVersionEditor,
-  args: {
-    activePath: "main.tf",
-    template: MockTemplate,
-    templateVersion: MockTemplateVersion,
-    defaultFileTree: MockTemplateVersionFileTree,
-    onPublish: action("onPublish"),
-    onConfirmPublish: action("onConfirmPublish"),
-    onCancelPublish: action("onCancelPublish"),
-    onCreateWorkspace: action("onCreateWorkspace"),
-    onSubmitMissingVariableValues: action("onSubmitMissingVariableValues"),
-    onCancelSubmitMissingVariableValues: action(
-      "onCancelSubmitMissingVariableValues",
-    ),
-    provisionerTags: { wibble: "wobble", wiggle: "woggle" },
-  },
+	title: "pages/TemplateVersionEditor",
+	component: TemplateVersionEditor,
+	decorators: [withDashboardProvider],
+	parameters: {
+		chromatic,
+		layout: "fullscreen",
+	},
+	args: {
+		activePath: "main.tf",
+		template: MockTemplate,
+		templateVersion: MockTemplateVersion,
+		defaultFileTree: MockTemplateVersionFileTree,
+		onPublish: action("onPublish"),
+		onConfirmPublish: action("onConfirmPublish"),
+		onCancelPublish: action("onCancelPublish"),
+		onCreateWorkspace: action("onCreateWorkspace"),
+		onSubmitMissingVariableValues: action("onSubmitMissingVariableValues"),
+		onCancelSubmitMissingVariableValues: action(
+			"onCancelSubmitMissingVariableValues",
+		),
+		provisionerTags: { wibble: "wobble", wiggle: "woggle" },
+	},
 };
 
 export default meta;
@@ -48,48 +50,48 @@ type Story = StoryObj<typeof TemplateVersionEditor>;
 export const Example: Story = {};
 
 export const Logs: Story = {
-  args: {
-    defaultTab: "logs",
-    buildLogs: MockWorkspaceBuildLogs,
-    templateVersion: {
-      ...MockTemplateVersion,
-      job: MockRunningProvisionerJob,
-    },
-  },
+	args: {
+		defaultTab: "logs",
+		buildLogs: MockWorkspaceBuildLogs,
+		templateVersion: {
+			...MockTemplateVersion,
+			job: MockRunningProvisionerJob,
+		},
+	},
 };
 
 export const Resources: Story = {
-  args: {
-    defaultTab: "resources",
-    buildLogs: MockWorkspaceBuildLogs,
-    resources: [
-      MockWorkspaceResource,
-      MockWorkspaceResourceSensitive,
-      MockWorkspaceResourceMultipleAgents,
-      MockWorkspaceVolumeResource,
-      MockWorkspaceImageResource,
-      MockWorkspaceContainerResource,
-    ],
-  },
+	args: {
+		defaultTab: "resources",
+		buildLogs: MockWorkspaceBuildLogs,
+		resources: [
+			MockWorkspaceResource,
+			MockWorkspaceResourceSensitive,
+			MockWorkspaceResourceMultipleAgents,
+			MockWorkspaceVolumeResource,
+			MockWorkspaceImageResource,
+			MockWorkspaceContainerResource,
+		],
+	},
 };
 
 export const WithError = {
-  args: {
-    defaultTab: "logs",
-    templateVersion: {
-      ...MockTemplateVersion,
-      job: {
-        ...MockFailedProvisionerJob,
-        error:
-          "template import provision for start: terraform plan: exit status 1",
-      },
-    },
-    buildLogs: MockWorkspaceExtendedBuildLogs,
-  },
+	args: {
+		defaultTab: "logs",
+		templateVersion: {
+			...MockTemplateVersion,
+			job: {
+				...MockFailedProvisionerJob,
+				error:
+					"template import provision for start: terraform plan: exit status 1",
+			},
+		},
+		buildLogs: MockWorkspaceExtendedBuildLogs,
+	},
 };
 
 export const Published = {
-  args: {
-    publishedVersion: MockTemplateVersion,
-  },
+	args: {
+		publishedVersion: MockTemplateVersion,
+	},
 };

@@ -1,9 +1,9 @@
 # External provisioners
 
 By default, the Coder server runs
-[built-in provisioner daemons](../cli/server.md#provisioner-daemons), which
-execute `terraform` during workspace and template builds. However, there are
-sometimes benefits to running external provisioner daemons:
+[built-in provisioner daemons](../reference/cli/server.md#provisioner-daemons),
+which execute `terraform` during workspace and template builds. However, there
+are sometimes benefits to running external provisioner daemons:
 
 - **Secure build environments:** Run build jobs in isolated containers,
   preventing malicious templates from gaining shell access to the Coder host.
@@ -26,46 +26,53 @@ For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
 Provisioners are started with the
-[coder provisionerd start](../cli/provisionerd_start.md) command.
+[coder provisionerd start](../reference/cli/provisionerd_start.md) command.
 
 ## Authentication
 
 The provisioner daemon must authenticate with your Coder deployment.
 
 Set a
-[provisioner daemon pre-shared key (PSK)](../cli/server.md#--provisioner-daemon-psk)
+[provisioner daemon pre-shared key (PSK)](../reference/cli/server.md#--provisioner-daemon-psk)
 on the Coder server and start the provisioner with
 `coder provisionerd start --psk <your-psk>`. If you are
 [installing with Helm](../install/kubernetes.md#install-coder-with-helm), see
 the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
 > Coder still supports authenticating the provisioner daemon with a
-> [token](../cli.md#--token) from a user with the Template Admin or Owner role.
-> This method is deprecated in favor of the PSK, which only has permission to
-> access provisioner daemon APIs. We recommend migrating to the PSK as soon as
-> practical.
+> [token](../reference/cli/README.md#--token) from a user with the Template
+> Admin or Owner role. This method is deprecated in favor of the PSK, which only
+> has permission to access provisioner daemon APIs. We recommend migrating to
+> the PSK as soon as practical.
 
 ## Types of provisioners
 
 Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../cli/provisionerd_start.md#t---tag) when starting the
-provisioner daemon. Only users with at least the
+[`-tag=scope=<scope>`](../reference/cli/provisionerd_start.md#t---tag) when
+starting the provisioner daemon. Only users with at least the
 [Template Admin](../admin/users.md#roles) role or higher may create
 organization-scoped provisioner daemons.
 
 There are two exceptions:
 
-- [Built-in provisioners](../cli/server.md#provisioner-daemons) are always
-  organization-scoped.
+- [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are
+  always organization-scoped.
 - External provisioners started using a
-  [pre-shared key (PSK)](../cli/provisionerd_start.md#psk) are always
+  [pre-shared key (PSK)](../reference/cli/provisionerd_start.md#psk) are always
   organization-scoped.
 
 ### Organization-Scoped Provisioners
 
 **Organization-scoped Provisioners** can pick up build jobs created by any user.
 These provisioners always have the implicit tags `scope=organization owner=""`.
+
+```shell
+coder provisionerd start --org <organization_name>
+```
+
+If you omit the `--org` argument, the provisioner will be assigned to the
+default organization.
 
 ```shell
 coder provisionerd start
@@ -263,7 +270,7 @@ docker run --rm -it \
 
 As mentioned above, the Coder server will run built-in provisioners by default.
 This can be disabled with a server-wide
-[flag or environment variable](../cli/server.md#provisioner-daemons).
+[flag or environment variable](../reference/cli/server.md#provisioner-daemons).
 
 ```shell
 coder server --provisioner-daemons=0

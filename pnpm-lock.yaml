@@ -1,29 +1,24 @@
-lockfileVersion: '6.0'
+lockfileVersion: '9.0'
 
 settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-dependencies:
-  exec:
-    specifier: ^0.2.1
-    version: 0.2.1
+importers:
 
-devDependencies:
-  prettier:
-    specifier: 3.0.0
-    version: 3.0.0
+  .:
+    devDependencies:
+      prettier:
+        specifier: 3.3.3
+        version: 3.3.3
 
 packages:
 
-  /exec@0.2.1:
-    resolution: {integrity: sha512-lE5ZlJgRYh+rmwidatL2AqRA/U9IBoCpKlLriBmnfUIrV/Rj4oLjb63qZ57iBCHWi5j9IjLt5wOWkFYPiTfYAg==}
-    engines: {node: '>= v0.9.1'}
-    deprecated: deprecated in favor of builtin child_process.execFile
-    dev: false
-
-  /prettier@3.0.0:
-    resolution: {integrity: sha512-zBf5eHpwHOGPC47h0zrPyNn+eAEIdEzfywMoYn2XPi0P44Zp0tSq64rq0xAREh4auw2cJZHo9QUob+NqCQky4g==}
+  prettier@3.3.3:
+    resolution: {integrity: sha512-i2tDNA0O5IrMO757lfrdQZCc2jPNDVntV0m/+4whiDfWaTKfMNgR7Qz0NAeGz/nRqF4m5/6CLzbP4/liHt12Ew==}
     engines: {node: '>=14'}
     hasBin: true
-    dev: true
+
+snapshots:
+
+  prettier@3.3.3: {}

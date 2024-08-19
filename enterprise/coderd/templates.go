@@ -50,7 +50,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	// Perm check is the template update check.
 	// nolint:gocritic
-	groups, err := api.Database.GetGroupsByOrganizationID(dbauthz.AsSystemRestricted(ctx), template.OrganizationID)
+	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		OrganizationID: template.OrganizationID,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -64,8 +66,13 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 			httpapi.InternalServerError(rw, err)
 			return
 		}
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 
-		sdkGroups = append(sdkGroups, db2sdk.Group(group, members))
+		sdkGroups = append(sdkGroups, db2sdk.Group(group, members, int(memberCount)))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
@@ -121,7 +128,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 
 	groups := make([]codersdk.TemplateGroup, 0, len(dbGroups))
 	for _, group := range dbGroups {
-		var members []database.User
+		var members []database.GroupMember
 
 		// This is a bit of a hack. The caller might not have permission to do this,
 		// but they can read the acl list if the function got this far. So we let
@@ -133,8 +140,14 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
+		// nolint:gocritic
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), group.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 		groups = append(groups, codersdk.TemplateGroup{
-			Group: db2sdk.Group(group.Group, members),
+			Group: db2sdk.Group(group.Group, members, int(memberCount)),
 			Role:  convertToTemplateRole(group.Actions),
 		})
 	}

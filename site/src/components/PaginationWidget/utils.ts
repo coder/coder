@@ -4,7 +4,7 @@
  * {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/from#sequence_generator_range}
  */
 const range = (start: number, stop: number, step = 1) =>
-  Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step);
+	Array.from({ length: (stop - start) / step + 1 }, (_, i) => start + i * step);
 
 export const DEFAULT_RECORDS_PER_PAGE = 25;
 
@@ -26,54 +26,54 @@ const TOTAL_PAGE_BLOCKS = PAGES_TO_DISPLAY + 2;
  * into a UI-friendly list.
  */
 export const buildPagedList = (
-  numPages: number,
-  activePage: number,
+	numPages: number,
+	activePage: number,
 ): ("left" | "right" | number)[] => {
-  if (numPages <= TOTAL_PAGE_BLOCKS) {
-    return range(1, numPages);
-  }
+	if (numPages <= TOTAL_PAGE_BLOCKS) {
+		return range(1, numPages);
+	}
 
-  const isInvalidActivePage = activePage > numPages || activePage < 1;
-  const pageBeforeLast = numPages - 1;
-  const startPage = isInvalidActivePage
-    ? 1 + PAGE_NEIGHBORS
-    : Math.max(activePage - PAGE_NEIGHBORS, 2);
-  const endPage = isInvalidActivePage
-    ? numPages - PAGE_NEIGHBORS
-    : Math.min(activePage + PAGE_NEIGHBORS, pageBeforeLast);
+	const isInvalidActivePage = activePage > numPages || activePage < 1;
+	const pageBeforeLast = numPages - 1;
+	const startPage = isInvalidActivePage
+		? 1 + PAGE_NEIGHBORS
+		: Math.max(activePage - PAGE_NEIGHBORS, 2);
+	const endPage = isInvalidActivePage
+		? numPages - PAGE_NEIGHBORS
+		: Math.min(activePage + PAGE_NEIGHBORS, pageBeforeLast);
 
-  let pages: ReturnType<typeof buildPagedList> = range(startPage, endPage);
+	let pages: ReturnType<typeof buildPagedList> = range(startPage, endPage);
 
-  const singleSpillOffset = PAGES_TO_DISPLAY - pages.length - 1;
-  const hasLeftOverflow = startPage > 2;
-  const hasRightOverflow = endPage < pageBeforeLast;
+	const singleSpillOffset = PAGES_TO_DISPLAY - pages.length - 1;
+	const hasLeftOverflow = startPage > 2;
+	const hasRightOverflow = endPage < pageBeforeLast;
 
-  if (hasLeftOverflow && !hasRightOverflow) {
-    const extraPages = range(startPage - singleSpillOffset, startPage - 1);
-    pages = ["left", ...extraPages, ...pages];
-  } else if (!hasLeftOverflow && hasRightOverflow) {
-    const extraPages = range(endPage + 1, endPage + singleSpillOffset);
-    pages = [...pages, ...extraPages, "right"];
-  } else if (hasLeftOverflow && hasRightOverflow) {
-    pages = ["left", ...pages, "right"];
-  }
+	if (hasLeftOverflow && !hasRightOverflow) {
+		const extraPages = range(startPage - singleSpillOffset, startPage - 1);
+		pages = ["left", ...extraPages, ...pages];
+	} else if (!hasLeftOverflow && hasRightOverflow) {
+		const extraPages = range(endPage + 1, endPage + singleSpillOffset);
+		pages = [...pages, ...extraPages, "right"];
+	} else if (hasLeftOverflow && hasRightOverflow) {
+		pages = ["left", ...pages, "right"];
+	}
 
-  return [1, ...pages, numPages];
+	return [1, ...pages, numPages];
 };
 
 /**
  * Calculates the current offset from the start of a paginated dataset
  */
 export const getOffset = (page: number, pageSize: number): number => {
-  const pageIsValid = Number.isInteger(page) && page >= 1;
-  const pageToUse = pageIsValid ? page : 1;
+	const pageIsValid = Number.isInteger(page) && page >= 1;
+	const pageToUse = pageIsValid ? page : 1;
 
-  return (pageToUse - 1) * pageSize;
+	return (pageToUse - 1) * pageSize;
 };
 
 export const isNonInitialPage = (searchParams: URLSearchParams): boolean => {
-  const page = searchParams.get("page");
-  const conversion = Number(page);
+	const page = searchParams.get("page");
+	const conversion = Number(page);
 
-  return Number.isInteger(conversion) && conversion > 1;
+	return Number.isInteger(conversion) && conversion > 1;
 };

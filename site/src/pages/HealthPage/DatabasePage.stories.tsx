@@ -1,13 +1,13 @@
-import type { StoryObj, Meta } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { DatabasePage } from "./DatabasePage";
 import { generateMeta } from "./storybook";
 
 const meta: Meta = {
-  title: "pages/Health/Database",
-  ...generateMeta({
-    path: "/health/database",
-    element: <DatabasePage />,
-  }),
+	title: "pages/Health/Database",
+	...generateMeta({
+		path: "/health/database",
+		element: <DatabasePage />,
+	}),
 };
 
 export default meta;

@@ -1,46 +1,45 @@
 {
-  "name": "coder-docs-generator",
-  "private": true,
-  "scripts": {
-    "dev": "pnpm copy-images && next dev",
-    "build": "next build",
-    "start": "next start",
-    "export": "pnpm copy-images && next build",
-    "copy-images": "sh ./scripts/copyImages.sh",
-    "lint": "pnpm run lint:types",
-    "lint:types": "tsc --noEmit",
-    "format": "prettier --cache --write './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
-    "format:check": "prettier --cache --check './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
-  },
-  "dependencies": {
-    "@chakra-ui/react": "2.8.2",
-    "@emotion/react": "11.11.4",
-    "@emotion/styled": "11.11.5",
-    "@types/lodash": "4.14.196",
-    "archiver": "6.0.0",
-    "framer-motion": "^10.17.6",
-    "front-matter": "4.0.2",
-    "lodash": "4.17.21",
-    "next": "14.2.4",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "react-icons": "4.12.0",
-    "react-markdown": "9.0.1",
-    "rehype-raw": "7.0.0",
-    "remark-gfm": "4.0.0"
-  },
-  "devDependencies": {
-    "@types/lodash": "4.14.196",
-    "@types/node": "18.19.0",
-    "@types/react": "18.3.3",
-    "@types/react-dom": "18.3.0",
-    "eslint": "8.56.0",
-    "eslint-config-next": "14.0.1",
-    "prettier": "3.1.0",
-    "typescript": "5.3.2"
-  },
-  "engines": {
-    "npm": ">=9.0.0 <10.0.0",
-    "node": ">=18.0.0 <19.0.0"
-  }
+	"name": "coder-docs-generator",
+	"private": true,
+	"scripts": {
+		"dev": "pnpm copy-images && next dev",
+		"build": "next build",
+		"start": "next start",
+		"export": "pnpm copy-images && next build",
+		"copy-images": "sh ./scripts/copyImages.sh",
+		"lint": "pnpm run lint:types",
+		"lint:types": "tsc --noEmit",
+		"format": "prettier --cache --write './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
+		"format:check": "prettier --cache --check './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
+	},
+	"dependencies": {
+		"@chakra-ui/react": "2.8.2",
+		"@emotion/react": "11.11.4",
+		"@emotion/styled": "11.11.5",
+		"archiver": "6.0.2",
+		"framer-motion": "^10.17.6",
+		"front-matter": "4.0.2",
+		"lodash": "4.17.21",
+		"next": "14.2.4",
+		"react": "18.3.1",
+		"react-dom": "18.3.1",
+		"react-icons": "4.12.0",
+		"react-markdown": "9.0.1",
+		"rehype-raw": "7.0.0",
+		"remark-gfm": "4.0.0"
+	},
+	"devDependencies": {
+		"@types/lodash": "4.14.196",
+		"@types/node": "18.19.0",
+		"@types/react": "18.3.3",
+		"@types/react-dom": "18.3.0",
+		"eslint": "8.56.0",
+		"eslint-config-next": "14.0.1",
+		"prettier": "3.3.3",
+		"typescript": "5.5.4"
+	},
+	"engines": {
+		"npm": ">=9.0.0 <10.0.0",
+		"node": ">=18.0.0 <21.0.0"
+	}
 }

@@ -810,6 +810,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			ExpectedErrorContains: "",
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
 				assert.False(t, entitlements.Features[codersdk.FeatureMultipleOrganizations].Enabled, "multi-org only enabled for premium")
+				assert.False(t, entitlements.Features[codersdk.FeatureCustomRoles].Enabled, "custom-roles only enabled for premium")
 			},
 		},
 		{
@@ -822,6 +823,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			ExpectedErrorContains: "",
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
 				assert.True(t, entitlements.Features[codersdk.FeatureMultipleOrganizations].Enabled, "multi-org enabled for premium")
+				assert.True(t, entitlements.Features[codersdk.FeatureCustomRoles].Enabled, "custom-roles enabled for premium")
 			},
 		},
 	}

@@ -18,45 +18,55 @@ func TestAuditLogDescription(t *testing.T) {
 		{
 			name: "mainline",
 			alog: database.GetAuditLogsOffsetRow{
-				Action:       database.AuditActionCreate,
-				StatusCode:   200,
-				ResourceType: database.ResourceTypeWorkspace,
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionCreate,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeWorkspace,
+				},
 			},
 			want: "{user} created workspace {target}",
 		},
 		{
 			name: "unsuccessful",
 			alog: database.GetAuditLogsOffsetRow{
-				Action:       database.AuditActionCreate,
-				StatusCode:   400,
-				ResourceType: database.ResourceTypeWorkspace,
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionCreate,
+					StatusCode:   400,
+					ResourceType: database.ResourceTypeWorkspace,
+				},
 			},
 			want: "{user} unsuccessfully attempted to create workspace {target}",
 		},
 		{
 			name: "login",
 			alog: database.GetAuditLogsOffsetRow{
-				Action:       database.AuditActionLogin,
-				StatusCode:   200,
-				ResourceType: database.ResourceTypeApiKey,
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionLogin,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeApiKey,
+				},
 			},
 			want: "{user} logged in",
 		},
 		{
 			name: "unsuccessful_login",
 			alog: database.GetAuditLogsOffsetRow{
-				Action:       database.AuditActionLogin,
-				StatusCode:   401,
-				ResourceType: database.ResourceTypeApiKey,
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionLogin,
+					StatusCode:   401,
+					ResourceType: database.ResourceTypeApiKey,
+				},
 			},
 			want: "{user} unsuccessfully attempted to login",
 		},
 		{
 			name: "gitsshkey",
 			alog: database.GetAuditLogsOffsetRow{
-				Action:       database.AuditActionDelete,
-				StatusCode:   200,
-				ResourceType: database.ResourceTypeGitSshKey,
+				AuditLog: database.AuditLog{
+					Action:       database.AuditActionDelete,
+					StatusCode:   200,
+					ResourceType: database.ResourceTypeGitSshKey,
+				},
 			},
 			want: "{user} deleted the git ssh key",
 		},

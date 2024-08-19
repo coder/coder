@@ -60,12 +60,13 @@ func New() database.Store {
 			dbcryptKeys:               make([]database.DBCryptKey, 0),
 			externalAuthLinks:         make([]database.ExternalAuthLink, 0),
 			groups:                    make([]database.Group, 0),
-			groupMembers:              make([]database.GroupMember, 0),
+			groupMembers:              make([]database.GroupMemberTable, 0),
 			auditLogs:                 make([]database.AuditLog, 0),
 			frobulators:               make([]database.Frobulator, 0),
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
 			notificationMessages:      make([]database.NotificationMessage, 0),
+			notificationPreferences:   make([]database.NotificationPreference, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
@@ -156,11 +157,12 @@ type data struct {
 	files                         []database.File
 	externalAuthLinks             []database.ExternalAuthLink
 	gitSSHKey                     []database.GitSSHKey
-	groupMembers                  []database.GroupMember
+	groupMembers                  []database.GroupMemberTable
 	groups                        []database.Group
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	notificationMessages          []database.NotificationMessage
+	notificationPreferences       []database.NotificationPreference
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
@@ -723,18 +725,68 @@ func (q *FakeQuerier) getOrganizationMemberNoLock(orgID uuid.UUID) []database.Or
 	return members
 }
 
+var errUserDeleted = xerrors.New("user deleted")
+
+// getGroupMemberNoLock fetches a group member by user ID and group ID.
+func (q *FakeQuerier) getGroupMemberNoLock(ctx context.Context, userID, groupID uuid.UUID) (database.GroupMember, error) {
+	groupName := "Everyone"
+	orgID := groupID
+	groupIsEveryone := q.isEveryoneGroup(groupID)
+	if !groupIsEveryone {
+		group, err := q.getGroupByIDNoLock(ctx, groupID)
+		if err != nil {
+			return database.GroupMember{}, err
+		}
+		groupName = group.Name
+		orgID = group.OrganizationID
+	}
+
+	user, err := q.getUserByIDNoLock(userID)
+	if err != nil {
+		return database.GroupMember{}, err
+	}
+	if user.Deleted {
+		return database.GroupMember{}, errUserDeleted
+	}
+
+	return database.GroupMember{
+		UserID:                 user.ID,
+		UserEmail:              user.Email,
+		UserUsername:           user.Username,
+		UserHashedPassword:     user.HashedPassword,
+		UserCreatedAt:          user.CreatedAt,
+		UserUpdatedAt:          user.UpdatedAt,
+		UserStatus:             user.Status,
+		UserRbacRoles:          user.RBACRoles,
+		UserLoginType:          user.LoginType,
+		UserAvatarUrl:          user.AvatarURL,
+		UserDeleted:            user.Deleted,
+		UserLastSeenAt:         user.LastSeenAt,
+		UserQuietHoursSchedule: user.QuietHoursSchedule,
+		UserThemePreference:    user.ThemePreference,
+		UserName:               user.Name,
+		UserGithubComUserID:    user.GithubComUserID,
+		OrganizationID:         orgID,
+		GroupName:              groupName,
+		GroupID:                groupID,
+	}, nil
+}
+
 // getEveryoneGroupMembersNoLock fetches all the users in an organization.
-func (q *FakeQuerier) getEveryoneGroupMembersNoLock(orgID uuid.UUID) []database.User {
+func (q *FakeQuerier) getEveryoneGroupMembersNoLock(ctx context.Context, orgID uuid.UUID) []database.GroupMember {
 	var (
-		everyone   []database.User
+		everyone   []database.GroupMember
 		orgMembers = q.getOrganizationMemberNoLock(orgID)
 	)
 	for _, member := range orgMembers {
-		user, err := q.getUserByIDNoLock(member.UserID)
+		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, orgID)
+		if errors.Is(err, errUserDeleted) {
+			continue
+		}
 		if err != nil {
 			return nil
 		}
-		everyone = append(everyone, user)
+		everyone = append(everyone, groupMember)
 	}
 	return everyone
 }
@@ -1379,6 +1431,35 @@ func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 
 func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
+}
+
+func (q *FakeQuerier) DeleteCustomRole(_ context.Context, arg database.DeleteCustomRoleParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	initial := len(q.data.customRoles)
+	q.data.customRoles = slices.DeleteFunc(q.data.customRoles, func(role database.CustomRole) bool {
+		return role.OrganizationID.UUID == arg.OrganizationID.UUID && role.Name == arg.Name
+	})
+	if initial == len(q.data.customRoles) {
+		return sql.ErrNoRows
+	}
+
+	// Emulate the trigger 'remove_organization_member_custom_role'
+	for i, mem := range q.organizationMembers {
+		if mem.OrganizationID == arg.OrganizationID.UUID {
+			mem.Roles = slices.DeleteFunc(mem.Roles, func(role string) bool {
+				return role == arg.Name
+			})
+			q.organizationMembers[i] = mem
+		}
+	}
+	return nil
 }
 
 func (q *FakeQuerier) DeleteExternalAuthLink(_ context.Context, arg database.DeleteExternalAuthLinkParams) error {
@@ -2101,117 +2182,8 @@ func (q *FakeQuerier) GetApplicationName(_ context.Context) (string, error) {
 	return q.applicationName, nil
 }
 
-func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	if arg.LimitOpt == 0 {
-		// Default to 100 is set in the SQL query.
-		arg.LimitOpt = 100
-	}
-
-	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.LimitOpt)
-
-	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
-	for _, alog := range q.auditLogs {
-		if arg.OffsetOpt > 0 {
-			arg.OffsetOpt--
-			continue
-		}
-		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
-			continue
-		}
-		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
-			continue
-		}
-		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
-			continue
-		}
-		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
-			continue
-		}
-		if arg.Username != "" {
-			user, err := q.getUserByIDNoLock(alog.UserID)
-			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
-				continue
-			}
-		}
-		if arg.Email != "" {
-			user, err := q.getUserByIDNoLock(alog.UserID)
-			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
-				continue
-			}
-		}
-		if !arg.DateFrom.IsZero() {
-			if alog.Time.Before(arg.DateFrom) {
-				continue
-			}
-		}
-		if !arg.DateTo.IsZero() {
-			if alog.Time.After(arg.DateTo) {
-				continue
-			}
-		}
-		if arg.BuildReason != "" {
-			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(context.Background(), alog.ResourceID)
-			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
-				continue
-			}
-		}
-
-		user, err := q.getUserByIDNoLock(alog.UserID)
-		userValid := err == nil
-
-		org, _ := q.getOrganizationByIDNoLock(alog.OrganizationID)
-
-		logs = append(logs, database.GetAuditLogsOffsetRow{
-			ID:                      alog.ID,
-			RequestID:               alog.RequestID,
-			OrganizationID:          alog.OrganizationID,
-			OrganizationName:        org.Name,
-			OrganizationDisplayName: org.DisplayName,
-			OrganizationIcon:        org.Icon,
-			Ip:                      alog.Ip,
-			UserAgent:               alog.UserAgent,
-			ResourceType:            alog.ResourceType,
-			ResourceID:              alog.ResourceID,
-			ResourceTarget:          alog.ResourceTarget,
-			ResourceIcon:            alog.ResourceIcon,
-			Action:                  alog.Action,
-			Diff:                    alog.Diff,
-			StatusCode:              alog.StatusCode,
-			AdditionalFields:        alog.AdditionalFields,
-			UserID:                  alog.UserID,
-			UserUsername:            sql.NullString{String: user.Username, Valid: userValid},
-			UserName:                sql.NullString{String: user.Name, Valid: userValid},
-			UserEmail:               sql.NullString{String: user.Email, Valid: userValid},
-			UserCreatedAt:           sql.NullTime{Time: user.CreatedAt, Valid: userValid},
-			UserUpdatedAt:           sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
-			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
-			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
-			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
-			UserThemePreference:     sql.NullString{String: user.ThemePreference, Valid: userValid},
-			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
-			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
-			UserRoles:               user.RBACRoles,
-			Count:                   0,
-		})
-
-		if len(logs) >= int(arg.LimitOpt) {
-			break
-		}
-	}
-
-	count := int64(len(logs))
-	for i := range logs {
-		logs[i].Count = count
-	}
-
-	return logs, nil
+func (q *FakeQuerier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
+	return q.GetAuthorizedAuditLogsOffset(ctx, arg, nil)
 }
 
 func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
@@ -2573,54 +2545,70 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(_ context.Context) ([]database.GroupMember, error) {
+func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	out := make([]database.GroupMember, len(q.groupMembers))
-	copy(out, q.groupMembers)
-	return out, nil
+	members := make([]database.GroupMemberTable, 0, len(q.groupMembers))
+	members = append(members, q.groupMembers...)
+	for _, org := range q.organizations {
+		for _, user := range q.users {
+			members = append(members, database.GroupMemberTable{
+				UserID:  user.ID,
+				GroupID: org.ID,
+			})
+		}
+	}
+
+	var groupMembers []database.GroupMember
+	for _, member := range members {
+		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
+		if errors.Is(err, errUserDeleted) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		groupMembers = append(groupMembers, groupMember)
+	}
+
+	return groupMembers, nil
 }
 
-func (q *FakeQuerier) GetGroupMembersByGroupID(_ context.Context, id uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID) ([]database.GroupMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	if q.isEveryoneGroup(id) {
-		return q.getEveryoneGroupMembersNoLock(id), nil
+		return q.getEveryoneGroupMembersNoLock(ctx, id), nil
 	}
 
-	var members []database.GroupMember
+	var groupMembers []database.GroupMember
 	for _, member := range q.groupMembers {
+		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
+		if errors.Is(err, errUserDeleted) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
 		if member.GroupID == id {
-			members = append(members, member)
+			groupMembers = append(groupMembers, groupMember)
 		}
 	}
 
-	users := make([]database.User, 0, len(members))
+	return groupMembers, nil
+}
 
-	for _, member := range members {
-		for _, user := range q.users {
-			if user.ID == member.UserID && !user.Deleted {
-				users = append(users, user)
-				break
-			}
-		}
+func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	users, err := q.GetGroupMembersByGroupID(ctx, groupID)
+	if err != nil {
+		return 0, err
 	}
-
-	return users, nil
+	return int64(len(users)), nil
 }
 
-func (q *FakeQuerier) GetGroups(_ context.Context) ([]database.Group, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	out := make([]database.Group, len(q.groups))
-	copy(out, q.groups)
-	return out, nil
-}
-
-func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2628,34 +2616,38 @@ func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg da
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	var groupIds []uuid.UUID
-	for _, member := range q.groupMembers {
-		if member.UserID == arg.UserID {
-			groupIds = append(groupIds, member.GroupID)
+
+	groupIDs := make(map[uuid.UUID]struct{})
+	if arg.HasMemberID != uuid.Nil {
+		for _, member := range q.groupMembers {
+			if member.UserID == arg.HasMemberID {
+				groupIDs[member.GroupID] = struct{}{}
+			}
+		}
+
+		// Handle the everyone group
+		for _, orgMember := range q.organizationMembers {
+			if orgMember.UserID == arg.HasMemberID {
+				groupIDs[orgMember.OrganizationID] = struct{}{}
+			}
 		}
 	}
-	groups := []database.Group{}
+
+	filtered := make([]database.Group, 0)
 	for _, group := range q.groups {
-		if slices.Contains(groupIds, group.ID) && group.OrganizationID == arg.OrganizationID {
-			groups = append(groups, group)
+		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
+			continue
 		}
+
+		_, ok := groupIDs[group.ID]
+		if arg.HasMemberID != uuid.Nil && !ok {
+			continue
+		}
+
+		filtered = append(filtered, group)
 	}
 
-	return groups, nil
-}
-
-func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	groups := make([]database.Group, 0, len(q.groups))
-	for _, group := range q.groups {
-		if group.OrganizationID == id {
-			groups = append(groups, group)
-		}
-	}
-
-	return groups, nil
+	return filtered, nil
 }
 
 func (q *FakeQuerier) GetHealthSettings(_ context.Context) (string, error) {
@@ -2824,6 +2816,18 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	}
 
 	return out, nil
+}
+
+func (*FakeQuerier) GetNotificationTemplateByID(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return database.NotificationTemplate{}, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetNotificationTemplatesByKind(_ context.Context, _ database.NotificationTemplateKind) ([]database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return nil, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetNotificationsSettings(_ context.Context) (string, error) {
@@ -3318,6 +3322,12 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		if member.UserID != userID {
 			continue
 		}
+		if _, err := q.getOrganizationByIDNoLock(member.GroupID); err == nil {
+			// This should never happen, but it has been reported in customer deployments.
+			// The SQL handles this case, and omits `group_members` rows in the
+			// Everyone group. It counts these distinctly via `organization_members` table.
+			continue
+		}
 		for _, group := range q.groups {
 			if group.ID == member.GroupID {
 				sum += int64(group.QuotaAllowance)
@@ -3325,13 +3335,21 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 			}
 		}
 	}
-	// Grab the quota for the Everyone group.
-	for _, group := range q.groups {
-		if group.ID == group.OrganizationID {
-			sum += int64(group.QuotaAllowance)
-			break
+
+	// Grab the quota for the Everyone group iff the user is a member of
+	// said organization.
+	for _, mem := range q.organizationMembers {
+		if mem.UserID != userID {
+			continue
 		}
+
+		group, err := q.getGroupByIDNoLock(context.Background(), mem.OrganizationID)
+		if err != nil {
+			return -1, xerrors.Errorf("failed to get everyone group for org %q", mem.OrganizationID.String())
+		}
+		sum += int64(group.QuotaAllowance)
 	}
+
 	return sum, nil
 }
 
@@ -4987,6 +5005,22 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 	return uls, nil
 }
 
+func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.NotificationPreference, 0, len(q.notificationPreferences))
+	for _, np := range q.notificationPreferences {
+		if np.UserID != userID {
+			continue
+		}
+
+		out = append(out, np)
+	}
+
+	return out, nil
+}
+
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6161,6 +6195,37 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	return alog, nil
 }
 
+func (q *FakeQuerier) InsertCustomRole(_ context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CustomRole{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for i := range q.customRoles {
+		if strings.EqualFold(q.customRoles[i].Name, arg.Name) &&
+			q.customRoles[i].OrganizationID.UUID == arg.OrganizationID.UUID {
+			return database.CustomRole{}, errUniqueConstraint
+		}
+	}
+
+	role := database.CustomRole{
+		ID:              uuid.New(),
+		Name:            arg.Name,
+		DisplayName:     arg.DisplayName,
+		OrganizationID:  arg.OrganizationID,
+		SitePermissions: arg.SitePermissions,
+		OrgPermissions:  arg.OrgPermissions,
+		UserPermissions: arg.UserPermissions,
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+	}
+	q.customRoles = append(q.customRoles, role)
+
+	return role, nil
+}
+
 func (q *FakeQuerier) InsertDBCryptKey(_ context.Context, arg database.InsertDBCryptKeyParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -6328,7 +6393,7 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	}
 
 	//nolint:gosimple
-	q.groupMembers = append(q.groupMembers, database.GroupMember{
+	q.groupMembers = append(q.groupMembers, database.GroupMemberTable{
 		GroupID: arg.GroupID,
 		UserID:  arg.UserID,
 	})
@@ -6868,7 +6933,7 @@ func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.Ins
 	}
 
 	for _, groupID := range groupIDs {
-		q.groupMembers = append(q.groupMembers, database.GroupMember{
+		q.groupMembers = append(q.groupMembers, database.GroupMemberTable{
 			UserID:  arg.UserID,
 			GroupID: groupID,
 		})
@@ -7550,6 +7615,29 @@ func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateCustomRole(_ context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CustomRole{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for i := range q.customRoles {
+		if strings.EqualFold(q.customRoles[i].Name, arg.Name) &&
+			q.customRoles[i].OrganizationID.UUID == arg.OrganizationID.UUID {
+			q.customRoles[i].DisplayName = arg.DisplayName
+			q.customRoles[i].OrganizationID = arg.OrganizationID
+			q.customRoles[i].SitePermissions = arg.SitePermissions
+			q.customRoles[i].OrgPermissions = arg.OrgPermissions
+			q.customRoles[i].UserPermissions = arg.UserPermissions
+			q.customRoles[i].UpdatedAt = dbtime.Now()
+			return q.customRoles[i], nil
+		}
+	}
+	return database.CustomRole{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -7671,6 +7759,12 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	}
 
 	return database.OrganizationMember{}, sql.ErrNoRows
+}
+
+func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
+	// Not implementing this function because it relies on state in the database which is created with migrations.
+	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
+	return database.NotificationTemplate{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpdateOAuth2ProviderAppByID(_ context.Context, arg database.UpdateOAuth2ProviderAppByIDParams) (database.OAuth2ProviderApp, error) {
@@ -7874,6 +7968,10 @@ func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 		return replica, nil
 	}
 	return database.Replica{}, sql.ErrNoRows
+}
+
+func (*FakeQuerier) UpdateTailnetPeerStatusByCoordinator(context.Context, database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	return ErrUnimplemented
 }
 
 func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) error {
@@ -8138,6 +8236,26 @@ func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, id uuid.UUID) err
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateUserGithubComUserID(_ context.Context, arg database.UpdateUserGithubComUserIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.GithubComUserID = arg.GithubComUserID
+		q.users[i] = user
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -8245,6 +8363,57 @@ func (q *FakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 		}
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserNotificationPreferences(_ context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return 0, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var upserted int64
+	for i := range arg.NotificationTemplateIds {
+		var (
+			found      bool
+			templateID = arg.NotificationTemplateIds[i]
+			disabled   = arg.Disableds[i]
+		)
+
+		for j, np := range q.notificationPreferences {
+			if np.UserID != arg.UserID {
+				continue
+			}
+
+			if np.NotificationTemplateID != templateID {
+				continue
+			}
+
+			np.Disabled = disabled
+			np.UpdatedAt = dbtime.Now()
+			q.notificationPreferences[j] = np
+
+			upserted++
+			found = true
+			break
+		}
+
+		if !found {
+			np := database.NotificationPreference{
+				Disabled:               disabled,
+				UserID:                 arg.UserID,
+				NotificationTemplateID: templateID,
+				CreatedAt:              dbtime.Now(),
+				UpdatedAt:              dbtime.Now(),
+			}
+			q.notificationPreferences = append(q.notificationPreferences, np)
+			upserted++
+		}
+	}
+
+	return upserted, nil
 }
 
 func (q *FakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
@@ -8815,42 +8984,6 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 
 	q.applicationName = data
 	return nil
-}
-
-func (q *FakeQuerier) UpsertCustomRole(_ context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.CustomRole{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	for i := range q.customRoles {
-		if strings.EqualFold(q.customRoles[i].Name, arg.Name) {
-			q.customRoles[i].DisplayName = arg.DisplayName
-			q.customRoles[i].OrganizationID = arg.OrganizationID
-			q.customRoles[i].SitePermissions = arg.SitePermissions
-			q.customRoles[i].OrgPermissions = arg.OrgPermissions
-			q.customRoles[i].UserPermissions = arg.UserPermissions
-			q.customRoles[i].UpdatedAt = dbtime.Now()
-			return q.customRoles[i], nil
-		}
-	}
-
-	role := database.CustomRole{
-		ID:              uuid.New(),
-		Name:            arg.Name,
-		DisplayName:     arg.DisplayName,
-		OrganizationID:  arg.OrganizationID,
-		SitePermissions: arg.SitePermissions,
-		OrgPermissions:  arg.OrgPermissions,
-		UserPermissions: arg.UserPermissions,
-		CreatedAt:       dbtime.Now(),
-		UpdatedAt:       dbtime.Now(),
-	}
-	q.customRoles = append(q.customRoles, role)
-
-	return role, nil
 }
 
 func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
@@ -9664,6 +9797,11 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		if arg.Deprecated.Valid && arg.Deprecated.Bool == (template.Deprecated != "") {
 			continue
 		}
+		if arg.FuzzyName != "" {
+			if !strings.Contains(strings.ToLower(template.Name), strings.ToLower(arg.FuzzyName)) {
+				continue
+			}
+		}
 
 		if len(arg.IDs) > 0 {
 			match := false
@@ -10123,4 +10261,120 @@ func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUs
 		filteredUsers = append(filteredUsers, user)
 	}
 	return filteredUsers, nil
+}
+
+func (q *FakeQuerier) GetAuthorizedAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams, prepared rbac.PreparedAuthorized) ([]database.GetAuditLogsOffsetRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	// Call this to match the same function calls as the SQL implementation.
+	// It functionally does nothing for filtering.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.AuditLogConverter(),
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if arg.LimitOpt == 0 {
+		// Default to 100 is set in the SQL query.
+		arg.LimitOpt = 100
+	}
+
+	logs := make([]database.GetAuditLogsOffsetRow, 0, arg.LimitOpt)
+
+	// q.auditLogs are already sorted by time DESC, so no need to sort after the fact.
+	for _, alog := range q.auditLogs {
+		if arg.OffsetOpt > 0 {
+			arg.OffsetOpt--
+			continue
+		}
+		if arg.OrganizationID != uuid.Nil && arg.OrganizationID != alog.OrganizationID {
+			continue
+		}
+		if arg.Action != "" && !strings.Contains(string(alog.Action), arg.Action) {
+			continue
+		}
+		if arg.ResourceType != "" && !strings.Contains(string(alog.ResourceType), arg.ResourceType) {
+			continue
+		}
+		if arg.ResourceID != uuid.Nil && alog.ResourceID != arg.ResourceID {
+			continue
+		}
+		if arg.Username != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Username, user.Username) {
+				continue
+			}
+		}
+		if arg.Email != "" {
+			user, err := q.getUserByIDNoLock(alog.UserID)
+			if err == nil && !strings.EqualFold(arg.Email, user.Email) {
+				continue
+			}
+		}
+		if !arg.DateFrom.IsZero() {
+			if alog.Time.Before(arg.DateFrom) {
+				continue
+			}
+		}
+		if !arg.DateTo.IsZero() {
+			if alog.Time.After(arg.DateTo) {
+				continue
+			}
+		}
+		if arg.BuildReason != "" {
+			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(context.Background(), alog.ResourceID)
+			if err == nil && !strings.EqualFold(arg.BuildReason, string(workspaceBuild.Reason)) {
+				continue
+			}
+		}
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, alog.RBACObject()) != nil {
+			continue
+		}
+
+		user, err := q.getUserByIDNoLock(alog.UserID)
+		userValid := err == nil
+
+		org, _ := q.getOrganizationByIDNoLock(alog.OrganizationID)
+
+		cpy := alog
+		logs = append(logs, database.GetAuditLogsOffsetRow{
+			AuditLog:                cpy,
+			OrganizationName:        org.Name,
+			OrganizationDisplayName: org.DisplayName,
+			OrganizationIcon:        org.Icon,
+			UserUsername:            sql.NullString{String: user.Username, Valid: userValid},
+			UserName:                sql.NullString{String: user.Name, Valid: userValid},
+			UserEmail:               sql.NullString{String: user.Email, Valid: userValid},
+			UserCreatedAt:           sql.NullTime{Time: user.CreatedAt, Valid: userValid},
+			UserUpdatedAt:           sql.NullTime{Time: user.UpdatedAt, Valid: userValid},
+			UserLastSeenAt:          sql.NullTime{Time: user.LastSeenAt, Valid: userValid},
+			UserLoginType:           database.NullLoginType{LoginType: user.LoginType, Valid: userValid},
+			UserDeleted:             sql.NullBool{Bool: user.Deleted, Valid: userValid},
+			UserThemePreference:     sql.NullString{String: user.ThemePreference, Valid: userValid},
+			UserQuietHoursSchedule:  sql.NullString{String: user.QuietHoursSchedule, Valid: userValid},
+			UserStatus:              database.NullUserStatus{UserStatus: user.Status, Valid: userValid},
+			UserRoles:               user.RBACRoles,
+			Count:                   0,
+		})
+
+		if len(logs) >= int(arg.LimitOpt) {
+			break
+		}
+	}
+
+	count := int64(len(logs))
+	for i := range logs {
+		logs[i].Count = count
+	}
+
+	return logs, nil
 }

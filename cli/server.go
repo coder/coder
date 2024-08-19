@@ -631,7 +631,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 								"new version of coder available",
 								slog.F("new_version", r.Version),
 								slog.F("url", r.URL),
-								slog.F("upgrade_instructions", "https://coder.com/docs/coder-oss/latest/admin/upgrade"),
+								slog.F("upgrade_instructions", "https://coder.com/docs/admin/upgrade"),
 							)
 						}
 					},
@@ -993,9 +993,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if experiments.Enabled(codersdk.ExperimentNotifications) {
 				cfg := options.DeploymentValues.Notifications
 				metrics := notifications.NewMetrics(options.PrometheusRegistry)
+				helpers := templateHelpers(options)
 
 				// The enqueuer is responsible for enqueueing notifications to the given store.
-				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, templateHelpers(options), logger.Named("notifications.enqueuer"))
+				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
 				}
@@ -1004,7 +1005,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// The notification manager is responsible for:
 				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
 				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, metrics, logger.Named("notifications.manager"))
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}
@@ -1291,7 +1292,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 // We can later use this to inject whitelabel fields when app name / logo URL are overridden.
 func templateHelpers(options *coderd.Options) map[string]any {
 	return map[string]any{
-		"base_url": func() string { return options.AccessURL.String() },
+		"base_url":     func() string { return options.AccessURL.String() },
+		"current_year": func() string { return strconv.Itoa(time.Now().Year()) },
 	}
 }
 

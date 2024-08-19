@@ -254,28 +254,28 @@ The raw logs will look something like this:
 
 ```json
 {
-  "ts": "2022-02-28T20:29:38.038452202Z",
-  "level": "INFO",
-  "msg": "exec",
-  "fields": {
-    "labels": {
-      "user_email": "jessie@coder.com",
-      "user_id": "5e876e9a-121663f01ebd1522060d5270",
-      "username": "jessie",
-      "workspace_id": "621d2e52-a6987ef6c56210058ee2593c",
-      "workspace_name": "main"
-    },
-    "cmdline": "uname -a",
-    "event": {
-      "filename": "/usr/bin/uname",
-      "argv": ["uname", "-a"],
-      "truncated": false,
-      "pid": 920684,
-      "uid": 101000,
-      "gid": 101000,
-      "comm": "bash"
-    }
-  }
+	"ts": "2022-02-28T20:29:38.038452202Z",
+	"level": "INFO",
+	"msg": "exec",
+	"fields": {
+		"labels": {
+			"user_email": "jessie@coder.com",
+			"user_id": "5e876e9a-121663f01ebd1522060d5270",
+			"username": "jessie",
+			"workspace_id": "621d2e52-a6987ef6c56210058ee2593c",
+			"workspace_name": "main"
+		},
+		"cmdline": "uname -a",
+		"event": {
+			"filename": "/usr/bin/uname",
+			"argv": ["uname", "-a"],
+			"truncated": false,
+			"pid": 920684,
+			"uid": 101000,
+			"gid": 101000,
+			"comm": "bash"
+		}
+	}
 }
 ```
 

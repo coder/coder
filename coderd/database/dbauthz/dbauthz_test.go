@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 
@@ -80,7 +81,7 @@ func TestInTX(t *testing.T) {
 
 	db := dbmem.New()
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
-		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: xerrors.New("custom error")},
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.New("custom error")),
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
@@ -109,7 +110,7 @@ func TestNew(t *testing.T) {
 		db  = dbmem.New()
 		exp = dbgen.Workspace(t, db, database.Workspace{})
 		rec = &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		subj = rbac.Subject{}
 		ctx  = dbauthz.As(context.Background(), rbac.Subject{})
@@ -134,7 +135,7 @@ func TestNew(t *testing.T) {
 func TestDBAuthzRecursive(t *testing.T) {
 	t.Parallel()
 	q := dbauthz.New(dbmem.New(), &coderdtest.RecordingAuthorizer{
-		Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+		Wrapped: &coderdtest.FakeAuthorizer{},
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
@@ -268,6 +269,13 @@ func (s *MethodTestSuite) TestAuditLogs() {
 			LimitOpt: 10,
 		}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
 	}))
+	s.Run("GetAuthorizedAuditLogsOffset", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
+		check.Args(database.GetAuditLogsOffsetParams{
+			LimitOpt: 10,
+		}, emptyPreparedAuthorized{}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestFile() {
@@ -297,8 +305,10 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 	s.Run("DeleteGroupMemberFromGroup", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		m := dbgen.GroupMember(s.T(), db, database.GroupMember{
+		u := dbgen.User(s.T(), db, database.User{})
+		m := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{
 			GroupID: g.ID,
+			UserID:  u.ID,
 		})
 		check.Args(database.DeleteGroupMemberFromGroupParams{
 			UserID:  m.UserID,
@@ -318,24 +328,35 @@ func (s *MethodTestSuite) TestGroup() {
 	}))
 	s.Run("GetGroupMembersByGroupID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		u := dbgen.User(s.T(), db, database.User{})
+		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
+		check.Args(g.ID).Asserts(gm, policy.ActionRead)
+	}))
+	s.Run("GetGroupMembersCountByGroupID", s.Subtest(func(db database.Store, check *expects) {
+		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(g.ID).Asserts(g, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
+		g := dbgen.Group(s.T(), db, database.Group{})
+		u := dbgen.User(s.T(), db, database.User{})
+		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
 		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("System/GetGroups", s.Subtest(func(db database.Store, check *expects) {
+		_ = dbgen.Group(s.T(), db, database.Group{})
+		check.Args(database.GetGroupsParams{}).
+			Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetGroups", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.Group(s.T(), db, database.Group{})
-		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
-	s.Run("GetGroupsByOrganizationAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
-		gm := dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g.ID})
-		check.Args(database.GetGroupsByOrganizationAndUserIDParams{
+		u := dbgen.User(s.T(), db, database.User{})
+		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
+		check.Args(database.GetGroupsParams{
 			OrganizationID: g.OrganizationID,
-			UserID:         gm.UserID,
-		}).Asserts(g, policy.ActionRead)
+			HasMemberID:    gm.UserID,
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead, g, policy.ActionRead).
+			// Fail the system resource skip
+			FailSystemObjectChecks()
 	}))
 	s.Run("InsertAllUsersGroup", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -360,7 +381,7 @@ func (s *MethodTestSuite) TestGroup() {
 		u1 := dbgen.User(s.T(), db, database.User{})
 		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
 		check.Args(database.InsertUserGroupsByNameParams{
 			OrganizationID: o.ID,
 			UserID:         u1.ID,
@@ -372,8 +393,8 @@ func (s *MethodTestSuite) TestGroup() {
 		u1 := dbgen.User(s.T(), db, database.User{})
 		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g1.ID, UserID: u1.ID})
-		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{GroupID: g2.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
 		check.Args(u1.ID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateGroupByID", s.Subtest(func(db database.Store, check *expects) {
@@ -579,12 +600,16 @@ func (s *MethodTestSuite) TestLicense() {
 }
 
 func (s *MethodTestSuite) TestOrganization() {
-	s.Run("GetGroupsByOrganizationID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("ByOrganization/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		a := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		b := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
-		check.Args(o.ID).Asserts(a, policy.ActionRead, b, policy.ActionRead).
-			Returns([]database.Group{a, b})
+		check.Args(database.GetGroupsParams{
+			OrganizationID: o.ID,
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).
+			Returns([]database.Group{a, b}).
+			// Fail the system check shortcut
+			FailSystemObjectChecks()
 	}))
 	s.Run("GetOrganizationByID", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -1098,6 +1123,12 @@ func (s *MethodTestSuite) TestUser() {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(u.ID).Asserts(u, policy.ActionDelete).Returns()
 	}))
+	s.Run("UpdateUserGithubComUserID", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserGithubComUserIDParams{
+			ID: u.ID,
+		}).Asserts(u, policy.ActionUpdatePersonal)
+	}))
 	s.Run("UpdateUserHashedPassword", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserHashedPasswordParams{
@@ -1233,9 +1264,102 @@ func (s *MethodTestSuite) TestUser() {
 	s.Run("CustomRoles", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.CustomRolesParams{}).Asserts(rbac.ResourceAssignRole, policy.ActionRead).Returns([]database.CustomRole{})
 	}))
-	s.Run("Blank/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("Organization/DeleteCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+		})
+		check.Args(database.DeleteCustomRoleParams{
+			Name:           customRole.Name,
+			OrganizationID: customRole.OrganizationID,
+		}).Asserts(
+			rbac.ResourceAssignOrgRole.InOrg(customRole.OrganizationID.UUID), policy.ActionDelete)
+	}))
+	s.Run("Site/DeleteCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.Nil,
+				Valid: false,
+			},
+		})
+		check.Args(database.DeleteCustomRoleParams{
+			Name: customRole.Name,
+		}).Asserts(
+			rbac.ResourceAssignRole, policy.ActionDelete)
+	}))
+	s.Run("Blank/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{})
 		// Blank is no perms in the role
-		check.Args(database.UpsertCustomRoleParams{
+		check.Args(database.UpdateCustomRoleParams{
+			Name:            customRole.Name,
+			DisplayName:     "Test Name",
+			SitePermissions: nil,
+			OrgPermissions:  nil,
+			UserPermissions: nil,
+		}).Asserts(rbac.ResourceAssignRole, policy.ActionUpdate)
+	}))
+	s.Run("SitePermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  uuid.Nil,
+				Valid: false,
+			},
+		})
+		check.Args(database.UpdateCustomRoleParams{
+			Name:           customRole.Name,
+			OrganizationID: customRole.OrganizationID,
+			DisplayName:    "Test Name",
+			SitePermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead, codersdk.ActionUpdate, codersdk.ActionDelete, codersdk.ActionViewInsights},
+			}), convertSDKPerm),
+			OrgPermissions: nil,
+			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceWorkspace: {codersdk.ActionRead},
+			}), convertSDKPerm),
+		}).Asserts(
+			// First check
+			rbac.ResourceAssignRole, policy.ActionUpdate,
+			// Escalation checks
+			rbac.ResourceTemplate, policy.ActionCreate,
+			rbac.ResourceTemplate, policy.ActionRead,
+			rbac.ResourceTemplate, policy.ActionUpdate,
+			rbac.ResourceTemplate, policy.ActionDelete,
+			rbac.ResourceTemplate, policy.ActionViewInsights,
+
+			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
+		)
+	}))
+	s.Run("OrgPermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		orgID := uuid.New()
+		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
+			OrganizationID: uuid.NullUUID{
+				UUID:  orgID,
+				Valid: true,
+			},
+		})
+
+		check.Args(database.UpdateCustomRoleParams{
+			Name:            customRole.Name,
+			DisplayName:     "Test Name",
+			OrganizationID:  customRole.OrganizationID,
+			SitePermissions: nil,
+			OrgPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead},
+			}), convertSDKPerm),
+			UserPermissions: nil,
+		}).Asserts(
+			// First check
+			rbac.ResourceAssignOrgRole.InOrg(orgID), policy.ActionUpdate,
+			// Escalation checks
+			rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate,
+			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,
+		)
+	}))
+	s.Run("Blank/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		// Blank is no perms in the role
+		check.Args(database.InsertCustomRoleParams{
 			Name:            "test",
 			DisplayName:     "Test Name",
 			SitePermissions: nil,
@@ -1243,8 +1367,8 @@ func (s *MethodTestSuite) TestUser() {
 			UserPermissions: nil,
 		}).Asserts(rbac.ResourceAssignRole, policy.ActionCreate)
 	}))
-	s.Run("SitePermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpsertCustomRoleParams{
+	s.Run("SitePermissions/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertCustomRoleParams{
 			Name:        "test",
 			DisplayName: "Test Name",
 			SitePermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
@@ -1267,9 +1391,9 @@ func (s *MethodTestSuite) TestUser() {
 			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
 		)
 	}))
-	s.Run("OrgPermissions/UpsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("OrgPermissions/InsertCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
-		check.Args(database.UpsertCustomRoleParams{
+		check.Args(database.InsertCustomRoleParams{
 			Name:        "test",
 			DisplayName: "Test Name",
 			OrganizationID: uuid.NullUUID{
@@ -1280,17 +1404,13 @@ func (s *MethodTestSuite) TestUser() {
 			OrgPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
 				codersdk.ResourceTemplate: {codersdk.ActionCreate, codersdk.ActionRead},
 			}), convertSDKPerm),
-			UserPermissions: db2sdk.List(codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
-				codersdk.ResourceWorkspace: {codersdk.ActionRead},
-			}), convertSDKPerm),
+			UserPermissions: nil,
 		}).Asserts(
 			// First check
 			rbac.ResourceAssignOrgRole.InOrg(orgID), policy.ActionCreate,
 			// Escalation checks
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate,
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,
-
-			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
 		)
 	}))
 }
@@ -2039,6 +2159,11 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate).
 			Errors(dbmem.ErrUnimplemented)
 	}))
+	s.Run("UpdateTailnetPeerStatusByCoordinator", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.UpdateTailnetPeerStatusByCoordinatorParams{}).
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
 }
 
 func (s *MethodTestSuite) TestDBCrypt() {
@@ -2548,6 +2673,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			AgentID:     uuid.New(),
 		}).Asserts(tpl, policy.ActionCreate)
 	}))
+}
+
+func (s *MethodTestSuite) TestNotifications() {
+	// System functions
 	s.Run("AcquireNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: update this test once we have a specific role for notifications
 		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
@@ -2583,6 +2712,45 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Limit:  10,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+
+	// Notification templates
+	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+	s.Run("GetNotificationTemplatesByKind", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.NotificationTemplateKindSystem).
+			Asserts().
+			Errors(dbmem.ErrUnimplemented)
+
+		// TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
+	}))
+	s.Run("UpdateNotificationTemplateMethodByID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpdateNotificationTemplateMethodByIDParams{
+			Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true},
+			ID:     notifications.TemplateWorkspaceDormant,
+		}).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate).
+			Errors(dbmem.ErrUnimplemented)
+	}))
+
+	// Notification preferences
+	s.Run("GetUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(user.ID).
+			Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionRead)
+	}))
+	s.Run("UpdateUserNotificationPreferences", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserNotificationPreferencesParams{
+			UserID:                  user.ID,
+			NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceAutoUpdated, notifications.TemplateWorkspaceDeleted},
+			Disableds:               []bool{true, false},
+		}).Asserts(rbac.ResourceNotificationPreference.WithOwner(user.ID.String()), policy.ActionUpdate)
+	}))
+}
+
+func (s *MethodTestSuite) TestFrobulators() {
 	s.Run("GetAllFrobulators", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceFrobulator, policy.ActionRead)
 	}))

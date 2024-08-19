@@ -4,7 +4,8 @@ Coder includes an operator-friendly deployment health page that provides a
 number of details about the health of your Coder deployment.
 
 You can view it at `https://${CODER_URL}/health`, or you can alternatively view
-the [JSON response directly](../api/debug.md#debug-info-deployment-health).
+the
+[JSON response directly](../reference/api/debug.md#debug-info-deployment-health).
 
 The deployment health page is broken up into the following sections:
 
@@ -106,8 +107,8 @@ query fails.
 _Database Latency High_
 
 **Problem:** This code is returned if the median latency is higher than the
-[configured threshold](../cli/server.md#--health-check-threshold-database). This
-may not be an error as such, but is an indication of a potential issue.
+[configured threshold](../reference/cli/server.md#--health-check-threshold-database).
+This may not be an error as such, but is an indication of a potential issue.
 
 **Solution:** Investigate the sizing of the configured database with regard to
 Coder's current activity and usage. It may be necessary to increase the
@@ -117,18 +118,19 @@ configured threshold to a higher value (this will not address the root cause).
 > [!TIP]
 >
 > - You can enable
->   [detailed database metrics](../cli/server.md#--prometheus-collect-db-metrics)
+>   [detailed database metrics](../reference/cli/server.md#--prometheus-collect-db-metrics)
 >   in Coder's Prometheus endpoint.
-> - If you have [tracing enabled](../cli/server.md#--trace), these traces may
->   also contain useful information regarding Coder's database activity.
+> - If you have [tracing enabled](../reference/cli/server.md#--trace), these
+>   traces may also contain useful information regarding Coder's database
+>   activity.
 
 ## DERP
 
 Coder workspace agents may use
 [DERP (Designated Encrypted Relay for Packets)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp)
 to communicate with Coder. This requires connectivity to a number of configured
-[DERP servers](../cli/server.md#--derp-config-path) which are used to relay
-traffic between Coder and workspace agents. Coder periodically queries the
+[DERP servers](../reference/cli/server.md#--derp-config-path) which are used to
+relay traffic between Coder and workspace agents. Coder periodically queries the
 health of its configured DERP servers and may return one or more of the
 following:
 
@@ -146,7 +148,7 @@ misconfigured reverse HTTP proxy. Additionally, while workspace users should
 still be able to reach their workspaces, connection performance may be degraded.
 
 > **Note:** This may also be shown if you have
-> [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
+> [forced websocket connections for DERP](../reference/cli/server.md#--derp-force-websockets).
 
 **Solution:** ensure that any proxies you use allow connection upgrade with the
 `Upgrade: derp` header.
@@ -179,9 +181,9 @@ to establish [direct connections](../networking/stun.md). Without at least one
 working STUN server, direct connections may not be possible.
 
 **Solution:** Ensure that the
-[configured STUN severs](../cli/server.md#derp-server-stun-addresses) are
-reachable from Coder and that UDP traffic can be sent/received on the configured
-port.
+[configured STUN severs](../reference/cli/server.md#derp-server-stun-addresses)
+are reachable from Coder and that UDP traffic can be sent/received on the
+configured port.
 
 ### ESTUN02
 
@@ -292,8 +294,8 @@ be built until there is at least one provisioner daemon running.
 If you are using
 [External Provisioner Daemons](./provisioners.md#external-provisioners), ensure
 that they are able to successfully connect to Coder. Otherwise, ensure
-[`--provisioner-daemons`](../cli/server.md#provisioner-daemons) is set to a
-value greater than 0.
+[`--provisioner-daemons`](../reference/cli/server.md#provisioner-daemons) is set
+to a value greater than 0.
 
 > Note: This may be a transient issue if you are currently in the process of
 > updating your deployment.
