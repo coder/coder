@@ -6,6 +6,7 @@ import darkBlue from "./darkBlue";
 import type { NewTheme } from "./experimental";
 import type { ExternalImageModeStyles } from "./externalImages";
 import light from "./light";
+import type { Permission } from "./permission";
 import type { Roles } from "./roles";
 
 export interface Theme extends Omit<MuiTheme, "palette"> {

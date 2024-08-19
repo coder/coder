@@ -1,14 +1,15 @@
-import type { Interpolation, Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
+import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { Role } from "api/typesGenerated";
+import type { Permission, Role } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import {
@@ -19,6 +20,12 @@ import {
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { Paywall } from "components/Paywall/Paywall";
+import { Pill } from "components/Pill/Pill";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -42,7 +49,6 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 }) => {
 	const isLoading = roles === undefined;
 	const isEmpty = Boolean(roles && roles.length === 0);
-
 	return (
 		<>
 			<ChooseOne>
@@ -58,8 +64,8 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 						<Table>
 							<TableHead>
 								<TableRow>
-									<TableCell width="50%">Name</TableCell>
-									<TableCell width="49%">Permissions</TableCell>
+									<TableCell width="40%">Name</TableCell>
+									<TableCell width="59%">Permissions</TableCell>
 									<TableCell width="1%" />
 								</TableRow>
 							</TableHead>
@@ -116,6 +122,10 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	);
 };
 
+function getUniqueResourceTypes(jsonObject: readonly Permission[]) {
+	const resourceTypes = jsonObject.map((item) => item.resource_type);
+	return [...new Set(resourceTypes)];
+}
 interface RoleRowProps {
 	role: Role;
 	onDelete: () => void;
@@ -125,12 +135,28 @@ interface RoleRowProps {
 const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
 	const navigate = useNavigate();
 
+	const resourceTypes: string[] = getUniqueResourceTypes(
+		role.organization_permissions,
+	);
+
 	return (
 		<TableRow data-testid={`role-${role.name}`}>
 			<TableCell>{role.display_name || role.name}</TableCell>
 
-			<TableCell css={styles.secondary}>
-				{role.organization_permissions.length}
+			<TableCell>
+				<Stack direction="row" spacing={1}>
+					<PermissionsPill
+						resource={resourceTypes[0]}
+						permissions={role.organization_permissions}
+					/>
+
+					{resourceTypes.length > 1 && (
+						<OverflowPermissionPill
+							resources={resourceTypes.slice(1)}
+							permissions={role.organization_permissions.slice(1)}
+						/>
+					)}
+				</Stack>
 			</TableCell>
 
 			<TableCell>
@@ -176,9 +202,97 @@ const TableLoader = () => {
 	);
 };
 
+interface PermissionPillProps {
+	resource: string;
+	permissions: readonly Permission[];
+}
+
+const PermissionsPill: FC<PermissionPillProps> = ({
+	resource,
+	permissions,
+}) => {
+	const actions = permissions.filter((p) => {
+		if (resource === p.resource_type) {
+			return p.action;
+		}
+	});
+
+	return (
+		<Pill css={styles.permissionPill}>
+			<b>{resource}</b>: {actions.map((p) => p.action).join(", ")}
+		</Pill>
+	);
+};
+
+type OverflowPermissionPillProps = {
+	resources: string[];
+	permissions: readonly Permission[];
+};
+
+const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
+	resources,
+	permissions,
+}) => {
+	const theme = useTheme();
+
+	return (
+		<Popover mode="hover">
+			<PopoverTrigger>
+				<Pill
+					css={{
+						backgroundColor: theme.palette.background.paper,
+						borderColor: theme.palette.divider,
+					}}
+				>
+					+{resources.length} more
+				</Pill>
+			</PopoverTrigger>
+
+			<PopoverContent
+				disableRestoreFocus
+				disableScrollLock
+				css={{
+					".MuiPaper-root": {
+						display: "flex",
+						flexFlow: "column wrap",
+						columnGap: 8,
+						rowGap: 12,
+						padding: "12px 16px",
+						alignContent: "space-around",
+						minWidth: "auto",
+						backgroundColor: theme.palette.background.default,
+					},
+				}}
+				anchorOrigin={{
+					vertical: -4,
+					horizontal: "center",
+				}}
+				transformOrigin={{
+					vertical: "bottom",
+					horizontal: "center",
+				}}
+			>
+				{resources.map((resource) => (
+					<PermissionsPill
+						key={resource}
+						resource={resource}
+						permissions={permissions}
+					/>
+				))}
+			</PopoverContent>
+		</Popover>
+	);
+};
+
 const styles = {
 	secondary: (theme) => ({
 		color: theme.palette.text.secondary,
+	}),
+	permissionPill: (theme) => ({
+		backgroundColor: theme.permission.background,
+		borderColor: theme.permission.outline,
+		color: theme.permission.text,
+		width: "fit-content",
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
