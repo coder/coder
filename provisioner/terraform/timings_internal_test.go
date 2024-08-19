@@ -1,6 +1,8 @@
 package terraform
 
 import (
+	"bufio"
+	"bytes"
 	_ "embed"
 	"testing"
 
@@ -9,6 +11,7 @@ import (
 	"golang.org/x/tools/txtar"
 
 	"github.com/coder/coder/v2/coderd/database"
+	terraform_internal "github.com/coder/coder/v2/provisioner/terraform/internal"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -88,18 +91,44 @@ func TestAggregation(t *testing.T) {
 					file.Name, database.AllProvisionerJobTimingStageValues())
 
 				agg := newTimingAggregator(stage)
-				IngestAllSpans(t, file.Data, agg)
+				ingestAllSpans(t, file.Data, agg)
 				actualTimings = append(actualTimings, agg.aggregate()...)
 			}
 
 			// Ensure that the expected timings were produced.
-			expected := ParseTimingLines(t, expectedTimings.Data)
-			StableSortTimings(t, actualTimings) // To reduce flakiness.
-			if !assert.True(t, TimingsAreEqual(t, expected, actualTimings)) {
+			expected := terraform_internal.ParseTimingLines(t, expectedTimings.Data)
+			terraform_internal.StableSortTimings(t, actualTimings) // To reduce flakiness.
+			if !assert.True(t, terraform_internal.TimingsAreEqual(t, expected, actualTimings)) {
 				printExpectation(t, expected)
 			}
 		})
 	}
+}
+
+func ingestAllSpans(t *testing.T, input []byte, aggregator *timingAggregator) {
+	t.Helper()
+
+	scanner := bufio.NewScanner(bytes.NewBuffer(input))
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		log := parseTerraformLogLine(line)
+		if log == nil {
+			continue
+		}
+
+		ts, span, err := extractTimingSpan(log)
+		if err != nil {
+			// t.Logf("%s: failed span extraction on line: %q", err, line)
+			continue
+		}
+
+		require.NotZerof(t, ts, "failed on line: %q", line)
+		require.NotNilf(t, span, "failed on line: %q", line)
+
+		aggregator.ingest(ts, span)
+	}
+
+	require.NoError(t, scanner.Err())
 }
 
 func printExpectation(t *testing.T, actual []*proto.Timing) {
@@ -107,6 +136,6 @@ func printExpectation(t *testing.T, actual []*proto.Timing) {
 
 	t.Log("expected:")
 	for _, a := range actual {
-		PrintTiming(t, a)
+		terraform_internal.PrintTiming(t, a)
 	}
 }

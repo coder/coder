@@ -63,32 +63,6 @@ func TimingsAreEqual(t *testing.T, expected []*proto.Timing, actual []*proto.Tim
 	return true
 }
 
-func IngestAllSpans(t *testing.T, input []byte, aggregator *timingAggregator) {
-	t.Helper()
-
-	scanner := bufio.NewScanner(bytes.NewBuffer(input))
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		log := parseTerraformLogLine(line)
-		if log == nil {
-			continue
-		}
-
-		ts, span, err := extractTimingSpan(log)
-		if err != nil {
-			// t.Logf("%s: failed span extraction on line: %q", err, line)
-			continue
-		}
-
-		require.NotZerof(t, ts, "failed on line: %q", line)
-		require.NotNilf(t, span, "failed on line: %q", line)
-
-		aggregator.ingest(ts, span)
-	}
-
-	require.NoError(t, scanner.Err())
-}
-
 func PrintTiming(t *testing.T, timing *proto.Timing) {
 	t.Helper()
 
