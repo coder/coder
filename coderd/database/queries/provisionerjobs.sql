@@ -149,10 +149,10 @@ WHERE
 INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
 SELECT
     @job_id::uuid AS provisioner_job_id,
-    unnest(@started_at::timestamptz[]) AS started_at,
-    unnest(@ended_at::timestamptz[]) AS ended_at,
-    unnest(@stage::provisioner_job_timing_stage[]) AS context,
-    unnest(@source::text[]) AS context,
-    unnest(@action::text[]) AS action,
-    unnest(@resource::text[]) AS resource
+    unnest(@started_at::timestamptz[]),
+    unnest(@ended_at::timestamptz[]),
+    unnest(@stage::provisioner_job_timing_stage[]),
+    unnest(@source::text[]),
+    unnest(@action::text[]),
+    unnest(@resource::text[])
 RETURNING *;

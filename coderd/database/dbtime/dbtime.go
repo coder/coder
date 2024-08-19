@@ -9,6 +9,9 @@ func Now() time.Time {
 
 // Time returns a time compatible with Postgres. Postgres only stores dates with
 // microsecond precision.
+// FIXME(dannyk): refactor all calls to Time() to expect the input time to be modified to UTC; there are currently a
+//                few calls whose behaviour would change subtly.
+//                See https://github.com/coder/coder/pull/14274#discussion_r1718427461
 func Time(t time.Time) time.Time {
-	return t.UTC().Round(time.Microsecond)
+	return t.Round(time.Microsecond)
 }

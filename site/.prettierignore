@@ -90,6 +90,7 @@ result
 
 # Generated files shouldn't be formatted.
 e2e/provisionerGenerated.ts
+site/e2e/google/protobuf/timestampGenerated.ts
 
 **/pnpm-lock.yaml
 

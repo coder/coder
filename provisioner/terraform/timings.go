@@ -49,9 +49,10 @@ const (
 )
 
 type timingAggregator struct {
-	mu sync.Mutex
-
 	stage       database.ProvisionerJobTimingStage
+
+	// Protects the stateLookup map.
+	lookupMu    sync.Mutex
 	stateLookup map[uint64]*timingSpan
 }
 
@@ -81,7 +82,7 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	}
 
 	s.stage = t.stage
-	ts = dbtime.Time(ts)
+	ts = dbtime.Time(ts.UTC())
 
 	switch s.kind {
 	case timingApplyStart, timingProvisionStart, timingRefreshStart, timingInitStart, timingGraphStart:
@@ -98,21 +99,22 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 		return
 	}
 
-	t.mu.Lock()
+	t.lookupMu.Lock()
 	// Memoize this span by its unique attributes and the determined state.
 	// This will be used in aggregate() to determine the duration of the resource action.
 	t.stateLookup[s.hashByState(s.state)] = s
-	t.mu.Unlock()
+	t.lookupMu.Unlock()
 }
 
 // aggregate performs a pass through all memoized events to build up a slice of *proto.Timing instances which represent
 // the total time taken to perform a certain action.
 // The resulting slice of *proto.Timing is NOT sorted.
 func (t *timingAggregator) aggregate() []*proto.Timing {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.lookupMu.Lock()
+	defer t.lookupMu.Unlock()
 
-	out := make([]*proto.Timing, 0, len(t.stateLookup))
+	// Pre-allocate len(measurements)/2 since each timing will have one STARTED and one FAILED/COMPLETED entry.
+	out := make([]*proto.Timing, 0, len(t.stateLookup)/2)
 
 	for _, s := range t.stateLookup {
 		// We are only concerned here with failed or completed events.

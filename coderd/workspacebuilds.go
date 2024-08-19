@@ -635,7 +635,6 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: why?
 	// You must have update permissions on the template to get the state.
 	// This matches a push!
 	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {

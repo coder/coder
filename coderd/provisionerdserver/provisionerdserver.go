@@ -1447,12 +1447,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			JobID: jobID,
 		}
 		for _, t := range completed.GetWorkspaceBuild().GetTimings() {
-			var start, end time.Time
-			if t.Start != nil {
-				start = t.Start.AsTime()
-			}
-			if t.End != nil {
-				end = t.End.AsTime()
+			if t.Start == nil || t.End == nil {
+				s.Logger.Warn(ctx, "timings entry has nil start or end time", slog.F("entry", t.String()))
+				continue
 			}
 
 			var stg database.ProvisionerJobTimingStage
@@ -1465,8 +1462,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			params.Source = append(params.Source, t.Source)
 			params.Resource = append(params.Resource, t.Resource)
 			params.Action = append(params.Action, t.Action)
-			params.StartedAt = append(params.StartedAt, start)
-			params.EndedAt = append(params.EndedAt, end)
+			params.StartedAt = append(params.StartedAt, t.Start.AsTime())
+			params.EndedAt = append(params.EndedAt, t.End.AsTime())
 		}
 		_, err = s.Database.InsertProvisionerJobTimings(ctx, params)
 		if err != nil {

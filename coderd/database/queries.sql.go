@@ -5608,12 +5608,12 @@ const insertProvisionerJobTimings = `-- name: InsertProvisionerJobTimings :many
 INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
 SELECT
     $1::uuid AS provisioner_job_id,
-    unnest($2::timestamptz[]) AS started_at,
-    unnest($3::timestamptz[]) AS ended_at,
-    unnest($4::provisioner_job_timing_stage[]) AS context,
-    unnest($5::text[]) AS context,
-    unnest($6::text[]) AS action,
-    unnest($7::text[]) AS resource
+    unnest($2::timestamptz[]),
+    unnest($3::timestamptz[]),
+    unnest($4::provisioner_job_timing_stage[]),
+    unnest($5::text[]),
+    unnest($6::text[]),
+    unnest($7::text[])
 RETURNING job_id, started_at, ended_at, stage, source, action, resource
 `
 
