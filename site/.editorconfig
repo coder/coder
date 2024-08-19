@@ -1,10 +1,6 @@
 [*]
-indent_style = space
-indent_size = 2
-
-[*.{go,tsx,ts}]
 indent_style = tab
-indent_size = unset
+indent_size = 2
 
 [node_modules/**]
 ignore = true
