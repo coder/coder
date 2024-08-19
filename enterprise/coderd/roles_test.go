@@ -114,7 +114,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 		role, err := owner.CreateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
 		require.NoError(t, err, "upsert role")
 
-		// Remove the license to block enterprise functionality
+		// Remove the license to block premium functionality
 		licenses, err := owner.Licenses(ctx)
 		require.NoError(t, err, "get licenses")
 		for _, license := range licenses {
@@ -125,7 +125,7 @@ func TestCustomOrganizationRole(t *testing.T) {
 
 		// Verify functionality is lost
 		_, err = owner.UpdateOrganizationRole(ctx, templateAdminCustom(first.OrganizationID))
-		require.ErrorContains(t, err, "Custom Roles is an Enterprise feature")
+		require.ErrorContains(t, err, "Custom Roles is a Premium feature")
 
 		// Assign the custom template admin role
 		tmplAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleIdentifier{Name: role.Name, OrganizationID: first.OrganizationID})
