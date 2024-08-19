@@ -364,8 +364,12 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 			enabled := api.entitlements.Features[feat].Enabled
 			api.entitlementsMu.RUnlock()
 			if !enabled {
+				var licenseType = "an Enterprise"
+				if feat.Premium() {
+					licenseType = "a Premium"
+				}
 				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-					Message: fmt.Sprintf("%s is an Enterprise feature. Contact sales!", feat.Humanize()),
+					Message: fmt.Sprintf("%s is %s feature. Contact sales!", licenseType, feat.Humanize()),
 				})
 				return
 			}
