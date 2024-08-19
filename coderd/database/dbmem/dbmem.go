@@ -3314,13 +3314,13 @@ func (q *FakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.
 	return logs, nil
 }
 
-func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, params database.GetQuotaAllowanceForUserParams) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var sum int64
 	for _, member := range q.groupMembers {
-		if member.UserID != userID {
+		if member.UserID != params.UserID {
 			continue
 		}
 		if _, err := q.getOrganizationByIDNoLock(member.GroupID); err == nil {
@@ -3340,7 +3340,7 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 	// Grab the quota for the Everyone group iff the user is a member of
 	// said organization.
 	for _, mem := range q.organizationMembers {
-		if mem.UserID != userID {
+		if mem.UserID != params.UserID {
 			continue
 		}
 
@@ -3348,19 +3348,25 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		if err != nil {
 			return -1, xerrors.Errorf("failed to get everyone group for org %q", mem.OrganizationID.String())
 		}
+		if group.OrganizationID != params.OrganizationID {
+			continue
+		}
 		sum += int64(group.QuotaAllowance)
 	}
 
 	return sum, nil
 }
 
-func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, params database.GetQuotaConsumedForUserParams) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var sum int64
 	for _, workspace := range q.workspaces {
-		if workspace.OwnerID != userID {
+		if workspace.OwnerID != params.OwnerID {
+			continue
+		}
+		if workspace.OrganizationID != params.OrganizationID {
 			continue
 		}
 		if workspace.Deleted {
