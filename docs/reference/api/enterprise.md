@@ -1420,9 +1420,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-| ------ | ---- | ------ | -------- | -------------------- |
-| `user` | path | string | true     | User ID, name, or me |
+| Name           | In   | Type         | Required | Description          |
+| -------------- | ---- | ------------ | -------- | -------------------- |
+| `user`         | path | string       | true     | User ID, name, or me |
+| `organization` | path | string(uuid) | true     | Organization ID      |
 
 ### Example responses
 

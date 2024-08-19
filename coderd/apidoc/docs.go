@@ -2835,6 +2835,14 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
