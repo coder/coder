@@ -324,7 +324,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
-					dormantTime := time.Now().Add(time.Duration(tmpl.TimeTilDormant))
+					dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,

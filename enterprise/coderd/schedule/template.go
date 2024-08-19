@@ -206,7 +206,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}
 
 	for _, ws := range markedForDeletion {
-		dormantTime := time.Now().Add(opts.TimeTilDormantAutoDelete)
+		dormantTime := dbtime.Now().Add(opts.TimeTilDormantAutoDelete)
 		_, err = s.enqueuer.Enqueue(
 			ctx,
 			ws.OwnerID,

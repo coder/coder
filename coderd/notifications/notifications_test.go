@@ -721,6 +721,19 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateWorkspaceMarkedForDeletionInOneWeek",
+			id:   notifications.TemplateWorkspaceMarkedForDeletion,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":           "bobby-workspace",
+					"reason":         "template updated to new dormancy policy",
+					"dormancyHours":  "168", // 168 hours = 7 days = 1 week
+					"timeTilDormant": "1 week",
+				},
+			},
+		},
+		{
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
