@@ -1021,7 +1021,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		}
 
 		// Only notify auto build failures
-		autoBuild := build.Reason.Valid() && build.Reason != database.BuildReasonInitiator
+		autoBuild := build.Reason != database.BuildReasonInitiator
 		if autoBuild {
 			s.notifyWorkspaceBuildFailed(ctx, workspace, build, workspace.OwnerID)
 		}
@@ -1032,7 +1032,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 			s.Logger.Warn(ctx, "failed to find template admins for template build failed notification", slog.Error(err))
 		} else {
 			for _, admin := range admins {
-				if admin.ID != build.InitiatorID {
+				if admin.ID != build.InitiatorID && !autoBuild {
 					s.notifyTemplateBuildFailed(ctx, workspace, build, admin.ID)
 				}
 			}
@@ -1143,19 +1143,13 @@ func (s *server) notifyTemplateBuildFailed(ctx context.Context, workspace databa
 		return
 	}
 
-	// We only need to know the reason when it is not initiated by the user.
-	var reason string
-	if build.Reason != database.BuildReasonInitiator {
-		reason = string(build.Reason)
-	}
-
 	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateBuildFailed,
 		map[string]string{
 			"name":               template.Name,
 			"version":            version.Name,
 			"workspaceName":      workspace.Name,
 			"transition":         string(build.Transition),
-			"reason":             reason,
+			"reason":             string(build.Reason),
 			"initiator":          build.InitiatorByUsername,
 			"workspaceOwnerName": owner.Username,
 			"buildNumber":        strconv.FormatInt(int64(build.BuildNumber), 10),

@@ -1829,7 +1829,7 @@ func TestNotifications(t *testing.T) {
 		tc := []struct {
 			name           string
 			tplOwner       database.User
-			buildInitiator *database.User
+			buildInitiator database.User
 			reason         database.BuildReason
 			transition     database.WorkspaceTransition
 			receivers      []uuid.UUID
@@ -1837,7 +1837,7 @@ func TestNotifications(t *testing.T) {
 			{
 				name:           "ManualBuild",
 				tplOwner:       ownerA,
-				buildInitiator: &ownerB,
+				buildInitiator: ownerB,
 				reason:         database.BuildReasonInitiator,
 				transition:     database.WorkspaceTransitionStart,
 				// Ensure that during manual builds, the initiator does not receive a
@@ -1848,7 +1848,7 @@ func TestNotifications(t *testing.T) {
 			{
 				name:           "AutoBuild",
 				tplOwner:       ownerA,
-				buildInitiator: nil,
+				buildInitiator: ownerA,
 				reason:         database.BuildReasonAutostart,
 				transition:     database.WorkspaceTransitionStart,
 				// Ensure that during automated builds, all template admins and owners
@@ -1860,7 +1860,7 @@ func TestNotifications(t *testing.T) {
 		for _, c := range tc {
 			t.Run(c.name, func(t *testing.T) {
 				// Given: a template and a workspace build
-				isManualBuild := c.buildInitiator != nil && c.reason == database.BuildReasonInitiator
+				isManualBuild := c.reason == database.BuildReasonInitiator
 				template := dbgen.Template(t, db, database.Template{
 					Name:           "template",
 					Provisioner:    database.ProvisionerTypeEcho,
@@ -1883,16 +1883,17 @@ func TestNotifications(t *testing.T) {
 					OwnerID:        workspaceOwner.ID,
 					OrganizationID: pd.OrganizationID,
 				})
-				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				b := database.WorkspaceBuild{
 					WorkspaceID:       workspace.ID,
 					TemplateVersionID: version.ID,
 					Transition:        c.transition,
 					Reason:            c.reason,
-				})
+				}
 				// Set the build initiator if the test case specifies one for manual builds.
 				if isManualBuild {
-					build.InitiatorID = c.buildInitiator.ID
+					b.InitiatorID = c.buildInitiator.ID
 				}
+				build := dbgen.WorkspaceBuild(t, db, b)
 				file := dbgen.File(t, db, database.File{CreatedBy: c.buildInitiator.ID})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 					FileID: file.ID,
@@ -1943,7 +1944,7 @@ func TestNotifications(t *testing.T) {
 					require.Equal(t, n.Labels["workspaceName"], workspace.Name)
 					require.Equal(t, n.Labels["transition"], string(build.Transition))
 					require.Equal(t, n.Labels["reason"], string(build.Reason))
-					require.Equal(t, n.Labels["workspaceOwnerName"], workspaceOwner.Name)
+					require.Equal(t, n.Labels["workspaceOwnerName"], workspaceOwner.Username)
 					require.Equal(t, n.Labels["buildNumber"], strconv.FormatInt(int64(build.BuildNumber), 10))
 					if isManualBuild {
 						require.Equal(t, n.Labels["initiator"], c.buildInitiator.Username)
