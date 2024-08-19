@@ -364,7 +364,7 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 			enabled := api.entitlements.Features[feat].Enabled
 			api.entitlementsMu.RUnlock()
 			if !enabled {
-				var licenseType = "an Enterprise"
+				licenseType := "an Enterprise"
 				if feat.Premium() {
 					licenseType = "a Premium"
 				}
