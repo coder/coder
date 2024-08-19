@@ -1177,6 +1177,11 @@
 					"title": "Cloning Git Repositories",
 					"description": "Automatically clone Git repositories into your workspace",
 					"path": "./guides/cloning-git-repositories.md"
+				},
+				{
+					"title": "Using Organizations",
+					"description": "Learn how to use our (early access) Organizations functionality",
+					"path": "./guides/using-organizations.md"
 				}
 			]
 		}
