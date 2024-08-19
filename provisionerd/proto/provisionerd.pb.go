@@ -1691,7 +1691,7 @@ func file_provisionerd_proto_provisionerd_proto_rawDescGZIP() []byte {
 
 var file_provisionerd_proto_provisionerd_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_provisionerd_proto_provisionerd_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
-var file_provisionerd_proto_provisionerd_proto_goTypes = []any{
+var file_provisionerd_proto_provisionerd_proto_goTypes = []interface{}{
 	(LogSource)(0),                             // 0: provisionerd.LogSource
 	(*Empty)(nil),                              // 1: provisionerd.Empty
 	(*AcquiredJob)(nil),                        // 2: provisionerd.AcquiredJob
@@ -1785,7 +1785,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_provisionerd_proto_provisionerd_proto_msgTypes[0].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Empty); i {
 			case 0:
 				return &v.state
@@ -1797,7 +1797,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[1].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*AcquiredJob); i {
 			case 0:
 				return &v.state
@@ -1809,7 +1809,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[2].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*FailedJob); i {
 			case 0:
 				return &v.state
@@ -1821,7 +1821,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[3].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompletedJob); i {
 			case 0:
 				return &v.state
@@ -1833,7 +1833,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[4].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Log); i {
 			case 0:
 				return &v.state
@@ -1845,7 +1845,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[5].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*UpdateJobRequest); i {
 			case 0:
 				return &v.state
@@ -1857,7 +1857,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[6].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*UpdateJobResponse); i {
 			case 0:
 				return &v.state
@@ -1869,7 +1869,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[7].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CommitQuotaRequest); i {
 			case 0:
 				return &v.state
@@ -1881,7 +1881,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[8].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CommitQuotaResponse); i {
 			case 0:
 				return &v.state
@@ -1893,7 +1893,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[9].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CancelAcquire); i {
 			case 0:
 				return &v.state
@@ -1905,7 +1905,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[10].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*AcquiredJob_WorkspaceBuild); i {
 			case 0:
 				return &v.state
@@ -1917,7 +1917,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[11].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*AcquiredJob_TemplateImport); i {
 			case 0:
 				return &v.state
@@ -1929,7 +1929,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[12].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*AcquiredJob_TemplateDryRun); i {
 			case 0:
 				return &v.state
@@ -1941,7 +1941,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[14].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*FailedJob_WorkspaceBuild); i {
 			case 0:
 				return &v.state
@@ -1953,7 +1953,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[15].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*FailedJob_TemplateImport); i {
 			case 0:
 				return &v.state
@@ -1965,7 +1965,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[16].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*FailedJob_TemplateDryRun); i {
 			case 0:
 				return &v.state
@@ -1977,7 +1977,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[17].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompletedJob_WorkspaceBuild); i {
 			case 0:
 				return &v.state
@@ -1989,7 +1989,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[18].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompletedJob_TemplateImport); i {
 			case 0:
 				return &v.state
@@ -2001,7 +2001,7 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 				return nil
 			}
 		}
-		file_provisionerd_proto_provisionerd_proto_msgTypes[19].Exporter = func(v any, i int) any {
+		file_provisionerd_proto_provisionerd_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CompletedJob_TemplateDryRun); i {
 			case 0:
 				return &v.state
@@ -2014,17 +2014,17 @@ func file_provisionerd_proto_provisionerd_proto_init() {
 			}
 		}
 	}
-	file_provisionerd_proto_provisionerd_proto_msgTypes[1].OneofWrappers = []any{
+	file_provisionerd_proto_provisionerd_proto_msgTypes[1].OneofWrappers = []interface{}{
 		(*AcquiredJob_WorkspaceBuild_)(nil),
 		(*AcquiredJob_TemplateImport_)(nil),
 		(*AcquiredJob_TemplateDryRun_)(nil),
 	}
-	file_provisionerd_proto_provisionerd_proto_msgTypes[2].OneofWrappers = []any{
+	file_provisionerd_proto_provisionerd_proto_msgTypes[2].OneofWrappers = []interface{}{
 		(*FailedJob_WorkspaceBuild_)(nil),
 		(*FailedJob_TemplateImport_)(nil),
 		(*FailedJob_TemplateDryRun_)(nil),
 	}
-	file_provisionerd_proto_provisionerd_proto_msgTypes[3].OneofWrappers = []any{
+	file_provisionerd_proto_provisionerd_proto_msgTypes[3].OneofWrappers = []interface{}{
 		(*CompletedJob_WorkspaceBuild_)(nil),
 		(*CompletedJob_TemplateImport_)(nil),
 		(*CompletedJob_TemplateDryRun_)(nil),
