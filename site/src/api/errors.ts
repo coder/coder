@@ -115,8 +115,9 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 		return error.detail;
 	}
 
-  // APIErrors that are empty still benefit from checking the developer console
-  // if no detail is provided. So only use the detail field if it is not empty.
+	// APIErrors that are empty still benefit from checking the developer 
+	// console if no detail is provided. So only use the detail field if 
+	// it is not empty.
 	if (isApiError(error) && error.response.data.detail) {
 		return error.response.data.detail;
 	}
