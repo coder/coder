@@ -369,7 +369,7 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 					licenseType = "a Premium"
 				}
 				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-					Message: fmt.Sprintf("%s is %s feature. Contact sales!", licenseType, feat.Humanize()),
+					Message: fmt.Sprintf("%s is %s feature. Contact sales!", feat.Humanize(), licenseType),
 				})
 				return
 			}
