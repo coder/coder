@@ -1,6 +1,7 @@
 /* eslint-disable */
 import * as _m0 from "protobufjs/minimal";
 import { Observable } from "rxjs";
+import { Timestamp } from "./google/protobuf/timestampGenerated";
 
 export const protobufPackage = "provisioner";
 
@@ -26,6 +27,13 @@ export enum WorkspaceTransition {
 	START = 0,
 	STOP = 1,
 	DESTROY = 2,
+	UNRECOGNIZED = -1,
+}
+
+export enum TimingState {
+	STARTED = 0,
+	COMPLETED = 1,
+	FAILED = 2,
 	UNRECOGNIZED = -1,
 }
 
@@ -275,6 +283,7 @@ export interface PlanComplete {
 	resources: Resource[];
 	parameters: RichParameter[];
 	externalAuthProviders: ExternalAuthProviderResource[];
+	timings: Timing[];
 }
 
 /**
@@ -292,6 +301,17 @@ export interface ApplyComplete {
 	resources: Resource[];
 	parameters: RichParameter[];
 	externalAuthProviders: ExternalAuthProviderResource[];
+	timings: Timing[];
+}
+
+export interface Timing {
+	start: Date | undefined;
+	end: Date | undefined;
+	action: string;
+	source: string;
+	resource: string;
+	stage: string;
+	state: TimingState;
 }
 
 /** CancelRequest requests that the previous request be canceled gracefully. */
@@ -965,6 +985,9 @@ export const PlanComplete = {
 				writer.uint32(34).fork(),
 			).ldelim();
 		}
+		for (const v of message.timings) {
+			Timing.encode(v!, writer.uint32(50).fork()).ldelim();
+		}
 		return writer;
 	},
 };
@@ -1003,6 +1026,45 @@ export const ApplyComplete = {
 				v!,
 				writer.uint32(42).fork(),
 			).ldelim();
+		}
+		for (const v of message.timings) {
+			Timing.encode(v!, writer.uint32(50).fork()).ldelim();
+		}
+		return writer;
+	},
+};
+
+export const Timing = {
+	encode(
+		message: Timing,
+		writer: _m0.Writer = _m0.Writer.create(),
+	): _m0.Writer {
+		if (message.start !== undefined) {
+			Timestamp.encode(
+				toTimestamp(message.start),
+				writer.uint32(10).fork(),
+			).ldelim();
+		}
+		if (message.end !== undefined) {
+			Timestamp.encode(
+				toTimestamp(message.end),
+				writer.uint32(18).fork(),
+			).ldelim();
+		}
+		if (message.action !== "") {
+			writer.uint32(26).string(message.action);
+		}
+		if (message.source !== "") {
+			writer.uint32(34).string(message.source);
+		}
+		if (message.resource !== "") {
+			writer.uint32(42).string(message.resource);
+		}
+		if (message.stage !== "") {
+			writer.uint32(50).string(message.stage);
+		}
+		if (message.state !== 0) {
+			writer.uint32(56).int32(message.state);
 		}
 		return writer;
 	},
@@ -1076,4 +1138,10 @@ export interface Provisioner {
 	 * that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
 	 */
 	Session(request: Observable<Request>): Observable<Response>;
+}
+
+function toTimestamp(date: Date): Timestamp {
+	const seconds = date.getTime() / 1_000;
+	const nanos = (date.getTime() % 1_000) * 1_000_000;
+	return { seconds, nanos };
 }

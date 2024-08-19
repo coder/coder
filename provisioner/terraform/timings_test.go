@@ -1,3 +1,5 @@
+//go:build linux || darwin
+
 package terraform_test
 
 import (

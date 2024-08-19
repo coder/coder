@@ -49,7 +49,7 @@ const (
 )
 
 type timingAggregator struct {
-	stage       database.ProvisionerJobTimingStage
+	stage database.ProvisionerJobTimingStage
 
 	// Protects the stateLookup map.
 	lookupMu    sync.Mutex
