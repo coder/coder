@@ -181,6 +181,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			}
 		},
 		NetworkTelemetryHandler: func(batch []*tailnetproto.TelemetryEvent) {},
+		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
 

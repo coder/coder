@@ -34,6 +34,15 @@ export const WithOnlyMessage: Story = {
 	},
 };
 
+export const APIErrorWithDetail: Story = {
+	args: {
+		error: mockApiError({
+			message: "Magic dust is missing",
+			detail: "without magic dust, the requested operation will never work",
+		}),
+	},
+};
+
 export const WithDismiss: Story = {
 	args: {
 		dismissible: true,

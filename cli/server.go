@@ -56,6 +56,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/pretty"
+	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
@@ -791,17 +792,25 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 				}
 
-				keyBytes, err := hex.DecodeString(oauthSigningKeyStr)
+				oauthKeyBytes, err := hex.DecodeString(oauthSigningKeyStr)
 				if err != nil {
 					return xerrors.Errorf("decode oauth signing key from database: %w", err)
 				}
-				if len(keyBytes) != len(options.OAuthSigningKey) {
-					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(keyBytes))
+				if len(oauthKeyBytes) != len(options.OAuthSigningKey) {
+					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(oauthKeyBytes))
 				}
-				copy(options.OAuthSigningKey[:], keyBytes)
+				copy(options.OAuthSigningKey[:], oauthKeyBytes)
 				if options.OAuthSigningKey == [32]byte{} {
 					return xerrors.Errorf("oauth signing key in database is empty")
 				}
+
+				// Read the coordinator resume token signing key from the
+				// database.
+				resumeTokenKey, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, tx)
+				if err != nil {
+					return xerrors.Errorf("get coordinator resume token key from database: %w", err)
+				}
+				options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(resumeTokenKey, quartz.NewReal(), tailnet.DefaultResumeTokenExpiry)
 
 				return nil
 			}, nil)

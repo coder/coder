@@ -196,20 +196,21 @@ type data struct {
 	customRoles                   []database.CustomRole
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
-	locks                   map[int64]struct{}
-	deploymentID            string
-	derpMeshKey             string
-	lastUpdateCheck         []byte
-	announcementBanners     []byte
-	healthSettings          []byte
-	notificationsSettings   []byte
-	applicationName         string
-	logoURL                 string
-	appSecurityKey          string
-	oauthSigningKey         string
-	lastLicenseID           int32
-	defaultProxyDisplayName string
-	defaultProxyIconURL     string
+	locks                            map[int64]struct{}
+	deploymentID                     string
+	derpMeshKey                      string
+	lastUpdateCheck                  []byte
+	announcementBanners              []byte
+	healthSettings                   []byte
+	notificationsSettings            []byte
+	applicationName                  string
+	logoURL                          string
+	appSecurityKey                   string
+	oauthSigningKey                  string
+	coordinatorResumeTokenSigningKey string
+	lastLicenseID                    int32
+	defaultProxyDisplayName          string
+	defaultProxyIconURL              string
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
@@ -2220,6 +2221,15 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 		Roles:    roles,
 		Groups:   groups,
 	}, nil
+}
+
+func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	if q.coordinatorResumeTokenSigningKey == "" {
+		return "", sql.ErrNoRows
+	}
+	return q.coordinatorResumeTokenSigningKey, nil
 }
 
 func (q *FakeQuerier) GetDBCryptKeys(_ context.Context) ([]database.DBCryptKey, error) {
@@ -8948,6 +8958,14 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 	defer q.mutex.RUnlock()
 
 	q.applicationName = data
+	return nil
+}
+
+func (q *FakeQuerier) UpsertCoordinatorResumeTokenSigningKey(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.coordinatorResumeTokenSigningKey = value
 	return nil
 }
 

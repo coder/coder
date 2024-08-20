@@ -117,7 +117,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-GqFT0Xq4IZH0/wdlyQuGj0VecblckmO/EjIFd+q0DRM=";
+            vendorHash = "sha256-I2YMiYXq8XrJd6jw8JZnOL5wugPTLsip9JGELEy5Uao=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];

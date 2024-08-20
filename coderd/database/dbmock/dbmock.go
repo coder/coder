@@ -1029,6 +1029,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspaces(arg0, arg1, arg2 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspaces", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspaces), arg0, arg1, arg2)
 }
 
+// GetCoordinatorResumeTokenSigningKey mocks base method.
+func (m *MockStore) GetCoordinatorResumeTokenSigningKey(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCoordinatorResumeTokenSigningKey", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCoordinatorResumeTokenSigningKey indicates an expected call of GetCoordinatorResumeTokenSigningKey.
+func (mr *MockStoreMockRecorder) GetCoordinatorResumeTokenSigningKey(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCoordinatorResumeTokenSigningKey", reflect.TypeOf((*MockStore)(nil).GetCoordinatorResumeTokenSigningKey), arg0)
+}
+
 // GetDBCryptKeys mocks base method.
 func (m *MockStore) GetDBCryptKeys(arg0 context.Context) ([]database.DBCryptKey, error) {
 	m.ctrl.T.Helper()
@@ -5007,6 +5022,20 @@ func (m *MockStore) UpsertApplicationName(arg0 context.Context, arg1 string) err
 func (mr *MockStoreMockRecorder) UpsertApplicationName(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), arg0, arg1)
+}
+
+// UpsertCoordinatorResumeTokenSigningKey mocks base method.
+func (m *MockStore) UpsertCoordinatorResumeTokenSigningKey(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertCoordinatorResumeTokenSigningKey", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertCoordinatorResumeTokenSigningKey indicates an expected call of UpsertCoordinatorResumeTokenSigningKey.
+func (mr *MockStoreMockRecorder) UpsertCoordinatorResumeTokenSigningKey(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCoordinatorResumeTokenSigningKey", reflect.TypeOf((*MockStore)(nil).UpsertCoordinatorResumeTokenSigningKey), arg0, arg1)
 }
 
 // UpsertDefaultProxy mocks base method.

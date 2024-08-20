@@ -147,6 +147,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
 		DERPMapFn:               api.AGPL.DERPMap,
 		NetworkTelemetryHandler: api.AGPL.NetworkTelemetryBatcher.Handler,
+		ResumeTokenProvider:     api.AGPL.CoordinatorResumeTokenProvider,
 	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))

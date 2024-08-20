@@ -1332,7 +1332,9 @@ func (q *querier) GetAnnouncementBanners(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
-	// No authz checks
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
 	return q.db.GetAppSecurityKey(ctx)
 }
 
@@ -1362,6 +1364,13 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetCoordinatorResumeTokenSigningKey(ctx)
 }
 
 func (q *querier) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
@@ -3800,7 +3809,9 @@ func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) e
 }
 
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
-	// No authz checks as this is done during startup
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
 	return q.db.UpsertAppSecurityKey(ctx, data)
 }
 
@@ -3809,6 +3820,13 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertApplicationName(ctx, value)
+}
+
+func (q *querier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

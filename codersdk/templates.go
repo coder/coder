@@ -118,6 +118,8 @@ func BitmapToWeekdays(bitmap uint8) []string {
 	return days
 }
 
+var AllDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+
 type TemplateAutostartRequirement struct {
 	// DaysOfWeek is a list of days of the week in which autostart is allowed
 	// to happen. If no days are specified, autostart is not allowed.
