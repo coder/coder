@@ -9,7 +9,7 @@ import light from "./light";
 import type { Roles } from "./roles";
 
 export interface Theme extends Omit<MuiTheme, "palette"> {
-	/** @deprecated use `theme.roles` instead */
+	/** @deprecated prefer `theme.roles` when possible */
 	palette: MuiTheme["palette"];
 
 	/** Sets of colors that can be used based on the role that a UI element serves
