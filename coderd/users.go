@@ -845,7 +845,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			}
 		}
 
-		updatedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+		targetUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
 			UpdatedAt: dbtime.Now(),
@@ -857,7 +857,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
-		aReq.New = updatedUser
+		aReq.New = targetUser
 
 		// Notify about the change of user status
 		var key string
@@ -870,7 +870,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			key = "activated_account_name"
 			templateID = notifications.TemplateUserAccountSuspended
 		default:
-			api.Logger.Error(ctx, "unable to notify admins as the user status is unsupported", slog.F("username", user.Username), slog.F("user_status", string(status)))
+			api.Logger.Error(ctx, "unable to notify admins as the user's status is unsupported", slog.F("username", user.Username), slog.F("user_status", string(status)))
 
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error preparing notifications",
@@ -907,7 +907,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 				}, "api-put-user-status",
 				user.ID,
 			); err != nil {
-				api.Logger.Warn(ctx, "unable to notify about changed user status", slog.F("affected_user", user.Username), slog.Error(err))
+				api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
 			}
 		}
 
@@ -920,7 +920,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizations))
+		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(targetUser, organizations))
 	}
 }
 
