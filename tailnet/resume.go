@@ -116,13 +116,14 @@ func NewResumeTokenKeyProvider(key ResumeTokenSigningKey, clock quartz.Clock, ex
 
 type resumeTokenPayload struct {
 	PeerID uuid.UUID `json:"sub"`
-	Expiry time.Time `json:"exp"`
+	Expiry int64     `json:"exp"`
 }
 
 func (p ResumeTokenKeyProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
+	exp := p.clock.Now().Add(p.expiry)
 	payload := resumeTokenPayload{
 		PeerID: peerID,
-		Expiry: p.clock.Now().Add(p.expiry),
+		Expiry: exp.Unix(),
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -154,11 +155,11 @@ func (p ResumeTokenKeyProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.Re
 	return &proto.RefreshResumeTokenResponse{
 		Token:     serialized,
 		RefreshIn: durationpb.New(p.expiry / 2),
-		ExpiresAt: timestamppb.New(payload.Expiry),
+		ExpiresAt: timestamppb.New(exp),
 	}, nil
 }
 
-// VerifySignedToken parses a signed workspace app token with the given key and
+// VerifyResumeToken parses a signed tailnet resume token with the given key and
 // returns the payload. If the token is invalid or expired, an error is
 // returned.
 func (p ResumeTokenKeyProvider) VerifyResumeToken(str string) (uuid.UUID, error) {
@@ -186,7 +187,8 @@ func (p ResumeTokenKeyProvider) VerifyResumeToken(str string) (uuid.UUID, error)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("unmarshal payload: %w", err)
 	}
-	if tok.Expiry.Before(p.clock.Now()) {
+	exp := time.Unix(tok.Expiry, 0)
+	if exp.Before(p.clock.Now()) {
 		return uuid.Nil, xerrors.New("signed resume token expired")
 	}
 

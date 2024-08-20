@@ -2567,7 +2567,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetCoordinatorResumeTokenSigningKey", s.Subtest(func(db database.Store, check *expects) {
 		db.UpsertCoordinatorResumeTokenSigningKey(context.Background(), "foo")
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("InsertMissingGroups", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertMissingGroupsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).Errors(errMatchAny)

@@ -96,25 +96,26 @@ type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
 	// with running agents).
-	AccessURL             *url.URL
-	AppHostname           string
-	AWSCertificates       awsidentity.Certificates
-	Authorizer            rbac.Authorizer
-	AzureCertificates     x509.VerifyOptions
-	GithubOAuth2Config    *coderd.GithubOAuth2Config
-	RealIPConfig          *httpmw.RealIPConfig
-	OIDCConfig            *coderd.OIDCConfig
-	GoogleTokenValidator  *idtoken.Validator
-	SSHKeygenAlgorithm    gitsshkey.Algorithm
-	AutobuildTicker       <-chan time.Time
-	AutobuildStats        chan<- autobuild.Stats
-	Auditor               audit.Auditor
-	TLSCertificates       []tls.Certificate
-	ExternalAuthConfigs   []*externalauth.Config
-	TrialGenerator        func(ctx context.Context, body codersdk.LicensorTrialRequest) error
-	RefreshEntitlements   func(ctx context.Context) error
-	TemplateScheduleStore schedule.TemplateScheduleStore
-	Coordinator           tailnet.Coordinator
+	AccessURL                      *url.URL
+	AppHostname                    string
+	AWSCertificates                awsidentity.Certificates
+	Authorizer                     rbac.Authorizer
+	AzureCertificates              x509.VerifyOptions
+	GithubOAuth2Config             *coderd.GithubOAuth2Config
+	RealIPConfig                   *httpmw.RealIPConfig
+	OIDCConfig                     *coderd.OIDCConfig
+	GoogleTokenValidator           *idtoken.Validator
+	SSHKeygenAlgorithm             gitsshkey.Algorithm
+	AutobuildTicker                <-chan time.Time
+	AutobuildStats                 chan<- autobuild.Stats
+	Auditor                        audit.Auditor
+	TLSCertificates                []tls.Certificate
+	ExternalAuthConfigs            []*externalauth.Config
+	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	RefreshEntitlements            func(ctx context.Context) error
+	TemplateScheduleStore          schedule.TemplateScheduleStore
+	Coordinator                    tailnet.Coordinator
+	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout time.Duration
@@ -239,6 +240,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	}
+	if options.CoordinatorResumeTokenProvider == nil {
+		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
 	}
 
 	if options.NotificationsEnqueuer == nil {
@@ -492,7 +496,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TailnetCoordinator:                 options.Coordinator,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,
-			CoordinatorResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
+			CoordinatorResumeTokenProvider:     options.CoordinatorResumeTokenProvider,
 			MetricsCacheRefreshInterval:        options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:          options.AgentStatsRefreshInterval,
 			DeploymentValues:                   options.DeploymentValues,

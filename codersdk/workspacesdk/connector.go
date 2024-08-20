@@ -182,7 +182,6 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 		close(tac.connected)
 	}
 	if err != nil {
-		didLog := false
 		bodyErr := codersdk.ReadBodyAsError(res)
 		var sdkErr *codersdk.Error
 		if xerrors.As(bodyErr, &sdkErr) {
@@ -191,11 +190,11 @@ func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
 					// Unset the resume token for the next attempt
 					tac.logger.Warn(tac.ctx, "failed to dial tailnet v2+ API: server replied invalid resume token; unsetting for next connection attempt")
 					tac.resumeToken = nil
-					didLog = true
+					return nil, err
 				}
 			}
 		}
-		if !didLog && !errors.Is(err, context.Canceled) {
+		if !errors.Is(err, context.Canceled) {
 			tac.logger.Error(tac.ctx, "failed to dial tailnet v2+ API", slog.Error(err), slog.F("sdk_err", sdkErr))
 		}
 		return nil, err

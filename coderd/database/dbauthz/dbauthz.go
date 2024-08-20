@@ -1367,7 +1367,7 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err
 	}
 	return q.db.GetCoordinatorResumeTokenSigningKey(ctx)

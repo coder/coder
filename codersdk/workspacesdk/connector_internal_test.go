@@ -160,7 +160,10 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	derpMapCh := make(chan *tailcfg.DERPMap)
 	defer close(derpMapCh)
 
-	resumeTokenProvider := tailnet.NewInsecureTestResumeTokenProvider()
+	clock := quartz.NewMock(t)
+	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
+	require.NoError(t, err)
+	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(resumeTokenSigningKey, clock, time.Hour)
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
@@ -215,18 +218,16 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	clock := quartz.NewMock(t)
 	newTickerTrap := clock.Trap().NewTicker("tailnetAPIConnector", "refreshToken")
 	tickerResetTrap := clock.Trap().TickerReset("tailnetAPIConnector", "refreshToken", "reset")
 	defer newTickerTrap.Close()
 	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, clock, &websocket.DialOptions{})
 	uut.runConnector(fConn)
 
-	// Fetch first token.
+	// Fetch first token. We don't need to advance the clock since we use a
+	// channel with a single item to immediately fetch.
 	trappedTicker := newTickerTrap.MustWait(ctx)
 	trappedTicker.Release()
-	waiter := clock.Advance(trappedTicker.Duration)
-	waiter.MustWait(ctx)
 	// We call ticker.Reset after each token fetch to apply the refresh duration
 	// requested by the server.
 	trappedReset := tickerResetTrap.MustWait(ctx)
@@ -235,7 +236,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	originalResumeToken := uut.resumeToken.Token
 
 	// Fetch second token.
-	waiter = clock.Advance(trappedReset.Duration)
+	waiter := clock.Advance(trappedReset.Duration)
 	waiter.MustWait(ctx)
 	trappedReset = tickerResetTrap.MustWait(ctx)
 	trappedReset.Release()
@@ -275,13 +276,17 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	derpMapCh := make(chan *tailcfg.DERPMap)
 	defer close(derpMapCh)
 
+	clock := quartz.NewMock(t)
+	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
+	require.NoError(t, err)
+	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(resumeTokenSigningKey, clock, time.Hour)
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
 		DERPMapUpdateFrequency:  time.Millisecond,
 		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
-		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
+		ResumeTokenProvider:     resumeTokenProvider,
 	})
 	require.NoError(t, err)
 
@@ -317,7 +322,6 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	clock := quartz.NewMock(t)
 	newTickerTrap := clock.Trap().NewTicker("tailnetAPIConnector", "refreshToken")
 	tickerResetTrap := clock.Trap().TickerReset("tailnetAPIConnector", "refreshToken", "reset")
 	defer newTickerTrap.Close()
@@ -327,8 +331,6 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	// Wait for the resume token to be fetched for the first time.
 	trappedTicker := newTickerTrap.MustWait(ctx)
 	trappedTicker.Release()
-	waiter := clock.Advance(trappedTicker.Duration)
-	waiter.MustWait(ctx)
 	trappedReset := tickerResetTrap.MustWait(ctx)
 	trappedReset.Release()
 	originalResumeToken := uut.resumeToken.Token
@@ -346,9 +348,6 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	// Since we failed the initial reconnect and we're definitely reconnected
 	// now, the stored resume token should now be nil.
 	require.Nil(t, uut.resumeToken)
-	// Continue to the next token fetch.
-	waiter = clock.Advance(trappedTicker.Duration)
-	waiter.MustWait(ctx)
 	trappedReset = tickerResetTrap.MustWait(ctx)
 	trappedReset.Release()
 	require.NotNil(t, uut.resumeToken)

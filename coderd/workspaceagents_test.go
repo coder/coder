@@ -45,6 +45,7 @@ import (
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -533,11 +534,16 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
+	require.NoError(t, err)
+	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(resumeTokenSigningKey, clock, time.Hour)
 	coordinator := &resumeTokenTestFakeCoordinator{
 		Coordinator: tailnet.NewCoordinator(logger),
 	}
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Coordinator: coordinator,
+		Coordinator:                    coordinator,
+		CoordinatorResumeTokenProvider: resumeTokenProvider,
 	})
 	defer closer.Close()
 	user := coderdtest.CreateFirstUser(t, client)
@@ -564,6 +570,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 
 	// Connect with a valid resume token, and ensure that the peer ID is set to
 	// the stored value.
+	clock.Advance(time.Second)
 	coordinator.lastPeerID = uuid.Nil
 	newResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, originalResumeToken)
 	require.NoError(t, err)
@@ -572,6 +579,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 
 	// Connect with an invalid resume token, and ensure that the request is
 	// rejected.
+	clock.Advance(time.Second)
 	coordinator.lastPeerID = uuid.Nil
 	_, err = connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "invalid")
 	require.Error(t, err)

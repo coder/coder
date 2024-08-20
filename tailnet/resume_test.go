@@ -1,6 +1,7 @@
 package tailnet_test
 
 import (
+	"context"
 	"encoding/hex"
 	"testing"
 	"time"
@@ -22,8 +23,8 @@ func TestResumeTokenSigningKeyFromDatabase(t *testing.T) {
 
 	assertRandomKey := func(t *testing.T, key tailnet.ResumeTokenSigningKey) {
 		t.Helper()
-		assert.NotEqual(t, tailnet.ResumeTokenSigningKey{}, key, "key is empty")
-		assert.NotEqualValues(t, [64]byte{1}, key, "key is all 1s")
+		assert.NotEqual(t, tailnet.ResumeTokenSigningKey{}, key, "key should not be empty")
+		assert.NotEqualValues(t, [64]byte{1}, key, "key should not be all 1s")
 	}
 
 	t.Run("GenerateRetrieve", func(t *testing.T) {
@@ -37,7 +38,7 @@ func TestResumeTokenSigningKeyFromDatabase(t *testing.T) {
 
 		key2, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, db)
 		require.NoError(t, err)
-		require.Equal(t, key1, key2, "keys are different")
+		require.Equal(t, key1, key2, "keys should not be different")
 	})
 
 	t.Run("GetError", func(t *testing.T) {
@@ -48,7 +49,6 @@ func TestResumeTokenSigningKeyFromDatabase(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, db)
-		require.Error(t, err)
 		require.ErrorIs(t, err, assert.AnError)
 	})
 
@@ -61,7 +61,6 @@ func TestResumeTokenSigningKeyFromDatabase(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, db)
-		require.Error(t, err)
 		require.ErrorIs(t, err, assert.AnError)
 	})
 
@@ -70,12 +69,21 @@ func TestResumeTokenSigningKeyFromDatabase(t *testing.T) {
 
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetCoordinatorResumeTokenSigningKey(gomock.Any()).Return("invalid", nil)
-		db.EXPECT().UpsertCoordinatorResumeTokenSigningKey(gomock.Any(), gomock.Any()).Return(nil)
+
+		var storedKey tailnet.ResumeTokenSigningKey
+		db.EXPECT().UpsertCoordinatorResumeTokenSigningKey(gomock.Any(), gomock.Any()).Do(func(_ context.Context, value string) error {
+			keyBytes, err := hex.DecodeString(value)
+			require.NoError(t, err)
+			require.Len(t, keyBytes, len(storedKey))
+			copy(storedKey[:], keyBytes)
+			return nil
+		})
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		key, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, db)
 		require.NoError(t, err)
 		assertRandomKey(t, key)
+		require.Equal(t, storedKey, key, "key should match stored value")
 	})
 
 	t.Run("LengthErrorShouldRegenerate", func(t *testing.T) {
@@ -100,7 +108,6 @@ func TestResumeTokenSigningKeyFromDatabase(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, db)
-		require.Error(t, err)
 		require.ErrorContains(t, err, "is empty")
 	})
 }
@@ -115,16 +122,14 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 		t.Parallel()
 
 		id := uuid.New()
-		now := time.Now()
 		clock := quartz.NewMock(t)
-		clock.Set(now)
 		provider := tailnet.NewResumeTokenKeyProvider(key, clock, tailnet.DefaultResumeTokenExpiry)
 		token, err := provider.GenerateResumeToken(id)
 		require.NoError(t, err)
 		require.NotNil(t, token)
 		require.NotEmpty(t, token.Token)
 		require.Equal(t, tailnet.DefaultResumeTokenExpiry/2, token.RefreshIn.AsDuration())
-		require.WithinDuration(t, now.Add(tailnet.DefaultResumeTokenExpiry), token.ExpiresAt.AsTime(), time.Second)
+		require.WithinDuration(t, clock.Now().Add(tailnet.DefaultResumeTokenExpiry), token.ExpiresAt.AsTime(), time.Second)
 
 		gotID, err := provider.VerifyResumeToken(token.Token)
 		require.NoError(t, err)
@@ -150,7 +155,6 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 		_ = clock.Advance(tailnet.DefaultResumeTokenExpiry + time.Second)
 
 		_, err = provider.VerifyResumeToken(token.Token)
-		require.Error(t, err)
 		require.ErrorContains(t, err, "expired")
 	})
 
@@ -159,7 +163,6 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 
 		provider := tailnet.NewResumeTokenKeyProvider(key, quartz.NewMock(t), tailnet.DefaultResumeTokenExpiry)
 		_, err := provider.VerifyResumeToken("invalid")
-		require.Error(t, err)
 		require.ErrorContains(t, err, "parse JWS")
 	})
 
@@ -175,7 +178,6 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 
 		provider := tailnet.NewResumeTokenKeyProvider(key, quartz.NewMock(t), tailnet.DefaultResumeTokenExpiry)
 		_, err = provider.VerifyResumeToken(token.Token)
-		require.Error(t, err)
 		require.ErrorContains(t, err, "verify JWS")
 	})
 }
