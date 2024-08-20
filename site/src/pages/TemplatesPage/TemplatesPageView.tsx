@@ -169,80 +169,75 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   examples,
   canCreateTemplates,
 }) => {
-	const { experiments } = useDashboard();
-	const isLoading = !templates;
-	const isEmpty = templates && templates.length === 0;
-	const navigate = useNavigate();
-	const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+  const { experiments } = useDashboard();
+  const isLoading = !templates;
+  const isEmpty = templates && templates.length === 0;
+  const navigate = useNavigate();
+  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
-	const createTemplateAction = () => {
-		return multiOrgExperimentEnabled ? (
-			<Button
-				startIcon={<AddIcon />}
-				variant="contained"
-				onClick={() => {
-					navigate("/starter-templates");
-				}}
-			>
-				Create Template
-			</Button>
-		) : (
-			<CreateTemplateButton onNavigate={navigate} />
-		);
-	};
+  const createTemplateAction = () => {
+    return multiOrgExperimentEnabled ? (
+      <Button
+        startIcon={<AddIcon />}
+        variant="contained"
+        onClick={() => {
+          navigate("/starter-templates");
+        }}
+      >
+        Create Template
+      </Button>
+    ) : (
+      <CreateTemplateButton onNavigate={navigate} />
+    );
+  };
 
-	return (
-		<Margins>
-			<PageHeader actions={canCreateTemplates && createTemplateAction()}>
-				<PageHeaderTitle>
-					<Stack spacing={1} direction="row" alignItems="center">
-						Templates
-						<TemplateHelpTooltip />
-					</Stack>
-				</PageHeaderTitle>
-				<PageHeaderSubtitle>
-					Select a template to create a workspace.
-				</PageHeaderSubtitle>
-			</PageHeader>
+  return (
+    <Margins>
+      <PageHeader actions={canCreateTemplates && createTemplateAction()}>
+        <PageHeaderTitle>
+          <Stack spacing={1} direction="row" alignItems="center">
+            Templates
+            <TemplateHelpTooltip />
+          </Stack>
+        </PageHeaderTitle>
+        <PageHeaderSubtitle>
+          Select a template to create a workspace.
+        </PageHeaderSubtitle>
+      </PageHeader>
 
-			{error ? (
-				<ErrorAlert error={error} />
-			) : (
-				<TableContainer>
-					<Table>
-						<TableHead>
-							<TableRow>
-								<TableCell width="35%">{Language.nameLabel}</TableCell>
-								<TableCell width="15%">
-									{Language.usedByLabel}
-								</TableCell>
-								<TableCell width="10%">{Language.buildTimeLabel}</TableCell>
-								<TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-								<TableCell width="1%" />
-							</TableRow>
-						</TableHead>
-						<TableBody>
-							{isLoading && <TableLoader />}
+      {error ? (
+        <ErrorAlert error={error} />
+      ) : (
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell width="35%">{Language.nameLabel}</TableCell>
+                <TableCell width="15%">{Language.usedByLabel}</TableCell>
+                <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
+                <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
+                <TableCell width="1%" />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {isLoading && <TableLoader />}
 
-							{isEmpty ? (
-								<EmptyTemplates
-									canCreateTemplates={canCreateTemplates}
-									examples={examples ?? []}
-								/>
-							) : (
-								templates?.map((template) => (
-									<TemplateRow
-										key={template.id}
-										template={template}
-									/>
-								))
-							)}
-						</TableBody>
-					</Table>
-				</TableContainer>
-			)}
-		</Margins>
-	);
+              {isEmpty ? (
+                <EmptyTemplates
+                  canCreateTemplates={canCreateTemplates}
+                  examples={examples ?? []}
+                />
+              ) : (
+                templates?.map((template) => (
+                  <TemplateRow key={template.id} template={template} />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Margins>
+  );
 };
 
 const TableLoader: FC = () => {
