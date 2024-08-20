@@ -845,7 +845,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			}
 		}
 
-		suspendedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+		updatedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
 			UpdatedAt: dbtime.Now(),
@@ -857,8 +857,61 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
-		aReq.New = suspendedUser
+		aReq.New = updatedUser
 
+		// Notify about the change of user status
+		var key string
+		var templateID uuid.UUID
+		switch status {
+		case database.UserStatusSuspended:
+			key = "suspended_account_name"
+			templateID = notifications.TemplateUserAccountSuspended
+		case database.UserStatusActive:
+			key = "activated_account_name"
+			templateID = notifications.TemplateUserAccountSuspended
+		default:
+			api.Logger.Error(ctx, "unable to notify admins as the user status is unsupported", slog.F("username", user.Username), slog.F("user_status", string(status)))
+
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error preparing notifications",
+			})
+		}
+
+		// Fetch all users with user admin permissions
+		owners, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+			RbacRole: []string{codersdk.RoleOwner},
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching owners",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		userAdmins, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+			RbacRole: []string{codersdk.RoleUserAdmin},
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching user admins",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		// Send notifications to user admins and affected user
+		for _, u := range append(append(owners, userAdmins...), database.GetUsersRow{ID: user.ID}) {
+			if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, templateID,
+				map[string]string{
+					key: user.Username,
+				}, "api-put-user-status",
+				user.ID,
+			); err != nil {
+				api.Logger.Warn(ctx, "unable to notify about changed user status", slog.F("affected_user", user.Username), slog.Error(err))
+			}
+		}
+
+		// Finish: build final response
 		organizations, err := userOrganizationIDs(ctx, api, user)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -867,8 +920,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
-
-		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(suspendedUser, organizations))
+		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizations))
 	}
 }
 
