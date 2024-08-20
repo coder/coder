@@ -126,8 +126,7 @@ func (c *committer) CommitQuota(
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.WorkspaceQuota
 // @Router /workspace-quota/{user} [get]
-// @Deprecated this endpoint will be removed,
-// use /organizations/{organization}/members/{user}/workspace-quota instead
+// @Deprecated this endpoint will be removed, use /organizations/{organization}/members/{user}/workspace-quota instead
 func (api *API) workspaceQuotaByUser(rw http.ResponseWriter, r *http.Request) {
 	defaultOrg, err := api.Database.GetDefaultOrganization(r.Context())
 	if err != nil {
