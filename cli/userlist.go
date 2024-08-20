@@ -15,7 +15,7 @@ import (
 
 func (r *RootCmd) userList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
+		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created at", "status"}),
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)

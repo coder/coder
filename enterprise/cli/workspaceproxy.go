@@ -442,7 +442,7 @@ func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
 		}),
 		cliui.JSONFormat(),
 		// Table formatter expects a slice, make a slice of one.
-		cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.UpdateWorkspaceProxyResponse{}, []string{"proxy name", "proxy url", "proxy token"}),
+		cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.UpdateWorkspaceProxyResponse{}, []string{"name", "url", "proxy token"}),
 			func(data any) (any, error) {
 				response, ok := data.(codersdk.UpdateWorkspaceProxyResponse)
 				if !ok {

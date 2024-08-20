@@ -22,10 +22,10 @@ Specifies whether to wait for a direct connection before testing speed.
 
 ### --direction
 
-|         |                             |
-| ------- | --------------------------- |
-| Type    | <code>enum[up\|down]</code> |
-| Default | <code>down</code>           |
+|         |                       |
+| ------- | --------------------- |
+| Type    | <code>up\|down</code> |
+| Default | <code>down</code>     |
 
 Specifies whether to run in reverse mode where the client receives and the server sends.
 
@@ -48,18 +48,18 @@ Specifies a file to write a network capture to.
 
 ### -c, --column
 
-|         |                                  |
-| ------- | -------------------------------- |
-| Type    | <code>string-array</code>        |
-| Default | <code>Interval,Throughput</code> |
+|         |                                     |
+| ------- | ----------------------------------- |
+| Type    | <code>[Interval\|Throughput]</code> |
+| Default | <code>Interval,Throughput</code>    |
 
-Columns to display in table output. Available columns: Interval, Throughput.
+Columns to display in table output.
 
 ### -o, --output
 
-|         |                     |
-| ------- | ------------------- |
-| Type    | <code>string</code> |
-| Default | <code>table</code>  |
+|         |                          |
+| ------- | ------------------------ |
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
 
-Output format. Available formats: table, json.
+Output format.

@@ -26,18 +26,18 @@ Specifies whether all users' tokens will be listed or not (must have Owner role 
 
 ### -c, --column
 
-|         |                                                      |
-| ------- | ---------------------------------------------------- |
-| Type    | <code>string-array</code>                            |
-| Default | <code>id,name,last used,expires at,created at</code> |
+|         |                                                                   |
+| ------- | ----------------------------------------------------------------- |
+| Type    | <code>[id\|name\|last used\|expires at\|created at\|owner]</code> |
+| Default | <code>id,name,last used,expires at,created at</code>              |
 
-Columns to display in table output. Available columns: id, name, last used, expires at, created at, owner.
+Columns to display in table output.
 
 ### -o, --output
 
-|         |                     |
-| ------- | ------------------- |
-| Type    | <code>string</code> |
-| Default | <code>table</code>  |
+|         |                          |
+| ------- | ------------------------ |
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
 
-Output format. Available formats: table, json.
+Output format.
