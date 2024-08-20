@@ -38,6 +38,7 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
@@ -45,6 +46,7 @@ import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
 } from "utils/templates";
+import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 
 export const Language = {
@@ -167,38 +169,40 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   examples,
   canCreateTemplates,
 }) => {
+  const { experiments } = useDashboard();
   const isLoading = !templates;
   const isEmpty = templates && templates.length === 0;
   const navigate = useNavigate();
+  const multiOrgExperimentEnabled = experiments.includes("multi-organization");
+
+  const createTemplateAction = () => {
+    return multiOrgExperimentEnabled ? (
+      <Button
+        startIcon={<AddIcon />}
+        variant="contained"
+        onClick={() => {
+          navigate("/starter-templates");
+        }}
+      >
+        Create Template
+      </Button>
+    ) : (
+      <CreateTemplateButton onNavigate={navigate} />
+    );
+  };
 
   return (
     <Margins>
-      <PageHeader
-        actions={
-          canCreateTemplates && (
-            <Button
-              startIcon={<AddIcon />}
-              variant="contained"
-              onClick={() => {
-                navigate("/starter-templates");
-              }}
-            >
-              Create Template
-            </Button>
-          )
-        }
-      >
+      <PageHeader actions={canCreateTemplates && createTemplateAction()}>
         <PageHeaderTitle>
           <Stack spacing={1} direction="row" alignItems="center">
             Templates
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-        {templates && templates.length > 0 && (
-          <PageHeaderSubtitle>
-            Select a template to create a workspace.
-          </PageHeaderSubtitle>
-        )}
+        <PageHeaderSubtitle>
+          Select a template to create a workspace.
+        </PageHeaderSubtitle>
       </PageHeader>
 
       {error ? (
@@ -212,7 +216,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                 <TableCell width="15%">{Language.usedByLabel}</TableCell>
                 <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
                 <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-                <TableCell width="1%"></TableCell>
+                <TableCell width="1%" />
               </TableRow>
             </TableHead>
             <TableBody>
