@@ -33,10 +33,6 @@ export const CodeExample: FC<CodeExampleProps> = ({
 	};
 
 	return (
-		/* eslint-disable-next-line jsx-a11y/no-static-element-interactions --
-       Expanding clickable area of CodeExample for better ergonomics, but don't
-       want to change the semantics of the HTML elements being rendered
-    */
 		<div
 			css={styles.container}
 			className={className}

@@ -1,7 +1,6 @@
 import Button, { type ButtonProps } from "@mui/material/Button";
 import { forwardRef } from "react";
 
-// eslint-disable-next-line react/display-name -- Name is inferred from variable name
 export const AgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
 	(props, ref) => {
 		const { children, ...buttonProps } = props;

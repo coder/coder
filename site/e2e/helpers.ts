@@ -241,8 +241,7 @@ export const sshIntoWorkspace = async (
 			},
 			write: cp.stdin.write.bind(cp.stdin),
 		});
-		// eslint-disable-next-line no-console -- Helpful for debugging
-		cp.stderr.on("data", (data) => console.log(data.toString()));
+		cp.stderr.on("data", (data) => console.info(data.toString()));
 		cp.stdout.on("readable", (...args) => {
 			proxyStream.emit("readable", ...args);
 			if (cp.stdout.readableLength > 0) {
@@ -355,10 +354,8 @@ export const downloadCoderVersion = async (
 				},
 			},
 		);
-		// eslint-disable-next-line no-console -- Needed for debugging
 		cp.stderr.on("data", (data) => console.error(data.toString()));
-		// eslint-disable-next-line no-console -- Needed for debugging
-		cp.stdout.on("data", (data) => console.log(data.toString()));
+		cp.stdout.on("data", (data) => console.info(data.toString()));
 		cp.on("close", (code) => {
 			if (code === 0) {
 				resolve();

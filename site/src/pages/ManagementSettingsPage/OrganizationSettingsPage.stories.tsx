@@ -10,6 +10,7 @@ const meta: Meta<typeof OrganizationSettingsPage> = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		user: MockUser,
+		features: ["multiple_organizations"],
 		permissions: { viewDeploymentValues: true },
 		queries: [
 			{
@@ -49,6 +50,26 @@ export const CanEditOrganization: Story = {
 			location: { pathParams: { organization: MockDefaultOrganization.name } },
 			routing: { path: "/organizations/:organization" },
 		}),
+		queries: [
+			{
+				key: ["organizations", [MockDefaultOrganization.id], "permissions"],
+				data: {
+					[MockDefaultOrganization.id]: {
+						editOrganization: true,
+					},
+				},
+			},
+		],
+	},
+};
+
+export const CanEditOrganizationNotEntitled: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { pathParams: { organization: MockDefaultOrganization.name } },
+			routing: { path: "/organizations/:organization" },
+		}),
+		features: [],
 		queries: [
 			{
 				key: ["organizations", [MockDefaultOrganization.id], "permissions"],
