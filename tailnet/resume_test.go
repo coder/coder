@@ -140,16 +140,14 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 		t.Parallel()
 
 		id := uuid.New()
-		now := time.Now()
 		clock := quartz.NewMock(t)
-		_ = clock.Set(now)
 		provider := tailnet.NewResumeTokenKeyProvider(key, clock, tailnet.DefaultResumeTokenExpiry)
 		token, err := provider.GenerateResumeToken(id)
 		require.NoError(t, err)
 		require.NotNil(t, token)
 		require.NotEmpty(t, token.Token)
 		require.Equal(t, tailnet.DefaultResumeTokenExpiry/2, token.RefreshIn.AsDuration())
-		require.WithinDuration(t, now.Add(tailnet.DefaultResumeTokenExpiry), token.ExpiresAt.AsTime(), time.Second)
+		require.WithinDuration(t, clock.Now().Add(tailnet.DefaultResumeTokenExpiry), token.ExpiresAt.AsTime(), time.Second)
 
 		// Advance time past expiry
 		_ = clock.Advance(tailnet.DefaultResumeTokenExpiry + time.Second)

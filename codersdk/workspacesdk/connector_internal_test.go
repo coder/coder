@@ -226,8 +226,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 
 	// Fetch first token. We don't need to advance the clock since we use a
 	// channel with a single item to immediately fetch.
-	trappedTicker := newTickerTrap.MustWait(ctx)
-	trappedTicker.Release()
+	newTickerTrap.MustWait(ctx).Release()
 	// We call ticker.Reset after each token fetch to apply the refresh duration
 	// requested by the server.
 	trappedReset := tickerResetTrap.MustWait(ctx)
@@ -250,10 +249,10 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	_ = wsConn.Close(websocket.StatusGoingAway, "test")
 
 	// Wait for the resume token to be refreshed.
-	trappedTicker = newTickerTrap.MustWait(ctx)
+	trappedTicker := newTickerTrap.MustWait(ctx)
+	// Advance the clock slightly to ensure the new JWT is different.
+	clock.Advance(time.Second).MustWait(ctx)
 	trappedTicker.Release()
-	waiter = clock.Advance(trappedTicker.Duration)
-	waiter.MustWait(ctx)
 	trappedReset = tickerResetTrap.MustWait(ctx)
 	trappedReset.Release()
 
@@ -329,8 +328,7 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	uut.runConnector(fConn)
 
 	// Wait for the resume token to be fetched for the first time.
-	trappedTicker := newTickerTrap.MustWait(ctx)
-	trappedTicker.Release()
+	newTickerTrap.MustWait(ctx).Release()
 	trappedReset := tickerResetTrap.MustWait(ctx)
 	trappedReset.Release()
 	originalResumeToken := uut.resumeToken.Token
@@ -343,11 +341,11 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 
 	// Wait for the resume token to be refreshed, which indicates a successful
 	// reconnect.
-	trappedTicker = newTickerTrap.MustWait(ctx)
-	trappedTicker.Release()
+	trappedTicker := newTickerTrap.MustWait(ctx)
 	// Since we failed the initial reconnect and we're definitely reconnected
 	// now, the stored resume token should now be nil.
 	require.Nil(t, uut.resumeToken)
+	trappedTicker.Release()
 	trappedReset = tickerResetTrap.MustWait(ctx)
 	trappedReset.Release()
 	require.NotNil(t, uut.resumeToken)
