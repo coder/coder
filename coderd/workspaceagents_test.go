@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -40,8 +41,11 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -507,6 +511,147 @@ func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	require.Equal(t, "Unknown or unsupported API version", sdkErr.Message)
 	require.Len(t, sdkErr.Validations, 1)
 	require.Equal(t, "version", sdkErr.Validations[0].Field)
+}
+
+type resumeTokenTestFakeCoordinator struct {
+	tailnet.Coordinator
+	lastPeerID uuid.UUID
+}
+
+var _ tailnet.Coordinator = &resumeTokenTestFakeCoordinator{}
+
+func (c *resumeTokenTestFakeCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agentID uuid.UUID) error {
+	c.lastPeerID = id
+	return c.Coordinator.ServeClient(conn, id, agentID)
+}
+
+func (c *resumeTokenTestFakeCoordinator) Coordinate(ctx context.Context, id uuid.UUID, name string, a tailnet.CoordinateeAuth) (chan<- *tailnetproto.CoordinateRequest, <-chan *tailnetproto.CoordinateResponse) {
+	c.lastPeerID = id
+	return c.Coordinator.Coordinate(ctx, id, name, a)
+}
+
+func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	clock := quartz.NewMock(t)
+	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
+	require.NoError(t, err)
+	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(resumeTokenSigningKey, clock, time.Hour)
+	coordinator := &resumeTokenTestFakeCoordinator{
+		Coordinator: tailnet.NewCoordinator(logger),
+	}
+	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Coordinator:                    coordinator,
+		CoordinatorResumeTokenProvider: resumeTokenProvider,
+	})
+	defer closer.Close()
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create a workspace with an agent. No need to connect it since clients can
+	// still connect to the coordinator while the agent isn't connected.
+	r := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	agentTokenUUID, err := uuid.Parse(r.AgentToken)
+	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
+	require.NoError(t, err)
+
+	// Connect with no resume token, and ensure that the peer ID is set to a
+	// random value.
+	coordinator.lastPeerID = uuid.Nil
+	originalResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "")
+	require.NoError(t, err)
+	originalPeerID := coordinator.lastPeerID
+	require.NotEqual(t, originalPeerID, uuid.Nil)
+
+	// Connect with a valid resume token, and ensure that the peer ID is set to
+	// the stored value.
+	clock.Advance(time.Second)
+	coordinator.lastPeerID = uuid.Nil
+	newResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, originalResumeToken)
+	require.NoError(t, err)
+	require.Equal(t, originalPeerID, coordinator.lastPeerID)
+	require.NotEqual(t, originalResumeToken, newResumeToken)
+
+	// Connect with an invalid resume token, and ensure that the request is
+	// rejected.
+	clock.Advance(time.Second)
+	coordinator.lastPeerID = uuid.Nil
+	_, err = connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "invalid")
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	require.Len(t, sdkErr.Validations, 1)
+	require.Equal(t, "resume_token", sdkErr.Validations[0].Field)
+	require.Equal(t, uuid.Nil, coordinator.lastPeerID)
+}
+
+// connectToCoordinatorAndFetchResumeToken connects to the tailnet coordinator
+// with a given resume token. It returns an error if the connection is rejected.
+// If the connection is accepted, it is immediately closed and no error is
+// returned.
+func connectToCoordinatorAndFetchResumeToken(ctx context.Context, logger slog.Logger, sdkClient *codersdk.Client, agentID uuid.UUID, resumeToken string) (string, error) {
+	u, err := sdkClient.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
+	if err != nil {
+		return "", xerrors.Errorf("parse URL: %w", err)
+	}
+	q := u.Query()
+	q.Set("version", "2.0")
+	if resumeToken != "" {
+		q.Set("resume_token", resumeToken)
+	}
+	u.RawQuery = q.Encode()
+
+	//nolint:bodyclose
+	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Coder-Session-Token": []string{sdkClient.SessionToken()},
+		},
+	})
+	if err != nil {
+		if resp.StatusCode != http.StatusSwitchingProtocols {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		return "", xerrors.Errorf("websocket dial: %w", err)
+	}
+	defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+	// Send a request to the server to ensure that we're plumbed all the way
+	// through.
+	rpcClient, err := tailnet.NewDRPCClient(
+		websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+		logger,
+	)
+	if err != nil {
+		return "", xerrors.Errorf("new dRPC client: %w", err)
+	}
+
+	// Send an empty coordination request. This will do nothing on the server,
+	// but ensures our wrapped coordinator can record the peer ID.
+	coordinateClient, err := rpcClient.Coordinate(ctx)
+	if err != nil {
+		return "", xerrors.Errorf("coordinate: %w", err)
+	}
+	err = coordinateClient.Send(&tailnetproto.CoordinateRequest{})
+	if err != nil {
+		return "", xerrors.Errorf("send empty coordination request: %w", err)
+	}
+	err = coordinateClient.Close()
+	if err != nil {
+		return "", xerrors.Errorf("close coordination request: %w", err)
+	}
+
+	// Fetch a resume token.
+	newResumeToken, err := rpcClient.RefreshResumeToken(ctx, &tailnetproto.RefreshResumeTokenRequest{})
+	if err != nil {
+		return "", xerrors.Errorf("fetch resume token: %w", err)
+	}
+	return newResumeToken.Token, nil
 }
 
 func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
