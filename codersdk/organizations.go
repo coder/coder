@@ -184,6 +184,10 @@ type CreateTemplateRequest struct {
 	// RequireActiveVersion mandates that workspaces are built with the active
 	// template version.
 	RequireActiveVersion bool `json:"require_active_version"`
+
+	// MaxPortShareLevel allows optionally specifying the maximum port share level
+	// for workspaces created from the template.
+	MaxPortShareLevel *WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
