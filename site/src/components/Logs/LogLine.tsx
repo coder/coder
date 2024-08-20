@@ -52,11 +52,11 @@ const styles = {
 		},
 
 		"&.debug": {
-			backgroundColor: theme.roles.info.background,
-			color: theme.roles.info.text,
+			backgroundColor: theme.roles.notice.background,
+			color: theme.roles.notice.text,
 
 			"& .dashed-line": {
-				backgroundColor: theme.roles.info.outline,
+				backgroundColor: theme.roles.notice.outline,
 			},
 		},
 
