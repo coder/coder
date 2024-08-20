@@ -737,6 +737,7 @@ type OIDCConfig struct {
 	// support the userinfo endpoint, or if the userinfo endpoint causes
 	// undesirable behavior.
 	IgnoreUserInfo bool
+
 	// GroupField selects the claim field to be used as the created user's
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
@@ -756,6 +757,7 @@ type OIDCConfig struct {
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
 	GroupMapping map[string]string
+
 	// UserRoleField selects the claim field to be used as the created user's
 	// roles. If the field is the empty string, then no role updates
 	// will ever come from the OIDC provider.
@@ -767,6 +769,17 @@ type OIDCConfig struct {
 	// UserRolesDefault is the default set of roles to assign to a user if role sync
 	// is enabled.
 	UserRolesDefault []string
+
+	// OrganizationField selects the claim field to be used as the created user's
+	// organizations. If the field is the empty string, then no organization updates
+	// will ever come from the OIDC provider.
+	OrganizationField string
+	// OrganizationMapping controls how organizations returned by the OIDC provider get mapped
+	OrganizationMapping map[string][]string
+	// OrganizationAssignDefault will auto-add the user to the default organization
+	// always. This primarily exists for single org deployments
+	OrganizationAssignDefault bool
+
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -1152,6 +1165,26 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 	return usingGroups, groups, nil
 }
 
+func (api *API) oidcOrganizations(ctx context.Context, mergedClaims map[string]interface{}) ([]string, *httpError) {
+	defaultOrg, err := api.Database.GetDefaultOrganization(ctx)
+	if err != nil {
+		return nil, &httpError{
+			code:             http.StatusInternalServerError,
+			msg:              "Failed to get default organization",
+			detail:           err.Error(),
+			renderStaticPage: false,
+		}
+	}
+
+	userOrganizations := make([]string, 0)
+
+	if api.OIDCConfig.OrganizationAssignDefault {
+		userOrganizations = append(userOrganizations, defaultOrg.ID.String())
+	}
+
+	return userOrganizations, nil
+}
+
 // oidcRoles returns the roles for the user from the OIDC claims.
 // If the function returns false, then the caller should return early.
 // All writes to the response writer are handled by this function.
@@ -1264,6 +1297,10 @@ type oauthLoginParams struct {
 	Username     string
 	Name         string
 	AvatarURL    string
+	// UsingOrganizations indicates to use organization sync
+	UsingOrganizations        bool
+	Organizations             []string
+	AssignDefaultOrganization bool
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
 	UsingGroups         bool
