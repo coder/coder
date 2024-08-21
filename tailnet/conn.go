@@ -556,7 +556,6 @@ func (c *Conn) Closed() <-chan struct{} {
 func (c *Conn) Close() error {
 	c.logger.Info(context.Background(), "closing tailnet Conn")
 	c.watchCancel()
-	c.telemetryWg.Wait()
 	c.configMaps.close()
 	c.nodeUpdater.close()
 	c.mutex.Lock()
@@ -567,6 +566,7 @@ func (c *Conn) Close() error {
 	default:
 	}
 	close(c.closed)
+	c.telemetryWg.Wait()
 	c.mutex.Unlock()
 
 	var wg sync.WaitGroup
@@ -783,6 +783,13 @@ func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
 }
 
 func (c *Conn) sendTelemetryBackground(e *proto.TelemetryEvent) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	select {
+	case <-c.closed:
+		return
+	default:
+	}
 	c.telemetryWg.Add(1)
 	go func() {
 		defer c.telemetryWg.Done()
@@ -838,6 +845,10 @@ func (c *Conn) GetPeerDiagnostics(peerID uuid.UUID) PeerDiagnostics {
 	c.nodeUpdater.fillPeerDiagnostics(&d)
 	c.configMaps.fillPeerDiagnostics(&d, peerID)
 	return d
+}
+
+func (c *Conn) GetKnownPeerIDs() []uuid.UUID {
+	return c.configMaps.knownPeerIDs()
 }
 
 type listenKey struct {

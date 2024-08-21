@@ -5,28 +5,28 @@ import { MockTemplateVersion } from "testHelpers/entities";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 
 const meta: Meta<typeof ProvisionerTagsPopover> = {
-  title: "pages/TemplateVersionEditorPage/ProvisionerTagsPopover",
-  parameters: {
-    chromatic,
-    layout: "centered",
-  },
-  component: ProvisionerTagsPopover,
-  args: {
-    tags: MockTemplateVersion.job.tags,
-  },
+	title: "pages/TemplateVersionEditorPage/ProvisionerTagsPopover",
+	parameters: {
+		chromatic,
+		layout: "centered",
+	},
+	component: ProvisionerTagsPopover,
+	args: {
+		tags: MockTemplateVersion.job.tags,
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof ProvisionerTagsPopover>;
 
 const Example: Story = {
-  play: async ({ canvasElement, step }) => {
-    const canvas = within(canvasElement);
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
 
-    await step("Open popover", async () => {
-      await userEvent.click(canvas.getByRole("button"));
-    });
-  },
+		await step("Open popover", async () => {
+			await userEvent.click(canvas.getByRole("button"));
+		});
+	},
 };
 
 export { Example as ProvisionerTagsPopover };

@@ -8,11 +8,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -296,10 +298,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
 						map[string]string{
-							"name":                  ws.Name,
-							"initiator":             "autobuild",
-							"reason":                nextBuildReason,
-							"template_version_name": activeTemplateVersion.Name,
+							"name":                     ws.Name,
+							"initiator":                "autobuild",
+							"reason":                   nextBuildReason,
+							"template_version_name":    activeTemplateVersion.Name,
+							"template_version_message": activeTemplateVersion.Message,
 						}, "autobuild",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
@@ -321,6 +324,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
+					dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
@@ -328,7 +332,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
+							"timeTilDormant": humanize.Time(dormantTime),
 						},
 						"lifecycle_executor",
 						ws.ID,

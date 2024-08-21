@@ -27,6 +27,6 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
 ```
 
 To cap token lifetime on creation,
-[configure Coder server to set a shorter max token lifetime](../cli/server.md#--max-token-lifetime).
+[configure Coder server to set a shorter max token lifetime](../reference/cli/server.md#--max-token-lifetime).
 For an example, see how we push our development image and template
 [with GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml).

@@ -1,28 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
-import { mockApiError, MockTemplateExample } from "testHelpers/entities";
+import { MockTemplateExample, mockApiError } from "testHelpers/entities";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
 const meta: Meta<typeof StarterTemplatePageView> = {
-  title: "pages/StarterTemplatePage",
-  parameters: { chromatic },
-  component: StarterTemplatePageView,
+	title: "pages/StarterTemplatePage",
+	parameters: { chromatic },
+	component: StarterTemplatePageView,
 };
 
 export default meta;
 type Story = StoryObj<typeof StarterTemplatePageView>;
 
 export const Example: Story = {
-  args: {
-    error: undefined,
-    starterTemplate: MockTemplateExample,
-  },
+	args: {
+		error: undefined,
+		starterTemplate: MockTemplateExample,
+	},
 };
-export const Error: Story = {
-  args: {
-    error: mockApiError({
-      message: `Example ${MockTemplateExample.id} not found.`,
-    }),
-    starterTemplate: undefined,
-  },
+export const WithError: Story = {
+	args: {
+		error: mockApiError({
+			message: `Example ${MockTemplateExample.id} not found.`,
+		}),
+		starterTemplate: undefined,
+	},
 };

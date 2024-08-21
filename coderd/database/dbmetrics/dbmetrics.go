@@ -214,6 +214,13 @@ func (m metricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	return r0
 }
 
+func (m metricsStore) DeleteCustomRole(ctx context.Context, arg database.DeleteCustomRoleParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteCustomRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteCustomRole").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteExternalAuthLink(ctx, arg)
@@ -522,6 +529,13 @@ func (m metricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid
 	return row, err
 }
 
+func (m metricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
+	m.queryLatencies.WithLabelValues("GetCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDBCryptKeys(ctx)
@@ -641,32 +655,25 @@ func (m metricsStore) GetGroupMembers(ctx context.Context) ([]database.GroupMemb
 	return r0, r1
 }
 
-func (m metricsStore) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
+func (m metricsStore) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]database.GroupMember, error) {
 	start := time.Now()
 	users, err := m.s.GetGroupMembersByGroupID(ctx, groupID)
 	m.queryLatencies.WithLabelValues("GetGroupMembersByGroupID").Observe(time.Since(start).Seconds())
 	return users, err
 }
 
-func (m metricsStore) GetGroups(ctx context.Context) ([]database.Group, error) {
+func (m metricsStore) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetGroups(ctx)
+	r0, r1 := m.s.GetGroupMembersCountByGroupID(ctx, groupID)
+	m.queryLatencies.WithLabelValues("GetGroupMembersCountByGroupID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroups").Observe(time.Since(start).Seconds())
 	return r0, r1
-}
-
-func (m metricsStore) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetGroupsByOrganizationAndUserID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationAndUserID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	start := time.Now()
-	groups, err := m.s.GetGroupsByOrganizationID(ctx, organizationID)
-	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationID").Observe(time.Since(start).Seconds())
-	return groups, err
 }
 
 func (m metricsStore) GetHealthSettings(ctx context.Context) (string, error) {
@@ -1572,6 +1579,13 @@ func (m metricsStore) InsertAuditLog(ctx context.Context, arg database.InsertAud
 	return log, err
 }
 
+func (m metricsStore) InsertCustomRole(ctx context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCustomRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCustomRole").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertDBCryptKey(ctx context.Context, arg database.InsertDBCryptKeyParams) error {
 	start := time.Now()
 	r0 := m.s.InsertDBCryptKey(ctx, arg)
@@ -1943,6 +1957,13 @@ func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateA
 	return err
 }
 
+func (m metricsStore) UpdateCustomRole(ctx context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateCustomRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateCustomRole").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	link, err := m.s.UpdateExternalAuthLink(ctx, arg)
@@ -2039,6 +2060,13 @@ func (m metricsStore) UpdateReplica(ctx context.Context, arg database.UpdateRepl
 	replica, err := m.s.UpdateReplica(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateReplica").Observe(time.Since(start).Seconds())
 	return replica, err
+}
+
+func (m metricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTailnetPeerStatusByCoordinator").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
@@ -2356,11 +2384,11 @@ func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) e
 	return r0
 }
 
-func (m metricsStore) UpsertCustomRole(ctx context.Context, arg database.UpsertCustomRoleParams) (database.CustomRole, error) {
+func (m metricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
 	start := time.Now()
-	r0, r1 := m.s.UpsertCustomRole(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertCustomRole").Observe(time.Since(start).Seconds())
-	return r0, r1
+	r0 := m.s.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

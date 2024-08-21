@@ -320,6 +320,26 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION remove_organization_member_role() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	-- Delete the role from all organization members that have it.
+	-- TODO: When site wide custom roles are supported, if the
+	--	organization_id is null, we should remove the role from the 'users'
+	--	table instead.
+	IF OLD.organization_id IS NOT NULL THEN
+		UPDATE organization_members
+		-- this is a noop if the role is not assigned to the member
+		SET roles = array_remove(roles, OLD.name)
+		WHERE
+			-- Scope to the correct organization
+			organization_members.organization_id = OLD.organization_id;
+	END IF;
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -561,6 +581,77 @@ COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friend
 
 COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
+CREATE TABLE organization_members (
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    roles text[] DEFAULT '{}'::text[] NOT NULL
+);
+
+CREATE TABLE users (
+    id uuid NOT NULL,
+    email text NOT NULL,
+    username text DEFAULT ''::text NOT NULL,
+    hashed_password bytea NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    status user_status DEFAULT 'dormant'::user_status NOT NULL,
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
+    login_type login_type DEFAULT 'password'::login_type NOT NULL,
+    avatar_url text DEFAULT ''::text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    theme_preference text DEFAULT ''::text NOT NULL,
+    name text DEFAULT ''::text NOT NULL,
+    github_com_user_id bigint
+);
+
+COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
+
+COMMENT ON COLUMN users.name IS 'Name of the Coder user';
+
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
+
+CREATE VIEW group_members_expanded AS
+ WITH all_members AS (
+         SELECT group_members.user_id,
+            group_members.group_id
+           FROM group_members
+        UNION
+         SELECT organization_members.user_id,
+            organization_members.organization_id AS group_id
+           FROM organization_members
+        )
+ SELECT users.id AS user_id,
+    users.email AS user_email,
+    users.username AS user_username,
+    users.hashed_password AS user_hashed_password,
+    users.created_at AS user_created_at,
+    users.updated_at AS user_updated_at,
+    users.status AS user_status,
+    users.rbac_roles AS user_rbac_roles,
+    users.login_type AS user_login_type,
+    users.avatar_url AS user_avatar_url,
+    users.deleted AS user_deleted,
+    users.last_seen_at AS user_last_seen_at,
+    users.quiet_hours_schedule AS user_quiet_hours_schedule,
+    users.theme_preference AS user_theme_preference,
+    users.name AS user_name,
+    users.github_com_user_id AS user_github_com_user_id,
+    groups.organization_id,
+    groups.name AS group_name,
+    all_members.group_id
+   FROM ((all_members
+     JOIN users ON ((users.id = all_members.user_id)))
+     JOIN groups ON ((groups.id = all_members.group_id)))
+  WHERE (users.deleted = false);
+
+COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
+
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
@@ -680,14 +771,6 @@ CREATE TABLE oauth2_provider_apps (
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
-
-CREATE TABLE organization_members (
-    user_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    roles text[] DEFAULT '{}'::text[] NOT NULL
-);
 
 CREATE TABLE organizations (
     id uuid NOT NULL,
@@ -1014,33 +1097,6 @@ CREATE TABLE template_versions (
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
-
-CREATE TABLE users (
-    id uuid NOT NULL,
-    email text NOT NULL,
-    username text DEFAULT ''::text NOT NULL,
-    hashed_password bytea NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'dormant'::user_status NOT NULL,
-    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
-    login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text DEFAULT ''::text NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
-    theme_preference text DEFAULT ''::text NOT NULL,
-    name text DEFAULT ''::text NOT NULL,
-    github_com_user_id bigint
-);
-
-COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
-
-COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user does not care", falling back to the default theme';
-
-COMMENT ON COLUMN users.name IS 'Name of the Coder user';
-
-COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
 
 CREATE VIEW visible_users AS
  SELECT users.id,
@@ -1548,7 +1604,7 @@ ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY custom_roles
-    ADD CONSTRAINT custom_roles_pkey PRIMARY KEY (name);
+    ADD CONSTRAINT custom_roles_unique_key UNIQUE (name, organization_id);
 
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
@@ -1793,9 +1849,9 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
-CREATE UNIQUE INDEX idx_provisioner_daemons_name_owner_key ON provisioner_daemons USING btree (name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
+CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_daemons USING btree (organization_id, name, lower(COALESCE((tags ->> 'owner'::text), ''::text)));
 
-COMMENT ON INDEX idx_provisioner_daemons_name_owner_key IS 'Allow unique provisioner daemon names by user';
+COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
@@ -1860,6 +1916,10 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
+
+CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
+
+COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
 
 CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
 

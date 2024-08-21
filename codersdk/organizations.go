@@ -42,7 +42,7 @@ func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
 type MinimalOrganization struct {
 	ID          uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
 	Name        string    `table:"name,default_sort" json:"name"`
-	DisplayName string    `table:"display_name" json:"display_name"`
+	DisplayName string    `table:"display name" json:"display_name"`
 	Icon        string    `table:"icon" json:"icon"`
 }
 
@@ -50,8 +50,8 @@ type MinimalOrganization struct {
 type Organization struct {
 	MinimalOrganization `table:"m,recursive_inline"`
 	Description         string    `table:"description" json:"description"`
-	CreatedAt           time.Time `table:"created_at" json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt           time.Time `table:"updated_at" json:"updated_at" validate:"required" format:"date-time"`
+	CreatedAt           time.Time `table:"created at" json:"created_at" validate:"required" format:"date-time"`
+	UpdatedAt           time.Time `table:"updated at" json:"updated_at" validate:"required" format:"date-time"`
 	IsDefault           bool      `table:"default" json:"is_default" validate:"required"`
 }
 
@@ -67,7 +67,7 @@ type OrganizationMember struct {
 	OrganizationID uuid.UUID  `table:"organization id" json:"organization_id" format:"uuid"`
 	CreatedAt      time.Time  `table:"created at" json:"created_at" format:"date-time"`
 	UpdatedAt      time.Time  `table:"updated at" json:"updated_at" format:"date-time"`
-	Roles          []SlimRole `table:"organization_roles" json:"roles"`
+	Roles          []SlimRole `table:"organization roles" json:"roles"`
 }
 
 type OrganizationMemberWithUserData struct {
@@ -184,6 +184,10 @@ type CreateTemplateRequest struct {
 	// RequireActiveVersion mandates that workspaces are built with the active
 	// template version.
 	RequireActiveVersion bool `json:"require_active_version"`
+
+	// MaxPortShareLevel allows optionally specifying the maximum port share level
+	// for workspaces created from the template.
+	MaxPortShareLevel *WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -405,8 +409,10 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 }
 
 type TemplateFilter struct {
-	OrganizationID uuid.UUID
-	ExactName      string
+	OrganizationID uuid.UUID `typescript:"-"`
+	ExactName      string    `typescript:"-"`
+	FuzzyName      string    `typescript:"-"`
+	SearchQuery    string    `json:"q,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -422,6 +428,13 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 
 		if f.ExactName != "" {
 			params = append(params, fmt.Sprintf("exact_name:%q", f.ExactName))
+		}
+
+		if f.FuzzyName != "" {
+			params = append(params, fmt.Sprintf("name:%q", f.FuzzyName))
+		}
+		if f.SearchQuery != "" {
+			params = append(params, f.SearchQuery)
 		}
 
 		q := r.URL.Query()

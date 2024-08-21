@@ -132,7 +132,10 @@ func TestTemplates(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxPortShareLevel = ptr.Ref(codersdk.WorkspaceAgentPortShareLevelPublic)
+		})
+		require.Equal(t, template.MaxPortShareLevel, codersdk.WorkspaceAgentPortShareLevelPublic)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
@@ -751,7 +754,7 @@ func TestTemplates(t *testing.T) {
 		})
 
 		//nolint:gocritic // owner required to make custom roles
-		orgTemplateAdminRole, err := ownerClient.PatchOrganizationRole(ctx, codersdk.Role{
+		orgTemplateAdminRole, err := ownerClient.CreateOrganizationRole(ctx, codersdk.Role{
 			Name:           "org-template-admin",
 			OrganizationID: secondOrg.ID.String(),
 			OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{

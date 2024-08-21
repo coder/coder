@@ -275,8 +275,8 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 
 type ProvisionerKey struct {
 	ID             uuid.UUID         `json:"id" table:"-" format:"uuid"`
-	CreatedAt      time.Time         `json:"created_at" table:"created_at" format:"date-time"`
-	OrganizationID uuid.UUID         `json:"organization" table:"organization_id" format:"uuid"`
+	CreatedAt      time.Time         `json:"created_at" table:"created at" format:"date-time"`
+	OrganizationID uuid.UUID         `json:"organization" table:"organization id" format:"uuid"`
 	Name           string            `json:"name" table:"name,default_sort"`
 	Tags           map[string]string `json:"tags" table:"tags"`
 	// HashedSecret - never include the access token in the API response

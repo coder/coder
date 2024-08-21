@@ -7,11 +7,15 @@ terraform {
     docker = {
       source = "kreuzwerker/docker"
     }
+    envbuilder = {
+      source = "coder/envbuilder"
+    }
   }
 }
 
 provider "coder" {}
 provider "docker" {}
+provider "envbuilder" {}
 data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
@@ -89,14 +93,19 @@ EOF
 
 variable "cache_repo" {
   default     = ""
-  description = "Use a container registry as a cache to speed up builds."
-  sensitive   = true
+  description = "(Optional) Use a container registry as a cache to speed up builds."
   type        = string
+}
+
+variable "insecure_cache_repo" {
+  default     = false
+  description = "Enable this option if your cache registry does not serve HTTPS."
+  type        = bool
 }
 
 variable "cache_repo_docker_config_path" {
   default     = ""
-  description = "Path to a docker config.json containing credentials to the provided cache repo, if required."
+  description = "(Optional) Path to a docker config.json containing credentials to the provided cache repo, if required."
   sensitive   = true
   type        = string
 }
@@ -107,6 +116,26 @@ locals {
   git_author_name            = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
   git_author_email           = data.coder_workspace_owner.me.email
   repo_url                   = data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value
+  # The envbuilder provider requires a key-value map of environment variables.
+  envbuilder_env = {
+    # ENVBUILDER_GIT_URL and ENVBUILDER_CACHE_REPO will be overridden by the provider
+    # if the cache repo is enabled.
+    "ENVBUILDER_GIT_URL" : local.repo_url,
+    "ENVBUILDER_CACHE_REPO" : var.cache_repo,
+    "CODER_AGENT_TOKEN" : coder_agent.main.token,
+    # Use the docker gateway if the access URL is 127.0.0.1
+    "CODER_AGENT_URL" : replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    # Use the docker gateway if the access URL is 127.0.0.1
+    "ENVBUILDER_INIT_SCRIPT" : replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
+    "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
+    "ENVBUILDER_DOCKER_CONFIG_BASE64" : try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, ""),
+    "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
+    "ENVBUILDER_INSECURE" : "${var.insecure_cache_repo}",
+  }
+  # Convert the above map to the format expected by the docker provider.
+  docker_env = [
+    for k, v in local.envbuilder_env : "${k}=${v}"
+  ]
 }
 
 data "local_sensitive_file" "cache_repo_dockerconfigjson" {
@@ -145,23 +174,27 @@ resource "docker_volume" "workspaces" {
   }
 }
 
+# Check for the presence of a prebuilt image in the cache repo
+# that we can use instead.
+resource "envbuilder_cached_image" "cached" {
+  count         = var.cache_repo == "" ? 0 : data.coder_workspace.me.start_count
+  builder_image = local.devcontainer_builder_image
+  git_url       = local.repo_url
+  cache_repo    = var.cache_repo
+  extra_env     = local.envbuilder_env
+  insecure      = var.insecure_cache_repo
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = local.devcontainer_builder_image
+  image = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
-  # Use the docker gateway if the access URL is 127.0.0.1
-  env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    "CODER_AGENT_URL=${replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
-    "ENVBUILDER_GIT_URL=${local.repo_url}",
-    "ENVBUILDER_INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
-    "ENVBUILDER_FALLBACK_IMAGE=${data.coder_parameter.fallback_image.value}",
-    "ENVBUILDER_CACHE_REPO=${var.cache_repo}",
-    "ENVBUILDER_DOCKER_CONFIG_BASE64=${try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, "")}",
-  ]
+  # Use the environment specified by the envbuilder provider, if available.
+  env = var.cache_repo == "" ? local.docker_env : envbuilder_cached_image.cached.0.env
+  # network_mode = "host" # Uncomment if testing with a registry running on `localhost`.
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
@@ -296,5 +329,22 @@ resource "coder_app" "code-server" {
     url       = "http://localhost:13337/healthz"
     interval  = 5
     threshold = 6
+  }
+}
+
+resource "coder_metadata" "container_info" {
+  count       = data.coder_workspace.me.start_count
+  resource_id = coder_agent.main.id
+  item {
+    key   = "workspace image"
+    value = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
+  }
+  item {
+    key   = "git url"
+    value = local.repo_url
+  }
+  item {
+    key   = "cache repo"
+    value = var.cache_repo == "" ? "not enabled" : var.cache_repo
   }
 }

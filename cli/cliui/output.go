@@ -65,8 +65,8 @@ func (f *OutputFormatter) AttachOptions(opts *serpent.OptionSet) {
 			Flag:          "output",
 			FlagShorthand: "o",
 			Default:       f.formats[0].ID(),
-			Value:         serpent.StringOf(&f.formatID),
-			Description:   "Output format. Available formats: " + strings.Join(formatNames, ", ") + ".",
+			Value:         serpent.EnumOf(&f.formatID, formatNames...),
+			Description:   "Output format.",
 		},
 	)
 }
@@ -136,8 +136,8 @@ func (f *tableFormat) AttachOptions(opts *serpent.OptionSet) {
 			Flag:          "column",
 			FlagShorthand: "c",
 			Default:       strings.Join(f.defaultColumns, ","),
-			Value:         serpent.StringArrayOf(&f.columns),
-			Description:   "Columns to display in table output. Available columns: " + strings.Join(f.allColumns, ", ") + ".",
+			Value:         serpent.EnumArrayOf(&f.columns, f.allColumns...),
+			Description:   "Columns to display in table output.",
 		},
 	)
 }

@@ -182,6 +182,9 @@ type Options struct {
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey workspaceapps.SecurityKey
+	// CoordinatorResumeTokenProvider is used to provide and validate resume
+	// tokens issued by and passed to the coordinator DRPC API.
+	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
 
 	HealthcheckFunc              func(ctx context.Context, apiKey string) *healthsdk.HealthcheckReport
 	HealthcheckTimeout           time.Duration
@@ -464,7 +467,6 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
-		CustomRoleHandler:           atomic.Pointer[CustomRoleHandler]{},
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer: provisionerdserver.NewAcquirer(
@@ -476,9 +478,8 @@ func New(options *Options) *API {
 		dbRolluper: options.DatabaseRolluper,
 	}
 
-	var customRoleHandler CustomRoleHandler = &agplCustomRoleHandler{}
-	api.CustomRoleHandler.Store(&customRoleHandler)
-	api.AppearanceFetcher.Store(&appearance.DefaultFetcher)
+	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
+	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
 		ExternalURL:     buildinfo.ExternalURL(),
@@ -586,12 +587,16 @@ func New(options *Options) *API {
 		api.Options.NetworkTelemetryBatchMaxSize,
 		api.handleNetworkTelemetry,
 	)
+	if options.CoordinatorResumeTokenProvider == nil {
+		panic("CoordinatorResumeTokenProvider is nil")
+	}
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  api.Logger.Named("tailnetclient"),
 		CoordPtr:                &api.TailnetCoordinator,
 		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
 		DERPMapFn:               api.DERPMap,
 		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
+		ResumeTokenProvider:     api.Options.CoordinatorResumeTokenProvider,
 	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
@@ -616,6 +621,9 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
+	if options.AppSecurityKey.IsZero() {
+		api.Logger.Fatal(api.ctx, "app security key cannot be zero")
+	}
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: workspaceAppsLogger,
 
@@ -874,7 +882,7 @@ func New(options *Options) *API {
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)
 					r.Get("/", api.templatesByOrganization())
-					r.Get("/examples", api.templateExamples)
+					r.Get("/examples", api.templateExamplesByOrganization)
 					r.Route("/{templatename}", func(r chi.Router) {
 						r.Get("/", api.templateByOrganizationAndName)
 						r.Route("/versions/{templateversionname}", func(r chi.Router) {
@@ -887,8 +895,6 @@ func New(options *Options) *API {
 					r.Get("/", api.listMembers)
 					r.Route("/roles", func(r chi.Router) {
 						r.Get("/", api.assignableOrgRoles)
-						r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentCustomRoles)).
-							Patch("/", api.patchOrgRoles)
 					})
 
 					r.Route("/{user}", func(r chi.Router) {
@@ -920,6 +926,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			r.Get("/", api.fetchTemplates(nil))
+			r.Get("/examples", api.templateExamples)
 			r.Route("/{template}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractTemplateParam(options.Database),
@@ -1340,8 +1347,6 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
-	// CustomRoleHandler is the AGPL/Enterprise implementation for custom roles.
-	CustomRoleHandler atomic.Pointer[CustomRoleHandler]
 
 	HTTPAuth *HTTPAuthorizer
 

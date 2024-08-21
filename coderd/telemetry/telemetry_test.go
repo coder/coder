@@ -49,14 +49,14 @@ func TestTelemetry(t *testing.T) {
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
 		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{})
-		_ = dbgen.User(t, db, database.User{})
+		user := dbgen.User(t, db, database.User{})
 		_ = dbgen.Workspace(t, db, database.Workspace{})
 		_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
 		})
-		_ = dbgen.Group(t, db, database.Group{})
-		_ = dbgen.GroupMember(t, db, database.GroupMember{})
+		group := dbgen.Group(t, db, database.Group{})
+		_ = dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
 		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
 		// Update the workspace agent to have a valid subsystem.
 		err = db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
@@ -94,7 +94,8 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.TemplateVersions, 1)
 		require.Len(t, snapshot.Users, 1)
 		require.Len(t, snapshot.Groups, 2)
-		require.Len(t, snapshot.GroupMembers, 1)
+		// 1 member in the everyone group + 1 member in the custom group
+		require.Len(t, snapshot.GroupMembers, 2)
 		require.Len(t, snapshot.Workspaces, 1)
 		require.Len(t, snapshot.WorkspaceApps, 1)
 		require.Len(t, snapshot.WorkspaceAgents, 1)

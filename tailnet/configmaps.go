@@ -608,6 +608,16 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 	d.LastWireguardHandshake = ps.LastHandshake
 }
 
+func (c *configMaps) knownPeerIDs() []uuid.UUID {
+	c.L.Lock()
+	defer c.L.Unlock()
+	out := make([]uuid.UUID, 0, len(c.peers))
+	for id := range c.peers {
+		out = append(out, id)
+	}
+	return out
+}
+
 func (c *configMaps) peerReadyForHandshakeTimeout(peerID uuid.UUID) {
 	logger := c.logger.With(slog.F("peer_id", peerID))
 	logger.Debug(context.Background(), "peer ready for handshake timeout")

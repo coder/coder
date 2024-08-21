@@ -6,8 +6,8 @@ USAGE:
   Show coder version
 
 OPTIONS:
-  -o, --output string (default: text)
-          Output format. Available formats: text, json.
+  -o, --output text|json (default: text)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

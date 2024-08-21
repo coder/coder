@@ -33,7 +33,7 @@ Aliases:
 | Name |   Purpose |
 | ---- |   ----- |
 {{- end }}
-| [{{ $cmd.Name | wrapCode }}](./{{if atRoot $}}cli/{{end}}{{commandURI $cmd}}) | {{ $cmd.Short }} |
+| [{{ $cmd.Name | wrapCode }}](./{{commandURI $cmd}}) | {{ $cmd.Short }} |
 {{- end}}
 {{ "" }}
 {{- range $index, $opt := visibleOptions . }}
@@ -43,7 +43,7 @@ Aliases:
 ### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}--{{ $opt.Flag }}
 {{" "}}
 {{ tableHeader }}
-| Type | {{ $opt.Value.Type | wrapCode }} |
+| Type | {{ typeHelper $opt | wrapCode }} |
 {{- with $opt.Env }}
 | Environment | {{ (print "$" .) | wrapCode }} |
 {{- end }}

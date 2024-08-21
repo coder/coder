@@ -53,7 +53,7 @@ func TestMetrics(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Millisecond * 50)
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100) // Twice as long as fetch interval to ensure we catch pending updates.
 
-	mgr, err := notifications.NewManager(cfg, store, metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -220,7 +220,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 
 	syncer := &syncInterceptor{Store: store}
 	interceptor := newUpdateSignallingInterceptor(syncer)
-	mgr, err := notifications.NewManager(cfg, interceptor, metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -294,7 +294,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
 
-	mgr, err := notifications.NewManager(cfg, store, metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -373,7 +373,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 
 	// WHEN: two notifications (each with different templates) are enqueued.
 	cfg := defaultNotificationsConfig(defaultMethod)
-	mgr, err := notifications.NewManager(cfg, store, metrics, logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))

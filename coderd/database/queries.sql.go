@@ -1322,7 +1322,7 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many
-SELECT user_id, group_id FROM group_members
+SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded
 `
 
 func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error) {
@@ -1334,7 +1334,27 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 	var items []GroupMember
 	for rows.Next() {
 		var i GroupMember
-		if err := rows.Scan(&i.UserID, &i.GroupID); err != nil {
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserEmail,
+			&i.UserUsername,
+			&i.UserHashedPassword,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRbacRoles),
+			&i.UserLoginType,
+			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserLastSeenAt,
+			&i.UserQuietHoursSchedule,
+			&i.UserThemePreference,
+			&i.UserName,
+			&i.UserGithubComUserID,
+			&i.OrganizationID,
+			&i.GroupName,
+			&i.GroupID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1349,57 +1369,38 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context) ([]GroupMember, error)
 }
 
 const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
-SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.theme_preference, users.name, users.github_com_user_id
-FROM
-	users
-LEFT JOIN
-	group_members
-ON
-	group_members.user_id = users.id AND
-	group_members.group_id = $1
-LEFT JOIN
-	organization_members
-ON
-	organization_members.user_id = users.id AND
-	organization_members.organization_id = $1
-WHERE
-	-- In either case, the group_id will only match an org or a group.
-    (group_members.group_id = $1
-         OR
-     organization_members.organization_id = $1)
-AND
-	users.deleted = 'false'
+SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded WHERE group_id = $1
 `
 
-// If the group is a user made group, then we need to check the group_members table.
-// If it is the "Everyone" group, then we need to check the organization_members table.
-func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]User, error) {
+func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.UUID) ([]GroupMember, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID, groupID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []GroupMember
 	for rows.Next() {
-		var i User
+		var i GroupMember
 		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Username,
-			&i.HashedPassword,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Status,
-			&i.RBACRoles,
-			&i.LoginType,
-			&i.AvatarURL,
-			&i.Deleted,
-			&i.LastSeenAt,
-			&i.QuietHoursSchedule,
-			&i.ThemePreference,
-			&i.Name,
-			&i.GithubComUserID,
+			&i.UserID,
+			&i.UserEmail,
+			&i.UserUsername,
+			&i.UserHashedPassword,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRbacRoles),
+			&i.UserLoginType,
+			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserLastSeenAt,
+			&i.UserQuietHoursSchedule,
+			&i.UserThemePreference,
+			&i.UserName,
+			&i.UserGithubComUserID,
+			&i.OrganizationID,
+			&i.GroupName,
+			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}
@@ -1412,6 +1413,20 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, groupID uuid.
 		return nil, err
 	}
 	return items, nil
+}
+
+const getGroupMembersCountByGroupID = `-- name: GetGroupMembersCountByGroupID :one
+SELECT COUNT(*) FROM group_members_expanded WHERE group_id = $1
+`
+
+// Returns the total count of members in a group. Shows the total
+// count even if the caller does not have read access to ResourceGroupMember.
+// They only need ResourceGroup read access.
+func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getGroupMembersCountByGroupID, groupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const insertGroupMember = `-- name: InsertGroupMember :exec
@@ -1546,112 +1561,42 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 }
 
 const getGroups = `-- name: GetGroups :many
-SELECT id, name, organization_id, avatar_url, quota_allowance, display_name, source FROM groups
-`
-
-func (q *sqlQuerier) GetGroups(ctx context.Context) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroups)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-			&i.DisplayName,
-			&i.Source,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getGroupsByOrganizationAndUserID = `-- name: GetGroupsByOrganizationAndUserID :many
 SELECT
-    groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source
+    id, name, organization_id, avatar_url, quota_allowance, display_name, source
 FROM
     groups
-	-- If the group is a user made group, then we need to check the group_members table.
-LEFT JOIN
-    group_members
-ON
-    group_members.group_id = groups.id AND
-    group_members.user_id = $1
-	-- If it is the "Everyone" group, then we need to check the organization_members table.
-LEFT JOIN
-    organization_members
-ON
-    organization_members.organization_id = groups.id AND
-    organization_members.user_id = $1
 WHERE
-    -- In either case, the group_id will only match an org or a group.
-    (group_members.user_id = $1 OR organization_members.user_id = $1)
-AND
-    -- Ensure the group or organization is the specified organization.
-    groups.organization_id = $2
+    true
+    AND CASE
+        WHEN $1:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            groups.organization_id = $1
+        ELSE true
+    END
+    AND CASE
+        -- Filter to only include groups a user is a member of
+        WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+            EXISTS (
+                SELECT
+                    1
+                FROM
+                    -- this view handles the 'everyone' group in orgs.
+                    group_members_expanded
+                WHERE
+                    group_members_expanded.group_id = groups.id
+                AND
+                    group_members_expanded.user_id = $2
+            )
+        ELSE true
+    END
 `
 
-type GetGroupsByOrganizationAndUserIDParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+type GetGroupsParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	HasMemberID    uuid.UUID `db:"has_member_id" json:"has_member_id"`
 }
 
-func (q *sqlQuerier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg GetGroupsByOrganizationAndUserIDParams) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationAndUserID, arg.UserID, arg.OrganizationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Group
-	for rows.Next() {
-		var i Group
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-			&i.DisplayName,
-			&i.Source,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
-SELECT
-	id, name, organization_id, avatar_url, quota_allowance, display_name, source
-FROM
-	groups
-WHERE
-	organization_id = $1
-`
-
-func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupsByOrganizationID, organizationID)
+func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, getGroups, arg.OrganizationID, arg.HasMemberID)
 	if err != nil {
 		return nil, err
 	}
@@ -1758,15 +1703,15 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-    source
+    	    	source
 )
 SELECT
-    gen_random_uuid(),
-    group_name,
-    $1,
-    $2
+    	    	gen_random_uuid(),
+    	    	group_name,
+    	    	$1,
+    	    	$2
 FROM
-    UNNEST($3 :: text[]) AS group_name
+    	    	UNNEST($3 :: text[]) AS group_name
 ON CONFLICT DO NOTHING
 RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source
 `
@@ -3663,6 +3608,7 @@ const getNotificationTemplatesByKind = `-- name: GetNotificationTemplatesByKind 
 SELECT id, name, title_template, body_template, actions, "group", method, kind
 FROM notification_templates
 WHERE kind = $1::notification_template_kind
+ORDER BY name ASC
 `
 
 func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error) {
@@ -5015,16 +4961,13 @@ VALUES (
 	$6,
 	$7,
 	$8
-) ON CONFLICT("name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
+) ON CONFLICT("organization_id", "name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
 	"version" = $6,
 	api_version = $8,
 	organization_id = $7
-WHERE
-	-- Only ones with the same tags are allowed clobber
-	provisioner_daemons.tags <@ $4 :: jsonb
 RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
 `
 
@@ -6221,15 +6164,15 @@ func (q *sqlQuerier) UpdateWorkspaceProxyDeleted(ctx context.Context, arg Update
 
 const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
-	coalesce(SUM(quota_allowance), 0)::BIGINT
+	coalesce(SUM(groups.quota_allowance), 0)::BIGINT
 FROM
-	groups g
-LEFT JOIN group_members gm ON
-	g.id = gm.group_id
-WHERE
-	user_id = $1
-OR
-    g.id = g.organization_id
+	(
+		-- Select all groups this user is a member of. This will also include
+		-- the "Everyone" group for organizations the user is a member of.
+		SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_theme_preference, user_name, user_github_com_user_id, organization_id, group_name, group_id FROM group_members_expanded WHERE $1 = user_id
+	) AS members
+INNER JOIN groups ON
+	members.group_id = groups.id
 `
 
 func (q *sqlQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
@@ -6527,40 +6470,51 @@ func (q *sqlQuerier) CustomRoles(ctx context.Context, arg CustomRolesParams) ([]
 	return items, nil
 }
 
-const upsertCustomRole = `-- name: UpsertCustomRole :one
+const deleteCustomRole = `-- name: DeleteCustomRole :exec
+DELETE FROM
+	custom_roles
+WHERE
+	name = lower($1)
+	AND organization_id = $2
+`
+
+type DeleteCustomRoleParams struct {
+	Name           string        `db:"name" json:"name"`
+	OrganizationID uuid.NullUUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCustomRole, arg.Name, arg.OrganizationID)
+	return err
+}
+
+const insertCustomRole = `-- name: InsertCustomRole :one
 INSERT INTO
 	custom_roles (
-	    name,
-	    display_name,
-	    organization_id,
-	    site_permissions,
-	    org_permissions,
-	    user_permissions,
-	    created_at,
-		updated_at
+	name,
+	display_name,
+	organization_id,
+	site_permissions,
+	org_permissions,
+	user_permissions,
+	created_at,
+	updated_at
 )
 VALUES (
-        -- Always force lowercase names
-        lower($1),
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        now(),
-        now()
+		   -- Always force lowercase names
+		   lower($1),
+		   $2,
+		   $3,
+		   $4,
+		   $5,
+		   $6,
+		   now(),
+		   now()
 	   )
-ON CONFLICT (name)
-	DO UPDATE SET
-	display_name = $2,
-	site_permissions = $4,
-	org_permissions = $5,
-	user_permissions = $6,
-	updated_at = now()
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 `
 
-type UpsertCustomRoleParams struct {
+type InsertCustomRoleParams struct {
 	Name            string                `db:"name" json:"name"`
 	DisplayName     string                `db:"display_name" json:"display_name"`
 	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
@@ -6569,14 +6523,62 @@ type UpsertCustomRoleParams struct {
 	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
 }
 
-func (q *sqlQuerier) UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error) {
-	row := q.db.QueryRowContext(ctx, upsertCustomRole,
+func (q *sqlQuerier) InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, insertCustomRole,
 		arg.Name,
 		arg.DisplayName,
 		arg.OrganizationID,
 		arg.SitePermissions,
 		arg.OrgPermissions,
 		arg.UserPermissions,
+	)
+	var i CustomRole
+	err := row.Scan(
+		&i.Name,
+		&i.DisplayName,
+		&i.SitePermissions,
+		&i.OrgPermissions,
+		&i.UserPermissions,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OrganizationID,
+		&i.ID,
+	)
+	return i, err
+}
+
+const updateCustomRole = `-- name: UpdateCustomRole :one
+UPDATE
+	custom_roles
+SET
+	display_name = $1,
+	site_permissions = $2,
+	org_permissions = $3,
+	user_permissions = $4,
+	updated_at = now()
+WHERE
+	name = lower($5)
+	AND organization_id = $6
+RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
+`
+
+type UpdateCustomRoleParams struct {
+	DisplayName     string                `db:"display_name" json:"display_name"`
+	SitePermissions CustomRolePermissions `db:"site_permissions" json:"site_permissions"`
+	OrgPermissions  CustomRolePermissions `db:"org_permissions" json:"org_permissions"`
+	UserPermissions CustomRolePermissions `db:"user_permissions" json:"user_permissions"`
+	Name            string                `db:"name" json:"name"`
+	OrganizationID  uuid.NullUUID         `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error) {
+	row := q.db.QueryRowContext(ctx, updateCustomRole,
+		arg.DisplayName,
+		arg.SitePermissions,
+		arg.OrgPermissions,
+		arg.UserPermissions,
+		arg.Name,
+		arg.OrganizationID,
 	)
 	var i CustomRole
 	err := row.Scan(
@@ -6621,6 +6623,17 @@ SELECT value FROM site_configs WHERE key = 'application_name'
 
 func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	row := q.db.QueryRowContext(ctx, getApplicationName)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
+const getCoordinatorResumeTokenSigningKey = `-- name: GetCoordinatorResumeTokenSigningKey :one
+SELECT value FROM site_configs WHERE key = 'coordinator_resume_token_signing_key'
+`
+
+func (q *sqlQuerier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getCoordinatorResumeTokenSigningKey)
 	var value string
 	err := row.Scan(&value)
 	return value, err
@@ -6768,6 +6781,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 
 func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertApplicationName, value)
+	return err
+}
+
+const upsertCoordinatorResumeTokenSigningKey = `-- name: UpsertCoordinatorResumeTokenSigningKey :exec
+INSERT INTO site_configs (key, value) VALUES ('coordinator_resume_token_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'coordinator_resume_token_signing_key'
+`
+
+func (q *sqlQuerier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertCoordinatorResumeTokenSigningKey, value)
 	return err
 }
 
@@ -7358,6 +7381,25 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 	return items, nil
 }
 
+const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
+UPDATE 
+	tailnet_peers
+SET
+	status = $2
+WHERE
+	coordinator_id = $1
+`
+
+type UpdateTailnetPeerStatusByCoordinatorParams struct {
+	CoordinatorID uuid.UUID     `db:"coordinator_id" json:"coordinator_id"`
+	Status        TailnetStatus `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) error {
+	_, err := q.db.ExecContext(ctx, updateTailnetPeerStatusByCoordinator, arg.CoordinatorID, arg.Status)
+	return err
+}
+
 const upsertTailnetAgent = `-- name: UpsertTailnetAgent :one
 INSERT INTO
 	tailnet_agents (
@@ -7820,17 +7862,23 @@ WHERE
 			LOWER("name") = LOWER($3)
 		ELSE true
 	END
+	-- Filter by name, matching on substring
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			lower(name) ILIKE '%' || lower($4) || '%'
+		ELSE true
+	END
 	-- Filter by ids
 	AND CASE
-		WHEN array_length($4 :: uuid[], 1) > 0 THEN
-			id = ANY($4)
+		WHEN array_length($5 :: uuid[], 1) > 0 THEN
+			id = ANY($5)
 		ELSE true
 	END
 	-- Filter by deprecated
 	AND CASE
-		WHEN $5 :: boolean IS NOT NULL THEN
+		WHEN $6 :: boolean IS NOT NULL THEN
 			CASE
-				WHEN $5 :: boolean THEN
+				WHEN $6 :: boolean THEN
 					deprecated != ''
 				ELSE
 					deprecated = ''
@@ -7846,6 +7894,7 @@ type GetTemplatesWithFilterParams struct {
 	Deleted        bool         `db:"deleted" json:"deleted"`
 	OrganizationID uuid.UUID    `db:"organization_id" json:"organization_id"`
 	ExactName      string       `db:"exact_name" json:"exact_name"`
+	FuzzyName      string       `db:"fuzzy_name" json:"fuzzy_name"`
 	IDs            []uuid.UUID  `db:"ids" json:"ids"`
 	Deprecated     sql.NullBool `db:"deprecated" json:"deprecated"`
 }
@@ -7855,6 +7904,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.Deleted,
 		arg.OrganizationID,
 		arg.ExactName,
+		arg.FuzzyName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 	)

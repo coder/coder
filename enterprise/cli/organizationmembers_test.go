@@ -15,6 +15,64 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestRemoveOrganizationMembers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+
+		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		secondOrganization := coderdenttest.CreateOrganization(t, ownerClient, coderdenttest.CreateOrganizationOptions{})
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, secondOrganization.ID, rbac.ScopedRoleOrgAdmin(secondOrganization.ID))
+		_, user := coderdtest.CreateAnotherUser(t, ownerClient, secondOrganization.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		inv, root := clitest.New(t, "organization", "members", "remove", "-O", secondOrganization.ID.String(), user.Username)
+		clitest.SetupConfig(t, orgAdminClient, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		members, err := orgAdminClient.OrganizationMembers(ctx, secondOrganization.ID)
+		require.NoError(t, err)
+
+		require.Len(t, members, 2)
+	})
+
+	t.Run("UserNotExists", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient := coderdtest.New(t, &coderdtest.Options{})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		inv, root := clitest.New(t, "organization", "members", "remove", "-O", owner.OrganizationID.String(), "random_name")
+		clitest.SetupConfig(t, orgAdminClient, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "must be an existing uuid or username")
+	})
+}
+
 func TestEnterpriseListOrganizationMembers(t *testing.T) {
 	t.Parallel()
 
@@ -36,7 +94,7 @@ func TestEnterpriseListOrganizationMembers(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		//nolint:gocritic // only owners can patch roles
-		customRole, err := ownerClient.PatchOrganizationRole(ctx, codersdk.Role{
+		customRole, err := ownerClient.CreateOrganizationRole(ctx, codersdk.Role{
 			Name:            "custom",
 			OrganizationID:  owner.OrganizationID.String(),
 			DisplayName:     "Custom Role",
@@ -53,7 +111,7 @@ func TestEnterpriseListOrganizationMembers(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 		}, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 
-		inv, root := clitest.New(t, "organization", "members", "list", "-c", "user_id,username,organization_roles")
+		inv, root := clitest.New(t, "organization", "members", "list", "-c", "user id,username,organization roles")
 		clitest.SetupConfig(t, client, root)
 
 		buf := new(bytes.Buffer)
@@ -89,7 +147,7 @@ func TestAssignOrganizationMemberRole(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		// nolint:gocritic // requires owner role to create
-		customRole, err := ownerClient.PatchOrganizationRole(ctx, codersdk.Role{
+		customRole, err := ownerClient.CreateOrganizationRole(ctx, codersdk.Role{
 			Name:            "custom-role",
 			OrganizationID:  owner.OrganizationID.String(),
 			DisplayName:     "Custom Role",

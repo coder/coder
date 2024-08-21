@@ -81,6 +81,8 @@ var usageTemplate = func() *template.Template {
 					switch v := opt.Value.(type) {
 					case *serpent.Enum:
 						return strings.Join(v.Choices, "|")
+					case *serpent.EnumArray:
+						return fmt.Sprintf("[%s]", strings.Join(v.Choices, "|"))
 					default:
 						return v.Type()
 					}

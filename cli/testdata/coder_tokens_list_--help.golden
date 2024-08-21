@@ -12,12 +12,11 @@ OPTIONS:
           Specifies whether all users' tokens will be listed or not (must have
           Owner role to see all tokens).
 
-  -c, --column string-array (default: id,name,last used,expires at,created at)
-          Columns to display in table output. Available columns: id, name, last
-          used, expires at, created at, owner.
+  -c, --column [id|name|last used|expires at|created at|owner] (default: id,name,last used,expires at,created at)
+          Columns to display in table output.
 
-  -o, --output string (default: table)
-          Output format. Available formats: table, json.
+  -o, --output table|json (default: table)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

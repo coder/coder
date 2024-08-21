@@ -70,49 +70,51 @@ audit trails.
 
 Audit logs can be accessed through our REST API. You can find detailed
 information about this in our
-[endpoint documentation](../api/audit.md#get-audit-logs).
+[endpoint documentation](../reference/api/audit.md#get-audit-logs).
 
 ## Service Logs
 
 Audit trails are also dispatched as service logs and can be captured and
 categorized using any log management tool such as [Splunk](https://splunk.com).
 
-Example of a [JSON formatted](../cli/server.md#--log-json) audit log entry:
+Example of a [JSON formatted](../reference/cli/server.md#--log-json) audit log
+entry:
 
 ```json
 {
-  "ts": "2023-06-13T03:45:37.294730279Z",
-  "level": "INFO",
-  "msg": "audit_log",
-  "caller": "/home/runner/work/coder/coder/enterprise/audit/backends/slog.go:36",
-  "func": "github.com/coder/coder/enterprise/audit/backends.slogBackend.Export",
-  "logger_names": ["coderd"],
-  "fields": {
-    "ID": "033a9ffa-b54d-4c10-8ec3-2aaf9e6d741a",
-    "Time": "2023-06-13T03:45:37.288506Z",
-    "UserID": "6c405053-27e3-484a-9ad7-bcb64e7bfde6",
-    "OrganizationID": "00000000-0000-0000-0000-000000000000",
-    "Ip": "{IPNet:{IP:\u003cnil\u003e Mask:\u003cnil\u003e} Valid:false}",
-    "UserAgent": "{String: Valid:false}",
-    "ResourceType": "workspace_build",
-    "ResourceID": "ca5647e0-ef50-4202-a246-717e04447380",
-    "ResourceTarget": "",
-    "Action": "start",
-    "Diff": {},
-    "StatusCode": 200,
-    "AdditionalFields": {
-      "workspace_name": "linux-container",
-      "build_number": "9",
-      "build_reason": "initiator",
-      "workspace_owner": ""
-    },
-    "RequestID": "bb791ac3-f6ee-4da8-8ec2-f54e87013e93",
-    "ResourceIcon": ""
-  }
+	"ts": "2023-06-13T03:45:37.294730279Z",
+	"level": "INFO",
+	"msg": "audit_log",
+	"caller": "/home/runner/work/coder/coder/enterprise/audit/backends/slog.go:36",
+	"func": "github.com/coder/coder/enterprise/audit/backends.slogBackend.Export",
+	"logger_names": ["coderd"],
+	"fields": {
+		"ID": "033a9ffa-b54d-4c10-8ec3-2aaf9e6d741a",
+		"Time": "2023-06-13T03:45:37.288506Z",
+		"UserID": "6c405053-27e3-484a-9ad7-bcb64e7bfde6",
+		"OrganizationID": "00000000-0000-0000-0000-000000000000",
+		"Ip": "{IPNet:{IP:\u003cnil\u003e Mask:\u003cnil\u003e} Valid:false}",
+		"UserAgent": "{String: Valid:false}",
+		"ResourceType": "workspace_build",
+		"ResourceID": "ca5647e0-ef50-4202-a246-717e04447380",
+		"ResourceTarget": "",
+		"Action": "start",
+		"Diff": {},
+		"StatusCode": 200,
+		"AdditionalFields": {
+			"workspace_name": "linux-container",
+			"build_number": "9",
+			"build_reason": "initiator",
+			"workspace_owner": ""
+		},
+		"RequestID": "bb791ac3-f6ee-4da8-8ec2-f54e87013e93",
+		"ResourceIcon": ""
+	}
 }
 ```
 
-Example of a [human readable](../cli/server.md#--log-human) audit log entry:
+Example of a [human readable](../reference/cli/server.md#--log-human) audit log
+entry:
 
 ```console
 2023-06-13 03:43:29.233 [info]  coderd: audit_log  ID=95f7c392-da3e-480c-a579-8909f145fbe2  Time="2023-06-13T03:43:29.230422Z"  UserID=6c405053-27e3-484a-9ad7-bcb64e7bfde6  OrganizationID=00000000-0000-0000-0000-000000000000  Ip=<nil>  UserAgent=<nil>  ResourceType=workspace_build  ResourceID=988ae133-5b73-41e3-a55e-e1e9d3ef0b66  ResourceTarget=""  Action=start  Diff="{}"  StatusCode=200  AdditionalFields="{\"workspace_name\":\"linux-container\",\"build_number\":\"7\",\"build_reason\":\"initiator\",\"workspace_owner\":\"\"}"  RequestID=9682b1b5-7b9f-4bf2-9a39-9463f8e41cd6  ResourceIcon=""
