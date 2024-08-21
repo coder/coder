@@ -79,9 +79,10 @@ func (d *Driver) AddConnection(conn driver.Conn) {
 
 func (d *Driver) WaitForConnection() {
 	ch := make(chan struct{})
+	defer close(ch)
+	defer delete(d.listeners, ch)
 	d.listeners[ch] = ch
 	<-ch
-	delete(d.listeners, ch)
 }
 
 func (d *Driver) DropConnections() {
