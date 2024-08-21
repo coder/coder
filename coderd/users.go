@@ -186,13 +186,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed to create first user
-	user, organizationID, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
+	user, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
-			Email:          createUser.Email,
-			Username:       createUser.Username,
-			Name:           createUser.Name,
-			Password:       createUser.Password,
-			OrganizationID: defaultOrg.ID,
+			Email:           createUser.Email,
+			Username:        createUser.Username,
+			Name:            createUser.Name,
+			Password:        createUser.Password,
+			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
 		LoginType: database.LoginTypePassword,
 	})
@@ -240,7 +240,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateFirstUserResponse{
 		UserID:         user.ID,
-		OrganizationID: organizationID,
+		OrganizationID: defaultOrg.ID,
 	})
 }
 
@@ -386,6 +386,20 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.OrganizationIDs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("No organization specified to place the user as a member of. It is required to specify at least one organization id to place the user in."),
+			Detail:  fmt.Sprintf("required at least 1 value for the array 'organization_ids'"),
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "organization_ids",
+					Detail: "Missing values, this cannot be empty",
+				},
+			},
+		})
+		return
+	}
+
 	// TODO: @emyrk Authorize the organization create if the createUser will do that.
 
 	_, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
@@ -406,44 +420,34 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.OrganizationID != uuid.Nil {
-		// If an organization was provided, make sure it exists.
-		_, err := api.Database.GetOrganizationByID(ctx, req.OrganizationID)
-		if err != nil {
-			if httpapi.Is404Error(err) {
+	// If an organization was provided, make sure it exists.
+	for i, orgID := range req.OrganizationIDs {
+		var orgErr error
+		if orgID != uuid.Nil {
+			_, orgErr = api.Database.GetOrganizationByID(ctx, orgID)
+		} else {
+			var defaultOrg database.Organization
+			defaultOrg, orgErr = api.Database.GetDefaultOrganization(ctx)
+			if orgErr == nil {
+				// converts uuid.Nil --> default org.ID
+				req.OrganizationIDs[i] = defaultOrg.ID
+			}
+		}
+		if orgErr != nil {
+			if httpapi.Is404Error(orgErr) {
 				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-					Message: fmt.Sprintf("Organization does not exist with the provided id %q.", req.OrganizationID),
+					Message: fmt.Sprintf("Organization does not exist with the provided id %q.", orgID),
 				})
 				return
 			}
 
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching organization.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	} else {
-		// If no organization is provided, add the user to the default
-		defaultOrg, err := api.Database.GetDefaultOrganization(ctx)
-		if err != nil {
-			if httpapi.Is404Error(err) {
-				httpapi.Write(ctx, rw, http.StatusNotFound,
-					codersdk.Response{
-						Message: "Resource not found or you do not have access to this resource",
-						Detail:  "Organization not found",
-					},
-				)
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching orgs.",
-				Detail:  err.Error(),
+				Detail:  orgErr.Error(),
 			})
 			return
 		}
 
-		req.OrganizationID = defaultOrg.ID
 	}
 
 	var loginType database.LoginType
@@ -480,7 +484,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
+	user, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequest: req,
 		LoginType:         loginType,
 	})
@@ -505,7 +509,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		Users: []telemetry.User{telemetry.ConvertUser(user)},
 	})
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.User(user, []uuid.UUID{req.OrganizationID}))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.User(user, req.OrganizationIDs))
 }
 
 // @Summary Delete user
@@ -1285,18 +1289,18 @@ type CreateUserRequest struct {
 	SkipNotifications bool
 }
 
-func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, uuid.UUID, error) {
+func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
 	// Ensure the username is valid. It's the caller's responsibility to ensure
 	// the username is valid and unique.
 	if usernameValid := httpapi.NameValid(req.Username); usernameValid != nil {
-		return database.User{}, uuid.Nil, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
+		return database.User{}, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
 	}
 
 	var user database.User
 	err := store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
 		// Organization is required to know where to allocate the user.
-		if req.OrganizationID == uuid.Nil {
+		if len(req.OrganizationIDs) == 0 {
 			return xerrors.Errorf("organization ID must be provided")
 		}
 
@@ -1341,26 +1345,30 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		if err != nil {
 			return xerrors.Errorf("insert user gitsshkey: %w", err)
 		}
-		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
-			OrganizationID: req.OrganizationID,
-			UserID:         user.ID,
-			CreatedAt:      dbtime.Now(),
-			UpdatedAt:      dbtime.Now(),
-			// By default give them membership to the organization.
-			Roles: orgRoles,
-		})
-		if err != nil {
-			return xerrors.Errorf("create organization member: %w", err)
+
+		for _, orgID := range req.OrganizationIDs {
+			_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+				OrganizationID: orgID,
+				UserID:         user.ID,
+				CreatedAt:      dbtime.Now(),
+				UpdatedAt:      dbtime.Now(),
+				// By default give them membership to the organization.
+				Roles: orgRoles,
+			})
+			if err != nil {
+				return xerrors.Errorf("create organization member for %q: %w", orgID.String(), err)
+			}
 		}
+
 		return nil
 	}, nil)
 	if err != nil || req.SkipNotifications {
-		return user, req.OrganizationID, err
+		return user, err
 	}
 
 	userAdmins, err := findUserAdmins(ctx, store)
 	if err != nil {
-		return user, req.OrganizationID, xerrors.Errorf("find user admins: %w", err)
+		return user, xerrors.Errorf("find user admins: %w", err)
 	}
 
 	for _, u := range userAdmins {
@@ -1373,7 +1381,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Username), slog.Error(err))
 		}
 	}
-	return user, req.OrganizationID, err
+	return user, err
 }
 
 // findUserAdmins fetches all users with user admin permission including owners.

@@ -123,8 +123,34 @@ type CreateUserRequest struct {
 	// DisableLogin sets the user's login type to 'none'. This prevents the user
 	// from being able to use a password or any other authentication method to login.
 	// Deprecated: Set UserLoginType=LoginTypeDisabled instead.
-	DisableLogin   bool      `json:"disable_login"`
-	OrganizationID uuid.UUID `json:"organization_id" validate:"" format:"uuid"`
+	DisableLogin bool `json:"disable_login"`
+	// OrganizationIDs is a list of organization IDs that the user should be a member of.
+	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
+}
+
+// UnmarshalJSON implements the unmarshal for the legacy param "organization_id".
+// To accommodate multiple organizations, the field has been switched to a slice.
+// The previous field will just be appended to the slice.
+// Note in the previous behavior, omitting the field would result in the
+// default org being applied, but that is no longer the case.
+func (r *CreateUserRequest) UnmarshalJSON(data []byte) error {
+	// By using a type alias, we prevent an infinite recursion when unmarshalling.
+	// This allows us to use the default unmarshal behavior of the original type.
+	type AliasedReq CreateUserRequest
+	type DeprecatedCreateUserRequest struct {
+		AliasedReq
+		OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
+	}
+	var dep DeprecatedCreateUserRequest
+	err := json.Unmarshal(data, &dep)
+	if err != nil {
+		return err
+	}
+	*r = CreateUserRequest(dep.AliasedReq)
+	if dep.OrganizationID != nil {
+		r.OrganizationIDs = append(r.OrganizationIDs, *dep.OrganizationID)
+	}
+	return nil
 }
 
 type UpdateUserProfileRequest struct {

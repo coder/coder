@@ -1436,11 +1436,11 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 
 			//nolint:gocritic
-			user, _, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
+			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequest: codersdk.CreateUserRequest{
-					Email:          params.Email,
-					Username:       params.Username,
-					OrganizationID: defaultOrganization.ID,
+					Email:           params.Email,
+					Username:        params.Username,
+					OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
 				},
 				LoginType: params.LoginType,
 			})
