@@ -584,4 +584,46 @@ func TestEnterprisePostUser(t *testing.T) {
 		})
 		require.ErrorContains(t, err, "No organization specified")
 	})
+
+	t.Run("MultipleOrganizations", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		// Add an extra org to assign member into
+		second := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+		third := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// nolint:gocritic // intentional using the owner.
+		// Manually making a user with the request instead of the coderdtest util
+		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:    "another@user.org",
+			Username: "someone-else",
+			Password: "SomeSecurePassword!",
+			OrganizationIDs: []uuid.UUID{
+				second.ID,
+				third.ID,
+			},
+		})
+		require.NoError(t, err)
+
+		memberedOrgs, err := client.OrganizationsByUser(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Len(t, memberedOrgs, 2)
+		require.ElementsMatch(t, []uuid.UUID{second.ID, third.ID}, []uuid.UUID{memberedOrgs[0].ID, memberedOrgs[1].ID})
+	})
 }
