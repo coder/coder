@@ -92,9 +92,9 @@ func StableSortTimings(t *testing.T, timings []*proto.Timing) {
 
 			if ah == bh {
 				// WTF.
-				t.Logf("identical timings detected!")
 				PrintTiming(t, a)
 				PrintTiming(t, b)
+				t.Fatalf("identical timings detected?!")
 				return 0
 			}
 
