@@ -4,8 +4,8 @@
 
 ```json
 {
-  "document": "string",
-  "signature": "string"
+	"document": "string",
+	"signature": "string"
 }
 ```
 
@@ -20,7 +20,7 @@
 
 ```json
 {
-  "session_token": "string"
+	"session_token": "string"
 }
 ```
 
@@ -34,8 +34,8 @@
 
 ```json
 {
-  "encoding": "string",
-  "signature": "string"
+	"encoding": "string",
+	"signature": "string"
 }
 ```
 
@@ -50,12 +50,12 @@
 
 ```json
 {
-  "access_token": "string",
-  "password": "string",
-  "token_extra": {},
-  "type": "string",
-  "url": "string",
-  "username": "string"
+	"access_token": "string",
+	"password": "string",
+	"token_extra": {},
+	"type": "string",
+	"url": "string",
+	"username": "string"
 }
 ```
 
@@ -74,8 +74,8 @@
 
 ```json
 {
-  "private_key": "string",
-  "public_key": "string"
+	"private_key": "string",
+	"public_key": "string"
 }
 ```
 
@@ -90,7 +90,7 @@
 
 ```json
 {
-  "json_web_token": "string"
+	"json_web_token": "string"
 }
 ```
 
@@ -104,9 +104,9 @@
 
 ```json
 {
-  "created_at": "string",
-  "level": "trace",
-  "output": "string"
+	"created_at": "string",
+	"level": "trace",
+	"output": "string"
 }
 ```
 
@@ -122,14 +122,14 @@
 
 ```json
 {
-  "log_source_id": "string",
-  "logs": [
-    {
-      "created_at": "string",
-      "level": "trace",
-      "output": "string"
-    }
-  ]
+	"log_source_id": "string",
+	"logs": [
+		{
+			"created_at": "string",
+			"level": "trace",
+			"output": "string"
+		}
+	]
 }
 ```
 
@@ -144,9 +144,9 @@
 
 ```json
 {
-  "display_name": "string",
-  "icon": "string",
-  "id": "string"
+	"display_name": "string",
+	"icon": "string",
+	"id": "string"
 }
 ```
 
@@ -162,26 +162,26 @@
 
 ```json
 {
-  "active": true,
-  "emails": [
-    {
-      "display": "string",
-      "primary": true,
-      "type": "string",
-      "value": "user@example.com"
-    }
-  ],
-  "groups": [null],
-  "id": "string",
-  "meta": {
-    "resourceType": "string"
-  },
-  "name": {
-    "familyName": "string",
-    "givenName": "string"
-  },
-  "schemas": ["string"],
-  "userName": "string"
+	"active": true,
+	"emails": [
+		{
+			"display": "string",
+			"primary": true,
+			"type": "string",
+			"value": "user@example.com"
+		}
+	],
+	"groups": [null],
+	"id": "string",
+	"meta": {
+		"resourceType": "string"
+	},
+	"name": {
+		"familyName": "string",
+		"givenName": "string"
+	},
+	"schemas": ["string"],
+	"userName": "string"
 }
 ```
 
@@ -209,7 +209,7 @@
 
 ```json
 {
-  "csp-report": {}
+	"csp-report": {}
 }
 ```
 
@@ -223,48 +223,48 @@
 
 ```json
 {
-  "groups": [
-    {
-      "avatar_url": "string",
-      "display_name": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "members": [
-        {
-          "avatar_url": "http://example.com",
-          "created_at": "2019-08-24T14:15:22Z",
-          "email": "user@example.com",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "last_seen_at": "2019-08-24T14:15:22Z",
-          "login_type": "",
-          "name": "string",
-          "status": "active",
-          "theme_preference": "string",
-          "updated_at": "2019-08-24T14:15:22Z",
-          "username": "string"
-        }
-      ],
-      "name": "string",
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "quota_allowance": 0,
-      "source": "user",
-      "total_member_count": 0
-    }
-  ],
-  "users": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ]
+	"groups": [
+		{
+			"avatar_url": "string",
+			"display_name": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"members": [
+				{
+					"avatar_url": "http://example.com",
+					"created_at": "2019-08-24T14:15:22Z",
+					"email": "user@example.com",
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"last_seen_at": "2019-08-24T14:15:22Z",
+					"login_type": "",
+					"name": "string",
+					"status": "active",
+					"theme_preference": "string",
+					"updated_at": "2019-08-24T14:15:22Z",
+					"username": "string"
+				}
+			],
+			"name": "string",
+			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+			"quota_allowance": 0,
+			"source": "user",
+			"total_member_count": 0
+		}
+	],
+	"users": [
+		{
+			"avatar_url": "http://example.com",
+			"created_at": "2019-08-24T14:15:22Z",
+			"email": "user@example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"login_type": "",
+			"name": "string",
+			"status": "active",
+			"theme_preference": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"username": "string"
+		}
+	]
 }
 ```
 
@@ -279,16 +279,16 @@
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "expires_at": "2019-08-24T14:15:22Z",
-  "id": "string",
-  "last_used": "2019-08-24T14:15:22Z",
-  "lifetime_seconds": 0,
-  "login_type": "password",
-  "scope": "all",
-  "token_name": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+	"created_at": "2019-08-24T14:15:22Z",
+	"expires_at": "2019-08-24T14:15:22Z",
+	"id": "string",
+	"last_used": "2019-08-24T14:15:22Z",
+	"lifetime_seconds": 0,
+	"login_type": "password",
+	"scope": "all",
+	"token_name": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
@@ -337,7 +337,7 @@
 
 ```json
 {
-  "license": "string"
+	"license": "string"
 }
 ```
 
@@ -367,7 +367,7 @@
 
 ```json
 {
-  "host": "string"
+	"host": "string"
 }
 ```
 
@@ -381,27 +381,27 @@
 
 ```json
 {
-  "announcement_banners": [
-    {
-      "background_color": "string",
-      "enabled": true,
-      "message": "string"
-    }
-  ],
-  "application_name": "string",
-  "logo_url": "string",
-  "service_banner": {
-    "background_color": "string",
-    "enabled": true,
-    "message": "string"
-  },
-  "support_links": [
-    {
-      "icon": "bug",
-      "name": "string",
-      "target": "string"
-    }
-  ]
+	"announcement_banners": [
+		{
+			"background_color": "string",
+			"enabled": true,
+			"message": "string"
+		}
+	],
+	"application_name": "string",
+	"logo_url": "string",
+	"service_banner": {
+		"background_color": "string",
+		"enabled": true,
+		"message": "string"
+	},
+	"support_links": [
+		{
+			"icon": "bug",
+			"name": "string",
+			"target": "string"
+		}
+	]
 }
 ```
 
@@ -419,7 +419,7 @@
 
 ```json
 {
-  "all": true
+	"all": true
 }
 ```
 
@@ -433,32 +433,32 @@
 
 ```json
 {
-  "assignable": true,
-  "built_in": true,
-  "display_name": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "site_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "user_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ]
+	"assignable": true,
+	"built_in": true,
+	"display_name": "string",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"site_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"user_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	]
 }
 ```
 
@@ -500,16 +500,16 @@
 
 ```json
 {
-  "property1": {
-    "new": null,
-    "old": null,
-    "secret": true
-  },
-  "property2": {
-    "new": null,
-    "old": null,
-    "secret": true
-  }
+	"property1": {
+		"new": null,
+		"old": null,
+		"secret": true
+	},
+	"property2": {
+		"new": null,
+		"old": null,
+		"secret": true
+	}
 }
 ```
 
@@ -523,9 +523,9 @@
 
 ```json
 {
-  "new": null,
-  "old": null,
-  "secret": true
+	"new": null,
+	"old": null,
+	"secret": true
 }
 ```
 
@@ -541,61 +541,61 @@
 
 ```json
 {
-  "action": "create",
-  "additional_fields": [0],
-  "description": "string",
-  "diff": {
-    "property1": {
-      "new": null,
-      "old": null,
-      "secret": true
-    },
-    "property2": {
-      "new": null,
-      "old": null,
-      "secret": true
-    }
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "ip": "string",
-  "is_deleted": true,
-  "organization": {
-    "display_name": "string",
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string"
-  },
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
-  "resource_icon": "string",
-  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "resource_link": "string",
-  "resource_target": "string",
-  "resource_type": "template",
-  "status_code": 0,
-  "time": "2019-08-24T14:15:22Z",
-  "user": {
-    "avatar_url": "http://example.com",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "user@example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "login_type": "",
-    "name": "string",
-    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string",
-        "organization_id": "string"
-      }
-    ],
-    "status": "active",
-    "theme_preference": "string",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "username": "string"
-  },
-  "user_agent": "string"
+	"action": "create",
+	"additional_fields": [0],
+	"description": "string",
+	"diff": {
+		"property1": {
+			"new": null,
+			"old": null,
+			"secret": true
+		},
+		"property2": {
+			"new": null,
+			"old": null,
+			"secret": true
+		}
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"ip": "string",
+	"is_deleted": true,
+	"organization": {
+		"display_name": "string",
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"name": "string"
+	},
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+	"resource_icon": "string",
+	"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+	"resource_link": "string",
+	"resource_target": "string",
+	"resource_type": "template",
+	"status_code": 0,
+	"time": "2019-08-24T14:15:22Z",
+	"user": {
+		"avatar_url": "http://example.com",
+		"created_at": "2019-08-24T14:15:22Z",
+		"email": "user@example.com",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"last_seen_at": "2019-08-24T14:15:22Z",
+		"login_type": "",
+		"name": "string",
+		"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+		"roles": [
+			{
+				"display_name": "string",
+				"name": "string",
+				"organization_id": "string"
+			}
+		],
+		"status": "active",
+		"theme_preference": "string",
+		"updated_at": "2019-08-24T14:15:22Z",
+		"username": "string"
+	},
+	"user_agent": "string"
 }
 ```
 
@@ -627,66 +627,66 @@
 
 ```json
 {
-  "audit_logs": [
-    {
-      "action": "create",
-      "additional_fields": [0],
-      "description": "string",
-      "diff": {
-        "property1": {
-          "new": null,
-          "old": null,
-          "secret": true
-        },
-        "property2": {
-          "new": null,
-          "old": null,
-          "secret": true
-        }
-      },
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "ip": "string",
-      "is_deleted": true,
-      "organization": {
-        "display_name": "string",
-        "icon": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "name": "string"
-      },
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
-      "resource_icon": "string",
-      "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-      "resource_link": "string",
-      "resource_target": "string",
-      "resource_type": "template",
-      "status_code": 0,
-      "time": "2019-08-24T14:15:22Z",
-      "user": {
-        "avatar_url": "http://example.com",
-        "created_at": "2019-08-24T14:15:22Z",
-        "email": "user@example.com",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "last_seen_at": "2019-08-24T14:15:22Z",
-        "login_type": "",
-        "name": "string",
-        "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "roles": [
-          {
-            "display_name": "string",
-            "name": "string",
-            "organization_id": "string"
-          }
-        ],
-        "status": "active",
-        "theme_preference": "string",
-        "updated_at": "2019-08-24T14:15:22Z",
-        "username": "string"
-      },
-      "user_agent": "string"
-    }
-  ],
-  "count": 0
+	"audit_logs": [
+		{
+			"action": "create",
+			"additional_fields": [0],
+			"description": "string",
+			"diff": {
+				"property1": {
+					"new": null,
+					"old": null,
+					"secret": true
+				},
+				"property2": {
+					"new": null,
+					"old": null,
+					"secret": true
+				}
+			},
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"ip": "string",
+			"is_deleted": true,
+			"organization": {
+				"display_name": "string",
+				"icon": "string",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"name": "string"
+			},
+			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+			"request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+			"resource_icon": "string",
+			"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+			"resource_link": "string",
+			"resource_target": "string",
+			"resource_type": "template",
+			"status_code": 0,
+			"time": "2019-08-24T14:15:22Z",
+			"user": {
+				"avatar_url": "http://example.com",
+				"created_at": "2019-08-24T14:15:22Z",
+				"email": "user@example.com",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"last_seen_at": "2019-08-24T14:15:22Z",
+				"login_type": "",
+				"name": "string",
+				"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+				"roles": [
+					{
+						"display_name": "string",
+						"name": "string",
+						"organization_id": "string"
+					}
+				],
+				"status": "active",
+				"theme_preference": "string",
+				"updated_at": "2019-08-24T14:15:22Z",
+				"username": "string"
+			},
+			"user_agent": "string"
+		}
+	],
+	"count": 0
 }
 ```
 
@@ -701,7 +701,7 @@
 
 ```json
 {
-  "enabled": true
+	"enabled": true
 }
 ```
 
@@ -715,18 +715,18 @@
 
 ```json
 {
-  "github": {
-    "enabled": true
-  },
-  "oidc": {
-    "enabled": true,
-    "iconUrl": "string",
-    "signInText": "string"
-  },
-  "password": {
-    "enabled": true
-  },
-  "terms_of_service_url": "string"
+	"github": {
+		"enabled": true
+	},
+	"oidc": {
+		"enabled": true,
+		"iconUrl": "string",
+		"signInText": "string"
+	},
+	"password": {
+		"enabled": true
+	},
+	"terms_of_service_url": "string"
 }
 ```
 
@@ -743,14 +743,14 @@
 
 ```json
 {
-  "action": "create",
-  "object": {
-    "any_org": true,
-    "organization_id": "string",
-    "owner_id": "string",
-    "resource_id": "string",
-    "resource_type": "*"
-  }
+	"action": "create",
+	"object": {
+		"any_org": true,
+		"organization_id": "string",
+		"owner_id": "string",
+		"resource_id": "string",
+		"resource_type": "*"
+	}
 }
 ```
 
@@ -776,11 +776,11 @@ AuthorizationCheck is used to check if the currently authenticated user (or the 
 
 ```json
 {
-  "any_org": true,
-  "organization_id": "string",
-  "owner_id": "string",
-  "resource_id": "string",
-  "resource_type": "*"
+	"any_org": true,
+	"organization_id": "string",
+	"owner_id": "string",
+	"resource_id": "string",
+	"resource_type": "*"
 }
 ```
 
@@ -800,28 +800,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "checks": {
-    "property1": {
-      "action": "create",
-      "object": {
-        "any_org": true,
-        "organization_id": "string",
-        "owner_id": "string",
-        "resource_id": "string",
-        "resource_type": "*"
-      }
-    },
-    "property2": {
-      "action": "create",
-      "object": {
-        "any_org": true,
-        "organization_id": "string",
-        "owner_id": "string",
-        "resource_id": "string",
-        "resource_type": "*"
-      }
-    }
-  }
+	"checks": {
+		"property1": {
+			"action": "create",
+			"object": {
+				"any_org": true,
+				"organization_id": "string",
+				"owner_id": "string",
+				"resource_id": "string",
+				"resource_type": "*"
+			}
+		},
+		"property2": {
+			"action": "create",
+			"object": {
+				"any_org": true,
+				"organization_id": "string",
+				"owner_id": "string",
+				"resource_id": "string",
+				"resource_type": "*"
+			}
+		}
+	}
 }
 ```
 
@@ -836,8 +836,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "property1": true,
-  "property2": true
+	"property1": true,
+	"property2": true
 }
 ```
 
@@ -866,9 +866,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "background_color": "string",
-  "enabled": true,
-  "message": "string"
+	"background_color": "string",
+	"enabled": true,
+	"message": "string"
 }
 ```
 
@@ -884,14 +884,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "agent_api_version": "string",
-  "dashboard_url": "string",
-  "deployment_id": "string",
-  "external_url": "string",
-  "telemetry": true,
-  "upgrade_message": "string",
-  "version": "string",
-  "workspace_proxy": true
+	"agent_api_version": "string",
+	"dashboard_url": "string",
+	"deployment_id": "string",
+	"external_url": "string",
+	"telemetry": true,
+	"upgrade_message": "string",
+	"version": "string",
+	"workspace_proxy": true
 }
 ```
 
@@ -928,8 +928,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "p50": 31.312,
-  "p95": 119.832
+	"p50": 31.312,
+	"p95": 119.832
 }
 ```
 
@@ -944,8 +944,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "password": "string",
-  "to_type": ""
+	"password": "string",
+	"to_type": ""
 }
 ```
 
@@ -960,20 +960,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "email": "string",
-  "name": "string",
-  "password": "string",
-  "trial": true,
-  "trial_info": {
-    "company_name": "string",
-    "country": "string",
-    "developers": "string",
-    "first_name": "string",
-    "job_title": "string",
-    "last_name": "string",
-    "phone_number": "string"
-  },
-  "username": "string"
+	"email": "string",
+	"name": "string",
+	"password": "string",
+	"trial": true,
+	"trial_info": {
+		"company_name": "string",
+		"country": "string",
+		"developers": "string",
+		"first_name": "string",
+		"job_title": "string",
+		"last_name": "string",
+		"phone_number": "string"
+	},
+	"username": "string"
 }
 ```
 
@@ -992,8 +992,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
@@ -1008,13 +1008,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "company_name": "string",
-  "country": "string",
-  "developers": "string",
-  "first_name": "string",
-  "job_title": "string",
-  "last_name": "string",
-  "phone_number": "string"
+	"company_name": "string",
+	"country": "string",
+	"developers": "string",
+	"first_name": "string",
+	"job_title": "string",
+	"last_name": "string",
+	"phone_number": "string"
 }
 ```
 
@@ -1034,10 +1034,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "avatar_url": "string",
-  "display_name": "string",
-  "name": "string",
-  "quota_allowance": 0
+	"avatar_url": "string",
+	"display_name": "string",
+	"name": "string",
+	"quota_allowance": 0
 }
 ```
 
@@ -1054,10 +1054,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "name": "string"
+	"description": "string",
+	"display_name": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -1074,7 +1074,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "key": "string"
+	"key": "string"
 }
 ```
 
@@ -1088,28 +1088,29 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "activity_bump_ms": 0,
-  "allow_user_autostart": true,
-  "allow_user_autostop": true,
-  "allow_user_cancel_workspace_jobs": true,
-  "autostart_requirement": {
-    "days_of_week": ["monday"]
-  },
-  "autostop_requirement": {
-    "days_of_week": ["monday"],
-    "weeks": 0
-  },
-  "default_ttl_ms": 0,
-  "delete_ttl_ms": 0,
-  "description": "string",
-  "disable_everyone_group_access": true,
-  "display_name": "string",
-  "dormant_ttl_ms": 0,
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "name": "string",
-  "require_active_version": true,
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+	"activity_bump_ms": 0,
+	"allow_user_autostart": true,
+	"allow_user_autostop": true,
+	"allow_user_cancel_workspace_jobs": true,
+	"autostart_requirement": {
+		"days_of_week": ["monday"]
+	},
+	"autostop_requirement": {
+		"days_of_week": ["monday"],
+		"weeks": 0
+	},
+	"default_ttl_ms": 0,
+	"delete_ttl_ms": 0,
+	"description": "string",
+	"disable_everyone_group_access": true,
+	"display_name": "string",
+	"dormant_ttl_ms": 0,
+	"failure_ttl_ms": 0,
+	"icon": "string",
+	"max_port_share_level": "owner",
+	"name": "string",
+	"require_active_version": true,
+	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
@@ -1131,6 +1132,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `dormant_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
 | `failure_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
 | `icon`                                                                                                                                                                                    | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
+| `max_port_share_level`                                                                                                                                                                    | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              | Max port share level allows optionally specifying the maximum port share level for workspaces created from the template.                                                                                                                                                                                            |
 | `name`                                                                                                                                                                                    | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
 | `require_active_version`                                                                                                                                                                  | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                         | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
@@ -1140,19 +1142,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "rich_parameter_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ],
-  "user_variable_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ],
-  "workspace_name": "string"
+	"rich_parameter_values": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"user_variable_values": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"workspace_name": "string"
 }
 ```
 
@@ -1168,23 +1170,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "example_id": "string",
-  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-  "message": "string",
-  "name": "string",
-  "provisioner": "terraform",
-  "storage_method": "file",
-  "tags": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "user_variable_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ]
+	"example_id": "string",
+	"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+	"message": "string",
+	"name": "string",
+	"provisioner": "terraform",
+	"storage_method": "file",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"user_variable_values": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	]
 }
 ```
 
@@ -1215,13 +1217,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "action": "create",
-  "additional_fields": [0],
-  "build_reason": "autostart",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "resource_type": "template",
-  "time": "2019-08-24T14:15:22Z"
+	"action": "create",
+	"additional_fields": [0],
+	"build_reason": "autostart",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+	"resource_type": "template",
+	"time": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -1261,9 +1263,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "lifetime": 0,
-  "scope": "all",
-  "token_name": "string"
+	"lifetime": 0,
+	"scope": "all",
+	"token_name": "string"
 }
 ```
 
@@ -1286,13 +1288,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "disable_login": true,
-  "email": "user@example.com",
-  "login_type": "",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "password": "string",
-  "username": "string"
+	"disable_login": true,
+	"email": "user@example.com",
+	"login_type": "",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"password": "string",
+	"username": "string"
 }
 ```
 
@@ -1312,18 +1314,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "dry_run": true,
-  "log_level": "debug",
-  "orphan": true,
-  "rich_parameter_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ],
-  "state": [0],
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-  "transition": "create"
+	"dry_run": true,
+	"log_level": "debug",
+	"orphan": true,
+	"rich_parameter_values": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"state": [0],
+	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+	"transition": "create"
 }
 ```
 
@@ -1353,9 +1355,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "display_name": "string",
-  "icon": "string",
-  "name": "string"
+	"display_name": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -1371,18 +1373,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "automatic_updates": "always",
-  "autostart_schedule": "string",
-  "name": "string",
-  "rich_parameter_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ],
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-  "ttl_ms": 0
+	"automatic_updates": "always",
+	"autostart_schedule": "string",
+	"name": "string",
+	"rich_parameter_values": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+	"ttl_ms": 0
 }
 ```
 
@@ -1404,29 +1406,29 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "display_name": "string",
-  "name": "string",
-  "organization_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "site_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "user_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ]
+	"display_name": "string",
+	"name": "string",
+	"organization_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"site_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"user_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	]
 }
 ```
 
@@ -1444,8 +1446,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "amount": 0,
-  "date": "string"
+	"amount": 0,
+	"date": "string"
 }
 ```
 
@@ -1460,13 +1462,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "entries": [
-    {
-      "amount": 0,
-      "date": "string"
-    }
-  ],
-  "tz_hour_offset": 0
+	"entries": [
+		{
+			"amount": 0,
+			"date": "string"
+		}
+	],
+	"tz_hour_offset": 0
 }
 ```
 
@@ -1481,32 +1483,32 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "config": {
-    "block_direct": true,
-    "force_websockets": true,
-    "path": "string",
-    "url": "string"
-  },
-  "server": {
-    "enable": true,
-    "region_code": "string",
-    "region_id": 0,
-    "region_name": "string",
-    "relay_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
-    "stun_addresses": ["string"]
-  }
+	"config": {
+		"block_direct": true,
+		"force_websockets": true,
+		"path": "string",
+		"url": "string"
+	},
+	"server": {
+		"enable": true,
+		"region_code": "string",
+		"region_id": 0,
+		"region_name": "string",
+		"relay_url": {
+			"forceQuery": true,
+			"fragment": "string",
+			"host": "string",
+			"omitHost": true,
+			"opaque": "string",
+			"path": "string",
+			"rawFragment": "string",
+			"rawPath": "string",
+			"rawQuery": "string",
+			"scheme": "string",
+			"user": {}
+		},
+		"stun_addresses": ["string"]
+	}
 }
 ```
 
@@ -1521,10 +1523,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "block_direct": true,
-  "force_websockets": true,
-  "path": "string",
-  "url": "string"
+	"block_direct": true,
+	"force_websockets": true,
+	"path": "string",
+	"url": "string"
 }
 ```
 
@@ -1541,8 +1543,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "latency_ms": 0,
-  "preferred": true
+	"latency_ms": 0,
+	"preferred": true
 }
 ```
 
@@ -1557,24 +1559,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "enable": true,
-  "region_code": "string",
-  "region_id": 0,
-  "region_name": "string",
-  "relay_url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
-  "stun_addresses": ["string"]
+	"enable": true,
+	"region_code": "string",
+	"region_id": 0,
+	"region_name": "string",
+	"relay_url": {
+		"forceQuery": true,
+		"fragment": "string",
+		"host": "string",
+		"omitHost": true,
+		"opaque": "string",
+		"path": "string",
+		"rawFragment": "string",
+		"rawPath": "string",
+		"rawQuery": "string",
+		"scheme": "string",
+		"user": {}
+	},
+	"stun_addresses": ["string"]
 }
 ```
 
@@ -1593,9 +1595,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "allow_all_cors": true,
-  "allow_path_app_sharing": true,
-  "allow_path_app_site_owner_access": true
+	"allow_all_cors": true,
+	"allow_path_app_sharing": true,
+	"allow_path_app_site_owner_access": true
 }
 ```
 
@@ -1611,8 +1613,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "agent_name": "string",
-  "port": 0
+	"agent_name": "string",
+	"port": 0
 }
 ```
 
@@ -1627,377 +1629,377 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "config": {
-    "access_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
-    "address": {
-      "host": "string",
-      "port": "string"
-    },
-    "agent_fallback_troubleshooting_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
-    "agent_stat_refresh_interval": 0,
-    "allow_workspace_renames": true,
-    "autobuild_poll_interval": 0,
-    "browser_only": true,
-    "cache_directory": "string",
-    "cli_upgrade_message": "string",
-    "config": "string",
-    "config_ssh": {
-      "deploymentName": "string",
-      "sshconfigOptions": ["string"]
-    },
-    "dangerous": {
-      "allow_all_cors": true,
-      "allow_path_app_sharing": true,
-      "allow_path_app_site_owner_access": true
-    },
-    "derp": {
-      "config": {
-        "block_direct": true,
-        "force_websockets": true,
-        "path": "string",
-        "url": "string"
-      },
-      "server": {
-        "enable": true,
-        "region_code": "string",
-        "region_id": 0,
-        "region_name": "string",
-        "relay_url": {
-          "forceQuery": true,
-          "fragment": "string",
-          "host": "string",
-          "omitHost": true,
-          "opaque": "string",
-          "path": "string",
-          "rawFragment": "string",
-          "rawPath": "string",
-          "rawQuery": "string",
-          "scheme": "string",
-          "user": {}
-        },
-        "stun_addresses": ["string"]
-      }
-    },
-    "disable_owner_workspace_exec": true,
-    "disable_password_auth": true,
-    "disable_path_apps": true,
-    "docs_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
-    "enable_terraform_debug_mode": true,
-    "experiments": ["string"],
-    "external_auth": {
-      "value": [
-        {
-          "app_install_url": "string",
-          "app_installations_url": "string",
-          "auth_url": "string",
-          "client_id": "string",
-          "device_code_url": "string",
-          "device_flow": true,
-          "display_icon": "string",
-          "display_name": "string",
-          "id": "string",
-          "no_refresh": true,
-          "regex": "string",
-          "scopes": ["string"],
-          "token_url": "string",
-          "type": "string",
-          "validate_url": "string"
-        }
-      ]
-    },
-    "external_token_encryption_keys": ["string"],
-    "healthcheck": {
-      "refresh": 0,
-      "threshold_database": 0
-    },
-    "http_address": "string",
-    "in_memory_database": true,
-    "job_hang_detector_interval": 0,
-    "logging": {
-      "human": "string",
-      "json": "string",
-      "log_filter": ["string"],
-      "stackdriver": "string"
-    },
-    "metrics_cache_refresh_interval": 0,
-    "notifications": {
-      "dispatch_timeout": 0,
-      "email": {
-        "auth": {
-          "identity": "string",
-          "password": "string",
-          "password_file": "string",
-          "username": "string"
-        },
-        "force_tls": true,
-        "from": "string",
-        "hello": "string",
-        "smarthost": {
-          "host": "string",
-          "port": "string"
-        },
-        "tls": {
-          "ca_file": "string",
-          "cert_file": "string",
-          "insecure_skip_verify": true,
-          "key_file": "string",
-          "server_name": "string",
-          "start_tls": true
-        }
-      },
-      "fetch_interval": 0,
-      "lease_count": 0,
-      "lease_period": 0,
-      "max_send_attempts": 0,
-      "method": "string",
-      "retry_interval": 0,
-      "sync_buffer_size": 0,
-      "sync_interval": 0,
-      "webhook": {
-        "endpoint": {
-          "forceQuery": true,
-          "fragment": "string",
-          "host": "string",
-          "omitHost": true,
-          "opaque": "string",
-          "path": "string",
-          "rawFragment": "string",
-          "rawPath": "string",
-          "rawQuery": "string",
-          "scheme": "string",
-          "user": {}
-        }
-      }
-    },
-    "oauth2": {
-      "github": {
-        "allow_everyone": true,
-        "allow_signups": true,
-        "allowed_orgs": ["string"],
-        "allowed_teams": ["string"],
-        "client_id": "string",
-        "client_secret": "string",
-        "enterprise_base_url": "string"
-      }
-    },
-    "oidc": {
-      "allow_signups": true,
-      "auth_url_params": {},
-      "client_cert_file": "string",
-      "client_id": "string",
-      "client_key_file": "string",
-      "client_secret": "string",
-      "email_domain": ["string"],
-      "email_field": "string",
-      "group_allow_list": ["string"],
-      "group_auto_create": true,
-      "group_mapping": {},
-      "group_regex_filter": {},
-      "groups_field": "string",
-      "icon_url": {
-        "forceQuery": true,
-        "fragment": "string",
-        "host": "string",
-        "omitHost": true,
-        "opaque": "string",
-        "path": "string",
-        "rawFragment": "string",
-        "rawPath": "string",
-        "rawQuery": "string",
-        "scheme": "string",
-        "user": {}
-      },
-      "ignore_email_verified": true,
-      "ignore_user_info": true,
-      "issuer_url": "string",
-      "name_field": "string",
-      "scopes": ["string"],
-      "sign_in_text": "string",
-      "signups_disabled_text": "string",
-      "skip_issuer_checks": true,
-      "user_role_field": "string",
-      "user_role_mapping": {},
-      "user_roles_default": ["string"],
-      "username_field": "string"
-    },
-    "pg_auth": "string",
-    "pg_connection_url": "string",
-    "pprof": {
-      "address": {
-        "host": "string",
-        "port": "string"
-      },
-      "enable": true
-    },
-    "prometheus": {
-      "address": {
-        "host": "string",
-        "port": "string"
-      },
-      "aggregate_agent_stats_by": ["string"],
-      "collect_agent_stats": true,
-      "collect_db_metrics": true,
-      "enable": true
-    },
-    "provisioner": {
-      "daemon_poll_interval": 0,
-      "daemon_poll_jitter": 0,
-      "daemon_psk": "string",
-      "daemon_types": ["string"],
-      "daemons": 0,
-      "force_cancel_interval": 0
-    },
-    "proxy_health_status_interval": 0,
-    "proxy_trusted_headers": ["string"],
-    "proxy_trusted_origins": ["string"],
-    "rate_limit": {
-      "api": 0,
-      "disable_all": true
-    },
-    "redirect_to_access_url": true,
-    "scim_api_key": "string",
-    "secure_auth_cookie": true,
-    "session_lifetime": {
-      "default_duration": 0,
-      "disable_expiry_refresh": true,
-      "max_token_lifetime": 0
-    },
-    "ssh_keygen_algorithm": "string",
-    "strict_transport_security": 0,
-    "strict_transport_security_options": ["string"],
-    "support": {
-      "links": {
-        "value": [
-          {
-            "icon": "bug",
-            "name": "string",
-            "target": "string"
-          }
-        ]
-      }
-    },
-    "swagger": {
-      "enable": true
-    },
-    "telemetry": {
-      "enable": true,
-      "trace": true,
-      "url": {
-        "forceQuery": true,
-        "fragment": "string",
-        "host": "string",
-        "omitHost": true,
-        "opaque": "string",
-        "path": "string",
-        "rawFragment": "string",
-        "rawPath": "string",
-        "rawQuery": "string",
-        "scheme": "string",
-        "user": {}
-      }
-    },
-    "terms_of_service_url": "string",
-    "tls": {
-      "address": {
-        "host": "string",
-        "port": "string"
-      },
-      "allow_insecure_ciphers": true,
-      "cert_file": ["string"],
-      "client_auth": "string",
-      "client_ca_file": "string",
-      "client_cert_file": "string",
-      "client_key_file": "string",
-      "enable": true,
-      "key_file": ["string"],
-      "min_version": "string",
-      "redirect_http": true,
-      "supported_ciphers": ["string"]
-    },
-    "trace": {
-      "capture_logs": true,
-      "data_dog": true,
-      "enable": true,
-      "honeycomb_api_key": "string"
-    },
-    "update_check": true,
-    "user_quiet_hours_schedule": {
-      "allow_user_custom": true,
-      "default_schedule": "string"
-    },
-    "verbose": true,
-    "web_terminal_renderer": "string",
-    "wgtunnel_host": "string",
-    "wildcard_access_url": "string",
-    "write_config": true
-  },
-  "options": [
-    {
-      "annotations": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "default": "string",
-      "description": "string",
-      "env": "string",
-      "flag": "string",
-      "flag_shorthand": "string",
-      "group": {
-        "description": "string",
-        "name": "string",
-        "parent": {
-          "description": "string",
-          "name": "string",
-          "parent": {},
-          "yaml": "string"
-        },
-        "yaml": "string"
-      },
-      "hidden": true,
-      "name": "string",
-      "required": true,
-      "use_instead": [{}],
-      "value": null,
-      "value_source": "",
-      "yaml": "string"
-    }
-  ]
+	"config": {
+		"access_url": {
+			"forceQuery": true,
+			"fragment": "string",
+			"host": "string",
+			"omitHost": true,
+			"opaque": "string",
+			"path": "string",
+			"rawFragment": "string",
+			"rawPath": "string",
+			"rawQuery": "string",
+			"scheme": "string",
+			"user": {}
+		},
+		"address": {
+			"host": "string",
+			"port": "string"
+		},
+		"agent_fallback_troubleshooting_url": {
+			"forceQuery": true,
+			"fragment": "string",
+			"host": "string",
+			"omitHost": true,
+			"opaque": "string",
+			"path": "string",
+			"rawFragment": "string",
+			"rawPath": "string",
+			"rawQuery": "string",
+			"scheme": "string",
+			"user": {}
+		},
+		"agent_stat_refresh_interval": 0,
+		"allow_workspace_renames": true,
+		"autobuild_poll_interval": 0,
+		"browser_only": true,
+		"cache_directory": "string",
+		"cli_upgrade_message": "string",
+		"config": "string",
+		"config_ssh": {
+			"deploymentName": "string",
+			"sshconfigOptions": ["string"]
+		},
+		"dangerous": {
+			"allow_all_cors": true,
+			"allow_path_app_sharing": true,
+			"allow_path_app_site_owner_access": true
+		},
+		"derp": {
+			"config": {
+				"block_direct": true,
+				"force_websockets": true,
+				"path": "string",
+				"url": "string"
+			},
+			"server": {
+				"enable": true,
+				"region_code": "string",
+				"region_id": 0,
+				"region_name": "string",
+				"relay_url": {
+					"forceQuery": true,
+					"fragment": "string",
+					"host": "string",
+					"omitHost": true,
+					"opaque": "string",
+					"path": "string",
+					"rawFragment": "string",
+					"rawPath": "string",
+					"rawQuery": "string",
+					"scheme": "string",
+					"user": {}
+				},
+				"stun_addresses": ["string"]
+			}
+		},
+		"disable_owner_workspace_exec": true,
+		"disable_password_auth": true,
+		"disable_path_apps": true,
+		"docs_url": {
+			"forceQuery": true,
+			"fragment": "string",
+			"host": "string",
+			"omitHost": true,
+			"opaque": "string",
+			"path": "string",
+			"rawFragment": "string",
+			"rawPath": "string",
+			"rawQuery": "string",
+			"scheme": "string",
+			"user": {}
+		},
+		"enable_terraform_debug_mode": true,
+		"experiments": ["string"],
+		"external_auth": {
+			"value": [
+				{
+					"app_install_url": "string",
+					"app_installations_url": "string",
+					"auth_url": "string",
+					"client_id": "string",
+					"device_code_url": "string",
+					"device_flow": true,
+					"display_icon": "string",
+					"display_name": "string",
+					"id": "string",
+					"no_refresh": true,
+					"regex": "string",
+					"scopes": ["string"],
+					"token_url": "string",
+					"type": "string",
+					"validate_url": "string"
+				}
+			]
+		},
+		"external_token_encryption_keys": ["string"],
+		"healthcheck": {
+			"refresh": 0,
+			"threshold_database": 0
+		},
+		"http_address": "string",
+		"in_memory_database": true,
+		"job_hang_detector_interval": 0,
+		"logging": {
+			"human": "string",
+			"json": "string",
+			"log_filter": ["string"],
+			"stackdriver": "string"
+		},
+		"metrics_cache_refresh_interval": 0,
+		"notifications": {
+			"dispatch_timeout": 0,
+			"email": {
+				"auth": {
+					"identity": "string",
+					"password": "string",
+					"password_file": "string",
+					"username": "string"
+				},
+				"force_tls": true,
+				"from": "string",
+				"hello": "string",
+				"smarthost": {
+					"host": "string",
+					"port": "string"
+				},
+				"tls": {
+					"ca_file": "string",
+					"cert_file": "string",
+					"insecure_skip_verify": true,
+					"key_file": "string",
+					"server_name": "string",
+					"start_tls": true
+				}
+			},
+			"fetch_interval": 0,
+			"lease_count": 0,
+			"lease_period": 0,
+			"max_send_attempts": 0,
+			"method": "string",
+			"retry_interval": 0,
+			"sync_buffer_size": 0,
+			"sync_interval": 0,
+			"webhook": {
+				"endpoint": {
+					"forceQuery": true,
+					"fragment": "string",
+					"host": "string",
+					"omitHost": true,
+					"opaque": "string",
+					"path": "string",
+					"rawFragment": "string",
+					"rawPath": "string",
+					"rawQuery": "string",
+					"scheme": "string",
+					"user": {}
+				}
+			}
+		},
+		"oauth2": {
+			"github": {
+				"allow_everyone": true,
+				"allow_signups": true,
+				"allowed_orgs": ["string"],
+				"allowed_teams": ["string"],
+				"client_id": "string",
+				"client_secret": "string",
+				"enterprise_base_url": "string"
+			}
+		},
+		"oidc": {
+			"allow_signups": true,
+			"auth_url_params": {},
+			"client_cert_file": "string",
+			"client_id": "string",
+			"client_key_file": "string",
+			"client_secret": "string",
+			"email_domain": ["string"],
+			"email_field": "string",
+			"group_allow_list": ["string"],
+			"group_auto_create": true,
+			"group_mapping": {},
+			"group_regex_filter": {},
+			"groups_field": "string",
+			"icon_url": {
+				"forceQuery": true,
+				"fragment": "string",
+				"host": "string",
+				"omitHost": true,
+				"opaque": "string",
+				"path": "string",
+				"rawFragment": "string",
+				"rawPath": "string",
+				"rawQuery": "string",
+				"scheme": "string",
+				"user": {}
+			},
+			"ignore_email_verified": true,
+			"ignore_user_info": true,
+			"issuer_url": "string",
+			"name_field": "string",
+			"scopes": ["string"],
+			"sign_in_text": "string",
+			"signups_disabled_text": "string",
+			"skip_issuer_checks": true,
+			"user_role_field": "string",
+			"user_role_mapping": {},
+			"user_roles_default": ["string"],
+			"username_field": "string"
+		},
+		"pg_auth": "string",
+		"pg_connection_url": "string",
+		"pprof": {
+			"address": {
+				"host": "string",
+				"port": "string"
+			},
+			"enable": true
+		},
+		"prometheus": {
+			"address": {
+				"host": "string",
+				"port": "string"
+			},
+			"aggregate_agent_stats_by": ["string"],
+			"collect_agent_stats": true,
+			"collect_db_metrics": true,
+			"enable": true
+		},
+		"provisioner": {
+			"daemon_poll_interval": 0,
+			"daemon_poll_jitter": 0,
+			"daemon_psk": "string",
+			"daemon_types": ["string"],
+			"daemons": 0,
+			"force_cancel_interval": 0
+		},
+		"proxy_health_status_interval": 0,
+		"proxy_trusted_headers": ["string"],
+		"proxy_trusted_origins": ["string"],
+		"rate_limit": {
+			"api": 0,
+			"disable_all": true
+		},
+		"redirect_to_access_url": true,
+		"scim_api_key": "string",
+		"secure_auth_cookie": true,
+		"session_lifetime": {
+			"default_duration": 0,
+			"disable_expiry_refresh": true,
+			"max_token_lifetime": 0
+		},
+		"ssh_keygen_algorithm": "string",
+		"strict_transport_security": 0,
+		"strict_transport_security_options": ["string"],
+		"support": {
+			"links": {
+				"value": [
+					{
+						"icon": "bug",
+						"name": "string",
+						"target": "string"
+					}
+				]
+			}
+		},
+		"swagger": {
+			"enable": true
+		},
+		"telemetry": {
+			"enable": true,
+			"trace": true,
+			"url": {
+				"forceQuery": true,
+				"fragment": "string",
+				"host": "string",
+				"omitHost": true,
+				"opaque": "string",
+				"path": "string",
+				"rawFragment": "string",
+				"rawPath": "string",
+				"rawQuery": "string",
+				"scheme": "string",
+				"user": {}
+			}
+		},
+		"terms_of_service_url": "string",
+		"tls": {
+			"address": {
+				"host": "string",
+				"port": "string"
+			},
+			"allow_insecure_ciphers": true,
+			"cert_file": ["string"],
+			"client_auth": "string",
+			"client_ca_file": "string",
+			"client_cert_file": "string",
+			"client_key_file": "string",
+			"enable": true,
+			"key_file": ["string"],
+			"min_version": "string",
+			"redirect_http": true,
+			"supported_ciphers": ["string"]
+		},
+		"trace": {
+			"capture_logs": true,
+			"data_dog": true,
+			"enable": true,
+			"honeycomb_api_key": "string"
+		},
+		"update_check": true,
+		"user_quiet_hours_schedule": {
+			"allow_user_custom": true,
+			"default_schedule": "string"
+		},
+		"verbose": true,
+		"web_terminal_renderer": "string",
+		"wgtunnel_host": "string",
+		"wildcard_access_url": "string",
+		"write_config": true
+	},
+	"options": [
+		{
+			"annotations": {
+				"property1": "string",
+				"property2": "string"
+			},
+			"default": "string",
+			"description": "string",
+			"env": "string",
+			"flag": "string",
+			"flag_shorthand": "string",
+			"group": {
+				"description": "string",
+				"name": "string",
+				"parent": {
+					"description": "string",
+					"name": "string",
+					"parent": {},
+					"yaml": "string"
+				},
+				"yaml": "string"
+			},
+			"hidden": true,
+			"name": "string",
+			"required": true,
+			"use_instead": [{}],
+			"value": null,
+			"value_source": "",
+			"yaml": "string"
+		}
+	]
 }
 ```
 
@@ -2012,28 +2014,28 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "aggregated_from": "2019-08-24T14:15:22Z",
-  "collected_at": "2019-08-24T14:15:22Z",
-  "next_update_at": "2019-08-24T14:15:22Z",
-  "session_count": {
-    "jetbrains": 0,
-    "reconnecting_pty": 0,
-    "ssh": 0,
-    "vscode": 0
-  },
-  "workspaces": {
-    "building": 0,
-    "connection_latency_ms": {
-      "p50": 0,
-      "p95": 0
-    },
-    "failed": 0,
-    "pending": 0,
-    "running": 0,
-    "rx_bytes": 0,
-    "stopped": 0,
-    "tx_bytes": 0
-  }
+	"aggregated_from": "2019-08-24T14:15:22Z",
+	"collected_at": "2019-08-24T14:15:22Z",
+	"next_update_at": "2019-08-24T14:15:22Z",
+	"session_count": {
+		"jetbrains": 0,
+		"reconnecting_pty": 0,
+		"ssh": 0,
+		"vscode": 0
+	},
+	"workspaces": {
+		"building": 0,
+		"connection_latency_ms": {
+			"p50": 0,
+			"p95": 0
+		},
+		"failed": 0,
+		"pending": 0,
+		"running": 0,
+		"rx_bytes": 0,
+		"stopped": 0,
+		"tx_bytes": 0
+	}
 }
 ```
 
@@ -2051,344 +2053,344 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "access_url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
-  "address": {
-    "host": "string",
-    "port": "string"
-  },
-  "agent_fallback_troubleshooting_url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
-  "agent_stat_refresh_interval": 0,
-  "allow_workspace_renames": true,
-  "autobuild_poll_interval": 0,
-  "browser_only": true,
-  "cache_directory": "string",
-  "cli_upgrade_message": "string",
-  "config": "string",
-  "config_ssh": {
-    "deploymentName": "string",
-    "sshconfigOptions": ["string"]
-  },
-  "dangerous": {
-    "allow_all_cors": true,
-    "allow_path_app_sharing": true,
-    "allow_path_app_site_owner_access": true
-  },
-  "derp": {
-    "config": {
-      "block_direct": true,
-      "force_websockets": true,
-      "path": "string",
-      "url": "string"
-    },
-    "server": {
-      "enable": true,
-      "region_code": "string",
-      "region_id": 0,
-      "region_name": "string",
-      "relay_url": {
-        "forceQuery": true,
-        "fragment": "string",
-        "host": "string",
-        "omitHost": true,
-        "opaque": "string",
-        "path": "string",
-        "rawFragment": "string",
-        "rawPath": "string",
-        "rawQuery": "string",
-        "scheme": "string",
-        "user": {}
-      },
-      "stun_addresses": ["string"]
-    }
-  },
-  "disable_owner_workspace_exec": true,
-  "disable_password_auth": true,
-  "disable_path_apps": true,
-  "docs_url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
-  "enable_terraform_debug_mode": true,
-  "experiments": ["string"],
-  "external_auth": {
-    "value": [
-      {
-        "app_install_url": "string",
-        "app_installations_url": "string",
-        "auth_url": "string",
-        "client_id": "string",
-        "device_code_url": "string",
-        "device_flow": true,
-        "display_icon": "string",
-        "display_name": "string",
-        "id": "string",
-        "no_refresh": true,
-        "regex": "string",
-        "scopes": ["string"],
-        "token_url": "string",
-        "type": "string",
-        "validate_url": "string"
-      }
-    ]
-  },
-  "external_token_encryption_keys": ["string"],
-  "healthcheck": {
-    "refresh": 0,
-    "threshold_database": 0
-  },
-  "http_address": "string",
-  "in_memory_database": true,
-  "job_hang_detector_interval": 0,
-  "logging": {
-    "human": "string",
-    "json": "string",
-    "log_filter": ["string"],
-    "stackdriver": "string"
-  },
-  "metrics_cache_refresh_interval": 0,
-  "notifications": {
-    "dispatch_timeout": 0,
-    "email": {
-      "auth": {
-        "identity": "string",
-        "password": "string",
-        "password_file": "string",
-        "username": "string"
-      },
-      "force_tls": true,
-      "from": "string",
-      "hello": "string",
-      "smarthost": {
-        "host": "string",
-        "port": "string"
-      },
-      "tls": {
-        "ca_file": "string",
-        "cert_file": "string",
-        "insecure_skip_verify": true,
-        "key_file": "string",
-        "server_name": "string",
-        "start_tls": true
-      }
-    },
-    "fetch_interval": 0,
-    "lease_count": 0,
-    "lease_period": 0,
-    "max_send_attempts": 0,
-    "method": "string",
-    "retry_interval": 0,
-    "sync_buffer_size": 0,
-    "sync_interval": 0,
-    "webhook": {
-      "endpoint": {
-        "forceQuery": true,
-        "fragment": "string",
-        "host": "string",
-        "omitHost": true,
-        "opaque": "string",
-        "path": "string",
-        "rawFragment": "string",
-        "rawPath": "string",
-        "rawQuery": "string",
-        "scheme": "string",
-        "user": {}
-      }
-    }
-  },
-  "oauth2": {
-    "github": {
-      "allow_everyone": true,
-      "allow_signups": true,
-      "allowed_orgs": ["string"],
-      "allowed_teams": ["string"],
-      "client_id": "string",
-      "client_secret": "string",
-      "enterprise_base_url": "string"
-    }
-  },
-  "oidc": {
-    "allow_signups": true,
-    "auth_url_params": {},
-    "client_cert_file": "string",
-    "client_id": "string",
-    "client_key_file": "string",
-    "client_secret": "string",
-    "email_domain": ["string"],
-    "email_field": "string",
-    "group_allow_list": ["string"],
-    "group_auto_create": true,
-    "group_mapping": {},
-    "group_regex_filter": {},
-    "groups_field": "string",
-    "icon_url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    },
-    "ignore_email_verified": true,
-    "ignore_user_info": true,
-    "issuer_url": "string",
-    "name_field": "string",
-    "scopes": ["string"],
-    "sign_in_text": "string",
-    "signups_disabled_text": "string",
-    "skip_issuer_checks": true,
-    "user_role_field": "string",
-    "user_role_mapping": {},
-    "user_roles_default": ["string"],
-    "username_field": "string"
-  },
-  "pg_auth": "string",
-  "pg_connection_url": "string",
-  "pprof": {
-    "address": {
-      "host": "string",
-      "port": "string"
-    },
-    "enable": true
-  },
-  "prometheus": {
-    "address": {
-      "host": "string",
-      "port": "string"
-    },
-    "aggregate_agent_stats_by": ["string"],
-    "collect_agent_stats": true,
-    "collect_db_metrics": true,
-    "enable": true
-  },
-  "provisioner": {
-    "daemon_poll_interval": 0,
-    "daemon_poll_jitter": 0,
-    "daemon_psk": "string",
-    "daemon_types": ["string"],
-    "daemons": 0,
-    "force_cancel_interval": 0
-  },
-  "proxy_health_status_interval": 0,
-  "proxy_trusted_headers": ["string"],
-  "proxy_trusted_origins": ["string"],
-  "rate_limit": {
-    "api": 0,
-    "disable_all": true
-  },
-  "redirect_to_access_url": true,
-  "scim_api_key": "string",
-  "secure_auth_cookie": true,
-  "session_lifetime": {
-    "default_duration": 0,
-    "disable_expiry_refresh": true,
-    "max_token_lifetime": 0
-  },
-  "ssh_keygen_algorithm": "string",
-  "strict_transport_security": 0,
-  "strict_transport_security_options": ["string"],
-  "support": {
-    "links": {
-      "value": [
-        {
-          "icon": "bug",
-          "name": "string",
-          "target": "string"
-        }
-      ]
-    }
-  },
-  "swagger": {
-    "enable": true
-  },
-  "telemetry": {
-    "enable": true,
-    "trace": true,
-    "url": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    }
-  },
-  "terms_of_service_url": "string",
-  "tls": {
-    "address": {
-      "host": "string",
-      "port": "string"
-    },
-    "allow_insecure_ciphers": true,
-    "cert_file": ["string"],
-    "client_auth": "string",
-    "client_ca_file": "string",
-    "client_cert_file": "string",
-    "client_key_file": "string",
-    "enable": true,
-    "key_file": ["string"],
-    "min_version": "string",
-    "redirect_http": true,
-    "supported_ciphers": ["string"]
-  },
-  "trace": {
-    "capture_logs": true,
-    "data_dog": true,
-    "enable": true,
-    "honeycomb_api_key": "string"
-  },
-  "update_check": true,
-  "user_quiet_hours_schedule": {
-    "allow_user_custom": true,
-    "default_schedule": "string"
-  },
-  "verbose": true,
-  "web_terminal_renderer": "string",
-  "wgtunnel_host": "string",
-  "wildcard_access_url": "string",
-  "write_config": true
+	"access_url": {
+		"forceQuery": true,
+		"fragment": "string",
+		"host": "string",
+		"omitHost": true,
+		"opaque": "string",
+		"path": "string",
+		"rawFragment": "string",
+		"rawPath": "string",
+		"rawQuery": "string",
+		"scheme": "string",
+		"user": {}
+	},
+	"address": {
+		"host": "string",
+		"port": "string"
+	},
+	"agent_fallback_troubleshooting_url": {
+		"forceQuery": true,
+		"fragment": "string",
+		"host": "string",
+		"omitHost": true,
+		"opaque": "string",
+		"path": "string",
+		"rawFragment": "string",
+		"rawPath": "string",
+		"rawQuery": "string",
+		"scheme": "string",
+		"user": {}
+	},
+	"agent_stat_refresh_interval": 0,
+	"allow_workspace_renames": true,
+	"autobuild_poll_interval": 0,
+	"browser_only": true,
+	"cache_directory": "string",
+	"cli_upgrade_message": "string",
+	"config": "string",
+	"config_ssh": {
+		"deploymentName": "string",
+		"sshconfigOptions": ["string"]
+	},
+	"dangerous": {
+		"allow_all_cors": true,
+		"allow_path_app_sharing": true,
+		"allow_path_app_site_owner_access": true
+	},
+	"derp": {
+		"config": {
+			"block_direct": true,
+			"force_websockets": true,
+			"path": "string",
+			"url": "string"
+		},
+		"server": {
+			"enable": true,
+			"region_code": "string",
+			"region_id": 0,
+			"region_name": "string",
+			"relay_url": {
+				"forceQuery": true,
+				"fragment": "string",
+				"host": "string",
+				"omitHost": true,
+				"opaque": "string",
+				"path": "string",
+				"rawFragment": "string",
+				"rawPath": "string",
+				"rawQuery": "string",
+				"scheme": "string",
+				"user": {}
+			},
+			"stun_addresses": ["string"]
+		}
+	},
+	"disable_owner_workspace_exec": true,
+	"disable_password_auth": true,
+	"disable_path_apps": true,
+	"docs_url": {
+		"forceQuery": true,
+		"fragment": "string",
+		"host": "string",
+		"omitHost": true,
+		"opaque": "string",
+		"path": "string",
+		"rawFragment": "string",
+		"rawPath": "string",
+		"rawQuery": "string",
+		"scheme": "string",
+		"user": {}
+	},
+	"enable_terraform_debug_mode": true,
+	"experiments": ["string"],
+	"external_auth": {
+		"value": [
+			{
+				"app_install_url": "string",
+				"app_installations_url": "string",
+				"auth_url": "string",
+				"client_id": "string",
+				"device_code_url": "string",
+				"device_flow": true,
+				"display_icon": "string",
+				"display_name": "string",
+				"id": "string",
+				"no_refresh": true,
+				"regex": "string",
+				"scopes": ["string"],
+				"token_url": "string",
+				"type": "string",
+				"validate_url": "string"
+			}
+		]
+	},
+	"external_token_encryption_keys": ["string"],
+	"healthcheck": {
+		"refresh": 0,
+		"threshold_database": 0
+	},
+	"http_address": "string",
+	"in_memory_database": true,
+	"job_hang_detector_interval": 0,
+	"logging": {
+		"human": "string",
+		"json": "string",
+		"log_filter": ["string"],
+		"stackdriver": "string"
+	},
+	"metrics_cache_refresh_interval": 0,
+	"notifications": {
+		"dispatch_timeout": 0,
+		"email": {
+			"auth": {
+				"identity": "string",
+				"password": "string",
+				"password_file": "string",
+				"username": "string"
+			},
+			"force_tls": true,
+			"from": "string",
+			"hello": "string",
+			"smarthost": {
+				"host": "string",
+				"port": "string"
+			},
+			"tls": {
+				"ca_file": "string",
+				"cert_file": "string",
+				"insecure_skip_verify": true,
+				"key_file": "string",
+				"server_name": "string",
+				"start_tls": true
+			}
+		},
+		"fetch_interval": 0,
+		"lease_count": 0,
+		"lease_period": 0,
+		"max_send_attempts": 0,
+		"method": "string",
+		"retry_interval": 0,
+		"sync_buffer_size": 0,
+		"sync_interval": 0,
+		"webhook": {
+			"endpoint": {
+				"forceQuery": true,
+				"fragment": "string",
+				"host": "string",
+				"omitHost": true,
+				"opaque": "string",
+				"path": "string",
+				"rawFragment": "string",
+				"rawPath": "string",
+				"rawQuery": "string",
+				"scheme": "string",
+				"user": {}
+			}
+		}
+	},
+	"oauth2": {
+		"github": {
+			"allow_everyone": true,
+			"allow_signups": true,
+			"allowed_orgs": ["string"],
+			"allowed_teams": ["string"],
+			"client_id": "string",
+			"client_secret": "string",
+			"enterprise_base_url": "string"
+		}
+	},
+	"oidc": {
+		"allow_signups": true,
+		"auth_url_params": {},
+		"client_cert_file": "string",
+		"client_id": "string",
+		"client_key_file": "string",
+		"client_secret": "string",
+		"email_domain": ["string"],
+		"email_field": "string",
+		"group_allow_list": ["string"],
+		"group_auto_create": true,
+		"group_mapping": {},
+		"group_regex_filter": {},
+		"groups_field": "string",
+		"icon_url": {
+			"forceQuery": true,
+			"fragment": "string",
+			"host": "string",
+			"omitHost": true,
+			"opaque": "string",
+			"path": "string",
+			"rawFragment": "string",
+			"rawPath": "string",
+			"rawQuery": "string",
+			"scheme": "string",
+			"user": {}
+		},
+		"ignore_email_verified": true,
+		"ignore_user_info": true,
+		"issuer_url": "string",
+		"name_field": "string",
+		"scopes": ["string"],
+		"sign_in_text": "string",
+		"signups_disabled_text": "string",
+		"skip_issuer_checks": true,
+		"user_role_field": "string",
+		"user_role_mapping": {},
+		"user_roles_default": ["string"],
+		"username_field": "string"
+	},
+	"pg_auth": "string",
+	"pg_connection_url": "string",
+	"pprof": {
+		"address": {
+			"host": "string",
+			"port": "string"
+		},
+		"enable": true
+	},
+	"prometheus": {
+		"address": {
+			"host": "string",
+			"port": "string"
+		},
+		"aggregate_agent_stats_by": ["string"],
+		"collect_agent_stats": true,
+		"collect_db_metrics": true,
+		"enable": true
+	},
+	"provisioner": {
+		"daemon_poll_interval": 0,
+		"daemon_poll_jitter": 0,
+		"daemon_psk": "string",
+		"daemon_types": ["string"],
+		"daemons": 0,
+		"force_cancel_interval": 0
+	},
+	"proxy_health_status_interval": 0,
+	"proxy_trusted_headers": ["string"],
+	"proxy_trusted_origins": ["string"],
+	"rate_limit": {
+		"api": 0,
+		"disable_all": true
+	},
+	"redirect_to_access_url": true,
+	"scim_api_key": "string",
+	"secure_auth_cookie": true,
+	"session_lifetime": {
+		"default_duration": 0,
+		"disable_expiry_refresh": true,
+		"max_token_lifetime": 0
+	},
+	"ssh_keygen_algorithm": "string",
+	"strict_transport_security": 0,
+	"strict_transport_security_options": ["string"],
+	"support": {
+		"links": {
+			"value": [
+				{
+					"icon": "bug",
+					"name": "string",
+					"target": "string"
+				}
+			]
+		}
+	},
+	"swagger": {
+		"enable": true
+	},
+	"telemetry": {
+		"enable": true,
+		"trace": true,
+		"url": {
+			"forceQuery": true,
+			"fragment": "string",
+			"host": "string",
+			"omitHost": true,
+			"opaque": "string",
+			"path": "string",
+			"rawFragment": "string",
+			"rawPath": "string",
+			"rawQuery": "string",
+			"scheme": "string",
+			"user": {}
+		}
+	},
+	"terms_of_service_url": "string",
+	"tls": {
+		"address": {
+			"host": "string",
+			"port": "string"
+		},
+		"allow_insecure_ciphers": true,
+		"cert_file": ["string"],
+		"client_auth": "string",
+		"client_ca_file": "string",
+		"client_cert_file": "string",
+		"client_key_file": "string",
+		"enable": true,
+		"key_file": ["string"],
+		"min_version": "string",
+		"redirect_http": true,
+		"supported_ciphers": ["string"]
+	},
+	"trace": {
+		"capture_logs": true,
+		"data_dog": true,
+		"enable": true,
+		"honeycomb_api_key": "string"
+	},
+	"update_check": true,
+	"user_quiet_hours_schedule": {
+		"allow_user_custom": true,
+		"default_schedule": "string"
+	},
+	"verbose": true,
+	"web_terminal_renderer": "string",
+	"wgtunnel_host": "string",
+	"wildcard_access_url": "string",
+	"write_config": true
 }
 ```
 
@@ -2494,26 +2496,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "errors": ["string"],
-  "features": {
-    "property1": {
-      "actual": 0,
-      "enabled": true,
-      "entitlement": "entitled",
-      "limit": 0
-    },
-    "property2": {
-      "actual": 0,
-      "enabled": true,
-      "entitlement": "entitled",
-      "limit": 0
-    }
-  },
-  "has_license": true,
-  "refreshed_at": "2019-08-24T14:15:22Z",
-  "require_telemetry": true,
-  "trial": true,
-  "warnings": ["string"]
+	"errors": ["string"],
+	"features": {
+		"property1": {
+			"actual": 0,
+			"enabled": true,
+			"entitlement": "entitled",
+			"limit": 0
+		},
+		"property2": {
+			"actual": 0,
+			"enabled": true,
+			"entitlement": "entitled",
+			"limit": 0
+		}
+	},
+	"has_license": true,
+	"refreshed_at": "2019-08-24T14:15:22Z",
+	"require_telemetry": true,
+	"trial": true,
+	"warnings": ["string"]
 }
 ```
 
@@ -2553,31 +2555,31 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "app_install_url": "string",
-  "app_installable": true,
-  "authenticated": true,
-  "device": true,
-  "display_name": "string",
-  "installations": [
-    {
-      "account": {
-        "avatar_url": "string",
-        "id": 0,
-        "login": "string",
-        "name": "string",
-        "profile_url": "string"
-      },
-      "configure_url": "string",
-      "id": 0
-    }
-  ],
-  "user": {
-    "avatar_url": "string",
-    "id": 0,
-    "login": "string",
-    "name": "string",
-    "profile_url": "string"
-  }
+	"app_install_url": "string",
+	"app_installable": true,
+	"authenticated": true,
+	"device": true,
+	"display_name": "string",
+	"installations": [
+		{
+			"account": {
+				"avatar_url": "string",
+				"id": 0,
+				"login": "string",
+				"name": "string",
+				"profile_url": "string"
+			},
+			"configure_url": "string",
+			"id": 0
+		}
+	],
+	"user": {
+		"avatar_url": "string",
+		"id": 0,
+		"login": "string",
+		"name": "string",
+		"profile_url": "string"
+	}
 }
 ```
 
@@ -2597,15 +2599,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "account": {
-    "avatar_url": "string",
-    "id": 0,
-    "login": "string",
-    "name": "string",
-    "profile_url": "string"
-  },
-  "configure_url": "string",
-  "id": 0
+	"account": {
+		"avatar_url": "string",
+		"id": 0,
+		"login": "string",
+		"name": "string",
+		"profile_url": "string"
+	},
+	"configure_url": "string",
+	"id": 0
 }
 ```
 
@@ -2621,21 +2623,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "app_install_url": "string",
-  "app_installations_url": "string",
-  "auth_url": "string",
-  "client_id": "string",
-  "device_code_url": "string",
-  "device_flow": true,
-  "display_icon": "string",
-  "display_name": "string",
-  "id": "string",
-  "no_refresh": true,
-  "regex": "string",
-  "scopes": ["string"],
-  "token_url": "string",
-  "type": "string",
-  "validate_url": "string"
+	"app_install_url": "string",
+	"app_installations_url": "string",
+	"auth_url": "string",
+	"client_id": "string",
+	"device_code_url": "string",
+	"device_flow": true,
+	"display_icon": "string",
+	"display_name": "string",
+	"id": "string",
+	"no_refresh": true,
+	"regex": "string",
+	"scopes": ["string"],
+	"token_url": "string",
+	"type": "string",
+	"validate_url": "string"
 }
 ```
 
@@ -2664,11 +2666,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "device_code": "string",
-  "expires_in": 0,
-  "interval": 0,
-  "user_code": "string",
-  "verification_uri": "string"
+	"device_code": "string",
+	"expires_in": 0,
+	"interval": 0,
+	"user_code": "string",
+	"verification_uri": "string"
 }
 ```
 
@@ -2686,13 +2688,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "authenticated": true,
-  "created_at": "2019-08-24T14:15:22Z",
-  "expires": "2019-08-24T14:15:22Z",
-  "has_refresh_token": true,
-  "provider_id": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "validate_error": "string"
+	"authenticated": true,
+	"created_at": "2019-08-24T14:15:22Z",
+	"expires": "2019-08-24T14:15:22Z",
+	"has_refresh_token": true,
+	"provider_id": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"validate_error": "string"
 }
 ```
 
@@ -2712,11 +2714,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "avatar_url": "string",
-  "id": 0,
-  "login": "string",
-  "name": "string",
-  "profile_url": "string"
+	"avatar_url": "string",
+	"id": 0,
+	"login": "string",
+	"name": "string",
+	"profile_url": "string"
 }
 ```
 
@@ -2734,10 +2736,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "actual": 0,
-  "enabled": true,
-  "entitlement": "entitled",
-  "limit": 0
+	"actual": 0,
+	"enabled": true,
+	"entitlement": "entitled",
+	"limit": 0
 }
 ```
 
@@ -2754,7 +2756,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "key": "string"
+	"key": "string"
 }
 ```
 
@@ -2768,30 +2770,30 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "count": 0,
-  "users": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "roles": [
-        {
-          "display_name": "string",
-          "name": "string",
-          "organization_id": "string"
-        }
-      ],
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ]
+	"count": 0,
+	"users": [
+		{
+			"avatar_url": "http://example.com",
+			"created_at": "2019-08-24T14:15:22Z",
+			"email": "user@example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"login_type": "",
+			"name": "string",
+			"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+			"roles": [
+				{
+					"display_name": "string",
+					"name": "string",
+					"organization_id": "string"
+				}
+			],
+			"status": "active",
+			"theme_preference": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"username": "string"
+		}
+	]
 }
 ```
 
@@ -2806,10 +2808,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "public_key": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+	"created_at": "2019-08-24T14:15:22Z",
+	"public_key": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
@@ -2826,29 +2828,29 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "avatar_url": "string",
-  "display_name": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
-    {
-      "avatar_url": "http://example.com",
-      "created_at": "2019-08-24T14:15:22Z",
-      "email": "user@example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "",
-      "name": "string",
-      "status": "active",
-      "theme_preference": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "username": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0,
-  "source": "user",
-  "total_member_count": 0
+	"avatar_url": "string",
+	"display_name": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"members": [
+		{
+			"avatar_url": "http://example.com",
+			"created_at": "2019-08-24T14:15:22Z",
+			"email": "user@example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"login_type": "",
+			"name": "string",
+			"status": "active",
+			"theme_preference": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"username": "string"
+		}
+	],
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"quota_allowance": 0,
+	"source": "user",
+	"total_member_count": 0
 }
 ```
 
@@ -2885,9 +2887,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "interval": 0,
-  "threshold": 0,
-  "url": "string"
+	"interval": 0,
+	"threshold": 0,
+	"url": "string"
 }
 ```
 
@@ -2903,8 +2905,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "refresh": 0,
-  "threshold_database": 0
+	"refresh": 0,
+	"threshold_database": 0
 }
 ```
 
@@ -2934,8 +2936,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "agentID": "bc282582-04f9-45ce-b904-3e3bfab66958",
-  "url": "string"
+	"agentID": "bc282582-04f9-45ce-b904-3e3bfab66958",
+	"url": "string"
 }
 ```
 
@@ -2950,7 +2952,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "signed_token": "string"
+	"signed_token": "string"
 }
 ```
 
@@ -2964,12 +2966,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "critical": 0,
-  "high": 0,
-  "medium": 0,
-  "results_url": "string",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+	"agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+	"critical": 0,
+	"high": 0,
+	"medium": 0,
+	"results_url": "string",
+	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
@@ -3002,10 +3004,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "claims": {},
-  "id": 0,
-  "uploaded_at": "2019-08-24T14:15:22Z",
-  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
+	"claims": {},
+	"id": 0,
+	"uploaded_at": "2019-08-24T14:15:22Z",
+	"uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
 }
 ```
 
@@ -3022,9 +3024,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "icon": "bug",
-  "name": "string",
-  "target": "string"
+	"icon": "bug",
+	"name": "string",
+	"target": "string"
 }
 ```
 
@@ -3081,10 +3083,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "human": "string",
-  "json": "string",
-  "log_filter": ["string"],
-  "stackdriver": "string"
+	"human": "string",
+	"json": "string",
+	"log_filter": ["string"],
+	"stackdriver": "string"
 }
 ```
 
@@ -3120,8 +3122,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "email": "user@example.com",
-  "password": "string"
+	"email": "user@example.com",
+	"password": "string"
 }
 ```
 
@@ -3136,7 +3138,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "session_token": "string"
+	"session_token": "string"
 }
 ```
 
@@ -3150,10 +3152,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string"
 }
 ```
 
@@ -3170,9 +3172,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "avatar_url": "http://example.com",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "username": "string"
+	"avatar_url": "http://example.com",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"username": "string"
 }
 ```
 
@@ -3188,8 +3190,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "available": ["string"],
-  "default": "string"
+	"available": ["string"],
+	"default": "string"
 }
 ```
 
@@ -3204,9 +3206,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "disabled": true,
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "updated_at": "2019-08-24T14:15:22Z"
+	"disabled": true,
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -3222,14 +3224,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "actions": "string",
-  "body_template": "string",
-  "group": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "kind": "string",
-  "method": "string",
-  "name": "string",
-  "title_template": "string"
+	"actions": "string",
+	"body_template": "string",
+	"group": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"kind": "string",
+	"method": "string",
+	"name": "string",
+	"title_template": "string"
 }
 ```
 
@@ -3250,53 +3252,53 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "dispatch_timeout": 0,
-  "email": {
-    "auth": {
-      "identity": "string",
-      "password": "string",
-      "password_file": "string",
-      "username": "string"
-    },
-    "force_tls": true,
-    "from": "string",
-    "hello": "string",
-    "smarthost": {
-      "host": "string",
-      "port": "string"
-    },
-    "tls": {
-      "ca_file": "string",
-      "cert_file": "string",
-      "insecure_skip_verify": true,
-      "key_file": "string",
-      "server_name": "string",
-      "start_tls": true
-    }
-  },
-  "fetch_interval": 0,
-  "lease_count": 0,
-  "lease_period": 0,
-  "max_send_attempts": 0,
-  "method": "string",
-  "retry_interval": 0,
-  "sync_buffer_size": 0,
-  "sync_interval": 0,
-  "webhook": {
-    "endpoint": {
-      "forceQuery": true,
-      "fragment": "string",
-      "host": "string",
-      "omitHost": true,
-      "opaque": "string",
-      "path": "string",
-      "rawFragment": "string",
-      "rawPath": "string",
-      "rawQuery": "string",
-      "scheme": "string",
-      "user": {}
-    }
-  }
+	"dispatch_timeout": 0,
+	"email": {
+		"auth": {
+			"identity": "string",
+			"password": "string",
+			"password_file": "string",
+			"username": "string"
+		},
+		"force_tls": true,
+		"from": "string",
+		"hello": "string",
+		"smarthost": {
+			"host": "string",
+			"port": "string"
+		},
+		"tls": {
+			"ca_file": "string",
+			"cert_file": "string",
+			"insecure_skip_verify": true,
+			"key_file": "string",
+			"server_name": "string",
+			"start_tls": true
+		}
+	},
+	"fetch_interval": 0,
+	"lease_count": 0,
+	"lease_period": 0,
+	"max_send_attempts": 0,
+	"method": "string",
+	"retry_interval": 0,
+	"sync_buffer_size": 0,
+	"sync_interval": 0,
+	"webhook": {
+		"endpoint": {
+			"forceQuery": true,
+			"fragment": "string",
+			"host": "string",
+			"omitHost": true,
+			"opaque": "string",
+			"path": "string",
+			"rawFragment": "string",
+			"rawPath": "string",
+			"rawQuery": "string",
+			"scheme": "string",
+			"user": {}
+		}
+	}
 }
 ```
 
@@ -3320,10 +3322,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "identity": "string",
-  "password": "string",
-  "password_file": "string",
-  "username": "string"
+	"identity": "string",
+	"password": "string",
+	"password_file": "string",
+	"username": "string"
 }
 ```
 
@@ -3340,27 +3342,27 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "auth": {
-    "identity": "string",
-    "password": "string",
-    "password_file": "string",
-    "username": "string"
-  },
-  "force_tls": true,
-  "from": "string",
-  "hello": "string",
-  "smarthost": {
-    "host": "string",
-    "port": "string"
-  },
-  "tls": {
-    "ca_file": "string",
-    "cert_file": "string",
-    "insecure_skip_verify": true,
-    "key_file": "string",
-    "server_name": "string",
-    "start_tls": true
-  }
+	"auth": {
+		"identity": "string",
+		"password": "string",
+		"password_file": "string",
+		"username": "string"
+	},
+	"force_tls": true,
+	"from": "string",
+	"hello": "string",
+	"smarthost": {
+		"host": "string",
+		"port": "string"
+	},
+	"tls": {
+		"ca_file": "string",
+		"cert_file": "string",
+		"insecure_skip_verify": true,
+		"key_file": "string",
+		"server_name": "string",
+		"start_tls": true
+	}
 }
 ```
 
@@ -3379,12 +3381,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "ca_file": "string",
-  "cert_file": "string",
-  "insecure_skip_verify": true,
-  "key_file": "string",
-  "server_name": "string",
-  "start_tls": true
+	"ca_file": "string",
+	"cert_file": "string",
+	"insecure_skip_verify": true,
+	"key_file": "string",
+	"server_name": "string",
+	"start_tls": true
 }
 ```
 
@@ -3403,7 +3405,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "notifier_paused": true
+	"notifier_paused": true
 }
 ```
 
@@ -3417,19 +3419,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "endpoint": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  }
+	"endpoint": {
+		"forceQuery": true,
+		"fragment": "string",
+		"host": "string",
+		"omitHost": true,
+		"opaque": "string",
+		"path": "string",
+		"rawFragment": "string",
+		"rawPath": "string",
+		"rawQuery": "string",
+		"scheme": "string",
+		"user": {}
+	}
 }
 ```
 
@@ -3443,9 +3445,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "authorization": "string",
-  "device_authorization": "string",
-  "token": "string"
+	"authorization": "string",
+	"device_authorization": "string",
+	"token": "string"
 }
 ```
 
@@ -3461,15 +3463,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "github": {
-    "allow_everyone": true,
-    "allow_signups": true,
-    "allowed_orgs": ["string"],
-    "allowed_teams": ["string"],
-    "client_id": "string",
-    "client_secret": "string",
-    "enterprise_base_url": "string"
-  }
+	"github": {
+		"allow_everyone": true,
+		"allow_signups": true,
+		"allowed_orgs": ["string"],
+		"allowed_teams": ["string"],
+		"client_id": "string",
+		"client_secret": "string",
+		"enterprise_base_url": "string"
+	}
 }
 ```
 
@@ -3483,13 +3485,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "allow_everyone": true,
-  "allow_signups": true,
-  "allowed_orgs": ["string"],
-  "allowed_teams": ["string"],
-  "client_id": "string",
-  "client_secret": "string",
-  "enterprise_base_url": "string"
+	"allow_everyone": true,
+	"allow_signups": true,
+	"allowed_orgs": ["string"],
+	"allowed_teams": ["string"],
+	"client_id": "string",
+	"client_secret": "string",
+	"enterprise_base_url": "string"
 }
 ```
 
@@ -3509,15 +3511,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "callback_url": "string",
-  "endpoints": {
-    "authorization": "string",
-    "device_authorization": "string",
-    "token": "string"
-  },
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+	"callback_url": "string",
+	"endpoints": {
+		"authorization": "string",
+		"device_authorization": "string",
+		"token": "string"
+	},
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string"
 }
 ```
 
@@ -3535,9 +3537,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "client_secret_truncated": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_used_at": "string"
+	"client_secret_truncated": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"last_used_at": "string"
 }
 ```
 
@@ -3553,8 +3555,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "client_secret_full": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+	"client_secret_full": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
 }
 ```
 
@@ -3569,10 +3571,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "expires_at": "2019-08-24T14:15:22Z",
-  "state_string": "string",
-  "to_type": "",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+	"expires_at": "2019-08-24T14:15:22Z",
+	"state_string": "string",
+	"to_type": "",
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
@@ -3589,9 +3591,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "enabled": true,
-  "iconUrl": "string",
-  "signInText": "string"
+	"enabled": true,
+	"iconUrl": "string",
+	"signInText": "string"
 }
 ```
 
@@ -3607,44 +3609,44 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "allow_signups": true,
-  "auth_url_params": {},
-  "client_cert_file": "string",
-  "client_id": "string",
-  "client_key_file": "string",
-  "client_secret": "string",
-  "email_domain": ["string"],
-  "email_field": "string",
-  "group_allow_list": ["string"],
-  "group_auto_create": true,
-  "group_mapping": {},
-  "group_regex_filter": {},
-  "groups_field": "string",
-  "icon_url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  },
-  "ignore_email_verified": true,
-  "ignore_user_info": true,
-  "issuer_url": "string",
-  "name_field": "string",
-  "scopes": ["string"],
-  "sign_in_text": "string",
-  "signups_disabled_text": "string",
-  "skip_issuer_checks": true,
-  "user_role_field": "string",
-  "user_role_mapping": {},
-  "user_roles_default": ["string"],
-  "username_field": "string"
+	"allow_signups": true,
+	"auth_url_params": {},
+	"client_cert_file": "string",
+	"client_id": "string",
+	"client_key_file": "string",
+	"client_secret": "string",
+	"email_domain": ["string"],
+	"email_field": "string",
+	"group_allow_list": ["string"],
+	"group_auto_create": true,
+	"group_mapping": {},
+	"group_regex_filter": {},
+	"groups_field": "string",
+	"icon_url": {
+		"forceQuery": true,
+		"fragment": "string",
+		"host": "string",
+		"omitHost": true,
+		"opaque": "string",
+		"path": "string",
+		"rawFragment": "string",
+		"rawPath": "string",
+		"rawQuery": "string",
+		"scheme": "string",
+		"user": {}
+	},
+	"ignore_email_verified": true,
+	"ignore_user_info": true,
+	"issuer_url": "string",
+	"name_field": "string",
+	"scopes": ["string"],
+	"sign_in_text": "string",
+	"signups_disabled_text": "string",
+	"skip_issuer_checks": true,
+	"user_role_field": "string",
+	"user_role_mapping": {},
+	"user_roles_default": ["string"],
+	"username_field": "string"
 }
 ```
 
@@ -3683,14 +3685,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "is_default": true,
-  "name": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
+	"created_at": "2019-08-24T14:15:22Z",
+	"description": "string",
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"is_default": true,
+	"name": "string",
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -3711,17 +3713,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "updated_at": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+	"created_at": "2019-08-24T14:15:22Z",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"updated_at": "2019-08-24T14:15:22Z",
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
@@ -3739,28 +3741,28 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "avatar_url": "string",
-  "created_at": "2019-08-24T14:15:22Z",
-  "email": "string",
-  "global_roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "updated_at": "2019-08-24T14:15:22Z",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-  "username": "string"
+	"avatar_url": "string",
+	"created_at": "2019-08-24T14:15:22Z",
+	"email": "string",
+	"global_roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"updated_at": "2019-08-24T14:15:22Z",
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+	"username": "string"
 }
 ```
 
@@ -3783,12 +3785,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "add_users": ["string"],
-  "avatar_url": "string",
-  "display_name": "string",
-  "name": "string",
-  "quota_allowance": 0,
-  "remove_users": ["string"]
+	"add_users": ["string"],
+	"avatar_url": "string",
+	"display_name": "string",
+	"name": "string",
+	"quota_allowance": 0,
+	"remove_users": ["string"]
 }
 ```
 
@@ -3807,8 +3809,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "message": "string",
-  "name": "string"
+	"message": "string",
+	"name": "string"
 }
 ```
 
@@ -3823,11 +3825,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "regenerate_token": true
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"regenerate_token": true
 }
 ```
 
@@ -3845,9 +3847,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "action": "application_connect",
-  "negate": true,
-  "resource_type": "*"
+	"action": "application_connect",
+	"negate": true,
+	"resource_type": "*"
 }
 ```
 
@@ -3863,9 +3865,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "callback_url": "string",
-  "icon": "string",
-  "name": "string"
+	"callback_url": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -3881,8 +3883,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "app_name": "vscode"
+	"agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+	"app_name": "vscode"
 }
 ```
 
@@ -3897,11 +3899,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "address": {
-    "host": "string",
-    "port": "string"
-  },
-  "enable": true
+	"address": {
+		"host": "string",
+		"port": "string"
+	},
+	"enable": true
 }
 ```
 
@@ -3916,14 +3918,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "address": {
-    "host": "string",
-    "port": "string"
-  },
-  "aggregate_agent_stats_by": ["string"],
-  "collect_agent_stats": true,
-  "collect_db_metrics": true,
-  "enable": true
+	"address": {
+		"host": "string",
+		"port": "string"
+	},
+	"aggregate_agent_stats_by": ["string"],
+	"collect_agent_stats": true,
+	"collect_db_metrics": true,
+	"enable": true
 }
 ```
 
@@ -3941,12 +3943,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "daemon_poll_interval": 0,
-  "daemon_poll_jitter": 0,
-  "daemon_psk": "string",
-  "daemon_types": ["string"],
-  "daemons": 0,
-  "force_cancel_interval": 0
+	"daemon_poll_interval": 0,
+	"daemon_poll_jitter": 0,
+	"daemon_psk": "string",
+	"daemon_types": ["string"],
+	"daemons": 0,
+	"force_cancel_interval": 0
 }
 ```
 
@@ -3965,18 +3967,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "api_version": "string",
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "provisioners": ["string"],
-  "tags": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "version": "string"
+	"api_version": "string",
+	"created_at": "2019-08-24T14:15:22Z",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"last_seen_at": "2019-08-24T14:15:22Z",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"provisioners": ["string"],
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"version": "string"
 }
 ```
 
@@ -3999,22 +4001,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "canceled_at": "2019-08-24T14:15:22Z",
-  "completed_at": "2019-08-24T14:15:22Z",
-  "created_at": "2019-08-24T14:15:22Z",
-  "error": "string",
-  "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "queue_position": 0,
-  "queue_size": 0,
-  "started_at": "2019-08-24T14:15:22Z",
-  "status": "pending",
-  "tags": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	"canceled_at": "2019-08-24T14:15:22Z",
+	"completed_at": "2019-08-24T14:15:22Z",
+	"created_at": "2019-08-24T14:15:22Z",
+	"error": "string",
+	"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+	"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"queue_position": 0,
+	"queue_size": 0,
+	"started_at": "2019-08-24T14:15:22Z",
+	"status": "pending",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 }
 ```
 
@@ -4053,12 +4055,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": 0,
-  "log_level": "trace",
-  "log_source": "provisioner_daemon",
-  "output": "string",
-  "stage": "string"
+	"created_at": "2019-08-24T14:15:22Z",
+	"id": 0,
+	"log_level": "trace",
+	"log_source": "provisioner_daemon",
+	"output": "string",
+	"stage": "string"
 }
 ```
 
@@ -4107,14 +4109,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "organization": "452c1a86-a0af-475b-b03f-724878b0f387",
-  "tags": {
-    "property1": "string",
-    "property2": "string"
-  }
+	"created_at": "2019-08-24T14:15:22Z",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	}
 }
 ```
 
@@ -4161,8 +4163,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "errors": ["string"],
-  "warnings": ["string"]
+	"errors": ["string"],
+	"warnings": ["string"]
 }
 ```
 
@@ -4194,7 +4196,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "deadline": "2019-08-24T14:15:22Z"
+	"deadline": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -4208,9 +4210,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "callback_url": "string",
-  "icon": "string",
-  "name": "string"
+	"callback_url": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -4294,8 +4296,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "api": 0,
-  "disable_all": true
+	"api": 0,
+	"disable_all": true
 }
 ```
 
@@ -4310,17 +4312,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "avatar_url": "http://example.com",
-  "created_at": "2019-08-24T14:15:22Z",
-  "email": "user@example.com",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
-  "login_type": "",
-  "name": "string",
-  "status": "active",
-  "theme_preference": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "username": "string"
+	"avatar_url": "http://example.com",
+	"created_at": "2019-08-24T14:15:22Z",
+	"email": "user@example.com",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"last_seen_at": "2019-08-24T14:15:22Z",
+	"login_type": "",
+	"name": "string",
+	"status": "active",
+	"theme_preference": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"username": "string"
 }
 ```
 
@@ -4351,13 +4353,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "display_name": "string",
-  "healthy": true,
-  "icon_url": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "path_app_url": "string",
-  "wildcard_hostname": "string"
+	"display_name": "string",
+	"healthy": true,
+	"icon_url": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"path_app_url": "string",
+	"wildcard_hostname": "string"
 }
 ```
 
@@ -4377,17 +4379,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "regions": [
-    {
-      "display_name": "string",
-      "healthy": true,
-      "icon_url": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "name": "string",
-      "path_app_url": "string",
-      "wildcard_hostname": "string"
-    }
-  ]
+	"regions": [
+		{
+			"display_name": "string",
+			"healthy": true,
+			"icon_url": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"name": "string",
+			"path_app_url": "string",
+			"wildcard_hostname": "string"
+		}
+	]
 }
 ```
 
@@ -4401,31 +4403,31 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "regions": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "deleted": true,
-      "derp_enabled": true,
-      "derp_only": true,
-      "display_name": "string",
-      "healthy": true,
-      "icon_url": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "name": "string",
-      "path_app_url": "string",
-      "status": {
-        "checked_at": "2019-08-24T14:15:22Z",
-        "report": {
-          "errors": ["string"],
-          "warnings": ["string"]
-        },
-        "status": "ok"
-      },
-      "updated_at": "2019-08-24T14:15:22Z",
-      "version": "string",
-      "wildcard_hostname": "string"
-    }
-  ]
+	"regions": [
+		{
+			"created_at": "2019-08-24T14:15:22Z",
+			"deleted": true,
+			"derp_enabled": true,
+			"derp_only": true,
+			"display_name": "string",
+			"healthy": true,
+			"icon_url": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"name": "string",
+			"path_app_url": "string",
+			"status": {
+				"checked_at": "2019-08-24T14:15:22Z",
+				"report": {
+					"errors": ["string"],
+					"warnings": ["string"]
+				},
+				"status": "ok"
+			},
+			"updated_at": "2019-08-24T14:15:22Z",
+			"version": "string",
+			"wildcard_hostname": "string"
+		}
+	]
 }
 ```
 
@@ -4439,13 +4441,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "database_latency": 0,
-  "error": "string",
-  "hostname": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "region_id": 0,
-  "relay_address": "string"
+	"created_at": "2019-08-24T14:15:22Z",
+	"database_latency": 0,
+	"error": "string",
+	"hostname": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"region_id": 0,
+	"relay_address": "string"
 }
 ```
 
@@ -4465,7 +4467,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "parameter_mismatch": true
+	"parameter_mismatch": true
 }
 ```
 
@@ -4509,14 +4511,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -4532,30 +4534,30 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "display_name": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "site_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ],
-  "user_permissions": [
-    {
-      "action": "application_connect",
-      "negate": true,
-      "resource_type": "*"
-    }
-  ]
+	"display_name": "string",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"site_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	],
+	"user_permissions": [
+		{
+			"action": "application_connect",
+			"negate": true,
+			"resource_type": "*"
+		}
+	]
 }
 ```
 
@@ -4574,8 +4576,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "deploymentName": "string",
-  "sshconfigOptions": ["string"]
+	"deploymentName": "string",
+	"sshconfigOptions": ["string"]
 }
 ```
 
@@ -4590,11 +4592,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "hostname_prefix": "string",
-  "ssh_config_options": {
-    "property1": "string",
-    "property2": "string"
-  }
+	"hostname_prefix": "string",
+	"ssh_config_options": {
+		"property1": "string",
+		"property2": "string"
+	}
 }
 ```
 
@@ -4610,10 +4612,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "jetbrains": 0,
-  "reconnecting_pty": 0,
-  "ssh": 0,
-  "vscode": 0
+	"jetbrains": 0,
+	"reconnecting_pty": 0,
+	"ssh": 0,
+	"vscode": 0
 }
 ```
 
@@ -4630,9 +4632,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "default_duration": 0,
-  "disable_expiry_refresh": true,
-  "max_token_lifetime": 0
+	"default_duration": 0,
+	"disable_expiry_refresh": true,
+	"max_token_lifetime": 0
 }
 ```
 
@@ -4648,9 +4650,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "display_name": "string",
-  "name": "string",
-  "organization_id": "string"
+	"display_name": "string",
+	"name": "string",
+	"organization_id": "string"
 }
 ```
 
@@ -4666,15 +4668,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "links": {
-    "value": [
-      {
-        "icon": "bug",
-        "name": "string",
-        "target": "string"
-      }
-    ]
-  }
+	"links": {
+		"value": [
+			{
+				"icon": "bug",
+				"name": "string",
+				"target": "string"
+			}
+		]
+	}
 }
 ```
 
@@ -4688,7 +4690,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "enable": true
+	"enable": true
 }
 ```
 
@@ -4702,21 +4704,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "address": {
-    "host": "string",
-    "port": "string"
-  },
-  "allow_insecure_ciphers": true,
-  "cert_file": ["string"],
-  "client_auth": "string",
-  "client_ca_file": "string",
-  "client_cert_file": "string",
-  "client_key_file": "string",
-  "enable": true,
-  "key_file": ["string"],
-  "min_version": "string",
-  "redirect_http": true,
-  "supported_ciphers": ["string"]
+	"address": {
+		"host": "string",
+		"port": "string"
+	},
+	"allow_insecure_ciphers": true,
+	"cert_file": ["string"],
+	"client_auth": "string",
+	"client_ca_file": "string",
+	"client_cert_file": "string",
+	"client_key_file": "string",
+	"enable": true,
+	"key_file": ["string"],
+	"min_version": "string",
+	"redirect_http": true,
+	"supported_ciphers": ["string"]
 }
 ```
 
@@ -4741,21 +4743,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "enable": true,
-  "trace": true,
-  "url": {
-    "forceQuery": true,
-    "fragment": "string",
-    "host": "string",
-    "omitHost": true,
-    "opaque": "string",
-    "path": "string",
-    "rawFragment": "string",
-    "rawPath": "string",
-    "rawQuery": "string",
-    "scheme": "string",
-    "user": {}
-  }
+	"enable": true,
+	"trace": true,
+	"url": {
+		"forceQuery": true,
+		"fragment": "string",
+		"host": "string",
+		"omitHost": true,
+		"opaque": "string",
+		"path": "string",
+		"rawFragment": "string",
+		"rawPath": "string",
+		"rawQuery": "string",
+		"scheme": "string",
+		"user": {}
+	}
 }
 ```
 
@@ -4771,51 +4773,51 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "active_user_count": 0,
-  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-  "activity_bump_ms": 0,
-  "allow_user_autostart": true,
-  "allow_user_autostop": true,
-  "allow_user_cancel_workspace_jobs": true,
-  "autostart_requirement": {
-    "days_of_week": ["monday"]
-  },
-  "autostop_requirement": {
-    "days_of_week": ["monday"],
-    "weeks": 0
-  },
-  "build_time_stats": {
-    "property1": {
-      "p50": 123,
-      "p95": 146
-    },
-    "property2": {
-      "p50": 123,
-      "p95": 146
-    }
-  },
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-  "created_by_name": "string",
-  "default_ttl_ms": 0,
-  "deprecated": true,
-  "deprecation_message": "string",
-  "description": "string",
-  "display_name": "string",
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "max_port_share_level": "owner",
-  "name": "string",
-  "organization_display_name": "string",
-  "organization_icon": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_name": "string",
-  "provisioner": "terraform",
-  "require_active_version": true,
-  "time_til_dormant_autodelete_ms": 0,
-  "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+	"active_user_count": 0,
+	"active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+	"activity_bump_ms": 0,
+	"allow_user_autostart": true,
+	"allow_user_autostop": true,
+	"allow_user_cancel_workspace_jobs": true,
+	"autostart_requirement": {
+		"days_of_week": ["monday"]
+	},
+	"autostop_requirement": {
+		"days_of_week": ["monday"],
+		"weeks": 0
+	},
+	"build_time_stats": {
+		"property1": {
+			"p50": 123,
+			"p95": 146
+		},
+		"property2": {
+			"p50": 123,
+			"p95": 146
+		}
+	},
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+	"created_by_name": "string",
+	"default_ttl_ms": 0,
+	"deprecated": true,
+	"deprecation_message": "string",
+	"description": "string",
+	"display_name": "string",
+	"failure_ttl_ms": 0,
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"max_port_share_level": "owner",
+	"name": "string",
+	"organization_display_name": "string",
+	"organization_icon": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_name": "string",
+	"provisioner": "terraform",
+	"require_active_version": true,
+	"time_til_dormant_autodelete_ms": 0,
+	"time_til_dormant_ms": 0,
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -4865,13 +4867,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "display_name": "Visual Studio Code",
-  "icon": "string",
-  "seconds": 80500,
-  "slug": "vscode",
-  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "times_used": 2,
-  "type": "builtin"
+	"display_name": "Visual Studio Code",
+	"icon": "string",
+	"seconds": 80500,
+	"slug": "vscode",
+	"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"times_used": 2,
+	"type": "builtin"
 }
 ```
 
@@ -4906,7 +4908,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "days_of_week": ["monday"]
+	"days_of_week": ["monday"]
 }
 ```
 
@@ -4920,8 +4922,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "days_of_week": ["monday"],
-  "weeks": 0
+	"days_of_week": ["monday"],
+	"weeks": 0
 }
 ```
 
@@ -4937,14 +4939,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "property1": {
-    "p50": 123,
-    "p95": 146
-  },
-  "property2": {
-    "p50": 123,
-    "p95": 146
-  }
+	"property1": {
+		"p50": 123,
+		"p95": 146
+	},
+	"property2": {
+		"p50": 123,
+		"p95": 146
+	}
 }
 ```
 
@@ -4958,13 +4960,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "description": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "markdown": "string",
-  "name": "string",
-  "tags": ["string"],
-  "url": "string"
+	"description": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"markdown": "string",
+	"name": "string",
+	"tags": ["string"],
+	"url": "string"
 }
 ```
 
@@ -4984,11 +4986,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "active_users": 14,
-  "end_time": "2019-08-24T14:15:22Z",
-  "interval": "week",
-  "start_time": "2019-08-24T14:15:22Z",
-  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+	"active_users": 14,
+	"end_time": "2019-08-24T14:15:22Z",
+	"interval": "week",
+	"start_time": "2019-08-24T14:15:22Z",
+	"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
 }
 ```
 
@@ -5006,44 +5008,44 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "active_users": 22,
-  "apps_usage": [
-    {
-      "display_name": "Visual Studio Code",
-      "icon": "string",
-      "seconds": 80500,
-      "slug": "vscode",
-      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "times_used": 2,
-      "type": "builtin"
-    }
-  ],
-  "end_time": "2019-08-24T14:15:22Z",
-  "parameters_usage": [
-    {
-      "description": "string",
-      "display_name": "string",
-      "name": "string",
-      "options": [
-        {
-          "description": "string",
-          "icon": "string",
-          "name": "string",
-          "value": "string"
-        }
-      ],
-      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "type": "string",
-      "values": [
-        {
-          "count": 0,
-          "value": "string"
-        }
-      ]
-    }
-  ],
-  "start_time": "2019-08-24T14:15:22Z",
-  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+	"active_users": 22,
+	"apps_usage": [
+		{
+			"display_name": "Visual Studio Code",
+			"icon": "string",
+			"seconds": 80500,
+			"slug": "vscode",
+			"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+			"times_used": 2,
+			"type": "builtin"
+		}
+	],
+	"end_time": "2019-08-24T14:15:22Z",
+	"parameters_usage": [
+		{
+			"description": "string",
+			"display_name": "string",
+			"name": "string",
+			"options": [
+				{
+					"description": "string",
+					"icon": "string",
+					"name": "string",
+					"value": "string"
+				}
+			],
+			"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+			"type": "string",
+			"values": [
+				{
+					"count": 0,
+					"value": "string"
+				}
+			]
+		}
+	],
+	"start_time": "2019-08-24T14:15:22Z",
+	"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
 }
 ```
 
@@ -5062,55 +5064,55 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "interval_reports": [
-    {
-      "active_users": 14,
-      "end_time": "2019-08-24T14:15:22Z",
-      "interval": "week",
-      "start_time": "2019-08-24T14:15:22Z",
-      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
-    }
-  ],
-  "report": {
-    "active_users": 22,
-    "apps_usage": [
-      {
-        "display_name": "Visual Studio Code",
-        "icon": "string",
-        "seconds": 80500,
-        "slug": "vscode",
-        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "times_used": 2,
-        "type": "builtin"
-      }
-    ],
-    "end_time": "2019-08-24T14:15:22Z",
-    "parameters_usage": [
-      {
-        "description": "string",
-        "display_name": "string",
-        "name": "string",
-        "options": [
-          {
-            "description": "string",
-            "icon": "string",
-            "name": "string",
-            "value": "string"
-          }
-        ],
-        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "type": "string",
-        "values": [
-          {
-            "count": 0,
-            "value": "string"
-          }
-        ]
-      }
-    ],
-    "start_time": "2019-08-24T14:15:22Z",
-    "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
-  }
+	"interval_reports": [
+		{
+			"active_users": 14,
+			"end_time": "2019-08-24T14:15:22Z",
+			"interval": "week",
+			"start_time": "2019-08-24T14:15:22Z",
+			"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+		}
+	],
+	"report": {
+		"active_users": 22,
+		"apps_usage": [
+			{
+				"display_name": "Visual Studio Code",
+				"icon": "string",
+				"seconds": 80500,
+				"slug": "vscode",
+				"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+				"times_used": 2,
+				"type": "builtin"
+			}
+		],
+		"end_time": "2019-08-24T14:15:22Z",
+		"parameters_usage": [
+			{
+				"description": "string",
+				"display_name": "string",
+				"name": "string",
+				"options": [
+					{
+						"description": "string",
+						"icon": "string",
+						"name": "string",
+						"value": "string"
+					}
+				],
+				"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+				"type": "string",
+				"values": [
+					{
+						"count": 0,
+						"value": "string"
+					}
+				]
+			}
+		],
+		"start_time": "2019-08-24T14:15:22Z",
+		"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+	}
 }
 ```
 
@@ -5125,25 +5127,25 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "description": "string",
-  "display_name": "string",
-  "name": "string",
-  "options": [
-    {
-      "description": "string",
-      "icon": "string",
-      "name": "string",
-      "value": "string"
-    }
-  ],
-  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "type": "string",
-  "values": [
-    {
-      "count": 0,
-      "value": "string"
-    }
-  ]
+	"description": "string",
+	"display_name": "string",
+	"name": "string",
+	"options": [
+		{
+			"description": "string",
+			"icon": "string",
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"type": "string",
+	"values": [
+		{
+			"count": 0,
+			"value": "string"
+		}
+	]
 }
 ```
 
@@ -5163,8 +5165,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "count": 0,
-  "value": "string"
+	"count": 0,
+	"value": "string"
 }
 ```
 
@@ -5195,26 +5197,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "avatar_url": "http://example.com",
-  "created_at": "2019-08-24T14:15:22Z",
-  "email": "user@example.com",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
-  "login_type": "",
-  "name": "string",
-  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "role": "admin",
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "status": "active",
-  "theme_preference": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "username": "string"
+	"avatar_url": "http://example.com",
+	"created_at": "2019-08-24T14:15:22Z",
+	"email": "user@example.com",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"last_seen_at": "2019-08-24T14:15:22Z",
+	"login_type": "",
+	"name": "string",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"role": "admin",
+	"roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"status": "active",
+	"theme_preference": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"username": "string"
 }
 ```
 
@@ -5250,39 +5252,39 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "archived": true,
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "username": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "queue_position": 0,
-    "queue_size": 0,
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "message": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "readme": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["UNSUPPORTED_WORKSPACES"]
+	"archived": true,
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by": {
+		"avatar_url": "http://example.com",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"username": "string"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"job": {
+		"canceled_at": "2019-08-24T14:15:22Z",
+		"completed_at": "2019-08-24T14:15:22Z",
+		"created_at": "2019-08-24T14:15:22Z",
+		"error": "string",
+		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"queue_position": 0,
+		"queue_size": 0,
+		"started_at": "2019-08-24T14:15:22Z",
+		"status": "pending",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	},
+	"message": "string",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"readme": "string",
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -5307,13 +5309,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "authenticate_url": "string",
-  "authenticated": true,
-  "display_icon": "string",
-  "display_name": "string",
-  "id": "string",
-  "optional": true,
-  "type": "string"
+	"authenticate_url": "string",
+	"authenticated": true,
+	"display_icon": "string",
+	"display_name": "string",
+	"id": "string",
+	"optional": true,
+	"type": "string"
 }
 ```
 
@@ -5333,29 +5335,29 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "default_value": "string",
-  "description": "string",
-  "description_plaintext": "string",
-  "display_name": "string",
-  "ephemeral": true,
-  "icon": "string",
-  "mutable": true,
-  "name": "string",
-  "options": [
-    {
-      "description": "string",
-      "icon": "string",
-      "name": "string",
-      "value": "string"
-    }
-  ],
-  "required": true,
-  "type": "string",
-  "validation_error": "string",
-  "validation_max": 0,
-  "validation_min": 0,
-  "validation_monotonic": "increasing",
-  "validation_regex": "string"
+	"default_value": "string",
+	"description": "string",
+	"description_plaintext": "string",
+	"display_name": "string",
+	"ephemeral": true,
+	"icon": "string",
+	"mutable": true,
+	"name": "string",
+	"options": [
+		{
+			"description": "string",
+			"icon": "string",
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"required": true,
+	"type": "string",
+	"validation_error": "string",
+	"validation_max": 0,
+	"validation_min": 0,
+	"validation_monotonic": "increasing",
+	"validation_regex": "string"
 }
 ```
 
@@ -5395,10 +5397,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "description": "string",
-  "icon": "string",
-  "name": "string",
-  "value": "string"
+	"description": "string",
+	"icon": "string",
+	"name": "string",
+	"value": "string"
 }
 ```
 
@@ -5415,13 +5417,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "default_value": "string",
-  "description": "string",
-  "name": "string",
-  "required": true,
-  "sensitive": true,
-  "type": "string",
-  "value": "string"
+	"default_value": "string",
+	"description": "string",
+	"name": "string",
+	"required": true,
+	"sensitive": true,
+	"type": "string",
+	"value": "string"
 }
 ```
 
@@ -5463,7 +5465,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "max_token_lifetime": 0
+	"max_token_lifetime": 0
 }
 ```
 
@@ -5477,10 +5479,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "capture_logs": true,
-  "data_dog": true,
-  "enable": true,
-  "honeycomb_api_key": "string"
+	"capture_logs": true,
+	"data_dog": true,
+	"enable": true,
+	"honeycomb_api_key": "string"
 }
 ```
 
@@ -5497,8 +5499,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "p50": 123,
-  "p95": 146
+	"p50": 123,
+	"p95": 146
 }
 ```
 
@@ -5513,7 +5515,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
 }
 ```
 
@@ -5527,20 +5529,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "announcement_banners": [
-    {
-      "background_color": "string",
-      "enabled": true,
-      "message": "string"
-    }
-  ],
-  "application_name": "string",
-  "logo_url": "string",
-  "service_banner": {
-    "background_color": "string",
-    "enabled": true,
-    "message": "string"
-  }
+	"announcement_banners": [
+		{
+			"background_color": "string",
+			"enabled": true,
+			"message": "string"
+		}
+	],
+	"application_name": "string",
+	"logo_url": "string",
+	"service_banner": {
+		"background_color": "string",
+		"enabled": true,
+		"message": "string"
+	}
 }
 ```
 
@@ -5557,9 +5559,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "current": true,
-  "url": "string",
-  "version": "string"
+	"current": true,
+	"url": "string",
+	"version": "string"
 }
 ```
 
@@ -5575,10 +5577,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "name": "string"
+	"description": "string",
+	"display_name": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -5595,7 +5597,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "roles": ["string"]
+	"roles": ["string"]
 }
 ```
 
@@ -5609,14 +5611,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "group_perms": {
-    "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
-    "<user_id>>": "admin"
-  },
-  "user_perms": {
-    "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
-    "<group_id>": "admin"
-  }
+	"group_perms": {
+		"8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
+		"<user_id>>": "admin"
+	},
+	"user_perms": {
+		"4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
+		"<group_id>": "admin"
+	}
 }
 ```
 
@@ -5633,7 +5635,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "theme_preference": "string"
+	"theme_preference": "string"
 }
 ```
 
@@ -5647,10 +5649,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "template_disabled_map": {
-    "property1": true,
-    "property2": true
-  }
+	"template_disabled_map": {
+		"property1": true,
+		"property2": true
+	}
 }
 ```
 
@@ -5665,8 +5667,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "old_password": "string",
-  "password": "string"
+	"old_password": "string",
+	"password": "string"
 }
 ```
 
@@ -5681,8 +5683,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "name": "string",
-  "username": "string"
+	"name": "string",
+	"username": "string"
 }
 ```
 
@@ -5697,7 +5699,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "schedule": "string"
+	"schedule": "string"
 }
 ```
 
@@ -5714,7 +5716,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "automatic_updates": "always"
+	"automatic_updates": "always"
 }
 ```
 
@@ -5728,7 +5730,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "schedule": "string"
+	"schedule": "string"
 }
 ```
 
@@ -5742,7 +5744,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "dormant": true
+	"dormant": true
 }
 ```
 
@@ -5756,7 +5758,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "name": "string"
+	"name": "string"
 }
 ```
 
@@ -5770,7 +5772,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "ttl_ms": 0
+	"ttl_ms": 0
 }
 ```
 
@@ -5784,7 +5786,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "hash": "19686d84-b10d-4f90-b18e-84fd3fa038fd"
+	"hash": "19686d84-b10d-4f90-b18e-84fd3fa038fd"
 }
 ```
 
@@ -5798,10 +5800,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "agent_name": "string",
-  "port": 0,
-  "protocol": "http",
-  "share_level": "owner"
+	"agent_name": "string",
+	"port": 0,
+	"protocol": "http",
+	"share_level": "owner"
 }
 ```
 
@@ -5845,25 +5847,25 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "avatar_url": "http://example.com",
-  "created_at": "2019-08-24T14:15:22Z",
-  "email": "user@example.com",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
-  "login_type": "",
-  "name": "string",
-  "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "roles": [
-    {
-      "display_name": "string",
-      "name": "string",
-      "organization_id": "string"
-    }
-  ],
-  "status": "active",
-  "theme_preference": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "username": "string"
+	"avatar_url": "http://example.com",
+	"created_at": "2019-08-24T14:15:22Z",
+	"email": "user@example.com",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"last_seen_at": "2019-08-24T14:15:22Z",
+	"login_type": "",
+	"name": "string",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"status": "active",
+	"theme_preference": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"username": "string"
 }
 ```
 
@@ -5896,11 +5898,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "avatar_url": "http://example.com",
-  "seconds": 80500,
-  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-  "username": "string"
+	"avatar_url": "http://example.com",
+	"seconds": 80500,
+	"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+	"username": "string"
 }
 ```
 
@@ -5918,18 +5920,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "end_time": "2019-08-24T14:15:22Z",
-  "start_time": "2019-08-24T14:15:22Z",
-  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "users": [
-    {
-      "avatar_url": "http://example.com",
-      "seconds": 80500,
-      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-      "username": "string"
-    }
-  ]
+	"end_time": "2019-08-24T14:15:22Z",
+	"start_time": "2019-08-24T14:15:22Z",
+	"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"users": [
+		{
+			"avatar_url": "http://example.com",
+			"seconds": 80500,
+			"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+			"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+			"username": "string"
+		}
+	]
 }
 ```
 
@@ -5946,20 +5948,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "report": {
-    "end_time": "2019-08-24T14:15:22Z",
-    "start_time": "2019-08-24T14:15:22Z",
-    "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "users": [
-      {
-        "avatar_url": "http://example.com",
-        "seconds": 80500,
-        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-        "username": "string"
-      }
-    ]
-  }
+	"report": {
+		"end_time": "2019-08-24T14:15:22Z",
+		"start_time": "2019-08-24T14:15:22Z",
+		"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+		"users": [
+			{
+				"avatar_url": "http://example.com",
+				"seconds": 80500,
+				"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+				"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+				"username": "string"
+			}
+		]
+	}
 }
 ```
 
@@ -5973,14 +5975,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "avatar_url": "http://example.com",
-  "latency_ms": {
-    "p50": 31.312,
-    "p95": 119.832
-  },
-  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-  "username": "string"
+	"avatar_url": "http://example.com",
+	"latency_ms": {
+		"p50": 31.312,
+		"p95": 119.832
+	},
+	"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+	"username": "string"
 }
 ```
 
@@ -5998,21 +6000,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "end_time": "2019-08-24T14:15:22Z",
-  "start_time": "2019-08-24T14:15:22Z",
-  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "users": [
-    {
-      "avatar_url": "http://example.com",
-      "latency_ms": {
-        "p50": 31.312,
-        "p95": 119.832
-      },
-      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-      "username": "string"
-    }
-  ]
+	"end_time": "2019-08-24T14:15:22Z",
+	"start_time": "2019-08-24T14:15:22Z",
+	"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"users": [
+		{
+			"avatar_url": "http://example.com",
+			"latency_ms": {
+				"p50": 31.312,
+				"p95": 119.832
+			},
+			"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+			"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+			"username": "string"
+		}
+	]
 }
 ```
 
@@ -6029,23 +6031,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "report": {
-    "end_time": "2019-08-24T14:15:22Z",
-    "start_time": "2019-08-24T14:15:22Z",
-    "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "users": [
-      {
-        "avatar_url": "http://example.com",
-        "latency_ms": {
-          "p50": 31.312,
-          "p95": 119.832
-        },
-        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
-        "username": "string"
-      }
-    ]
-  }
+	"report": {
+		"end_time": "2019-08-24T14:15:22Z",
+		"start_time": "2019-08-24T14:15:22Z",
+		"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+		"users": [
+			{
+				"avatar_url": "http://example.com",
+				"latency_ms": {
+					"p50": 31.312,
+					"p95": 119.832
+				},
+				"template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+				"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+				"username": "string"
+			}
+		]
+	}
 }
 ```
 
@@ -6059,7 +6061,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "login_type": ""
+	"login_type": ""
 }
 ```
 
@@ -6073,8 +6075,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "name": "string",
-  "value": "string"
+	"name": "string",
+	"value": "string"
 }
 ```
 
@@ -6089,8 +6091,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "allow_user_custom": true,
-  "default_schedule": "string"
+	"allow_user_custom": true,
+	"default_schedule": "string"
 }
 ```
 
@@ -6105,12 +6107,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "next": "2019-08-24T14:15:22Z",
-  "raw_schedule": "string",
-  "time": "string",
-  "timezone": "string",
-  "user_can_set": true,
-  "user_set": true
+	"next": "2019-08-24T14:15:22Z",
+	"raw_schedule": "string",
+	"time": "string",
+	"timezone": "string",
+	"user_can_set": true,
+	"user_set": true
 }
 ```
 
@@ -6145,8 +6147,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "detail": "string",
-  "field": "string"
+	"detail": "string",
+	"field": "string"
 }
 ```
 
@@ -6176,8 +6178,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "name": "string",
-  "value": "string"
+	"name": "string",
+	"value": "string"
 }
 ```
 
@@ -6192,183 +6194,183 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "allow_renames": true,
-  "automatic_updates": "always",
-  "autostart_schedule": "string",
-  "created_at": "2019-08-24T14:15:22Z",
-  "deleting_at": "2019-08-24T14:15:22Z",
-  "dormant_at": "2019-08-24T14:15:22Z",
-  "favorite": true,
-  "health": {
-    "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "healthy": false
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_used_at": "2019-08-24T14:15:22Z",
-  "latest_build": {
-    "build_number": 0,
-    "created_at": "2019-08-24T14:15:22Z",
-    "daily_cost": 0,
-    "deadline": "2019-08-24T14:15:22Z",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-    "initiator_name": "string",
-    "job": {
-      "canceled_at": "2019-08-24T14:15:22Z",
-      "completed_at": "2019-08-24T14:15:22Z",
-      "created_at": "2019-08-24T14:15:22Z",
-      "error": "string",
-      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "queue_position": 0,
-      "queue_size": 0,
-      "started_at": "2019-08-24T14:15:22Z",
-      "status": "pending",
-      "tags": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-    },
-    "max_deadline": "2019-08-24T14:15:22Z",
-    "reason": "initiator",
-    "resources": [
-      {
-        "agents": [
-          {
-            "api_version": "string",
-            "apps": [
-              {
-                "command": "string",
-                "display_name": "string",
-                "external": true,
-                "health": "disabled",
-                "healthcheck": {
-                  "interval": 0,
-                  "threshold": 0,
-                  "url": "string"
-                },
-                "icon": "string",
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "sharing_level": "owner",
-                "slug": "string",
-                "subdomain": true,
-                "subdomain_name": "string",
-                "url": "string"
-              }
-            ],
-            "architecture": "string",
-            "connection_timeout_seconds": 0,
-            "created_at": "2019-08-24T14:15:22Z",
-            "directory": "string",
-            "disconnected_at": "2019-08-24T14:15:22Z",
-            "display_apps": ["vscode"],
-            "environment_variables": {
-              "property1": "string",
-              "property2": "string"
-            },
-            "expanded_directory": "string",
-            "first_connected_at": "2019-08-24T14:15:22Z",
-            "health": {
-              "healthy": false,
-              "reason": "agent has lost connection"
-            },
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "instance_id": "string",
-            "last_connected_at": "2019-08-24T14:15:22Z",
-            "latency": {
-              "property1": {
-                "latency_ms": 0,
-                "preferred": true
-              },
-              "property2": {
-                "latency_ms": 0,
-                "preferred": true
-              }
-            },
-            "lifecycle_state": "created",
-            "log_sources": [
-              {
-                "created_at": "2019-08-24T14:15:22Z",
-                "display_name": "string",
-                "icon": "string",
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-              }
-            ],
-            "logs_length": 0,
-            "logs_overflowed": true,
-            "name": "string",
-            "operating_system": "string",
-            "ready_at": "2019-08-24T14:15:22Z",
-            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-            "scripts": [
-              {
-                "cron": "string",
-                "log_path": "string",
-                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-                "run_on_start": true,
-                "run_on_stop": true,
-                "script": "string",
-                "start_blocks_login": true,
-                "timeout": 0
-              }
-            ],
-            "started_at": "2019-08-24T14:15:22Z",
-            "startup_script_behavior": "blocking",
-            "status": "connecting",
-            "subsystems": ["envbox"],
-            "troubleshooting_url": "string",
-            "updated_at": "2019-08-24T14:15:22Z",
-            "version": "string"
-          }
-        ],
-        "created_at": "2019-08-24T14:15:22Z",
-        "daily_cost": 0,
-        "hide": true,
-        "icon": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-        "metadata": [
-          {
-            "key": "string",
-            "sensitive": true,
-            "value": "string"
-          }
-        ],
-        "name": "string",
-        "type": "string",
-        "workspace_transition": "start"
-      }
-    ],
-    "status": "pending",
-    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-    "template_version_name": "string",
-    "transition": "start",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-    "workspace_name": "string",
-    "workspace_owner_avatar_url": "string",
-    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
-  },
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_name": "string",
-  "outdated": true,
-  "owner_avatar_url": "string",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-  "owner_name": "string",
-  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
-  "template_allow_user_cancel_workspace_jobs": true,
-  "template_display_name": "string",
-  "template_icon": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "template_name": "string",
-  "template_require_active_version": true,
-  "ttl_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+	"allow_renames": true,
+	"automatic_updates": "always",
+	"autostart_schedule": "string",
+	"created_at": "2019-08-24T14:15:22Z",
+	"deleting_at": "2019-08-24T14:15:22Z",
+	"dormant_at": "2019-08-24T14:15:22Z",
+	"favorite": true,
+	"health": {
+		"failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+		"healthy": false
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"last_used_at": "2019-08-24T14:15:22Z",
+	"latest_build": {
+		"build_number": 0,
+		"created_at": "2019-08-24T14:15:22Z",
+		"daily_cost": 0,
+		"deadline": "2019-08-24T14:15:22Z",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+		"initiator_name": "string",
+		"job": {
+			"canceled_at": "2019-08-24T14:15:22Z",
+			"completed_at": "2019-08-24T14:15:22Z",
+			"created_at": "2019-08-24T14:15:22Z",
+			"error": "string",
+			"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+			"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"queue_position": 0,
+			"queue_size": 0,
+			"started_at": "2019-08-24T14:15:22Z",
+			"status": "pending",
+			"tags": {
+				"property1": "string",
+				"property2": "string"
+			},
+			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+		},
+		"max_deadline": "2019-08-24T14:15:22Z",
+		"reason": "initiator",
+		"resources": [
+			{
+				"agents": [
+					{
+						"api_version": "string",
+						"apps": [
+							{
+								"command": "string",
+								"display_name": "string",
+								"external": true,
+								"health": "disabled",
+								"healthcheck": {
+									"interval": 0,
+									"threshold": 0,
+									"url": "string"
+								},
+								"icon": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+								"sharing_level": "owner",
+								"slug": "string",
+								"subdomain": true,
+								"subdomain_name": "string",
+								"url": "string"
+							}
+						],
+						"architecture": "string",
+						"connection_timeout_seconds": 0,
+						"created_at": "2019-08-24T14:15:22Z",
+						"directory": "string",
+						"disconnected_at": "2019-08-24T14:15:22Z",
+						"display_apps": ["vscode"],
+						"environment_variables": {
+							"property1": "string",
+							"property2": "string"
+						},
+						"expanded_directory": "string",
+						"first_connected_at": "2019-08-24T14:15:22Z",
+						"health": {
+							"healthy": false,
+							"reason": "agent has lost connection"
+						},
+						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+						"instance_id": "string",
+						"last_connected_at": "2019-08-24T14:15:22Z",
+						"latency": {
+							"property1": {
+								"latency_ms": 0,
+								"preferred": true
+							},
+							"property2": {
+								"latency_ms": 0,
+								"preferred": true
+							}
+						},
+						"lifecycle_state": "created",
+						"log_sources": [
+							{
+								"created_at": "2019-08-24T14:15:22Z",
+								"display_name": "string",
+								"icon": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+								"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+							}
+						],
+						"logs_length": 0,
+						"logs_overflowed": true,
+						"name": "string",
+						"operating_system": "string",
+						"ready_at": "2019-08-24T14:15:22Z",
+						"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+						"scripts": [
+							{
+								"cron": "string",
+								"log_path": "string",
+								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+								"run_on_start": true,
+								"run_on_stop": true,
+								"script": "string",
+								"start_blocks_login": true,
+								"timeout": 0
+							}
+						],
+						"started_at": "2019-08-24T14:15:22Z",
+						"startup_script_behavior": "blocking",
+						"status": "connecting",
+						"subsystems": ["envbox"],
+						"troubleshooting_url": "string",
+						"updated_at": "2019-08-24T14:15:22Z",
+						"version": "string"
+					}
+				],
+				"created_at": "2019-08-24T14:15:22Z",
+				"daily_cost": 0,
+				"hide": true,
+				"icon": "string",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+				"metadata": [
+					{
+						"key": "string",
+						"sensitive": true,
+						"value": "string"
+					}
+				],
+				"name": "string",
+				"type": "string",
+				"workspace_transition": "start"
+			}
+		],
+		"status": "pending",
+		"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+		"template_version_name": "string",
+		"transition": "start",
+		"updated_at": "2019-08-24T14:15:22Z",
+		"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+		"workspace_name": "string",
+		"workspace_owner_avatar_url": "string",
+		"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+		"workspace_owner_name": "string"
+	},
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_name": "string",
+	"outdated": true,
+	"owner_avatar_url": "string",
+	"owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+	"owner_name": "string",
+	"template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
+	"template_allow_user_cancel_workspace_jobs": true,
+	"template_display_name": "string",
+	"template_icon": "string",
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"template_name": "string",
+	"template_require_active_version": true,
+	"ttl_ms": 0,
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -6415,91 +6417,91 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "api_version": "string",
-  "apps": [
-    {
-      "command": "string",
-      "display_name": "string",
-      "external": true,
-      "health": "disabled",
-      "healthcheck": {
-        "interval": 0,
-        "threshold": 0,
-        "url": "string"
-      },
-      "icon": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "sharing_level": "owner",
-      "slug": "string",
-      "subdomain": true,
-      "subdomain_name": "string",
-      "url": "string"
-    }
-  ],
-  "architecture": "string",
-  "connection_timeout_seconds": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "directory": "string",
-  "disconnected_at": "2019-08-24T14:15:22Z",
-  "display_apps": ["vscode"],
-  "environment_variables": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "expanded_directory": "string",
-  "first_connected_at": "2019-08-24T14:15:22Z",
-  "health": {
-    "healthy": false,
-    "reason": "agent has lost connection"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "instance_id": "string",
-  "last_connected_at": "2019-08-24T14:15:22Z",
-  "latency": {
-    "property1": {
-      "latency_ms": 0,
-      "preferred": true
-    },
-    "property2": {
-      "latency_ms": 0,
-      "preferred": true
-    }
-  },
-  "lifecycle_state": "created",
-  "log_sources": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "display_name": "string",
-      "icon": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-    }
-  ],
-  "logs_length": 0,
-  "logs_overflowed": true,
-  "name": "string",
-  "operating_system": "string",
-  "ready_at": "2019-08-24T14:15:22Z",
-  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "scripts": [
-    {
-      "cron": "string",
-      "log_path": "string",
-      "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-      "run_on_start": true,
-      "run_on_stop": true,
-      "script": "string",
-      "start_blocks_login": true,
-      "timeout": 0
-    }
-  ],
-  "started_at": "2019-08-24T14:15:22Z",
-  "startup_script_behavior": "blocking",
-  "status": "connecting",
-  "subsystems": ["envbox"],
-  "troubleshooting_url": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string"
+	"api_version": "string",
+	"apps": [
+		{
+			"command": "string",
+			"display_name": "string",
+			"external": true,
+			"health": "disabled",
+			"healthcheck": {
+				"interval": 0,
+				"threshold": 0,
+				"url": "string"
+			},
+			"icon": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"sharing_level": "owner",
+			"slug": "string",
+			"subdomain": true,
+			"subdomain_name": "string",
+			"url": "string"
+		}
+	],
+	"architecture": "string",
+	"connection_timeout_seconds": 0,
+	"created_at": "2019-08-24T14:15:22Z",
+	"directory": "string",
+	"disconnected_at": "2019-08-24T14:15:22Z",
+	"display_apps": ["vscode"],
+	"environment_variables": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"expanded_directory": "string",
+	"first_connected_at": "2019-08-24T14:15:22Z",
+	"health": {
+		"healthy": false,
+		"reason": "agent has lost connection"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"instance_id": "string",
+	"last_connected_at": "2019-08-24T14:15:22Z",
+	"latency": {
+		"property1": {
+			"latency_ms": 0,
+			"preferred": true
+		},
+		"property2": {
+			"latency_ms": 0,
+			"preferred": true
+		}
+	},
+	"lifecycle_state": "created",
+	"log_sources": [
+		{
+			"created_at": "2019-08-24T14:15:22Z",
+			"display_name": "string",
+			"icon": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+		}
+	],
+	"logs_length": 0,
+	"logs_overflowed": true,
+	"name": "string",
+	"operating_system": "string",
+	"ready_at": "2019-08-24T14:15:22Z",
+	"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+	"scripts": [
+		{
+			"cron": "string",
+			"log_path": "string",
+			"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+			"run_on_start": true,
+			"run_on_stop": true,
+			"script": "string",
+			"start_blocks_login": true,
+			"timeout": 0
+		}
+	],
+	"started_at": "2019-08-24T14:15:22Z",
+	"startup_script_behavior": "blocking",
+	"status": "connecting",
+	"subsystems": ["envbox"],
+	"troubleshooting_url": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"version": "string"
 }
 ```
 
@@ -6546,8 +6548,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "healthy": false,
-  "reason": "agent has lost connection"
+	"healthy": false,
+	"reason": "agent has lost connection"
 }
 ```
 
@@ -6584,9 +6586,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "network": "string",
-  "port": 0,
-  "process_name": "string"
+	"network": "string",
+	"port": 0,
+	"process_name": "string"
 }
 ```
 
@@ -6602,13 +6604,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "ports": [
-    {
-      "network": "string",
-      "port": 0,
-      "process_name": "string"
-    }
-  ]
+	"ports": [
+		{
+			"network": "string",
+			"port": 0,
+			"process_name": "string"
+		}
+	]
 }
 ```
 
@@ -6622,11 +6624,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": 0,
-  "level": "trace",
-  "output": "string",
-  "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
+	"created_at": "2019-08-24T14:15:22Z",
+	"id": 0,
+	"level": "trace",
+	"output": "string",
+	"source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
 }
 ```
 
@@ -6644,11 +6646,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+	"created_at": "2019-08-24T14:15:22Z",
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
 }
 ```
 
@@ -6666,11 +6668,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "agent_name": "string",
-  "port": 0,
-  "protocol": "http",
-  "share_level": "owner",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+	"agent_name": "string",
+	"port": 0,
+	"protocol": "http",
+	"share_level": "owner",
+	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
@@ -6729,15 +6731,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "shares": [
-    {
-      "agent_name": "string",
-      "port": 0,
-      "protocol": "http",
-      "share_level": "owner",
-      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-    }
-  ]
+	"shares": [
+		{
+			"agent_name": "string",
+			"port": 0,
+			"protocol": "http",
+			"share_level": "owner",
+			"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+		}
+	]
 }
 ```
 
@@ -6751,14 +6753,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "cron": "string",
-  "log_path": "string",
-  "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-  "run_on_start": true,
-  "run_on_stop": true,
-  "script": "string",
-  "start_blocks_login": true,
-  "timeout": 0
+	"cron": "string",
+	"log_path": "string",
+	"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+	"run_on_start": true,
+	"run_on_stop": true,
+	"script": "string",
+	"start_blocks_login": true,
+	"timeout": 0
 }
 ```
 
@@ -6811,22 +6813,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "command": "string",
-  "display_name": "string",
-  "external": true,
-  "health": "disabled",
-  "healthcheck": {
-    "interval": 0,
-    "threshold": 0,
-    "url": "string"
-  },
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "sharing_level": "owner",
-  "slug": "string",
-  "subdomain": true,
-  "subdomain_name": "string",
-  "url": "string"
+	"command": "string",
+	"display_name": "string",
+	"external": true,
+	"health": "disabled",
+	"healthcheck": {
+		"interval": 0,
+		"threshold": 0,
+		"url": "string"
+	},
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"sharing_level": "owner",
+	"slug": "string",
+	"subdomain": true,
+	"subdomain_name": "string",
+	"url": "string"
 }
 ```
 
@@ -6892,152 +6894,152 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "build_number": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "daily_cost": 0,
-  "deadline": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-  "initiator_name": "string",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "queue_position": 0,
-    "queue_size": 0,
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "max_deadline": "2019-08-24T14:15:22Z",
-  "reason": "initiator",
-  "resources": [
-    {
-      "agents": [
-        {
-          "api_version": "string",
-          "apps": [
-            {
-              "command": "string",
-              "display_name": "string",
-              "external": true,
-              "health": "disabled",
-              "healthcheck": {
-                "interval": 0,
-                "threshold": 0,
-                "url": "string"
-              },
-              "icon": "string",
-              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-              "sharing_level": "owner",
-              "slug": "string",
-              "subdomain": true,
-              "subdomain_name": "string",
-              "url": "string"
-            }
-          ],
-          "architecture": "string",
-          "connection_timeout_seconds": 0,
-          "created_at": "2019-08-24T14:15:22Z",
-          "directory": "string",
-          "disconnected_at": "2019-08-24T14:15:22Z",
-          "display_apps": ["vscode"],
-          "environment_variables": {
-            "property1": "string",
-            "property2": "string"
-          },
-          "expanded_directory": "string",
-          "first_connected_at": "2019-08-24T14:15:22Z",
-          "health": {
-            "healthy": false,
-            "reason": "agent has lost connection"
-          },
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "instance_id": "string",
-          "last_connected_at": "2019-08-24T14:15:22Z",
-          "latency": {
-            "property1": {
-              "latency_ms": 0,
-              "preferred": true
-            },
-            "property2": {
-              "latency_ms": 0,
-              "preferred": true
-            }
-          },
-          "lifecycle_state": "created",
-          "log_sources": [
-            {
-              "created_at": "2019-08-24T14:15:22Z",
-              "display_name": "string",
-              "icon": "string",
-              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-            }
-          ],
-          "logs_length": 0,
-          "logs_overflowed": true,
-          "name": "string",
-          "operating_system": "string",
-          "ready_at": "2019-08-24T14:15:22Z",
-          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-          "scripts": [
-            {
-              "cron": "string",
-              "log_path": "string",
-              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-              "run_on_start": true,
-              "run_on_stop": true,
-              "script": "string",
-              "start_blocks_login": true,
-              "timeout": 0
-            }
-          ],
-          "started_at": "2019-08-24T14:15:22Z",
-          "startup_script_behavior": "blocking",
-          "status": "connecting",
-          "subsystems": ["envbox"],
-          "troubleshooting_url": "string",
-          "updated_at": "2019-08-24T14:15:22Z",
-          "version": "string"
-        }
-      ],
-      "created_at": "2019-08-24T14:15:22Z",
-      "daily_cost": 0,
-      "hide": true,
-      "icon": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-      "metadata": [
-        {
-          "key": "string",
-          "sensitive": true,
-          "value": "string"
-        }
-      ],
-      "name": "string",
-      "type": "string",
-      "workspace_transition": "start"
-    }
-  ],
-  "status": "pending",
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-  "template_version_name": "string",
-  "transition": "start",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-  "workspace_name": "string",
-  "workspace_owner_avatar_url": "string",
-  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-  "workspace_owner_name": "string"
+	"build_number": 0,
+	"created_at": "2019-08-24T14:15:22Z",
+	"daily_cost": 0,
+	"deadline": "2019-08-24T14:15:22Z",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+	"initiator_name": "string",
+	"job": {
+		"canceled_at": "2019-08-24T14:15:22Z",
+		"completed_at": "2019-08-24T14:15:22Z",
+		"created_at": "2019-08-24T14:15:22Z",
+		"error": "string",
+		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"queue_position": 0,
+		"queue_size": 0,
+		"started_at": "2019-08-24T14:15:22Z",
+		"status": "pending",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	},
+	"max_deadline": "2019-08-24T14:15:22Z",
+	"reason": "initiator",
+	"resources": [
+		{
+			"agents": [
+				{
+					"api_version": "string",
+					"apps": [
+						{
+							"command": "string",
+							"display_name": "string",
+							"external": true,
+							"health": "disabled",
+							"healthcheck": {
+								"interval": 0,
+								"threshold": 0,
+								"url": "string"
+							},
+							"icon": "string",
+							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+							"sharing_level": "owner",
+							"slug": "string",
+							"subdomain": true,
+							"subdomain_name": "string",
+							"url": "string"
+						}
+					],
+					"architecture": "string",
+					"connection_timeout_seconds": 0,
+					"created_at": "2019-08-24T14:15:22Z",
+					"directory": "string",
+					"disconnected_at": "2019-08-24T14:15:22Z",
+					"display_apps": ["vscode"],
+					"environment_variables": {
+						"property1": "string",
+						"property2": "string"
+					},
+					"expanded_directory": "string",
+					"first_connected_at": "2019-08-24T14:15:22Z",
+					"health": {
+						"healthy": false,
+						"reason": "agent has lost connection"
+					},
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"instance_id": "string",
+					"last_connected_at": "2019-08-24T14:15:22Z",
+					"latency": {
+						"property1": {
+							"latency_ms": 0,
+							"preferred": true
+						},
+						"property2": {
+							"latency_ms": 0,
+							"preferred": true
+						}
+					},
+					"lifecycle_state": "created",
+					"log_sources": [
+						{
+							"created_at": "2019-08-24T14:15:22Z",
+							"display_name": "string",
+							"icon": "string",
+							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+						}
+					],
+					"logs_length": 0,
+					"logs_overflowed": true,
+					"name": "string",
+					"operating_system": "string",
+					"ready_at": "2019-08-24T14:15:22Z",
+					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+					"scripts": [
+						{
+							"cron": "string",
+							"log_path": "string",
+							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+							"run_on_start": true,
+							"run_on_stop": true,
+							"script": "string",
+							"start_blocks_login": true,
+							"timeout": 0
+						}
+					],
+					"started_at": "2019-08-24T14:15:22Z",
+					"startup_script_behavior": "blocking",
+					"status": "connecting",
+					"subsystems": ["envbox"],
+					"troubleshooting_url": "string",
+					"updated_at": "2019-08-24T14:15:22Z",
+					"version": "string"
+				}
+			],
+			"created_at": "2019-08-24T14:15:22Z",
+			"daily_cost": 0,
+			"hide": true,
+			"icon": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"metadata": [
+				{
+					"key": "string",
+					"sensitive": true,
+					"value": "string"
+				}
+			],
+			"name": "string",
+			"type": "string",
+			"workspace_transition": "start"
+		}
+	],
+	"status": "pending",
+	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+	"template_version_name": "string",
+	"transition": "start",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+	"workspace_name": "string",
+	"workspace_owner_avatar_url": "string",
+	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+	"workspace_owner_name": "string"
 }
 ```
 
@@ -7092,8 +7094,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "name": "string",
-  "value": "string"
+	"name": "string",
+	"value": "string"
 }
 ```
 
@@ -7108,8 +7110,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "p50": 0,
-  "p95": 0
+	"p50": 0,
+	"p95": 0
 }
 ```
 
@@ -7124,17 +7126,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "building": 0,
-  "connection_latency_ms": {
-    "p50": 0,
-    "p95": 0
-  },
-  "failed": 0,
-  "pending": 0,
-  "running": 0,
-  "rx_bytes": 0,
-  "stopped": 0,
-  "tx_bytes": 0
+	"building": 0,
+	"connection_latency_ms": {
+		"p50": 0,
+		"p95": 0
+	},
+	"failed": 0,
+	"pending": 0,
+	"running": 0,
+	"rx_bytes": 0,
+	"stopped": 0,
+	"tx_bytes": 0
 }
 ```
 
@@ -7155,8 +7157,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "healthy": false
+	"failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"healthy": false
 }
 ```
 
@@ -7171,27 +7173,27 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "deleted": true,
-  "derp_enabled": true,
-  "derp_only": true,
-  "display_name": "string",
-  "healthy": true,
-  "icon_url": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "path_app_url": "string",
-  "status": {
-    "checked_at": "2019-08-24T14:15:22Z",
-    "report": {
-      "errors": ["string"],
-      "warnings": ["string"]
-    },
-    "status": "ok"
-  },
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string",
-  "wildcard_hostname": "string"
+	"created_at": "2019-08-24T14:15:22Z",
+	"deleted": true,
+	"derp_enabled": true,
+	"derp_only": true,
+	"display_name": "string",
+	"healthy": true,
+	"icon_url": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"path_app_url": "string",
+	"status": {
+		"checked_at": "2019-08-24T14:15:22Z",
+		"report": {
+			"errors": ["string"],
+			"warnings": ["string"]
+		},
+		"status": "ok"
+	},
+	"updated_at": "2019-08-24T14:15:22Z",
+	"version": "string",
+	"wildcard_hostname": "string"
 }
 ```
 
@@ -7218,12 +7220,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "checked_at": "2019-08-24T14:15:22Z",
-  "report": {
-    "errors": ["string"],
-    "warnings": ["string"]
-  },
-  "status": "ok"
+	"checked_at": "2019-08-24T14:15:22Z",
+	"report": {
+		"errors": ["string"],
+		"warnings": ["string"]
+	},
+	"status": "ok"
 }
 ```
 
@@ -7239,8 +7241,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "budget": 0,
-  "credits_consumed": 0
+	"budget": 0,
+	"credits_consumed": 0
 }
 ```
 
@@ -7255,111 +7257,111 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "agents": [
-    {
-      "api_version": "string",
-      "apps": [
-        {
-          "command": "string",
-          "display_name": "string",
-          "external": true,
-          "health": "disabled",
-          "healthcheck": {
-            "interval": 0,
-            "threshold": 0,
-            "url": "string"
-          },
-          "icon": "string",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "sharing_level": "owner",
-          "slug": "string",
-          "subdomain": true,
-          "subdomain_name": "string",
-          "url": "string"
-        }
-      ],
-      "architecture": "string",
-      "connection_timeout_seconds": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "directory": "string",
-      "disconnected_at": "2019-08-24T14:15:22Z",
-      "display_apps": ["vscode"],
-      "environment_variables": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "expanded_directory": "string",
-      "first_connected_at": "2019-08-24T14:15:22Z",
-      "health": {
-        "healthy": false,
-        "reason": "agent has lost connection"
-      },
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "instance_id": "string",
-      "last_connected_at": "2019-08-24T14:15:22Z",
-      "latency": {
-        "property1": {
-          "latency_ms": 0,
-          "preferred": true
-        },
-        "property2": {
-          "latency_ms": 0,
-          "preferred": true
-        }
-      },
-      "lifecycle_state": "created",
-      "log_sources": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "display_name": "string",
-          "icon": "string",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-        }
-      ],
-      "logs_length": 0,
-      "logs_overflowed": true,
-      "name": "string",
-      "operating_system": "string",
-      "ready_at": "2019-08-24T14:15:22Z",
-      "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-      "scripts": [
-        {
-          "cron": "string",
-          "log_path": "string",
-          "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-          "run_on_start": true,
-          "run_on_stop": true,
-          "script": "string",
-          "start_blocks_login": true,
-          "timeout": 0
-        }
-      ],
-      "started_at": "2019-08-24T14:15:22Z",
-      "startup_script_behavior": "blocking",
-      "status": "connecting",
-      "subsystems": ["envbox"],
-      "troubleshooting_url": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "version": "string"
-    }
-  ],
-  "created_at": "2019-08-24T14:15:22Z",
-  "daily_cost": 0,
-  "hide": true,
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-  "metadata": [
-    {
-      "key": "string",
-      "sensitive": true,
-      "value": "string"
-    }
-  ],
-  "name": "string",
-  "type": "string",
-  "workspace_transition": "start"
+	"agents": [
+		{
+			"api_version": "string",
+			"apps": [
+				{
+					"command": "string",
+					"display_name": "string",
+					"external": true,
+					"health": "disabled",
+					"healthcheck": {
+						"interval": 0,
+						"threshold": 0,
+						"url": "string"
+					},
+					"icon": "string",
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"sharing_level": "owner",
+					"slug": "string",
+					"subdomain": true,
+					"subdomain_name": "string",
+					"url": "string"
+				}
+			],
+			"architecture": "string",
+			"connection_timeout_seconds": 0,
+			"created_at": "2019-08-24T14:15:22Z",
+			"directory": "string",
+			"disconnected_at": "2019-08-24T14:15:22Z",
+			"display_apps": ["vscode"],
+			"environment_variables": {
+				"property1": "string",
+				"property2": "string"
+			},
+			"expanded_directory": "string",
+			"first_connected_at": "2019-08-24T14:15:22Z",
+			"health": {
+				"healthy": false,
+				"reason": "agent has lost connection"
+			},
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"instance_id": "string",
+			"last_connected_at": "2019-08-24T14:15:22Z",
+			"latency": {
+				"property1": {
+					"latency_ms": 0,
+					"preferred": true
+				},
+				"property2": {
+					"latency_ms": 0,
+					"preferred": true
+				}
+			},
+			"lifecycle_state": "created",
+			"log_sources": [
+				{
+					"created_at": "2019-08-24T14:15:22Z",
+					"display_name": "string",
+					"icon": "string",
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+				}
+			],
+			"logs_length": 0,
+			"logs_overflowed": true,
+			"name": "string",
+			"operating_system": "string",
+			"ready_at": "2019-08-24T14:15:22Z",
+			"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+			"scripts": [
+				{
+					"cron": "string",
+					"log_path": "string",
+					"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+					"run_on_start": true,
+					"run_on_stop": true,
+					"script": "string",
+					"start_blocks_login": true,
+					"timeout": 0
+				}
+			],
+			"started_at": "2019-08-24T14:15:22Z",
+			"startup_script_behavior": "blocking",
+			"status": "connecting",
+			"subsystems": ["envbox"],
+			"troubleshooting_url": "string",
+			"updated_at": "2019-08-24T14:15:22Z",
+			"version": "string"
+		}
+	],
+	"created_at": "2019-08-24T14:15:22Z",
+	"daily_cost": 0,
+	"hide": true,
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+	"metadata": [
+		{
+			"key": "string",
+			"sensitive": true,
+			"value": "string"
+		}
+	],
+	"name": "string",
+	"type": "string",
+	"workspace_transition": "start"
 }
 ```
 
@@ -7391,9 +7393,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "key": "string",
-  "sensitive": true,
-  "value": "string"
+	"key": "string",
+	"sensitive": true,
+	"value": "string"
 }
 ```
 
@@ -7448,184 +7450,184 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "count": 0,
-  "workspaces": [
-    {
-      "allow_renames": true,
-      "automatic_updates": "always",
-      "autostart_schedule": "string",
-      "created_at": "2019-08-24T14:15:22Z",
-      "deleting_at": "2019-08-24T14:15:22Z",
-      "dormant_at": "2019-08-24T14:15:22Z",
-      "favorite": true,
-      "health": {
-        "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "healthy": false
-      },
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "last_used_at": "2019-08-24T14:15:22Z",
-      "latest_build": {
-        "build_number": 0,
-        "created_at": "2019-08-24T14:15:22Z",
-        "daily_cost": 0,
-        "deadline": "2019-08-24T14:15:22Z",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-        "initiator_name": "string",
-        "job": {
-          "canceled_at": "2019-08-24T14:15:22Z",
-          "completed_at": "2019-08-24T14:15:22Z",
-          "created_at": "2019-08-24T14:15:22Z",
-          "error": "string",
-          "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "queue_position": 0,
-          "queue_size": 0,
-          "started_at": "2019-08-24T14:15:22Z",
-          "status": "pending",
-          "tags": {
-            "property1": "string",
-            "property2": "string"
-          },
-          "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-        },
-        "max_deadline": "2019-08-24T14:15:22Z",
-        "reason": "initiator",
-        "resources": [
-          {
-            "agents": [
-              {
-                "api_version": "string",
-                "apps": [
-                  {
-                    "command": "string",
-                    "display_name": "string",
-                    "external": true,
-                    "health": "disabled",
-                    "healthcheck": {},
-                    "icon": "string",
-                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                    "sharing_level": "owner",
-                    "slug": "string",
-                    "subdomain": true,
-                    "subdomain_name": "string",
-                    "url": "string"
-                  }
-                ],
-                "architecture": "string",
-                "connection_timeout_seconds": 0,
-                "created_at": "2019-08-24T14:15:22Z",
-                "directory": "string",
-                "disconnected_at": "2019-08-24T14:15:22Z",
-                "display_apps": ["vscode"],
-                "environment_variables": {
-                  "property1": "string",
-                  "property2": "string"
-                },
-                "expanded_directory": "string",
-                "first_connected_at": "2019-08-24T14:15:22Z",
-                "health": {
-                  "healthy": false,
-                  "reason": "agent has lost connection"
-                },
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "instance_id": "string",
-                "last_connected_at": "2019-08-24T14:15:22Z",
-                "latency": {
-                  "property1": {
-                    "latency_ms": 0,
-                    "preferred": true
-                  },
-                  "property2": {
-                    "latency_ms": 0,
-                    "preferred": true
-                  }
-                },
-                "lifecycle_state": "created",
-                "log_sources": [
-                  {
-                    "created_at": "2019-08-24T14:15:22Z",
-                    "display_name": "string",
-                    "icon": "string",
-                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                    "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-                  }
-                ],
-                "logs_length": 0,
-                "logs_overflowed": true,
-                "name": "string",
-                "operating_system": "string",
-                "ready_at": "2019-08-24T14:15:22Z",
-                "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-                "scripts": [
-                  {
-                    "cron": "string",
-                    "log_path": "string",
-                    "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-                    "run_on_start": true,
-                    "run_on_stop": true,
-                    "script": "string",
-                    "start_blocks_login": true,
-                    "timeout": 0
-                  }
-                ],
-                "started_at": "2019-08-24T14:15:22Z",
-                "startup_script_behavior": "blocking",
-                "status": "connecting",
-                "subsystems": ["envbox"],
-                "troubleshooting_url": "string",
-                "updated_at": "2019-08-24T14:15:22Z",
-                "version": "string"
-              }
-            ],
-            "created_at": "2019-08-24T14:15:22Z",
-            "daily_cost": 0,
-            "hide": true,
-            "icon": "string",
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-            "metadata": [
-              {
-                "key": "string",
-                "sensitive": true,
-                "value": "string"
-              }
-            ],
-            "name": "string",
-            "type": "string",
-            "workspace_transition": "start"
-          }
-        ],
-        "status": "pending",
-        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-        "template_version_name": "string",
-        "transition": "start",
-        "updated_at": "2019-08-24T14:15:22Z",
-        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-        "workspace_name": "string",
-        "workspace_owner_avatar_url": "string",
-        "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-        "workspace_owner_name": "string"
-      },
-      "name": "string",
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "organization_name": "string",
-      "outdated": true,
-      "owner_avatar_url": "string",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "owner_name": "string",
-      "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
-      "template_allow_user_cancel_workspace_jobs": true,
-      "template_display_name": "string",
-      "template_icon": "string",
-      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-      "template_name": "string",
-      "template_require_active_version": true,
-      "ttl_ms": 0,
-      "updated_at": "2019-08-24T14:15:22Z"
-    }
-  ]
+	"count": 0,
+	"workspaces": [
+		{
+			"allow_renames": true,
+			"automatic_updates": "always",
+			"autostart_schedule": "string",
+			"created_at": "2019-08-24T14:15:22Z",
+			"deleting_at": "2019-08-24T14:15:22Z",
+			"dormant_at": "2019-08-24T14:15:22Z",
+			"favorite": true,
+			"health": {
+				"failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+				"healthy": false
+			},
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"last_used_at": "2019-08-24T14:15:22Z",
+			"latest_build": {
+				"build_number": 0,
+				"created_at": "2019-08-24T14:15:22Z",
+				"daily_cost": 0,
+				"deadline": "2019-08-24T14:15:22Z",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+				"initiator_name": "string",
+				"job": {
+					"canceled_at": "2019-08-24T14:15:22Z",
+					"completed_at": "2019-08-24T14:15:22Z",
+					"created_at": "2019-08-24T14:15:22Z",
+					"error": "string",
+					"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+					"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"queue_position": 0,
+					"queue_size": 0,
+					"started_at": "2019-08-24T14:15:22Z",
+					"status": "pending",
+					"tags": {
+						"property1": "string",
+						"property2": "string"
+					},
+					"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+				},
+				"max_deadline": "2019-08-24T14:15:22Z",
+				"reason": "initiator",
+				"resources": [
+					{
+						"agents": [
+							{
+								"api_version": "string",
+								"apps": [
+									{
+										"command": "string",
+										"display_name": "string",
+										"external": true,
+										"health": "disabled",
+										"healthcheck": {},
+										"icon": "string",
+										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+										"sharing_level": "owner",
+										"slug": "string",
+										"subdomain": true,
+										"subdomain_name": "string",
+										"url": "string"
+									}
+								],
+								"architecture": "string",
+								"connection_timeout_seconds": 0,
+								"created_at": "2019-08-24T14:15:22Z",
+								"directory": "string",
+								"disconnected_at": "2019-08-24T14:15:22Z",
+								"display_apps": ["vscode"],
+								"environment_variables": {
+									"property1": "string",
+									"property2": "string"
+								},
+								"expanded_directory": "string",
+								"first_connected_at": "2019-08-24T14:15:22Z",
+								"health": {
+									"healthy": false,
+									"reason": "agent has lost connection"
+								},
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+								"instance_id": "string",
+								"last_connected_at": "2019-08-24T14:15:22Z",
+								"latency": {
+									"property1": {
+										"latency_ms": 0,
+										"preferred": true
+									},
+									"property2": {
+										"latency_ms": 0,
+										"preferred": true
+									}
+								},
+								"lifecycle_state": "created",
+								"log_sources": [
+									{
+										"created_at": "2019-08-24T14:15:22Z",
+										"display_name": "string",
+										"icon": "string",
+										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+										"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+									}
+								],
+								"logs_length": 0,
+								"logs_overflowed": true,
+								"name": "string",
+								"operating_system": "string",
+								"ready_at": "2019-08-24T14:15:22Z",
+								"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+								"scripts": [
+									{
+										"cron": "string",
+										"log_path": "string",
+										"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+										"run_on_start": true,
+										"run_on_stop": true,
+										"script": "string",
+										"start_blocks_login": true,
+										"timeout": 0
+									}
+								],
+								"started_at": "2019-08-24T14:15:22Z",
+								"startup_script_behavior": "blocking",
+								"status": "connecting",
+								"subsystems": ["envbox"],
+								"troubleshooting_url": "string",
+								"updated_at": "2019-08-24T14:15:22Z",
+								"version": "string"
+							}
+						],
+						"created_at": "2019-08-24T14:15:22Z",
+						"daily_cost": 0,
+						"hide": true,
+						"icon": "string",
+						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+						"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+						"metadata": [
+							{
+								"key": "string",
+								"sensitive": true,
+								"value": "string"
+							}
+						],
+						"name": "string",
+						"type": "string",
+						"workspace_transition": "start"
+					}
+				],
+				"status": "pending",
+				"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+				"template_version_name": "string",
+				"transition": "start",
+				"updated_at": "2019-08-24T14:15:22Z",
+				"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+				"workspace_name": "string",
+				"workspace_owner_avatar_url": "string",
+				"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+				"workspace_owner_name": "string"
+			},
+			"name": "string",
+			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+			"organization_name": "string",
+			"outdated": true,
+			"owner_avatar_url": "string",
+			"owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+			"owner_name": "string",
+			"template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
+			"template_allow_user_cancel_workspace_jobs": true,
+			"template_display_name": "string",
+			"template_icon": "string",
+			"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+			"template_name": "string",
+			"template_require_active_version": true,
+			"ttl_ms": 0,
+			"updated_at": "2019-08-24T14:15:22Z"
+		}
+	]
 }
 ```
 
@@ -7640,9 +7642,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "key": {},
-  "recv": 0,
-  "sent": 0
+	"key": {},
+	"recv": 0,
+	"sent": 0
 }
 ```
 
@@ -7658,8 +7660,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "tokenBucketBytesBurst": 0,
-  "tokenBucketBytesPerSecond": 0
+	"tokenBucketBytesBurst": 0,
+	"tokenBucketBytesPerSecond": 0
 }
 ```
 
@@ -7707,8 +7709,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "code": "EUNKNOWN",
-  "message": "string"
+	"code": "EUNKNOWN",
+	"message": "string"
 }
 ```
 
@@ -7739,20 +7741,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "access_url": "string",
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "healthz_response": "string",
-  "reachable": true,
-  "severity": "ok",
-  "status_code": 0,
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
+	"access_url": "string",
+	"dismissed": true,
+	"error": "string",
+	"healthy": true,
+	"healthz_response": "string",
+	"reachable": true,
+	"severity": "ok",
+	"status_code": 0,
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	]
 }
 ```
 
@@ -7782,206 +7784,206 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "netcheck": {
-    "captivePortal": "string",
-    "globalV4": "string",
-    "globalV6": "string",
-    "hairPinning": "string",
-    "icmpv4": true,
-    "ipv4": true,
-    "ipv4CanSend": true,
-    "ipv6": true,
-    "ipv6CanSend": true,
-    "mappingVariesByDestIP": "string",
-    "oshasIPv6": true,
-    "pcp": "string",
-    "pmp": "string",
-    "preferredDERP": 0,
-    "regionLatency": {
-      "property1": 0,
-      "property2": 0
-    },
-    "regionV4Latency": {
-      "property1": 0,
-      "property2": 0
-    },
-    "regionV6Latency": {
-      "property1": 0,
-      "property2": 0
-    },
-    "udp": true,
-    "upnP": "string"
-  },
-  "netcheck_err": "string",
-  "netcheck_logs": ["string"],
-  "regions": {
-    "property1": {
-      "error": "string",
-      "healthy": true,
-      "node_reports": [
-        {
-          "can_exchange_messages": true,
-          "client_errs": [["string"]],
-          "client_logs": [["string"]],
-          "error": "string",
-          "healthy": true,
-          "node": {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          },
-          "node_info": {
-            "tokenBucketBytesBurst": 0,
-            "tokenBucketBytesPerSecond": 0
-          },
-          "round_trip_ping": "string",
-          "round_trip_ping_ms": 0,
-          "severity": "ok",
-          "stun": {
-            "canSTUN": true,
-            "enabled": true,
-            "error": "string"
-          },
-          "uses_websocket": true,
-          "warnings": [
-            {
-              "code": "EUNKNOWN",
-              "message": "string"
-            }
-          ]
-        }
-      ],
-      "region": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      },
-      "severity": "ok",
-      "warnings": [
-        {
-          "code": "EUNKNOWN",
-          "message": "string"
-        }
-      ]
-    },
-    "property2": {
-      "error": "string",
-      "healthy": true,
-      "node_reports": [
-        {
-          "can_exchange_messages": true,
-          "client_errs": [["string"]],
-          "client_logs": [["string"]],
-          "error": "string",
-          "healthy": true,
-          "node": {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          },
-          "node_info": {
-            "tokenBucketBytesBurst": 0,
-            "tokenBucketBytesPerSecond": 0
-          },
-          "round_trip_ping": "string",
-          "round_trip_ping_ms": 0,
-          "severity": "ok",
-          "stun": {
-            "canSTUN": true,
-            "enabled": true,
-            "error": "string"
-          },
-          "uses_websocket": true,
-          "warnings": [
-            {
-              "code": "EUNKNOWN",
-              "message": "string"
-            }
-          ]
-        }
-      ],
-      "region": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      },
-      "severity": "ok",
-      "warnings": [
-        {
-          "code": "EUNKNOWN",
-          "message": "string"
-        }
-      ]
-    }
-  },
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
+	"dismissed": true,
+	"error": "string",
+	"healthy": true,
+	"netcheck": {
+		"captivePortal": "string",
+		"globalV4": "string",
+		"globalV6": "string",
+		"hairPinning": "string",
+		"icmpv4": true,
+		"ipv4": true,
+		"ipv4CanSend": true,
+		"ipv6": true,
+		"ipv6CanSend": true,
+		"mappingVariesByDestIP": "string",
+		"oshasIPv6": true,
+		"pcp": "string",
+		"pmp": "string",
+		"preferredDERP": 0,
+		"regionLatency": {
+			"property1": 0,
+			"property2": 0
+		},
+		"regionV4Latency": {
+			"property1": 0,
+			"property2": 0
+		},
+		"regionV6Latency": {
+			"property1": 0,
+			"property2": 0
+		},
+		"udp": true,
+		"upnP": "string"
+	},
+	"netcheck_err": "string",
+	"netcheck_logs": ["string"],
+	"regions": {
+		"property1": {
+			"error": "string",
+			"healthy": true,
+			"node_reports": [
+				{
+					"can_exchange_messages": true,
+					"client_errs": [["string"]],
+					"client_logs": [["string"]],
+					"error": "string",
+					"healthy": true,
+					"node": {
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					},
+					"node_info": {
+						"tokenBucketBytesBurst": 0,
+						"tokenBucketBytesPerSecond": 0
+					},
+					"round_trip_ping": "string",
+					"round_trip_ping_ms": 0,
+					"severity": "ok",
+					"stun": {
+						"canSTUN": true,
+						"enabled": true,
+						"error": "string"
+					},
+					"uses_websocket": true,
+					"warnings": [
+						{
+							"code": "EUNKNOWN",
+							"message": "string"
+						}
+					]
+				}
+			],
+			"region": {
+				"avoid": true,
+				"embeddedRelay": true,
+				"nodes": [
+					{
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					}
+				],
+				"regionCode": "string",
+				"regionID": 0,
+				"regionName": "string"
+			},
+			"severity": "ok",
+			"warnings": [
+				{
+					"code": "EUNKNOWN",
+					"message": "string"
+				}
+			]
+		},
+		"property2": {
+			"error": "string",
+			"healthy": true,
+			"node_reports": [
+				{
+					"can_exchange_messages": true,
+					"client_errs": [["string"]],
+					"client_logs": [["string"]],
+					"error": "string",
+					"healthy": true,
+					"node": {
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					},
+					"node_info": {
+						"tokenBucketBytesBurst": 0,
+						"tokenBucketBytesPerSecond": 0
+					},
+					"round_trip_ping": "string",
+					"round_trip_ping_ms": 0,
+					"severity": "ok",
+					"stun": {
+						"canSTUN": true,
+						"enabled": true,
+						"error": "string"
+					},
+					"uses_websocket": true,
+					"warnings": [
+						{
+							"code": "EUNKNOWN",
+							"message": "string"
+						}
+					]
+				}
+			],
+			"region": {
+				"avoid": true,
+				"embeddedRelay": true,
+				"nodes": [
+					{
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					}
+				],
+				"regionCode": "string",
+				"regionID": 0,
+				"regionName": "string"
+			},
+			"severity": "ok",
+			"warnings": [
+				{
+					"code": "EUNKNOWN",
+					"message": "string"
+				}
+			]
+		}
+	},
+	"severity": "ok",
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	]
 }
 ```
 
@@ -8012,45 +8014,45 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "can_exchange_messages": true,
-  "client_errs": [["string"]],
-  "client_logs": [["string"]],
-  "error": "string",
-  "healthy": true,
-  "node": {
-    "canPort80": true,
-    "certName": "string",
-    "derpport": 0,
-    "forceHTTP": true,
-    "hostName": "string",
-    "insecureForTests": true,
-    "ipv4": "string",
-    "ipv6": "string",
-    "name": "string",
-    "regionID": 0,
-    "stunonly": true,
-    "stunport": 0,
-    "stuntestIP": "string"
-  },
-  "node_info": {
-    "tokenBucketBytesBurst": 0,
-    "tokenBucketBytesPerSecond": 0
-  },
-  "round_trip_ping": "string",
-  "round_trip_ping_ms": 0,
-  "severity": "ok",
-  "stun": {
-    "canSTUN": true,
-    "enabled": true,
-    "error": "string"
-  },
-  "uses_websocket": true,
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
+	"can_exchange_messages": true,
+	"client_errs": [["string"]],
+	"client_logs": [["string"]],
+	"error": "string",
+	"healthy": true,
+	"node": {
+		"canPort80": true,
+		"certName": "string",
+		"derpport": 0,
+		"forceHTTP": true,
+		"hostName": "string",
+		"insecureForTests": true,
+		"ipv4": "string",
+		"ipv6": "string",
+		"name": "string",
+		"regionID": 0,
+		"stunonly": true,
+		"stunport": 0,
+		"stuntestIP": "string"
+	},
+	"node_info": {
+		"tokenBucketBytesBurst": 0,
+		"tokenBucketBytesPerSecond": 0
+	},
+	"round_trip_ping": "string",
+	"round_trip_ping_ms": 0,
+	"severity": "ok",
+	"stun": {
+		"canSTUN": true,
+		"enabled": true,
+		"error": "string"
+	},
+	"uses_websocket": true,
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	]
 }
 ```
 
@@ -8084,82 +8086,82 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "error": "string",
-  "healthy": true,
-  "node_reports": [
-    {
-      "can_exchange_messages": true,
-      "client_errs": [["string"]],
-      "client_logs": [["string"]],
-      "error": "string",
-      "healthy": true,
-      "node": {
-        "canPort80": true,
-        "certName": "string",
-        "derpport": 0,
-        "forceHTTP": true,
-        "hostName": "string",
-        "insecureForTests": true,
-        "ipv4": "string",
-        "ipv6": "string",
-        "name": "string",
-        "regionID": 0,
-        "stunonly": true,
-        "stunport": 0,
-        "stuntestIP": "string"
-      },
-      "node_info": {
-        "tokenBucketBytesBurst": 0,
-        "tokenBucketBytesPerSecond": 0
-      },
-      "round_trip_ping": "string",
-      "round_trip_ping_ms": 0,
-      "severity": "ok",
-      "stun": {
-        "canSTUN": true,
-        "enabled": true,
-        "error": "string"
-      },
-      "uses_websocket": true,
-      "warnings": [
-        {
-          "code": "EUNKNOWN",
-          "message": "string"
-        }
-      ]
-    }
-  ],
-  "region": {
-    "avoid": true,
-    "embeddedRelay": true,
-    "nodes": [
-      {
-        "canPort80": true,
-        "certName": "string",
-        "derpport": 0,
-        "forceHTTP": true,
-        "hostName": "string",
-        "insecureForTests": true,
-        "ipv4": "string",
-        "ipv6": "string",
-        "name": "string",
-        "regionID": 0,
-        "stunonly": true,
-        "stunport": 0,
-        "stuntestIP": "string"
-      }
-    ],
-    "regionCode": "string",
-    "regionID": 0,
-    "regionName": "string"
-  },
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
+	"error": "string",
+	"healthy": true,
+	"node_reports": [
+		{
+			"can_exchange_messages": true,
+			"client_errs": [["string"]],
+			"client_logs": [["string"]],
+			"error": "string",
+			"healthy": true,
+			"node": {
+				"canPort80": true,
+				"certName": "string",
+				"derpport": 0,
+				"forceHTTP": true,
+				"hostName": "string",
+				"insecureForTests": true,
+				"ipv4": "string",
+				"ipv6": "string",
+				"name": "string",
+				"regionID": 0,
+				"stunonly": true,
+				"stunport": 0,
+				"stuntestIP": "string"
+			},
+			"node_info": {
+				"tokenBucketBytesBurst": 0,
+				"tokenBucketBytesPerSecond": 0
+			},
+			"round_trip_ping": "string",
+			"round_trip_ping_ms": 0,
+			"severity": "ok",
+			"stun": {
+				"canSTUN": true,
+				"enabled": true,
+				"error": "string"
+			},
+			"uses_websocket": true,
+			"warnings": [
+				{
+					"code": "EUNKNOWN",
+					"message": "string"
+				}
+			]
+		}
+	],
+	"region": {
+		"avoid": true,
+		"embeddedRelay": true,
+		"nodes": [
+			{
+				"canPort80": true,
+				"certName": "string",
+				"derpport": 0,
+				"forceHTTP": true,
+				"hostName": "string",
+				"insecureForTests": true,
+				"ipv4": "string",
+				"ipv6": "string",
+				"name": "string",
+				"regionID": 0,
+				"stunonly": true,
+				"stunport": 0,
+				"stuntestIP": "string"
+			}
+		],
+		"regionCode": "string",
+		"regionID": 0,
+		"regionName": "string"
+	},
+	"severity": "ok",
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	]
 }
 ```
 
@@ -8186,20 +8188,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "latency": "string",
-  "latency_ms": 0,
-  "reachable": true,
-  "severity": "ok",
-  "threshold_ms": 0,
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
+	"dismissed": true,
+	"error": "string",
+	"healthy": true,
+	"latency": "string",
+	"latency_ms": 0,
+	"reachable": true,
+	"severity": "ok",
+	"threshold_ms": 0,
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	]
 }
 ```
 
@@ -8248,7 +8250,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "dismissed_healthchecks": ["DERP"]
+	"dismissed_healthchecks": ["DERP"]
 }
 ```
 
@@ -8262,332 +8264,332 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "access_url": {
-    "access_url": "string",
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "healthz_response": "string",
-    "reachable": true,
-    "severity": "ok",
-    "status_code": 0,
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "coder_version": "string",
-  "database": {
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "latency": "string",
-    "latency_ms": 0,
-    "reachable": true,
-    "severity": "ok",
-    "threshold_ms": 0,
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "derp": {
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "netcheck": {
-      "captivePortal": "string",
-      "globalV4": "string",
-      "globalV6": "string",
-      "hairPinning": "string",
-      "icmpv4": true,
-      "ipv4": true,
-      "ipv4CanSend": true,
-      "ipv6": true,
-      "ipv6CanSend": true,
-      "mappingVariesByDestIP": "string",
-      "oshasIPv6": true,
-      "pcp": "string",
-      "pmp": "string",
-      "preferredDERP": 0,
-      "regionLatency": {
-        "property1": 0,
-        "property2": 0
-      },
-      "regionV4Latency": {
-        "property1": 0,
-        "property2": 0
-      },
-      "regionV6Latency": {
-        "property1": 0,
-        "property2": 0
-      },
-      "udp": true,
-      "upnP": "string"
-    },
-    "netcheck_err": "string",
-    "netcheck_logs": ["string"],
-    "regions": {
-      "property1": {
-        "error": "string",
-        "healthy": true,
-        "node_reports": [
-          {
-            "can_exchange_messages": true,
-            "client_errs": [["string"]],
-            "client_logs": [["string"]],
-            "error": "string",
-            "healthy": true,
-            "node": {
-              "canPort80": true,
-              "certName": "string",
-              "derpport": 0,
-              "forceHTTP": true,
-              "hostName": "string",
-              "insecureForTests": true,
-              "ipv4": "string",
-              "ipv6": "string",
-              "name": "string",
-              "regionID": 0,
-              "stunonly": true,
-              "stunport": 0,
-              "stuntestIP": "string"
-            },
-            "node_info": {
-              "tokenBucketBytesBurst": 0,
-              "tokenBucketBytesPerSecond": 0
-            },
-            "round_trip_ping": "string",
-            "round_trip_ping_ms": 0,
-            "severity": "ok",
-            "stun": {
-              "canSTUN": true,
-              "enabled": true,
-              "error": "string"
-            },
-            "uses_websocket": true,
-            "warnings": [
-              {
-                "code": "EUNKNOWN",
-                "message": "string"
-              }
-            ]
-          }
-        ],
-        "region": {
-          "avoid": true,
-          "embeddedRelay": true,
-          "nodes": [
-            {
-              "canPort80": true,
-              "certName": "string",
-              "derpport": 0,
-              "forceHTTP": true,
-              "hostName": "string",
-              "insecureForTests": true,
-              "ipv4": "string",
-              "ipv6": "string",
-              "name": "string",
-              "regionID": 0,
-              "stunonly": true,
-              "stunport": 0,
-              "stuntestIP": "string"
-            }
-          ],
-          "regionCode": "string",
-          "regionID": 0,
-          "regionName": "string"
-        },
-        "severity": "ok",
-        "warnings": [
-          {
-            "code": "EUNKNOWN",
-            "message": "string"
-          }
-        ]
-      },
-      "property2": {
-        "error": "string",
-        "healthy": true,
-        "node_reports": [
-          {
-            "can_exchange_messages": true,
-            "client_errs": [["string"]],
-            "client_logs": [["string"]],
-            "error": "string",
-            "healthy": true,
-            "node": {
-              "canPort80": true,
-              "certName": "string",
-              "derpport": 0,
-              "forceHTTP": true,
-              "hostName": "string",
-              "insecureForTests": true,
-              "ipv4": "string",
-              "ipv6": "string",
-              "name": "string",
-              "regionID": 0,
-              "stunonly": true,
-              "stunport": 0,
-              "stuntestIP": "string"
-            },
-            "node_info": {
-              "tokenBucketBytesBurst": 0,
-              "tokenBucketBytesPerSecond": 0
-            },
-            "round_trip_ping": "string",
-            "round_trip_ping_ms": 0,
-            "severity": "ok",
-            "stun": {
-              "canSTUN": true,
-              "enabled": true,
-              "error": "string"
-            },
-            "uses_websocket": true,
-            "warnings": [
-              {
-                "code": "EUNKNOWN",
-                "message": "string"
-              }
-            ]
-          }
-        ],
-        "region": {
-          "avoid": true,
-          "embeddedRelay": true,
-          "nodes": [
-            {
-              "canPort80": true,
-              "certName": "string",
-              "derpport": 0,
-              "forceHTTP": true,
-              "hostName": "string",
-              "insecureForTests": true,
-              "ipv4": "string",
-              "ipv6": "string",
-              "name": "string",
-              "regionID": 0,
-              "stunonly": true,
-              "stunport": 0,
-              "stuntestIP": "string"
-            }
-          ],
-          "regionCode": "string",
-          "regionID": 0,
-          "regionName": "string"
-        },
-        "severity": "ok",
-        "warnings": [
-          {
-            "code": "EUNKNOWN",
-            "message": "string"
-          }
-        ]
-      }
-    },
-    "severity": "ok",
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "healthy": true,
-  "provisioner_daemons": {
-    "dismissed": true,
-    "error": "string",
-    "items": [
-      {
-        "provisioner_daemon": {
-          "api_version": "string",
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "last_seen_at": "2019-08-24T14:15:22Z",
-          "name": "string",
-          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "provisioners": ["string"],
-          "tags": {
-            "property1": "string",
-            "property2": "string"
-          },
-          "version": "string"
-        },
-        "warnings": [
-          {
-            "code": "EUNKNOWN",
-            "message": "string"
-          }
-        ]
-      }
-    ],
-    "severity": "ok",
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "severity": "ok",
-  "time": "2019-08-24T14:15:22Z",
-  "websocket": {
-    "body": "string",
-    "code": 0,
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "severity": "ok",
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ]
-  },
-  "workspace_proxy": {
-    "dismissed": true,
-    "error": "string",
-    "healthy": true,
-    "severity": "ok",
-    "warnings": [
-      {
-        "code": "EUNKNOWN",
-        "message": "string"
-      }
-    ],
-    "workspace_proxies": {
-      "regions": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "deleted": true,
-          "derp_enabled": true,
-          "derp_only": true,
-          "display_name": "string",
-          "healthy": true,
-          "icon_url": "string",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "name": "string",
-          "path_app_url": "string",
-          "status": {
-            "checked_at": "2019-08-24T14:15:22Z",
-            "report": {
-              "errors": ["string"],
-              "warnings": ["string"]
-            },
-            "status": "ok"
-          },
-          "updated_at": "2019-08-24T14:15:22Z",
-          "version": "string",
-          "wildcard_hostname": "string"
-        }
-      ]
-    }
-  }
+	"access_url": {
+		"access_url": "string",
+		"dismissed": true,
+		"error": "string",
+		"healthy": true,
+		"healthz_response": "string",
+		"reachable": true,
+		"severity": "ok",
+		"status_code": 0,
+		"warnings": [
+			{
+				"code": "EUNKNOWN",
+				"message": "string"
+			}
+		]
+	},
+	"coder_version": "string",
+	"database": {
+		"dismissed": true,
+		"error": "string",
+		"healthy": true,
+		"latency": "string",
+		"latency_ms": 0,
+		"reachable": true,
+		"severity": "ok",
+		"threshold_ms": 0,
+		"warnings": [
+			{
+				"code": "EUNKNOWN",
+				"message": "string"
+			}
+		]
+	},
+	"derp": {
+		"dismissed": true,
+		"error": "string",
+		"healthy": true,
+		"netcheck": {
+			"captivePortal": "string",
+			"globalV4": "string",
+			"globalV6": "string",
+			"hairPinning": "string",
+			"icmpv4": true,
+			"ipv4": true,
+			"ipv4CanSend": true,
+			"ipv6": true,
+			"ipv6CanSend": true,
+			"mappingVariesByDestIP": "string",
+			"oshasIPv6": true,
+			"pcp": "string",
+			"pmp": "string",
+			"preferredDERP": 0,
+			"regionLatency": {
+				"property1": 0,
+				"property2": 0
+			},
+			"regionV4Latency": {
+				"property1": 0,
+				"property2": 0
+			},
+			"regionV6Latency": {
+				"property1": 0,
+				"property2": 0
+			},
+			"udp": true,
+			"upnP": "string"
+		},
+		"netcheck_err": "string",
+		"netcheck_logs": ["string"],
+		"regions": {
+			"property1": {
+				"error": "string",
+				"healthy": true,
+				"node_reports": [
+					{
+						"can_exchange_messages": true,
+						"client_errs": [["string"]],
+						"client_logs": [["string"]],
+						"error": "string",
+						"healthy": true,
+						"node": {
+							"canPort80": true,
+							"certName": "string",
+							"derpport": 0,
+							"forceHTTP": true,
+							"hostName": "string",
+							"insecureForTests": true,
+							"ipv4": "string",
+							"ipv6": "string",
+							"name": "string",
+							"regionID": 0,
+							"stunonly": true,
+							"stunport": 0,
+							"stuntestIP": "string"
+						},
+						"node_info": {
+							"tokenBucketBytesBurst": 0,
+							"tokenBucketBytesPerSecond": 0
+						},
+						"round_trip_ping": "string",
+						"round_trip_ping_ms": 0,
+						"severity": "ok",
+						"stun": {
+							"canSTUN": true,
+							"enabled": true,
+							"error": "string"
+						},
+						"uses_websocket": true,
+						"warnings": [
+							{
+								"code": "EUNKNOWN",
+								"message": "string"
+							}
+						]
+					}
+				],
+				"region": {
+					"avoid": true,
+					"embeddedRelay": true,
+					"nodes": [
+						{
+							"canPort80": true,
+							"certName": "string",
+							"derpport": 0,
+							"forceHTTP": true,
+							"hostName": "string",
+							"insecureForTests": true,
+							"ipv4": "string",
+							"ipv6": "string",
+							"name": "string",
+							"regionID": 0,
+							"stunonly": true,
+							"stunport": 0,
+							"stuntestIP": "string"
+						}
+					],
+					"regionCode": "string",
+					"regionID": 0,
+					"regionName": "string"
+				},
+				"severity": "ok",
+				"warnings": [
+					{
+						"code": "EUNKNOWN",
+						"message": "string"
+					}
+				]
+			},
+			"property2": {
+				"error": "string",
+				"healthy": true,
+				"node_reports": [
+					{
+						"can_exchange_messages": true,
+						"client_errs": [["string"]],
+						"client_logs": [["string"]],
+						"error": "string",
+						"healthy": true,
+						"node": {
+							"canPort80": true,
+							"certName": "string",
+							"derpport": 0,
+							"forceHTTP": true,
+							"hostName": "string",
+							"insecureForTests": true,
+							"ipv4": "string",
+							"ipv6": "string",
+							"name": "string",
+							"regionID": 0,
+							"stunonly": true,
+							"stunport": 0,
+							"stuntestIP": "string"
+						},
+						"node_info": {
+							"tokenBucketBytesBurst": 0,
+							"tokenBucketBytesPerSecond": 0
+						},
+						"round_trip_ping": "string",
+						"round_trip_ping_ms": 0,
+						"severity": "ok",
+						"stun": {
+							"canSTUN": true,
+							"enabled": true,
+							"error": "string"
+						},
+						"uses_websocket": true,
+						"warnings": [
+							{
+								"code": "EUNKNOWN",
+								"message": "string"
+							}
+						]
+					}
+				],
+				"region": {
+					"avoid": true,
+					"embeddedRelay": true,
+					"nodes": [
+						{
+							"canPort80": true,
+							"certName": "string",
+							"derpport": 0,
+							"forceHTTP": true,
+							"hostName": "string",
+							"insecureForTests": true,
+							"ipv4": "string",
+							"ipv6": "string",
+							"name": "string",
+							"regionID": 0,
+							"stunonly": true,
+							"stunport": 0,
+							"stuntestIP": "string"
+						}
+					],
+					"regionCode": "string",
+					"regionID": 0,
+					"regionName": "string"
+				},
+				"severity": "ok",
+				"warnings": [
+					{
+						"code": "EUNKNOWN",
+						"message": "string"
+					}
+				]
+			}
+		},
+		"severity": "ok",
+		"warnings": [
+			{
+				"code": "EUNKNOWN",
+				"message": "string"
+			}
+		]
+	},
+	"healthy": true,
+	"provisioner_daemons": {
+		"dismissed": true,
+		"error": "string",
+		"items": [
+			{
+				"provisioner_daemon": {
+					"api_version": "string",
+					"created_at": "2019-08-24T14:15:22Z",
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"last_seen_at": "2019-08-24T14:15:22Z",
+					"name": "string",
+					"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+					"provisioners": ["string"],
+					"tags": {
+						"property1": "string",
+						"property2": "string"
+					},
+					"version": "string"
+				},
+				"warnings": [
+					{
+						"code": "EUNKNOWN",
+						"message": "string"
+					}
+				]
+			}
+		],
+		"severity": "ok",
+		"warnings": [
+			{
+				"code": "EUNKNOWN",
+				"message": "string"
+			}
+		]
+	},
+	"severity": "ok",
+	"time": "2019-08-24T14:15:22Z",
+	"websocket": {
+		"body": "string",
+		"code": 0,
+		"dismissed": true,
+		"error": "string",
+		"healthy": true,
+		"severity": "ok",
+		"warnings": [
+			{
+				"code": "EUNKNOWN",
+				"message": "string"
+			}
+		]
+	},
+	"workspace_proxy": {
+		"dismissed": true,
+		"error": "string",
+		"healthy": true,
+		"severity": "ok",
+		"warnings": [
+			{
+				"code": "EUNKNOWN",
+				"message": "string"
+			}
+		],
+		"workspace_proxies": {
+			"regions": [
+				{
+					"created_at": "2019-08-24T14:15:22Z",
+					"deleted": true,
+					"derp_enabled": true,
+					"derp_only": true,
+					"display_name": "string",
+					"healthy": true,
+					"icon_url": "string",
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"name": "string",
+					"path_app_url": "string",
+					"status": {
+						"checked_at": "2019-08-24T14:15:22Z",
+						"report": {
+							"errors": ["string"],
+							"warnings": ["string"]
+						},
+						"status": "ok"
+					},
+					"updated_at": "2019-08-24T14:15:22Z",
+					"version": "string",
+					"wildcard_hostname": "string"
+				}
+			]
+		}
+	}
 }
 ```
 
@@ -8618,39 +8620,39 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "dismissed": true,
-  "error": "string",
-  "items": [
-    {
-      "provisioner_daemon": {
-        "api_version": "string",
-        "created_at": "2019-08-24T14:15:22Z",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "last_seen_at": "2019-08-24T14:15:22Z",
-        "name": "string",
-        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "provisioners": ["string"],
-        "tags": {
-          "property1": "string",
-          "property2": "string"
-        },
-        "version": "string"
-      },
-      "warnings": [
-        {
-          "code": "EUNKNOWN",
-          "message": "string"
-        }
-      ]
-    }
-  ],
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
+	"dismissed": true,
+	"error": "string",
+	"items": [
+		{
+			"provisioner_daemon": {
+				"api_version": "string",
+				"created_at": "2019-08-24T14:15:22Z",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"last_seen_at": "2019-08-24T14:15:22Z",
+				"name": "string",
+				"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+				"provisioners": ["string"],
+				"tags": {
+					"property1": "string",
+					"property2": "string"
+				},
+				"version": "string"
+			},
+			"warnings": [
+				{
+					"code": "EUNKNOWN",
+					"message": "string"
+				}
+			]
+		}
+	],
+	"severity": "ok",
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	]
 }
 ```
 
@@ -8676,26 +8678,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "provisioner_daemon": {
-    "api_version": "string",
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "provisioners": ["string"],
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "version": "string"
-  },
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
+	"provisioner_daemon": {
+		"api_version": "string",
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"last_seen_at": "2019-08-24T14:15:22Z",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"provisioners": ["string"],
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"version": "string"
+	},
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	]
 }
 ```
 
@@ -8710,9 +8712,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "canSTUN": true,
-  "enabled": true,
-  "error": "string"
+	"canSTUN": true,
+	"enabled": true,
+	"error": "string"
 }
 ```
 
@@ -8728,7 +8730,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "dismissed_healthchecks": ["DERP"]
+	"dismissed_healthchecks": ["DERP"]
 }
 ```
 
@@ -8742,18 +8744,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "body": "string",
-  "code": 0,
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ]
+	"body": "string",
+	"code": 0,
+	"dismissed": true,
+	"error": "string",
+	"healthy": true,
+	"severity": "ok",
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	]
 }
 ```
 
@@ -8781,43 +8783,43 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "dismissed": true,
-  "error": "string",
-  "healthy": true,
-  "severity": "ok",
-  "warnings": [
-    {
-      "code": "EUNKNOWN",
-      "message": "string"
-    }
-  ],
-  "workspace_proxies": {
-    "regions": [
-      {
-        "created_at": "2019-08-24T14:15:22Z",
-        "deleted": true,
-        "derp_enabled": true,
-        "derp_only": true,
-        "display_name": "string",
-        "healthy": true,
-        "icon_url": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "name": "string",
-        "path_app_url": "string",
-        "status": {
-          "checked_at": "2019-08-24T14:15:22Z",
-          "report": {
-            "errors": ["string"],
-            "warnings": ["string"]
-          },
-          "status": "ok"
-        },
-        "updated_at": "2019-08-24T14:15:22Z",
-        "version": "string",
-        "wildcard_hostname": "string"
-      }
-    ]
-  }
+	"dismissed": true,
+	"error": "string",
+	"healthy": true,
+	"severity": "ok",
+	"warnings": [
+		{
+			"code": "EUNKNOWN",
+			"message": "string"
+		}
+	],
+	"workspace_proxies": {
+		"regions": [
+			{
+				"created_at": "2019-08-24T14:15:22Z",
+				"deleted": true,
+				"derp_enabled": true,
+				"derp_only": true,
+				"display_name": "string",
+				"healthy": true,
+				"icon_url": "string",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"name": "string",
+				"path_app_url": "string",
+				"status": {
+					"checked_at": "2019-08-24T14:15:22Z",
+					"report": {
+						"errors": ["string"],
+						"warnings": ["string"]
+					},
+					"status": "ok"
+				},
+				"updated_at": "2019-08-24T14:15:22Z",
+				"version": "string",
+				"wildcard_hostname": "string"
+			}
+		]
+	}
 }
 ```
 
@@ -8854,34 +8856,34 @@ _None_
 
 ```json
 {
-  "captivePortal": "string",
-  "globalV4": "string",
-  "globalV6": "string",
-  "hairPinning": "string",
-  "icmpv4": true,
-  "ipv4": true,
-  "ipv4CanSend": true,
-  "ipv6": true,
-  "ipv6CanSend": true,
-  "mappingVariesByDestIP": "string",
-  "oshasIPv6": true,
-  "pcp": "string",
-  "pmp": "string",
-  "preferredDERP": 0,
-  "regionLatency": {
-    "property1": 0,
-    "property2": 0
-  },
-  "regionV4Latency": {
-    "property1": 0,
-    "property2": 0
-  },
-  "regionV6Latency": {
-    "property1": 0,
-    "property2": 0
-  },
-  "udp": true,
-  "upnP": "string"
+	"captivePortal": "string",
+	"globalV4": "string",
+	"globalV6": "string",
+	"hairPinning": "string",
+	"icmpv4": true,
+	"ipv4": true,
+	"ipv4CanSend": true,
+	"ipv6": true,
+	"ipv6CanSend": true,
+	"mappingVariesByDestIP": "string",
+	"oshasIPv6": true,
+	"pcp": "string",
+	"pmp": "string",
+	"preferredDERP": 0,
+	"regionLatency": {
+		"property1": 0,
+		"property2": 0
+	},
+	"regionV4Latency": {
+		"property1": 0,
+		"property2": 0
+	},
+	"regionV6Latency": {
+		"property1": 0,
+		"property2": 0
+	},
+	"udp": true,
+	"upnP": "string"
 }
 ```
 
@@ -8916,10 +8918,10 @@ _None_
 
 ```json
 {
-  "access_token": "string",
-  "expiry": "string",
-  "refresh_token": "string",
-  "token_type": "string"
+	"access_token": "string",
+	"expiry": "string",
+	"refresh_token": "string",
+	"token_type": "string"
 }
 ```
 
@@ -8937,8 +8939,8 @@ _None_
 
 ```json
 {
-  "property1": "string",
-  "property2": "string"
+	"property1": "string",
+	"property2": "string"
 }
 ```
 
@@ -8952,15 +8954,15 @@ _None_
 
 ```json
 {
-  "description": "string",
-  "name": "string",
-  "parent": {
-    "description": "string",
-    "name": "string",
-    "parent": {},
-    "yaml": "string"
-  },
-  "yaml": "string"
+	"description": "string",
+	"name": "string",
+	"parent": {
+		"description": "string",
+		"name": "string",
+		"parent": {},
+		"yaml": "string"
+	},
+	"yaml": "string"
 }
 ```
 
@@ -8977,8 +8979,8 @@ _None_
 
 ```json
 {
-  "host": "string",
-  "port": "string"
+	"host": "string",
+	"port": "string"
 }
 ```
 
@@ -8993,63 +8995,63 @@ _None_
 
 ```json
 {
-  "annotations": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "default": "string",
-  "description": "string",
-  "env": "string",
-  "flag": "string",
-  "flag_shorthand": "string",
-  "group": {
-    "description": "string",
-    "name": "string",
-    "parent": {
-      "description": "string",
-      "name": "string",
-      "parent": {},
-      "yaml": "string"
-    },
-    "yaml": "string"
-  },
-  "hidden": true,
-  "name": "string",
-  "required": true,
-  "use_instead": [
-    {
-      "annotations": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "default": "string",
-      "description": "string",
-      "env": "string",
-      "flag": "string",
-      "flag_shorthand": "string",
-      "group": {
-        "description": "string",
-        "name": "string",
-        "parent": {
-          "description": "string",
-          "name": "string",
-          "parent": {},
-          "yaml": "string"
-        },
-        "yaml": "string"
-      },
-      "hidden": true,
-      "name": "string",
-      "required": true,
-      "use_instead": [],
-      "value": null,
-      "value_source": "",
-      "yaml": "string"
-    }
-  ],
-  "value": null,
-  "value_source": "",
-  "yaml": "string"
+	"annotations": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"default": "string",
+	"description": "string",
+	"env": "string",
+	"flag": "string",
+	"flag_shorthand": "string",
+	"group": {
+		"description": "string",
+		"name": "string",
+		"parent": {
+			"description": "string",
+			"name": "string",
+			"parent": {},
+			"yaml": "string"
+		},
+		"yaml": "string"
+	},
+	"hidden": true,
+	"name": "string",
+	"required": true,
+	"use_instead": [
+		{
+			"annotations": {
+				"property1": "string",
+				"property2": "string"
+			},
+			"default": "string",
+			"description": "string",
+			"env": "string",
+			"flag": "string",
+			"flag_shorthand": "string",
+			"group": {
+				"description": "string",
+				"name": "string",
+				"parent": {
+					"description": "string",
+					"name": "string",
+					"parent": {},
+					"yaml": "string"
+				},
+				"yaml": "string"
+			},
+			"hidden": true,
+			"name": "string",
+			"required": true,
+			"use_instead": [],
+			"value": null,
+			"value_source": "",
+			"yaml": "string"
+		}
+	],
+	"value": null,
+	"value_source": "",
+	"yaml": "string"
 }
 ```
 
@@ -9086,25 +9088,25 @@ _None_
 
 ```json
 {
-  "value": [
-    {
-      "app_install_url": "string",
-      "app_installations_url": "string",
-      "auth_url": "string",
-      "client_id": "string",
-      "device_code_url": "string",
-      "device_flow": true,
-      "display_icon": "string",
-      "display_name": "string",
-      "id": "string",
-      "no_refresh": true,
-      "regex": "string",
-      "scopes": ["string"],
-      "token_url": "string",
-      "type": "string",
-      "validate_url": "string"
-    }
-  ]
+	"value": [
+		{
+			"app_install_url": "string",
+			"app_installations_url": "string",
+			"auth_url": "string",
+			"client_id": "string",
+			"device_code_url": "string",
+			"device_flow": true,
+			"display_icon": "string",
+			"display_name": "string",
+			"id": "string",
+			"no_refresh": true,
+			"regex": "string",
+			"scopes": ["string"],
+			"token_url": "string",
+			"type": "string",
+			"validate_url": "string"
+		}
+	]
 }
 ```
 
@@ -9118,13 +9120,13 @@ _None_
 
 ```json
 {
-  "value": [
-    {
-      "icon": "bug",
-      "name": "string",
-      "target": "string"
-    }
-  ]
+	"value": [
+		{
+			"icon": "bug",
+			"name": "string",
+			"target": "string"
+		}
+	]
 }
 ```
 
@@ -9138,17 +9140,17 @@ _None_
 
 ```json
 {
-  "forceQuery": true,
-  "fragment": "string",
-  "host": "string",
-  "omitHost": true,
-  "opaque": "string",
-  "path": "string",
-  "rawFragment": "string",
-  "rawPath": "string",
-  "rawQuery": "string",
-  "scheme": "string",
-  "user": {}
+	"forceQuery": true,
+	"fragment": "string",
+	"host": "string",
+	"omitHost": true,
+	"opaque": "string",
+	"path": "string",
+	"rawFragment": "string",
+	"rawPath": "string",
+	"rawQuery": "string",
+	"scheme": "string",
+	"user": {}
 }
 ```
 
@@ -9190,10 +9192,10 @@ _None_
 
 ```json
 {
-  "regionScore": {
-    "property1": 0,
-    "property2": 0
-  }
+	"regionScore": {
+		"property1": 0,
+		"property2": 0
+	}
 }
 ```
 
@@ -9212,63 +9214,63 @@ A nil map means no change from the previous value (if any); an empty non-nil map
 
 ```json
 {
-  "homeParams": {
-    "regionScore": {
-      "property1": 0,
-      "property2": 0
-    }
-  },
-  "omitDefaultRegions": true,
-  "regions": {
-    "property1": {
-      "avoid": true,
-      "embeddedRelay": true,
-      "nodes": [
-        {
-          "canPort80": true,
-          "certName": "string",
-          "derpport": 0,
-          "forceHTTP": true,
-          "hostName": "string",
-          "insecureForTests": true,
-          "ipv4": "string",
-          "ipv6": "string",
-          "name": "string",
-          "regionID": 0,
-          "stunonly": true,
-          "stunport": 0,
-          "stuntestIP": "string"
-        }
-      ],
-      "regionCode": "string",
-      "regionID": 0,
-      "regionName": "string"
-    },
-    "property2": {
-      "avoid": true,
-      "embeddedRelay": true,
-      "nodes": [
-        {
-          "canPort80": true,
-          "certName": "string",
-          "derpport": 0,
-          "forceHTTP": true,
-          "hostName": "string",
-          "insecureForTests": true,
-          "ipv4": "string",
-          "ipv6": "string",
-          "name": "string",
-          "regionID": 0,
-          "stunonly": true,
-          "stunport": 0,
-          "stuntestIP": "string"
-        }
-      ],
-      "regionCode": "string",
-      "regionID": 0,
-      "regionName": "string"
-    }
-  }
+	"homeParams": {
+		"regionScore": {
+			"property1": 0,
+			"property2": 0
+		}
+	},
+	"omitDefaultRegions": true,
+	"regions": {
+		"property1": {
+			"avoid": true,
+			"embeddedRelay": true,
+			"nodes": [
+				{
+					"canPort80": true,
+					"certName": "string",
+					"derpport": 0,
+					"forceHTTP": true,
+					"hostName": "string",
+					"insecureForTests": true,
+					"ipv4": "string",
+					"ipv6": "string",
+					"name": "string",
+					"regionID": 0,
+					"stunonly": true,
+					"stunport": 0,
+					"stuntestIP": "string"
+				}
+			],
+			"regionCode": "string",
+			"regionID": 0,
+			"regionName": "string"
+		},
+		"property2": {
+			"avoid": true,
+			"embeddedRelay": true,
+			"nodes": [
+				{
+					"canPort80": true,
+					"certName": "string",
+					"derpport": 0,
+					"forceHTTP": true,
+					"hostName": "string",
+					"insecureForTests": true,
+					"ipv4": "string",
+					"ipv6": "string",
+					"name": "string",
+					"regionID": 0,
+					"stunonly": true,
+					"stunport": 0,
+					"stuntestIP": "string"
+				}
+			],
+			"regionCode": "string",
+			"regionID": 0,
+			"regionName": "string"
+		}
+	}
 }
 ```
 
@@ -9290,19 +9292,19 @@ The numbers are not necessarily contiguous.|
 
 ```json
 {
-  "canPort80": true,
-  "certName": "string",
-  "derpport": 0,
-  "forceHTTP": true,
-  "hostName": "string",
-  "insecureForTests": true,
-  "ipv4": "string",
-  "ipv6": "string",
-  "name": "string",
-  "regionID": 0,
-  "stunonly": true,
-  "stunport": 0,
-  "stuntestIP": "string"
+	"canPort80": true,
+	"certName": "string",
+	"derpport": 0,
+	"forceHTTP": true,
+	"hostName": "string",
+	"insecureForTests": true,
+	"ipv4": "string",
+	"ipv6": "string",
+	"name": "string",
+	"regionID": 0,
+	"stunonly": true,
+	"stunport": 0,
+	"stuntestIP": "string"
 }
 ```
 
@@ -9330,28 +9332,28 @@ The numbers are not necessarily contiguous.|
 
 ```json
 {
-  "avoid": true,
-  "embeddedRelay": true,
-  "nodes": [
-    {
-      "canPort80": true,
-      "certName": "string",
-      "derpport": 0,
-      "forceHTTP": true,
-      "hostName": "string",
-      "insecureForTests": true,
-      "ipv4": "string",
-      "ipv6": "string",
-      "name": "string",
-      "regionID": 0,
-      "stunonly": true,
-      "stunport": 0,
-      "stuntestIP": "string"
-    }
-  ],
-  "regionCode": "string",
-  "regionID": 0,
-  "regionName": "string"
+	"avoid": true,
+	"embeddedRelay": true,
+	"nodes": [
+		{
+			"canPort80": true,
+			"certName": "string",
+			"derpport": 0,
+			"forceHTTP": true,
+			"hostName": "string",
+			"insecureForTests": true,
+			"ipv4": "string",
+			"ipv6": "string",
+			"name": "string",
+			"regionID": 0,
+			"stunonly": true,
+			"stunport": 0,
+			"stuntestIP": "string"
+		}
+	],
+	"regionCode": "string",
+	"regionID": 0,
+	"regionName": "string"
 }
 ```
 
@@ -9401,20 +9403,20 @@ _None_
 
 ```json
 {
-  "app_hostname": "string",
-  "app_path": "string",
-  "app_query": "string",
-  "app_request": {
-    "access_method": "path",
-    "agent_name_or_id": "string",
-    "app_prefix": "string",
-    "app_slug_or_port": "string",
-    "base_path": "string",
-    "username_or_id": "string",
-    "workspace_name_or_id": "string"
-  },
-  "path_app_base_url": "string",
-  "session_token": "string"
+	"app_hostname": "string",
+	"app_path": "string",
+	"app_query": "string",
+	"app_request": {
+		"access_method": "path",
+		"agent_name_or_id": "string",
+		"app_prefix": "string",
+		"app_slug_or_port": "string",
+		"base_path": "string",
+		"username_or_id": "string",
+		"workspace_name_or_id": "string"
+	},
+	"path_app_base_url": "string",
+	"session_token": "string"
 }
 ```
 
@@ -9433,13 +9435,13 @@ _None_
 
 ```json
 {
-  "access_method": "path",
-  "agent_name_or_id": "string",
-  "app_prefix": "string",
-  "app_slug_or_port": "string",
-  "base_path": "string",
-  "username_or_id": "string",
-  "workspace_name_or_id": "string"
+	"access_method": "path",
+	"agent_name_or_id": "string",
+	"app_prefix": "string",
+	"app_slug_or_port": "string",
+	"base_path": "string",
+	"username_or_id": "string",
+	"workspace_name_or_id": "string"
 }
 ```
 
@@ -9459,15 +9461,15 @@ _None_
 
 ```json
 {
-  "access_method": "path",
-  "agent_id": "string",
-  "requests": 0,
-  "session_ended_at": "string",
-  "session_id": "string",
-  "session_started_at": "string",
-  "slug_or_port": "string",
-  "user_id": "string",
-  "workspace_id": "string"
+	"access_method": "path",
+	"agent_id": "string",
+	"requests": 0,
+	"session_ended_at": "string",
+	"session_id": "string",
+	"session_started_at": "string",
+	"slug_or_port": "string",
+	"user_id": "string",
+	"workspace_id": "string"
 }
 ```
 
@@ -9489,67 +9491,67 @@ _None_
 
 ```json
 {
-  "derp_force_websockets": true,
-  "derp_map": {
-    "homeParams": {
-      "regionScore": {
-        "property1": 0,
-        "property2": 0
-      }
-    },
-    "omitDefaultRegions": true,
-    "regions": {
-      "property1": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      },
-      "property2": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      }
-    }
-  },
-  "disable_direct_connections": true
+	"derp_force_websockets": true,
+	"derp_map": {
+		"homeParams": {
+			"regionScore": {
+				"property1": 0,
+				"property2": 0
+			}
+		},
+		"omitDefaultRegions": true,
+		"regions": {
+			"property1": {
+				"avoid": true,
+				"embeddedRelay": true,
+				"nodes": [
+					{
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					}
+				],
+				"regionCode": "string",
+				"regionID": 0,
+				"regionName": "string"
+			},
+			"property2": {
+				"avoid": true,
+				"embeddedRelay": true,
+				"nodes": [
+					{
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					}
+				],
+				"regionCode": "string",
+				"regionID": 0,
+				"regionName": "string"
+			}
+		}
+	},
+	"disable_direct_connections": true
 }
 ```
 
@@ -9565,7 +9567,7 @@ _None_
 
 ```json
 {
-  "replica_id": "string"
+	"replica_id": "string"
 }
 ```
 
@@ -9579,7 +9581,7 @@ _None_
 
 ```json
 {
-  "signed_token_str": "string"
+	"signed_token_str": "string"
 }
 ```
 
@@ -9593,15 +9595,15 @@ _None_
 
 ```json
 {
-  "access_url": "string",
-  "derp_enabled": true,
-  "derp_only": true,
-  "hostname": "string",
-  "replica_error": "string",
-  "replica_id": "string",
-  "replica_relay_address": "string",
-  "version": "string",
-  "wildcard_hostname": "string"
+	"access_url": "string",
+	"derp_enabled": true,
+	"derp_only": true,
+	"hostname": "string",
+	"replica_error": "string",
+	"replica_id": "string",
+	"replica_relay_address": "string",
+	"version": "string",
+	"wildcard_hostname": "string"
 }
 ```
 
@@ -9624,80 +9626,80 @@ _None_
 
 ```json
 {
-  "app_security_key": "string",
-  "derp_force_websockets": true,
-  "derp_map": {
-    "homeParams": {
-      "regionScore": {
-        "property1": 0,
-        "property2": 0
-      }
-    },
-    "omitDefaultRegions": true,
-    "regions": {
-      "property1": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      },
-      "property2": {
-        "avoid": true,
-        "embeddedRelay": true,
-        "nodes": [
-          {
-            "canPort80": true,
-            "certName": "string",
-            "derpport": 0,
-            "forceHTTP": true,
-            "hostName": "string",
-            "insecureForTests": true,
-            "ipv4": "string",
-            "ipv6": "string",
-            "name": "string",
-            "regionID": 0,
-            "stunonly": true,
-            "stunport": 0,
-            "stuntestIP": "string"
-          }
-        ],
-        "regionCode": "string",
-        "regionID": 0,
-        "regionName": "string"
-      }
-    }
-  },
-  "derp_mesh_key": "string",
-  "derp_region_id": 0,
-  "sibling_replicas": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "database_latency": 0,
-      "error": "string",
-      "hostname": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "region_id": 0,
-      "relay_address": "string"
-    }
-  ]
+	"app_security_key": "string",
+	"derp_force_websockets": true,
+	"derp_map": {
+		"homeParams": {
+			"regionScore": {
+				"property1": 0,
+				"property2": 0
+			}
+		},
+		"omitDefaultRegions": true,
+		"regions": {
+			"property1": {
+				"avoid": true,
+				"embeddedRelay": true,
+				"nodes": [
+					{
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					}
+				],
+				"regionCode": "string",
+				"regionID": 0,
+				"regionName": "string"
+			},
+			"property2": {
+				"avoid": true,
+				"embeddedRelay": true,
+				"nodes": [
+					{
+						"canPort80": true,
+						"certName": "string",
+						"derpport": 0,
+						"forceHTTP": true,
+						"hostName": "string",
+						"insecureForTests": true,
+						"ipv4": "string",
+						"ipv6": "string",
+						"name": "string",
+						"regionID": 0,
+						"stunonly": true,
+						"stunport": 0,
+						"stuntestIP": "string"
+					}
+				],
+				"regionCode": "string",
+				"regionID": 0,
+				"regionName": "string"
+			}
+		}
+	},
+	"derp_mesh_key": "string",
+	"derp_region_id": 0,
+	"sibling_replicas": [
+		{
+			"created_at": "2019-08-24T14:15:22Z",
+			"database_latency": 0,
+			"error": "string",
+			"hostname": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"region_id": 0,
+			"relay_address": "string"
+		}
+	]
 }
 ```
 
@@ -9716,19 +9718,19 @@ _None_
 
 ```json
 {
-  "stats": [
-    {
-      "access_method": "path",
-      "agent_id": "string",
-      "requests": 0,
-      "session_ended_at": "string",
-      "session_id": "string",
-      "session_started_at": "string",
-      "slug_or_port": "string",
-      "user_id": "string",
-      "workspace_id": "string"
-    }
-  ]
+	"stats": [
+		{
+			"access_method": "path",
+			"agent_id": "string",
+			"requests": 0,
+			"session_ended_at": "string",
+			"session_id": "string",
+			"session_started_at": "string",
+			"slug_or_port": "string",
+			"user_id": "string",
+			"workspace_id": "string"
+		}
+	]
 }
 ```
 

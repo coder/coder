@@ -149,6 +149,14 @@ DO UPDATE SET
 	updated_at = now() at time zone 'utc'
 RETURNING *;
 
+-- name: UpdateTailnetPeerStatusByCoordinator :exec
+UPDATE 
+	tailnet_peers
+SET
+	status = $2
+WHERE
+	coordinator_id = $1;
+
 -- name: DeleteTailnetPeer :one
 DELETE
 FROM tailnet_peers

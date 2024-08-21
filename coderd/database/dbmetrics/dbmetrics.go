@@ -529,6 +529,13 @@ func (m metricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid
 	return row, err
 }
 
+func (m metricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
+	m.queryLatencies.WithLabelValues("GetCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDBCryptKeys(ctx)
@@ -662,25 +669,11 @@ func (m metricsStore) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return r0, r1
 }
 
-func (m metricsStore) GetGroups(ctx context.Context) ([]database.Group, error) {
+func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetGroups(ctx)
+	r0, r1 := m.s.GetGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroups").Observe(time.Since(start).Seconds())
 	return r0, r1
-}
-
-func (m metricsStore) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetGroupsByOrganizationAndUserID(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationAndUserID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	start := time.Now()
-	groups, err := m.s.GetGroupsByOrganizationID(ctx, organizationID)
-	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationID").Observe(time.Since(start).Seconds())
-	return groups, err
 }
 
 func (m metricsStore) GetHealthSettings(ctx context.Context) (string, error) {
@@ -970,14 +963,14 @@ func (m metricsStore) GetProvisionerLogsAfterID(ctx context.Context, arg databas
 	return logs, err
 }
 
-func (m metricsStore) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (m metricsStore) GetQuotaAllowanceForUser(ctx context.Context, userID database.GetQuotaAllowanceForUserParams) (int64, error) {
 	start := time.Now()
 	allowance, err := m.s.GetQuotaAllowanceForUser(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetQuotaAllowanceForUser").Observe(time.Since(start).Seconds())
 	return allowance, err
 }
 
-func (m metricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+func (m metricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID database.GetQuotaConsumedForUserParams) (int64, error) {
 	start := time.Now()
 	consumed, err := m.s.GetQuotaConsumedForUser(ctx, ownerID)
 	m.queryLatencies.WithLabelValues("GetQuotaConsumedForUser").Observe(time.Since(start).Seconds())
@@ -1719,6 +1712,13 @@ func (m metricsStore) InsertProvisionerJobLogs(ctx context.Context, arg database
 	return logs, err
 }
 
+func (m metricsStore) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertProvisionerJobTimings(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertProvisionerJobTimings").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertProvisionerKey(ctx, arg)
@@ -2069,6 +2069,13 @@ func (m metricsStore) UpdateReplica(ctx context.Context, arg database.UpdateRepl
 	return replica, err
 }
 
+func (m metricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTailnetPeerStatusByCoordinator").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateACLByID(ctx, arg)
@@ -2381,6 +2388,13 @@ func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) e
 	start := time.Now()
 	r0 := m.s.UpsertApplicationName(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertApplicationName").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
 	return r0
 }
 

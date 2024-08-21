@@ -1033,6 +1033,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/groups": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get groups",
+                "operationId": "get-groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID or name",
+                        "name": "has_member",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Group"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/groups/{group}": {
             "get": {
                 "security": [
@@ -2764,6 +2808,48 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OrganizationMember"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/members/{user}/workspace-quota": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace quota by user",
+                "operationId": "get-workspace-quota-by-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceQuota"
                         }
                     }
                 }
@@ -6214,8 +6300,9 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Get workspace quota by user",
-                "operationId": "get-workspace-quota-by-user",
+                "summary": "Get workspace quota by user deprecated",
+                "operationId": "get-workspace-quota-by-user-deprecated",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -9175,6 +9262,14 @@ const docTemplate = `{
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
+                },
+                "max_port_share_level": {
+                    "description": "MaxPortShareLevel allows optionally specifying the maximum port share level\nfor workspaces created from the template.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentPortShareLevel"
+                        }
+                    ]
                 },
                 "name": {
                     "description": "Name is the name of the template.",

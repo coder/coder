@@ -50,7 +50,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	// Perm check is the template update check.
 	// nolint:gocritic
-	groups, err := api.Database.GetGroupsByOrganizationID(dbauthz.AsSystemRestricted(ctx), template.OrganizationID)
+	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		OrganizationID: template.OrganizationID,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -362,8 +364,12 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 			enabled := api.entitlements.Features[feat].Enabled
 			api.entitlementsMu.RUnlock()
 			if !enabled {
+				licenseType := "a Premium"
+				if feat.Enterprise() {
+					licenseType = "an Enterprise"
+				}
 				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-					Message: fmt.Sprintf("%s is an Enterprise feature. Contact sales!", feat.Humanize()),
+					Message: fmt.Sprintf("%s is %s feature. Contact sales!", feat.Humanize(), licenseType),
 				})
 				return
 			}

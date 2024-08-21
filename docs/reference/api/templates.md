@@ -25,53 +25,53 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ```json
 [
-  {
-    "active_user_count": 0,
-    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-    "activity_bump_ms": 0,
-    "allow_user_autostart": true,
-    "allow_user_autostop": true,
-    "allow_user_cancel_workspace_jobs": true,
-    "autostart_requirement": {
-      "days_of_week": ["monday"]
-    },
-    "autostop_requirement": {
-      "days_of_week": ["monday"],
-      "weeks": 0
-    },
-    "build_time_stats": {
-      "property1": {
-        "p50": 123,
-        "p95": 146
-      },
-      "property2": {
-        "p50": 123,
-        "p95": 146
-      }
-    },
-    "created_at": "2019-08-24T14:15:22Z",
-    "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-    "created_by_name": "string",
-    "default_ttl_ms": 0,
-    "deprecated": true,
-    "deprecation_message": "string",
-    "description": "string",
-    "display_name": "string",
-    "failure_ttl_ms": 0,
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "max_port_share_level": "owner",
-    "name": "string",
-    "organization_display_name": "string",
-    "organization_icon": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "organization_name": "string",
-    "provisioner": "terraform",
-    "require_active_version": true,
-    "time_til_dormant_autodelete_ms": 0,
-    "time_til_dormant_ms": 0,
-    "updated_at": "2019-08-24T14:15:22Z"
-  }
+	{
+		"active_user_count": 0,
+		"active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+		"activity_bump_ms": 0,
+		"allow_user_autostart": true,
+		"allow_user_autostop": true,
+		"allow_user_cancel_workspace_jobs": true,
+		"autostart_requirement": {
+			"days_of_week": ["monday"]
+		},
+		"autostop_requirement": {
+			"days_of_week": ["monday"],
+			"weeks": 0
+		},
+		"build_time_stats": {
+			"property1": {
+				"p50": 123,
+				"p95": 146
+			},
+			"property2": {
+				"p50": 123,
+				"p95": 146
+			}
+		},
+		"created_at": "2019-08-24T14:15:22Z",
+		"created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+		"created_by_name": "string",
+		"default_ttl_ms": 0,
+		"deprecated": true,
+		"deprecation_message": "string",
+		"description": "string",
+		"display_name": "string",
+		"failure_ttl_ms": 0,
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"max_port_share_level": "owner",
+		"name": "string",
+		"organization_display_name": "string",
+		"organization_icon": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"organization_name": "string",
+		"provisioner": "terraform",
+		"require_active_version": true,
+		"time_til_dormant_autodelete_ms": 0,
+		"time_til_dormant_ms": 0,
+		"updated_at": "2019-08-24T14:15:22Z"
+	}
 ]
 ```
 
@@ -156,28 +156,29 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
-  "activity_bump_ms": 0,
-  "allow_user_autostart": true,
-  "allow_user_autostop": true,
-  "allow_user_cancel_workspace_jobs": true,
-  "autostart_requirement": {
-    "days_of_week": ["monday"]
-  },
-  "autostop_requirement": {
-    "days_of_week": ["monday"],
-    "weeks": 0
-  },
-  "default_ttl_ms": 0,
-  "delete_ttl_ms": 0,
-  "description": "string",
-  "disable_everyone_group_access": true,
-  "display_name": "string",
-  "dormant_ttl_ms": 0,
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "name": "string",
-  "require_active_version": true,
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+	"activity_bump_ms": 0,
+	"allow_user_autostart": true,
+	"allow_user_autostop": true,
+	"allow_user_cancel_workspace_jobs": true,
+	"autostart_requirement": {
+		"days_of_week": ["monday"]
+	},
+	"autostop_requirement": {
+		"days_of_week": ["monday"],
+		"weeks": 0
+	},
+	"default_ttl_ms": 0,
+	"delete_ttl_ms": 0,
+	"description": "string",
+	"disable_everyone_group_access": true,
+	"display_name": "string",
+	"dormant_ttl_ms": 0,
+	"failure_ttl_ms": 0,
+	"icon": "string",
+	"max_port_share_level": "owner",
+	"name": "string",
+	"require_active_version": true,
+	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
@@ -194,51 +195,51 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
-  "active_user_count": 0,
-  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-  "activity_bump_ms": 0,
-  "allow_user_autostart": true,
-  "allow_user_autostop": true,
-  "allow_user_cancel_workspace_jobs": true,
-  "autostart_requirement": {
-    "days_of_week": ["monday"]
-  },
-  "autostop_requirement": {
-    "days_of_week": ["monday"],
-    "weeks": 0
-  },
-  "build_time_stats": {
-    "property1": {
-      "p50": 123,
-      "p95": 146
-    },
-    "property2": {
-      "p50": 123,
-      "p95": 146
-    }
-  },
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-  "created_by_name": "string",
-  "default_ttl_ms": 0,
-  "deprecated": true,
-  "deprecation_message": "string",
-  "description": "string",
-  "display_name": "string",
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "max_port_share_level": "owner",
-  "name": "string",
-  "organization_display_name": "string",
-  "organization_icon": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_name": "string",
-  "provisioner": "terraform",
-  "require_active_version": true,
-  "time_til_dormant_autodelete_ms": 0,
-  "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+	"active_user_count": 0,
+	"active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+	"activity_bump_ms": 0,
+	"allow_user_autostart": true,
+	"allow_user_autostop": true,
+	"allow_user_cancel_workspace_jobs": true,
+	"autostart_requirement": {
+		"days_of_week": ["monday"]
+	},
+	"autostop_requirement": {
+		"days_of_week": ["monday"],
+		"weeks": 0
+	},
+	"build_time_stats": {
+		"property1": {
+			"p50": 123,
+			"p95": 146
+		},
+		"property2": {
+			"p50": 123,
+			"p95": 146
+		}
+	},
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+	"created_by_name": "string",
+	"default_ttl_ms": 0,
+	"deprecated": true,
+	"deprecation_message": "string",
+	"description": "string",
+	"display_name": "string",
+	"failure_ttl_ms": 0,
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"max_port_share_level": "owner",
+	"name": "string",
+	"organization_display_name": "string",
+	"organization_icon": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_name": "string",
+	"provisioner": "terraform",
+	"require_active_version": true,
+	"time_til_dormant_autodelete_ms": 0,
+	"time_til_dormant_ms": 0,
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -275,15 +276,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ```json
 [
-  {
-    "description": "string",
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "markdown": "string",
-    "name": "string",
-    "tags": ["string"],
-    "url": "string"
-  }
+	{
+		"description": "string",
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"markdown": "string",
+		"name": "string",
+		"tags": ["string"],
+		"url": "string"
+	}
 ]
 ```
 
@@ -336,51 +337,51 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ```json
 {
-  "active_user_count": 0,
-  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-  "activity_bump_ms": 0,
-  "allow_user_autostart": true,
-  "allow_user_autostop": true,
-  "allow_user_cancel_workspace_jobs": true,
-  "autostart_requirement": {
-    "days_of_week": ["monday"]
-  },
-  "autostop_requirement": {
-    "days_of_week": ["monday"],
-    "weeks": 0
-  },
-  "build_time_stats": {
-    "property1": {
-      "p50": 123,
-      "p95": 146
-    },
-    "property2": {
-      "p50": 123,
-      "p95": 146
-    }
-  },
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-  "created_by_name": "string",
-  "default_ttl_ms": 0,
-  "deprecated": true,
-  "deprecation_message": "string",
-  "description": "string",
-  "display_name": "string",
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "max_port_share_level": "owner",
-  "name": "string",
-  "organization_display_name": "string",
-  "organization_icon": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_name": "string",
-  "provisioner": "terraform",
-  "require_active_version": true,
-  "time_til_dormant_autodelete_ms": 0,
-  "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+	"active_user_count": 0,
+	"active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+	"activity_bump_ms": 0,
+	"allow_user_autostart": true,
+	"allow_user_autostop": true,
+	"allow_user_cancel_workspace_jobs": true,
+	"autostart_requirement": {
+		"days_of_week": ["monday"]
+	},
+	"autostop_requirement": {
+		"days_of_week": ["monday"],
+		"weeks": 0
+	},
+	"build_time_stats": {
+		"property1": {
+			"p50": 123,
+			"p95": 146
+		},
+		"property2": {
+			"p50": 123,
+			"p95": 146
+		}
+	},
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+	"created_by_name": "string",
+	"default_ttl_ms": 0,
+	"deprecated": true,
+	"deprecation_message": "string",
+	"description": "string",
+	"display_name": "string",
+	"failure_ttl_ms": 0,
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"max_port_share_level": "owner",
+	"name": "string",
+	"organization_display_name": "string",
+	"organization_icon": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_name": "string",
+	"provisioner": "terraform",
+	"require_active_version": true,
+	"time_til_dormant_autodelete_ms": 0,
+	"time_til_dormant_ms": 0,
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -419,39 +420,39 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ```json
 {
-  "archived": true,
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "username": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "queue_position": 0,
-    "queue_size": 0,
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "message": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "readme": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["UNSUPPORTED_WORKSPACES"]
+	"archived": true,
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by": {
+		"avatar_url": "http://example.com",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"username": "string"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"job": {
+		"canceled_at": "2019-08-24T14:15:22Z",
+		"completed_at": "2019-08-24T14:15:22Z",
+		"created_at": "2019-08-24T14:15:22Z",
+		"error": "string",
+		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"queue_position": 0,
+		"queue_size": 0,
+		"started_at": "2019-08-24T14:15:22Z",
+		"status": "pending",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	},
+	"message": "string",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"readme": "string",
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -490,39 +491,39 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ```json
 {
-  "archived": true,
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "username": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "queue_position": 0,
-    "queue_size": 0,
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "message": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "readme": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["UNSUPPORTED_WORKSPACES"]
+	"archived": true,
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by": {
+		"avatar_url": "http://example.com",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"username": "string"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"job": {
+		"canceled_at": "2019-08-24T14:15:22Z",
+		"completed_at": "2019-08-24T14:15:22Z",
+		"created_at": "2019-08-24T14:15:22Z",
+		"error": "string",
+		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"queue_position": 0,
+		"queue_size": 0,
+		"started_at": "2019-08-24T14:15:22Z",
+		"status": "pending",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	},
+	"message": "string",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"readme": "string",
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -552,23 +553,23 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
-  "example_id": "string",
-  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-  "message": "string",
-  "name": "string",
-  "provisioner": "terraform",
-  "storage_method": "file",
-  "tags": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "user_variable_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ]
+	"example_id": "string",
+	"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+	"message": "string",
+	"name": "string",
+	"provisioner": "terraform",
+	"storage_method": "file",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"user_variable_values": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	]
 }
 ```
 
@@ -585,39 +586,39 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
-  "archived": true,
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "username": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "queue_position": 0,
-    "queue_size": 0,
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "message": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "readme": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["UNSUPPORTED_WORKSPACES"]
+	"archived": true,
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by": {
+		"avatar_url": "http://example.com",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"username": "string"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"job": {
+		"canceled_at": "2019-08-24T14:15:22Z",
+		"completed_at": "2019-08-24T14:15:22Z",
+		"created_at": "2019-08-24T14:15:22Z",
+		"error": "string",
+		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"queue_position": 0,
+		"queue_size": 0,
+		"started_at": "2019-08-24T14:15:22Z",
+		"status": "pending",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	},
+	"message": "string",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"readme": "string",
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -648,53 +649,53 @@ curl -X GET http://coder-server:8080/api/v2/templates \
 
 ```json
 [
-  {
-    "active_user_count": 0,
-    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-    "activity_bump_ms": 0,
-    "allow_user_autostart": true,
-    "allow_user_autostop": true,
-    "allow_user_cancel_workspace_jobs": true,
-    "autostart_requirement": {
-      "days_of_week": ["monday"]
-    },
-    "autostop_requirement": {
-      "days_of_week": ["monday"],
-      "weeks": 0
-    },
-    "build_time_stats": {
-      "property1": {
-        "p50": 123,
-        "p95": 146
-      },
-      "property2": {
-        "p50": 123,
-        "p95": 146
-      }
-    },
-    "created_at": "2019-08-24T14:15:22Z",
-    "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-    "created_by_name": "string",
-    "default_ttl_ms": 0,
-    "deprecated": true,
-    "deprecation_message": "string",
-    "description": "string",
-    "display_name": "string",
-    "failure_ttl_ms": 0,
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "max_port_share_level": "owner",
-    "name": "string",
-    "organization_display_name": "string",
-    "organization_icon": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "organization_name": "string",
-    "provisioner": "terraform",
-    "require_active_version": true,
-    "time_til_dormant_autodelete_ms": 0,
-    "time_til_dormant_ms": 0,
-    "updated_at": "2019-08-24T14:15:22Z"
-  }
+	{
+		"active_user_count": 0,
+		"active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+		"activity_bump_ms": 0,
+		"allow_user_autostart": true,
+		"allow_user_autostop": true,
+		"allow_user_cancel_workspace_jobs": true,
+		"autostart_requirement": {
+			"days_of_week": ["monday"]
+		},
+		"autostop_requirement": {
+			"days_of_week": ["monday"],
+			"weeks": 0
+		},
+		"build_time_stats": {
+			"property1": {
+				"p50": 123,
+				"p95": 146
+			},
+			"property2": {
+				"p50": 123,
+				"p95": 146
+			}
+		},
+		"created_at": "2019-08-24T14:15:22Z",
+		"created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+		"created_by_name": "string",
+		"default_ttl_ms": 0,
+		"deprecated": true,
+		"deprecation_message": "string",
+		"description": "string",
+		"display_name": "string",
+		"failure_ttl_ms": 0,
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"max_port_share_level": "owner",
+		"name": "string",
+		"organization_display_name": "string",
+		"organization_icon": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"organization_name": "string",
+		"provisioner": "terraform",
+		"require_active_version": true,
+		"time_til_dormant_autodelete_ms": 0,
+		"time_til_dormant_ms": 0,
+		"updated_at": "2019-08-24T14:15:22Z"
+	}
 ]
 ```
 
@@ -780,15 +781,15 @@ curl -X GET http://coder-server:8080/api/v2/templates/examples \
 
 ```json
 [
-  {
-    "description": "string",
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "markdown": "string",
-    "name": "string",
-    "tags": ["string"],
-    "url": "string"
-  }
+	{
+		"description": "string",
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"markdown": "string",
+		"name": "string",
+		"tags": ["string"],
+		"url": "string"
+	}
 ]
 ```
 
@@ -840,51 +841,51 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
 
 ```json
 {
-  "active_user_count": 0,
-  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-  "activity_bump_ms": 0,
-  "allow_user_autostart": true,
-  "allow_user_autostop": true,
-  "allow_user_cancel_workspace_jobs": true,
-  "autostart_requirement": {
-    "days_of_week": ["monday"]
-  },
-  "autostop_requirement": {
-    "days_of_week": ["monday"],
-    "weeks": 0
-  },
-  "build_time_stats": {
-    "property1": {
-      "p50": 123,
-      "p95": 146
-    },
-    "property2": {
-      "p50": 123,
-      "p95": 146
-    }
-  },
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-  "created_by_name": "string",
-  "default_ttl_ms": 0,
-  "deprecated": true,
-  "deprecation_message": "string",
-  "description": "string",
-  "display_name": "string",
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "max_port_share_level": "owner",
-  "name": "string",
-  "organization_display_name": "string",
-  "organization_icon": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_name": "string",
-  "provisioner": "terraform",
-  "require_active_version": true,
-  "time_til_dormant_autodelete_ms": 0,
-  "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+	"active_user_count": 0,
+	"active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+	"activity_bump_ms": 0,
+	"allow_user_autostart": true,
+	"allow_user_autostop": true,
+	"allow_user_cancel_workspace_jobs": true,
+	"autostart_requirement": {
+		"days_of_week": ["monday"]
+	},
+	"autostop_requirement": {
+		"days_of_week": ["monday"],
+		"weeks": 0
+	},
+	"build_time_stats": {
+		"property1": {
+			"p50": 123,
+			"p95": 146
+		},
+		"property2": {
+			"p50": 123,
+			"p95": 146
+		}
+	},
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+	"created_by_name": "string",
+	"default_ttl_ms": 0,
+	"deprecated": true,
+	"deprecation_message": "string",
+	"description": "string",
+	"display_name": "string",
+	"failure_ttl_ms": 0,
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"max_port_share_level": "owner",
+	"name": "string",
+	"organization_display_name": "string",
+	"organization_icon": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_name": "string",
+	"provisioner": "terraform",
+	"require_active_version": true,
+	"time_til_dormant_autodelete_ms": 0,
+	"time_til_dormant_ms": 0,
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -921,14 +922,14 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -965,51 +966,51 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
 
 ```json
 {
-  "active_user_count": 0,
-  "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
-  "activity_bump_ms": 0,
-  "allow_user_autostart": true,
-  "allow_user_autostop": true,
-  "allow_user_cancel_workspace_jobs": true,
-  "autostart_requirement": {
-    "days_of_week": ["monday"]
-  },
-  "autostop_requirement": {
-    "days_of_week": ["monday"],
-    "weeks": 0
-  },
-  "build_time_stats": {
-    "property1": {
-      "p50": 123,
-      "p95": 146
-    },
-    "property2": {
-      "p50": 123,
-      "p95": 146
-    }
-  },
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
-  "created_by_name": "string",
-  "default_ttl_ms": 0,
-  "deprecated": true,
-  "deprecation_message": "string",
-  "description": "string",
-  "display_name": "string",
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "max_port_share_level": "owner",
-  "name": "string",
-  "organization_display_name": "string",
-  "organization_icon": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_name": "string",
-  "provisioner": "terraform",
-  "require_active_version": true,
-  "time_til_dormant_autodelete_ms": 0,
-  "time_til_dormant_ms": 0,
-  "updated_at": "2019-08-24T14:15:22Z"
+	"active_user_count": 0,
+	"active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+	"activity_bump_ms": 0,
+	"allow_user_autostart": true,
+	"allow_user_autostop": true,
+	"allow_user_cancel_workspace_jobs": true,
+	"autostart_requirement": {
+		"days_of_week": ["monday"]
+	},
+	"autostop_requirement": {
+		"days_of_week": ["monday"],
+		"weeks": 0
+	},
+	"build_time_stats": {
+		"property1": {
+			"p50": 123,
+			"p95": 146
+		},
+		"property2": {
+			"p50": 123,
+			"p95": 146
+		}
+	},
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+	"created_by_name": "string",
+	"default_ttl_ms": 0,
+	"deprecated": true,
+	"deprecation_message": "string",
+	"description": "string",
+	"display_name": "string",
+	"failure_ttl_ms": 0,
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"max_port_share_level": "owner",
+	"name": "string",
+	"organization_display_name": "string",
+	"organization_icon": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_name": "string",
+	"provisioner": "terraform",
+	"require_active_version": true,
+	"time_til_dormant_autodelete_ms": 0,
+	"time_til_dormant_ms": 0,
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -1046,13 +1047,13 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
 
 ```json
 {
-  "entries": [
-    {
-      "amount": 0,
-      "date": "string"
-    }
-  ],
-  "tz_hour_offset": 0
+	"entries": [
+		{
+			"amount": 0,
+			"date": "string"
+		}
+	],
+	"tz_hour_offset": 0
 }
 ```
 
@@ -1093,41 +1094,41 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
 
 ```json
 [
-  {
-    "archived": true,
-    "created_at": "2019-08-24T14:15:22Z",
-    "created_by": {
-      "avatar_url": "http://example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "username": "string"
-    },
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "job": {
-      "canceled_at": "2019-08-24T14:15:22Z",
-      "completed_at": "2019-08-24T14:15:22Z",
-      "created_at": "2019-08-24T14:15:22Z",
-      "error": "string",
-      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "queue_position": 0,
-      "queue_size": 0,
-      "started_at": "2019-08-24T14:15:22Z",
-      "status": "pending",
-      "tags": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-    },
-    "message": "string",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "readme": "string",
-    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "warnings": ["UNSUPPORTED_WORKSPACES"]
-  }
+	{
+		"archived": true,
+		"created_at": "2019-08-24T14:15:22Z",
+		"created_by": {
+			"avatar_url": "http://example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"username": "string"
+		},
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"job": {
+			"canceled_at": "2019-08-24T14:15:22Z",
+			"completed_at": "2019-08-24T14:15:22Z",
+			"created_at": "2019-08-24T14:15:22Z",
+			"error": "string",
+			"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+			"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"queue_position": 0,
+			"queue_size": 0,
+			"started_at": "2019-08-24T14:15:22Z",
+			"status": "pending",
+			"tags": {
+				"property1": "string",
+				"property2": "string"
+			},
+			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+		},
+		"message": "string",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"readme": "string",
+		"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+		"updated_at": "2019-08-24T14:15:22Z",
+		"warnings": ["UNSUPPORTED_WORKSPACES"]
+	}
 ]
 ```
 
@@ -1206,7 +1207,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
 
 ```json
 {
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
 }
 ```
 
@@ -1223,14 +1224,14 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -1260,7 +1261,7 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archi
 
 ```json
 {
-  "all": true
+	"all": true
 }
 ```
 
@@ -1277,14 +1278,14 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archi
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -1322,41 +1323,41 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
 
 ```json
 [
-  {
-    "archived": true,
-    "created_at": "2019-08-24T14:15:22Z",
-    "created_by": {
-      "avatar_url": "http://example.com",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "username": "string"
-    },
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "job": {
-      "canceled_at": "2019-08-24T14:15:22Z",
-      "completed_at": "2019-08-24T14:15:22Z",
-      "created_at": "2019-08-24T14:15:22Z",
-      "error": "string",
-      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "queue_position": 0,
-      "queue_size": 0,
-      "started_at": "2019-08-24T14:15:22Z",
-      "status": "pending",
-      "tags": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-    },
-    "message": "string",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "readme": "string",
-    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "warnings": ["UNSUPPORTED_WORKSPACES"]
-  }
+	{
+		"archived": true,
+		"created_at": "2019-08-24T14:15:22Z",
+		"created_by": {
+			"avatar_url": "http://example.com",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"username": "string"
+		},
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"job": {
+			"canceled_at": "2019-08-24T14:15:22Z",
+			"completed_at": "2019-08-24T14:15:22Z",
+			"created_at": "2019-08-24T14:15:22Z",
+			"error": "string",
+			"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+			"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"queue_position": 0,
+			"queue_size": 0,
+			"started_at": "2019-08-24T14:15:22Z",
+			"status": "pending",
+			"tags": {
+				"property1": "string",
+				"property2": "string"
+			},
+			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+		},
+		"message": "string",
+		"name": "string",
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"readme": "string",
+		"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+		"updated_at": "2019-08-24T14:15:22Z",
+		"warnings": ["UNSUPPORTED_WORKSPACES"]
+	}
 ]
 ```
 
@@ -1442,39 +1443,39 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
 
 ```json
 {
-  "archived": true,
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "username": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "queue_position": 0,
-    "queue_size": 0,
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "message": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "readme": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["UNSUPPORTED_WORKSPACES"]
+	"archived": true,
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by": {
+		"avatar_url": "http://example.com",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"username": "string"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"job": {
+		"canceled_at": "2019-08-24T14:15:22Z",
+		"completed_at": "2019-08-24T14:15:22Z",
+		"created_at": "2019-08-24T14:15:22Z",
+		"error": "string",
+		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"queue_position": 0,
+		"queue_size": 0,
+		"started_at": "2019-08-24T14:15:22Z",
+		"status": "pending",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	},
+	"message": "string",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"readme": "string",
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -1504,8 +1505,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 ```json
 {
-  "message": "string",
-  "name": "string"
+	"message": "string",
+	"name": "string"
 }
 ```
 
@@ -1522,39 +1523,39 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 ```json
 {
-  "archived": true,
-  "created_at": "2019-08-24T14:15:22Z",
-  "created_by": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "username": "string"
-  },
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "job": {
-    "canceled_at": "2019-08-24T14:15:22Z",
-    "completed_at": "2019-08-24T14:15:22Z",
-    "created_at": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "queue_position": 0,
-    "queue_size": 0,
-    "started_at": "2019-08-24T14:15:22Z",
-    "status": "pending",
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-  },
-  "message": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "readme": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": ["UNSUPPORTED_WORKSPACES"]
+	"archived": true,
+	"created_at": "2019-08-24T14:15:22Z",
+	"created_by": {
+		"avatar_url": "http://example.com",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"username": "string"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"job": {
+		"canceled_at": "2019-08-24T14:15:22Z",
+		"completed_at": "2019-08-24T14:15:22Z",
+		"created_at": "2019-08-24T14:15:22Z",
+		"error": "string",
+		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"queue_position": 0,
+		"queue_size": 0,
+		"started_at": "2019-08-24T14:15:22Z",
+		"status": "pending",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		},
+		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	},
+	"message": "string",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"readme": "string",
+	"template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"warnings": ["UNSUPPORTED_WORKSPACES"]
 }
 ```
 
@@ -1591,14 +1592,14 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -1635,14 +1636,14 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -1672,19 +1673,19 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 ```json
 {
-  "rich_parameter_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ],
-  "user_variable_values": [
-    {
-      "name": "string",
-      "value": "string"
-    }
-  ],
-  "workspace_name": "string"
+	"rich_parameter_values": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"user_variable_values": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"workspace_name": "string"
 }
 ```
 
@@ -1701,22 +1702,22 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 ```json
 {
-  "canceled_at": "2019-08-24T14:15:22Z",
-  "completed_at": "2019-08-24T14:15:22Z",
-  "created_at": "2019-08-24T14:15:22Z",
-  "error": "string",
-  "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "queue_position": 0,
-  "queue_size": 0,
-  "started_at": "2019-08-24T14:15:22Z",
-  "status": "pending",
-  "tags": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	"canceled_at": "2019-08-24T14:15:22Z",
+	"completed_at": "2019-08-24T14:15:22Z",
+	"created_at": "2019-08-24T14:15:22Z",
+	"error": "string",
+	"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+	"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"queue_position": 0,
+	"queue_size": 0,
+	"started_at": "2019-08-24T14:15:22Z",
+	"status": "pending",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 }
 ```
 
@@ -1754,22 +1755,22 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 ```json
 {
-  "canceled_at": "2019-08-24T14:15:22Z",
-  "completed_at": "2019-08-24T14:15:22Z",
-  "created_at": "2019-08-24T14:15:22Z",
-  "error": "string",
-  "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "queue_position": 0,
-  "queue_size": 0,
-  "started_at": "2019-08-24T14:15:22Z",
-  "status": "pending",
-  "tags": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+	"canceled_at": "2019-08-24T14:15:22Z",
+	"completed_at": "2019-08-24T14:15:22Z",
+	"created_at": "2019-08-24T14:15:22Z",
+	"error": "string",
+	"error_code": "REQUIRED_TEMPLATE_VARIABLES",
+	"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"queue_position": 0,
+	"queue_size": 0,
+	"started_at": "2019-08-24T14:15:22Z",
+	"status": "pending",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 }
 ```
 
@@ -1807,14 +1808,14 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -1855,14 +1856,14 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 ```json
 [
-  {
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": 0,
-    "log_level": "trace",
-    "log_source": "provisioner_daemon",
-    "output": "string",
-    "stage": "string"
-  }
+	{
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": 0,
+		"log_level": "trace",
+		"log_source": "provisioner_daemon",
+		"output": "string",
+		"stage": "string"
+	}
 ]
 ```
 
@@ -1926,113 +1927,113 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
 
 ```json
 [
-  {
-    "agents": [
-      {
-        "api_version": "string",
-        "apps": [
-          {
-            "command": "string",
-            "display_name": "string",
-            "external": true,
-            "health": "disabled",
-            "healthcheck": {
-              "interval": 0,
-              "threshold": 0,
-              "url": "string"
-            },
-            "icon": "string",
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "sharing_level": "owner",
-            "slug": "string",
-            "subdomain": true,
-            "subdomain_name": "string",
-            "url": "string"
-          }
-        ],
-        "architecture": "string",
-        "connection_timeout_seconds": 0,
-        "created_at": "2019-08-24T14:15:22Z",
-        "directory": "string",
-        "disconnected_at": "2019-08-24T14:15:22Z",
-        "display_apps": ["vscode"],
-        "environment_variables": {
-          "property1": "string",
-          "property2": "string"
-        },
-        "expanded_directory": "string",
-        "first_connected_at": "2019-08-24T14:15:22Z",
-        "health": {
-          "healthy": false,
-          "reason": "agent has lost connection"
-        },
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "instance_id": "string",
-        "last_connected_at": "2019-08-24T14:15:22Z",
-        "latency": {
-          "property1": {
-            "latency_ms": 0,
-            "preferred": true
-          },
-          "property2": {
-            "latency_ms": 0,
-            "preferred": true
-          }
-        },
-        "lifecycle_state": "created",
-        "log_sources": [
-          {
-            "created_at": "2019-08-24T14:15:22Z",
-            "display_name": "string",
-            "icon": "string",
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-          }
-        ],
-        "logs_length": 0,
-        "logs_overflowed": true,
-        "name": "string",
-        "operating_system": "string",
-        "ready_at": "2019-08-24T14:15:22Z",
-        "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-        "scripts": [
-          {
-            "cron": "string",
-            "log_path": "string",
-            "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-            "run_on_start": true,
-            "run_on_stop": true,
-            "script": "string",
-            "start_blocks_login": true,
-            "timeout": 0
-          }
-        ],
-        "started_at": "2019-08-24T14:15:22Z",
-        "startup_script_behavior": "blocking",
-        "status": "connecting",
-        "subsystems": ["envbox"],
-        "troubleshooting_url": "string",
-        "updated_at": "2019-08-24T14:15:22Z",
-        "version": "string"
-      }
-    ],
-    "created_at": "2019-08-24T14:15:22Z",
-    "daily_cost": 0,
-    "hide": true,
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-    "metadata": [
-      {
-        "key": "string",
-        "sensitive": true,
-        "value": "string"
-      }
-    ],
-    "name": "string",
-    "type": "string",
-    "workspace_transition": "start"
-  }
+	{
+		"agents": [
+			{
+				"api_version": "string",
+				"apps": [
+					{
+						"command": "string",
+						"display_name": "string",
+						"external": true,
+						"health": "disabled",
+						"healthcheck": {
+							"interval": 0,
+							"threshold": 0,
+							"url": "string"
+						},
+						"icon": "string",
+						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+						"sharing_level": "owner",
+						"slug": "string",
+						"subdomain": true,
+						"subdomain_name": "string",
+						"url": "string"
+					}
+				],
+				"architecture": "string",
+				"connection_timeout_seconds": 0,
+				"created_at": "2019-08-24T14:15:22Z",
+				"directory": "string",
+				"disconnected_at": "2019-08-24T14:15:22Z",
+				"display_apps": ["vscode"],
+				"environment_variables": {
+					"property1": "string",
+					"property2": "string"
+				},
+				"expanded_directory": "string",
+				"first_connected_at": "2019-08-24T14:15:22Z",
+				"health": {
+					"healthy": false,
+					"reason": "agent has lost connection"
+				},
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"instance_id": "string",
+				"last_connected_at": "2019-08-24T14:15:22Z",
+				"latency": {
+					"property1": {
+						"latency_ms": 0,
+						"preferred": true
+					},
+					"property2": {
+						"latency_ms": 0,
+						"preferred": true
+					}
+				},
+				"lifecycle_state": "created",
+				"log_sources": [
+					{
+						"created_at": "2019-08-24T14:15:22Z",
+						"display_name": "string",
+						"icon": "string",
+						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+						"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+					}
+				],
+				"logs_length": 0,
+				"logs_overflowed": true,
+				"name": "string",
+				"operating_system": "string",
+				"ready_at": "2019-08-24T14:15:22Z",
+				"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+				"scripts": [
+					{
+						"cron": "string",
+						"log_path": "string",
+						"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+						"run_on_start": true,
+						"run_on_stop": true,
+						"script": "string",
+						"start_blocks_login": true,
+						"timeout": 0
+					}
+				],
+				"started_at": "2019-08-24T14:15:22Z",
+				"startup_script_behavior": "blocking",
+				"status": "connecting",
+				"subsystems": ["envbox"],
+				"troubleshooting_url": "string",
+				"updated_at": "2019-08-24T14:15:22Z",
+				"version": "string"
+			}
+		],
+		"created_at": "2019-08-24T14:15:22Z",
+		"daily_cost": 0,
+		"hide": true,
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+		"metadata": [
+			{
+				"key": "string",
+				"sensitive": true,
+				"value": "string"
+			}
+		],
+		"name": "string",
+		"type": "string",
+		"workspace_transition": "start"
+	}
 ]
 ```
 
@@ -2187,15 +2188,15 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
 
 ```json
 [
-  {
-    "authenticate_url": "string",
-    "authenticated": true,
-    "display_icon": "string",
-    "display_name": "string",
-    "id": "string",
-    "optional": true,
-    "type": "string"
-  }
+	{
+		"authenticate_url": "string",
+		"authenticated": true,
+		"display_icon": "string",
+		"display_name": "string",
+		"id": "string",
+		"optional": true,
+		"type": "string"
+	}
 ]
 ```
 
@@ -2250,14 +2251,14 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
 
 ```json
 [
-  {
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": 0,
-    "log_level": "trace",
-    "log_source": "provisioner_daemon",
-    "output": "string",
-    "stage": "string"
-  }
+	{
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": 0,
+		"log_level": "trace",
+		"log_source": "provisioner_daemon",
+		"output": "string",
+		"stage": "string"
+	}
 ]
 ```
 
@@ -2346,113 +2347,113 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 
 ```json
 [
-  {
-    "agents": [
-      {
-        "api_version": "string",
-        "apps": [
-          {
-            "command": "string",
-            "display_name": "string",
-            "external": true,
-            "health": "disabled",
-            "healthcheck": {
-              "interval": 0,
-              "threshold": 0,
-              "url": "string"
-            },
-            "icon": "string",
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "sharing_level": "owner",
-            "slug": "string",
-            "subdomain": true,
-            "subdomain_name": "string",
-            "url": "string"
-          }
-        ],
-        "architecture": "string",
-        "connection_timeout_seconds": 0,
-        "created_at": "2019-08-24T14:15:22Z",
-        "directory": "string",
-        "disconnected_at": "2019-08-24T14:15:22Z",
-        "display_apps": ["vscode"],
-        "environment_variables": {
-          "property1": "string",
-          "property2": "string"
-        },
-        "expanded_directory": "string",
-        "first_connected_at": "2019-08-24T14:15:22Z",
-        "health": {
-          "healthy": false,
-          "reason": "agent has lost connection"
-        },
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "instance_id": "string",
-        "last_connected_at": "2019-08-24T14:15:22Z",
-        "latency": {
-          "property1": {
-            "latency_ms": 0,
-            "preferred": true
-          },
-          "property2": {
-            "latency_ms": 0,
-            "preferred": true
-          }
-        },
-        "lifecycle_state": "created",
-        "log_sources": [
-          {
-            "created_at": "2019-08-24T14:15:22Z",
-            "display_name": "string",
-            "icon": "string",
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-          }
-        ],
-        "logs_length": 0,
-        "logs_overflowed": true,
-        "name": "string",
-        "operating_system": "string",
-        "ready_at": "2019-08-24T14:15:22Z",
-        "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-        "scripts": [
-          {
-            "cron": "string",
-            "log_path": "string",
-            "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-            "run_on_start": true,
-            "run_on_stop": true,
-            "script": "string",
-            "start_blocks_login": true,
-            "timeout": 0
-          }
-        ],
-        "started_at": "2019-08-24T14:15:22Z",
-        "startup_script_behavior": "blocking",
-        "status": "connecting",
-        "subsystems": ["envbox"],
-        "troubleshooting_url": "string",
-        "updated_at": "2019-08-24T14:15:22Z",
-        "version": "string"
-      }
-    ],
-    "created_at": "2019-08-24T14:15:22Z",
-    "daily_cost": 0,
-    "hide": true,
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-    "metadata": [
-      {
-        "key": "string",
-        "sensitive": true,
-        "value": "string"
-      }
-    ],
-    "name": "string",
-    "type": "string",
-    "workspace_transition": "start"
-  }
+	{
+		"agents": [
+			{
+				"api_version": "string",
+				"apps": [
+					{
+						"command": "string",
+						"display_name": "string",
+						"external": true,
+						"health": "disabled",
+						"healthcheck": {
+							"interval": 0,
+							"threshold": 0,
+							"url": "string"
+						},
+						"icon": "string",
+						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+						"sharing_level": "owner",
+						"slug": "string",
+						"subdomain": true,
+						"subdomain_name": "string",
+						"url": "string"
+					}
+				],
+				"architecture": "string",
+				"connection_timeout_seconds": 0,
+				"created_at": "2019-08-24T14:15:22Z",
+				"directory": "string",
+				"disconnected_at": "2019-08-24T14:15:22Z",
+				"display_apps": ["vscode"],
+				"environment_variables": {
+					"property1": "string",
+					"property2": "string"
+				},
+				"expanded_directory": "string",
+				"first_connected_at": "2019-08-24T14:15:22Z",
+				"health": {
+					"healthy": false,
+					"reason": "agent has lost connection"
+				},
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"instance_id": "string",
+				"last_connected_at": "2019-08-24T14:15:22Z",
+				"latency": {
+					"property1": {
+						"latency_ms": 0,
+						"preferred": true
+					},
+					"property2": {
+						"latency_ms": 0,
+						"preferred": true
+					}
+				},
+				"lifecycle_state": "created",
+				"log_sources": [
+					{
+						"created_at": "2019-08-24T14:15:22Z",
+						"display_name": "string",
+						"icon": "string",
+						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+						"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+					}
+				],
+				"logs_length": 0,
+				"logs_overflowed": true,
+				"name": "string",
+				"operating_system": "string",
+				"ready_at": "2019-08-24T14:15:22Z",
+				"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+				"scripts": [
+					{
+						"cron": "string",
+						"log_path": "string",
+						"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+						"run_on_start": true,
+						"run_on_stop": true,
+						"script": "string",
+						"start_blocks_login": true,
+						"timeout": 0
+					}
+				],
+				"started_at": "2019-08-24T14:15:22Z",
+				"startup_script_behavior": "blocking",
+				"status": "connecting",
+				"subsystems": ["envbox"],
+				"troubleshooting_url": "string",
+				"updated_at": "2019-08-24T14:15:22Z",
+				"version": "string"
+			}
+		],
+		"created_at": "2019-08-24T14:15:22Z",
+		"daily_cost": 0,
+		"hide": true,
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+		"metadata": [
+			{
+				"key": "string",
+				"sensitive": true,
+				"value": "string"
+			}
+		],
+		"name": "string",
+		"type": "string",
+		"workspace_transition": "start"
+	}
 ]
 ```
 
@@ -2607,31 +2608,31 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
 
 ```json
 [
-  {
-    "default_value": "string",
-    "description": "string",
-    "description_plaintext": "string",
-    "display_name": "string",
-    "ephemeral": true,
-    "icon": "string",
-    "mutable": true,
-    "name": "string",
-    "options": [
-      {
-        "description": "string",
-        "icon": "string",
-        "name": "string",
-        "value": "string"
-      }
-    ],
-    "required": true,
-    "type": "string",
-    "validation_error": "string",
-    "validation_max": 0,
-    "validation_min": 0,
-    "validation_monotonic": "increasing",
-    "validation_regex": "string"
-  }
+	{
+		"default_value": "string",
+		"description": "string",
+		"description_plaintext": "string",
+		"display_name": "string",
+		"ephemeral": true,
+		"icon": "string",
+		"mutable": true,
+		"name": "string",
+		"options": [
+			{
+				"description": "string",
+				"icon": "string",
+				"name": "string",
+				"value": "string"
+			}
+		],
+		"required": true,
+		"type": "string",
+		"validation_error": "string",
+		"validation_max": 0,
+		"validation_min": 0,
+		"validation_monotonic": "increasing",
+		"validation_regex": "string"
+	}
 ]
 ```
 
@@ -2733,14 +2734,14 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -2777,15 +2778,15 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/v
 
 ```json
 [
-  {
-    "default_value": "string",
-    "description": "string",
-    "name": "string",
-    "required": true,
-    "sensitive": true,
-    "type": "string",
-    "value": "string"
-  }
+	{
+		"default_value": "string",
+		"description": "string",
+		"name": "string",
+		"required": true,
+		"sensitive": true,
+		"type": "string",
+		"value": "string"
+	}
 ]
 ```
 

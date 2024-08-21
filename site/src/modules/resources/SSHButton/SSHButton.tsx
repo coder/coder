@@ -1,97 +1,97 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
 import Button from "@mui/material/Button";
-import type { FC } from "react";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import {
-  HelpTooltipLink,
-  HelpTooltipLinksGroup,
-  HelpTooltipText,
+	HelpTooltipLink,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
+import type { FC } from "react";
 import { docs } from "utils/docs";
 
 export interface SSHButtonProps {
-  workspaceName: string;
-  agentName: string;
-  sshPrefix?: string;
+	workspaceName: string;
+	agentName: string;
+	sshPrefix?: string;
 }
 
 export const SSHButton: FC<SSHButtonProps> = ({
-  workspaceName,
-  agentName,
-  sshPrefix,
+	workspaceName,
+	agentName,
+	sshPrefix,
 }) => {
-  const paper = useClassName(classNames.paper, []);
+	const paper = useClassName(classNames.paper, []);
 
-  return (
-    <Popover>
-      <PopoverTrigger>
-        <Button
-          size="small"
-          variant="text"
-          endIcon={<KeyboardArrowDown />}
-          css={{ fontSize: 13, padding: "8px 12px" }}
-        >
-          Connect via SSH
-        </Button>
-      </PopoverTrigger>
+	return (
+		<Popover>
+			<PopoverTrigger>
+				<Button
+					size="small"
+					variant="text"
+					endIcon={<KeyboardArrowDown />}
+					css={{ fontSize: 13, padding: "8px 12px" }}
+				>
+					Connect via SSH
+				</Button>
+			</PopoverTrigger>
 
-      <PopoverContent horizontal="right" classes={{ paper }}>
-        <HelpTooltipText>
-          Run the following commands to connect with SSH:
-        </HelpTooltipText>
+			<PopoverContent horizontal="right" classes={{ paper }}>
+				<HelpTooltipText>
+					Run the following commands to connect with SSH:
+				</HelpTooltipText>
 
-        <Stack spacing={0.5} css={styles.codeExamples}>
-          <div>
-            <HelpTooltipText>
-              <strong css={styles.codeExampleLabel}>
-                Configure SSH hosts on machine:
-              </strong>
-            </HelpTooltipText>
-            <CodeExample secret={false} code="coder config-ssh" />
-          </div>
+				<Stack spacing={0.5} css={styles.codeExamples}>
+					<div>
+						<HelpTooltipText>
+							<strong css={styles.codeExampleLabel}>
+								Configure SSH hosts on machine:
+							</strong>
+						</HelpTooltipText>
+						<CodeExample secret={false} code="coder config-ssh" />
+					</div>
 
-          <div>
-            <HelpTooltipText>
-              <strong css={styles.codeExampleLabel}>
-                Connect to the agent:
-              </strong>
-            </HelpTooltipText>
-            <CodeExample
-              secret={false}
-              code={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
-            />
-          </div>
-        </Stack>
+					<div>
+						<HelpTooltipText>
+							<strong css={styles.codeExampleLabel}>
+								Connect to the agent:
+							</strong>
+						</HelpTooltipText>
+						<CodeExample
+							secret={false}
+							code={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+						/>
+					</div>
+				</Stack>
 
-        <HelpTooltipLinksGroup>
-          <HelpTooltipLink href={docs("/install")}>
-            Install Coder CLI
-          </HelpTooltipLink>
-          <HelpTooltipLink href={docs("/ides#vs-code-remote")}>
-            Connect via VS Code Remote SSH
-          </HelpTooltipLink>
-          <HelpTooltipLink href={docs("/ides#jetbrains-gateway")}>
-            Connect via JetBrains Gateway
-          </HelpTooltipLink>
-          <HelpTooltipLink href={docs("/ides#ssh-configuration")}>
-            SSH configuration
-          </HelpTooltipLink>
-        </HelpTooltipLinksGroup>
-      </PopoverContent>
-    </Popover>
-  );
+				<HelpTooltipLinksGroup>
+					<HelpTooltipLink href={docs("/install")}>
+						Install Coder CLI
+					</HelpTooltipLink>
+					<HelpTooltipLink href={docs("/ides#vs-code-remote")}>
+						Connect via VS Code Remote SSH
+					</HelpTooltipLink>
+					<HelpTooltipLink href={docs("/ides#jetbrains-gateway")}>
+						Connect via JetBrains Gateway
+					</HelpTooltipLink>
+					<HelpTooltipLink href={docs("/ides#ssh-configuration")}>
+						SSH configuration
+					</HelpTooltipLink>
+				</HelpTooltipLinksGroup>
+			</PopoverContent>
+		</Popover>
+	);
 };
 
 const classNames = {
-  paper: (css, theme) => css`
+	paper: (css, theme) => css`
     padding: 16px 24px 24px;
     width: 304px;
     color: ${theme.palette.text.secondary};
@@ -100,11 +100,11 @@ const classNames = {
 } satisfies Record<string, ClassName>;
 
 const styles = {
-  codeExamples: {
-    marginTop: 12,
-  },
+	codeExamples: {
+		marginTop: 12,
+	},
 
-  codeExampleLabel: {
-    fontSize: 12,
-  },
+	codeExampleLabel: {
+		fontSize: 12,
+	},
 } satisfies Record<string, Interpolation<Theme>>;

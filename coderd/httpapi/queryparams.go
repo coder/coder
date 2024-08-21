@@ -144,6 +144,19 @@ func (p *QueryParamParser) RequiredNotEmpty(queryParam ...string) *QueryParamPar
 	return p
 }
 
+// UUIDorName will parse a string as a UUID, if it fails, it uses the "fetchByName"
+// function to return a UUID based on the value as a string.
+// This is useful when fetching something like an organization by ID or by name.
+func (p *QueryParamParser) UUIDorName(vals url.Values, def uuid.UUID, queryParam string, fetchByName func(name string) (uuid.UUID, error)) uuid.UUID {
+	return ParseCustom(p, vals, def, queryParam, func(v string) (uuid.UUID, error) {
+		id, err := uuid.Parse(v)
+		if err == nil {
+			return id, nil
+		}
+		return fetchByName(v)
+	})
+}
+
 func (p *QueryParamParser) UUIDorMe(vals url.Values, def uuid.UUID, me uuid.UUID, queryParam string) uuid.UUID {
 	return ParseCustom(p, vals, def, queryParam, func(v string) (uuid.UUID, error) {
 		if v == "me" {

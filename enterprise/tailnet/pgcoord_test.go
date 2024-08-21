@@ -480,7 +480,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 
 	mu := sync.Mutex{}
 	heartbeats := []time.Time{}
-	unsub, err := ps.SubscribeWithErr(tailnet.EventHeartbeats, func(_ context.Context, msg []byte, err error) {
+	unsub, err := ps.SubscribeWithErr(tailnet.EventHeartbeats, func(_ context.Context, _ []byte, err error) {
 		assert.NoError(t, err)
 		mu.Lock()
 		defer mu.Unlock()
@@ -591,10 +591,10 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 	err = client21.recvErr(ctx, t)
 	require.ErrorIs(t, err, io.EOF)
+	assertEventuallyLost(ctx, t, store, agent2.id)
+	assertEventuallyLost(ctx, t, store, client21.id)
+	assertEventuallyLost(ctx, t, store, client22.id)
 
-	assertEventuallyNoAgents(ctx, t, store, agent2.id)
-
-	t.Logf("close coord1")
 	err = coord1.Close()
 	require.NoError(t, err)
 	// this closes agent1, client12, client11
@@ -604,6 +604,9 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 	err = client11.recvErr(ctx, t)
 	require.ErrorIs(t, err, io.EOF)
+	assertEventuallyLost(ctx, t, store, agent1.id)
+	assertEventuallyLost(ctx, t, store, client11.id)
+	assertEventuallyLost(ctx, t, store, client12.id)
 
 	// wait for all connections to close
 	err = agent1.close()
@@ -629,10 +632,6 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	err = client22.close()
 	require.NoError(t, err)
 	client22.waitForClose(ctx, t)
-
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
-	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoClientsForAgent(ctx, t, store, agent2.id)
 }
 
 // TestPGCoordinator_MultiCoordinatorAgent tests when a single agent connects to multiple coordinators.
@@ -746,7 +745,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
 	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
 	require.NoError(t, err)
@@ -811,7 +810,7 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
 	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any()).Times(1)
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
 	require.NoError(t, err)
@@ -871,51 +870,184 @@ func TestPGCoordinator_Lost(t *testing.T) {
 	agpltest.LostTest(ctx, t, coordinator)
 }
 
-func TestPGCoordinator_DeleteOnClose(t *testing.T) {
+func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	t.Parallel()
-
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	ctrl := gomock.NewController(t)
-	mStore := dbmock.NewMockStore(ctrl)
-	ps := pubsub.NewInMemory()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := newTestAgent(t, coordinator, "original")
+	defer agent.close()
+	agent.sendNode(&agpl.Node{PreferredDERP: 10})
+
+	client := newTestClient(t, coordinator, agent.id)
+	defer client.close()
+
+	// Simulate some traffic to generate
+	// a peer.
+	agentNodes := client.recvNodes(ctx, t)
+	require.Len(t, agentNodes, 1)
+	assert.Equal(t, 10, agentNodes[0].PreferredDERP)
+	client.sendNode(&agpl.Node{PreferredDERP: 11})
+
+	clientNodes := agent.recvNodes(ctx, t)
+	require.Len(t, clientNodes, 1)
+	assert.Equal(t, 11, clientNodes[0].PreferredDERP)
+
+	anode := coordinator.Node(agent.id)
+	require.NotNil(t, anode)
+	cnode := coordinator.Node(client.id)
+	require.NotNil(t, cnode)
+
+	err = coordinator.Close()
+	require.NoError(t, err)
+	assertEventuallyLost(ctx, t, store, agent.id)
+	assertEventuallyLost(ctx, t, store, client.id)
+
+	coordinator2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator2.Close()
+
+	anode = coordinator2.Node(agent.id)
+	require.NotNil(t, anode)
+	assert.Equal(t, 10, anode.PreferredDERP)
+
+	cnode = coordinator2.Node(client.id)
+	require.NotNil(t, cnode)
+	assert.Equal(t, 11, cnode.PreferredDERP)
+}
+
+// TestPGCoordinatorDual_FailedHeartbeat tests that peers
+// disconnect from a coordinator when they are unhealthy,
+// are marked as LOST (not DISCONNECTED), and can reconnect to
+// a new coordinator and reestablish their tunnels.
+func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	dburl, closeFn, err := dbtestutil.Open()
+	require.NoError(t, err)
+	t.Cleanup(closeFn)
+
+	store1, ps1, sdb1 := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithURL(dburl))
+	defer sdb1.Close()
+	store2, ps2, sdb2 := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithURL(dburl))
+	defer sdb2.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	t.Cleanup(cancel)
+
+	// We do this to avoid failing due errors related to the
+	// database connection being close.
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-	upsertDone := make(chan struct{})
-	deleteCalled := make(chan struct{})
-	finishDelete := make(chan struct{})
-	mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
-		MinTimes(1).
-		Do(func(_ context.Context, _ uuid.UUID) { close(upsertDone) }).
-		Return(database.TailnetCoordinator{}, nil)
-	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).
-		Times(1).
-		Do(func(_ context.Context, _ uuid.UUID) {
-			close(deleteCalled)
-			<-finishDelete
-		}).
-		Return(nil)
-
-	// extra calls we don't particularly care about for this test
-	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
-	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
-
-	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
+	// Create two coordinators, 1 for each peer.
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps1, store1)
 	require.NoError(t, err)
-	testutil.RequireRecvCtx(ctx, t, upsertDone)
-	closeErr := make(chan error, 1)
-	go func() {
-		closeErr <- uut.Close()
-	}()
-	select {
-	case <-closeErr:
-		t.Fatal("close returned before DeleteCoordinator called")
-	case <-deleteCalled:
-		close(finishDelete)
-		err := testutil.RequireRecvCtx(ctx, t, closeErr)
-		require.NoError(t, err)
+	c2, err := tailnet.NewPGCoord(ctx, logger, ps2, store2)
+	require.NoError(t, err)
+
+	p1 := agpltest.NewPeer(ctx, t, c1, "peer1")
+	p2 := agpltest.NewPeer(ctx, t, c2, "peer2")
+
+	// Create a binding between the two.
+	p1.AddTunnel(p2.ID)
+
+	// Ensure that messages pass through.
+	p1.UpdateDERP(1)
+	p2.UpdateDERP(2)
+	p1.AssertEventuallyHasDERP(p2.ID, 2)
+	p2.AssertEventuallyHasDERP(p1.ID, 1)
+
+	// Close the underlying database connection to induce
+	// a heartbeat failure scenario and assert that
+	// we eventually disconnect from the coordinator.
+	err = sdb1.Close()
+	require.NoError(t, err)
+	p1.AssertEventuallyResponsesClosed()
+	p2.AssertEventuallyLost(p1.ID)
+	// This basically checks that peer2 had no update
+	// performed on their status since we are connected
+	// to coordinator2.
+	assertEventuallyStatus(ctx, t, store2, p2.ID, database.TailnetStatusOk)
+
+	// Connect peer1 to coordinator2.
+	p1.ConnectToCoordinator(ctx, c2)
+	// Reestablish binding.
+	p1.AddTunnel(p2.ID)
+	// Ensure messages still flow back and forth.
+	p1.AssertEventuallyHasDERP(p2.ID, 2)
+	p1.UpdateDERP(3)
+	p2.UpdateDERP(4)
+	p2.AssertEventuallyHasDERP(p1.ID, 3)
+	p1.AssertEventuallyHasDERP(p2.ID, 4)
+	// Make sure peer2 never got an update about peer1 disconnecting.
+	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
+}
+
+func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
 	}
+
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	// Create two coordinators, 1 for each peer.
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	c2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+
+	p1 := agpltest.NewPeer(ctx, t, c1, "peer1")
+	p2 := agpltest.NewPeer(ctx, t, c2, "peer2")
+
+	// Create a binding between the two.
+	p1.AddTunnel(p2.ID)
+
+	// Ensure that messages pass through.
+	p1.UpdateDERP(1)
+	p2.UpdateDERP(2)
+	p1.AssertEventuallyHasDERP(p2.ID, 2)
+	p2.AssertEventuallyHasDERP(p1.ID, 1)
+
+	// Close coordinator1. Now we will check that we
+	// never send a DISCONNECTED update.
+	err = c1.Close()
+	require.NoError(t, err)
+	p1.AssertEventuallyResponsesClosed()
+	p2.AssertEventuallyLost(p1.ID)
+	// This basically checks that peer2 had no update
+	// performed on their status since we are connected
+	// to coordinator2.
+	assertEventuallyStatus(ctx, t, store, p2.ID, database.TailnetStatusOk)
+
+	// Connect peer1 to coordinator2.
+	p1.ConnectToCoordinator(ctx, c2)
+	// Reestablish binding.
+	p1.AddTunnel(p2.ID)
+	// Ensure messages still flow back and forth.
+	p1.AssertEventuallyHasDERP(p2.ID, 2)
+	p1.UpdateDERP(3)
+	p2.UpdateDERP(4)
+	p2.AssertEventuallyHasDERP(p1.ID, 3)
+	p1.AssertEventuallyHasDERP(p2.ID, 4)
+	// Make sure peer2 never got an update about peer1 disconnecting.
+	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
 }
 
 type testConn struct {
@@ -1056,21 +1188,7 @@ func assertNeverHasDERPs(ctx context.Context, t *testing.T, c *testConn, expecte
 	}
 }
 
-func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
-	t.Helper()
-	assert.Eventually(t, func() bool {
-		agents, err := store.GetTailnetPeers(ctx, agentID)
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return true
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		return len(agents) == 0
-	}, testutil.WaitShort, testutil.IntervalFast)
-}
-
-func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
+func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {
 	t.Helper()
 	assert.Eventually(t, func() bool {
 		peers, err := store.GetTailnetPeers(ctx, agentID)
@@ -1081,12 +1199,17 @@ func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Stor
 			t.Fatal(err)
 		}
 		for _, peer := range peers {
-			if peer.Status == database.TailnetStatusOk {
+			if peer.Status != status {
 				return false
 			}
 		}
 		return true
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func assertEventuallyLost(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
+	t.Helper()
+	assertEventuallyStatus(ctx, t, store, agentID, database.TailnetStatusLost)
 }
 
 func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {

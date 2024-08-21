@@ -53,22 +53,22 @@ type Permission struct {
 // Role is a longer form of SlimRole that includes permissions details.
 type Role struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
-	OrganizationID  string       `json:"organization_id,omitempty" table:"organization_id" format:"uuid"`
-	DisplayName     string       `json:"display_name" table:"display_name"`
-	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
+	OrganizationID  string       `json:"organization_id,omitempty" table:"organization id" format:"uuid"`
+	DisplayName     string       `json:"display_name" table:"display name"`
+	SitePermissions []Permission `json:"site_permissions" table:"site permissions"`
 	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
-	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization_permissions"`
-	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
+	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization permissions"`
+	UserPermissions         []Permission `json:"user_permissions" table:"user permissions"`
 }
 
 // CustomRoleRequest is used to edit custom roles.
 type CustomRoleRequest struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
-	DisplayName     string       `json:"display_name" table:"display_name"`
-	SitePermissions []Permission `json:"site_permissions" table:"site_permissions"`
+	DisplayName     string       `json:"display_name" table:"display name"`
+	SitePermissions []Permission `json:"site_permissions" table:"site permissions"`
 	// OrganizationPermissions are specific to the organization the role belongs to.
-	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization_permissions"`
-	UserPermissions         []Permission `json:"user_permissions" table:"user_permissions"`
+	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization permissions"`
+	UserPermissions         []Permission `json:"user_permissions" table:"user permissions"`
 }
 
 // FullName returns the role name scoped to the organization ID. This is useful if

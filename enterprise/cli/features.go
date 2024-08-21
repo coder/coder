@@ -32,7 +32,7 @@ func (r *RootCmd) features() *serpent.Command {
 
 func (r *RootCmd) featuresList() *serpent.Command {
 	var (
-		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
+		featureColumns = []string{"name", "entitlement", "enabled", "limit", "actual"}
 		columns        []string
 		outputFormat   string
 	)
@@ -85,18 +85,16 @@ func (r *RootCmd) featuresList() *serpent.Command {
 		{
 			Flag:          "column",
 			FlagShorthand: "c",
-			Description: fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s.",
-				strings.Join(featureColumns, ", "),
-			),
-			Default: strings.Join(featureColumns, ","),
-			Value:   serpent.StringArrayOf(&columns),
+			Description:   "Specify columns to filter in the table.",
+			Default:       strings.Join(featureColumns, ","),
+			Value:         serpent.EnumArrayOf(&columns, featureColumns...),
 		},
 		{
 			Flag:          "output",
 			FlagShorthand: "o",
-			Description:   "Output format. Available formats are: table, json.",
+			Description:   "Output format.",
 			Default:       "table",
-			Value:         serpent.StringOf(&outputFormat),
+			Value:         serpent.EnumOf(&outputFormat, "table", "json"),
 		},
 	}
 

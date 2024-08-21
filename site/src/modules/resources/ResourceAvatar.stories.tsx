@@ -3,64 +3,64 @@ import { MockWorkspaceResource } from "testHelpers/entities";
 import { ResourceAvatar } from "./ResourceAvatar";
 
 const meta: Meta<typeof ResourceAvatar> = {
-  title: "modules/resources/ResourceAvatar",
-  component: ResourceAvatar,
+	title: "modules/resources/ResourceAvatar",
+	component: ResourceAvatar,
 };
 
 export default meta;
 type Story = StoryObj<typeof ResourceAvatar>;
 
 export const VolumeResource: Story = {
-  args: {
-    resource: {
-      ...MockWorkspaceResource,
-      type: "docker_volume",
-    },
-  },
+	args: {
+		resource: {
+			...MockWorkspaceResource,
+			type: "docker_volume",
+		},
+	},
 };
 
 export const ComputeResource: Story = {
-  args: {
-    resource: {
-      ...MockWorkspaceResource,
-      type: "docker_container",
-    },
-  },
+	args: {
+		resource: {
+			...MockWorkspaceResource,
+			type: "docker_container",
+		},
+	},
 };
 
 export const ImageResource: Story = {
-  args: {
-    resource: {
-      ...MockWorkspaceResource,
-      type: "docker_image",
-    },
-  },
+	args: {
+		resource: {
+			...MockWorkspaceResource,
+			type: "docker_image",
+		},
+	},
 };
 
 export const NullResource: Story = {
-  args: {
-    resource: {
-      ...MockWorkspaceResource,
-      type: "null_resource",
-    },
-  },
+	args: {
+		resource: {
+			...MockWorkspaceResource,
+			type: "null_resource",
+		},
+	},
 };
 
 export const UnknownResource: Story = {
-  args: {
-    resource: {
-      ...MockWorkspaceResource,
-      type: "noexistentvalue",
-    },
-  },
+	args: {
+		resource: {
+			...MockWorkspaceResource,
+			type: "noexistentvalue",
+		},
+	},
 };
 
 export const EmptyIcon: Story = {
-  args: {
-    resource: {
-      ...MockWorkspaceResource,
-      type: "helm_release",
-      icon: "",
-    },
-  },
+	args: {
+		resource: {
+			...MockWorkspaceResource,
+			type: "helm_release",
+			icon: "",
+		},
+	},
 };

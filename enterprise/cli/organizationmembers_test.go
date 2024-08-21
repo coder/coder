@@ -111,7 +111,7 @@ func TestEnterpriseListOrganizationMembers(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 		}, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 
-		inv, root := clitest.New(t, "organization", "members", "list", "-c", "user_id,username,organization_roles")
+		inv, root := clitest.New(t, "organization", "members", "list", "-c", "user id,username,organization roles")
 		clitest.SetupConfig(t, client, root)
 
 		buf := new(bytes.Buffer)

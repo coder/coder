@@ -401,6 +401,44 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
 	})
+
+	t.Run("MaxPortShareLevel", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("OK", func(t *testing.T) {
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:      "testing",
+				VersionID: version.ID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceAgentPortShareLevelPublic, got.MaxPortShareLevel)
+		})
+
+		t.Run("EnterpriseLevelError", func(t *testing.T) {
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:              "testing",
+				VersionID:         version.ID,
+				MaxPortShareLevel: ptr.Ref(codersdk.WorkspaceAgentPortShareLevelPublic),
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		})
+	})
 }
 
 func TestTemplatesByOrganization(t *testing.T) {

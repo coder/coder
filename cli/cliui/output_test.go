@@ -106,11 +106,11 @@ func Test_OutputFormatter(t *testing.T) {
 
 		fs := cmd.Options.FlagSet()
 
-		selected, err := fs.GetString("output")
-		require.NoError(t, err)
-		require.Equal(t, "json", selected)
+		selected := cmd.Options.ByFlag("output")
+		require.NotNil(t, selected)
+		require.Equal(t, "json", selected.Value.String())
 		usage := fs.FlagUsages()
-		require.Contains(t, usage, "Available formats: json, foo")
+		require.Contains(t, usage, "Output format.")
 		require.Contains(t, usage, "foo flag 1234")
 
 		ctx := context.Background()
@@ -129,11 +129,10 @@ func Test_OutputFormatter(t *testing.T) {
 		require.Equal(t, "foo", out)
 		require.EqualValues(t, 1, atomic.LoadInt64(&called))
 
-		require.NoError(t, fs.Set("output", "bar"))
+		require.Error(t, fs.Set("output", "bar"))
 		out, err = f.Format(ctx, data)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "bar")
-		require.Equal(t, "", out)
-		require.EqualValues(t, 1, atomic.LoadInt64(&called))
+		require.NoError(t, err)
+		require.Equal(t, "foo", out)
+		require.EqualValues(t, 2, atomic.LoadInt64(&called))
 	})
 }

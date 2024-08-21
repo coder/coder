@@ -1,11 +1,11 @@
-import * as path from "path";
+import * as path from "node:path";
 
 export const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
 // Default port from the server
 export const coderPort = process.env.CODER_E2E_PORT
-  ? Number(process.env.CODER_E2E_PORT)
-  : 3111;
+	? Number(process.env.CODER_E2E_PORT)
+	: 3111;
 export const prometheusPort = 2114;
 export const workspaceProxyPort = 3112;
 
@@ -19,23 +19,23 @@ export const password = "SomeSecurePassword!";
 export const email = "admin@coder.com";
 
 export const gitAuth = {
-  deviceProvider: "device",
-  webProvider: "web",
-  // These ports need to be hardcoded so that they can be
-  // used in `playwright.config.ts` to set the environment
-  // variables for the server.
-  devicePort: 50515,
-  webPort: 50516,
+	deviceProvider: "device",
+	webProvider: "web",
+	// These ports need to be hardcoded so that they can be
+	// used in `playwright.config.ts` to set the environment
+	// variables for the server.
+	devicePort: 50515,
+	webPort: 50516,
 
-  authPath: "/auth",
-  tokenPath: "/token",
-  codePath: "/code",
-  validatePath: "/validate",
-  installationsPath: "/installations",
+	authPath: "/auth",
+	tokenPath: "/token",
+	codePath: "/code",
+	validatePath: "/validate",
+	installationsPath: "/installations",
 };
 
 export const requireEnterpriseTests = Boolean(
-  process.env.CODER_E2E_REQUIRE_ENTERPRISE_TESTS,
+	process.env.CODER_E2E_REQUIRE_ENTERPRISE_TESTS,
 );
 export const enterpriseLicense = process.env.CODER_E2E_ENTERPRISE_LICENSE ?? "";
 

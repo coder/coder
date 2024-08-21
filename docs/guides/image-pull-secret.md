@@ -23,12 +23,12 @@ actual Docker registry URL, username, and password.
 
 ```json
 {
-  "auths": {
-    "<your-registry>": {
-      "username": "<your-username>",
-      "password": "<your-password>"
-    }
-  }
+	"auths": {
+		"<your-registry>": {
+			"username": "<your-username>",
+			"password": "<your-password>"
+		}
+	}
 }
 ```
 
@@ -54,13 +54,13 @@ The output should look similar to this:
 
 ```json
 {
-  "auths": {
-    "your.private.registry.com": {
-      "username": "ericpaulsen",
-      "password": "xxxx",
-      "auth": "c3R...zE2"
-    }
-  }
+	"auths": {
+		"your.private.registry.com": {
+			"username": "ericpaulsen",
+			"password": "xxxx",
+			"auth": "c3R...zE2"
+		}
+	}
 }
 ```
 

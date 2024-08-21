@@ -1332,7 +1332,9 @@ func (q *querier) GetAnnouncementBanners(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
-	// No authz checks
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
 	return q.db.GetAppSecurityKey(ctx)
 }
 
@@ -1362,6 +1364,13 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
+}
+
+func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetCoordinatorResumeTokenSigningKey(ctx)
 }
 
 func (q *querier) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
@@ -1491,19 +1500,16 @@ func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uui
 	return memberCount, nil
 }
 
-func (q *querier) GetGroups(ctx context.Context) ([]database.Group, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err == nil {
+		// Optimize this query for system users as it is used in telemetry.
+		// Calling authz on all groups in a deployment for telemetry jobs is
+		// excessive. Most user calls should have some filtering applied to reduce
+		// the size of the set.
+		return q.db.GetGroups(ctx, arg)
 	}
-	return q.db.GetGroups(ctx)
-}
 
-func (q *querier) GetGroupsByOrganizationAndUserID(ctx context.Context, arg database.GetGroupsByOrganizationAndUserIDParams) ([]database.Group, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupsByOrganizationAndUserID)(ctx, arg)
-}
-
-func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroups)(ctx, arg)
 }
 
 func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
@@ -1817,20 +1823,20 @@ func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.Ge
 	return q.db.GetProvisionerLogsAfterID(ctx, arg)
 }
 
-func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID))
+func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, params database.GetQuotaAllowanceForUserParams) (int64, error) {
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(params.UserID))
 	if err != nil {
 		return -1, err
 	}
-	return q.db.GetQuotaAllowanceForUser(ctx, userID)
+	return q.db.GetQuotaAllowanceForUser(ctx, params)
 }
 
-func (q *querier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID))
+func (q *querier) GetQuotaConsumedForUser(ctx context.Context, params database.GetQuotaConsumedForUserParams) (int64, error) {
+	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(params.OwnerID))
 	if err != nil {
 		return -1, err
 	}
-	return q.db.GetQuotaConsumedForUser(ctx, userID)
+	return q.db.GetQuotaConsumedForUser(ctx, params)
 }
 
 func (q *querier) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
@@ -2787,6 +2793,14 @@ func (q *querier) InsertProvisionerJobLogs(ctx context.Context, arg database.Ins
 	return q.db.InsertProvisionerJobLogs(ctx, arg)
 }
 
+// TODO: We need to create a ProvisionerJob resource type
+func (q *querier) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
+	return q.db.InsertProvisionerJobTimings(ctx, arg)
+}
+
 func (q *querier) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	return insert(q.log, q.auth, rbac.ResourceProvisionerKeys.InOrg(arg.OrganizationID).WithID(arg.ID), q.db.InsertProvisionerKey)(ctx, arg)
 }
@@ -3324,6 +3338,13 @@ func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaP
 	return q.db.UpdateReplica(ctx, arg)
 }
 
+func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg database.UpdateTailnetPeerStatusByCoordinatorParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+}
+
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
@@ -3788,7 +3809,9 @@ func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) e
 }
 
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
-	// No authz checks as this is done during startup
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
 	return q.db.UpsertAppSecurityKey(ctx, data)
 }
 
@@ -3797,6 +3820,13 @@ func (q *querier) UpsertApplicationName(ctx context.Context, value string) error
 		return err
 	}
 	return q.db.UpsertApplicationName(ctx, value)
+}
+
+func (q *querier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

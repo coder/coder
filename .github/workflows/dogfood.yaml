@@ -17,6 +17,10 @@ on:
       - "flake.nix"
   workflow_dispatch:
 
+permissions:
+  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+  id-token: write
+
 jobs:
   build_image:
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
@@ -56,7 +60,7 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood"
+          context: "{{defaultContext}}:dogfood/contents"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -69,7 +73,7 @@ jobs:
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
           context: "."
-          file: "dogfood/Dockerfile.nix"
+          file: "dogfood/contents/Dockerfile.nix"
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -85,9 +89,18 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
+          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
+
       - name: Terraform init and validate
         run: |
           cd dogfood
+          terraform init -upgrade
+          terraform validate
+          cd contents
           terraform init -upgrade
           terraform validate
 
@@ -101,22 +114,18 @@ jobs:
         id: message
         run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
 
-      - name: "Get latest Coder binary from the server"
-        if: github.ref == 'refs/heads/main'
-        run: |
-          curl -fsSL "https://dev.coder.com/bin/coder-linux-amd64" -o "./coder"
-          chmod +x "./coder"
-
       - name: "Push template"
         if: github.ref == 'refs/heads/main'
         run: |
-          ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message="$CODER_TEMPLATE_MESSAGE"
+          cd dogfood
+          terraform apply -auto-approve
         env:
-          # Consumed by Coder CLI
+          # Consumed by coderd provider
           CODER_URL: https://dev.coder.com
           CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
           # Template source & details
-          CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
-          CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
-          CODER_TEMPLATE_DIR: ./dogfood
-          CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
+          TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
+          TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
+          TF_VAR_CODER_TEMPLATE_DIR: ./contents
+          TF_VAR_CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
+          TF_LOG: info

@@ -12,17 +12,17 @@ const IMPENDING_DELETION_DISPLAY_THRESHOLD = 14; // 14 days
  * @returns {boolean}
  */
 export const displayDormantDeletion = (
-  workspace: Workspace,
-  allowAdvancedScheduling: boolean,
+	workspace: Workspace,
+	allowAdvancedScheduling: boolean,
 ) => {
-  const today = new Date();
-  if (!workspace.deleting_at || !allowAdvancedScheduling) {
-    return false;
-  }
-  return (
-    new Date(workspace.deleting_at) <=
-    new Date(
-      today.setDate(today.getDate() + IMPENDING_DELETION_DISPLAY_THRESHOLD),
-    )
-  );
+	const today = new Date();
+	if (!workspace.deleting_at || !allowAdvancedScheduling) {
+		return false;
+	}
+	return (
+		new Date(workspace.deleting_at) <=
+		new Date(
+			today.setDate(today.getDate() + IMPENDING_DELETION_DISPLAY_THRESHOLD),
+		)
+	);
 };

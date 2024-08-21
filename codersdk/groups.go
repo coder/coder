@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -60,9 +61,30 @@ func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGro
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// GroupsByOrganization
+// Deprecated: use Groups with GroupArguments instead.
 func (c *Client) GroupsByOrganization(ctx context.Context, orgID uuid.UUID) ([]Group, error) {
+	return c.Groups(ctx, GroupArguments{Organization: orgID.String()})
+}
+
+type GroupArguments struct {
+	// Organization can be an org UUID or name
+	Organization string
+	// HasMember can be a user uuid or username
+	HasMember string
+}
+
+func (c *Client) Groups(ctx context.Context, args GroupArguments) ([]Group, error) {
+	qp := url.Values{}
+	if args.Organization != "" {
+		qp.Set("organization", args.Organization)
+	}
+	if args.HasMember != "" {
+		qp.Set("has_member", args.HasMember)
+	}
+
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/groups", orgID.String()),
+		fmt.Sprintf("/api/v2/groups?%s", qp.Encode()),
 		nil,
 	)
 	if err != nil {

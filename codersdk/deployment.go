@@ -128,6 +128,17 @@ func (n FeatureName) AlwaysEnable() bool {
 	}[n]
 }
 
+// Enterprise returns true if the feature is an enterprise feature.
+func (n FeatureName) Enterprise() bool {
+	switch n {
+	// Add all features that should be excluded in the Enterprise feature set.
+	case FeatureMultipleOrganizations, FeatureCustomRoles:
+		return false
+	default:
+		return true
+	}
+}
+
 // FeatureSet represents a grouping of features. Rather than manually
 // assigning features al-la-carte when making a license, a set can be specified.
 // Sets are dynamic in the sense a feature can be added to a set, granting the
@@ -152,13 +163,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			switch f {
-			// Add all features that should be excluded in the Enterprise feature set.
-			case FeatureMultipleOrganizations, FeatureCustomRoles:
-				return true
-			default:
-				return false
-			}
+			return !f.Enterprise()
 		})
 
 		return enterpriseFeatures

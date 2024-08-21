@@ -147,6 +147,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
 		DERPMapFn:               api.AGPL.DERPMap,
 		NetworkTelemetryHandler: api.AGPL.NetworkTelemetryBatcher.Handler,
+		ResumeTokenProvider:     api.AGPL.CoordinatorResumeTokenProvider,
 	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
@@ -274,6 +275,19 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
 		})
 
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				// Intentionally using ExtractUser instead of ExtractMember.
+				// It is possible for a member to be removed from an org, in which
+				// case their orphaned workspaces still exist. We only need
+				// the user_id for the query.
+				httpmw.ExtractUserParam(api.Database),
+			)
+			r.Get("/organizations/{organization}/members/{user}/workspace-quota", api.workspaceQuota)
+		})
+
 		r.Route("/organizations/{organization}/groups", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -343,15 +357,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.templateACL)
 			r.Patch("/", api.patchTemplateACL)
 		})
-		r.Route("/groups/{group}", func(r chi.Router) {
+		r.Route("/groups", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,
 				apiKeyMiddleware,
-				httpmw.ExtractGroupParam(api.Database),
 			)
-			r.Get("/", api.group)
-			r.Patch("/", api.patchGroup)
-			r.Delete("/", api.deleteGroup)
+			r.Get("/", api.groups)
+			r.Route("/{group}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractGroupParam(api.Database),
+				)
+				r.Get("/", api.group)
+				r.Patch("/", api.patchGroup)
+				r.Delete("/", api.deleteGroup)
+			})
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {
 			r.Use(
@@ -359,7 +378,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractUserParam(options.Database))
-				r.Get("/", api.workspaceQuota)
+				r.Get("/", api.workspaceQuotaByUser)
 			})
 		})
 		r.Route("/appearance", func(r chi.Router) {
