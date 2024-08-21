@@ -5545,6 +5545,68 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 	return i, err
 }
 
+const insertProvisionerJobTimings = `-- name: InsertProvisionerJobTimings :many
+INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
+SELECT
+    $1::uuid AS provisioner_job_id,
+    unnest($2::timestamptz[]),
+    unnest($3::timestamptz[]),
+    unnest($4::provisioner_job_timing_stage[]),
+    unnest($5::text[]),
+    unnest($6::text[]),
+    unnest($7::text[])
+RETURNING job_id, started_at, ended_at, stage, source, action, resource
+`
+
+type InsertProvisionerJobTimingsParams struct {
+	JobID     uuid.UUID                   `db:"job_id" json:"job_id"`
+	StartedAt []time.Time                 `db:"started_at" json:"started_at"`
+	EndedAt   []time.Time                 `db:"ended_at" json:"ended_at"`
+	Stage     []ProvisionerJobTimingStage `db:"stage" json:"stage"`
+	Source    []string                    `db:"source" json:"source"`
+	Action    []string                    `db:"action" json:"action"`
+	Resource  []string                    `db:"resource" json:"resource"`
+}
+
+func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error) {
+	rows, err := q.db.QueryContext(ctx, insertProvisionerJobTimings,
+		arg.JobID,
+		pq.Array(arg.StartedAt),
+		pq.Array(arg.EndedAt),
+		pq.Array(arg.Stage),
+		pq.Array(arg.Source),
+		pq.Array(arg.Action),
+		pq.Array(arg.Resource),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJobTiming
+	for rows.Next() {
+		var i ProvisionerJobTiming
+		if err := rows.Scan(
+			&i.JobID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.Stage,
+			&i.Source,
+			&i.Action,
+			&i.Resource,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateProvisionerJobByID = `-- name: UpdateProvisionerJobByID :exec
 UPDATE
 	provisioner_jobs

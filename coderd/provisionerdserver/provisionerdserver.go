@@ -1441,6 +1441,36 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
 
+		// Insert timings outside transaction since it is metadata.
+		// nolint:exhaustruct // The other fields are set further down.
+		params := database.InsertProvisionerJobTimingsParams{
+			JobID: jobID,
+		}
+		for _, t := range completed.GetWorkspaceBuild().GetTimings() {
+			if t.Start == nil || t.End == nil {
+				s.Logger.Warn(ctx, "timings entry has nil start or end time", slog.F("entry", t.String()))
+				continue
+			}
+
+			var stg database.ProvisionerJobTimingStage
+			if err := stg.Scan(t.Stage); err != nil {
+				s.Logger.Warn(ctx, "failed to parse timings stage, skipping", slog.F("value", t.Stage))
+				continue
+			}
+
+			params.Stage = append(params.Stage, stg)
+			params.Source = append(params.Source, t.Source)
+			params.Resource = append(params.Resource, t.Resource)
+			params.Action = append(params.Action, t.Action)
+			params.StartedAt = append(params.StartedAt, t.Start.AsTime())
+			params.EndedAt = append(params.EndedAt, t.End.AsTime())
+		}
+		_, err = s.Database.InsertProvisionerJobTimings(ctx, params)
+		if err != nil {
+			// Don't fail the transaction for non-critical data.
+			s.Logger.Warn(ctx, "failed to update provisioner job timings", slog.F("job_id", jobID), slog.Error(err))
+		}
+
 		// audit the outcome of the workspace build
 		if getWorkspaceError == nil {
 			// If the workspace has been deleted, notify the owner about it.

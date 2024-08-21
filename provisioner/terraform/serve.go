@@ -12,6 +12,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/unhanger"
 	"github.com/coder/coder/v2/provisionersdk"
 )
@@ -138,7 +140,7 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
-func (s *server) executor(workdir string) *executor {
+func (s *server) executor(workdir string, stage database.ProvisionerJobTimingStage) *executor {
 	return &executor{
 		server:     s,
 		mut:        s.execMut,
@@ -146,5 +148,6 @@ func (s *server) executor(workdir string) *executor {
 		cachePath:  s.cachePath,
 		workdir:    workdir,
 		logger:     s.logger.Named("executor"),
+		timings:    newTimingAggregator(stage),
 	}
 }
