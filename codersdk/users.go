@@ -133,6 +133,9 @@ type CreateUserRequest struct {
 // The previous field will just be appended to the slice.
 // Note in the previous behavior, omitting the field would result in the
 // default org being applied, but that is no longer the case.
+// TODO: Remove this method in it's entirety after some period of time.
+// This will be released in v1.16.0, and is associated with the multiple orgs
+// feature.
 func (r *CreateUserRequest) UnmarshalJSON(data []byte) error {
 	// By using a type alias, we prevent an infinite recursion when unmarshalling.
 	// This allows us to use the default unmarshal behavior of the original type.
