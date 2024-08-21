@@ -10,14 +10,19 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-var ErrCannotEnqueueDisabledNotification = xerrors.New("user has disabled this notification")
+var (
+	ErrCannotEnqueueDisabledNotification = xerrors.New("user has disabled this notification")
+	ErrDuplicate                         = xerrors.New("duplicate notification")
+)
 
 type StoreEnqueuer struct {
 	store Store
@@ -27,10 +32,12 @@ type StoreEnqueuer struct {
 	// helpers holds a map of template funcs which are used when rendering templates. These need to be passed in because
 	// the template funcs will return values which are inappropriately encapsulated in this struct.
 	helpers template.FuncMap
+	// Used to manipulate time in tests.
+	clock quartz.Clock
 }
 
 // NewStoreEnqueuer creates an Enqueuer implementation which can persist notification messages in the store.
-func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger) (*StoreEnqueuer, error) {
+func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, log slog.Logger, clock quartz.Clock) (*StoreEnqueuer, error) {
 	var method database.NotificationMethod
 	if err := method.Scan(cfg.Method.String()); err != nil {
 		return nil, xerrors.Errorf("given notification method %q is invalid", cfg.Method)
@@ -41,6 +48,7 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 		log:           log,
 		defaultMethod: method,
 		helpers:       helpers,
+		clock:         clock,
 	}, nil
 }
 
@@ -81,6 +89,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 		Payload:                input,
 		Targets:                targets,
 		CreatedBy:              createdBy,
+		CreatedAt:              dbtime.Time(s.clock.Now().UTC()),
 	})
 	if err != nil {
 		// We have a trigger on the notification_messages table named `inhibit_enqueue_if_disabled` which prevents messages
@@ -90,6 +99,13 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 		// This is more efficient than fetching the user's preferences for each enqueue, and centralizes the business logic.
 		if strings.Contains(err.Error(), ErrCannotEnqueueDisabledNotification.Error()) {
 			return nil, ErrCannotEnqueueDisabledNotification
+		}
+
+		// If the enqueue fails due to a dedupe hash conflict, this means that a notification has already been enqueued
+		// today with identical properties. It's far simpler to prevent duplicate sends in this central manner, rather than
+		// having each notification enqueue handle its own logic.
+		if database.IsUniqueViolation(err, database.UniqueNotificationMessagesDedupeHashIndex) {
+			return nil, ErrDuplicate
 		}
 
 		s.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))

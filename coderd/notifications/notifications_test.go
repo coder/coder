@@ -21,6 +21,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/quartz"
+
 	"github.com/google/uuid"
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 	"github.com/stretchr/testify/assert"
@@ -71,7 +73,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, db)
@@ -145,7 +147,7 @@ func TestSMTPDispatch(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, db)
@@ -205,7 +207,7 @@ func TestWebhookDispatch(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	const (
@@ -301,7 +303,7 @@ func TestBackpressure(t *testing.T) {
 	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, db)
@@ -399,7 +401,7 @@ func TestRetries(t *testing.T) {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, db)
@@ -456,7 +458,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, db)
@@ -464,7 +466,8 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// WHEN: a few notifications are enqueued which will all succeed
 	var msgs []string
 	for i := 0; i < msgCount; i++ {
-		id, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
+		id, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
+			map[string]string{"type": "success", "index": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
 		msgs = append(msgs, id.String())
 	}
@@ -566,7 +569,7 @@ func TestNotifierPaused(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
@@ -821,7 +824,7 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 
 	// GIVEN: an enqueuer & a sample user
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 	user := createSampleUser(t, db)
 
@@ -861,7 +864,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 	user := createSampleUser(t, db)
 
@@ -967,7 +970,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 		_ = mgr.Stop(ctx)
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger)
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger, quartz.NewReal())
 	require.NoError(t, err)
 
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
@@ -1031,6 +1034,53 @@ func createOpts(t *testing.T) *coderdtest.Options {
 	return &coderdtest.Options{
 		DeploymentValues: dt,
 	}
+}
+
+// TestNotificationDuplicates validates that identical notifications cannot be sent on the same day.
+func TestNotificationDuplicates(t *testing.T) {
+	t.Parallel()
+
+	// SETUP
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it is testing the dedupe hash trigger in the database")
+	}
+
+	ctx, logger, db := setup(t)
+
+	method := database.NotificationMethodSmtp
+	cfg := defaultNotificationsConfig(method)
+
+	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+
+	// Set the time to a known value.
+	mClock := quartz.NewMock(t)
+	mClock.Set(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC))
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), mClock)
+	require.NoError(t, err)
+	user := createSampleUser(t, db)
+
+	// GIVEN: two notifications are enqueued with identical properties.
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
+		map[string]string{"initiator": "danny"}, "test", user.ID)
+	require.NoError(t, err)
+
+	// WHEN: the second is enqueued, the enqueuer will reject the request.
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
+		map[string]string{"initiator": "danny"}, "test", user.ID)
+	require.ErrorIs(t, err, notifications.ErrDuplicate)
+
+	// THEN: when the clock is advanced 24h, the notification will be accepted.
+	// NOTE: the time is used in the dedupe hash, so by advancing 24h we're creating a distinct notification from the one
+	// which was enqueued "yesterday".
+	mClock.Advance(time.Hour * 24)
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
+		map[string]string{"initiator": "danny"}, "test", user.ID)
+	require.NoError(t, err)
 }
 
 type fakeHandler struct {
