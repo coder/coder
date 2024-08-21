@@ -1,19 +1,19 @@
 package database
 
 import (
-	"context"
 	"database/sql/driver"
 
 	"github.com/lib/pq"
 )
 
-// ConnectorCreator can create a driver.Connector.
+// ConnectorCreator is a driver.Driver that can create a driver.Connector.
 type ConnectorCreator interface {
+	driver.Driver
 	Connector(name string) (driver.Connector, error)
 }
 
-// DialerConnector can create a driver.Connector and set a pq.Dialer.
+// DialerConnector is a driver.Connector that can set a pq.Dialer.
 type DialerConnector interface {
-	Connect(context.Context) (driver.Conn, error)
+	driver.Connector
 	Dialer(dialer pq.Dialer)
 }

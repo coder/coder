@@ -455,7 +455,10 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 	}
 
 	// Set the dialer if the connector supports it.
-	if dc, ok := connector.(database.DialerConnector); ok {
+	dc, ok := connector.(database.DialerConnector)
+	if !ok {
+		p.logger.Critical(ctx, "connector does not support setting log dialer, database connection debug logs will be missing")
+	} else {
 		dc.Dialer(dialer)
 	}
 

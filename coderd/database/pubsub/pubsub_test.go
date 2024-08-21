@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -86,7 +87,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	for i := range colossalData {
 		colossalData[i] = 'q'
 	}
-	unsub1, err := uut.Subscribe(event, func(ctx context.Context, message []byte) {
+	unsub1, err := uut.Subscribe(event, func(_ context.Context, message []byte) {
 		messageChannel <- message
 	})
 	require.NoError(t, err)
@@ -118,4 +119,80 @@ func TestPGPubsub_Metrics(t *testing.T) {
 			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_pubsub_latency_measures_total") &&
 			!testutil.PromCounterGathered(t, metrics, "coder_pubsub_latency_measure_errs_total")
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func TestPGPubsubDriver(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+
+	connectionURL, closePg, err := dbtestutil.Open()
+	require.NoError(t, err)
+	defer closePg()
+
+	// wrap the pg driver with one we can control
+	d, err := dbtestutil.Register()
+	require.NoError(t, err)
+
+	db, err := sql.Open(d.Name(), connectionURL)
+	require.NoError(t, err)
+	defer db.Close()
+
+	ps, err := pubsub.New(ctx, logger, db, connectionURL)
+	require.NoError(t, err)
+	defer ps.Close()
+
+	// test that we can publish and subscribe
+	gotChan := make(chan struct{})
+	defer close(gotChan)
+	subCancel, err := ps.Subscribe("test", func(_ context.Context, _ []byte) {
+		gotChan <- struct{}{}
+	})
+	require.NoError(t, err)
+	defer subCancel()
+
+	err = ps.Publish("test", []byte("hello"))
+	require.NoError(t, err)
+
+	select {
+	case <-gotChan:
+	case <-ctx.Done():
+		t.Fatal("timeout waiting for message")
+	}
+
+	reconnectChan := make(chan struct{})
+	go func() {
+		d.WaitForConnection()
+		// wait a bit to make sure the pubsub has reestablished it's connection
+		// if we don't wait, the publish may be dropped because the pubsub hasn't initialized yet.
+		time.Sleep(1 * time.Second)
+		reconnectChan <- struct{}{}
+	}()
+
+	// drop the underlying connection being used by the pubsub
+	// the pq.Listener should reconnect and repopulate it's listeners
+	// so old subscriptions should still work
+	d.DropConnections()
+
+	select {
+	case <-reconnectChan:
+	case <-ctx.Done():
+		t.Fatal("timeout waiting for reconnect")
+	}
+
+	// ensure our old subscription still fires
+	err = ps.Publish("test", []byte("hello-again"))
+	require.NoError(t, err)
+
+	select {
+	case <-gotChan:
+	case <-ctx.Done():
+		t.Fatal("timeout waiting for message after reconnect")
+	}
 }
