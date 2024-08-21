@@ -758,10 +758,10 @@ func TestGroup(t *testing.T) {
 
 		// cannot explicitly set a dormant user status so must create a new user
 		anotherUser, err := userAdminClient.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "coder@coder.com",
-			Username:       "coder",
-			Password:       "SomeStrongPassword!",
-			OrganizationID: user.OrganizationID,
+			Email:           "coder@coder.com",
+			Username:        "coder",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{user.OrganizationID},
 		})
 		require.NoError(t, err)
 

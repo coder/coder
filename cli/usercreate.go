@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
@@ -95,12 +96,12 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			}
 
 			_, err = client.CreateUser(inv.Context(), codersdk.CreateUserRequest{
-				Email:          email,
-				Username:       username,
-				Name:           name,
-				Password:       password,
-				OrganizationID: organization.ID,
-				UserLoginType:  userLoginType,
+				Email:           email,
+				Username:        username,
+				Name:            name,
+				Password:        password,
+				OrganizationIDs: []uuid.UUID{organization.ID},
+				UserLoginType:   userLoginType,
 			})
 			if err != nil {
 				return err

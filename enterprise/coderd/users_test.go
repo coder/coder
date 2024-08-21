@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -510,10 +509,10 @@ func TestEnterprisePostUser(t *testing.T) {
 		})
 
 		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "some@domain.com",
-			Username:       "anotheruser",
-			Password:       "SomeSecurePassword!",
-			OrganizationID: org.ID,
+			Email:           "some@domain.com",
+			Username:        "anotheruser",
+			Password:        "SomeSecurePassword!",
+			OrganizationIDs: []uuid.UUID{org.ID},
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -544,10 +543,10 @@ func TestEnterprisePostUser(t *testing.T) {
 		org := coderdenttest.CreateOrganization(t, other, coderdenttest.CreateOrganizationOptions{})
 
 		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "some@domain.com",
-			Username:       "anotheruser",
-			Password:       "SomeSecurePassword!",
-			OrganizationID: org.ID,
+			Email:           "some@domain.com",
+			Username:        "anotheruser",
+			Password:        "SomeSecurePassword!",
+			OrganizationIDs: []uuid.UUID{org.ID},
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -559,7 +558,7 @@ func TestEnterprisePostUser(t *testing.T) {
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 
-		client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -578,14 +577,11 @@ func TestEnterprisePostUser(t *testing.T) {
 
 		// nolint:gocritic // intentional using the owner.
 		// Manually making a user with the request instead of the coderdtest util
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 			Email:    "another@user.org",
 			Username: "someone-else",
 			Password: "SomeSecurePassword!",
 		})
-		require.NoError(t, err)
-
-		require.Len(t, user.OrganizationIDs, 1)
-		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+		require.ErrorContains(t, err, "No organization specified")
 	})
 }

@@ -1207,10 +1207,10 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// since they have access to everything.
 			ownerClient = appDetails.SDKClient
 			user, err := ownerClient.CreateUser(ctx, codersdk.CreateUserRequest{
-				Email:          "user@coder.com",
-				Username:       "user",
-				Password:       password,
-				OrganizationID: appDetails.FirstUser.OrganizationID,
+				Email:           "user@coder.com",
+				Username:        "user",
+				Password:        password,
+				OrganizationIDs: []uuid.UUID{appDetails.FirstUser.OrganizationID},
 			})
 			require.NoError(t, err)
 
@@ -1259,10 +1259,10 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			})
 			require.NoError(t, err)
 			userInOtherOrg, err := ownerClient.CreateUser(ctx, codersdk.CreateUserRequest{
-				Email:          "no-template-access@coder.com",
-				Username:       "no-template-access",
-				Password:       password,
-				OrganizationID: otherOrg.ID,
+				Email:           "no-template-access@coder.com",
+				Username:        "no-template-access",
+				Password:        password,
+				OrganizationIDs: []uuid.UUID{otherOrg.ID},
 			})
 			require.NoError(t, err)
 

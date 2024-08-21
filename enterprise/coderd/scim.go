@@ -234,9 +234,9 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // needed for SCIM
 	dbUser, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
-			Username:       sUser.UserName,
-			Email:          email,
-			OrganizationID: defaultOrganization.ID,
+			Username:        sUser.UserName,
+			Email:           email,
+			OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
 		},
 		LoginType: database.LoginTypeOIDC,
 		// Do not send notifications to user admins as SCIM endpoint might be called sequentially to all users.

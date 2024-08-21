@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -27,12 +28,12 @@ func TestUserDelete(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "colin5@coder.com",
-			Username:       "coolin",
-			Password:       pw,
-			UserLoginType:  codersdk.LoginTypePassword,
-			OrganizationID: owner.OrganizationID,
-			DisableLogin:   false,
+			Email:           "colin5@coder.com",
+			Username:        "coolin",
+			Password:        pw,
+			UserLoginType:   codersdk.LoginTypePassword,
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+			DisableLogin:    false,
 		})
 		require.NoError(t, err)
 
@@ -58,12 +59,12 @@ func TestUserDelete(t *testing.T) {
 		require.NoError(t, err)
 
 		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "colin5@coder.com",
-			Username:       "coolin",
-			Password:       pw,
-			UserLoginType:  codersdk.LoginTypePassword,
-			OrganizationID: owner.OrganizationID,
-			DisableLogin:   false,
+			Email:           "colin5@coder.com",
+			Username:        "coolin",
+			Password:        pw,
+			UserLoginType:   codersdk.LoginTypePassword,
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+			DisableLogin:    false,
 		})
 		require.NoError(t, err)
 
@@ -89,12 +90,12 @@ func TestUserDelete(t *testing.T) {
 		require.NoError(t, err)
 
 		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "colin5@coder.com",
-			Username:       "coolin",
-			Password:       pw,
-			UserLoginType:  codersdk.LoginTypePassword,
-			OrganizationID: owner.OrganizationID,
-			DisableLogin:   false,
+			Email:           "colin5@coder.com",
+			Username:        "coolin",
+			Password:        pw,
+			UserLoginType:   codersdk.LoginTypePassword,
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+			DisableLogin:    false,
 		})
 		require.NoError(t, err)
 
