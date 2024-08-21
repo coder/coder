@@ -1471,10 +1471,10 @@ func TestUserLogout(t *testing.T) {
 		password = "SomeSecurePassword123!"
 	)
 	newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-		Email:          email,
-		Username:       username,
-		Password:       password,
-		OrganizationID: firstUser.OrganizationID,
+		Email:           email,
+		Username:        username,
+		Password:        password,
+		OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
 	})
 	require.NoError(t, err)
 

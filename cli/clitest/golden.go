@@ -184,10 +184,10 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 	})
 	firstUser := coderdtest.CreateFirstUser(t, rootClient)
 	secondUser, err := rootClient.CreateUser(ctx, codersdk.CreateUserRequest{
-		Email:          "testuser2@coder.com",
-		Username:       "testuser2",
-		Password:       coderdtest.FirstUserParams.Password,
-		OrganizationID: firstUser.OrganizationID,
+		Email:           "testuser2@coder.com",
+		Username:        "testuser2",
+		Password:        coderdtest.FirstUserParams.Password,
+		OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
 	})
 	require.NoError(t, err)
 	version := coderdtest.CreateTemplateVersion(t, rootClient, firstUser.OrganizationID, nil)
