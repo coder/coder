@@ -868,7 +868,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			templateID = notifications.TemplateUserAccountSuspended
 		case database.UserStatusActive:
 			key = "activated_account_name"
-			templateID = notifications.TemplateUserAccountSuspended
+			templateID = notifications.TemplateUserAccountActivated
 		default:
 			api.Logger.Error(ctx, "unable to notify admins as the user's status is unsupported", slog.F("username", user.Username), slog.F("user_status", string(status)))
 
