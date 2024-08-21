@@ -25,6 +25,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/util/slice"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -1430,6 +1432,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		// This can happen if a user is a built-in user but is signing in
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
+			// TODO: Remove this, and only use params
 			// Until proper multi-org support, all users will be added to the default organization.
 			// The default organization should always be present.
 			//nolint:gocritic
@@ -1537,6 +1540,74 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			})
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)
+			}
+		}
+
+		if params.UsingOrganizations {
+			var expected []uuid.UUID
+			// ignored keeps track of which configured organization syncs were
+			// ignored. Ignored options are no-ops.
+			ignored := make([]string, 0)
+			for _, orgSearch := range params.Organizations {
+				orgID, err := uuid.Parse(orgSearch)
+				if err == nil {
+					expected = append(expected, orgID)
+					continue
+				}
+				//nolint:gocritic // System actor being used to assign orgs
+				org, err := tx.GetOrganizationByName(dbauthz.AsSystemRestricted(ctx), orgSearch)
+				if err == nil {
+					expected = append(expected, org.ID)
+					continue
+				}
+				ignored = append(ignored, orgSearch)
+			}
+
+			if params.AssignDefaultOrganization {
+				//nolint:gocritic // System actor being used to assign orgs
+				defaultOrg, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+				if err != nil {
+					return xerrors.Errorf("get default organization: %w", err)
+				}
+				expected = append(expected, defaultOrg.ID)
+			}
+
+			// Sync the user's organizations to the ones provided.
+			//nolint:gocritic // Using to system to ensure all memberships are returned
+			existingOrgs, err := tx.GetOrganizationsByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
+			if err != nil {
+				return xerrors.Errorf("get user organizations: %w", err)
+			}
+
+			have := db2sdk.List(existingOrgs, func(org database.Organization) uuid.UUID {
+				return org.ID
+			})
+			// Find the difference in the expected and the existing orgs, and
+			// correct the set of orgs the user is a member of.
+			add, remove := slice.SymmetricDifference(have, expected)
+			for _, orgID := range add {
+				//nolint:gocritic // System actor being used to assign orgs
+				_, err := tx.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
+					OrganizationID: orgID,
+					UserID:         user.ID,
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
+					Roles:          []string{},
+				})
+				if err != nil {
+					return xerrors.Errorf("add user to organization: %w", err)
+				}
+			}
+
+			for _, orgID := range remove {
+				//nolint:gocritic // System actor being used to assign orgs
+				err := tx.DeleteOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.DeleteOrganizationMemberParams{
+					OrganizationID: orgID,
+					UserID:         user.ID,
+				})
+				if err != nil {
+					return xerrors.Errorf("remove user from organization: %w", err)
+				}
 			}
 		}
 

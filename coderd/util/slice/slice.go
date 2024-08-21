@@ -4,6 +4,43 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+// SymmetricDifference returns the elements that need to be added and removed
+// to get from set 'a' to set 'b'.
+// In classical set theory notation, SymmetricDifference returns
+// all elements of {add} and {remove} together. It is more useful to
+// return them as their own slices.
+// Example:
+//
+//	a := []int{1, 3, 4}
+//	b := []int{1, 2}
+//	add, remove := SymmetricDifference(a, b)
+//	fmt.Println(add)    // [2]
+//	fmt.Println(remove) // [3, 4]
+func SymmetricDifference[T comparable](a, b []T) (add []T, remove []T) {
+	return Difference(b, a), Difference(a, b)
+}
+
+// Difference returns the elements in 'a' that are not in 'b'.
+func Difference[T comparable](a []T, b []T) []T {
+	return DifferenceFunc(a, b, func(a, b T) bool {
+		return a == b
+	})
+}
+
+func SymmetricDifferenceFunc[T any](a, b []T, equal func(a, b T) bool) (add []T, remove []T) {
+	return DifferenceFunc(a, b, equal), DifferenceFunc(b, a, equal)
+}
+
+func DifferenceFunc[T any](a []T, b []T, equal func(a, b T) bool) []T {
+	tmp := make([]T, 0, len(a))
+	for _, v := range a {
+		if !ContainsCompare(b, v, equal) {
+			tmp = append(tmp, v)
+		}
+	}
+	return tmp
+}
+
 // ToStrings works for any type where the base type is a string.
 func ToStrings[T ~string](a []T) []string {
 	tmp := make([]string, 0, len(a))
