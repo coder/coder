@@ -5,9 +5,8 @@ Coder deployment from our
 [open source repository](https://github.com/coder/coder).
 
 We'll use [Docker](https://docs.docker.com/engine) to manage the compute for a
-slim deployment to experiment with
-[workpsaces](../tutorials/workspaces/README.md) and
-[templates](../tutorials/templates/README.md).
+slim deployment to experiment with [workspaces](../user-guides/README.md) and
+[templates](../admin/templates/README.md).
 
 Docker is not necessary for every Coder deployment and is only used here for
 simplicity.
