@@ -13,7 +13,7 @@ spec:
   sessionAffinity: {{ .Values.coder.service.sessionAffinity }}
   ports:
     - name: "http"
-      port: 80
+      port: 8080
       targetPort: "http"
       protocol: TCP
       {{ if eq .Values.coder.service.type "NodePort" }}
