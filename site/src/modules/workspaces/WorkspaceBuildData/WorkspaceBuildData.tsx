@@ -19,7 +19,7 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 				css={{
 					width: 16,
 					height: 16,
-					color: theme.palette[statusType].light,
+					color: theme.roles[statusType].fill.solid,
 				}}
 			/>
 			<div css={{ overflow: "hidden" }}>

@@ -201,8 +201,8 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 
 const styles = {
 	role: (theme) => ({
-		backgroundColor: theme.roles.info.background,
-		borderColor: theme.roles.info.outline,
+		backgroundColor: theme.roles.notice.background,
+		borderColor: theme.roles.notice.outline,
 	}),
 	globalRole: (theme) => ({
 		backgroundColor: theme.roles.inactive.background,

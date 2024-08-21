@@ -202,7 +202,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										{workspace.latest_build.status === "running" &&
 											!workspace.health.healthy && (
 												<InfoTooltip
-													type="notice"
+													type="warning"
 													title="Workspace is unhealthy"
 													message="Your workspace is running but some agents are unhealthy."
 												/>

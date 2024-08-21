@@ -4,7 +4,7 @@ import colors from "../tailwindColors";
 export default {
 	danger: {
 		background: colors.orange[950],
-		outline: colors.orange[600],
+		outline: colors.orange[500],
 		text: colors.orange[50],
 		fill: {
 			solid: colors.orange[500],
@@ -34,11 +34,11 @@ export default {
 	},
 	error: {
 		background: colors.red[950],
-		outline: colors.red[500],
+		outline: colors.red[600],
 		text: colors.red[50],
 		fill: {
-			solid: colors.red[600],
-			outline: colors.red[600],
+			solid: colors.red[400],
+			outline: colors.red[400],
 			text: colors.white,
 		},
 	},
@@ -53,22 +53,22 @@ export default {
 		},
 	},
 	notice: {
-		background: colors.yellow[950],
-		outline: colors.yellow[200],
-		text: colors.yellow[50],
-		fill: {
-			solid: colors.yellow[500],
-			outline: colors.yellow[500],
-			text: colors.white,
-		},
-	},
-	info: {
 		background: colors.blue[950],
 		outline: colors.blue[400],
 		text: colors.blue[50],
 		fill: {
 			solid: colors.blue[500],
 			outline: colors.blue[600],
+			text: colors.white,
+		},
+	},
+	info: {
+		background: colors.gray[950],
+		outline: colors.gray[400],
+		text: colors.gray[50],
+		fill: {
+			solid: colors.gray[500],
+			outline: colors.gray[600],
 			text: colors.white,
 		},
 	},
@@ -108,7 +108,7 @@ export default {
 		text: colors.sky[50],
 		fill: {
 			solid: colors.sky[600],
-			outline: colors.sky[600],
+			outline: colors.sky[400],
 			text: colors.white,
 		},
 		disabled: {
@@ -133,12 +133,12 @@ export default {
 		},
 	},
 	inactive: {
-		background: colors.zinc[950],
-		outline: colors.zinc[500],
-		text: colors.zinc[50],
+		background: colors.gray[950],
+		outline: colors.gray[500],
+		text: colors.gray[50],
 		fill: {
-			solid: colors.zinc[400],
-			outline: colors.zinc[400],
+			solid: colors.gray[400],
+			outline: colors.gray[400],
 			text: colors.white,
 		},
 	},

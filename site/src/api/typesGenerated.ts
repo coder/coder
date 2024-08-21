@@ -261,6 +261,7 @@ export interface CreateTemplateRequest {
 	readonly delete_ttl_ms?: number;
 	readonly disable_everyone_group_access: boolean;
 	readonly require_active_version: boolean;
+	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
 }
 
 // From codersdk/templateversions.go

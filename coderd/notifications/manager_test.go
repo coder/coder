@@ -12,13 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 func TestBufferedUpdates(t *testing.T) {
@@ -39,7 +41,7 @@ func TestBufferedUpdates(t *testing.T) {
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		database.NotificationMethodSmtp: santa,
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := dbgen.User(t, db, database.User{})
@@ -127,7 +129,7 @@ func TestBuildPayload(t *testing.T) {
 			}
 		})
 
-	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, helpers, logger.Named("notifications-enqueuer"))
+	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, helpers, logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	// WHEN: a notification is enqueued
