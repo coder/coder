@@ -53,3 +53,11 @@ or use your favorite RDP client to connect to `localhost:3399`.
 ![windows-rdp](../images/ides/windows_rdp_client.png)
 
 > Note: Default username is `Administrator` and password is `coderRDP!`.
+
+## RDP Web
+
+Our WebRDP module in the Coder Registry adds a one-click button to open an RDP
+session in the browser. This requires just a few lines of Terraform in your
+template, see the documentation on our registry for setup.
+
+![Web RDP Module in a Workspace](../../images/user-guides/web-rdp-demo.png)
