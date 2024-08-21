@@ -93,7 +93,7 @@ export const CreateUserForm: FC<
 				password: "",
 				username: "",
 				name: "",
-				organization_id: "00000000-0000-0000-0000-000000000000",
+				organization_ids: ["00000000-0000-0000-0000-000000000000"],
 				disable_login: false,
 				login_type: "",
 			},
