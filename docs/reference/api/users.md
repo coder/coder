@@ -85,7 +85,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
 	"email": "user@example.com",
 	"login_type": "",
 	"name": "string",
-	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 	"password": "string",
 	"username": "string"
 }

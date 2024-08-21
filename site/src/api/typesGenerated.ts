@@ -310,7 +310,7 @@ export interface CreateUserRequest {
 	readonly password: string;
 	readonly login_type: LoginType;
 	readonly disable_login: boolean;
-	readonly organization_id: string;
+	readonly organization_ids: Readonly<Array<string>>;
 }
 
 // From codersdk/workspaces.go

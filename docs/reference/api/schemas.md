@@ -1292,7 +1292,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 	"email": "user@example.com",
 	"login_type": "",
 	"name": "string",
-	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 	"password": "string",
 	"username": "string"
 }
@@ -1300,15 +1300,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                     | Required | Restrictions | Description                                                                                                                                                                                                        |
-| ----------------- | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `disable_login`   | boolean                                  | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. Deprecated: Set UserLoginType=LoginTypeDisabled instead. |
-| `email`           | string                                   | true     |              |                                                                                                                                                                                                                    |
-| `login_type`      | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                                                                                                                                                          |
-| `name`            | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `organization_id` | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `password`        | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `username`        | string                                   | true     |              |                                                                                                                                                                                                                    |
+| Name               | Type                                     | Required | Restrictions | Description                                                                                                                                                                                                        |
+| ------------------ | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `disable_login`    | boolean                                  | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. Deprecated: Set UserLoginType=LoginTypeDisabled instead. |
+| `email`            | string                                   | true     |              |                                                                                                                                                                                                                    |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                                                                                                                                                          |
+| `name`             | string                                   | false    |              |                                                                                                                                                                                                                    |
+| `organization_ids` | array of string                          | false    |              | Organization ids is a list of organization IDs that the user should be a member of.                                                                                                                                |
+| `password`         | string                                   | false    |              |                                                                                                                                                                                                                    |
+| `username`         | string                                   | true     |              |                                                                                                                                                                                                                    |
 
 ## codersdk.CreateWorkspaceBuildRequest
 

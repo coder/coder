@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -88,5 +89,64 @@ func TestDeprecatedCreateUserRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Empty(t, req.OrganizationIDs)
+	})
+}
+
+func TestCreateUserRequestJSON(t *testing.T) {
+	t.Parallel()
+
+	marshalTest := func(t *testing.T, req codersdk.CreateUserRequest) {
+		t.Helper()
+		data, err := json.Marshal(req)
+		require.NoError(t, err)
+		var req2 codersdk.CreateUserRequest
+		err = json.Unmarshal(data, &req2)
+		require.NoError(t, err)
+		require.Equal(t, req, req2)
+	}
+
+	t.Run("MultipleOrganizations", func(t *testing.T) {
+		t.Parallel()
+
+		req := codersdk.CreateUserRequest{
+			Email:           coderdtest.RandomName(t),
+			Username:        coderdtest.RandomName(t),
+			Name:            coderdtest.RandomName(t),
+			Password:        "",
+			UserLoginType:   codersdk.LoginTypePassword,
+			DisableLogin:    false,
+			OrganizationIDs: []uuid.UUID{uuid.New(), uuid.New()},
+		}
+		marshalTest(t, req)
+	})
+
+	t.Run("SingleOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		req := codersdk.CreateUserRequest{
+			Email:           coderdtest.RandomName(t),
+			Username:        coderdtest.RandomName(t),
+			Name:            coderdtest.RandomName(t),
+			Password:        "",
+			UserLoginType:   codersdk.LoginTypePassword,
+			DisableLogin:    false,
+			OrganizationIDs: []uuid.UUID{uuid.New()},
+		}
+		marshalTest(t, req)
+	})
+
+	t.Run("NoOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		req := codersdk.CreateUserRequest{
+			Email:           coderdtest.RandomName(t),
+			Username:        coderdtest.RandomName(t),
+			Name:            coderdtest.RandomName(t),
+			Password:        "",
+			UserLoginType:   codersdk.LoginTypePassword,
+			DisableLogin:    false,
+			OrganizationIDs: []uuid.UUID{},
+		}
+		marshalTest(t, req)
 	})
 }

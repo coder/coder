@@ -9475,9 +9475,13 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
+                "organization_ids": {
+                    "description": "OrganizationIDs is a list of organization IDs that the user should be a member of.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
                 },
                 "password": {
                     "type": "string"
