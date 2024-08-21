@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
@@ -13,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 )
@@ -48,12 +48,18 @@ func (c *committer) CommitQuota(
 	)
 	err = c.Database.InTx(func(s database.Store) error {
 		var err error
-		consumed, err = s.GetQuotaConsumedForUser(ctx, workspace.OwnerID)
+		consumed, err = s.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
+			OwnerID:        workspace.OwnerID,
+			OrganizationID: workspace.OrganizationID,
+		})
 		if err != nil {
 			return err
 		}
 
-		budget, err = s.GetQuotaAllowanceForUser(ctx, workspace.OwnerID)
+		budget, err = s.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
+			UserID:         workspace.OwnerID,
+			OrganizationID: workspace.OrganizationID,
+		})
 		if err != nil {
 			return err
 		}
@@ -112,21 +118,42 @@ func (c *committer) CommitQuota(
 	}, nil
 }
 
-// @Summary Get workspace quota by user
-// @ID get-workspace-quota-by-user
+// @Summary Get workspace quota by user deprecated
+// @ID get-workspace-quota-by-user-deprecated
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.WorkspaceQuota
 // @Router /workspace-quota/{user} [get]
-func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
-	user := httpmw.UserParam(r)
-
-	if !api.AGPL.Authorize(r, policy.ActionRead, user) {
-		httpapi.ResourceNotFound(rw)
+// @Deprecated this endpoint will be removed, use /organizations/{organization}/members/{user}/workspace-quota instead
+func (api *API) workspaceQuotaByUser(rw http.ResponseWriter, r *http.Request) {
+	defaultOrg, err := api.Database.GetDefaultOrganization(r.Context())
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
 		return
 	}
+
+	// defer to the new endpoint using default org as the organization
+	chi.RouteContext(r.Context()).URLParams.Add("organization", defaultOrg.ID.String())
+	mw := httpmw.ExtractOrganizationParam(api.Database)
+	mw(http.HandlerFunc(api.workspaceQuota)).ServeHTTP(rw, r)
+}
+
+// @Summary Get workspace quota by user
+// @ID get-workspace-quota-by-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, name, or me"
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceQuota
+// @Router /organizations/{organization}/members/{user}/workspace-quota [get]
+func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
+	var (
+		organization = httpmw.OrganizationParam(r)
+		user         = httpmw.UserParam(r)
+	)
 
 	api.entitlementsMu.RLock()
 	licensed := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
@@ -136,7 +163,10 @@ func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 	var quotaAllowance int64 = -1
 	if licensed {
 		var err error
-		quotaAllowance, err = api.Database.GetQuotaAllowanceForUser(r.Context(), user.ID)
+		quotaAllowance, err = api.Database.GetQuotaAllowanceForUser(r.Context(), database.GetQuotaAllowanceForUserParams{
+			UserID:         user.ID,
+			OrganizationID: organization.ID,
+		})
 		if err != nil {
 			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to get allowance",
@@ -146,7 +176,10 @@ func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	quotaConsumed, err := api.Database.GetQuotaConsumedForUser(r.Context(), user.ID)
+	quotaConsumed, err := api.Database.GetQuotaConsumedForUser(r.Context(), database.GetQuotaConsumedForUserParams{
+		OwnerID:        user.ID,
+		OrganizationID: organization.ID,
+	})
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get consumed",

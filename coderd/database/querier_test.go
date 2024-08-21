@@ -604,7 +604,10 @@ func TestWorkspaceQuotas(t *testing.T) {
 			db2sdk.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
 
 		// Check the quota is correct.
-		allowance, err := db.GetQuotaAllowanceForUser(ctx, one.ID)
+		allowance, err := db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
+			UserID:         one.ID,
+			OrganizationID: org.ID,
+		})
 		require.NoError(t, err)
 		require.Equal(t, int64(50), allowance)
 
@@ -617,7 +620,10 @@ func TestWorkspaceQuotas(t *testing.T) {
 		require.NoError(t, err)
 
 		// Ensure allowance remains the same
-		allowance, err = db.GetQuotaAllowanceForUser(ctx, one.ID)
+		allowance, err = db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
+			UserID:         one.ID,
+			OrganizationID: org.ID,
+		})
 		require.NoError(t, err)
 		require.Equal(t, int64(50), allowance)
 	})
