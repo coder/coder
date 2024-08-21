@@ -374,6 +374,58 @@ func TestDeleteUser(t *testing.T) {
 	})
 }
 
+func TestNotifyUserSuspended(t *testing.T) {
+	t.Parallel()
+
+	// given
+	notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+	adminClient := coderdtest.New(t, &coderdtest.Options{
+		NotificationsEnqueuer: notifyEnq,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	_, userAdmin := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleUserAdmin())
+
+	member, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Email:          "another@user.org",
+		Username:       "someone-else",
+		Password:       "SomeSecurePassword!",
+	})
+	require.NoError(t, err)
+
+	// when
+	_, err = adminClient.UpdateUserStatus(context.Background(), member.Username, codersdk.UserStatusSuspended)
+	require.NoError(t, err)
+
+	// then
+	require.Len(t, notifyEnq.Sent, 6)
+	// notifyEnq.Sent[0]: "User admin" account created, "owner" notified
+	// notifyEnq.Sent[1]: "Member" account created, "owner" notified
+	// notifyEnq.Sent[2]: "Member" account created, "user admin" notified
+
+	// "Member" account suspended, "owner" notified
+	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[3].TemplateID)
+	require.Equal(t, firstUser.UserID, notifyEnq.Sent[3].UserID)
+	require.Contains(t, notifyEnq.Sent[3].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[3].Labels["suspended_account_name"])
+
+	// "Member" account suspended, "user admin" notified
+	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[4].TemplateID)
+	require.Equal(t, userAdmin.ID, notifyEnq.Sent[4].UserID)
+	require.Contains(t, notifyEnq.Sent[4].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[4].Labels["suspended_account_name"])
+
+	// "Member" account suspended, "member" notified
+	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[5].TemplateID)
+	require.Equal(t, member.ID, notifyEnq.Sent[5].UserID)
+	require.Contains(t, notifyEnq.Sent[5].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[5].Labels["suspended_account_name"])
+}
+
 func TestNotifyDeletedUser(t *testing.T) {
 	t.Parallel()
 
