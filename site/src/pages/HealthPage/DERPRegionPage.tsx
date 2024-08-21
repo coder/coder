@@ -215,8 +215,8 @@ const reportStyles = {
 		borderTop: `1px solid ${theme.palette.divider}`,
 	}),
 	clientErrors: (theme) => ({
-		background: theme.colorRoles.error.background,
-		color: theme.colorRoles.error.text,
+		background: theme.roles.error.background,
+		color: theme.roles.error.text,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 

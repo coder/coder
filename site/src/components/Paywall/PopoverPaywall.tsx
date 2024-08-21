@@ -85,8 +85,8 @@ const styles = {
 		alignItems: "center",
 		maxWidth: 600,
 		padding: "24px 36px",
-		backgroundImage: `linear-gradient(160deg, transparent, ${theme.colorRoles.active.background})`,
-		border: `1px solid ${theme.colorRoles.active.fill.outline}`,
+		backgroundImage: `linear-gradient(160deg, transparent, ${theme.roles.active.background})`,
+		border: `1px solid ${theme.roles.active.fill.outline}`,
 		borderRadius: 8,
 		gap: 18,
 	}),
@@ -119,7 +119,7 @@ const styles = {
 		fontWeight: 500,
 	},
 	featureIcon: (theme) => ({
-		color: theme.colorRoles.active.fill.outline,
+		color: theme.roles.active.fill.outline,
 		fontSize: "1.5em",
 	}),
 	feature: {

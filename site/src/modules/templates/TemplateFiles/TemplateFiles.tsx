@@ -76,9 +76,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 							const hasDiff = fileInfo(path).hasDiff;
 							return (
 								<span
-									css={
-										hasDiff && { color: theme.colorRoles.warning.fill.outline }
-									}
+									css={hasDiff && { color: theme.roles.warning.fill.outline }}
 								>
 									{filename}
 								</span>
@@ -102,7 +100,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 												css={{
 													width: 14,
 													height: 14,
-													color: theme.colorRoles.warning.fill.outline,
+													color: theme.roles.warning.fill.outline,
 												}}
 											/>
 										)}

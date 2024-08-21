@@ -16,7 +16,7 @@ export interface Theme extends Omit<MuiTheme, "palette"> {
 	 * for the user.
 	 * Does it signify an error? a warning? that something is currently running? etc.
 	 */
-	colorRoles: ColorRoles;
+	roles: ColorRoles;
 
 	/** Theme properties that we're testing out but haven't committed to. */
 	experimental: NewTheme;

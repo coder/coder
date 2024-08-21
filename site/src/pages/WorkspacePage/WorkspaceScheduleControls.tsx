@@ -190,7 +190,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 			css={
 				danger &&
 				((theme) => ({
-					color: `${theme.colorRoles.danger.fill.outline} !important`,
+					color: `${theme.roles.danger.fill.outline} !important`,
 				}))
 			}
 		>

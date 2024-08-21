@@ -37,19 +37,19 @@ export const getDisplayWorkspaceBuildStatus = (
 		case "succeeded":
 			return {
 				type: "success",
-				color: theme.colorRoles.success.text,
+				color: theme.roles.success.text,
 				status: DisplayWorkspaceBuildStatusLanguage.succeeded,
 			} as const;
 		case "pending":
 			return {
 				type: "inactive",
-				color: theme.colorRoles.active.text,
+				color: theme.roles.active.text,
 				status: DisplayWorkspaceBuildStatusLanguage.pending,
 			} as const;
 		case "running":
 			return {
 				type: "active",
-				color: theme.colorRoles.active.text,
+				color: theme.roles.active.text,
 				status: DisplayWorkspaceBuildStatusLanguage.running,
 			} as const;
 		// Just handle unknown as failed
@@ -57,19 +57,19 @@ export const getDisplayWorkspaceBuildStatus = (
 		case "failed":
 			return {
 				type: "error",
-				color: theme.colorRoles.error.text,
+				color: theme.roles.error.text,
 				status: DisplayWorkspaceBuildStatusLanguage.failed,
 			} as const;
 		case "canceling":
 			return {
 				type: "warning",
-				color: theme.colorRoles.warning.text,
+				color: theme.roles.warning.text,
 				status: DisplayWorkspaceBuildStatusLanguage.canceling,
 			} as const;
 		case "canceled":
 			return {
 				type: "inactive",
-				color: theme.colorRoles.warning.text,
+				color: theme.roles.warning.text,
 				status: DisplayWorkspaceBuildStatusLanguage.canceled,
 			} as const;
 	}

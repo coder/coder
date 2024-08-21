@@ -45,7 +45,7 @@ export const Notifications: FC<NotificationsProps> = ({
 				horizontal="right"
 				css={{
 					"& .MuiPaper-root": {
-						borderColor: theme.colorRoles[severity].outline,
+						borderColor: theme.roles[severity].outline,
 						maxWidth: 400,
 					},
 				}}
@@ -69,10 +69,8 @@ const NotificationPill: FC<NotificationsProps> = ({
 		<Pill
 			icon={icon}
 			css={(theme) => ({
-				"& svg": { color: theme.colorRoles[severity].outline },
-				borderColor: popover.open
-					? theme.colorRoles[severity].outline
-					: undefined,
+				"& svg": { color: theme.roles[severity].outline },
+				borderColor: popover.open ? theme.roles[severity].outline : undefined,
 			})}
 		>
 			{items.length}

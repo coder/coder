@@ -153,10 +153,10 @@ export const OrganizationSettingsPageView: FC<
 const styles = {
 	dangerSettings: (theme) => ({
 		display: "flex",
-		backgroundColor: theme.colorRoles.danger.background,
+		backgroundColor: theme.roles.danger.background,
 		alignItems: "center",
 		justifyContent: "space-between",
-		border: `1px solid ${theme.colorRoles.danger.outline}`,
+		border: `1px solid ${theme.roles.danger.outline}`,
 		borderRadius: 8,
 		padding: 12,
 		paddingLeft: 18,
@@ -165,29 +165,29 @@ const styles = {
 		flexGrow: 1,
 
 		"& .option": {
-			color: theme.colorRoles.danger.fill.solid,
+			color: theme.roles.danger.fill.solid,
 			"&.Mui-checked": {
-				color: theme.colorRoles.danger.fill.solid,
+				color: theme.roles.danger.fill.solid,
 			},
 		},
 
 		"& .info": {
 			fontSize: 14,
 			fontWeight: 600,
-			color: theme.colorRoles.danger.text,
+			color: theme.roles.danger.text,
 		},
 	}),
 	dangerButton: (theme) => ({
-		borderColor: theme.colorRoles.danger.outline,
-		color: theme.colorRoles.danger.text,
+		borderColor: theme.roles.danger.outline,
+		color: theme.roles.danger.text,
 
 		"&.MuiLoadingButton-loading": {
-			color: theme.colorRoles.danger.disabled.text,
+			color: theme.roles.danger.disabled.text,
 		},
 
 		"&:hover:not(:disabled)": {
-			backgroundColor: theme.colorRoles.danger.hover.background,
-			borderColor: theme.colorRoles.danger.hover.fill.outline,
+			backgroundColor: theme.roles.danger.hover.background,
+			borderColor: theme.roles.danger.hover.fill.outline,
 		},
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

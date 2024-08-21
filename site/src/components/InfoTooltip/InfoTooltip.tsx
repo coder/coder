@@ -22,7 +22,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 	type = "info",
 }) => {
 	const theme = useTheme();
-	const iconColor = theme.colorRoles[type].outline;
+	const iconColor = theme.roles[type].outline;
 
 	return (
 		<HelpTooltip>

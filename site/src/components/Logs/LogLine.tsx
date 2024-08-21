@@ -43,29 +43,29 @@ const styles = {
 		padding: `0 var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
 
 		"&.error": {
-			backgroundColor: theme.colorRoles.error.background,
-			color: theme.colorRoles.error.text,
+			backgroundColor: theme.roles.error.background,
+			color: theme.roles.error.text,
 
 			"& .dashed-line": {
-				backgroundColor: theme.colorRoles.error.outline,
+				backgroundColor: theme.roles.error.outline,
 			},
 		},
 
 		"&.debug": {
-			backgroundColor: theme.colorRoles.notice.background,
-			color: theme.colorRoles.notice.text,
+			backgroundColor: theme.roles.notice.background,
+			color: theme.roles.notice.text,
 
 			"& .dashed-line": {
-				backgroundColor: theme.colorRoles.notice.outline,
+				backgroundColor: theme.roles.notice.outline,
 			},
 		},
 
 		"&.warn": {
-			backgroundColor: theme.colorRoles.warning.background,
-			color: theme.colorRoles.warning.text,
+			backgroundColor: theme.roles.warning.background,
+			color: theme.roles.warning.text,
 
 			"& .dashed-line": {
-				backgroundColor: theme.colorRoles.warning.outline,
+				backgroundColor: theme.roles.warning.outline,
 			},
 		},
 	}),

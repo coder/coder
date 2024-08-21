@@ -15,7 +15,7 @@ export const StatusIndicator: FC<StatusIndicatorProps> = ({ color }) => {
 				height: 8,
 				width: 8,
 				borderRadius: 4,
-				backgroundColor: theme.colorRoles[color].fill.solid,
+				backgroundColor: theme.roles[color].fill.solid,
 			}}
 		/>
 	);

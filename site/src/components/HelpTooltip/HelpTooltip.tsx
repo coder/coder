@@ -212,7 +212,7 @@ const styles = {
 		display: "flex",
 		alignItems: "center",
 		...(theme.typography.body2 as CSSObject),
-		color: theme.colorRoles.active.fill.outline,
+		color: theme.roles.active.fill.outline,
 	}),
 
 	linkIcon: {

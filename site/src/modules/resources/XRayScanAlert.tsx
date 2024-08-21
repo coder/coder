@@ -98,13 +98,13 @@ const styles = {
 		},
 	},
 	critical: (theme) => ({
-		color: theme.colorRoles.error.fill.solid,
+		color: theme.roles.error.fill.solid,
 	}),
 	high: (theme) => ({
-		color: theme.colorRoles.warning.fill.solid,
+		color: theme.roles.warning.fill.solid,
 	}),
 	medium: (theme) => ({
-		color: theme.colorRoles.notice.fill.solid,
+		color: theme.roles.notice.fill.solid,
 	}),
 	link: {
 		marginLeft: "auto",
