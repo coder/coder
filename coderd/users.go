@@ -388,8 +388,8 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 
 	if len(req.OrganizationIDs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("No organization specified to place the user as a member of. It is required to specify at least one organization id to place the user in."),
-			Detail:  fmt.Sprintf("required at least 1 value for the array 'organization_ids'"),
+			Message: "No organization specified to place the user as a member of. It is required to specify at least one organization id to place the user in.",
+			Detail:  "required at least 1 value for the array 'organization_ids'",
 			Validations: []codersdk.ValidationError{
 				{
 					Field:  "organization_ids",
@@ -447,7 +447,6 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-
 	}
 
 	var loginType database.LoginType

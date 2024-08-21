@@ -37,7 +37,7 @@ export const createUser = async (orgId: string) => {
 		password: "s3cure&password!",
 		login_type: "password",
 		disable_login: false,
-		organization_id: orgId,
+		organization_ids: [orgId],
 	});
 	return user;
 };
