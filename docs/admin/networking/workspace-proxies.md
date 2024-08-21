@@ -4,8 +4,9 @@ Workspace proxies provide low-latency experiences for geo-distributed teams.
 
 Coder's networking does a best effort to make direct connections to a workspace.
 In situations where this is not possible, such as connections via the web
-terminal and [web IDEs](../../user-guides/workspace-access/README.md#web-ides), workspace proxies are able to
-reduce the amount of distance the network traffic needs to travel.
+terminal and [web IDEs](../../user-guides/workspace-access/README.md#web-ides),
+workspace proxies are able to reduce the amount of distance the network traffic
+needs to travel.
 
 A workspace proxy is a relay connection a developer can choose to use when
 connecting with their workspace over SSH, a workspace app, port forwarding, etc.
@@ -26,8 +27,8 @@ Workspace proxies can be used in the browser by navigating to the user
 
 ## Requirements
 
-- The [Coder CLI](../../reference/cli/README.md) must be installed and authenticated as a user with
-  the Owner role.
+- The [Coder CLI](../../reference/cli/README.md) must be installed and
+  authenticated as a user with the Owner role.
 
 ## Step 1: Create the proxy
 
@@ -149,8 +150,8 @@ coder wsproxy server
 
 ### Running as a system service
 
-If you've installed Coder via a [system package](../../install/README.md), you can
-configure the workspace proxy by settings in
+If you've installed Coder via a [system package](../../install/README.md), you
+can configure the workspace proxy by settings in
 `/etc/coder.d/coder-workspace-proxy.env`
 
 To run workspace proxy as a system service on the host:
