@@ -72,11 +72,9 @@ func (d *Driver) Name() string {
 
 func (d *Driver) AddConnection(conn driver.Conn) {
 	d.connections = append(d.connections, conn)
-
 	for listener := range d.listeners {
 		d.listeners[listener] <- struct{}{}
 	}
-
 }
 
 func (d *Driver) WaitForConnection() {
