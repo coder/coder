@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/quartz"
-
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/database"

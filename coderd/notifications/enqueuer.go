@@ -9,11 +9,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/quartz"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
@@ -89,7 +89,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 		Payload:                input,
 		Targets:                targets,
 		CreatedBy:              createdBy,
-		CreatedAt:              s.clock.Now().UTC(), // mimicking dbtime.Now()
+		CreatedAt:              dbtime.Time(s.clock.Now().UTC()),
 	})
 	if err != nil {
 		// We have a trigger on the notification_messages table named `inhibit_enqueue_if_disabled` which prevents messages

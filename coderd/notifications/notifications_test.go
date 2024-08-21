@@ -1050,7 +1050,7 @@ func TestNotificationDuplicates(t *testing.T) {
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, db, createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
