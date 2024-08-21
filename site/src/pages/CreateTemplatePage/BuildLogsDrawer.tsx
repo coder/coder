@@ -162,7 +162,7 @@ const bannerStyles = {
 	},
 	icon: (theme) => ({
 		fontSize: 32,
-		color: theme.roles.warning.fill.outline,
+		color: theme.colorRoles.warning.fill.outline,
 	}),
 	title: {
 		fontWeight: 500,

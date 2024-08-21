@@ -472,7 +472,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											<WarningOutlined
 												css={{
 													fontSize: 48,
-													color: theme.roles.warning.fill.outline,
+													color: theme.colorRoles.warning.fill.outline,
 												}}
 											/>
 											<p

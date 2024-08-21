@@ -201,12 +201,12 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 
 const styles = {
 	role: (theme) => ({
-		backgroundColor: theme.roles.notice.background,
-		borderColor: theme.roles.notice.outline,
+		backgroundColor: theme.colorRoles.notice.background,
+		borderColor: theme.colorRoles.notice.outline,
 	}),
 	globalRole: (theme) => ({
-		backgroundColor: theme.roles.inactive.background,
-		borderColor: theme.roles.inactive.outline,
+		backgroundColor: theme.colorRoles.inactive.background,
+		borderColor: theme.colorRoles.inactive.outline,
 	}),
 	autoComplete: {
 		width: 300,

@@ -74,14 +74,14 @@ const BasePageButton: FC<BasePageButtonProps> = ({
 		<Button
 			css={
 				highlighted && {
-					borderColor: theme.roles.active.outline,
-					backgroundColor: theme.roles.active.background,
+					borderColor: theme.colorRoles.active.outline,
+					backgroundColor: theme.colorRoles.active.background,
 
 					// Override the hover state with active colors, but not hover
 					// colors because clicking won't do anything.
 					"&:hover": {
-						borderColor: theme.roles.active.outline,
-						backgroundColor: theme.roles.active.background,
+						borderColor: theme.colorRoles.active.outline,
+						backgroundColor: theme.colorRoles.active.background,
 					},
 				}
 			}

@@ -289,9 +289,9 @@ const styles = {
 		color: theme.palette.text.secondary,
 	}),
 	permissionPill: (theme) => ({
-		backgroundColor: theme.permission.background,
-		borderColor: theme.permission.outline,
-		color: theme.permission.text,
+		backgroundColor: theme.colorRoles.default.background,
+		borderColor: theme.colorRoles.default.outline,
+		color: theme.colorRoles.default.text,
 		width: "fit-content",
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

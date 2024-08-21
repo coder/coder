@@ -74,24 +74,24 @@ export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
 const styles = {
 	dangerButton: (theme) => ({
 		"&.MuiButton-contained": {
-			backgroundColor: theme.roles.danger.fill.solid,
-			borderColor: theme.roles.danger.fill.outline,
+			backgroundColor: theme.colorRoles.danger.fill.solid,
+			borderColor: theme.colorRoles.danger.fill.outline,
 
 			"&:not(.MuiLoadingButton-loading)": {
-				color: theme.roles.danger.fill.text,
+				color: theme.colorRoles.danger.fill.text,
 			},
 
 			"&:hover:not(:disabled)": {
-				backgroundColor: theme.roles.danger.hover.fill.solid,
-				borderColor: theme.roles.danger.hover.fill.outline,
+				backgroundColor: theme.colorRoles.danger.hover.fill.solid,
+				borderColor: theme.colorRoles.danger.hover.fill.outline,
 			},
 
 			"&.Mui-disabled": {
-				backgroundColor: theme.roles.danger.disabled.background,
-				borderColor: theme.roles.danger.disabled.outline,
+				backgroundColor: theme.colorRoles.danger.disabled.background,
+				borderColor: theme.colorRoles.danger.disabled.outline,
 
 				"&:not(.MuiLoadingButton-loading)": {
-					color: theme.roles.danger.disabled.fill.text,
+					color: theme.colorRoles.danger.disabled.fill.text,
 				},
 			},
 		},

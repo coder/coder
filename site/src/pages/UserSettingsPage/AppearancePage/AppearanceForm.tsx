@@ -215,7 +215,7 @@ const styles = {
 		userSelect: "none",
 	}),
 	containerActive: (theme) => ({
-		outline: `2px solid ${theme.roles.active.outline}`,
+		outline: `2px solid ${theme.colorRoles.active.outline}`,
 	}),
 	page: (theme) => ({
 		backgroundColor: theme.palette.background.default,

@@ -6,8 +6,7 @@ import darkBlue from "./darkBlue";
 import type { NewTheme } from "./experimental";
 import type { ExternalImageModeStyles } from "./externalImages";
 import light from "./light";
-import type { Permission } from "./permission";
-import type { Roles } from "./roles";
+import type { ColorRoles } from "./colorRoles";
 
 export interface Theme extends Omit<MuiTheme, "palette"> {
 	/** @deprecated prefer `theme.roles` when possible */
@@ -17,7 +16,7 @@ export interface Theme extends Omit<MuiTheme, "palette"> {
 	 * for the user.
 	 * Does it signify an error? a warning? that something is currently running? etc.
 	 */
-	roles: Roles;
+	colorRoles: ColorRoles;
 
 	/** Theme properties that we're testing out but haven't committed to. */
 	experimental: NewTheme;

@@ -484,7 +484,7 @@ const styles = {
 	newVersion: (theme) => ({
 		fontSize: 13,
 		fontWeight: 500,
-		color: theme.roles.active.fill.solid,
+		color: theme.colorRoles.active.fill.solid,
 	}),
 
 	message: {

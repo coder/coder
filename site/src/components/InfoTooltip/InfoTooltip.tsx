@@ -8,7 +8,7 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/roles";
+import type { ThemeRole } from "theme/colorRoles";
 
 interface InfoTooltipProps {
 	type?: ThemeRole;
@@ -22,7 +22,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 	type = "info",
 }) => {
 	const theme = useTheme();
-	const iconColor = theme.roles[type].outline;
+	const iconColor = theme.colorRoles[type].outline;
 
 	return (
 		<HelpTooltip>

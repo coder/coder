@@ -109,7 +109,7 @@ const styles = {
 		},
 	},
 	suggestion: (theme) => ({
-		color: theme.roles.notice.fill.solid,
+		color: theme.colorRoles.notice.fill.solid,
 		marginLeft: "-4px",
 		padding: "4px 6px",
 		lineHeight: "inherit",

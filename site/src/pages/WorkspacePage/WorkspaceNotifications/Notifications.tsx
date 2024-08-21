@@ -9,7 +9,7 @@ import {
 	usePopover,
 } from "components/Popover/Popover";
 import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/roles";
+import type { ThemeRole } from "theme/colorRoles";
 
 export type NotificationItem = {
 	title: string;
@@ -45,7 +45,7 @@ export const Notifications: FC<NotificationsProps> = ({
 				horizontal="right"
 				css={{
 					"& .MuiPaper-root": {
-						borderColor: theme.roles[severity].outline,
+						borderColor: theme.colorRoles[severity].outline,
 						maxWidth: 400,
 					},
 				}}
@@ -69,8 +69,10 @@ const NotificationPill: FC<NotificationsProps> = ({
 		<Pill
 			icon={icon}
 			css={(theme) => ({
-				"& svg": { color: theme.roles[severity].outline },
-				borderColor: popover.open ? theme.roles[severity].outline : undefined,
+				"& svg": { color: theme.colorRoles[severity].outline },
+				borderColor: popover.open
+					? theme.colorRoles[severity].outline
+					: undefined,
 			})}
 		>
 			{items.length}

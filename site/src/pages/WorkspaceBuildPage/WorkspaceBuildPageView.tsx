@@ -168,7 +168,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 							css={{
 								borderRadius: 0,
 								border: 0,
-								background: theme.roles.error.background,
+								background: theme.colorRoles.error.background,
 								borderBottom: `1px solid ${theme.palette.divider}`,
 							}}
 						>

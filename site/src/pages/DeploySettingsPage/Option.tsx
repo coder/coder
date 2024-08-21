@@ -175,10 +175,10 @@ const styles = {
 	}),
 
 	sourceConfigOption: (theme) => ({
-		border: `1px solid ${theme.roles.active.fill.outline}`,
+		border: `1px solid ${theme.colorRoles.active.fill.outline}`,
 
 		"& .OptionConfigFlag": {
-			background: theme.roles.active.fill.solid,
+			background: theme.colorRoles.active.fill.solid,
 		},
 	}),
 

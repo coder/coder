@@ -5,12 +5,12 @@ export const getLatencyColor = (theme: Theme, latency?: number) => {
 		return theme.palette.text.secondary;
 	}
 
-	let color = theme.roles.success.fill.solid;
+	let color = theme.colorRoles.success.fill.solid;
 
 	if (latency >= 150 && latency < 300) {
-		color = theme.roles.warning.fill.solid;
+		color = theme.colorRoles.warning.fill.solid;
 	} else if (latency >= 300) {
-		color = theme.roles.error.fill.solid;
+		color = theme.colorRoles.error.fill.solid;
 	}
 	return color;
 };

@@ -66,7 +66,7 @@ export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 
 const styles = {
 	disabled: (theme) => ({
-		color: theme.roles.inactive.fill.outline,
+		color: theme.colorRoles.inactive.fill.outline,
 	}),
 
 	colorSample: {

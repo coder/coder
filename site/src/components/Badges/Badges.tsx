@@ -24,19 +24,19 @@ const styles = {
 	},
 
 	enabledBadge: (theme) => ({
-		border: `1px solid ${theme.roles.success.outline}`,
-		backgroundColor: theme.roles.success.background,
-		color: theme.roles.success.text,
+		border: `1px solid ${theme.colorRoles.success.outline}`,
+		backgroundColor: theme.colorRoles.success.background,
+		color: theme.colorRoles.success.text,
 	}),
 	errorBadge: (theme) => ({
-		border: `1px solid ${theme.roles.error.outline}`,
-		backgroundColor: theme.roles.error.background,
-		color: theme.roles.error.text,
+		border: `1px solid ${theme.colorRoles.error.outline}`,
+		backgroundColor: theme.colorRoles.error.background,
+		color: theme.colorRoles.error.text,
 	}),
 	warnBadge: (theme) => ({
-		border: `1px solid ${theme.roles.warning.outline}`,
-		backgroundColor: theme.roles.warning.background,
-		color: theme.roles.warning.text,
+		border: `1px solid ${theme.colorRoles.warning.outline}`,
+		backgroundColor: theme.colorRoles.warning.background,
+		color: theme.colorRoles.warning.text,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
@@ -112,9 +112,9 @@ export const EnterpriseBadge: FC = () => {
 			css={[
 				styles.badge,
 				(theme) => ({
-					backgroundColor: theme.roles.notice.background,
-					border: `1px solid ${theme.roles.notice.outline}`,
-					color: theme.roles.notice.text,
+					backgroundColor: theme.colorRoles.notice.background,
+					border: `1px solid ${theme.colorRoles.notice.outline}`,
+					color: theme.colorRoles.notice.text,
 				}),
 			]}
 		>
@@ -129,9 +129,9 @@ export const PremiumBadge: FC = () => {
 			css={[
 				styles.badge,
 				(theme) => ({
-					backgroundColor: theme.roles.notice.background,
-					border: `1px solid ${theme.roles.notice.outline}`,
-					color: theme.roles.notice.text,
+					backgroundColor: theme.colorRoles.notice.background,
+					border: `1px solid ${theme.colorRoles.notice.outline}`,
+					color: theme.colorRoles.notice.text,
 				}),
 			]}
 		>
@@ -146,9 +146,9 @@ export const PreviewBadge: FC = () => {
 			css={[
 				styles.badge,
 				(theme) => ({
-					border: `1px solid ${theme.roles.preview.outline}`,
-					backgroundColor: theme.roles.preview.background,
-					color: theme.roles.preview.text,
+					border: `1px solid ${theme.colorRoles.preview.outline}`,
+					backgroundColor: theme.colorRoles.preview.background,
+					color: theme.colorRoles.preview.text,
 				}),
 			]}
 		>
@@ -163,9 +163,9 @@ export const AlphaBadge: FC = () => {
 			css={[
 				styles.badge,
 				(theme) => ({
-					border: `1px solid ${theme.roles.preview.outline}`,
-					backgroundColor: theme.roles.preview.background,
-					color: theme.roles.preview.text,
+					border: `1px solid ${theme.colorRoles.preview.outline}`,
+					backgroundColor: theme.colorRoles.preview.background,
+					color: theme.colorRoles.preview.text,
 				}),
 			]}
 		>
@@ -180,9 +180,9 @@ export const DeprecatedBadge: FC = () => {
 			css={[
 				styles.badge,
 				(theme) => ({
-					border: `1px solid ${theme.roles.danger.outline}`,
-					backgroundColor: theme.roles.danger.background,
-					color: theme.roles.danger.text,
+					border: `1px solid ${theme.colorRoles.danger.outline}`,
+					backgroundColor: theme.colorRoles.danger.background,
+					color: theme.colorRoles.danger.text,
 				}),
 			]}
 		>

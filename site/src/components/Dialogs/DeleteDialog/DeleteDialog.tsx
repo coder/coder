@@ -108,10 +108,10 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 
 const styles = {
 	callout: (theme) => ({
-		backgroundColor: theme.roles.danger.background,
-		border: `1px solid ${theme.roles.danger.outline}`,
+		backgroundColor: theme.colorRoles.danger.background,
+		border: `1px solid ${theme.colorRoles.danger.outline}`,
 		borderRadius: theme.shape.borderRadius,
-		color: theme.roles.danger.text,
+		color: theme.colorRoles.danger.text,
 		padding: "8px 16px",
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

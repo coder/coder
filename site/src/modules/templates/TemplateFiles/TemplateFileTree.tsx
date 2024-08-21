@@ -138,8 +138,8 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
             }
 
             &.Mui-selected {
-              color: ${theme.roles.active.text};
-              background: ${theme.roles.active.background};
+              color: ${theme.colorRoles.active.text};
+              background: ${theme.colorRoles.active.background};
             }
 
             &.Mui-focused {
