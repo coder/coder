@@ -162,39 +162,50 @@ func TestSupportBundle(t *testing.T) {
 	})
 
 	// This ensures that the CLI does not panic when trying to generate a support bundle
-	// against a fake server that returns a 200 OK for all requests. This essentially
+	// against a fake server that returns an empty response for all requests. This essentially
 	// ensures that (almost) all of the support bundle generating code paths get a zero value.
 	t.Run("DontPanic", func(t *testing.T) {
 		t.Parallel()
 
-		// Start up a fake server that will return a blank 200 OK response for everything.
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			t.Logf("received request: %s %s", r.Method, r.URL)
-			switch r.URL.Path {
-			case "/api/v2/authcheck":
-				// Fake auth check
-				resp := codersdk.AuthorizationResponse{
-					"Read DeploymentValues": true,
-				}
-				w.WriteHeader(http.StatusOK)
-				assert.NoError(t, json.NewEncoder(w).Encode(resp))
-			default:
-				// Simply return a 200 OK for everything else.
-				w.WriteHeader(http.StatusOK)
-			}
-		}))
-		defer srv.Close()
-		u, err := url.Parse(srv.URL)
-		require.NoError(t, err)
-		client := codersdk.New(u)
+		for _, code := range []int{
+			http.StatusOK,
+			http.StatusUnauthorized,
+			http.StatusForbidden,
+			http.StatusNotFound,
+			http.StatusInternalServerError,
+		} {
+			t.Run(http.StatusText(code), func(t *testing.T) {
+				t.Parallel()
+				// Start up a fake server
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					t.Logf("received request: %s %s", r.Method, r.URL)
+					switch r.URL.Path {
+					case "/api/v2/authcheck":
+						// Fake auth check
+						resp := codersdk.AuthorizationResponse{
+							"Read DeploymentValues": true,
+						}
+						w.WriteHeader(http.StatusOK)
+						assert.NoError(t, json.NewEncoder(w).Encode(resp))
+					default:
+						// Simply return a blank response for everything else.
+						w.WriteHeader(code)
+					}
+				}))
+				defer srv.Close()
+				u, err := url.Parse(srv.URL)
+				require.NoError(t, err)
+				client := codersdk.New(u)
 
-		d := t.TempDir()
-		path := filepath.Join(d, "bundle.zip")
+				d := t.TempDir()
+				path := filepath.Join(d, "bundle.zip")
 
-		inv, root := clitest.New(t, "support", "bundle", "--url-override", srv.URL, "--output-file", path, "--yes")
-		clitest.SetupConfig(t, client, root)
-		err = inv.Run()
-		require.NoError(t, err)
+				inv, root := clitest.New(t, "support", "bundle", "--url-override", srv.URL, "--output-file", path, "--yes")
+				clitest.SetupConfig(t, client, root)
+				err = inv.Run()
+				require.NoError(t, err)
+			})
+		}
 	})
 }
 
