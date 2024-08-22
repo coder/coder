@@ -235,7 +235,6 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 		cliui.Error(inv.Stdout, "No deployment health report available!")
 		return
 	}
-
 	deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
 	if len(deployHealthSummary) > 0 {
 		cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
