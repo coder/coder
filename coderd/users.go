@@ -878,19 +878,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 
 		// Fetch all users with user admin permissions
-		owners, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-			RbacRole: []string{codersdk.RoleOwner},
-		})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching owners",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		userAdmins, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-			RbacRole: []string{codersdk.RoleUserAdmin},
-		})
+		userAdmins, err := findUserAdmins(ctx, api.Database)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching user admins",
@@ -900,7 +888,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 
 		// Send notifications to user admins and affected user
-		for _, u := range append(append(owners, userAdmins...), database.GetUsersRow{ID: user.ID}) {
+		for _, u := range append(userAdmins, database.GetUsersRow{ID: user.ID}) {
 			if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, templateID,
 				map[string]string{
 					key: user.Username,
