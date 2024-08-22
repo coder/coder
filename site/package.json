@@ -4,7 +4,6 @@
 	"repository": "https://github.com/coder/coder",
 	"private": true,
 	"license": "AGPL-3.0",
-	"type": "module",
 	"scripts": {
 		"build": "NODE_ENV=production pnpm vite build",
 		"check": "biome check --error-on-warnings e2e/ src/",
