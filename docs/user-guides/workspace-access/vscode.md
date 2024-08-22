@@ -14,10 +14,6 @@ extension, authenticates with Coder, and connects to the workspace.
 
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
-You can set the default directory in which VS Code opens via the `dir` argument
-on the `coder_agent` resource in your workspace template. See the
-[Terraform documentation for more details](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#dir).
-
 > The `VS Code Desktop` button can be hidden by enabling
 > [Browser-only connections](./networking/index.md#Browser-only).
 
@@ -34,10 +30,6 @@ ext install coder.coder-remote
 Alternatively, manually install the VSIX from the
 [latest release](https://github.com/coder/vscode-coder/releases/latest).
 
-## code-server
-
-[code-server](https://github.com/coder/code-server) is our supported method of
-running VS Code in the web browser. You can read more in our
-[documentation for code-server](https://coder.com/docs/code-server/latest).
-
-![code-server in a workspace](../../images/code-server-ide.png)
+> **Note**: To configure the extensions and default directory of VS Code, A
+> template administrator can follow the guide on
+> [Extending Templates](../../admin/templates/extending-templates/ides/vscode-desktop.md).

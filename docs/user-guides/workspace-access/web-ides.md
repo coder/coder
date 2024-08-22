@@ -48,46 +48,10 @@ is a community template example.
 
 ## RStudio
 
-Configure your agent and `coder_app` like so to use RStudio. Notice the
-`subdomain=true` configuration:
-
-```hcl
-resource "coder_agent" "coder" {
-  os             = "linux"
-  arch           = "amd64"
-  dir            = "/home/coder"
-  startup_script = <<EOT
-#!/bin/bash
-# start rstudio
-/usr/lib/rstudio-server/bin/rserver --server-daemonize=1 --auth-none=1 &
-EOT
-}
-
-# rstudio
-resource "coder_app" "rstudio" {
-  agent_id      = coder_agent.coder.id
-  slug          = "rstudio"
-  display_name  = "R Studio"
-  icon          = "https://upload.wikimedia.org/wikipedia/commons/d/d0/RStudio_logo_flat.svg"
-  url           = "http://localhost:8787"
-  subdomain     = true
-  share         = "owner"
-
-  healthcheck {
-    url       = "http://localhost:8787/healthz"
-    interval  = 3
-    threshold = 10
-  }
-}
-```
-
-If you cannot enable a
-[wildcard subdomain](https://coder.com/docs/admin/configure#wildcard-access-url),
-you can configure the template to run RStudio on a path using an NGINX reverse
-proxy in the template. There is however
-[security risk](https://coder.com/docs/reference/cli/server#--dangerous-allow-path-app-sharing)
-running an app on a path and the template code is more complicated with coder
-value substitution to recreate the path structure.
+RStudio is a popular IDE for R programming language. A template administrator
+can add it to your workspace by following the
+[Extending Templates](../../admin/templates/extending-templates/ides/web-ides.md#rstudio)
+guide.
 
 [This](https://github.com/sempie/coder-templates/tree/main/rstudio) is a
 community template example.
@@ -96,77 +60,12 @@ community template example.
 
 ## Airflow
 
-Configure your agent and `coder_app` like so to use Airflow. Notice the
-`subdomain=true` configuration:
-
-```hcl
-resource "coder_agent" "coder" {
-  os   = "linux"
-  arch = "amd64"
-  dir  = "/home/coder"
-  startup_script = <<EOT
-#!/bin/bash
-# install and start airflow
-pip3 install apache-airflow
-/home/coder/.local/bin/airflow standalone &
-EOT
-}
-
-resource "coder_app" "airflow" {
-  agent_id      = coder_agent.coder.id
-  slug          = "airflow"
-  display_name  = "Airflow"
-  icon          = "https://upload.wikimedia.org/wikipedia/commons/d/de/AirflowLogo.png"
-  url           = "http://localhost:8080"
-  subdomain     = true
-  share         = "owner"
-
-  healthcheck {
-    url       = "http://localhost:8080/healthz"
-    interval  = 10
-    threshold = 60
-  }
-}
-```
+Apache Airflow is an open-source workflow management platform for data
+engineering pipelines. A template administrator can add it by following the
+[Extending Templates](../../admin/templates/extending-templates/ides/web-ides.md#airflow)
+guide.
 
 ![Airflow in Coder](../images/airflow-port-forward.png)
-
-## File Browser
-
-Show and manipulate the contents of the `/home/coder` directory in a browser.
-
-```hcl
-resource "coder_agent" "coder" {
-  os   = "linux"
-  arch = "amd64"
-  dir  = "/home/coder"
-  startup_script = <<EOT
-#!/bin/bash
-
-curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
-
-EOT
-}
-
-resource "coder_app" "filebrowser" {
-  agent_id     = coder_agent.coder.id
-  display_name = "file browser"
-  slug         = "filebrowser"
-  url          = "http://localhost:13339"
-  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
-  subdomain    = true
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:13339/healthz"
-    interval  = 3
-    threshold = 10
-  }
-}
-```
-
-![File Browser](../images/file-browser.png)
 
 ## SSH Fallback
 

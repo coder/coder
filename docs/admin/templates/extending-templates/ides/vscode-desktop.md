@@ -26,18 +26,6 @@ module "vscode" {
 > [multi-root](https://code.visualstudio.com/docs/editor/workspaces#_multiroot-workspaces)
 > workspaces.
 
-## Manual Installation
-
-Launch VS Code Quick Open (Ctrl+P), paste the following command, and press
-enter.
-
-```text
-ext install coder.coder-remote
-```
-
-Alternatively, manually install the VSIX from the
-[latest release](https://github.com/coder/vscode-coder/releases/latest).
-
 ## VS Code extensions
 
 There are multiple ways to add extensions to VS Code Desktop:

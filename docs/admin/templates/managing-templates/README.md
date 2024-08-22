@@ -24,7 +24,7 @@ here!
 
 ![Starter templates](../../images/templates/starter-templates.png)
 
-If you prefer to use Coder on the [command line](../cli.md), use
+If you prefer to use Coder on the [command line](../../reference/cli/README.md),
 `coder templates init`.
 
 > Coder starter templates are also available on our
@@ -87,7 +87,10 @@ template:
 coder templates delete <template-name>
 ```
 
+<children></children>
+
 ## Next steps
 
-- [Your first template](../templates/tutorial.md)
 - [Image management](./image-management.md)
+- [Devcontainer templates](./devcontainer-templates.md)
+- [Change management](./change-management.md)

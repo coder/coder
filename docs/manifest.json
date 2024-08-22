@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -115,6 +117,11 @@
               "title": "Port Forwarding",
               "description": "Access ports on your workspace",
               "path": "./user-guides/workspace-access/port-forwarding.md"
+            },
+            {
+              "title": "Filebrowser",
+              "description": "Access your workspace files",
+              "path": "./user-guides/workspace-access/filebrowser.md"
             }
           ]
         },
@@ -229,6 +236,28 @@
               "path": "./admin/templates/creating-templates.md"
             },
             {
+              "title": "Managing Templates",
+              "description": "Learn how to manage templates and best practices",
+              "path": "./admin/templates/managing-templates/README.md.md",
+              "children": [
+                {
+                  "title": "Image Management",
+                  "description": "Learn about template image management",
+                  "path": "./admin/templates/managing-templates/image-management.md"
+                },
+                {
+                  "title": "Change Management",
+                  "description": "Learn about template change management and versioning",
+                  "path": "./admin/templates/managing-templates/change-management.md"
+                },
+                {
+                  "title": "Devcontainers",
+                  "description": "Learn about using devcontainers in templates",
+                  "path": "./admin/templates/managing-templates/devcontainers.md"
+                }
+              ]
+            },
+            {
               "title": "Extending Templates",
               "description": "Learn best practices in extending templates",
               "path": "./admin/templates/extending-templates/README.md",
@@ -262,6 +291,16 @@
                   "title": "Terraform Variables",
                   "description": "Use variables to manage template state",
                   "path": "./admin/templates/extending-templates/variables.md"
+                },
+                {
+                  "title": "IDEs",
+                  "description": "Add and configure IDEs in your templates",
+                  "path": "./admin/templates/extending-templates/ides/README.md"
+                },
+                {
+                  "title": "Filebrowser",
+                  "description": "Add Filebrowser to your templates",
+                  "path": "./admin/templates/extending-templates/filebrowser.md"
                 }
               ]
             },

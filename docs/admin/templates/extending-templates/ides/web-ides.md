@@ -1,16 +1,5 @@
 # Web IDEs
 
-By default, Coder workspaces allow connections via:
-
-- Web terminal
-- SSH (plus any [SSH-compatible IDE](../ides/README.md))
-
-It's common to also let developers to connect via web IDEs for uses cases like
-zero trust networks, data science, contractors, and infrequent code
-contributors.
-
-![Row of IDEs](../../../../images/ide-row.png)
-
 In Coder, web IDEs are defined as
 [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
 resources in the template. With our generic model, any web application can be
