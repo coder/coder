@@ -416,10 +416,10 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		_, userAdmin := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleUserAdmin())
 
 		member, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Email:          "another@user.org",
-			Username:       "someone-else",
-			Password:       "SomeSecurePassword!",
+			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
+			Email:           "another@user.org",
+			Username:        "someone-else",
+			Password:        "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
 
@@ -453,10 +453,10 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		_, userAdmin := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleUserAdmin())
 
 		member, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Email:          "another@user.org",
-			Username:       "someone-else",
-			Password:       "SomeSecurePassword!",
+			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
+			Email:           "another@user.org",
+			Username:        "someone-else",
+			Password:        "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
 
