@@ -293,9 +293,9 @@
                   "path": "./admin/templates/extending-templates/variables.md"
                 },
                 {
-                  "title": "IDEs",
-                  "description": "Add and configure IDEs in your templates",
-                  "path": "./admin/templates/extending-templates/ides/README.md"
+                  "title": "Web IDEs",
+                  "description": "Add and configure Web IDEs in your templates",
+                  "path": "./admin/templates/extending-templates/web-ides.md"
                 },
                 {
                   "title": "Filebrowser",
