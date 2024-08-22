@@ -397,33 +397,32 @@ func TestNotifyUserSuspended(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	notifyEnq.Clear()
+
 	// when
 	_, err = adminClient.UpdateUserStatus(context.Background(), member.Username, codersdk.UserStatusSuspended)
 	require.NoError(t, err)
 
 	// then
-	require.Len(t, notifyEnq.Sent, 3+3) // 3 notifications due to acccount creation + 3 extra due to account suspension
-	// notifyEnq.Sent[0]: "User admin" account created, "owner" notified
-	// notifyEnq.Sent[1]: "Member" account created, "owner" notified
-	// notifyEnq.Sent[2]: "Member" account created, "user admin" notified
+	require.Len(t, notifyEnq.Sent, 3)
 
 	// "Member" account suspended, "owner" notified
-	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[3].TemplateID)
-	require.Equal(t, firstUser.UserID, notifyEnq.Sent[3].UserID)
-	require.Contains(t, notifyEnq.Sent[3].Targets, member.ID)
-	require.Equal(t, member.Username, notifyEnq.Sent[3].Labels["suspended_account_name"])
+	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[0].TemplateID)
+	require.Equal(t, firstUser.UserID, notifyEnq.Sent[0].UserID)
+	require.Contains(t, notifyEnq.Sent[0].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[0].Labels["suspended_account_name"])
 
 	// "Member" account suspended, "user admin" notified
-	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[4].TemplateID)
-	require.Equal(t, userAdmin.ID, notifyEnq.Sent[4].UserID)
-	require.Contains(t, notifyEnq.Sent[4].Targets, member.ID)
-	require.Equal(t, member.Username, notifyEnq.Sent[4].Labels["suspended_account_name"])
+	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[1].TemplateID)
+	require.Equal(t, userAdmin.ID, notifyEnq.Sent[1].UserID)
+	require.Contains(t, notifyEnq.Sent[1].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[1].Labels["suspended_account_name"])
 
 	// "Member" account suspended, "member" notified
-	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[5].TemplateID)
-	require.Equal(t, member.ID, notifyEnq.Sent[5].UserID)
-	require.Contains(t, notifyEnq.Sent[5].Targets, member.ID)
-	require.Equal(t, member.Username, notifyEnq.Sent[5].Labels["suspended_account_name"])
+	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[2].TemplateID)
+	require.Equal(t, member.ID, notifyEnq.Sent[2].UserID)
+	require.Contains(t, notifyEnq.Sent[2].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[2].Labels["suspended_account_name"])
 }
 
 func TestNotifyUserReactivate(t *testing.T) {
@@ -452,33 +451,32 @@ func TestNotifyUserReactivate(t *testing.T) {
 	_, err = adminClient.UpdateUserStatus(context.Background(), member.Username, codersdk.UserStatusSuspended)
 	require.NoError(t, err)
 
+	notifyEnq.Clear()
+
 	// when
 	_, err = adminClient.UpdateUserStatus(context.Background(), member.Username, codersdk.UserStatusActive)
 	require.NoError(t, err)
 
 	// then
-	require.Len(t, notifyEnq.Sent, 6+3) // 6 notifications due to account suspension + 3 extra due to activation
-	// notifyEnq.Sent[0]: "User admin" account created, "owner" notified
-	// notifyEnq.Sent[1]: "Member" account created, "owner" notified
-	// notifyEnq.Sent[2]: "Member" account created, "user admin" notified
+	require.Len(t, notifyEnq.Sent, 3)
 
 	// "Member" account suspended, "owner" notified
-	require.Equal(t, notifications.TemplateUserAccountActivated, notifyEnq.Sent[6].TemplateID)
-	require.Equal(t, firstUser.UserID, notifyEnq.Sent[6].UserID)
-	require.Contains(t, notifyEnq.Sent[6].Targets, member.ID)
-	require.Equal(t, member.Username, notifyEnq.Sent[6].Labels["activated_account_name"])
+	require.Equal(t, notifications.TemplateUserAccountActivated, notifyEnq.Sent[0].TemplateID)
+	require.Equal(t, firstUser.UserID, notifyEnq.Sent[0].UserID)
+	require.Contains(t, notifyEnq.Sent[0].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[0].Labels["activated_account_name"])
 
 	// "Member" account suspended, "user admin" notified
-	require.Equal(t, notifications.TemplateUserAccountActivated, notifyEnq.Sent[7].TemplateID)
-	require.Equal(t, userAdmin.ID, notifyEnq.Sent[7].UserID)
-	require.Contains(t, notifyEnq.Sent[7].Targets, member.ID)
-	require.Equal(t, member.Username, notifyEnq.Sent[7].Labels["activated_account_name"])
+	require.Equal(t, notifications.TemplateUserAccountActivated, notifyEnq.Sent[1].TemplateID)
+	require.Equal(t, userAdmin.ID, notifyEnq.Sent[1].UserID)
+	require.Contains(t, notifyEnq.Sent[1].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[1].Labels["activated_account_name"])
 
 	// "Member" account suspended, "member" notified
-	require.Equal(t, notifications.TemplateUserAccountActivated, notifyEnq.Sent[8].TemplateID)
-	require.Equal(t, member.ID, notifyEnq.Sent[8].UserID)
-	require.Contains(t, notifyEnq.Sent[8].Targets, member.ID)
-	require.Equal(t, member.Username, notifyEnq.Sent[8].Labels["activated_account_name"])
+	require.Equal(t, notifications.TemplateUserAccountActivated, notifyEnq.Sent[2].TemplateID)
+	require.Equal(t, member.ID, notifyEnq.Sent[2].UserID)
+	require.Contains(t, notifyEnq.Sent[2].Targets, member.ID)
+	require.Equal(t, member.Username, notifyEnq.Sent[2].Labels["activated_account_name"])
 }
 
 func TestNotifyDeletedUser(t *testing.T) {
