@@ -73,3 +73,7 @@ func (d *Driver) Open(name string) (driver.Conn, error) {
 
 	return c.Connect(context.Background())
 }
+
+func (d *Driver) Close() {
+	close(d.Connections)
+}

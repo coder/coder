@@ -51,7 +51,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	event := "test"
 	data := "testing"
 	messageChannel := make(chan []byte)
-	unsub0, err := uut.Subscribe(event, func(ctx context.Context, message []byte) {
+	unsub0, err := uut.Subscribe(event, func(_ context.Context, message []byte) {
 		messageChannel <- message
 	})
 	require.NoError(t, err)
@@ -140,9 +140,11 @@ func TestPGPubsubDriver(t *testing.T) {
 	require.NoError(t, err)
 	pubber, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
+	defer pubber.Close()
 
 	// use a connector that sends us the connections for the subber
 	subDriver := dbtestutil.NewDriver()
+	defer subDriver.Close()
 	tconn, err := subDriver.Connector(connectionURL)
 	require.NoError(t, err)
 	tcdb := sql.OpenDB(tconn)
