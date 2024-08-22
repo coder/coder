@@ -159,7 +159,6 @@ func TestPGPubsubDriver(t *testing.T) {
 	require.NoError(t, err)
 	defer subCancel()
 
-	t.Log("publishing message")
 	// send a message
 	err = pubber.Publish("test", []byte("hello"))
 	require.NoError(t, err)
