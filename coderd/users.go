@@ -881,30 +881,30 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 }
 
 func (api *API) notifyUserStatusChanged(ctx context.Context, user database.User, status database.UserStatus) error {
-	// Notify about the change of user status
 	var key string
-	var templateID uuid.UUID
+	var adminTemplateID, ownerTemplateID uuid.UUID
 	switch status {
 	case database.UserStatusSuspended:
 		key = "suspended_account_name"
-		templateID = notifications.TemplateUserAccountSuspended
+		adminTemplateID = notifications.TemplateUserAccountSuspended
+		ownerTemplateID = notifications.TemplateYourAccountSuspended
 	case database.UserStatusActive:
 		key = "activated_account_name"
-		templateID = notifications.TemplateUserAccountActivated
+		adminTemplateID = notifications.TemplateUserAccountActivated
+		ownerTemplateID = notifications.TemplateYourAccountActivated
 	default:
 		api.Logger.Error(ctx, "user status is not supported", slog.F("username", user.Username), slog.F("user_status", string(status)))
 		return xerrors.Errorf("unable to notify admins as the user's status is unsupported")
 	}
 
-	// Fetch all users with user admin permissions
 	userAdmins, err := findUserAdmins(ctx, api.Database)
 	if err != nil {
 		return xerrors.Errorf("unable to find user admins: %w", err)
 	}
 
 	// Send notifications to user admins and affected user
-	for _, u := range append(userAdmins, database.GetUsersRow{ID: user.ID}) {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, templateID,
+	for _, u := range userAdmins {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, adminTemplateID,
 			map[string]string{
 				key: user.Username,
 			}, "api-put-user-status",
@@ -912,6 +912,14 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, user database.User,
 		); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
 		}
+	}
+	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, user.ID, ownerTemplateID,
+		map[string]string{
+			key: user.Username,
+		}, "api-put-user-status",
+		user.ID,
+	); err != nil {
+		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", user.Username), slog.Error(err))
 	}
 	return nil
 }
