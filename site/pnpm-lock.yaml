@@ -287,8 +287,8 @@ importers:
         specifier: 29.5.12
         version: 29.5.12
       '@types/lodash':
-        specifier: 4.17.6
-        version: 4.17.6
+        specifier: 4.17.7
+        version: 4.17.7
       '@types/node':
         specifier: 20.14.8
         version: 20.14.8
@@ -2938,8 +2938,8 @@ packages:
   '@types/jsdom@20.0.1':
     resolution: {integrity: sha512-d0r18sZPmMQr1eG35u12FZfhIXNrnsPU/g5wvRKCUf/tOGilKKwYMYGqh33BNR6ba+2gkHw1EUiHoN3mn7E5IQ==}
 
-  '@types/lodash@4.17.6':
-    resolution: {integrity: sha512-OpXEVoCKSS3lQqjx9GGGOapBeuW5eUboYHRlHP9urXPX25IKZ6AnP5ZRxtVf63iieUbsHxLn8NQ5Nlftc6yzAA==}
+  '@types/lodash@4.17.7':
+    resolution: {integrity: sha512-8wTvZawATi/lsmNu10/j2hk1KEP0IvjubqPE3cu1Xz7xfXXt5oCq3SNUz4fMIP4XGF9Ky+Ue2tBA3hcS7LSBlA==}
 
   '@types/mdast@4.0.3':
     resolution: {integrity: sha512-LsjtqsyF+d2/yFOYaN22dHZI1Cpwkrj+g06G8+qtUKlhovPW89YhqSnfKtMbkgmEtYpH2gydRNULd6y8mciAFg==}
@@ -9431,7 +9431,7 @@ snapshots:
       '@storybook/preview-api': 8.1.11
       '@storybook/theming': 8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@storybook/types': 8.1.11
-      '@types/lodash': 4.17.6
+      '@types/lodash': 4.17.7
       color-convert: 2.0.1
       dequal: 2.0.3
       lodash: 4.17.21
@@ -10275,7 +10275,7 @@ snapshots:
       '@types/tough-cookie': 4.0.2
       parse5: 7.1.2
 
-  '@types/lodash@4.17.6': {}
+  '@types/lodash@4.17.7': {}
 
   '@types/mdast@4.0.3':
     dependencies:
