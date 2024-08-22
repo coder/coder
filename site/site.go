@@ -382,15 +382,12 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				state.User = html.EscapeString(string(user))
 			}
 		}()
-		entitlements := h.Entitlements.Load()
-		if entitlements != nil {
+
+		if h.Entitlements != nil {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				entitlements, err := json.Marshal(entitlements)
-				if err == nil {
-					state.Entitlements = html.EscapeString(string(entitlements))
-				}
+				state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))
 			}()
 		}
 

@@ -43,7 +43,6 @@ func (l *Set) AllowRefresh(now time.Time) (bool, time.Duration) {
 	}
 
 	return true, 0
-
 }
 
 func (l *Set) Feature(name codersdk.FeatureName) (codersdk.Feature, bool) {
