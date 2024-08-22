@@ -3075,7 +3075,7 @@ func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.Regis
 	return updateWithReturn(q.log, q.auth, fetch, q.db.RegisterWorkspaceProxy)(ctx, arg)
 }
 
-func (q *querier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
+func (q *querier) RemoveUserFromAllGroups(ctx context.Context, userID database.RemoveUserFromAllGroupsParams) error {
 	// This is a system function to clear user groups in group sync.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

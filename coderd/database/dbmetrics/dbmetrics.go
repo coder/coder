@@ -1922,7 +1922,7 @@ func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.R
 	return proxy, err
 }
 
-func (m metricsStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
+func (m metricsStore) RemoveUserFromAllGroups(ctx context.Context, userID database.RemoveUserFromAllGroupsParams) error {
 	start := time.Now()
 	r0 := m.s.RemoveUserFromAllGroups(ctx, userID)
 	m.queryLatencies.WithLabelValues("RemoveUserFromAllGroups").Observe(time.Since(start).Seconds())

@@ -7475,7 +7475,7 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUID) error {
+func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID database.RemoveUserFromAllGroupsParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
