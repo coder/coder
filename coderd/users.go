@@ -859,7 +859,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 		aReq.New = targetUser
 
-		err = api.notifyUserStatusChanged()
+		err = api.notifyUserStatusChanged(ctx, user, status)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error notifying about changed user status.",
