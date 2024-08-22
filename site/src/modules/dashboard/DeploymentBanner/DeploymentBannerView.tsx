@@ -1,4 +1,4 @@
-import type { CSSInterpolation } from "@emotion/css";
+import type { CSSInterpolation } from "@emotion/css/dist/declarations/src/create-instance";
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import BuildingIcon from "@mui/icons-material/Build";
 import DownloadIcon from "@mui/icons-material/CloudDownload";
