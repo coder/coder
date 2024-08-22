@@ -2,7 +2,6 @@ package dbtestutil
 
 import (
 	"context"
-
 	"database/sql/driver"
 
 	"github.com/lib/pq"
@@ -11,9 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-var (
-	_ database.DialerConnector = &Connector{}
-)
+var _ database.DialerConnector = &Connector{}
 
 type Connector struct {
 	name   string
