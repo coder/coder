@@ -1,4 +1,10 @@
-import { type CSSObject, type Interpolation, type Theme, css, useTheme } from "@emotion/react";
+import {
+	type CSSObject,
+	type Interpolation,
+	type Theme,
+	css,
+	useTheme,
+} from "@emotion/react";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Link from "@mui/material/Link";
@@ -154,7 +160,7 @@ export const HelpTooltipAction: FC<HelpTooltipActionProps> = ({
 
 	return (
 		<button
-		type="button"
+			type="button"
 			aria-label={ariaLabel ?? ""}
 			css={styles.action}
 			onClick={(event) => {
