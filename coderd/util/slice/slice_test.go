@@ -136,12 +136,16 @@ func TestSymmetricDifference(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Simple", func(t *testing.T) {
+		t.Parallel()
+
 		add, remove := slice.SymmetricDifference([]int{1, 3, 4}, []int{1, 2})
 		require.ElementsMatch(t, []int{2}, add)
 		require.ElementsMatch(t, []int{3, 4}, remove)
 	})
 
 	t.Run("Large", func(t *testing.T) {
+		t.Parallel()
+
 		add, remove := slice.SymmetricDifference(
 			[]int{1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15},
 			[]int{1, 3, 7, 9, 11, 13, 17},
@@ -151,6 +155,8 @@ func TestSymmetricDifference(t *testing.T) {
 	})
 
 	t.Run("AddOnly", func(t *testing.T) {
+		t.Parallel()
+
 		add, remove := slice.SymmetricDifference(
 			[]int{1, 2},
 			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9},
@@ -160,6 +166,8 @@ func TestSymmetricDifference(t *testing.T) {
 	})
 
 	t.Run("RemoveOnly", func(t *testing.T) {
+		t.Parallel()
+
 		add, remove := slice.SymmetricDifference(
 			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9},
 			[]int{1, 2},
@@ -169,6 +177,8 @@ func TestSymmetricDifference(t *testing.T) {
 	})
 
 	t.Run("Equal", func(t *testing.T) {
+		t.Parallel()
+
 		add, remove := slice.SymmetricDifference(
 			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9},
 			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9},
