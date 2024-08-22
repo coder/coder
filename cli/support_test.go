@@ -183,10 +183,10 @@ func TestSupportBundle(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}
 		}))
+		defer srv.Close()
 		u, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 		client := codersdk.New(u)
-		defer srv.Close()
 
 		d := t.TempDir()
 		path := filepath.Join(d, "bundle.zip")
