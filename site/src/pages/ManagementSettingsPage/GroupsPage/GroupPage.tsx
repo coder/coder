@@ -18,7 +18,11 @@ import {
 	groupPermissions,
 	removeMember,
 } from "api/queries/groups";
-import type { Group, ReducedUser, User } from "api/typesGenerated";
+import type {
+	Group,
+	OrganizationMemberWithUserData,
+	ReducedUser,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
@@ -39,7 +43,7 @@ import {
 	PaginationStatus,
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -133,11 +137,12 @@ export const GroupPage: FC = () => {
 				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
 					<AddGroupMember
 						isLoading={addMemberMutation.isLoading}
-						onSubmit={async (user, reset) => {
+						organizationId={groupData.organization_id}
+						onSubmit={async (member, reset) => {
 							try {
 								await addMemberMutation.mutateAsync({
 									groupId,
-									userId: user.id,
+									userId: member.user_id,
 								});
 								reset();
 								await groupQuery.refetch();
@@ -231,11 +236,17 @@ export const GroupPage: FC = () => {
 
 interface AddGroupMemberProps {
 	isLoading: boolean;
-	onSubmit: (user: User, reset: () => void) => void;
+	onSubmit: (user: OrganizationMemberWithUserData, reset: () => void) => void;
+	organizationId: string;
 }
 
-const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
-	const [selectedUser, setSelectedUser] = useState<User | null>(null);
+const AddGroupMember: FC<AddGroupMemberProps> = ({
+	isLoading,
+	onSubmit,
+	organizationId,
+}) => {
+	const [selectedUser, setSelectedUser] =
+		useState<OrganizationMemberWithUserData | null>(null);
 
 	const resetValues = () => {
 		setSelectedUser(null);
@@ -252,9 +263,10 @@ const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
 			}}
 		>
 			<Stack direction="row" alignItems="center" spacing={1}>
-				<UserAutocomplete
+				<MemberAutocomplete
 					css={styles.autoComplete}
 					value={selectedUser}
+					organizationId={organizationId}
 					onChange={(newValue) => {
 						setSelectedUser(newValue);
 					}}
