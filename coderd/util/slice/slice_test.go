@@ -186,4 +186,48 @@ func TestSymmetricDifference(t *testing.T) {
 		require.ElementsMatch(t, []int{}, add)
 		require.ElementsMatch(t, []int{}, remove)
 	})
+
+	t.Run("ToEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{1, 2, 3},
+			[]int{},
+		)
+		require.ElementsMatch(t, []int{}, add)
+		require.ElementsMatch(t, []int{1, 2, 3}, remove)
+	})
+
+	t.Run("ToNil", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{1, 2, 3},
+			nil,
+		)
+		require.ElementsMatch(t, []int{}, add)
+		require.ElementsMatch(t, []int{1, 2, 3}, remove)
+	})
+
+	t.Run("FromEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{},
+			[]int{1, 2, 3},
+		)
+		require.ElementsMatch(t, []int{1, 2, 3}, add)
+		require.ElementsMatch(t, []int{}, remove)
+	})
+
+	t.Run("FromNil", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			nil,
+			[]int{1, 2, 3},
+		)
+		require.ElementsMatch(t, []int{1, 2, 3}, add)
+		require.ElementsMatch(t, []int{}, remove)
+	})
 }

@@ -132,7 +132,7 @@ func Difference[T comparable](a []T, b []T) []T {
 }
 
 func SymmetricDifferenceFunc[T any](a, b []T, equal func(a, b T) bool) (add []T, remove []T) {
-	return DifferenceFunc(a, b, equal), DifferenceFunc(b, a, equal)
+	return DifferenceFunc(b, a, equal), DifferenceFunc(a, b, equal)
 }
 
 func DifferenceFunc[T any](a []T, b []T, equal func(a, b T) bool) []T {
