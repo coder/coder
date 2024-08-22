@@ -342,28 +342,14 @@ func convertSDKTemplateRole(role codersdk.TemplateRole) []policy.Action {
 
 // TODO move to api.RequireFeatureMW when we are OK with changing the behavior.
 func (api *API) templateRBACEnabledMW(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		api.entitlementsMu.RLock()
-		rbac := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
-		api.entitlementsMu.RUnlock()
-
-		if !rbac {
-			httpapi.RouteNotFound(rw)
-			return
-		}
-
-		next.ServeHTTP(rw, r)
-	})
+	return api.RequireFeatureMW(codersdk.FeatureTemplateRBAC)(next)
 }
 
 func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Entitlement must be enabled.
-			api.entitlementsMu.RLock()
-			enabled := api.entitlements.Features[feat].Enabled
-			api.entitlementsMu.RUnlock()
-			if !enabled {
+			if !api.entitlements.Enabled(feat) {
 				licenseType := "a Premium"
 				if feat.Enterprise() {
 					licenseType = "an Enterprise"

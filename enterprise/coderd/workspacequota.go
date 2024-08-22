@@ -155,9 +155,7 @@ func (api *API) workspaceQuota(rw http.ResponseWriter, r *http.Request) {
 		user         = httpmw.UserParam(r)
 	)
 
-	api.entitlementsMu.RLock()
-	licensed := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
-	api.entitlementsMu.RUnlock()
+	licensed := api.entitlements.Enabled(codersdk.FeatureTemplateRBAC)
 
 	// There are no groups and thus no allowance if RBAC isn't licensed.
 	var quotaAllowance int64 = -1

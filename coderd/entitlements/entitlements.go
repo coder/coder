@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -13,10 +14,36 @@ type Set struct {
 	entitlements   codersdk.Entitlements
 }
 
-func New(entitlements codersdk.Entitlements) *Set {
+func New() *Set {
 	return &Set{
-		entitlements: entitlements,
+		// Some defaults for an unlicensed instance.
+		// These will be updated when coderd is initialized.
+		entitlements: codersdk.Entitlements{
+			Features:         map[codersdk.FeatureName]codersdk.Feature{},
+			Warnings:         nil,
+			Errors:           nil,
+			HasLicense:       false,
+			Trial:            false,
+			RequireTelemetry: false,
+			RefreshedAt:      time.Time{},
+		},
 	}
+}
+
+// AllowRefresh returns whether the entitlements are allowed to be refreshed.
+// If it returns false, that means it was recently refreshed and the caller should
+// wait the returned duration before trying again.
+func (l *Set) AllowRefresh(now time.Time) (bool, time.Duration) {
+	l.entitlementsMu.RLock()
+	defer l.entitlementsMu.RUnlock()
+
+	diff := now.Sub(l.entitlements.RefreshedAt)
+	if diff < time.Minute {
+		return false, time.Minute - diff
+	}
+
+	return true, 0
+
 }
 
 func (l *Set) Replace(entitlements codersdk.Entitlements) {

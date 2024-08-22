@@ -15,9 +15,9 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/enterprise/coderd/entitlements"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
 	"golang.org/x/xerrors"
@@ -104,19 +104,26 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 		return nil, xerrors.Errorf("init database encryption: %w", err)
 	}
+
+	entitlementsSet := entitlements.New()
 	options.Database = cryptDB
 	api := &API{
-		ctx:     ctx,
-		cancel:  cancelFunc,
-		Options: options,
+		ctx:          ctx,
+		cancel:       cancelFunc,
+		Options:      options,
+		entitlements: entitlementsSet,
 		provisionerDaemonAuth: &provisionerDaemonAuth{
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
 			db:         options.Database,
 		},
+		licenseMetricsCollector: &license.MetricsCollector{
+			Entitlements: entitlementsSet,
+		},
 	}
 	// This must happen before coderd initialization!
 	options.PostAuthAdditionalHeadersFunc = api.writeEntitlementWarningsHeader
+	options.Options.Entitlements = api.entitlements
 	api.AGPL = coderd.New(options.Options)
 	defer func() {
 		if err != nil {
@@ -494,7 +501,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	api.AGPL.WorkspaceProxiesFetchUpdater.Store(&fetchUpdater)
 
-	err = api.PrometheusRegistry.Register(&api.licenseMetricsCollector)
+	err = api.PrometheusRegistry.Register(api.licenseMetricsCollector)
 	if err != nil {
 		return nil, xerrors.Errorf("unable to register license metrics collector")
 	}
@@ -558,7 +565,7 @@ type API struct {
 
 	provisionerDaemonAuth *provisionerDaemonAuth
 
-	licenseMetricsCollector license.MetricsCollector
+	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
 }
 
@@ -829,8 +836,6 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	reloadedEntitlements.Features[codersdk.FeatureExternalTokenEncryption] = featureExternalTokenEncryption
 
 	api.entitlements.Replace(reloadedEntitlements)
-	api.licenseMetricsCollector.Entitlements.Store(&reloadedEntitlements)
-	api.AGPL.SiteHandler.Entitlements.Store(&reloadedEntitlements)
 	return nil
 }
 
