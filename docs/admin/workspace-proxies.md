@@ -26,8 +26,12 @@ Workspace proxies can be used in the browser by navigating to the user
 
 ## Requirements
 
-- The [Coder CLI](../reference/cli/README.md) must be installed and
-  authenticated as a user with the Owner role.
+- The [Coder CLI](../reference/cli) must be installed and authenticated as a
+  user with the Owner role.
+- Alternatively, the
+  [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest)
+  can be used to create and manage workspace proxies, if authenticated as a user
+  with the Owner role.
 
 ## Step 1: Create the proxy
 
@@ -196,6 +200,49 @@ docker run --rm -it --entrypoint /opt/coder ghcr.io/coder/coder:latest wsproxy s
 ```Dockerfile
 FROM ghcr.io/coder/coder:latest
 ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
+```
+
+### Managing via Terraform
+
+The
+[coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest)
+can also be used to create and manage workspace proxies in the same Terraform
+configuration as your deployment.
+
+```hcl
+
+provider "coderd" {
+	url   = "https://coder.example.com"
+	token = "****"
+}
+
+resource "coderd_workspace_proxy" "sydney-wsp" {
+  name         = "sydney-wsp"
+  display_name = "Australia (Sydney)"
+  icon         = "/emojis/1f1e6-1f1fa.png"
+}
+resource "kubernetes_deployment" "syd_wsproxy" {
+  metadata { /* ... */ }
+  spec {
+    template {
+      metadata { /* ... */ }
+      spec {
+        container {
+          name  = "syd-wsp"
+          image = "ghcr.io/coder/coder:latest"
+          args  = ["wsproxy", "server"]
+          env {
+            name  = "CODER_PROXY_SESSION_TOKEN"
+            value = coderd_workspace_proxy.sydney-wsp.session_token
+          }
+          /* ... */
+        }
+        /* ... */
+      }
+    }
+    /* ... */
+  }
+}
 ```
 
 ### Selecting a proxy

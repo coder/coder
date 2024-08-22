@@ -1405,6 +1405,45 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace quota by user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/workspace-quota \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/members/{user}/workspace-quota`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description          |
+| -------------- | ---- | ------------ | -------- | -------------------- |
+| `user`         | path | string       | true     | User ID, name, or me |
+| `organization` | path | string(uuid) | true     | Organization ID      |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"budget": 0,
+	"credits_consumed": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceQuota](schemas.md#codersdkworkspacequota) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get provisioner daemons
 
 ### Code samples
@@ -2301,7 +2340,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get workspace quota by user
+## Get workspace quota by user deprecated
 
 ### Code samples
 

@@ -75,7 +75,7 @@
 		"jszip": "3.10.1",
 		"lodash": "4.17.21",
 		"monaco-editor": "0.50.0",
-		"pretty-bytes": "6.1.0",
+		"pretty-bytes": "6.1.1",
 		"react": "18.3.1",
 		"react-chartjs-2": "5.2.0",
 		"react-color": "2.19.3",
@@ -149,7 +149,7 @@
 		"jest-location-mock": "2.0.0",
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
-		"msw": "2.2.3",
+		"msw": "2.3.5",
 		"prettier": "3.3.3",
 		"protobufjs": "7.2.5",
 		"rxjs": "7.8.1",
@@ -161,9 +161,9 @@
 		"ts-proto": "1.164.0",
 		"ts-prune": "0.10.3",
 		"typescript": "5.5.4",
-		"vite": "5.3.3",
-		"vite-plugin-checker": "0.7.1",
-		"vite-plugin-turbosnap": "1.0.2"
+		"vite": "5.4.1",
+		"vite-plugin-checker": "0.7.2",
+		"vite-plugin-turbosnap": "1.0.3"
 	},
 	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
 	"resolutions": {

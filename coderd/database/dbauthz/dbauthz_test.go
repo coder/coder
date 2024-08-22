@@ -1075,11 +1075,17 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("GetQuotaAllowanceForUser", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(u.ID).Asserts(u, policy.ActionRead).Returns(int64(0))
+		check.Args(database.GetQuotaAllowanceForUserParams{
+			UserID:         u.ID,
+			OrganizationID: uuid.New(),
+		}).Asserts(u, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetQuotaConsumedForUser", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(u.ID).Asserts(u, policy.ActionRead).Returns(int64(0))
+		check.Args(database.GetQuotaConsumedForUserParams{
+			OwnerID:        u.ID,
+			OrganizationID: uuid.New(),
+		}).Asserts(u, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetUserByEmailOrUsername", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -2467,6 +2473,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args(database.InsertProvisionerJobLogsParams{
+			JobID: j.ID,
+		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
+	}))
+	s.Run("InsertProvisionerJobTimings", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: we need to create a ProvisionerJob resource
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.InsertProvisionerJobTimingsParams{
 			JobID: j.ID,
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
 	}))

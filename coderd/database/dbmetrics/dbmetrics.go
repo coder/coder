@@ -963,14 +963,14 @@ func (m metricsStore) GetProvisionerLogsAfterID(ctx context.Context, arg databas
 	return logs, err
 }
 
-func (m metricsStore) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (m metricsStore) GetQuotaAllowanceForUser(ctx context.Context, userID database.GetQuotaAllowanceForUserParams) (int64, error) {
 	start := time.Now()
 	allowance, err := m.s.GetQuotaAllowanceForUser(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetQuotaAllowanceForUser").Observe(time.Since(start).Seconds())
 	return allowance, err
 }
 
-func (m metricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+func (m metricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID database.GetQuotaConsumedForUserParams) (int64, error) {
 	start := time.Now()
 	consumed, err := m.s.GetQuotaConsumedForUser(ctx, ownerID)
 	m.queryLatencies.WithLabelValues("GetQuotaConsumedForUser").Observe(time.Since(start).Seconds())
@@ -1710,6 +1710,13 @@ func (m metricsStore) InsertProvisionerJobLogs(ctx context.Context, arg database
 	logs, err := m.s.InsertProvisionerJobLogs(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertProvisionerJobLogs").Observe(time.Since(start).Seconds())
 	return logs, err
+}
+
+func (m metricsStore) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertProvisionerJobTimings(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertProvisionerJobTimings").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {

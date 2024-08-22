@@ -1960,7 +1960,7 @@ func (mr *MockStoreMockRecorder) GetProvisionerLogsAfterID(arg0, arg1 any) *gomo
 }
 
 // GetQuotaAllowanceForUser mocks base method.
-func (m *MockStore) GetQuotaAllowanceForUser(arg0 context.Context, arg1 uuid.UUID) (int64, error) {
+func (m *MockStore) GetQuotaAllowanceForUser(arg0 context.Context, arg1 database.GetQuotaAllowanceForUserParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQuotaAllowanceForUser", arg0, arg1)
 	ret0, _ := ret[0].(int64)
@@ -1975,7 +1975,7 @@ func (mr *MockStoreMockRecorder) GetQuotaAllowanceForUser(arg0, arg1 any) *gomoc
 }
 
 // GetQuotaConsumedForUser mocks base method.
-func (m *MockStore) GetQuotaConsumedForUser(arg0 context.Context, arg1 uuid.UUID) (int64, error) {
+func (m *MockStore) GetQuotaConsumedForUser(arg0 context.Context, arg1 database.GetQuotaConsumedForUserParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQuotaConsumedForUser", arg0, arg1)
 	ret0, _ := ret[0].(int64)
@@ -3602,6 +3602,21 @@ func (m *MockStore) InsertProvisionerJobLogs(arg0 context.Context, arg1 database
 func (mr *MockStoreMockRecorder) InsertProvisionerJobLogs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProvisionerJobLogs", reflect.TypeOf((*MockStore)(nil).InsertProvisionerJobLogs), arg0, arg1)
+}
+
+// InsertProvisionerJobTimings mocks base method.
+func (m *MockStore) InsertProvisionerJobTimings(arg0 context.Context, arg1 database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertProvisionerJobTimings", arg0, arg1)
+	ret0, _ := ret[0].([]database.ProvisionerJobTiming)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertProvisionerJobTimings indicates an expected call of InsertProvisionerJobTimings.
+func (mr *MockStoreMockRecorder) InsertProvisionerJobTimings(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProvisionerJobTimings", reflect.TypeOf((*MockStore)(nil).InsertProvisionerJobTimings), arg0, arg1)
 }
 
 // InsertProvisionerKey mocks base method.

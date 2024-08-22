@@ -1,8 +1,9 @@
 # Role Based Access Control (RBAC)
 
 Use RBAC to define which users and [groups](./groups.md) can use specific
-templates in Coder. These can be defined in Coder or
-[synced from your identity provider](./auth.md)
+templates in Coder. These can be defined via the Coder web UI,
+[synced from your identity provider](./auth.md) or
+[managed via Terraform](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/template).
 
 ![rbac](../images/template-rbac.png)
 

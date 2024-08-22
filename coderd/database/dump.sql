@@ -136,6 +136,13 @@ CREATE TYPE provisioner_job_status AS ENUM (
 
 COMMENT ON TYPE provisioner_job_status IS 'Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.';
 
+CREATE TYPE provisioner_job_timing_stage AS ENUM (
+    'init',
+    'plan',
+    'graph',
+    'apply'
+);
+
 CREATE TYPE provisioner_job_type AS ENUM (
     'template_version_import',
     'workspace_build',
@@ -848,6 +855,33 @@ CREATE SEQUENCE provisioner_job_logs_id_seq
     CACHE 1;
 
 ALTER SEQUENCE provisioner_job_logs_id_seq OWNED BY provisioner_job_logs.id;
+
+CREATE VIEW provisioner_job_stats AS
+SELECT
+    NULL::uuid AS job_id,
+    NULL::provisioner_job_status AS job_status,
+    NULL::uuid AS workspace_id,
+    NULL::uuid AS worker_id,
+    NULL::text AS error,
+    NULL::text AS error_code,
+    NULL::timestamp with time zone AS updated_at,
+    NULL::double precision AS queued_secs,
+    NULL::double precision AS completion_secs,
+    NULL::double precision AS canceled_secs,
+    NULL::double precision AS init_secs,
+    NULL::double precision AS plan_secs,
+    NULL::double precision AS graph_secs,
+    NULL::double precision AS apply_secs;
+
+CREATE TABLE provisioner_job_timings (
+    job_id uuid NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone NOT NULL,
+    stage provisioner_job_timing_stage NOT NULL,
+    source text NOT NULL,
+    action text NOT NULL,
+    resource text NOT NULL
+);
 
 CREATE TABLE provisioner_jobs (
     id uuid NOT NULL,
@@ -1915,6 +1949,58 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
+CREATE OR REPLACE VIEW provisioner_job_stats AS
+ SELECT pj.id AS job_id,
+    pj.job_status,
+    wb.workspace_id,
+    pj.worker_id,
+    pj.error,
+    pj.error_code,
+    pj.updated_at,
+    GREATEST(date_part('epoch'::text, (pj.started_at - pj.created_at)), (0)::double precision) AS queued_secs,
+    GREATEST(date_part('epoch'::text, (pj.completed_at - pj.started_at)), (0)::double precision) AS completion_secs,
+    GREATEST(date_part('epoch'::text, (pj.canceled_at - pj.started_at)), (0)::double precision) AS canceled_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'init'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'init'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS init_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'plan'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'plan'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS plan_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'graph'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'graph'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS graph_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS apply_secs
+   FROM ((provisioner_jobs pj
+     JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
+     LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
+  GROUP BY pj.id, wb.workspace_id;
+
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
@@ -2011,6 +2097,9 @@ ALTER TABLE ONLY provisioner_daemons
 
 ALTER TABLE ONLY provisioner_job_logs
     ADD CONSTRAINT provisioner_job_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_job_timings
+    ADD CONSTRAINT provisioner_job_timings_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
