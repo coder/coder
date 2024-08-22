@@ -30,6 +30,8 @@ var (
 	inputIncomplete []byte
 	//go:embed testdata/timings-aggregation/faster-than-light.txtar
 	inputFasterThanLight []byte
+	//go:embed testdata/timings-aggregation/multiple-resource-actions.txtar
+	multipleResourceActions []byte
 )
 
 func TestAggregation(t *testing.T) {
@@ -62,6 +64,10 @@ func TestAggregation(t *testing.T) {
 		{
 			name:  "faster-than-light",
 			input: inputFasterThanLight,
+		},
+		{
+			name:  "multiple-resource-actions",
+			input: multipleResourceActions,
 		},
 	}
 
@@ -101,7 +107,10 @@ func TestAggregation(t *testing.T) {
 			expected := terraform_internal.ParseTimingLines(t, expectedTimings.Data)
 			terraform_internal.StableSortTimings(t, actualTimings) // To reduce flakiness.
 			if !assert.True(t, terraform_internal.TimingsAreEqual(t, expected, actualTimings)) {
-				printExpectation(t, expected)
+				t.Log("expected:")
+				printTimings(t, expected)
+				t.Log("actual:")
+				printTimings(t, actualTimings)
 			}
 		})
 	}
@@ -133,11 +142,10 @@ func ingestAllSpans(t *testing.T, input []byte, aggregator *timingAggregator) {
 	require.NoError(t, scanner.Err())
 }
 
-func printExpectation(t *testing.T, actual []*proto.Timing) {
+func printTimings(t *testing.T, timings []*proto.Timing) {
 	t.Helper()
 
-	t.Log("expected:")
-	for _, a := range actual {
+	for _, a := range timings {
 		terraform_internal.PrintTiming(t, a)
 	}
 }
