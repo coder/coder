@@ -1,7 +1,46 @@
-# VS Code extensions
+# VS Code Desktop
 
-This article will show you the ways to add VS Code extensions and use them with
-a Coder workspace:
+Coder supports the use of Visual Studio Code (VS Code) Desktop with your Coder
+workspace. This is available out of the box in a new Coder template.
+
+## VS Code Desktop Module
+
+Another way to use VS Code Desktop is to use the VS Code Desktop module from
+Coder registry. This module adds the VS Code Desktop button to your workspace.
+You can find the module in the
+[Coder module registry](https://registry.coder.com/modules/vscode-desktop).
+
+To use the module, add the following code to your template:
+
+```tf
+module "vscode" {
+  source   = "registry.coder.com/modules/vscode-desktop/coder"
+  version  = "1.0.15"
+  agent_id = coder_agent.example.id
+  folder   = "/workspace" # The workspace folder to open in VS Code Desktop
+}
+```
+
+> **Note**: `folder` can also be set to the path of `.code-workspace` file to
+> open
+> [multi-root](https://code.visualstudio.com/docs/editor/workspaces#_multiroot-workspaces)
+> workspaces.
+
+## Manual Installation
+
+Launch VS Code Quick Open (Ctrl+P), paste the following command, and press
+enter.
+
+```text
+ext install coder.coder-remote
+```
+
+Alternatively, manually install the VSIX from the
+[latest release](https://github.com/coder/vscode-coder/releases/latest).
+
+## VS Code extensions
+
+There are multiple ways to add extensions to VS Code Desktop:
 
 1. Using the
    [public extensions marketplaces](vscode-extensions.md#using-the-public-extensions-marketplaces)
@@ -15,7 +54,7 @@ a Coder workspace:
 1. Using a
    [local VS Code instance with SSH](vscode-extensions.md#using-a-local-vs-code-instance-with-ssh)
 
-## Using the public extensions marketplaces
+### Using the public extensions marketplaces
 
 You can manually add an extension while you're working in the Code Web IDE. The
 extensions can be from Coder's public marketplace, Eclipse Open VSX's public
@@ -26,7 +65,7 @@ marketplace, or the Eclipse Open VSX _local_ marketplace.
 > Note: Microsoft does not allow any unofficial VS Code IDE to connect to the
 > extension marketplace.
 
-## Adding extensions to custom images
+### Adding extensions to custom images
 
 You can add extensions to a custom image and install them either through Code
 Web or using the workspace's terminal.
@@ -95,7 +134,7 @@ Web or using the workspace's terminal.
 
 You will now have access to the extension in your workspace.
 
-## Installing extensions using its `vsix` file at the command line
+### Installing extensions using its `vsix` file at the command line
 
 Using the workspace's terminal or the terminal available inside `code-server`,
 you can install an extension whose files you've downloaded from a marketplace:
@@ -104,7 +143,7 @@ you can install an extension whose files you've downloaded from a marketplace:
 /path/to/code-server --install-extension /vsix/Github.copilot.vsix
 ```
 
-## Installing from a marketplace at the command line
+### Installing from a marketplace at the command line
 
 Using the workspace's terminal or the terminal available inside Code Web (code
 server), run the following to install an extension (be sure to update the
@@ -120,7 +159,7 @@ Alternatively, you can install an extension from Open VSX's public marketplace:
 SERVICE_URL=https://open-vsx.org/vscode/gallery ITEM_URL=https://open-vsx.org/vscode/item /path/to/code-server --install-extension GitHub.copilot
 ```
 
-## Using VS Code Desktop
+### Using VS Code Desktop
 
 For your local VS Code to pickup extension files in your Coder workspace,
 include this command in your `startup_script`, or run in manually in your

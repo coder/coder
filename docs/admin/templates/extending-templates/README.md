@@ -37,6 +37,16 @@ Template resources follow the [behavior of Terraform resources](https://develope
 
 A common configuration is a template whose only persistent resource is the home directory. This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
 
+When a workspace is deleted, the Coder server essentially runs a
+[terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all
+resources associated with the workspace.
+
+> Terraform's
+> [prevent-destroy](https://www.terraform.io/language/meta-arguments/lifecycle#prevent_destroy)
+> and
+> [ignore-changes](https://www.terraform.io/language/meta-arguments/lifecycle#ignore_changes)
+> meta-arguments can be used to prevent accidental data loss.
+
 ## Coder apps
 
 Additional IDEs, documentation, or services can be associated to your workspace using the [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) resource.
@@ -47,6 +57,4 @@ Note that some apps are associated to the agent by default as [`display_apps`](h
 
 Check out our [module registry](https://registry.coder.com/modules) for additional Coder apps from the team and our OSS community.
 
-<children>
-
-</children>
+<children></children>

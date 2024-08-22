@@ -7,11 +7,14 @@ workspaces can include any Terraform resource. See our
 
 You can host your deployment on almost any infrastructure. To learn how, read our [installation guides](../../install/README.md).
 
+<children></children>
+
+<!-- - [Deploy workspaces on multiple Kubernetes Clusters](./multiple-kube-clusters.md)
+- [Get workspace build logs from Kubernetes](./kubernetes-logs.md)
+- [Track deployment metrics with Prometheus](./prometheus.md) -->
+
 The following resources may help as you're deploying Coder.
 
-- [Deploy workspaces on multiple Kubernetes Clusters](./multiple-kube-clusters.md)
-- [Get workspace build logs from Kubernetes](./kubernetes-logs.md)
-- [Track deployment metrics with Prometheus](./prometheus.md)
 - [Coder packages: one-click install on cloud providers](https://github.com/coder/packages)
 - [Deploy Coder offline](../../install/offline.md)
 - [Supported resources (Terraform registry)](https://registry.terraform.io)

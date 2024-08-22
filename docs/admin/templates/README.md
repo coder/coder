@@ -21,9 +21,9 @@ After learning the basics, use starter templates to import a template with sensi
 
 It's often necessary to extend the template to make it generally useful to end users. Common modifications are:
 
-- Your image(s) (e.g. a Docker image with languages and tools installed)
-- Additional parameters (e.g. disk size, instance type, or region)
-- Additional IDEs (e.g. JetBrains) or features (e.g. dotfiles, RDP)
+- Your image(s) (e.g. a Docker image with languages and tools installed). Docs: [Image management](./extending-templates/image-management.md).
+- Additional parameters (e.g. disk size, instance type, or region). Docs: [Template parameters](./extending-templates/parameters.md).
+- Additional IDEs (e.g. JetBrains) or features (e.g. dotfiles, RDP). Docs: [Adding IDEs and features](./extending-templates/ides/README.md).
 
 Learn more about the various ways you can [extend your templates](./extending-templates.md).
 

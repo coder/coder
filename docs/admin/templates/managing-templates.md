@@ -87,18 +87,7 @@ template:
 coder templates delete <template-name>
 ```
 
-### Delete workspaces
-
-When a workspace is deleted, the Coder server essentially runs a
-[terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all
-resources associated with the workspace.
-
-> Terraform's
-> [prevent-destroy](https://www.terraform.io/language/meta-arguments/lifecycle#prevent_destroy)
-> and
-> [ignore-changes](https://www.terraform.io/language/meta-arguments/lifecycle#ignore_changes)
-> meta-arguments can be used to prevent accidental data loss.
-
 ## Next steps
 
 - [Your first template](../templates/tutorial.md)
+- [Image management](./image-management.md)

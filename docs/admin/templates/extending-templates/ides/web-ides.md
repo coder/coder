@@ -3,13 +3,13 @@
 By default, Coder workspaces allow connections via:
 
 - Web terminal
-- SSH (plus any [SSH-compatible IDE](../ides.md))
+- SSH (plus any [SSH-compatible IDE](../ides/README.md))
 
 It's common to also let developers to connect via web IDEs for uses cases like
 zero trust networks, data science, contractors, and infrequent code
 contributors.
 
-![Row of IDEs](../images/ide-row.png)
+![Row of IDEs](../../../../images/ide-row.png)
 
 In Coder, web IDEs are defined as
 [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
@@ -33,33 +33,6 @@ resource "coder_app" "portainer" {
   }
 }
 ```
-
-## External URLs
-
-Any URL external to the Coder deployment is accessible as a `coder_app`. e.g.,
-Dropbox, Slack, Discord, GitHub
-
-```hcl
-resource "coder_app" "pubslack" {
-  agent_id     = coder_agent.coder.id
-  display_name = "Coder Public Slack"
-  slug         = "pubslack"
-  url          = "https://coder-com.slack.com/"
-  icon         = "/icon/slack.svg"
-  external     = true
-}
-
-resource "coder_app" "discord" {
-  agent_id     = coder_agent.coder.id
-  display_name = "Coder Discord"
-  slug         = "discord"
-  url          = "https://discord.com/invite/coder"
-  icon         = "/icon/discord.svg"
-  external     = true
-}
-```
-
-![External URLs](../images/external-apps.png)
 
 ## code-server
 
@@ -223,17 +196,24 @@ resource "coder_app" "jupyter" {
 }
 ```
 
+Or Alternatively, you can use the Jypyter Lab module from the Coder registry:
+
+```tf
+module "jupyter" {
+  source   = "registry.coder.com/modules/jupyter-lab/coder"
+  version  = "1.0.0"
+  agent_id = coder_agent.main.id
+}
+```
+
 If you cannot enable a
 [wildcard subdomain](https://coder.com/docs/admin/configure#wildcard-access-url),
 you can configure the template to run Jupyter on a path. There is however
-[security risk](https://coder.com/docs/cli/server#--dangerous-allow-path-app-sharing)
+[security risk](https://coder.com/docs/reference/cli/server#--dangerous-allow-path-app-sharing)
 running an app on a path and the template code is more complicated with coder
 value substitution to recreate the path structure.
 
-[This](https://github.com/sharkymark/v2-templates/tree/main/src/pod-with-jupyter-path)
-is a community template example.
-
-![JupyterLab in Coder](../images/jupyter.png)
+![JupyterLab in Coder](../../../../images/jupyterlab.png)
 
 ## RStudio
 
@@ -252,7 +232,6 @@ resource "coder_agent" "coder" {
 EOT
 }
 
-# rstudio
 resource "coder_app" "rstudio" {
   agent_id      = coder_agent.coder.id
   slug          = "rstudio"
@@ -274,14 +253,14 @@ If you cannot enable a
 [wildcard subdomain](https://coder.com/docs/admin/configure#wildcard-access-url),
 you can configure the template to run RStudio on a path using an NGINX reverse
 proxy in the template. There is however
-[security risk](https://coder.com/docs/cli/server#--dangerous-allow-path-app-sharing)
+[security risk](https://coder.com/docs/reference/cli/server#--dangerous-allow-path-app-sharing)
 running an app on a path and the template code is more complicated with coder
 value substitution to recreate the path structure.
 
 [This](https://github.com/sempie/coder-templates/tree/main/rstudio) is a
 community template example.
 
-![RStudio in Coder](../images/rstudio-port-forward.png)
+![RStudio in Coder](../../../../images/rstudio-port-forward.png)
 
 ## Airflow
 
@@ -318,44 +297,18 @@ resource "coder_app" "airflow" {
 }
 ```
 
-![Airflow in Coder](../images/airflow-port-forward.png)
+or use the [Airflow module](https://registry.coder.com/modules/apache-airflow)
+from the Coder registry:
 
-## File Browser
-
-Show and manipulate the contents of the `/home/coder` directory in a browser.
-
-```hcl
-resource "coder_agent" "coder" {
-  os   = "linux"
-  arch = "amd64"
-  dir  = "/home/coder"
-  startup_script = <<EOT
-#!/bin/bash
-
-curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
-
-EOT
-}
-
-resource "coder_app" "filebrowser" {
-  agent_id     = coder_agent.coder.id
-  display_name = "file browser"
-  slug         = "filebrowser"
-  url          = "http://localhost:13339"
-  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
-  subdomain    = true
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:13339/healthz"
-    interval  = 3
-    threshold = 10
-  }
+```tf
+module "airflow" {
+  source   = "registry.coder.com/modules/airflow/coder"
+  version  = "1.0.13"
+  agent_id = coder_agent.main.id
 }
 ```
 
-![File Browser](../images/file-browser.png)
+![Airflow in Coder](../../../../images/airflow-port-forward.png)
 
 ## SSH Fallback
 
