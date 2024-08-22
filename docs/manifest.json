@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -236,7 +238,7 @@
             {
               "title": "Managing Templates",
               "description": "Learn how to manage templates and best practices",
-              "path": "./admin/templates/managing-templates/README.md.md",
+              "path": "./admin/templates/managing-templates/README.md",
               "children": [
                 {
                   "title": "Image Management",
