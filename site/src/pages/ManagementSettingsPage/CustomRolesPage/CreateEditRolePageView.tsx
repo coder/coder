@@ -308,7 +308,13 @@ const ShowAllResourcesCheckbox: FC<ShowAllResourcesCheckboxProps> = ({
 					icon={<VisibilityOffOutlinedIcon />}
 				/>
 			}
-			label={<span style={{ fontSize: 12 }}>Show all permissions</span>}
+			label={
+				<span style={{ fontSize: 12 }}>
+					{showAllResources
+						? "Hide advanced permissions"
+						: "Show advanced permissions"}
+				</span>
+			}
 		/>
 	);
 };
