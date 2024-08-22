@@ -46,13 +46,6 @@ func (l *Set) AllowRefresh(now time.Time) (bool, time.Duration) {
 
 }
 
-func (l *Set) Replace(entitlements codersdk.Entitlements) {
-	l.entitlementsMu.Lock()
-	defer l.entitlementsMu.Unlock()
-
-	l.entitlements = entitlements
-}
-
 func (l *Set) Feature(name codersdk.FeatureName) (codersdk.Feature, bool) {
 	l.entitlementsMu.RLock()
 	defer l.entitlementsMu.RUnlock()
@@ -80,6 +73,13 @@ func (l *Set) AsJSON() json.RawMessage {
 
 	b, _ := json.Marshal(l.entitlements)
 	return b
+}
+
+func (l *Set) Replace(entitlements codersdk.Entitlements) {
+	l.entitlementsMu.Lock()
+	defer l.entitlementsMu.Unlock()
+
+	l.entitlements = entitlements
 }
 
 func (l *Set) Update(do func(entitlements *codersdk.Entitlements)) {
