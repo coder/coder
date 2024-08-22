@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -136,63 +135,54 @@ func TestPGPubsubDriver(t *testing.T) {
 	require.NoError(t, err)
 	defer closePg()
 
-	// wrap the pg driver with one we can control
-	d, err := dbtestutil.Register()
+	// use a separate subber and pubber so we can keep track of listener connections
+	db, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	pubber, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
 
-	db, err := sql.Open(d.Name(), connectionURL)
+	// use a connector that sends us the connections for the subber
+	subDriver := dbtestutil.NewDriver()
+	tconn, err := subDriver.Connector(connectionURL)
 	require.NoError(t, err)
-	defer db.Close()
-
-	ps, err := pubsub.New(ctx, logger, db, connectionURL)
+	tcdb := sql.OpenDB(tconn)
+	subber, err := pubsub.New(ctx, logger, tcdb, connectionURL)
 	require.NoError(t, err)
-	defer ps.Close()
+	defer subber.Close()
 
 	// test that we can publish and subscribe
-	gotChan := make(chan struct{})
+	gotChan := make(chan struct{}, 1)
 	defer close(gotChan)
-	subCancel, err := ps.Subscribe("test", func(_ context.Context, _ []byte) {
+	subCancel, err := subber.Subscribe("test", func(_ context.Context, _ []byte) {
 		gotChan <- struct{}{}
 	})
 	require.NoError(t, err)
 	defer subCancel()
 
-	err = ps.Publish("test", []byte("hello"))
+	t.Log("publishing message")
+	// send a message
+	err = pubber.Publish("test", []byte("hello"))
 	require.NoError(t, err)
 
-	select {
-	case <-gotChan:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for message")
-	}
+	// wait for the message
+	_ = testutil.RequireRecvCtx(ctx, t, gotChan)
 
-	reconnectChan := make(chan struct{})
-	go func() {
-		d.WaitForConnection()
-		// wait a bit to make sure the pubsub has reestablished it's connection
-		// if we don't wait, the publish may be dropped because the pubsub hasn't initialized yet.
-		time.Sleep(1 * time.Second)
-		reconnectChan <- struct{}{}
-	}()
+	// read out first connection
+	firstConn := testutil.RequireRecvCtx(ctx, t, subDriver.Connections)
 
 	// drop the underlying connection being used by the pubsub
 	// the pq.Listener should reconnect and repopulate it's listeners
 	// so old subscriptions should still work
-	d.DropConnections()
-
-	select {
-	case <-reconnectChan:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for reconnect")
-	}
-
-	// ensure our old subscription still fires
-	err = ps.Publish("test", []byte("hello-again"))
+	err = firstConn.Close()
 	require.NoError(t, err)
 
-	select {
-	case <-gotChan:
-	case <-ctx.Done():
-		t.Fatal("timeout waiting for message after reconnect")
-	}
+	// wait for the reconnect
+	_ = testutil.RequireRecvCtx(ctx, t, subDriver.Connections)
+
+	// ensure our old subscription still fires
+	err = pubber.Publish("test", []byte("hello-again"))
+	require.NoError(t, err)
+
+	// wait for the message on the old subscription
+	_ = testutil.RequireRecvCtx(ctx, t, gotChan)
 }
