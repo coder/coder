@@ -18,6 +18,11 @@ var (
 var (
 	TemplateUserAccountCreated = uuid.MustParse("4e19c0ac-94e1-4532-9515-d1801aa283b2")
 	TemplateUserAccountDeleted = uuid.MustParse("f44d9314-ad03-4bc8-95d0-5cad491da6b6")
+
+	TemplateUserAccountSuspended = uuid.MustParse("b02ddd82-4733-4d02-a2d7-c36f3598997d")
+	TemplateUserAccountActivated = uuid.MustParse("9f5af851-8408-4e73-a7a1-c6502ba46689")
+	TemplateYourAccountSuspended = uuid.MustParse("6a2f0609-9b69-4d36-a989-9f5925b6cbff")
+	TemplateYourAccountActivated = uuid.MustParse("1a6a6bea-ee0a-43e2-9e7c-eabdb53730e4")
 )
 
 // Template-related events.

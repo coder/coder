@@ -200,7 +200,7 @@ func (l timingKind) Category() string {
 // hashState computes a hash based on a timingSpan's unique properties and state.
 // The combination of resource and provider names MUST be unique across entries.
 func (e *timingSpan) hashByState(state proto.TimingState) uint64 {
-	id := fmt.Sprintf("%s:%s:%s:%s", e.kind.Category(), state.String(), e.resource, e.provider)
+	id := fmt.Sprintf("%s:%s:%s:%s:%s", e.kind.Category(), state.String(), e.action, e.resource, e.provider)
 	return xxhash.Sum64String(id)
 }
 

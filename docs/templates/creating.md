@@ -25,8 +25,8 @@ here!
 
 ![Starter templates](../images/templates/starter-templates.png)
 
-If you prefer to use Coder on the [command line](../reference/cli/README.md),
-use `coder templates init`.
+If you prefer to use Coder on the [command line](../reference/cli), use
+`coder templates init`.
 
 > Coder starter templates are also available on our
 > [GitHub repo](https://github.com/coder/coder/tree/main/examples/templates).

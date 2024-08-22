@@ -374,6 +374,110 @@ func TestDeleteUser(t *testing.T) {
 	})
 }
 
+func TestNotifyUserStatusChanged(t *testing.T) {
+	t.Parallel()
+
+	type expectedNotification struct {
+		TemplateID uuid.UUID
+		UserID     uuid.UUID
+	}
+
+	verifyNotificationDispatched := func(notifyEnq *testutil.FakeNotificationsEnqueuer, expectedNotifications []expectedNotification, member codersdk.User, label string) {
+		require.Equal(t, len(expectedNotifications), len(notifyEnq.Sent))
+
+		// Validate that each expected notification is present in notifyEnq.Sent
+		for _, expected := range expectedNotifications {
+			found := false
+			for _, sent := range notifyEnq.Sent {
+				if sent.TemplateID == expected.TemplateID &&
+					sent.UserID == expected.UserID &&
+					slices.Contains(sent.Targets, member.ID) &&
+					sent.Labels[label] == member.Username {
+					found = true
+					break
+				}
+			}
+			require.True(t, found, "Expected notification not found: %+v", expected)
+		}
+	}
+
+	t.Run("Account suspended", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, userAdmin := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleUserAdmin())
+
+		member, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Email:          "another@user.org",
+			Username:       "someone-else",
+			Password:       "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		notifyEnq.Clear()
+
+		// when
+		_, err = adminClient.UpdateUserStatus(context.Background(), member.Username, codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		// then
+		verifyNotificationDispatched(notifyEnq, []expectedNotification{
+			{TemplateID: notifications.TemplateUserAccountSuspended, UserID: firstUser.UserID},
+			{TemplateID: notifications.TemplateUserAccountSuspended, UserID: userAdmin.ID},
+			{TemplateID: notifications.TemplateYourAccountSuspended, UserID: member.ID},
+		}, member, "suspended_account_name")
+	})
+
+	t.Run("Account reactivated", func(t *testing.T) {
+		t.Parallel()
+
+		// given
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, userAdmin := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleUserAdmin())
+
+		member, err := adminClient.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Email:          "another@user.org",
+			Username:       "someone-else",
+			Password:       "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.UpdateUserStatus(context.Background(), member.Username, codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		notifyEnq.Clear()
+
+		// when
+		_, err = adminClient.UpdateUserStatus(context.Background(), member.Username, codersdk.UserStatusActive)
+		require.NoError(t, err)
+
+		// then
+		verifyNotificationDispatched(notifyEnq, []expectedNotification{
+			{TemplateID: notifications.TemplateUserAccountActivated, UserID: firstUser.UserID},
+			{TemplateID: notifications.TemplateUserAccountActivated, UserID: userAdmin.ID},
+			{TemplateID: notifications.TemplateYourAccountActivated, UserID: member.ID},
+		}, member, "activated_account_name")
+	})
+}
+
 func TestNotifyDeletedUser(t *testing.T) {
 	t.Parallel()
 
