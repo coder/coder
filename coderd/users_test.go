@@ -419,7 +419,7 @@ func TestNotifyUserSuspended(t *testing.T) {
 	require.Equal(t, member.Username, notifyEnq.Sent[1].Labels["suspended_account_name"])
 
 	// "Member" account suspended, "member" notified
-	require.Equal(t, notifications.TemplateUserAccountSuspended, notifyEnq.Sent[2].TemplateID)
+	require.Equal(t, notifications.TemplateYourAccountSuspended, notifyEnq.Sent[2].TemplateID)
 	require.Equal(t, member.ID, notifyEnq.Sent[2].UserID)
 	require.Contains(t, notifyEnq.Sent[2].Targets, member.ID)
 	require.Equal(t, member.Username, notifyEnq.Sent[2].Labels["suspended_account_name"])
@@ -473,7 +473,7 @@ func TestNotifyUserReactivate(t *testing.T) {
 	require.Equal(t, member.Username, notifyEnq.Sent[1].Labels["activated_account_name"])
 
 	// "Member" account suspended, "member" notified
-	require.Equal(t, notifications.TemplateUserAccountActivated, notifyEnq.Sent[2].TemplateID)
+	require.Equal(t, notifications.TemplateYourAccountActivated, notifyEnq.Sent[2].TemplateID)
 	require.Equal(t, member.ID, notifyEnq.Sent[2].UserID)
 	require.Contains(t, notifyEnq.Sent[2].Targets, member.ID)
 	require.Equal(t, member.Username, notifyEnq.Sent[2].Labels["activated_account_name"])
