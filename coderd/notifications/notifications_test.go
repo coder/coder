@@ -757,6 +757,46 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateUserAccountSuspended",
+			id:   notifications.TemplateUserAccountSuspended,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"suspended_account_name": "bobby",
+				},
+			},
+		},
+		{
+			name: "TemplateUserAccountActivated",
+			id:   notifications.TemplateUserAccountActivated,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"activated_account_name": "bobby",
+				},
+			},
+		},
+		{
+			name: "TemplateYourAccountSuspended",
+			id:   notifications.TemplateYourAccountSuspended,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"suspended_account_name": "bobby",
+				},
+			},
+		},
+		{
+			name: "TemplateYourAccountActivated",
+			id:   notifications.TemplateYourAccountActivated,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"activated_account_name": "bobby",
+				},
+			},
+		},
+		{
 			name: "TemplateTemplateDeleted",
 			id:   notifications.TemplateTemplateDeleted,
 			payload: types.MessagePayload{
