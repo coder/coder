@@ -333,7 +333,8 @@ could affect workspace users experience once the platform is live.
 1. Establish dedicated accounts for users with the _Template Administrator_
    role.
 1. Maintain Coder templates using
-   [version control](../templates/change-management.md).
+   [version control](../templates/change-management.md) and the
+   [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest/docs).
 1. Consider implementing a GitOps workflow to automatically push new template
    versions into Coder from git. For example, on Github, you can use the
    [Update Coder Template](https://github.com/marketplace/actions/update-coder-template)
