@@ -859,47 +859,15 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 		aReq.New = targetUser
 
-		// Notify about the change of user status
-		var key string
-		var templateID uuid.UUID
-		switch status {
-		case database.UserStatusSuspended:
-			key = "suspended_account_name"
-			templateID = notifications.TemplateUserAccountSuspended
-		case database.UserStatusActive:
-			key = "activated_account_name"
-			templateID = notifications.TemplateUserAccountActivated
-		default:
-			api.Logger.Error(ctx, "unable to notify admins as the user's status is unsupported", slog.F("username", user.Username), slog.F("user_status", string(status)))
-
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error preparing notifications",
-			})
-		}
-
-		// Fetch all users with user admin permissions
-		userAdmins, err := findUserAdmins(ctx, api.Database)
+		err = api.notifyUserStatusChanged()
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching user admins",
+				Message: "Internal error notifying about changed user status.",
 				Detail:  err.Error(),
 			})
 			return
 		}
 
-		// Send notifications to user admins and affected user
-		for _, u := range append(userAdmins, database.GetUsersRow{ID: user.ID}) {
-			if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, templateID,
-				map[string]string{
-					key: user.Username,
-				}, "api-put-user-status",
-				user.ID,
-			); err != nil {
-				api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
-			}
-		}
-
-		// Finish: build final response
 		organizations, err := userOrganizationIDs(ctx, api, user)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -910,6 +878,42 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(targetUser, organizations))
 	}
+}
+
+func (api *API) notifyUserStatusChanged(ctx context.Context, user database.User, status database.UserStatus) error {
+	// Notify about the change of user status
+	var key string
+	var templateID uuid.UUID
+	switch status {
+	case database.UserStatusSuspended:
+		key = "suspended_account_name"
+		templateID = notifications.TemplateUserAccountSuspended
+	case database.UserStatusActive:
+		key = "activated_account_name"
+		templateID = notifications.TemplateUserAccountActivated
+	default:
+		api.Logger.Error(ctx, "user status is not supported", slog.F("username", user.Username), slog.F("user_status", string(status)))
+		return xerrors.Errorf("unable to notify admins as the user's status is unsupported")
+	}
+
+	// Fetch all users with user admin permissions
+	userAdmins, err := findUserAdmins(ctx, api.Database)
+	if err != nil {
+		return xerrors.Errorf("unable to find user admins: %w", err)
+	}
+
+	// Send notifications to user admins and affected user
+	for _, u := range append(userAdmins, database.GetUsersRow{ID: user.ID}) {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, templateID,
+			map[string]string{
+				key: user.Username,
+			}, "api-put-user-status",
+			user.ID,
+		); err != nil {
+			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
+		}
+	}
+	return nil
 }
 
 // @Summary Update user appearance settings
