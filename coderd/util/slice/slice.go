@@ -121,14 +121,8 @@ func Descending[T constraints.Ordered](a, b T) int {
 //	fmt.Println(add)    // [2]
 //	fmt.Println(remove) // [3, 4]
 func SymmetricDifference[T comparable](a, b []T) (add []T, remove []T) {
-	return Difference(b, a), Difference(a, b)
-}
-
-// Difference returns the elements in 'a' that are not in 'b'.
-func Difference[T comparable](a []T, b []T) []T {
-	return DifferenceFunc(a, b, func(a, b T) bool {
-		return a == b
-	})
+	f := func(a, b T) bool { return a == b }
+	return SymmetricDifferenceFunc(a, b, f)
 }
 
 func SymmetricDifferenceFunc[T any](a, b []T, equal func(a, b T) bool) (add []T, remove []T) {
