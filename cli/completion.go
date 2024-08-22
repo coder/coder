@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/serpent"
 	"github.com/coder/serpent/completion"
@@ -45,7 +47,10 @@ func (*RootCmd) completion() *serpent.Command {
 			if err == nil {
 				return installCompletion(inv, shell)
 			}
-			// Silently continue to the shell selection if detecting failed.
+			if !isTTYOut(inv) {
+				return xerrors.New("could not detect the current shell, please specify one with --shell or run interactively")
+			}
+			// Silently continue to the shell selection if detecting failed in interactive mode
 			choice, err := cliui.Select(inv, cliui.SelectOptions{
 				Message: "Select a shell to install completion for:",
 				Options: shellOptions.Choices,
@@ -69,6 +74,9 @@ func installCompletion(inv *serpent.Invocation, shell completion.Shell) error {
 	path, err := shell.InstallPath()
 	if err != nil {
 		cliui.Error(inv.Stderr, fmt.Sprintf("Failed to determine completion path %v", err))
+		return shell.WriteCompletion(inv.Stdout)
+	}
+	if !isTTYOut(inv) {
 		return shell.WriteCompletion(inv.Stdout)
 	}
 	choice, err := cliui.Select(inv, cliui.SelectOptions{

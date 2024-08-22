@@ -197,7 +197,7 @@ require go.uber.org/mock v0.4.0
 
 require (
 	github.com/cespare/xxhash v1.1.0
-	github.com/coder/serpent v0.7.1-0.20240815055535-d46fb20fa158
+	github.com/coder/serpent v0.7.1-0.20240822034013-1b2301f8c920
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/emersion/go-smtp v0.21.2
 	github.com/gomarkdown/markdown v0.0.0-20231222211730-1d6d20845b47
@@ -283,7 +283,7 @@ require (
 	github.com/docker/docker v27.1.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/dustin/go-humanize v1.0.1
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
 	github.com/elastic/go-windows v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
