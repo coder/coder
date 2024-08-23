@@ -41,7 +41,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
 
 	const usersQuery = useQuery({
 		...users({
-			q: filter !== undefined ? prepareQuery(encodeURI(filter)) : "",
+			q: prepareQuery(encodeURI(filter ?? "")),
 			limit: 25,
 		}),
 		enabled: filter !== undefined,

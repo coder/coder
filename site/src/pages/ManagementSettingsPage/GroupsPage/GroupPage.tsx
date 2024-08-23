@@ -62,9 +62,7 @@ export const GroupPage: FC = () => {
 	const groupQuery = useQuery(group(organization, groupName));
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery(
-		groupData !== undefined
-			? groupPermissions(groupData.id)
-			: { enabled: false },
+		groupData ? groupPermissions(groupData.id) : { enabled: false },
 	);
 	const addMemberMutation = useMutation(addMember(queryClient));
 	const removeMemberMutation = useMutation(removeMember(queryClient));
