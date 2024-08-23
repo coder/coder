@@ -12,8 +12,7 @@ terraform {
   }
 }
 
-provider "coder" {
-}
+provider "coder" {}
 
 provider "google" {
   zone    = data.coder_parameter.zone.value
@@ -31,19 +30,13 @@ variable "project_id" {
 
 variable "cache_repo" {
   default     = ""
-  description = "(Optional) Use a container registry as a cache to speed up builds."
+  description = "(Optional) Use a container registry as a cache to speed up builds. Example: host.tld/path/to/repo."
   type        = string
-}
-
-variable "insecure_cache_repo" {
-  default     = false
-  description = "Enable this option if your cache registry does not serve HTTPS."
-  type        = bool
 }
 
 variable "cache_repo_docker_config_path" {
   default     = ""
-  description = "(Optional) Path to a docker config.json containing credentials to the provided cache repo, if required."
+  description = "(Optional) Path to a docker config.json containing credentials to the provided cache repo, if required. This will depend on your Coder setup. Example: `/home/coder/.docker/config.json`."
   sensitive   = true
   type        = string
 }
@@ -118,8 +111,8 @@ data "coder_parameter" "fallback_image" {
 data "coder_parameter" "devcontainer_builder" {
   description  = <<-EOF
 Image that will build the devcontainer.
-We highly recommend using a specific release as the `:latest` tag will change.
 Find the latest version of Envbuilder here: https://ghcr.io/coder/envbuilder
+Be aware that using the `:latest` tag may expose you to breaking changes.
 EOF
   display_name = "Devcontainer Builder"
   mutable      = true
@@ -141,7 +134,7 @@ data "local_sensitive_file" "cache_repo_dockerconfigjson" {
   filename = var.cache_repo_docker_config_path
 }
 
-
+# Be careful when modifying the below locals!
 locals {
   # Ensure Coder username is a valid Linux username
   linux_user = lower(substr(data.coder_workspace_owner.me.name, 0, 32))
@@ -169,7 +162,8 @@ locals {
     # The following are used to push the image to the cache repo, if defined.
     "ENVBUILDER_CACHE_REPO" : var.cache_repo,
     "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
-    "ENVBUILDER_INSECURE" : "${var.insecure_cache_repo}",
+    # You can add other required environment variables here.
+    # See: https://github.com/coder/envbuilder/?tab=readme-ov-file#environment-variables
   }
   # If we have a cached image, use the cached image's environment variables. Otherwise, just use
   # the environment variables we've defined above.
@@ -239,7 +233,6 @@ resource "envbuilder_cached_image" "cached" {
   git_url       = data.coder_parameter.repo_url.value
   cache_repo    = var.cache_repo
   extra_env     = local.envbuilder_env
-  insecure      = var.insecure_cache_repo
 }
 
 # This is useful for debugging the startup script. Left here for reference.
