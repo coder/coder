@@ -23,5 +23,5 @@ See some common [use cases](../admin/automation.md#use-cases) for the REST API.
 ## Sections
 
 <children>
-  This page is rendered on https://coder.com/docs/coder-oss/api. Refer to the other documents in the `api/` directory.
+  This page is rendered on https://coder.com/docs/reference/api. Refer to the other documents in the `api/` directory.
 </children>
