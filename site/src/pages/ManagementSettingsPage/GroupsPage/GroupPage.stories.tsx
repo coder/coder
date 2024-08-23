@@ -51,10 +51,9 @@ export const LoadingGroup: Story = {
 	},
 };
 
-// Will show a 404 because the query is not mocked.
 export const GroupError: Story = {
 	parameters: {
-		queries: [permissionsQuery({})],
+		queries: [groupQuery(new Error("test group error")), permissionsQuery({})],
 	},
 };
 
@@ -86,12 +85,12 @@ export const EveryoneGroup: Story = {
 	},
 };
 
-// Will show a 404 because the query is not mocked.
 export const MembersError: Story = {
 	parameters: {
 		queries: [
 			groupQuery(MockGroup),
 			permissionsQuery({ canUpdateGroup: true }),
+			membersQuery(new Error("test members error")),
 		],
 	},
 	play: async ({ canvasElement }) => {
