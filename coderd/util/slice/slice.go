@@ -113,6 +113,7 @@ func Descending[T constraints.Ordered](a, b T) int {
 // In classical set theory notation, SymmetricDifference returns
 // all elements of {add} and {remove} together. It is more useful to
 // return them as their own slices.
+// Notation: A Δ B = (A\B) ∪ (B\A)
 // Example:
 //
 //	a := []int{1, 3, 4}
