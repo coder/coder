@@ -1,10 +1,9 @@
 package license
 
 import (
-	"sync/atomic"
-
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -15,7 +14,7 @@ var (
 )
 
 type MetricsCollector struct {
-	Entitlements atomic.Pointer[codersdk.Entitlements]
+	Entitlements *entitlements.Set
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
@@ -27,12 +26,7 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
-	entitlements := mc.Entitlements.Load()
-	if entitlements == nil || entitlements.Features == nil {
-		return
-	}
-
-	userLimitEntitlement, ok := entitlements.Features[codersdk.FeatureUserLimit]
+	userLimitEntitlement, ok := mc.Entitlements.Feature(codersdk.FeatureUserLimit)
 	if !ok {
 		return
 	}

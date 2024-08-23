@@ -189,12 +189,10 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 
 	// Prevent abuse by limiting how often we allow a forced refresh.
 	now := time.Now()
-	if diff := now.Sub(api.entitlements.RefreshedAt); diff < time.Minute {
-		wait := time.Minute - diff
+	if ok, wait := api.entitlements.AllowRefresh(now); !ok {
 		rw.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())))
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Entitlements already recently refreshed, please wait %d seconds to force a new refresh", int(wait.Seconds())),
-			Detail:  fmt.Sprintf("Last refresh at %s", now.UTC().String()),
 		})
 		return
 	}
