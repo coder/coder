@@ -445,7 +445,7 @@
 				{
 					"title": "Image Management",
 					"description": "Learn about image management with Coder",
-					"path": "./tutorials/image-management.md"
+					"path": "./admin/templates/managing-templates/image-management.md"
 				},
 				{
 					"title": "Generate a Support Bundle",
@@ -465,12 +465,12 @@
 				{
 					"title": "JFrog Artifactory Integration",
 					"description": "Integrate Coder with JFrog Artifactory",
-					"path": "./tutorials/artifactory-integration.md"
+					"path": "./admin/integrations/jfrog-artifactory.md"
 				},
 				{
 					"title": "Island Secure Browser Integration",
 					"description": "Integrate Coder with Island's Secure Browser",
-					"path": "./tutorials/island-integration.md"
+					"path": "./admin/integrations/island.md"
 				},
 				{
 					"title": "Template ImagePullSecrets",
@@ -490,7 +490,7 @@
 				{
 					"title": "Scanning Workspaces with JFrog Xray",
 					"description": "Integrate Coder with JFrog Xray",
-					"path": "./tutorials/xray-integration.md"
+					"path": "./admin/integrations/jfrog-xray.md"
 				},
 				{
 					"title": "FAQs",
