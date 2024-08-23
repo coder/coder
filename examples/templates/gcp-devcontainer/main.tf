@@ -168,9 +168,9 @@ locals {
   # If we have a cached image, use the cached image's environment variables. Otherwise, just use
   # the environment variables we've defined above.
   docker_env_input = try(envbuilder_cached_image.cached.0.env_map, local.envbuilder_env)
-  # Convert the above to the list of arguments for the Docker run command. This is going to end
-  # up in our startup script metadata. These are all terminated by backslashes.
-  docker_env_arg_list = [for k, v in local.docker_env_input : " -e \"${k}=${v}\" \\"]
+  # Convert the above to the list of arguments for the Docker run command.
+  # The startup script will write this to a file, which the Docker run command will reference.
+  docker_env_list_base64 = base64encode(join("\n", [for k, v in local.docker_env_input : "${k}=${v}"]))
 
   # The GCP VM needs a startup script to set up the environment and start the container. Defining this here.
   # NOTE: make sure to test changes by uncommenting the local_file resource at the bottom of this file
@@ -203,6 +203,9 @@ locals {
       chown -R ${local.linux_user}:${local.linux_user} "/home/${local.linux_user}/.docker"
     fi
 
+    # Write the container env to disk.
+    printf "%s" "${local.docker_env_list_base64}" | base64 -d | tee "/home/${local.linux_user}/env.txt"
+
     # Start envbuilder.
     docker run \
      --rm \
@@ -210,7 +213,7 @@ locals {
      -h ${lower(data.coder_workspace.me.name)} \
      -v /home/${local.linux_user}/envbuilder:/workspaces \
      -v /var/run/docker.sock:/var/run/docker.sock \
-    ${join("\n", local.docker_env_arg_list)}
+     --env-file env.txt \
       ${data.coder_parameter.devcontainer_builder.value}
   META
 }
