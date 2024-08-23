@@ -28,7 +28,7 @@ func TestDeprecatedCreateUserRequest(t *testing.T) {
    "login_type":"none"
 }
 `
-		var req codersdk.CreateUserRequest
+		var req codersdk.CreateUserRequestWithOrgs
 		err := json.Unmarshal([]byte(input), &req)
 		require.NoError(t, err)
 		require.Equal(t, req.Email, "alice@coder.com")
@@ -54,7 +54,7 @@ func TestDeprecatedCreateUserRequest(t *testing.T) {
    "login_type":"none"
 }
 `
-		var req codersdk.CreateUserRequest
+		var req codersdk.CreateUserRequestWithOrgs
 		err := json.Unmarshal([]byte(input), &req)
 		require.NoError(t, err)
 		require.Equal(t, req.Email, "alice@coder.com")
@@ -84,7 +84,7 @@ func TestDeprecatedCreateUserRequest(t *testing.T) {
    "login_type":"none"
 }
 `
-		var req codersdk.CreateUserRequest
+		var req codersdk.CreateUserRequestWithOrgs
 		err := json.Unmarshal([]byte(input), &req)
 		require.NoError(t, err)
 
@@ -95,11 +95,11 @@ func TestDeprecatedCreateUserRequest(t *testing.T) {
 func TestCreateUserRequestJSON(t *testing.T) {
 	t.Parallel()
 
-	marshalTest := func(t *testing.T, req codersdk.CreateUserRequest) {
+	marshalTest := func(t *testing.T, req codersdk.CreateUserRequestWithOrgs) {
 		t.Helper()
 		data, err := json.Marshal(req)
 		require.NoError(t, err)
-		var req2 codersdk.CreateUserRequest
+		var req2 codersdk.CreateUserRequestWithOrgs
 		err = json.Unmarshal(data, &req2)
 		require.NoError(t, err)
 		require.Equal(t, req, req2)
@@ -108,7 +108,7 @@ func TestCreateUserRequestJSON(t *testing.T) {
 	t.Run("MultipleOrganizations", func(t *testing.T) {
 		t.Parallel()
 
-		req := codersdk.CreateUserRequest{
+		req := codersdk.CreateUserRequestWithOrgs{
 			Email:           coderdtest.RandomName(t),
 			Username:        coderdtest.RandomName(t),
 			Name:            coderdtest.RandomName(t),
@@ -123,7 +123,7 @@ func TestCreateUserRequestJSON(t *testing.T) {
 	t.Run("SingleOrganization", func(t *testing.T) {
 		t.Parallel()
 
-		req := codersdk.CreateUserRequest{
+		req := codersdk.CreateUserRequestWithOrgs{
 			Email:           coderdtest.RandomName(t),
 			Username:        coderdtest.RandomName(t),
 			Name:            coderdtest.RandomName(t),
@@ -138,7 +138,7 @@ func TestCreateUserRequestJSON(t *testing.T) {
 	t.Run("NoOrganization", func(t *testing.T) {
 		t.Parallel()
 
-		req := codersdk.CreateUserRequest{
+		req := codersdk.CreateUserRequestWithOrgs{
 			Email:           coderdtest.RandomName(t),
 			Username:        coderdtest.RandomName(t),
 			Name:            coderdtest.RandomName(t),

@@ -27,7 +27,7 @@ func TestUserDelete(t *testing.T) {
 		pw, err := cryptorand.String(16)
 		require.NoError(t, err)
 
-		_, err = client.CreateUser(ctx, codersdk.CreateUserRequest{
+		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "colin5@coder.com",
 			Username:        "coolin",
 			Password:        pw,
@@ -58,7 +58,7 @@ func TestUserDelete(t *testing.T) {
 		pw, err := cryptorand.String(16)
 		require.NoError(t, err)
 
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "colin5@coder.com",
 			Username:        "coolin",
 			Password:        pw,
@@ -89,7 +89,7 @@ func TestUserDelete(t *testing.T) {
 		pw, err := cryptorand.String(16)
 		require.NoError(t, err)
 
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "colin5@coder.com",
 			Username:        "coolin",
 			Password:        pw,
@@ -122,7 +122,7 @@ func TestUserDelete(t *testing.T) {
 	// 	pw, err := cryptorand.String(16)
 	// 	require.NoError(t, err)
 
-	// 	toDelete, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+	// 	toDelete, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 	// 		Email:          "colin5@coder.com",
 	// 		Username:       "coolin",
 	// 		Password:       pw,

@@ -81,7 +81,6 @@ curl -X POST http://coder-server:8080/api/v2/users \
 
 ```json
 {
-	"disable_login": true,
 	"email": "user@example.com",
 	"login_type": "",
 	"name": "string",
@@ -93,9 +92,9 @@ curl -X POST http://coder-server:8080/api/v2/users \
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description         |
-| ------ | ---- | ------------------------------------------------------------------ | -------- | ------------------- |
-| `body` | body | [codersdk.CreateUserRequest](schemas.md#codersdkcreateuserrequest) | true     | Create user request |
+| Name   | In   | Type                                                                               | Required | Description         |
+| ------ | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------- |
+| `body` | body | [codersdk.CreateUserRequestWithOrgs](schemas.md#codersdkcreateuserrequestwithorgs) | true     | Create user request |
 
 ### Example responses
 

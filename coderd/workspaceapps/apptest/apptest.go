@@ -1206,7 +1206,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Create a template-admin user in the same org. We don't use an owner
 			// since they have access to everything.
 			ownerClient = appDetails.SDKClient
-			user, err := ownerClient.CreateUser(ctx, codersdk.CreateUserRequest{
+			user, err := ownerClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 				Email:           "user@coder.com",
 				Username:        "user",
 				Password:        password,
@@ -1258,7 +1258,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				Name: "a-different-org",
 			})
 			require.NoError(t, err)
-			userInOtherOrg, err := ownerClient.CreateUser(ctx, codersdk.CreateUserRequest{
+			userInOtherOrg, err := ownerClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 				Email:           "no-template-access@coder.com",
 				Username:        "no-template-access",
 				Password:        password,

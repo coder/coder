@@ -233,7 +233,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 
 	//nolint:gocritic // needed for SCIM
 	dbUser, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
-		CreateUserRequest: codersdk.CreateUserRequest{
+		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
 			Username:        sUser.UserName,
 			Email:           email,
 			OrganizationIDs: []uuid.UUID{defaultOrganization.ID},

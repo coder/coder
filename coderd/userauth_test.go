@@ -111,7 +111,7 @@ func TestUserLogin(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = ""
 			r.DisableLogin = true
 		})
@@ -127,7 +127,7 @@ func TestUserLogin(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = ""
 			r.UserLoginType = codersdk.LoginTypeNone
 		})
@@ -1470,7 +1470,7 @@ func TestUserLogout(t *testing.T) {
 		//nolint:gosec
 		password = "SomeSecurePassword123!"
 	)
-	newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+	newUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 		Email:           email,
 		Username:        username,
 		Password:        password,

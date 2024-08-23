@@ -310,6 +310,16 @@ export interface CreateUserRequest {
 	readonly password: string;
 	readonly login_type: LoginType;
 	readonly disable_login: boolean;
+	readonly organization_id: string;
+}
+
+// From codersdk/users.go
+export interface CreateUserRequestWithOrgs {
+	readonly email: string;
+	readonly username: string;
+	readonly name: string;
+	readonly password: string;
+	readonly login_type: LoginType;
 	readonly organization_ids: Readonly<Array<string>>;
 }
 

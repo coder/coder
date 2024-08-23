@@ -187,7 +187,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 
 	//nolint:gocritic // needed to create first user
 	user, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
-		CreateUserRequest: codersdk.CreateUserRequest{
+		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
 			Email:           createUser.Email,
 			Username:        createUser.Username,
 			Name:            createUser.Name,
@@ -342,7 +342,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param request body codersdk.CreateUserRequest true "Create user request"
+// @Param request body codersdk.CreateUserRequestWithOrgs true "Create user request"
 // @Success 201 {object} codersdk.User
 // @Router /users [post]
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
@@ -356,15 +356,11 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	var req codersdk.CreateUserRequest
+	var req codersdk.CreateUserRequestWithOrgs
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	if req.UserLoginType == "" && req.DisableLogin {
-		// Handle the deprecated field
-		req.UserLoginType = codersdk.LoginTypeNone
-	}
 	if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword
@@ -484,8 +480,8 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
-		CreateUserRequest: req,
-		LoginType:         loginType,
+		CreateUserRequestWithOrgs: req,
+		LoginType:                 loginType,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
@@ -1283,7 +1279,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 }
 
 type CreateUserRequest struct {
-	codersdk.CreateUserRequest
+	codersdk.CreateUserRequestWithOrgs
 	LoginType         database.LoginType
 	SkipNotifications bool
 }

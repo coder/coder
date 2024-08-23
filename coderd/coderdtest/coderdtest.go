@@ -649,7 +649,7 @@ func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uui
 	return createAnotherUserRetry(t, client, []uuid.UUID{organizationID}, 5, roles)
 }
 
-func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequestWithOrgs)) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, []uuid.UUID{organizationID}, 5, roles, mutators...)
 }
 
@@ -676,8 +676,8 @@ func AuthzUserSubject(user codersdk.User, orgID uuid.UUID) rbac.Subject {
 	}
 }
 
-func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationIDs []uuid.UUID, retries int, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
-	req := codersdk.CreateUserRequest{
+func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationIDs []uuid.UUID, retries int, roles []rbac.RoleIdentifier, mutators ...func(r *codersdk.CreateUserRequestWithOrgs)) (*codersdk.Client, codersdk.User) {
+	req := codersdk.CreateUserRequestWithOrgs{
 		Email:           namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:        RandomUsername(t),
 		Name:            RandomName(t),
@@ -688,7 +688,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		m(&req)
 	}
 
-	user, err := client.CreateUser(context.Background(), req)
+	user, err := client.CreateUserWithOrgs(context.Background(), req)
 	var apiError *codersdk.Error
 	// If the user already exists by username or email conflict, try again up to "retries" times.
 	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {

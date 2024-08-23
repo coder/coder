@@ -83,7 +83,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 
 			validateInputs := func(username, email, password string) error {
 				// Use the validator tags so we match the API's validation.
-				req := codersdk.CreateUserRequest{
+				req := codersdk.CreateUserRequestWithOrgs{
 					Username:        "username",
 					Name:            "Admin User",
 					Email:           "email@coder.com",
