@@ -250,6 +250,7 @@ var (
 					rbac.ResourceWorkspaceDormant.Type:   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspace.Type:          {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH},
 					rbac.ResourceWorkspaceProxy.Type:     {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceDeploymentConfig.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},

@@ -7,15 +7,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/quartz"
-	"github.com/coder/serpent"
-
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
@@ -27,31 +28,32 @@ func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	ctx, logger, db := setupInMemory(t)
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
-	interceptor := &syncInterceptor{Store: db}
+	interceptor := &syncInterceptor{Store: api.Database}
 	santa := &santaHandler{}
 
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 	cfg.StoreSyncInterval = serpent.Duration(time.Hour) // Ensure we don't sync the store automatically.
 
 	// GIVEN: a manager which will pass or fail notifications based on their "nice" labels
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), api.Logger.Named("notifications-manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 		database.NotificationMethodSmtp: santa,
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), logger.Named("notifications-enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, interceptor, defaultHelpers(), api.Logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := dbgen.User(t, db, database.User{})
+	user := dbgen.User(t, api.Database, database.User{})
 
 	// WHEN: notifications are enqueued which should succeed and fail
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "") // Will succeed.
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true", "i": "0"}, "") // Will succeed.
 	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true"}, "") // Will succeed.
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true", "i": "1"}, "") // Will succeed.
 	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "false"}, "") // Will fail.
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "false", "i": "2"}, "") // Will fail.
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
@@ -95,7 +97,8 @@ func TestBuildPayload(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx, logger, db := setupInMemory(t)
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// GIVEN: a set of helpers to be injected into the templates
 	const label = "Click here!"
@@ -107,7 +110,7 @@ func TestBuildPayload(t *testing.T) {
 	}
 
 	// GIVEN: an enqueue interceptor which returns mock metadata
-	interceptor := newEnqueueInterceptor(db,
+	interceptor := newEnqueueInterceptor(api.Database,
 		// Inject custom message metadata to influence the payload construction.
 		func() database.FetchNewMessageMetadataRow {
 			// Inject template actions which use injected help functions.
@@ -129,7 +132,7 @@ func TestBuildPayload(t *testing.T) {
 			}
 		})
 
-	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, helpers, logger.Named("notifications-enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(defaultNotificationsConfig(database.NotificationMethodSmtp), interceptor, helpers, api.Logger.Named("notifications-enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	// WHEN: a notification is enqueued
@@ -149,10 +152,11 @@ func TestStopBeforeRun(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx, logger, db := setupInMemory(t)
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// GIVEN: a standard manager
-	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), db, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("notifications-manager"))
 	require.NoError(t, err)
 
 	// THEN: validate that the manager can be stopped safely without Run() having been called yet

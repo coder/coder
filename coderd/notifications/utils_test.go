@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
@@ -48,16 +47,6 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store) {
 	return dbauthz.AsSystemRestricted(ctx), logger, database.New(sqlDB)
 }
 
-func setupInMemory(t *testing.T) (context.Context, slog.Logger, database.Store) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	t.Cleanup(cancel)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-
-	// nolint:gocritic // unit tests.
-	return dbauthz.AsSystemRestricted(ctx), logger, dbmem.New()
-}
 
 func defaultNotificationsConfig(method database.NotificationMethod) codersdk.NotificationsConfig {
 	return codersdk.NotificationsConfig{

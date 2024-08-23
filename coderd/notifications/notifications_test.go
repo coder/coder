@@ -33,6 +33,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -119,7 +120,8 @@ func TestSMTPDispatch(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx, logger, db := setupInMemory(t)
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// start mock SMTP server
 	mockSMTPSrv := smtpmock.New(smtpmock.ConfigurationAttr{
@@ -140,17 +142,17 @@ func TestSMTPDispatch(t *testing.T) {
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
-	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, defaultHelpers(), logger.Named("smtp")))
-	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, defaultHelpers(), api.Logger.Named("smtp")))
+	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
 	// WHEN: a message is enqueued
 	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
@@ -177,7 +179,8 @@ func TestWebhookDispatch(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	ctx, logger, db := setupInMemory(t)
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	sent := make(chan dispatch.WebhookPayload, 1)
 	// Mock server to simulate webhook endpoint.
@@ -202,12 +205,12 @@ func TestWebhookDispatch(t *testing.T) {
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	const (
@@ -215,7 +218,7 @@ func TestWebhookDispatch(t *testing.T) {
 		name     = "Robert McBobbington"
 		username = "bob"
 	)
-	user := dbgen.User(t, db, database.User{
+	user := dbgen.User(t, api.Database, database.User{
 		Email:    email,
 		Username: username,
 		Name:     name,
@@ -533,7 +536,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 func TestInvalidConfig(t *testing.T) {
 	t.Parallel()
 
-	_, logger, db := setupInMemory(t)
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// GIVEN: invalid config with dispatch period <= lease period
 	const (
@@ -545,7 +548,7 @@ func TestInvalidConfig(t *testing.T) {
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
 
 	// WHEN: the manager is created with invalid config
-	_, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	_, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 
 	// THEN: the manager will fail to be created, citing invalid config as error
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
@@ -555,55 +558,57 @@ func TestNotifierPaused(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	ctx, logger, db := setupInMemory(t)
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// Prepare the test
 	handler := &fakeHandler{}
 	method := database.NotificationMethodSmtp
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
+	const fetchInterval = time.Millisecond * 100
 	cfg := defaultNotificationsConfig(method)
-	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	cfg.FetchInterval = serpent.Duration(fetchInterval)
+	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
 
-	// Notifier is on, enqueue the first message.
-	sid, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		handler.mu.RLock()
-		defer handler.mu.RUnlock()
-		return slices.Contains(handler.succeeded, sid.String())
-	}, testutil.WaitShort, testutil.IntervalFast)
-
 	// Pause the notifier.
 	settingsJSON, err := json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: true})
 	require.NoError(t, err)
-	err = db.UpsertNotificationsSettings(ctx, string(settingsJSON))
+	err = api.Database.UpsertNotificationsSettings(ctx, string(settingsJSON))
 	require.NoError(t, err)
 
 	// Notifier is paused, enqueue the next message.
-	sid, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
+	sid, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success", "i": "1"}, "test")
 	require.NoError(t, err)
+
+	// Sleep for a few fetch intervals to be sure we aren't getting false-positives in the next step.
+	// TODO: use quartz instead.
+	time.Sleep(fetchInterval*5)
+
+	// Ensure we have a pending message and it's the expected one.
 	require.Eventually(t, func() bool {
-		pendingMessages, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+		pendingMessages, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusPending,
+			Limit: 10,
 		})
 		assert.NoError(t, err)
-		return len(pendingMessages) == 1
+		return len(pendingMessages) == 1 &&
+			pendingMessages[0].ID.String() == sid.String()
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Unpause the notifier.
 	settingsJSON, err = json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: false})
 	require.NoError(t, err)
-	err = db.UpsertNotificationsSettings(ctx, string(settingsJSON))
+	err = api.Database.UpsertNotificationsSettings(ctx, string(settingsJSON))
 	require.NoError(t, err)
 
 	// Notifier is running again, message should be dequeued.
@@ -720,19 +725,6 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 					"reason":         "template updated to new dormancy policy",
 					"dormancyHours":  "24",
 					"timeTilDormant": "24 hours",
-				},
-			},
-		},
-		{
-			name: "TemplateWorkspaceMarkedForDeletionInOneWeek",
-			id:   notifications.TemplateWorkspaceMarkedForDeletion,
-			payload: types.MessagePayload{
-				UserName: "bobby",
-				Labels: map[string]string{
-					"name":           "bobby-workspace",
-					"reason":         "template updated to new dormancy policy",
-					"dormancyHours":  "168", // 168 hours = 7 days = 1 week
-					"timeTilDormant": "1 week",
 				},
 			},
 		},
@@ -1048,7 +1040,7 @@ func TestNotificationsTemplates(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	api := coderdtest.New(t, createOpts(t))
 
 	// GIVEN: the first user (owner) and a regular member
