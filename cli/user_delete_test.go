@@ -33,7 +33,6 @@ func TestUserDelete(t *testing.T) {
 			Password:        pw,
 			UserLoginType:   codersdk.LoginTypePassword,
 			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
-			DisableLogin:    false,
 		})
 		require.NoError(t, err)
 
@@ -64,7 +63,6 @@ func TestUserDelete(t *testing.T) {
 			Password:        pw,
 			UserLoginType:   codersdk.LoginTypePassword,
 			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
-			DisableLogin:    false,
 		})
 		require.NoError(t, err)
 
@@ -95,7 +93,6 @@ func TestUserDelete(t *testing.T) {
 			Password:        pw,
 			UserLoginType:   codersdk.LoginTypePassword,
 			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
-			DisableLogin:    false,
 		})
 		require.NoError(t, err)
 
@@ -128,7 +125,6 @@ func TestUserDelete(t *testing.T) {
 	// 		Password:       pw,
 	// 		UserLoginType:  codersdk.LoginTypePassword,
 	// 		OrganizationID: aUser.OrganizationID,
-	// 		DisableLogin:   false,
 	// 	})
 	// 	require.NoError(t, err)
 

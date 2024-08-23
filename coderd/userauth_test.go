@@ -106,22 +106,6 @@ func TestUserLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
-	// Password auth should fail if the user is made without password login.
-	t.Run("DisableLoginDeprecatedField", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.Password = ""
-			r.DisableLogin = true
-		})
-
-		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
-			Password: "SomeSecurePassword!",
-		})
-		require.Error(t, err)
-	})
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()

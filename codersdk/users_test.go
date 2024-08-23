@@ -114,7 +114,6 @@ func TestCreateUserRequestJSON(t *testing.T) {
 			Name:            coderdtest.RandomName(t),
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypePassword,
-			DisableLogin:    false,
 			OrganizationIDs: []uuid.UUID{uuid.New(), uuid.New()},
 		}
 		marshalTest(t, req)
@@ -129,7 +128,6 @@ func TestCreateUserRequestJSON(t *testing.T) {
 			Name:            coderdtest.RandomName(t),
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypePassword,
-			DisableLogin:    false,
 			OrganizationIDs: []uuid.UUID{uuid.New()},
 		}
 		marshalTest(t, req)
@@ -144,7 +142,6 @@ func TestCreateUserRequestJSON(t *testing.T) {
 			Name:            coderdtest.RandomName(t),
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypePassword,
-			DisableLogin:    false,
 			OrganizationIDs: []uuid.UUID{},
 		}
 		marshalTest(t, req)
