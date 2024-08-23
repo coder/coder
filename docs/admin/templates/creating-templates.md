@@ -78,9 +78,9 @@ coder templates edit universal-template \
   --icon "/emojis/2b50.png"
 ```
 
-### Git
+### CI/CD
 
-Follow our tutorial to [manage templates via GitOps](#TODO).
+Follow the [change management](./managing-templates/change-management.md) guide to manage templates via GitOps.
 
 </div>
 
