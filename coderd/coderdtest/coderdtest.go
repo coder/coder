@@ -269,8 +269,8 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.DeploymentValues = DeploymentValues(t)
 	}
 	// This value is not safe to run in parallel.
-	if options.DeploymentValues.DisableOwnerWorkspaceExec {
-		t.Logf("WARNING: DisableOwnerWorkspaceExec is set, this is not safe in parallel tests!")
+	if options.DeploymentValues.DisableOwnerWorkspaceExec.Value() && testutil.IsParallel(t) {
+		t.Fatal("DisableOwnerWorkspaceExec is set, this is not safe in parallel tests!")
 	}
 
 	// If no ratelimits are set, disable all rate limiting for tests.
