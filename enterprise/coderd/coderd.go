@@ -1015,7 +1015,6 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 // @Router /entitlements [get]
 func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// TODO: verify this works
 	httpapi.Write(ctx, rw, http.StatusOK, api.entitlements.AsJSON())
 }
 
