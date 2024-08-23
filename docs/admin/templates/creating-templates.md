@@ -80,7 +80,8 @@ coder templates edit universal-template \
 
 ### CI/CD
 
-Follow the [change management](./managing-templates/change-management.md) guide to manage templates via GitOps.
+Follow the [change management](./managing-templates/change-management.md) guide
+to manage templates via GitOps.
 
 </div>
 

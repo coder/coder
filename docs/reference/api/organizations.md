@@ -18,7 +18,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 ```json
 {
-  "license": "string"
+	"license": "string"
 }
 ```
 
@@ -34,10 +34,10 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 ```json
 {
-  "claims": {},
-  "id": 0,
-  "uploaded_at": "2019-08-24T14:15:22Z",
-  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
+	"claims": {},
+	"id": 0,
+	"uploaded_at": "2019-08-24T14:15:22Z",
+	"uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
 }
 ```
 
@@ -68,14 +68,14 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -106,16 +106,16 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
 
 ```json
 [
-  {
-    "created_at": "2019-08-24T14:15:22Z",
-    "description": "string",
-    "display_name": "string",
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "is_default": true,
-    "name": "string",
-    "updated_at": "2019-08-24T14:15:22Z"
-  }
+	{
+		"created_at": "2019-08-24T14:15:22Z",
+		"description": "string",
+		"display_name": "string",
+		"icon": "string",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"is_default": true,
+		"name": "string",
+		"updated_at": "2019-08-24T14:15:22Z"
+	}
 ]
 ```
 
@@ -161,10 +161,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 ```json
 {
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "name": "string"
+	"description": "string",
+	"display_name": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -180,14 +180,14 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "is_default": true,
-  "name": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
+	"created_at": "2019-08-24T14:15:22Z",
+	"description": "string",
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"is_default": true,
+	"name": "string",
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -224,14 +224,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "is_default": true,
-  "name": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
+	"created_at": "2019-08-24T14:15:22Z",
+	"description": "string",
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"is_default": true,
+	"name": "string",
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -268,14 +268,14 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
+	"detail": "string",
+	"message": "string",
+	"validations": [
+		{
+			"detail": "string",
+			"field": "string"
+		}
+	]
 }
 ```
 
@@ -305,10 +305,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "name": "string"
+	"description": "string",
+	"display_name": "string",
+	"icon": "string",
+	"name": "string"
 }
 ```
 
@@ -325,14 +325,14 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "description": "string",
-  "display_name": "string",
-  "icon": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "is_default": true,
-  "name": "string",
-  "updated_at": "2019-08-24T14:15:22Z"
+	"created_at": "2019-08-24T14:15:22Z",
+	"description": "string",
+	"display_name": "string",
+	"icon": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"is_default": true,
+	"name": "string",
+	"updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
