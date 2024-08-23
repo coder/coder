@@ -117,7 +117,7 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 	}
 
 	var closeTracingOnce sync.Once
-	return tracerProvider, func(ctx context.Context) error {
+	return tracerProvider, func(_ context.Context) error {
 		var err error
 		closeTracingOnce.Do(func() {
 			// Allow time to upload traces even if ctx is canceled
@@ -430,7 +430,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 			}
 
 			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
-			workspaces, err := getScaletestWorkspaces(ctx, client, template)
+			workspaces, _, err := getScaletestWorkspaces(ctx, client, "", template)
 			if err != nil {
 				return err
 			}
@@ -863,6 +863,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		tickInterval     time.Duration
 		bytesPerTick     int64
 		ssh              bool
+		useHostUser      bool
 		app              string
 		template         string
 		targetWorkspaces string
@@ -926,9 +927,17 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 				return xerrors.Errorf("get app host: %w", err)
 			}
 
-			workspaces, err := getScaletestWorkspaces(inv.Context(), client, template)
+			var owner string
+			if useHostUser {
+				owner = codersdk.Me
+			}
+
+			workspaces, numSkipped, err := getScaletestWorkspaces(inv.Context(), client, owner, template)
 			if err != nil {
 				return err
+			}
+			if numSkipped > 0 {
+				cliui.Warnf(inv.Stdout, "CODER_DISABLE_OWNER_WORKSPACE_ACCESS is set on the deployment.\n\t%d workspace(s) were skipped due to ownership mismatch.\n\tSet --use-host-login to only target workspaces you own.", numSkipped)
 			}
 
 			if targetWorkspaceEnd == 0 {
@@ -1091,6 +1100,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			Default:     "",
 			Description: "Send WebSocket traffic to a workspace app (proxied via coderd), cannot be used with --ssh.",
 			Value:       serpent.StringOf(&app),
+		},
+		{
+			Flag:        "use-host-login",
+			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
+			Default:     "false",
+			Description: "Connect as the currently logged in user.",
+			Value:       serpent.BoolOf(&useHostUser),
 		},
 	}
 
@@ -1378,22 +1394,35 @@ func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
 		strings.HasPrefix(workspace.Name, "scaletest-")
 }
 
-func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, template string) ([]codersdk.Workspace, error) {
+func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner, template string) ([]codersdk.Workspace, int, error) {
 	var (
 		pageNumber = 0
 		limit      = 100
 		workspaces []codersdk.Workspace
+		skipped    int
 	)
+
+	me, err := client.User(ctx, codersdk.Me)
+	if err != nil {
+		return nil, 0, xerrors.Errorf("check logged-in user")
+	}
+
+	dv, err := client.DeploymentConfig(ctx)
+	if err != nil {
+		return nil, 0, xerrors.Errorf("fetch deployment config: %w", err)
+	}
+	noOwnerAccess := dv.Values != nil && dv.Values.DisableOwnerWorkspaceExec.Value()
 
 	for {
 		page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Name:     "scaletest-",
 			Template: template,
+			Owner:    owner,
 			Offset:   pageNumber * limit,
 			Limit:    limit,
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
+			return nil, 0, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
 		}
 
 		pageNumber++
@@ -1403,13 +1432,18 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, templa
 
 		pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
 		for _, w := range page.Workspaces {
-			if isScaleTestWorkspace(w) {
-				pageWorkspaces = append(pageWorkspaces, w)
+			if !isScaleTestWorkspace(w) {
+				continue
 			}
+			if noOwnerAccess && w.OwnerID != me.ID {
+				skipped++
+				continue
+			}
+			pageWorkspaces = append(pageWorkspaces, w)
 		}
 		workspaces = append(workspaces, pageWorkspaces...)
 	}
-	return workspaces, nil
+	return workspaces, skipped, nil
 }
 
 func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk.User, error) {
