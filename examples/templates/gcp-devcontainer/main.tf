@@ -213,7 +213,7 @@ locals {
      -h ${lower(data.coder_workspace.me.name)} \
      -v /home/${local.linux_user}/envbuilder:/workspaces \
      -v /var/run/docker.sock:/var/run/docker.sock \
-     --env-file env.txt \
+     --env-file /home/${local.linux_user}/env.txt \
       ${data.coder_parameter.devcontainer_builder.value}
   META
 }
