@@ -70,17 +70,17 @@ Edit the template activity bump - workspaces created from this template will hav
 
 ### --autostart-requirement-weekdays
 
-|      |                                                                                    |
-| ---- | ---------------------------------------------------------------------------------- |
-| Type | <code>[monday\|tuesday\|wednesday\|thursday\|friday\|saturday\|sunday\|all]</code> |
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
 
 Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.
 
 ### --autostop-requirement-weekdays
 
-|      |                                                                                     |
-| ---- | ----------------------------------------------------------------------------------- |
-| Type | <code>[monday\|tuesday\|wednesday\|thursday\|friday\|saturday\|sunday\|none]</code> |
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
 
 Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
 

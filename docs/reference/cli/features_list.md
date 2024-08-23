@@ -16,18 +16,18 @@ coder features list [flags]
 
 ### -c, --column
 
-|         |                                                          |
-| ------- | -------------------------------------------------------- |
-| Type    | <code>[name\|entitlement\|enabled\|limit\|actual]</code> |
-| Default | <code>name,entitlement,enabled,limit,actual</code>       |
+|         |                                                    |
+| ------- | -------------------------------------------------- |
+| Type    | <code>string-array</code>                          |
+| Default | <code>Name,Entitlement,Enabled,Limit,Actual</code> |
 
-Specify columns to filter in the table.
+Specify a column to filter in the table. Available columns are: Name, Entitlement, Enabled, Limit, Actual.
 
 ### -o, --output
 
-|         |                          |
-| ------- | ------------------------ |
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>table</code>  |
 
-Output format.
+Output format. Available formats are: table, json.

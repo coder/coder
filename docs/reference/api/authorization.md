@@ -18,28 +18,28 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 ```json
 {
-	"checks": {
-		"property1": {
-			"action": "create",
-			"object": {
-				"any_org": true,
-				"organization_id": "string",
-				"owner_id": "string",
-				"resource_id": "string",
-				"resource_type": "*"
-			}
-		},
-		"property2": {
-			"action": "create",
-			"object": {
-				"any_org": true,
-				"organization_id": "string",
-				"owner_id": "string",
-				"resource_id": "string",
-				"resource_type": "*"
-			}
-		}
-	}
+  "checks": {
+    "property1": {
+      "action": "create",
+      "object": {
+        "any_org": true,
+        "organization_id": "string",
+        "owner_id": "string",
+        "resource_id": "string",
+        "resource_type": "*"
+      }
+    },
+    "property2": {
+      "action": "create",
+      "object": {
+        "any_org": true,
+        "organization_id": "string",
+        "owner_id": "string",
+        "resource_id": "string",
+        "resource_type": "*"
+      }
+    }
+  }
 }
 ```
 
@@ -55,8 +55,8 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 ```json
 {
-	"property1": true,
-	"property2": true
+  "property1": true,
+  "property2": true
 }
 ```
 
@@ -85,8 +85,8 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 
 ```json
 {
-	"email": "user@example.com",
-	"password": "string"
+  "email": "user@example.com",
+  "password": "string"
 }
 ```
 
@@ -102,7 +102,7 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 
 ```json
 {
-	"session_token": "string"
+  "session_token": "string"
 }
 ```
 
@@ -130,8 +130,8 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
 
 ```json
 {
-	"password": "string",
-	"to_type": ""
+  "password": "string",
+  "to_type": ""
 }
 ```
 
@@ -148,10 +148,10 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
 
 ```json
 {
-	"expires_at": "2019-08-24T14:15:22Z",
-	"state_string": "string",
-	"to_type": "",
-	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  "expires_at": "2019-08-24T14:15:22Z",
+  "state_string": "string",
+  "to_type": "",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 

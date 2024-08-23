@@ -492,9 +492,9 @@ gen: \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
 	site/src/api/rbacresourcesGenerated.ts \
-	docs/admin/prometheus.md \
+	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/README.md \
-	docs/admin/audit-logs.md \
+	docs/admin/security/audit-logs.md \
 	coderd/apidoc/swagger.json \
 	.prettierignore.include \
 	.prettierignore \
@@ -521,9 +521,9 @@ gen/mark-fresh:
 		coderd/rbac/object_gen.go \
 		codersdk/rbacresources_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
-		docs/admin/prometheus.md \
+		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/README.md \
-		docs/admin/audit-logs.md \
+		docs/admin/security/audit-logs.md \
 		coderd/apidoc/swagger.json \
 		.prettierignore.include \
 		.prettierignore \
@@ -624,21 +624,20 @@ codersdk/rbacresources_gen.go: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/m
 site/src/api/rbacresourcesGenerated.ts: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/rbacgen/main.go typescript > "$@"
 
-
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
 	./scripts/pnpm_install.sh
-	pnpm exec prettier --write ./docs/admin/prometheus.md
+	pnpm exec prettier --write ./docs/admin/integrations/prometheus.md
 
 docs/reference/cli/README.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	./scripts/pnpm_install.sh
 	pnpm exec prettier --write ./docs/reference/cli/README.md ./docs/reference/cli/*.md ./docs/manifest.json
 
-docs/admin/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
+docs/admin/security/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
 	./scripts/pnpm_install.sh
-	pnpm exec prettier --write ./docs/admin/audit-logs.md
+	pnpm exec prettier --write ./docs/admin/security/audit-logs.md
 
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh

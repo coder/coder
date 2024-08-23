@@ -324,7 +324,7 @@ could affect workspace users experience once the platform is live.
    identify the required values for deployment.
 1. Create a `values.yaml` and add it to your version control system.
 1. Determine the necessary environment variables. Here is the
-   [full list of supported server environment variables](../reference/cli/server.md).
+   [full list of supported server environment variables](../cli/server.md).
 1. Follow our documented
    [steps for installing Coder via Helm](../install/kubernetes.md).
 
@@ -333,8 +333,7 @@ could affect workspace users experience once the platform is live.
 1. Establish dedicated accounts for users with the _Template Administrator_
    role.
 1. Maintain Coder templates using
-   [version control](../templates/change-management.md) and the
-   [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest/docs).
+   [version control](../templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template
    versions into Coder from git. For example, on Github, you can use the
    [Update Coder Template](https://github.com/marketplace/actions/update-coder-template)

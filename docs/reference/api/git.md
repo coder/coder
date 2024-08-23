@@ -19,13 +19,13 @@ curl -X GET http://coder-server:8080/api/v2/external-auth \
 
 ```json
 {
-	"authenticated": true,
-	"created_at": "2019-08-24T14:15:22Z",
-	"expires": "2019-08-24T14:15:22Z",
-	"has_refresh_token": true,
-	"provider_id": "string",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"validate_error": "string"
+  "authenticated": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires": "2019-08-24T14:15:22Z",
+  "has_refresh_token": true,
+  "provider_id": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "validate_error": "string"
 }
 ```
 
@@ -62,31 +62,31 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
 
 ```json
 {
-	"app_install_url": "string",
-	"app_installable": true,
-	"authenticated": true,
-	"device": true,
-	"display_name": "string",
-	"installations": [
-		{
-			"account": {
-				"avatar_url": "string",
-				"id": 0,
-				"login": "string",
-				"name": "string",
-				"profile_url": "string"
-			},
-			"configure_url": "string",
-			"id": 0
-		}
-	],
-	"user": {
-		"avatar_url": "string",
-		"id": 0,
-		"login": "string",
-		"name": "string",
-		"profile_url": "string"
-	}
+  "app_install_url": "string",
+  "app_installable": true,
+  "authenticated": true,
+  "device": true,
+  "display_name": "string",
+  "installations": [
+    {
+      "account": {
+        "avatar_url": "string",
+        "id": 0,
+        "login": "string",
+        "name": "string",
+        "profile_url": "string"
+      },
+      "configure_url": "string",
+      "id": 0
+    }
+  ],
+  "user": {
+    "avatar_url": "string",
+    "id": 0,
+    "login": "string",
+    "name": "string",
+    "profile_url": "string"
+  }
 }
 ```
 
@@ -149,11 +149,11 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth}/device 
 
 ```json
 {
-	"device_code": "string",
-	"expires_in": 0,
-	"interval": 0,
-	"user_code": "string",
-	"verification_uri": "string"
+  "device_code": "string",
+  "expires_in": 0,
+  "interval": 0,
+  "user_code": "string",
+  "verification_uri": "string"
 }
 ```
 

@@ -84,7 +84,7 @@ Override the default host prefix.
 
 |             |                                    |
 | ----------- | ---------------------------------- |
-| Type        | <code>yes\|no\|auto</code>         |
+| Type        | <code>enum[yes\|no\|auto]</code>   |
 | Environment | <code>$CODER_CONFIGSSH_WAIT</code> |
 | Default     | <code>auto</code>                  |
 

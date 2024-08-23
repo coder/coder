@@ -930,12 +930,12 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 
 ### --postgres-auth
 
-|             |                                  |
-| ----------- | -------------------------------- |
-| Type        | <code>password\|awsiamrds</code> |
-| Environment | <code>$CODER_PG_AUTH</code>      |
-| YAML        | <code>pgAuth</code>              |
-| Default     | <code>password</code>            |
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>enum[password\|awsiamrds]</code> |
+| Environment | <code>$CODER_PG_AUTH</code>            |
+| YAML        | <code>pgAuth</code>                    |
+| Default     | <code>password</code>                  |
 
 Type of auth to use when connecting to postgres.
 

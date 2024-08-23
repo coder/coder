@@ -27,152 +27,152 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ```json
 {
-	"build_number": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"daily_cost": 0,
-	"deadline": "2019-08-24T14:15:22Z",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-	"initiator_name": "string",
-	"job": {
-		"canceled_at": "2019-08-24T14:15:22Z",
-		"completed_at": "2019-08-24T14:15:22Z",
-		"created_at": "2019-08-24T14:15:22Z",
-		"error": "string",
-		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"queue_position": 0,
-		"queue_size": 0,
-		"started_at": "2019-08-24T14:15:22Z",
-		"status": "pending",
-		"tags": {
-			"property1": "string",
-			"property2": "string"
-		},
-		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-	},
-	"max_deadline": "2019-08-24T14:15:22Z",
-	"reason": "initiator",
-	"resources": [
-		{
-			"agents": [
-				{
-					"api_version": "string",
-					"apps": [
-						{
-							"command": "string",
-							"display_name": "string",
-							"external": true,
-							"health": "disabled",
-							"healthcheck": {
-								"interval": 0,
-								"threshold": 0,
-								"url": "string"
-							},
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"sharing_level": "owner",
-							"slug": "string",
-							"subdomain": true,
-							"subdomain_name": "string",
-							"url": "string"
-						}
-					],
-					"architecture": "string",
-					"connection_timeout_seconds": 0,
-					"created_at": "2019-08-24T14:15:22Z",
-					"directory": "string",
-					"disconnected_at": "2019-08-24T14:15:22Z",
-					"display_apps": ["vscode"],
-					"environment_variables": {
-						"property1": "string",
-						"property2": "string"
-					},
-					"expanded_directory": "string",
-					"first_connected_at": "2019-08-24T14:15:22Z",
-					"health": {
-						"healthy": false,
-						"reason": "agent has lost connection"
-					},
-					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-					"instance_id": "string",
-					"last_connected_at": "2019-08-24T14:15:22Z",
-					"latency": {
-						"property1": {
-							"latency_ms": 0,
-							"preferred": true
-						},
-						"property2": {
-							"latency_ms": 0,
-							"preferred": true
-						}
-					},
-					"lifecycle_state": "created",
-					"log_sources": [
-						{
-							"created_at": "2019-08-24T14:15:22Z",
-							"display_name": "string",
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-						}
-					],
-					"logs_length": 0,
-					"logs_overflowed": true,
-					"name": "string",
-					"operating_system": "string",
-					"ready_at": "2019-08-24T14:15:22Z",
-					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-					"scripts": [
-						{
-							"cron": "string",
-							"log_path": "string",
-							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-							"run_on_start": true,
-							"run_on_stop": true,
-							"script": "string",
-							"start_blocks_login": true,
-							"timeout": 0
-						}
-					],
-					"started_at": "2019-08-24T14:15:22Z",
-					"startup_script_behavior": "blocking",
-					"status": "connecting",
-					"subsystems": ["envbox"],
-					"troubleshooting_url": "string",
-					"updated_at": "2019-08-24T14:15:22Z",
-					"version": "string"
-				}
-			],
-			"created_at": "2019-08-24T14:15:22Z",
-			"daily_cost": 0,
-			"hide": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"metadata": [
-				{
-					"key": "string",
-					"sensitive": true,
-					"value": "string"
-				}
-			],
-			"name": "string",
-			"type": "string",
-			"workspace_transition": "start"
-		}
-	],
-	"status": "pending",
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"template_version_name": "string",
-	"transition": "start",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-	"workspace_name": "string",
-	"workspace_owner_avatar_url": "string",
-	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-	"workspace_owner_name": "string"
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "max_deadline": "2019-08-24T14:15:22Z",
+  "reason": "initiator",
+  "resources": [
+    {
+      "agents": [
+        {
+          "api_version": "string",
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "disabled",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "sharing_level": "owner",
+              "slug": "string",
+              "subdomain": true,
+              "subdomain_name": "string",
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "2019-08-24T14:15:22Z",
+          "directory": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "expanded_directory": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "instance_id": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "lifecycle_state": "created",
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
+          "logs_length": 0,
+          "logs_overflowed": true,
+          "name": "string",
+          "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "scripts": [
+            {
+              "cron": "string",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "script": "string",
+              "start_blocks_login": true,
+              "timeout": 0
+            }
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
+          "status": "connecting",
+          "subsystems": ["envbox"],
+          "troubleshooting_url": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
 }
 ```
 
@@ -209,152 +209,152 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 
 ```json
 {
-	"build_number": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"daily_cost": 0,
-	"deadline": "2019-08-24T14:15:22Z",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-	"initiator_name": "string",
-	"job": {
-		"canceled_at": "2019-08-24T14:15:22Z",
-		"completed_at": "2019-08-24T14:15:22Z",
-		"created_at": "2019-08-24T14:15:22Z",
-		"error": "string",
-		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"queue_position": 0,
-		"queue_size": 0,
-		"started_at": "2019-08-24T14:15:22Z",
-		"status": "pending",
-		"tags": {
-			"property1": "string",
-			"property2": "string"
-		},
-		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-	},
-	"max_deadline": "2019-08-24T14:15:22Z",
-	"reason": "initiator",
-	"resources": [
-		{
-			"agents": [
-				{
-					"api_version": "string",
-					"apps": [
-						{
-							"command": "string",
-							"display_name": "string",
-							"external": true,
-							"health": "disabled",
-							"healthcheck": {
-								"interval": 0,
-								"threshold": 0,
-								"url": "string"
-							},
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"sharing_level": "owner",
-							"slug": "string",
-							"subdomain": true,
-							"subdomain_name": "string",
-							"url": "string"
-						}
-					],
-					"architecture": "string",
-					"connection_timeout_seconds": 0,
-					"created_at": "2019-08-24T14:15:22Z",
-					"directory": "string",
-					"disconnected_at": "2019-08-24T14:15:22Z",
-					"display_apps": ["vscode"],
-					"environment_variables": {
-						"property1": "string",
-						"property2": "string"
-					},
-					"expanded_directory": "string",
-					"first_connected_at": "2019-08-24T14:15:22Z",
-					"health": {
-						"healthy": false,
-						"reason": "agent has lost connection"
-					},
-					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-					"instance_id": "string",
-					"last_connected_at": "2019-08-24T14:15:22Z",
-					"latency": {
-						"property1": {
-							"latency_ms": 0,
-							"preferred": true
-						},
-						"property2": {
-							"latency_ms": 0,
-							"preferred": true
-						}
-					},
-					"lifecycle_state": "created",
-					"log_sources": [
-						{
-							"created_at": "2019-08-24T14:15:22Z",
-							"display_name": "string",
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-						}
-					],
-					"logs_length": 0,
-					"logs_overflowed": true,
-					"name": "string",
-					"operating_system": "string",
-					"ready_at": "2019-08-24T14:15:22Z",
-					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-					"scripts": [
-						{
-							"cron": "string",
-							"log_path": "string",
-							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-							"run_on_start": true,
-							"run_on_stop": true,
-							"script": "string",
-							"start_blocks_login": true,
-							"timeout": 0
-						}
-					],
-					"started_at": "2019-08-24T14:15:22Z",
-					"startup_script_behavior": "blocking",
-					"status": "connecting",
-					"subsystems": ["envbox"],
-					"troubleshooting_url": "string",
-					"updated_at": "2019-08-24T14:15:22Z",
-					"version": "string"
-				}
-			],
-			"created_at": "2019-08-24T14:15:22Z",
-			"daily_cost": 0,
-			"hide": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"metadata": [
-				{
-					"key": "string",
-					"sensitive": true,
-					"value": "string"
-				}
-			],
-			"name": "string",
-			"type": "string",
-			"workspace_transition": "start"
-		}
-	],
-	"status": "pending",
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"template_version_name": "string",
-	"transition": "start",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-	"workspace_name": "string",
-	"workspace_owner_avatar_url": "string",
-	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-	"workspace_owner_name": "string"
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "max_deadline": "2019-08-24T14:15:22Z",
+  "reason": "initiator",
+  "resources": [
+    {
+      "agents": [
+        {
+          "api_version": "string",
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "disabled",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "sharing_level": "owner",
+              "slug": "string",
+              "subdomain": true,
+              "subdomain_name": "string",
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "2019-08-24T14:15:22Z",
+          "directory": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "expanded_directory": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "instance_id": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "lifecycle_state": "created",
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
+          "logs_length": 0,
+          "logs_overflowed": true,
+          "name": "string",
+          "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "scripts": [
+            {
+              "cron": "string",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "script": "string",
+              "start_blocks_login": true,
+              "timeout": 0
+            }
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
+          "status": "connecting",
+          "subsystems": ["envbox"],
+          "troubleshooting_url": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
 }
 ```
 
@@ -391,14 +391,14 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 ```json
 {
-	"detail": "string",
-	"message": "string",
-	"validations": [
-		{
-			"detail": "string",
-			"field": "string"
-		}
-	]
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
 }
 ```
 
@@ -438,14 +438,14 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 
 ```json
 [
-	{
-		"created_at": "2019-08-24T14:15:22Z",
-		"id": 0,
-		"log_level": "trace",
-		"log_source": "provisioner_daemon",
-		"output": "string",
-		"stage": "string"
-	}
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "log_level": "trace",
+    "log_source": "provisioner_daemon",
+    "output": "string",
+    "stage": "string"
+  }
 ]
 ```
 
@@ -508,10 +508,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/par
 
 ```json
 [
-	{
-		"name": "string",
-		"value": "string"
-	}
+  {
+    "name": "string",
+    "value": "string"
+  }
 ]
 ```
 
@@ -558,113 +558,113 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 
 ```json
 [
-	{
-		"agents": [
-			{
-				"api_version": "string",
-				"apps": [
-					{
-						"command": "string",
-						"display_name": "string",
-						"external": true,
-						"health": "disabled",
-						"healthcheck": {
-							"interval": 0,
-							"threshold": 0,
-							"url": "string"
-						},
-						"icon": "string",
-						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-						"sharing_level": "owner",
-						"slug": "string",
-						"subdomain": true,
-						"subdomain_name": "string",
-						"url": "string"
-					}
-				],
-				"architecture": "string",
-				"connection_timeout_seconds": 0,
-				"created_at": "2019-08-24T14:15:22Z",
-				"directory": "string",
-				"disconnected_at": "2019-08-24T14:15:22Z",
-				"display_apps": ["vscode"],
-				"environment_variables": {
-					"property1": "string",
-					"property2": "string"
-				},
-				"expanded_directory": "string",
-				"first_connected_at": "2019-08-24T14:15:22Z",
-				"health": {
-					"healthy": false,
-					"reason": "agent has lost connection"
-				},
-				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-				"instance_id": "string",
-				"last_connected_at": "2019-08-24T14:15:22Z",
-				"latency": {
-					"property1": {
-						"latency_ms": 0,
-						"preferred": true
-					},
-					"property2": {
-						"latency_ms": 0,
-						"preferred": true
-					}
-				},
-				"lifecycle_state": "created",
-				"log_sources": [
-					{
-						"created_at": "2019-08-24T14:15:22Z",
-						"display_name": "string",
-						"icon": "string",
-						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-						"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-					}
-				],
-				"logs_length": 0,
-				"logs_overflowed": true,
-				"name": "string",
-				"operating_system": "string",
-				"ready_at": "2019-08-24T14:15:22Z",
-				"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-				"scripts": [
-					{
-						"cron": "string",
-						"log_path": "string",
-						"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-						"run_on_start": true,
-						"run_on_stop": true,
-						"script": "string",
-						"start_blocks_login": true,
-						"timeout": 0
-					}
-				],
-				"started_at": "2019-08-24T14:15:22Z",
-				"startup_script_behavior": "blocking",
-				"status": "connecting",
-				"subsystems": ["envbox"],
-				"troubleshooting_url": "string",
-				"updated_at": "2019-08-24T14:15:22Z",
-				"version": "string"
-			}
-		],
-		"created_at": "2019-08-24T14:15:22Z",
-		"daily_cost": 0,
-		"hide": true,
-		"icon": "string",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-		"metadata": [
-			{
-				"key": "string",
-				"sensitive": true,
-				"value": "string"
-			}
-		],
-		"name": "string",
-		"type": "string",
-		"workspace_transition": "start"
-	}
+  {
+    "agents": [
+      {
+        "api_version": "string",
+        "apps": [
+          {
+            "command": "string",
+            "display_name": "string",
+            "external": true,
+            "health": "disabled",
+            "healthcheck": {
+              "interval": 0,
+              "threshold": 0,
+              "url": "string"
+            },
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "sharing_level": "owner",
+            "slug": "string",
+            "subdomain": true,
+            "subdomain_name": "string",
+            "url": "string"
+          }
+        ],
+        "architecture": "string",
+        "connection_timeout_seconds": 0,
+        "created_at": "2019-08-24T14:15:22Z",
+        "directory": "string",
+        "disconnected_at": "2019-08-24T14:15:22Z",
+        "display_apps": ["vscode"],
+        "environment_variables": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "expanded_directory": "string",
+        "first_connected_at": "2019-08-24T14:15:22Z",
+        "health": {
+          "healthy": false,
+          "reason": "agent has lost connection"
+        },
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "instance_id": "string",
+        "last_connected_at": "2019-08-24T14:15:22Z",
+        "latency": {
+          "property1": {
+            "latency_ms": 0,
+            "preferred": true
+          },
+          "property2": {
+            "latency_ms": 0,
+            "preferred": true
+          }
+        },
+        "lifecycle_state": "created",
+        "log_sources": [
+          {
+            "created_at": "2019-08-24T14:15:22Z",
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+          }
+        ],
+        "logs_length": 0,
+        "logs_overflowed": true,
+        "name": "string",
+        "operating_system": "string",
+        "ready_at": "2019-08-24T14:15:22Z",
+        "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+        "scripts": [
+          {
+            "cron": "string",
+            "log_path": "string",
+            "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+            "run_on_start": true,
+            "run_on_stop": true,
+            "script": "string",
+            "start_blocks_login": true,
+            "timeout": 0
+          }
+        ],
+        "started_at": "2019-08-24T14:15:22Z",
+        "startup_script_behavior": "blocking",
+        "status": "connecting",
+        "subsystems": ["envbox"],
+        "troubleshooting_url": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
+        "version": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "daily_cost": 0,
+    "hide": true,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+    "metadata": [
+      {
+        "key": "string",
+        "sensitive": true,
+        "value": "string"
+      }
+    ],
+    "name": "string",
+    "type": "string",
+    "workspace_transition": "start"
+  }
 ]
 ```
 
@@ -819,152 +819,152 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 ```json
 {
-	"build_number": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"daily_cost": 0,
-	"deadline": "2019-08-24T14:15:22Z",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-	"initiator_name": "string",
-	"job": {
-		"canceled_at": "2019-08-24T14:15:22Z",
-		"completed_at": "2019-08-24T14:15:22Z",
-		"created_at": "2019-08-24T14:15:22Z",
-		"error": "string",
-		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"queue_position": 0,
-		"queue_size": 0,
-		"started_at": "2019-08-24T14:15:22Z",
-		"status": "pending",
-		"tags": {
-			"property1": "string",
-			"property2": "string"
-		},
-		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-	},
-	"max_deadline": "2019-08-24T14:15:22Z",
-	"reason": "initiator",
-	"resources": [
-		{
-			"agents": [
-				{
-					"api_version": "string",
-					"apps": [
-						{
-							"command": "string",
-							"display_name": "string",
-							"external": true,
-							"health": "disabled",
-							"healthcheck": {
-								"interval": 0,
-								"threshold": 0,
-								"url": "string"
-							},
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"sharing_level": "owner",
-							"slug": "string",
-							"subdomain": true,
-							"subdomain_name": "string",
-							"url": "string"
-						}
-					],
-					"architecture": "string",
-					"connection_timeout_seconds": 0,
-					"created_at": "2019-08-24T14:15:22Z",
-					"directory": "string",
-					"disconnected_at": "2019-08-24T14:15:22Z",
-					"display_apps": ["vscode"],
-					"environment_variables": {
-						"property1": "string",
-						"property2": "string"
-					},
-					"expanded_directory": "string",
-					"first_connected_at": "2019-08-24T14:15:22Z",
-					"health": {
-						"healthy": false,
-						"reason": "agent has lost connection"
-					},
-					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-					"instance_id": "string",
-					"last_connected_at": "2019-08-24T14:15:22Z",
-					"latency": {
-						"property1": {
-							"latency_ms": 0,
-							"preferred": true
-						},
-						"property2": {
-							"latency_ms": 0,
-							"preferred": true
-						}
-					},
-					"lifecycle_state": "created",
-					"log_sources": [
-						{
-							"created_at": "2019-08-24T14:15:22Z",
-							"display_name": "string",
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-						}
-					],
-					"logs_length": 0,
-					"logs_overflowed": true,
-					"name": "string",
-					"operating_system": "string",
-					"ready_at": "2019-08-24T14:15:22Z",
-					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-					"scripts": [
-						{
-							"cron": "string",
-							"log_path": "string",
-							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-							"run_on_start": true,
-							"run_on_stop": true,
-							"script": "string",
-							"start_blocks_login": true,
-							"timeout": 0
-						}
-					],
-					"started_at": "2019-08-24T14:15:22Z",
-					"startup_script_behavior": "blocking",
-					"status": "connecting",
-					"subsystems": ["envbox"],
-					"troubleshooting_url": "string",
-					"updated_at": "2019-08-24T14:15:22Z",
-					"version": "string"
-				}
-			],
-			"created_at": "2019-08-24T14:15:22Z",
-			"daily_cost": 0,
-			"hide": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"metadata": [
-				{
-					"key": "string",
-					"sensitive": true,
-					"value": "string"
-				}
-			],
-			"name": "string",
-			"type": "string",
-			"workspace_transition": "start"
-		}
-	],
-	"status": "pending",
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"template_version_name": "string",
-	"transition": "start",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-	"workspace_name": "string",
-	"workspace_owner_avatar_url": "string",
-	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-	"workspace_owner_name": "string"
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "max_deadline": "2019-08-24T14:15:22Z",
+  "reason": "initiator",
+  "resources": [
+    {
+      "agents": [
+        {
+          "api_version": "string",
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "disabled",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "sharing_level": "owner",
+              "slug": "string",
+              "subdomain": true,
+              "subdomain_name": "string",
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "2019-08-24T14:15:22Z",
+          "directory": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "expanded_directory": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "instance_id": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "lifecycle_state": "created",
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
+          "logs_length": 0,
+          "logs_overflowed": true,
+          "name": "string",
+          "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "scripts": [
+            {
+              "cron": "string",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "script": "string",
+              "start_blocks_login": true,
+              "timeout": 0
+            }
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
+          "status": "connecting",
+          "subsystems": ["envbox"],
+          "troubleshooting_url": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
 }
 ```
 
@@ -1005,154 +1005,154 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ```json
 [
-	{
-		"build_number": 0,
-		"created_at": "2019-08-24T14:15:22Z",
-		"daily_cost": 0,
-		"deadline": "2019-08-24T14:15:22Z",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-		"initiator_name": "string",
-		"job": {
-			"canceled_at": "2019-08-24T14:15:22Z",
-			"completed_at": "2019-08-24T14:15:22Z",
-			"created_at": "2019-08-24T14:15:22Z",
-			"error": "string",
-			"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-			"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"queue_position": 0,
-			"queue_size": 0,
-			"started_at": "2019-08-24T14:15:22Z",
-			"status": "pending",
-			"tags": {
-				"property1": "string",
-				"property2": "string"
-			},
-			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-		},
-		"max_deadline": "2019-08-24T14:15:22Z",
-		"reason": "initiator",
-		"resources": [
-			{
-				"agents": [
-					{
-						"api_version": "string",
-						"apps": [
-							{
-								"command": "string",
-								"display_name": "string",
-								"external": true,
-								"health": "disabled",
-								"healthcheck": {
-									"interval": 0,
-									"threshold": 0,
-									"url": "string"
-								},
-								"icon": "string",
-								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-								"sharing_level": "owner",
-								"slug": "string",
-								"subdomain": true,
-								"subdomain_name": "string",
-								"url": "string"
-							}
-						],
-						"architecture": "string",
-						"connection_timeout_seconds": 0,
-						"created_at": "2019-08-24T14:15:22Z",
-						"directory": "string",
-						"disconnected_at": "2019-08-24T14:15:22Z",
-						"display_apps": ["vscode"],
-						"environment_variables": {
-							"property1": "string",
-							"property2": "string"
-						},
-						"expanded_directory": "string",
-						"first_connected_at": "2019-08-24T14:15:22Z",
-						"health": {
-							"healthy": false,
-							"reason": "agent has lost connection"
-						},
-						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-						"instance_id": "string",
-						"last_connected_at": "2019-08-24T14:15:22Z",
-						"latency": {
-							"property1": {
-								"latency_ms": 0,
-								"preferred": true
-							},
-							"property2": {
-								"latency_ms": 0,
-								"preferred": true
-							}
-						},
-						"lifecycle_state": "created",
-						"log_sources": [
-							{
-								"created_at": "2019-08-24T14:15:22Z",
-								"display_name": "string",
-								"icon": "string",
-								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-								"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-							}
-						],
-						"logs_length": 0,
-						"logs_overflowed": true,
-						"name": "string",
-						"operating_system": "string",
-						"ready_at": "2019-08-24T14:15:22Z",
-						"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-						"scripts": [
-							{
-								"cron": "string",
-								"log_path": "string",
-								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-								"run_on_start": true,
-								"run_on_stop": true,
-								"script": "string",
-								"start_blocks_login": true,
-								"timeout": 0
-							}
-						],
-						"started_at": "2019-08-24T14:15:22Z",
-						"startup_script_behavior": "blocking",
-						"status": "connecting",
-						"subsystems": ["envbox"],
-						"troubleshooting_url": "string",
-						"updated_at": "2019-08-24T14:15:22Z",
-						"version": "string"
-					}
-				],
-				"created_at": "2019-08-24T14:15:22Z",
-				"daily_cost": 0,
-				"hide": true,
-				"icon": "string",
-				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-				"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-				"metadata": [
-					{
-						"key": "string",
-						"sensitive": true,
-						"value": "string"
-					}
-				],
-				"name": "string",
-				"type": "string",
-				"workspace_transition": "start"
-			}
-		],
-		"status": "pending",
-		"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-		"template_version_name": "string",
-		"transition": "start",
-		"updated_at": "2019-08-24T14:15:22Z",
-		"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-		"workspace_name": "string",
-		"workspace_owner_avatar_url": "string",
-		"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-		"workspace_owner_name": "string"
-	}
+  {
+    "build_number": 0,
+    "created_at": "2019-08-24T14:15:22Z",
+    "daily_cost": 0,
+    "deadline": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+    "initiator_name": "string",
+    "job": {
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "queue_position": 0,
+      "queue_size": 0,
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
+      "tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    },
+    "max_deadline": "2019-08-24T14:15:22Z",
+    "reason": "initiator",
+    "resources": [
+      {
+        "agents": [
+          {
+            "api_version": "string",
+            "apps": [
+              {
+                "command": "string",
+                "display_name": "string",
+                "external": true,
+                "health": "disabled",
+                "healthcheck": {
+                  "interval": 0,
+                  "threshold": 0,
+                  "url": "string"
+                },
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "sharing_level": "owner",
+                "slug": "string",
+                "subdomain": true,
+                "subdomain_name": "string",
+                "url": "string"
+              }
+            ],
+            "architecture": "string",
+            "connection_timeout_seconds": 0,
+            "created_at": "2019-08-24T14:15:22Z",
+            "directory": "string",
+            "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
+            "environment_variables": {
+              "property1": "string",
+              "property2": "string"
+            },
+            "expanded_directory": "string",
+            "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "instance_id": "string",
+            "last_connected_at": "2019-08-24T14:15:22Z",
+            "latency": {
+              "property1": {
+                "latency_ms": 0,
+                "preferred": true
+              },
+              "property2": {
+                "latency_ms": 0,
+                "preferred": true
+              }
+            },
+            "lifecycle_state": "created",
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
+            "logs_length": 0,
+            "logs_overflowed": true,
+            "name": "string",
+            "operating_system": "string",
+            "ready_at": "2019-08-24T14:15:22Z",
+            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "scripts": [
+              {
+                "cron": "string",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "script": "string",
+                "start_blocks_login": true,
+                "timeout": 0
+              }
+            ],
+            "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
+            "status": "connecting",
+            "subsystems": ["envbox"],
+            "troubleshooting_url": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
+            "version": "string"
+          }
+        ],
+        "created_at": "2019-08-24T14:15:22Z",
+        "daily_cost": 0,
+        "hide": true,
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+        "metadata": [
+          {
+            "key": "string",
+            "sensitive": true,
+            "value": "string"
+          }
+        ],
+        "name": "string",
+        "type": "string",
+        "workspace_transition": "start"
+      }
+    ],
+    "status": "pending",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "template_version_name": "string",
+    "transition": "start",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+    "workspace_name": "string",
+    "workspace_owner_avatar_url": "string",
+    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+    "workspace_owner_name": "string"
+  }
 ]
 ```
 
@@ -1358,18 +1358,18 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ```json
 {
-	"dry_run": true,
-	"log_level": "debug",
-	"orphan": true,
-	"rich_parameter_values": [
-		{
-			"name": "string",
-			"value": "string"
-		}
-	],
-	"state": [0],
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"transition": "create"
+  "dry_run": true,
+  "log_level": "debug",
+  "orphan": true,
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "state": [0],
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "transition": "create"
 }
 ```
 
@@ -1386,152 +1386,152 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ```json
 {
-	"build_number": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"daily_cost": 0,
-	"deadline": "2019-08-24T14:15:22Z",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-	"initiator_name": "string",
-	"job": {
-		"canceled_at": "2019-08-24T14:15:22Z",
-		"completed_at": "2019-08-24T14:15:22Z",
-		"created_at": "2019-08-24T14:15:22Z",
-		"error": "string",
-		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"queue_position": 0,
-		"queue_size": 0,
-		"started_at": "2019-08-24T14:15:22Z",
-		"status": "pending",
-		"tags": {
-			"property1": "string",
-			"property2": "string"
-		},
-		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-	},
-	"max_deadline": "2019-08-24T14:15:22Z",
-	"reason": "initiator",
-	"resources": [
-		{
-			"agents": [
-				{
-					"api_version": "string",
-					"apps": [
-						{
-							"command": "string",
-							"display_name": "string",
-							"external": true,
-							"health": "disabled",
-							"healthcheck": {
-								"interval": 0,
-								"threshold": 0,
-								"url": "string"
-							},
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"sharing_level": "owner",
-							"slug": "string",
-							"subdomain": true,
-							"subdomain_name": "string",
-							"url": "string"
-						}
-					],
-					"architecture": "string",
-					"connection_timeout_seconds": 0,
-					"created_at": "2019-08-24T14:15:22Z",
-					"directory": "string",
-					"disconnected_at": "2019-08-24T14:15:22Z",
-					"display_apps": ["vscode"],
-					"environment_variables": {
-						"property1": "string",
-						"property2": "string"
-					},
-					"expanded_directory": "string",
-					"first_connected_at": "2019-08-24T14:15:22Z",
-					"health": {
-						"healthy": false,
-						"reason": "agent has lost connection"
-					},
-					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-					"instance_id": "string",
-					"last_connected_at": "2019-08-24T14:15:22Z",
-					"latency": {
-						"property1": {
-							"latency_ms": 0,
-							"preferred": true
-						},
-						"property2": {
-							"latency_ms": 0,
-							"preferred": true
-						}
-					},
-					"lifecycle_state": "created",
-					"log_sources": [
-						{
-							"created_at": "2019-08-24T14:15:22Z",
-							"display_name": "string",
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-						}
-					],
-					"logs_length": 0,
-					"logs_overflowed": true,
-					"name": "string",
-					"operating_system": "string",
-					"ready_at": "2019-08-24T14:15:22Z",
-					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-					"scripts": [
-						{
-							"cron": "string",
-							"log_path": "string",
-							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-							"run_on_start": true,
-							"run_on_stop": true,
-							"script": "string",
-							"start_blocks_login": true,
-							"timeout": 0
-						}
-					],
-					"started_at": "2019-08-24T14:15:22Z",
-					"startup_script_behavior": "blocking",
-					"status": "connecting",
-					"subsystems": ["envbox"],
-					"troubleshooting_url": "string",
-					"updated_at": "2019-08-24T14:15:22Z",
-					"version": "string"
-				}
-			],
-			"created_at": "2019-08-24T14:15:22Z",
-			"daily_cost": 0,
-			"hide": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"metadata": [
-				{
-					"key": "string",
-					"sensitive": true,
-					"value": "string"
-				}
-			],
-			"name": "string",
-			"type": "string",
-			"workspace_transition": "start"
-		}
-	],
-	"status": "pending",
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"template_version_name": "string",
-	"transition": "start",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-	"workspace_name": "string",
-	"workspace_owner_avatar_url": "string",
-	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-	"workspace_owner_name": "string"
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "max_deadline": "2019-08-24T14:15:22Z",
+  "reason": "initiator",
+  "resources": [
+    {
+      "agents": [
+        {
+          "api_version": "string",
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "disabled",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "sharing_level": "owner",
+              "slug": "string",
+              "subdomain": true,
+              "subdomain_name": "string",
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "2019-08-24T14:15:22Z",
+          "directory": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "expanded_directory": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "instance_id": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "lifecycle_state": "created",
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
+          "logs_length": 0,
+          "logs_overflowed": true,
+          "name": "string",
+          "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "scripts": [
+            {
+              "cron": "string",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "script": "string",
+              "start_blocks_login": true,
+              "timeout": 0
+            }
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
+          "status": "connecting",
+          "subsystems": ["envbox"],
+          "troubleshooting_url": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
 }
 ```
 

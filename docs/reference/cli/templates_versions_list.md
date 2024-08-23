@@ -31,18 +31,18 @@ Select which organization (uuid or name) to use.
 
 ### -c, --column
 
-|         |                                                                       |
-| ------- | --------------------------------------------------------------------- |
-| Type    | <code>[name\|created at\|created by\|status\|active\|archived]</code> |
-| Default | <code>name,created at,created by,status,active</code>                 |
+|         |                                                       |
+| ------- | ----------------------------------------------------- |
+| Type    | <code>string-array</code>                             |
+| Default | <code>Name,Created At,Created By,Status,Active</code> |
 
-Columns to display in table output.
+Columns to display in table output. Available columns: name, created at, created by, status, active, archived.
 
 ### -o, --output
 
-|         |                          |
-| ------- | ------------------------ |
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>table</code>  |
 
-Output format.
+Output format. Available formats: table, json.

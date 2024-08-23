@@ -19,17 +19,17 @@ curl -X GET http://coder-server:8080/api/v2/regions \
 
 ```json
 {
-	"regions": [
-		{
-			"display_name": "string",
-			"healthy": true,
-			"icon_url": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"name": "string",
-			"path_app_url": "string",
-			"wildcard_hostname": "string"
-		}
-	]
+  "regions": [
+    {
+      "display_name": "string",
+      "healthy": true,
+      "icon_url": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "path_app_url": "string",
+      "wildcard_hostname": "string"
+    }
+  ]
 }
 ```
 

@@ -60,11 +60,11 @@ Specifies how often to poll for workspace automated shutdown.
 
 ### --wait
 
-|             |                              |
-| ----------- | ---------------------------- |
-| Type        | <code>yes\|no\|auto</code>   |
-| Environment | <code>$CODER_SSH_WAIT</code> |
-| Default     | <code>auto</code>            |
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>enum[yes\|no\|auto]</code> |
+| Environment | <code>$CODER_SSH_WAIT</code>     |
+| Default     | <code>auto</code>                |
 
 Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.
 

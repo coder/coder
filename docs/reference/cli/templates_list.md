@@ -18,18 +18,18 @@ coder templates list [flags]
 
 ### -c, --column
 
-|         |                                                                                                                                         |
-| ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Type    | <code>[name\|created at\|last updated\|organization id\|organization name\|provisioner\|active version id\|used by\|default ttl]</code> |
-| Default | <code>name,organization name,last updated,used by</code>                                                                                |
+|         |                                                          |
+| ------- | -------------------------------------------------------- |
+| Type    | <code>string-array</code>                                |
+| Default | <code>name,organization name,last updated,used by</code> |
 
-Columns to display in table output.
+Columns to display in table output. Available columns: name, created at, last updated, organization id, organization name, provisioner, active version id, used by, default ttl.
 
 ### -o, --output
 
-|         |                          |
-| ------- | ------------------------ |
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>table</code>  |
 
-Output format.
+Output format. Available formats: table, json.

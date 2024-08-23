@@ -1,13 +1,9 @@
 ## Requirements
 
-Before proceeding, please ensure that you have an OpenShift cluster running K8s
-1.19+ (OpenShift 4.7+) and have Helm 3.5+ installed. In addition, you'll need to
-install the OpenShift CLI (`oc`) to authenticate to your cluster and create
-OpenShift resources.
-
-You'll also want to install the
-[latest version of Coder](https://github.com/coder/coder/releases/latest)
-locally in order to log in and manage templates.
+- OpenShift cluster running K8s 1.19+ (OpenShift 4.7+)
+- Helm 3.5+ installed
+- OpenShift CLI (`oc`) installed
+- [Coder CLI](./cli.md) installed
 
 ## Install Coder with OpenShift
 

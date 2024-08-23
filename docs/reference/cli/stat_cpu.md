@@ -22,9 +22,9 @@ Force host CPU measurement.
 
 ### -o, --output
 
-|         |                         |
-| ------- | ----------------------- |
-| Type    | <code>text\|json</code> |
-| Default | <code>text</code>       |
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>text</code>   |
 
-Output format.
+Output format. Available formats: text, json.

@@ -22,18 +22,18 @@ coder stat [flags]
 
 ### -c, --column
 
-|         |                                                                                  |
-| ------- | -------------------------------------------------------------------------------- |
-| Type    | <code>[host cpu\|host memory\|home disk\|container cpu\|container memory]</code> |
-| Default | <code>host cpu,host memory,home disk,container cpu,container memory</code>       |
+|         |                                                                            |
+| ------- | -------------------------------------------------------------------------- |
+| Type    | <code>string-array</code>                                                  |
+| Default | <code>host_cpu,host_memory,home_disk,container_cpu,container_memory</code> |
 
-Columns to display in table output.
+Columns to display in table output. Available columns: host cpu, host memory, home disk, container cpu, container memory.
 
 ### -o, --output
 
-|         |                          |
-| ------- | ------------------------ |
-| Type    | <code>table\|json</code> |
-| Default | <code>table</code>       |
+|         |                     |
+| ------- | ------------------- |
+| Type    | <code>string</code> |
+| Default | <code>table</code>  |
 
-Output format.
+Output format. Available formats: table, json.

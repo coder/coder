@@ -17,8 +17,8 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/port-share
 
 ```json
 {
-	"agent_name": "string",
-	"port": 0
+  "agent_name": "string",
+  "port": 0
 }
 ```
 
@@ -55,10 +55,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 
 ```json
 {
-	"agent_name": "string",
-	"port": 0,
-	"protocol": "http",
-	"share_level": "owner"
+  "agent_name": "string",
+  "port": 0,
+  "protocol": "http",
+  "share_level": "owner"
 }
 ```
 
@@ -75,11 +75,11 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/port-share \
 
 ```json
 {
-	"agent_name": "string",
-	"port": 0,
-	"protocol": "http",
-	"share_level": "owner",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  "agent_name": "string",
+  "port": 0,
+  "protocol": "http",
+  "share_level": "owner",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 

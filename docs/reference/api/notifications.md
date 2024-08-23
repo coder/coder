@@ -19,10 +19,10 @@ curl -X GET http://coder-server:8080/api/v2/notifications/dispatch-methods \
 
 ```json
 [
-	{
-		"available": ["string"],
-		"default": "string"
-	}
+  {
+    "available": ["string"],
+    "default": "string"
+  }
 ]
 ```
 
@@ -63,7 +63,7 @@ curl -X GET http://coder-server:8080/api/v2/notifications/settings \
 
 ```json
 {
-	"notifier_paused": true
+  "notifier_paused": true
 }
 ```
 
@@ -93,7 +93,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 ```json
 {
-	"notifier_paused": true
+  "notifier_paused": true
 }
 ```
 
@@ -109,7 +109,7 @@ curl -X PUT http://coder-server:8080/api/v2/notifications/settings \
 
 ```json
 {
-	"notifier_paused": true
+  "notifier_paused": true
 }
 ```
 
@@ -141,16 +141,16 @@ curl -X GET http://coder-server:8080/api/v2/notifications/templates/system \
 
 ```json
 [
-	{
-		"actions": "string",
-		"body_template": "string",
-		"group": "string",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"kind": "string",
-		"method": "string",
-		"name": "string",
-		"title_template": "string"
-	}
+  {
+    "actions": "string",
+    "body_template": "string",
+    "group": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "kind": "string",
+    "method": "string",
+    "name": "string",
+    "title_template": "string"
+  }
 ]
 ```
 
@@ -203,11 +203,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ```json
 [
-	{
-		"disabled": true,
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"updated_at": "2019-08-24T14:15:22Z"
-	}
+  {
+    "disabled": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
 ]
 ```
 
@@ -248,10 +248,10 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ```json
 {
-	"template_disabled_map": {
-		"property1": true,
-		"property2": true
-	}
+  "template_disabled_map": {
+    "property1": true,
+    "property2": true
+  }
 }
 ```
 
@@ -268,11 +268,11 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/notifications/preferenc
 
 ```json
 [
-	{
-		"disabled": true,
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"updated_at": "2019-08-24T14:15:22Z"
-	}
+  {
+    "disabled": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
 ]
 ```
 
