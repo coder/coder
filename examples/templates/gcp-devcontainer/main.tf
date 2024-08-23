@@ -22,8 +22,7 @@ provider "google" {
 
 data "google_compute_default_service_account" "default" {}
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 variable "project_id" {
@@ -120,7 +119,7 @@ data "coder_parameter" "devcontainer_builder" {
   description  = <<-EOF
 Image that will build the devcontainer.
 We highly recommend using a specific release as the `:latest` tag will change.
-Find the latest version of Envbuilder here: https://github.com/coder/envbuilder/pkgs/container/envbuilder
+Find the latest version of Envbuilder here: https://ghcr.io/coder/envbuilder
 EOF
   display_name = "Devcontainer Builder"
   mutable      = true
@@ -222,7 +221,7 @@ locals {
   META
 }
 
-# Create a persistent to store the workspace data.
+# Create a persistent disk to store the workspace data.
 resource "google_compute_disk" "root" {
   name  = "coder-${data.coder_workspace.me.id}-root"
   type  = "pd-ssd"
@@ -316,7 +315,8 @@ resource "coder_agent" "dev" {
 # Install code-server via Terraform module.
 module "code-server" {
   count    = data.coder_workspace.me.start_count
-  source   = "https://registry.coder.com/modules/code-server"
+  source   = "registry.coder.com/modules/code-server/coder"
+  version  = "1.0.17"
   agent_id = coder_agent.dev[0].id
 }
 
