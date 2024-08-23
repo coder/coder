@@ -717,7 +717,7 @@ func TestEnterpriseUserLogin(t *testing.T) {
 				Name:           customRole.Name,
 				OrganizationID: owner.OrganizationID,
 			},
-		}, func(r *codersdk.CreateUserRequest) {
+		}, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = "SomeSecurePassword!"
 			r.UserLoginType = codersdk.LoginTypePassword
 		})
@@ -752,7 +752,7 @@ func TestEnterpriseUserLogin(t *testing.T) {
 			},
 		})
 
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = "SomeSecurePassword!"
 			r.UserLoginType = codersdk.LoginTypePassword
 		})

@@ -4305,7 +4305,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/codersdk.CreateUserRequest"
+							"$ref": "#/definitions/codersdk.CreateUserRequestWithOrgs"
 						}
 					}
 				],
@@ -8413,14 +8413,10 @@
 				}
 			}
 		},
-		"codersdk.CreateUserRequest": {
+		"codersdk.CreateUserRequestWithOrgs": {
 			"type": "object",
 			"required": ["email", "username"],
 			"properties": {
-				"disable_login": {
-					"description": "DisableLogin sets the user's login type to 'none'. This prevents the user\nfrom being able to use a password or any other authentication method to login.\nDeprecated: Set UserLoginType=LoginTypeDisabled instead.",
-					"type": "boolean"
-				},
 				"email": {
 					"type": "string",
 					"format": "email"

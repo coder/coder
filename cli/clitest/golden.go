@@ -184,7 +184,7 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 		IncludeProvisionerDaemon: true,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, rootClient)
-	secondUser, err := rootClient.CreateUser(ctx, codersdk.CreateUserRequest{
+	secondUser, err := rootClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 		Email:           "testuser2@coder.com",
 		Username:        "testuser2",
 		Password:        coderdtest.FirstUserParams.Password,

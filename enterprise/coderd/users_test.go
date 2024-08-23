@@ -508,7 +508,7 @@ func TestEnterprisePostUser(t *testing.T) {
 			request.Name = "another"
 		})
 
-		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
+		_, err := notInOrg.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "some@domain.com",
 			Username:        "anotheruser",
 			Password:        "SomeSecurePassword!",
@@ -542,7 +542,7 @@ func TestEnterprisePostUser(t *testing.T) {
 
 		org := coderdenttest.CreateOrganization(t, other, coderdenttest.CreateOrganizationOptions{})
 
-		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
+		_, err := notInOrg.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:           "some@domain.com",
 			Username:        "anotheruser",
 			Password:        "SomeSecurePassword!",
@@ -577,7 +577,7 @@ func TestEnterprisePostUser(t *testing.T) {
 
 		// nolint:gocritic // intentional using the owner.
 		// Manually making a user with the request instead of the coderdtest util
-		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:    "another@user.org",
 			Username: "someone-else",
 			Password: "SomeSecurePassword!",
@@ -610,7 +610,7 @@ func TestEnterprisePostUser(t *testing.T) {
 
 		// nolint:gocritic // intentional using the owner.
 		// Manually making a user with the request instead of the coderdtest util
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:    "another@user.org",
 			Username: "someone-else",
 			Password: "SomeSecurePassword!",

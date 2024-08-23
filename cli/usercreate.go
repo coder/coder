@@ -95,7 +95,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				}
 			}
 
-			_, err = client.CreateUser(inv.Context(), codersdk.CreateUserRequest{
+			_, err = client.CreateUserWithOrgs(inv.Context(), codersdk.CreateUserRequestWithOrgs{
 				Email:           email,
 				Username:        username,
 				Name:            name,
