@@ -54,8 +54,8 @@ func (l *Set) Feature(name codersdk.FeatureName) (codersdk.Feature, bool) {
 }
 
 func (l *Set) Enabled(feature codersdk.FeatureName) bool {
-	l.entitlementsMu.Lock()
-	defer l.entitlementsMu.Unlock()
+	l.entitlementsMu.RLock()
+	defer l.entitlementsMu.RUnlock()
 
 	f, ok := l.entitlements.Features[feature]
 	if !ok {
@@ -67,8 +67,8 @@ func (l *Set) Enabled(feature codersdk.FeatureName) bool {
 // AsJSON is used to return this to the api without exposing the entitlements for
 // mutation.
 func (l *Set) AsJSON() json.RawMessage {
-	l.entitlementsMu.Lock()
-	defer l.entitlementsMu.Unlock()
+	l.entitlementsMu.RLock()
+	defer l.entitlementsMu.RUnlock()
 
 	b, _ := json.Marshal(l.entitlements)
 	return b
@@ -89,8 +89,8 @@ func (l *Set) Update(do func(entitlements *codersdk.Entitlements)) {
 }
 
 func (l *Set) FeatureChanged(featureName codersdk.FeatureName, newFeature codersdk.Feature) (initial, changed, enabled bool) {
-	l.entitlementsMu.Lock()
-	defer l.entitlementsMu.Unlock()
+	l.entitlementsMu.RLock()
+	defer l.entitlementsMu.RUnlock()
 
 	oldFeature := l.entitlements.Features[featureName]
 	if oldFeature.Enabled != newFeature.Enabled {
