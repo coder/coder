@@ -291,14 +291,14 @@
                   "path": "./admin/templates/extending-templates/variables.md"
                 },
                 {
-                  "title": "Web IDEs",
-                  "description": "Add and configure Web IDEs in your templates",
-                  "path": "./admin/templates/extending-templates/web-ides.md"
+                  "title": "Terraform Modules",
+                  "description": "Reuse terraform code across templates",
+                  "path": "./admin/templates/extending-templates/modules.md"
                 },
                 {
-                  "title": "Filebrowser",
-                  "description": "Add Filebrowser to your templates",
-                  "path": "./admin/templates/extending-templates/filebrowser.md"
+                  "title": "Web IDEs and Coder Apps",
+                  "description": "Add and configure Web IDEs in your templates as coder apps",
+                  "path": "./admin/templates/extending-templates/web-ides.md"
                 }
               ]
             },
