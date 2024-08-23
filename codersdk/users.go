@@ -113,7 +113,11 @@ type CreateFirstUserResponse struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 }
 
-// CreateUserRequest is deprecated, use CreateUserRequestWithOrgs
+// CreateUserRequest
+// Deprecated: Use CreateUserRequestWithOrgs instead. This will be removed.
+// TODO: When removing, we should rename CreateUserRequestWithOrgs -> CreateUserRequest
+// Then alias CreateUserRequestWithOrgs to CreateUserRequest.
+// @typescript-ignore CreateUserRequest
 type CreateUserRequest struct {
 	Email    string `json:"email" validate:"required,email" format:"email"`
 	Username string `json:"username" validate:"required,username"`
