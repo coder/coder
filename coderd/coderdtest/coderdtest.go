@@ -264,8 +264,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.DeploymentValues == nil {
 		options.DeploymentValues = DeploymentValues(t)
 	}
-	// This value is not safe to run in parallel. Force it to be false.
-	options.DeploymentValues.DisableOwnerWorkspaceExec = false
+	// This value is not safe to run in parallel.
+	if options.DeploymentValues.DisableOwnerWorkspaceExec {
+		t.Logf("WARNING: DisableOwnerWorkspaceExec is set, this is not safe in parallel tests!")
+	}
 
 	// If no ratelimits are set, disable all rate limiting for tests.
 	if options.APIRateLimit == 0 {
@@ -1380,10 +1382,13 @@ func SDKError(t testing.TB, err error) *codersdk.Error {
 	return cerr
 }
 
-func DeploymentValues(t testing.TB) *codersdk.DeploymentValues {
-	var cfg codersdk.DeploymentValues
+func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *codersdk.DeploymentValues {
+	cfg := &codersdk.DeploymentValues{}
 	opts := cfg.Options()
 	err := opts.SetDefaults()
 	require.NoError(t, err)
-	return &cfg
+	for _, fn := range mut {
+		fn(cfg)
+	}
+	return cfg
 }
