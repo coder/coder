@@ -81,11 +81,10 @@ curl -X POST http://coder-server:8080/api/v2/users \
 
 ```json
 {
-	"disable_login": true,
 	"email": "user@example.com",
 	"login_type": "",
 	"name": "string",
-	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 	"password": "string",
 	"username": "string"
 }
@@ -93,9 +92,9 @@ curl -X POST http://coder-server:8080/api/v2/users \
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description         |
-| ------ | ---- | ------------------------------------------------------------------ | -------- | ------------------- |
-| `body` | body | [codersdk.CreateUserRequest](schemas.md#codersdkcreateuserrequest) | true     | Create user request |
+| Name   | In   | Type                                                                               | Required | Description         |
+| ------ | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------- |
+| `body` | body | [codersdk.CreateUserRequestWithOrgs](schemas.md#codersdkcreateuserrequestwithorgs) | true     | Create user request |
 
 ### Example responses
 

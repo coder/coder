@@ -106,28 +106,12 @@ func TestUserLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
-	// Password auth should fail if the user is made without password login.
-	t.Run("DisableLoginDeprecatedField", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-			r.Password = ""
-			r.DisableLogin = true
-		})
-
-		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
-			Password: "SomeSecurePassword!",
-		})
-		require.Error(t, err)
-	})
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = ""
 			r.UserLoginType = codersdk.LoginTypeNone
 		})
@@ -1470,11 +1454,11 @@ func TestUserLogout(t *testing.T) {
 		//nolint:gosec
 		password = "SomeSecurePassword123!"
 	)
-	newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-		Email:          email,
-		Username:       username,
-		Password:       password,
-		OrganizationID: firstUser.OrganizationID,
+	newUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		Email:           email,
+		Username:        username,
+		Password:        password,
+		OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
 	})
 	require.NoError(t, err)
 

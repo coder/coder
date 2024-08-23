@@ -35,7 +35,7 @@ func setupTestSchedule(t *testing.T, sched *cron.Schedule) (ownerClient, memberC
 
 	ownerClient, db = coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	memberClient, memberUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+	memberClient, memberUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 		r.Username = "testuser2" // ensure deterministic ordering
 	})
 	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{

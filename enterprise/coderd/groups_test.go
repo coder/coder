@@ -757,11 +757,11 @@ func TestGroup(t *testing.T) {
 		require.Contains(t, group.Members, user2.ReducedUser)
 
 		// cannot explicitly set a dormant user status so must create a new user
-		anotherUser, err := userAdminClient.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "coder@coder.com",
-			Username:       "coder",
-			Password:       "SomeStrongPassword!",
-			OrganizationID: user.OrganizationID,
+		anotherUser, err := userAdminClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "coder@coder.com",
+			Username:        "coder",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{user.OrganizationID},
 		})
 		require.NoError(t, err)
 
