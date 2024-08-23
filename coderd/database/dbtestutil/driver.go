@@ -30,7 +30,7 @@ func (c *Connector) Connect(_ context.Context) (driver.Conn, error) {
 		return conn, nil
 	}
 
-	conn, err := c.driver.Open(c.name)
+	conn, err := pq.Driver{}.Open(c.name)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to open connection: %w", err)
 	}
