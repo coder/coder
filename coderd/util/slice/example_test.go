@@ -6,6 +6,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
+//nolint:revive // They want me to error check my Printlns
 func ExampleSymmetricDifference() {
 	// The goal of this function is to find the elements to add & remove from
 	// set 'a' to make it equal to set 'b'.
