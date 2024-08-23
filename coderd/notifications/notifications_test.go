@@ -60,24 +60,26 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	ctx, logger, db := setup(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 	method := database.NotificationMethodSmtp
 
 	// GIVEN: a manager with standard config but a faked dispatch handler
 	handler := &fakeHandler{}
-	interceptor := &syncInterceptor{Store: db}
+	interceptor := &syncInterceptor{Store: api.Database}
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
 	// WHEN: 2 messages are enqueued
 	sid, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
@@ -102,13 +104,13 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// THEN: we verify that the store contains notifications in their expected state
-	success, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	success, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusSent,
 		Limit:  10,
 	})
 	require.NoError(t, err)
 	require.Len(t, success, 1)
-	failed, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	failed, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusTemporaryFailure,
 		Limit:  10,
 	})
@@ -120,6 +122,8 @@ func TestSMTPDispatch(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
+
+	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
@@ -179,6 +183,8 @@ func TestWebhookDispatch(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
+
+	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
@@ -259,7 +265,9 @@ func TestBackpressure(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	ctx, logger, db := setup(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// Mock server to simulate webhook endpoint.
 	var received atomic.Int32
@@ -297,19 +305,19 @@ func TestBackpressure(t *testing.T) {
 	cfg.StoreSyncInterval = serpent.Duration(syncInterval)
 	cfg.StoreSyncBufferSize = serpent.Int64(2)
 
-	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
+	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, api.Logger.Named("webhook")))
 
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &syncInterceptor{Store: db}
+	storeInterceptor := &syncInterceptor{Store: api.Database}
 
 	// GIVEN: a notification manager whose updates will be intercepted
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
 	// WHEN: a set of notifications are enqueued, which causes backpressure due to the batchSize which can be processed per fetch
 	const totalMessages = 30
@@ -348,7 +356,9 @@ func TestRetries(t *testing.T) {
 	}
 
 	const maxAttempts = 3
-	ctx, logger, db := setup(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// GIVEN: a mock HTTP server which will receive webhooksand a map to track the dispatch attempts
 
@@ -393,21 +403,21 @@ func TestRetries(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Second) // query uses second-precision
 	cfg.FetchInterval = serpent.Duration(time.Millisecond * 100)
 
-	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
+	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, api.Logger.Named("webhook")))
 
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &syncInterceptor{Store: db}
+	storeInterceptor := &syncInterceptor{Store: api.Database}
 
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
 	// WHEN: a few notifications are enqueued, which will all fail until their final retry (determined by the mock server)
 	const msgCount = 5
@@ -439,7 +449,9 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	ctx, logger, db := setup(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// GIVEN: a manager which has its updates intercepted and paused until measurements can be taken
 
@@ -454,17 +466,18 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	cfg.LeasePeriod = serpent.Duration(leasePeriod)
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod - time.Millisecond)
 
-	noopInterceptor := newNoopStoreSyncer(db)
+	noopInterceptor := newNoopStoreSyncer(api.Database)
 
-	mgrCtx, cancelManagerCtx := context.WithCancel(context.Background())
+	// nolint:gocritic // Unit test.
+	mgrCtx, cancelManagerCtx := context.WithCancel(dbauthz.AsSystemRestricted(context.Background()))
 	t.Cleanup(cancelManagerCtx)
 
-	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
 	// WHEN: a few notifications are enqueued which will all succeed
 	var msgs []string
@@ -485,7 +498,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	cancelManagerCtx()
 
 	// Fetch any messages currently in "leased" status, and verify that they're exactly the ones we enqueued.
-	leased, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	leased, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusLeased,
 		Limit:  msgCount,
 	})
@@ -505,9 +518,9 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	// Start a new notification manager.
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &syncInterceptor{Store: db}
+	storeInterceptor := &syncInterceptor{Store: api.Database}
 	handler := newDispatchInterceptor(&fakeHandler{})
-	mgr, err = notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err = notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 
@@ -524,7 +537,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// Validate that no more messages are in "leased" status.
-	leased, err = db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	leased, err = api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusLeased,
 		Limit:  msgCount,
 	})
@@ -557,7 +570,9 @@ func TestInvalidConfig(t *testing.T) {
 func TestNotifierPaused(t *testing.T) {
 	t.Parallel()
 
-	// setup
+	// Setup.
+
+	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
@@ -592,13 +607,13 @@ func TestNotifierPaused(t *testing.T) {
 
 	// Sleep for a few fetch intervals to be sure we aren't getting false-positives in the next step.
 	// TODO: use quartz instead.
-	time.Sleep(fetchInterval*5)
+	time.Sleep(fetchInterval * 5)
 
 	// Ensure we have a pending message and it's the expected one.
 	require.Eventually(t, func() bool {
 		pendingMessages, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusPending,
-			Limit: 10,
+			Limit:  10,
 		})
 		assert.NoError(t, err)
 		return len(pendingMessages) == 1 &&
@@ -852,17 +867,19 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
 	}
 
-	ctx, logger, db := setup(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	// GIVEN: an enqueuer & a sample user
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
 	// WHEN: the user has a preference set to not receive the "workspace deleted" notification
 	templateID := notifications.TemplateWorkspaceDeleted
-	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+	n, err := api.Database.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
 		UserID:                  user.ID,
 		NotificationTemplateIds: []uuid.UUID{templateID},
 		Disableds:               []bool{true},
@@ -885,20 +902,22 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
 	}
 
-	ctx, logger, db := setup(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
 	// GIVEN: a notification is enqueued which has not (yet) been disabled
 	templateID := notifications.TemplateWorkspaceDeleted
@@ -906,7 +925,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 	require.NoError(t, err)
 
 	// Disable the notification template.
-	n, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+	n, err := api.Database.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
 		UserID:                  user.ID,
 		NotificationTemplateIds: []uuid.UUID{templateID},
 		Disableds:               []bool{true},
@@ -919,7 +938,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 
 	// THEN: the message should not be sent, and must be set to "inhibited"
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		m, err := db.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+		m, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusInhibited,
 			Limit:  10,
 		})
@@ -939,7 +958,9 @@ func TestCustomNotificationMethod(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	ctx, logger, db := setup(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	received := make(chan uuid.UUID, 1)
 
@@ -978,7 +999,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 		defaultMethod = database.NotificationMethodSmtp
 		customMethod  = database.NotificationMethodWebhook
 	)
-	out, err := db.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
+	out, err := api.Database.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
 		ID:     template,
 		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
 	})
@@ -996,17 +1017,17 @@ func TestCustomNotificationMethod(t *testing.T) {
 		Endpoint: *serpent.URLOf(endpoint),
 	}
 
-	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = mgr.Stop(ctx)
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger, quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger, quartz.NewReal())
 	require.NoError(t, err)
 
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 	msgID, err := enq.Enqueue(ctx, user.ID, template, map[string]string{}, "test")
 	require.NoError(t, err)
 
@@ -1040,6 +1061,7 @@ func TestNotificationsTemplates(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
+	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	api := coderdtest.New(t, createOpts(t))
 
@@ -1077,12 +1099,14 @@ func TestNotificationDuplicates(t *testing.T) {
 		t.Skip("This test requires postgres; it is testing the dedupe hash trigger in the database")
 	}
 
-	ctx, logger, db := setup(t)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, db, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -1092,9 +1116,9 @@ func TestNotificationDuplicates(t *testing.T) {
 	mClock := quartz.NewMock(t)
 	mClock.Set(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC))
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, db, defaultHelpers(), logger.Named("enqueuer"), mClock)
+	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), mClock)
 	require.NoError(t, err)
-	user := createSampleUser(t, db)
+	user := createSampleUser(t, api.Database)
 
 	// GIVEN: two notifications are enqueued with identical properties.
 	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,

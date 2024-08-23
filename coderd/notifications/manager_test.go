@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/quartz"
-	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -28,6 +29,8 @@ func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
 
 	// setup
+
+	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
@@ -97,6 +100,8 @@ func TestBuildPayload(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
+
+	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
@@ -152,6 +157,8 @@ func TestStopBeforeRun(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
+
+	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
