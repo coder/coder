@@ -107,3 +107,35 @@ func Ascending[T constraints.Ordered](a, b T) int {
 func Descending[T constraints.Ordered](a, b T) int {
 	return -Ascending[T](a, b)
 }
+
+// SymmetricDifference returns the elements that need to be added and removed
+// to get from set 'a' to set 'b'.
+// In classical set theory notation, SymmetricDifference returns
+// all elements of {add} and {remove} together. It is more useful to
+// return them as their own slices.
+// Notation: A Δ B = (A\B) ∪ (B\A)
+// Example:
+//
+//	a := []int{1, 3, 4}
+//	b := []int{1, 2}
+//	add, remove := SymmetricDifference(a, b)
+//	fmt.Println(add)    // [2]
+//	fmt.Println(remove) // [3, 4]
+func SymmetricDifference[T comparable](a, b []T) (add []T, remove []T) {
+	f := func(a, b T) bool { return a == b }
+	return SymmetricDifferenceFunc(a, b, f)
+}
+
+func SymmetricDifferenceFunc[T any](a, b []T, equal func(a, b T) bool) (add []T, remove []T) {
+	return DifferenceFunc(b, a, equal), DifferenceFunc(a, b, equal)
+}
+
+func DifferenceFunc[T any](a []T, b []T, equal func(a, b T) bool) []T {
+	tmp := make([]T, 0, len(a))
+	for _, v := range a {
+		if !ContainsCompare(b, v, equal) {
+			tmp = append(tmp, v)
+		}
+	}
+	return tmp
+}

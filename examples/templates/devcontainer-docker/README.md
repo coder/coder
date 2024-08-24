@@ -34,12 +34,11 @@ Coder supports Devcontainers via [envbuilder](https://github.com/coder/envbuilde
 
 This template provisions the following resources:
 
-- Envbuilder cached image (conditional, persistent)
-- Docker image (persistent)
+- Envbuilder cached image (conditional, persistent) using [`terraform-provider-envbuilder`](https://github.com/coder/terraform-provider-envbuilder)
+- Docker image (persistent) using [`envbuilder`](https://github.com/coder/envbuilder)
 - Docker container (ephemeral)
 - Docker volume (persistent on `/workspaces`)
 
-with [`envbuilder`](https://github.com/coder/envbuilder) and [`terraform-provider-envbuilder`](https://github.com/coder/terraform-provider-envbuilder).
 The Git repository is cloned inside the `/workspaces` volume if not present.
 Any local changes to the Devcontainer files inside the volume will be applied when you restart the workspace.
 Keep in mind that any tools or files outside of `/workspaces` or not added as part of the Devcontainer specification are not persisted.

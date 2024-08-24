@@ -37,6 +37,7 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -157,6 +158,9 @@ type Options struct {
 	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
 	RefreshEntitlements func(ctx context.Context) error
+	// Entitlements can come from the enterprise caller if enterprise code is
+	// included.
+	Entitlements *entitlements.Set
 	// PostAuthAdditionalHeadersFunc is used to add additional headers to the response
 	// after a successful authentication.
 	// This is somewhat janky, but seemingly the only reasonable way to add a header
@@ -262,6 +266,9 @@ type Options struct {
 func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
+	}
+	if options.Entitlements == nil {
+		options.Entitlements = entitlements.New()
 	}
 	if options.NewTicker == nil {
 		options.NewTicker = func(duration time.Duration) (tick <-chan time.Time, done func()) {
@@ -500,6 +507,7 @@ func New(options *Options) *API {
 		DocsURL:           options.DeploymentValues.DocsURL.String(),
 		AppearanceFetcher: &api.AppearanceFetcher,
 		BuildInfo:         buildInfo,
+		Entitlements:      options.Entitlements,
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 
