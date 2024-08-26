@@ -201,7 +201,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		IDPSync: idpsync.NewSync(logger, idpsync.SyncSettings{
 			OrganizationField:         vals.OIDC.OrganizationField.Value(),
 			OrganizationMapping:       vals.OIDC.OrganizationMapping.Value,
-			OrganizationAssignDefault: vals.OIDC.OrganizationAssignDefault.Value,
+			OrganizationAssignDefault: vals.OIDC.OrganizationAssignDefault.Value(),
 		}),
 	}, nil
 }
