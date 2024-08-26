@@ -25,11 +25,7 @@ import (
 
 func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		api.entitlementsMu.RLock()
-		scim := api.entitlements.Features[codersdk.FeatureSCIM].Enabled
-		api.entitlementsMu.RUnlock()
-
-		if !scim {
+		if !api.entitlements.Enabled(codersdk.FeatureSCIM) {
 			httpapi.RouteNotFound(rw)
 			return
 		}
@@ -232,11 +228,11 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed for SCIM
-	dbUser, _, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
-		CreateUserRequest: codersdk.CreateUserRequest{
-			Username:       sUser.UserName,
-			Email:          email,
-			OrganizationID: defaultOrganization.ID,
+	dbUser, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
+		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
+			Username:        sUser.UserName,
+			Email:           email,
+			OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
 		},
 		LoginType: database.LoginTypeOIDC,
 		// Do not send notifications to user admins as SCIM endpoint might be called sequentially to all users.

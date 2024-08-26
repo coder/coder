@@ -764,29 +764,9 @@ func SiteRoles() []Role {
 // RBAC checks can be applied using "ActionCreate" and "ActionDelete" for
 // "added" and "removed" roles respectively.
 func ChangeRoleSet(from []RoleIdentifier, to []RoleIdentifier) (added []RoleIdentifier, removed []RoleIdentifier) {
-	has := make(map[RoleIdentifier]struct{})
-	for _, exists := range from {
-		has[exists] = struct{}{}
-	}
-
-	for _, roleName := range to {
-		// If the user already has the role assigned, we don't need to check the permission
-		// to reassign it. Only run permission checks on the difference in the set of
-		// roles.
-		if _, ok := has[roleName]; ok {
-			delete(has, roleName)
-			continue
-		}
-
-		added = append(added, roleName)
-	}
-
-	// Remaining roles are the ones removed/deleted.
-	for roleName := range has {
-		removed = append(removed, roleName)
-	}
-
-	return added, removed
+	return slice.SymmetricDifferenceFunc(from, to, func(a, b RoleIdentifier) bool {
+		return a.Name == b.Name && a.OrganizationID == b.OrganizationID
+	})
 }
 
 // Permissions is just a helper function to make building roles that list out resources

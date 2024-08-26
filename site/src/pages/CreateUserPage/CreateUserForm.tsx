@@ -61,7 +61,7 @@ export const authMethodLanguage = {
 };
 
 export interface CreateUserFormProps {
-	onSubmit: (user: TypesGen.CreateUserRequest) => void;
+	onSubmit: (user: TypesGen.CreateUserRequestWithOrgs) => void;
 	onCancel: () => void;
 	error?: unknown;
 	isLoading: boolean;
@@ -86,21 +86,20 @@ const validationSchema = Yup.object({
 export const CreateUserForm: FC<
 	React.PropsWithChildren<CreateUserFormProps>
 > = ({ onSubmit, onCancel, error, isLoading, authMethods }) => {
-	const form: FormikContextType<TypesGen.CreateUserRequest> =
-		useFormik<TypesGen.CreateUserRequest>({
+	const form: FormikContextType<TypesGen.CreateUserRequestWithOrgs> =
+		useFormik<TypesGen.CreateUserRequestWithOrgs>({
 			initialValues: {
 				email: "",
 				password: "",
 				username: "",
 				name: "",
-				organization_id: "00000000-0000-0000-0000-000000000000",
-				disable_login: false,
+				organization_ids: ["00000000-0000-0000-0000-000000000000"],
 				login_type: "",
 			},
 			validationSchema,
 			onSubmit,
 		});
-	const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequest>(
+	const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequestWithOrgs>(
 		form,
 		error,
 	);

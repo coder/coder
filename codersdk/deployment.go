@@ -35,6 +35,12 @@ const (
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
 
+// Entitled returns if the entitlement can be used. So this is true if it
+// is entitled or still in it's grace period.
+func (e Entitlement) Entitled() bool {
+	return e == EntitlementEntitled || e == EntitlementGracePeriod
+}
+
 // Weight converts the enum types to a numerical value for easier
 // comparisons. Easier than sets of if statements.
 func (e Entitlement) Weight() int {
