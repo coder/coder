@@ -863,7 +863,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		tickInterval     time.Duration
 		bytesPerTick     int64
 		ssh              bool
-		useHostUser      bool
+		useHostLogin     bool
 		app              string
 		template         string
 		targetWorkspaces string
@@ -928,7 +928,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			}
 
 			var owner string
-			if useHostUser {
+			if useHostLogin {
 				owner = codersdk.Me
 			}
 
@@ -1106,7 +1106,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
 			Default:     "false",
 			Description: "Connect as the currently logged in user.",
-			Value:       serpent.BoolOf(&useHostUser),
+			Value:       serpent.BoolOf(&useHostLogin),
 		},
 	}
 

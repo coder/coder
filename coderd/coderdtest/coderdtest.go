@@ -277,7 +277,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		}
 		if err := options.Authorizer.Authorize(context.Background(), ownerSubj, policy.ActionSSH, rbac.ResourceWorkspace); err != nil {
 			if rbac.IsUnauthorizedError(err) {
-				t.Fatal("DisableOwnerWorkspaceExec was set in some other test. Please move this test to its own package so that it does not impact other tests!")
+				t.Fatal("Side-effect of DisableOwnerWorkspaceExec detected in unrelated test. Please move the test that requires DisableOwnerWorkspaceExec to its own package so that it does not impact other tests!")
 			}
 			require.NoError(t, err)
 		}
