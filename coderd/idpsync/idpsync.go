@@ -1,6 +1,7 @@
 package idpsync
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -8,33 +9,46 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
 
-// IDPSync is the configuration for syncing user information from an external
-// IDP. All related code to syncing user information should be in this package.
-type IDPSync struct {
-	logger       slog.Logger
-	entitlements *entitlements.Set
+type IDPSync interface {
+	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
+	// organization sync params for assigning users into organizations.
+	ParseOrganizationClaims(ctx context.Context, _ map[string]interface{}) (OrganizationParams, *HttpError)
+	// SyncOrganizations assigns and removed users from organizations based on the
+	// provided params.
+	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
+}
 
+// AGPLIDPSync is the configuration for syncing user information from an external
+// IDP. All related code to syncing user information should be in this package.
+type AGPLIDPSync struct {
+	Logger slog.Logger
+
+	SyncSettings
+}
+
+type SyncSettings struct {
 	// OrganizationField selects the claim field to be used as the created user's
 	// organizations. If the field is the empty string, then no organization updates
 	// will ever come from the OIDC provider.
 	OrganizationField string
 	// OrganizationMapping controls how organizations returned by the OIDC provider get mapped
 	OrganizationMapping map[string][]uuid.UUID
-	// OrganizationAlwaysAssign will ensure all users that authenticate will be
-	// placed into the specified organizations.
-	OrganizationAlwaysAssign []uuid.UUID
+	// OrganizationAssignDefault will ensure all users that authenticate will be
+	// placed into the default organization. This is mostly a hack to support
+	// legacy deployments.
+	OrganizationAssignDefault bool
 }
 
-func NewSync(logger slog.Logger, set *entitlements.Set) *IDPSync {
-	return &IDPSync{
-		logger:       logger.Named("idp-sync"),
-		entitlements: set,
+func NewSync(logger slog.Logger, settings SyncSettings) *AGPLIDPSync {
+	return &AGPLIDPSync{
+		Logger:       logger.Named("idp-sync"),
+		SyncSettings: settings,
 	}
 }
 

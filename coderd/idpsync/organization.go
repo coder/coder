@@ -3,7 +3,6 @@ package idpsync
 import (
 	"context"
 	"database/sql"
-	"net/http"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -16,63 +15,45 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-func (s IDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims map[string]interface{}) (OrganizationParams, *HttpError) {
+func (s AGPLIDPSync) ParseOrganizationClaims(ctx context.Context, _ map[string]interface{}) (OrganizationParams, *HttpError) {
 	// nolint:gocritic // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	// Copy in the always included static set of organizations.
-	userOrganizations := make([]uuid.UUID, len(s.OrganizationAlwaysAssign))
-	copy(userOrganizations, s.OrganizationAlwaysAssign)
-
-	// Pull extra organizations from the claims.
-	if s.OrganizationField != "" {
-		organizationRaw, ok := mergedClaims[s.OrganizationField]
-		if ok {
-			parsedOrganizations, err := ParseStringSliceClaim(organizationRaw)
-			if err != nil {
-				return OrganizationParams{}, &HttpError{
-					Code:                 http.StatusBadRequest,
-					Msg:                  "Failed to sync organizations from the OIDC claims",
-					Detail:               err.Error(),
-					RenderStaticPage:     false,
-					RenderDetailMarkdown: false,
-				}
-			}
-
-			// Keep track of which claims are not mapped for debugging purposes.
-			var ignored []string
-			for _, parsedOrg := range parsedOrganizations {
-				if mappedOrganization, ok := s.OrganizationMapping[parsedOrg]; ok {
-					// parsedOrg is in the mapping, so add the mapped organizations to the
-					// user's organizations.
-					userOrganizations = append(userOrganizations, mappedOrganization...)
-				} else {
-					ignored = append(ignored, parsedOrg)
-				}
-			}
-
-			s.logger.Debug(ctx, "parsed organizations from claim",
-				slog.F("len", len(parsedOrganizations)),
-				slog.F("ignored", ignored),
-				slog.F("organizations", parsedOrganizations),
-			)
-		}
-	}
-
+	// For AGPL we only rely on 'OrganizationAlwaysAssign'
 	return OrganizationParams{
-		Organizations: userOrganizations,
+		SyncEnabled:    false,
+		IncludeDefault: s.OrganizationAssignDefault,
+		Organizations:  []uuid.UUID{},
 	}, nil
 }
 
 type OrganizationParams struct {
+	// SyncEnabled if false will skip syncing the user's organizations.
+	SyncEnabled    bool
+	IncludeDefault bool
 	// Organizations is the list of organizations the user should be a member of
 	// assuming syncing is turned on.
 	Organizations []uuid.UUID
 }
 
-func (s IDPSync) SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error {
+func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error {
+	// Nothing happens if sync is not enabled
+	if !params.SyncEnabled {
+		return nil
+	}
+
 	// nolint:gocritic // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
+
+	// This is a bit hacky, but if AssignDefault is included, then always
+	// make sure to include the default org in the list of expected.
+	if s.OrganizationAssignDefault {
+		defaultOrg, err := tx.GetDefaultOrganization(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get default organization: %w", err)
+		}
+		params.Organizations = append(params.Organizations, defaultOrg.ID)
+	}
 
 	existingOrgs, err := tx.GetOrganizationsByUserID(ctx, user.ID)
 	if err != nil {
@@ -117,7 +98,7 @@ func (s IDPSync) SyncOrganizations(ctx context.Context, tx database.Store, user 
 	}
 
 	if len(notExists) > 0 {
-		s.logger.Debug(ctx, "organizations do not exist but attempted to use in org sync",
+		s.Logger.Debug(ctx, "organizations do not exist but attempted to use in org sync",
 			slog.F("not_found", notExists),
 			slog.F("user_id", user.ID),
 			slog.F("username", user.Username),

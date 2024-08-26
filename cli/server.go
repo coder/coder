@@ -55,6 +55,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
@@ -197,6 +198,11 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
+		IDPSync: idpsync.NewSync(logger, idpsync.SyncSettings{
+			OrganizationField:         vals.OIDC.OrganizationField.Value(),
+			OrganizationMapping:       vals.OIDC.OrganizationMapping.Value,
+			OrganizationAssignDefault: vals.OIDC.OrganizationAssignDefault.Value,
+		}),
 	}, nil
 }
 

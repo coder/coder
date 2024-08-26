@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
@@ -512,29 +513,32 @@ type OIDCConfig struct {
 	ClientID     serpent.String `json:"client_id" typescript:",notnull"`
 	ClientSecret serpent.String `json:"client_secret" typescript:",notnull"`
 	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
-	ClientKeyFile       serpent.String                      `json:"client_key_file" typescript:",notnull"`
-	ClientCertFile      serpent.String                      `json:"client_cert_file" typescript:",notnull"`
-	EmailDomain         serpent.StringArray                 `json:"email_domain" typescript:",notnull"`
-	IssuerURL           serpent.String                      `json:"issuer_url" typescript:",notnull"`
-	Scopes              serpent.StringArray                 `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified serpent.Bool                        `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       serpent.String                      `json:"username_field" typescript:",notnull"`
-	NameField           serpent.String                      `json:"name_field" typescript:",notnull"`
-	EmailField          serpent.String                      `json:"email_field" typescript:",notnull"`
-	AuthURLParams       serpent.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
-	IgnoreUserInfo      serpent.Bool                        `json:"ignore_user_info" typescript:",notnull"`
-	GroupAutoCreate     serpent.Bool                        `json:"group_auto_create" typescript:",notnull"`
-	GroupRegexFilter    serpent.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
-	GroupAllowList      serpent.StringArray                 `json:"group_allow_list" typescript:",notnull"`
-	GroupField          serpent.String                      `json:"groups_field" typescript:",notnull"`
-	GroupMapping        serpent.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
-	UserRoleField       serpent.String                      `json:"user_role_field" typescript:",notnull"`
-	UserRoleMapping     serpent.Struct[map[string][]string] `json:"user_role_mapping" typescript:",notnull"`
-	UserRolesDefault    serpent.StringArray                 `json:"user_roles_default" typescript:",notnull"`
-	SignInText          serpent.String                      `json:"sign_in_text" typescript:",notnull"`
-	IconURL             serpent.URL                         `json:"icon_url" typescript:",notnull"`
-	SignupsDisabledText serpent.String                      `json:"signups_disabled_text" typescript:",notnull"`
-	SkipIssuerChecks    serpent.Bool                        `json:"skip_issuer_checks" typescript:",notnull"`
+	ClientKeyFile             serpent.String                         `json:"client_key_file" typescript:",notnull"`
+	ClientCertFile            serpent.String                         `json:"client_cert_file" typescript:",notnull"`
+	EmailDomain               serpent.StringArray                    `json:"email_domain" typescript:",notnull"`
+	IssuerURL                 serpent.String                         `json:"issuer_url" typescript:",notnull"`
+	Scopes                    serpent.StringArray                    `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified       serpent.Bool                           `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField             serpent.String                         `json:"username_field" typescript:",notnull"`
+	NameField                 serpent.String                         `json:"name_field" typescript:",notnull"`
+	EmailField                serpent.String                         `json:"email_field" typescript:",notnull"`
+	AuthURLParams             serpent.Struct[map[string]string]      `json:"auth_url_params" typescript:",notnull"`
+	IgnoreUserInfo            serpent.Bool                           `json:"ignore_user_info" typescript:",notnull"`
+	OrganizationField         serpent.String                         `json:"organization_field" typescript:",notnull"`
+	OrganizationMapping       serpent.Struct[map[string][]uuid.UUID] `json:"organization_mapping" typescript:",notnull"`
+	OrganizationAssignDefault serpent.Bool                           `json:"organization_assign_default" typescript:",notnull"`
+	GroupAutoCreate           serpent.Bool                           `json:"group_auto_create" typescript:",notnull"`
+	GroupRegexFilter          serpent.Regexp                         `json:"group_regex_filter" typescript:",notnull"`
+	GroupAllowList            serpent.StringArray                    `json:"group_allow_list" typescript:",notnull"`
+	GroupField                serpent.String                         `json:"groups_field" typescript:",notnull"`
+	GroupMapping              serpent.Struct[map[string]string]      `json:"group_mapping" typescript:",notnull"`
+	UserRoleField             serpent.String                         `json:"user_role_field" typescript:",notnull"`
+	UserRoleMapping           serpent.Struct[map[string][]string]    `json:"user_role_mapping" typescript:",notnull"`
+	UserRolesDefault          serpent.StringArray                    `json:"user_roles_default" typescript:",notnull"`
+	SignInText                serpent.String                         `json:"sign_in_text" typescript:",notnull"`
+	IconURL                   serpent.URL                            `json:"icon_url" typescript:",notnull"`
+	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
+	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {

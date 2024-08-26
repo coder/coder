@@ -738,6 +738,11 @@ type OIDCConfig struct {
 	// support the userinfo endpoint, or if the userinfo endpoint causes
 	// undesirable behavior.
 	IgnoreUserInfo bool
+	// IDPSync contains all the configuration for syncing user information
+	// from the external IDP.
+	IDPSync idpsync.IDPSync
+
+	// TODO: Move all idp fields into the IDPSync struct
 	// GroupField selects the claim field to be used as the created user's
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
@@ -768,16 +773,6 @@ type OIDCConfig struct {
 	// UserRolesDefault is the default set of roles to assign to a user if role sync
 	// is enabled.
 	UserRolesDefault []string
-	// OrganizationField selects the claim field to be used as the created user's
-	// organizations. If the field is the empty string, then no organization updates
-	// will ever come from the OIDC provider.
-	OrganizationField string
-	// OrganizationMapping controls how organizations returned by the OIDC provider get mapped
-	OrganizationMapping map[string][]string
-	// OrganizationAlwaysAssign will ensure all users that authenticate will be
-	// placed into the specified organizations. 'default' is a special keyword
-	// that will use the `IsDefault` organization.
-	OrganizationAlwaysAssign []string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
