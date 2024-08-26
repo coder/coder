@@ -16,6 +16,11 @@ import (
 )
 
 type IDPSync interface {
+	// Configure is a method on the struct only because it is easier to configure
+	// from the AGPL initialization. For the enterprise code to get these settings,
+	// it makes sense to have the AGPL call 'Configure' rather than duplicate
+	// the code to create these settings.
+	Configure(settings SyncSettings)
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
 	ParseOrganizationClaims(ctx context.Context, _ map[string]interface{}) (OrganizationParams, *HttpError)
@@ -45,11 +50,18 @@ type SyncSettings struct {
 	OrganizationAssignDefault bool
 }
 
-func NewSync(logger slog.Logger, settings SyncSettings) *AGPLIDPSync {
+func NewSync(logger slog.Logger) *AGPLIDPSync {
 	return &AGPLIDPSync{
-		Logger:       logger.Named("idp-sync"),
-		SyncSettings: settings,
+		Logger: logger.Named("idp-sync"),
+		SyncSettings: SyncSettings{
+			// A sane default
+			OrganizationAssignDefault: true,
+		},
 	}
+}
+
+func (s *AGPLIDPSync) Configure(settings SyncSettings) {
+	s.SyncSettings = settings
 }
 
 // ParseStringSliceClaim parses the claim for groups and roles, expected []string.

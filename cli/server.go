@@ -170,6 +170,13 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		groupAllowList[group] = true
 	}
 
+	idpSyncSetting := idpsync.SyncSettings{
+		OrganizationField:         vals.OIDC.OrganizationField.Value(),
+		OrganizationMapping:       vals.OIDC.OrganizationMapping.Value,
+		OrganizationAssignDefault: vals.OIDC.OrganizationAssignDefault.Value(),
+	}
+	syncer.Configure(idpSyncSetting)
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -198,11 +205,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
-		IDPSync: idpsync.NewSync(logger, idpsync.SyncSettings{
-			OrganizationField:         vals.OIDC.OrganizationField.Value(),
-			OrganizationMapping:       vals.OIDC.OrganizationMapping.Value,
-			OrganizationAssignDefault: vals.OIDC.OrganizationAssignDefault.Value(),
-		}),
+		IDPSync:             syncer,
 	}, nil
 }
 

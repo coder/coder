@@ -1026,6 +1026,12 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	orgSync, orgSyncErr := api.OIDCConfig.IDPSync.ParseOrganizationClaims(ctx, mergedClaims)
+	if orgSyncErr != nil {
+		orgSyncErr.Write(rw, r)
+		return
+	}
+
 	// If a new user is authenticating for the first time
 	// the audit action is 'register', not 'login'
 	if user.ID == uuid.Nil {
@@ -1047,6 +1053,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Roles:               roles,
 		UsingGroups:         usingGroups,
 		Groups:              groups,
+		OrganizationSync:    orgSync,
 		CreateMissingGroups: api.OIDCConfig.CreateMissingGroups,
 		GroupFilter:         api.OIDCConfig.GroupFilter,
 		DebugContext: OauthDebugContext{

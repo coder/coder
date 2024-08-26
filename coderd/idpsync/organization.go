@@ -19,7 +19,7 @@ func (s AGPLIDPSync) ParseOrganizationClaims(ctx context.Context, _ map[string]i
 	// nolint:gocritic // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	// For AGPL we only rely on 'OrganizationAlwaysAssign'
+	// For AGPL we only sync the default organization.
 	return OrganizationParams{
 		SyncEnabled:    false,
 		IncludeDefault: s.OrganizationAssignDefault,

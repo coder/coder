@@ -12,9 +12,9 @@ type EnterpriseIDPSync struct {
 	agpl         *idpsync.AGPLIDPSync
 }
 
-func NewSync(logger slog.Logger, entitlements *entitlements.Set, settings idpsync.SyncSettings) *EnterpriseIDPSync {
+func NewSync(logger slog.Logger, entitlements *entitlements.Set) *EnterpriseIDPSync {
 	return &EnterpriseIDPSync{
 		entitlements: entitlements,
-		agpl:         idpsync.NewSync(logger, settings),
+		agpl:         idpsync.NewSync(logger),
 	}
 }
