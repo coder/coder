@@ -46,7 +46,7 @@ func init() {
 		valid := NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "group_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
@@ -93,6 +93,20 @@ func init() {
 		return valid == nil
 	}
 	err = Validate.RegisterValidation("user_real_name", userRealNameValidator)
+	if err != nil {
+		panic(err)
+	}
+
+	groupNameValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		valid := GroupNameValid(str)
+		return valid == nil
+	}
+	err = Validate.RegisterValidation("group_name", groupNameValidator)
 	if err != nil {
 		panic(err)
 	}
