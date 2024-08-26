@@ -2609,7 +2609,7 @@ func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return int64(len(users)), nil
 }
 
-func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2632,9 +2632,11 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 				groupIDs[orgMember.OrganizationID] = struct{}{}
 			}
 		}
+
 	}
 
-	filtered := make([]database.Group, 0)
+	organizationDisplayNames := make(map[uuid.UUID]string)
+	filtered := make([]database.GetGroupsRow, 0)
 	for _, group := range q.groups {
 		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
 			continue
@@ -2645,7 +2647,27 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 			continue
 		}
 
-		filtered = append(filtered, group)
+		orgDisplayName, ok := organizationDisplayNames[group.ID]
+		if !ok {
+			for _, org := range q.organizations {
+				if group.OrganizationID == org.ID {
+					orgDisplayName = org.DisplayName
+					break
+				}
+			}
+			organizationDisplayNames[group.ID] = orgDisplayName
+		}
+
+		filtered = append(filtered, database.GetGroupsRow{
+			ID:                      group.ID,
+			Name:                    group.Name,
+			OrganizationID:          group.OrganizationID,
+			AvatarURL:               group.AvatarURL,
+			QuotaAllowance:          group.QuotaAllowance,
+			DisplayName:             group.DisplayName,
+			Source:                  group.Source,
+			OrganizationDisplayName: orgDisplayName,
+		})
 	}
 
 	return filtered, nil

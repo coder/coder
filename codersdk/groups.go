@@ -26,11 +26,12 @@ type CreateGroupRequest struct {
 }
 
 type Group struct {
-	ID             uuid.UUID     `json:"id" format:"uuid"`
-	Name           string        `json:"name"`
-	DisplayName    string        `json:"display_name"`
-	OrganizationID uuid.UUID     `json:"organization_id" format:"uuid"`
-	Members        []ReducedUser `json:"members"`
+	ID                      uuid.UUID     `json:"id" format:"uuid"`
+	Name                    string        `json:"name"`
+	DisplayName             string        `json:"display_name"`
+	OrganizationID          uuid.UUID     `json:"organization_id" format:"uuid"`
+	OrganizationDisplayName string        `json:"organization_display_name"`
+	Members                 []ReducedUser `json:"members"`
 	// How many members are in this group. Shows the total count,
 	// even if the user is not authorized to read group member details.
 	// May be greater than `len(Group.Members)`.

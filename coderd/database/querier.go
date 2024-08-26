@@ -152,7 +152,7 @@ type sqlcQuerier interface {
 	// count even if the caller does not have read access to ResourceGroupMember.
 	// They only need ResourceGroup read access.
 	GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error)
-	GetGroups(ctx context.Context, arg GetGroupsParams) ([]Group, error)
+	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)

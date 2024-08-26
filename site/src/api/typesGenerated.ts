@@ -71,7 +71,7 @@ export interface AssignableRoles extends Role {
 }
 
 // From codersdk/audit.go
-export type AuditDiff = Record<string, AuditDiffField>
+export type AuditDiff = Record<string, AuditDiffField>;
 
 // From codersdk/audit.go
 export interface AuditDiffField {
@@ -150,7 +150,7 @@ export interface AuthorizationRequest {
 }
 
 // From codersdk/authorization.go
-export type AuthorizationResponse = Record<string, boolean>
+export type AuthorizationResponse = Record<string, boolean>;
 
 // From codersdk/deployment.go
 export interface AvailableExperiments {
@@ -500,7 +500,7 @@ export interface Entitlements {
 }
 
 // From codersdk/deployment.go
-export type Experiments = Readonly<Array<Experiment>>
+export type Experiments = Readonly<Array<Experiment>>;
 
 // From codersdk/externalauth.go
 export interface ExternalAuth {
@@ -617,6 +617,7 @@ export interface Group {
 	readonly name: string;
 	readonly display_name: string;
 	readonly organization_id: string;
+	readonly organization_display_name: string;
 	readonly members: Readonly<Array<ReducedUser>>;
 	readonly total_member_count: number;
 	readonly avatar_url: string;
@@ -1274,7 +1275,10 @@ export interface TemplateAutostopRequirement {
 }
 
 // From codersdk/templates.go
-export type TemplateBuildTimeStats = Record<WorkspaceTransition, TransitionStats>
+export type TemplateBuildTimeStats = Record<
+	WorkspaceTransition,
+	TransitionStats
+>;
 
 // From codersdk/templates.go
 export interface TemplateExample {
@@ -2004,187 +2008,551 @@ export interface WorkspacesResponse {
 }
 
 // From codersdk/apikey.go
-export type APIKeyScope = "all" | "application_connect"
-export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
+export type APIKeyScope = "all" | "application_connect";
+export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"];
 
 // From codersdk/workspaceagents.go
-export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
-export const AgentSubsystems: AgentSubsystem[] = ["envbox", "envbuilder", "exectrace"]
+export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace";
+export const AgentSubsystems: AgentSubsystem[] = [
+	"envbox",
+	"envbuilder",
+	"exectrace",
+];
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "login" | "logout" | "register" | "start" | "stop" | "write"
-export const AuditActions: AuditAction[] = ["create", "delete", "login", "logout", "register", "start", "stop", "write"]
+export type AuditAction =
+	| "create"
+	| "delete"
+	| "login"
+	| "logout"
+	| "register"
+	| "start"
+	| "stop"
+	| "write";
+export const AuditActions: AuditAction[] = [
+	"create",
+	"delete",
+	"login",
+	"logout",
+	"register",
+	"start",
+	"stop",
+	"write",
+];
 
 // From codersdk/workspaces.go
-export type AutomaticUpdates = "always" | "never"
-export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"]
+export type AutomaticUpdates = "always" | "never";
+export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"];
 
 // From codersdk/workspacebuilds.go
-export type BuildReason = "autostart" | "autostop" | "initiator"
-export const BuildReasons: BuildReason[] = ["autostart", "autostop", "initiator"]
+export type BuildReason = "autostart" | "autostop" | "initiator";
+export const BuildReasons: BuildReason[] = [
+	"autostart",
+	"autostop",
+	"initiator",
+];
 
 // From codersdk/workspaceagents.go
-export type DisplayApp = "port_forwarding_helper" | "ssh_helper" | "vscode" | "vscode_insiders" | "web_terminal"
-export const DisplayApps: DisplayApp[] = ["port_forwarding_helper", "ssh_helper", "vscode", "vscode_insiders", "web_terminal"]
+export type DisplayApp =
+	| "port_forwarding_helper"
+	| "ssh_helper"
+	| "vscode"
+	| "vscode_insiders"
+	| "web_terminal";
+export const DisplayApps: DisplayApp[] = [
+	"port_forwarding_helper",
+	"ssh_helper",
+	"vscode",
+	"vscode_insiders",
+	"web_terminal",
+];
 
 // From codersdk/externalauth.go
-export type EnhancedExternalAuthProvider = "azure-devops" | "azure-devops-entra" | "bitbucket-cloud" | "bitbucket-server" | "gitea" | "github" | "gitlab" | "jfrog" | "slack"
-export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = ["azure-devops", "azure-devops-entra", "bitbucket-cloud", "bitbucket-server", "gitea", "github", "gitlab", "jfrog", "slack"]
+export type EnhancedExternalAuthProvider =
+	| "azure-devops"
+	| "azure-devops-entra"
+	| "bitbucket-cloud"
+	| "bitbucket-server"
+	| "gitea"
+	| "github"
+	| "gitlab"
+	| "jfrog"
+	| "slack";
+export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
+	"azure-devops",
+	"azure-devops-entra",
+	"bitbucket-cloud",
+	"bitbucket-server",
+	"gitea",
+	"github",
+	"gitlab",
+	"jfrog",
+	"slack",
+];
 
 // From codersdk/deployment.go
-export type Entitlement = "entitled" | "grace_period" | "not_entitled"
-export const Entitlements: Entitlement[] = ["entitled", "grace_period", "not_entitled"]
+export type Entitlement = "entitled" | "grace_period" | "not_entitled";
+export const Entitlements: Entitlement[] = [
+	"entitled",
+	"grace_period",
+	"not_entitled",
+];
 
 // From codersdk/deployment.go
-export type Experiment = "auto-fill-parameters" | "custom-roles" | "example" | "multi-organization" | "notifications" | "workspace-usage"
-export const Experiments: Experiment[] = ["auto-fill-parameters", "custom-roles", "example", "multi-organization", "notifications", "workspace-usage"]
+export type Experiment =
+	| "auto-fill-parameters"
+	| "custom-roles"
+	| "example"
+	| "multi-organization"
+	| "notifications"
+	| "workspace-usage";
+export const Experiments: Experiment[] = [
+	"auto-fill-parameters",
+	"custom-roles",
+	"example",
+	"multi-organization",
+	"notifications",
+	"workspace-usage",
+];
 
 // From codersdk/deployment.go
-export type FeatureName = "access_control" | "advanced_template_scheduling" | "appearance" | "audit_log" | "browser_only" | "control_shared_ports" | "custom_roles" | "external_provisioner_daemons" | "external_token_encryption" | "high_availability" | "multiple_external_auth" | "multiple_organizations" | "scim" | "template_rbac" | "user_limit" | "user_role_management" | "workspace_batch_actions" | "workspace_proxy"
-export const FeatureNames: FeatureName[] = ["access_control", "advanced_template_scheduling", "appearance", "audit_log", "browser_only", "control_shared_ports", "custom_roles", "external_provisioner_daemons", "external_token_encryption", "high_availability", "multiple_external_auth", "multiple_organizations", "scim", "template_rbac", "user_limit", "user_role_management", "workspace_batch_actions", "workspace_proxy"]
+export type FeatureName =
+	| "access_control"
+	| "advanced_template_scheduling"
+	| "appearance"
+	| "audit_log"
+	| "browser_only"
+	| "control_shared_ports"
+	| "custom_roles"
+	| "external_provisioner_daemons"
+	| "external_token_encryption"
+	| "high_availability"
+	| "multiple_external_auth"
+	| "multiple_organizations"
+	| "scim"
+	| "template_rbac"
+	| "user_limit"
+	| "user_role_management"
+	| "workspace_batch_actions"
+	| "workspace_proxy";
+export const FeatureNames: FeatureName[] = [
+	"access_control",
+	"advanced_template_scheduling",
+	"appearance",
+	"audit_log",
+	"browser_only",
+	"control_shared_ports",
+	"custom_roles",
+	"external_provisioner_daemons",
+	"external_token_encryption",
+	"high_availability",
+	"multiple_external_auth",
+	"multiple_organizations",
+	"scim",
+	"template_rbac",
+	"user_limit",
+	"user_role_management",
+	"workspace_batch_actions",
+	"workspace_proxy",
+];
 
 // From codersdk/deployment.go
-export type FeatureSet = "" | "enterprise" | "premium"
-export const FeatureSets: FeatureSet[] = ["", "enterprise", "premium"]
+export type FeatureSet = "" | "enterprise" | "premium";
+export const FeatureSets: FeatureSet[] = ["", "enterprise", "premium"];
 
 // From codersdk/groups.go
-export type GroupSource = "oidc" | "user"
-export const GroupSources: GroupSource[] = ["oidc", "user"]
+export type GroupSource = "oidc" | "user";
+export const GroupSources: GroupSource[] = ["oidc", "user"];
 
 // From codersdk/insights.go
-export type InsightsReportInterval = "day" | "week"
-export const InsightsReportIntervals: InsightsReportInterval[] = ["day", "week"]
+export type InsightsReportInterval = "day" | "week";
+export const InsightsReportIntervals: InsightsReportInterval[] = [
+	"day",
+	"week",
+];
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
-export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"]
+export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
+export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"];
 
 // From codersdk/provisionerdaemons.go
-export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
-export const LogLevels: LogLevel[] = ["debug", "error", "info", "trace", "warn"]
+export type LogLevel = "debug" | "error" | "info" | "trace" | "warn";
+export const LogLevels: LogLevel[] = [
+	"debug",
+	"error",
+	"info",
+	"trace",
+	"warn",
+];
 
 // From codersdk/provisionerdaemons.go
-export type LogSource = "provisioner" | "provisioner_daemon"
-export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
+export type LogSource = "provisioner" | "provisioner_daemon";
+export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"];
 
 // From codersdk/apikey.go
-export type LoginType = "" | "github" | "none" | "oidc" | "password" | "token"
-export const LoginTypes: LoginType[] = ["", "github", "none", "oidc", "password", "token"]
+export type LoginType = "" | "github" | "none" | "oidc" | "password" | "token";
+export const LoginTypes: LoginType[] = [
+	"",
+	"github",
+	"none",
+	"oidc",
+	"password",
+	"token",
+];
 
 // From codersdk/oauth2.go
-export type OAuth2ProviderGrantType = "authorization_code" | "refresh_token"
-export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = ["authorization_code", "refresh_token"]
+export type OAuth2ProviderGrantType = "authorization_code" | "refresh_token";
+export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
+	"authorization_code",
+	"refresh_token",
+];
 
 // From codersdk/oauth2.go
-export type OAuth2ProviderResponseType = "code"
-export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = ["code"]
+export type OAuth2ProviderResponseType = "code";
+export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
+	"code",
+];
 
 // From codersdk/deployment.go
-export type PostgresAuth = "awsiamrds" | "password"
-export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"]
+export type PostgresAuth = "awsiamrds" | "password";
+export const PostgresAuths: PostgresAuth[] = ["awsiamrds", "password"];
 
 // From codersdk/provisionerdaemons.go
-export type ProvisionerJobStatus = "canceled" | "canceling" | "failed" | "pending" | "running" | "succeeded" | "unknown"
-export const ProvisionerJobStatuses: ProvisionerJobStatus[] = ["canceled", "canceling", "failed", "pending", "running", "succeeded", "unknown"]
+export type ProvisionerJobStatus =
+	| "canceled"
+	| "canceling"
+	| "failed"
+	| "pending"
+	| "running"
+	| "succeeded"
+	| "unknown";
+export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
+	"canceled",
+	"canceling",
+	"failed",
+	"pending",
+	"running",
+	"succeeded",
+	"unknown",
+];
 
 // From codersdk/workspaces.go
-export type ProvisionerLogLevel = "debug"
-export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"]
+export type ProvisionerLogLevel = "debug";
+export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"];
 
 // From codersdk/organizations.go
-export type ProvisionerStorageMethod = "file"
-export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"]
+export type ProvisionerStorageMethod = "file";
+export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"];
 
 // From codersdk/organizations.go
-export type ProvisionerType = "echo" | "terraform"
-export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
+export type ProvisionerType = "echo" | "terraform";
+export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"];
 
 // From codersdk/workspaceproxy.go
-export type ProxyHealthStatus = "ok" | "unhealthy" | "unreachable" | "unregistered"
-export const ProxyHealthStatuses: ProxyHealthStatus[] = ["ok", "unhealthy", "unreachable", "unregistered"]
+export type ProxyHealthStatus =
+	| "ok"
+	| "unhealthy"
+	| "unreachable"
+	| "unregistered";
+export const ProxyHealthStatuses: ProxyHealthStatus[] = [
+	"ok",
+	"unhealthy",
+	"unreachable",
+	"unregistered",
+];
 
 // From codersdk/rbacresources_gen.go
-export type RBACAction = "application_connect" | "assign" | "create" | "delete" | "read" | "read_personal" | "ssh" | "start" | "stop" | "update" | "update_personal" | "use" | "view_insights"
-export const RBACActions: RBACAction[] = ["application_connect", "assign", "create", "delete", "read", "read_personal", "ssh", "start", "stop", "update", "update_personal", "use", "view_insights"]
+export type RBACAction =
+	| "application_connect"
+	| "assign"
+	| "create"
+	| "delete"
+	| "read"
+	| "read_personal"
+	| "ssh"
+	| "start"
+	| "stop"
+	| "update"
+	| "update_personal"
+	| "use"
+	| "view_insights";
+export const RBACActions: RBACAction[] = [
+	"application_connect",
+	"assign",
+	"create",
+	"delete",
+	"read",
+	"read_personal",
+	"ssh",
+	"start",
+	"stop",
+	"update",
+	"update_personal",
+	"use",
+	"view_insights",
+];
 
 // From codersdk/rbacresources_gen.go
-export type RBACResource = "*" | "api_key" | "assign_org_role" | "assign_role" | "audit_log" | "debug_info" | "deployment_config" | "deployment_stats" | "file" | "group" | "group_member" | "license" | "notification_preference" | "notification_template" | "oauth2_app" | "oauth2_app_code_token" | "oauth2_app_secret" | "organization" | "organization_member" | "provisioner_daemon" | "provisioner_keys" | "replicas" | "system" | "tailnet_coordinator" | "template" | "user" | "workspace" | "workspace_dormant" | "workspace_proxy"
-export const RBACResources: RBACResource[] = ["*", "api_key", "assign_org_role", "assign_role", "audit_log", "debug_info", "deployment_config", "deployment_stats", "file", "group", "group_member", "license", "notification_preference", "notification_template", "oauth2_app", "oauth2_app_code_token", "oauth2_app_secret", "organization", "organization_member", "provisioner_daemon", "provisioner_keys", "replicas", "system", "tailnet_coordinator", "template", "user", "workspace", "workspace_dormant", "workspace_proxy"]
+export type RBACResource =
+	| "*"
+	| "api_key"
+	| "assign_org_role"
+	| "assign_role"
+	| "audit_log"
+	| "debug_info"
+	| "deployment_config"
+	| "deployment_stats"
+	| "file"
+	| "group"
+	| "group_member"
+	| "license"
+	| "notification_preference"
+	| "notification_template"
+	| "oauth2_app"
+	| "oauth2_app_code_token"
+	| "oauth2_app_secret"
+	| "organization"
+	| "organization_member"
+	| "provisioner_daemon"
+	| "provisioner_keys"
+	| "replicas"
+	| "system"
+	| "tailnet_coordinator"
+	| "template"
+	| "user"
+	| "workspace"
+	| "workspace_dormant"
+	| "workspace_proxy";
+export const RBACResources: RBACResource[] = [
+	"*",
+	"api_key",
+	"assign_org_role",
+	"assign_role",
+	"audit_log",
+	"debug_info",
+	"deployment_config",
+	"deployment_stats",
+	"file",
+	"group",
+	"group_member",
+	"license",
+	"notification_preference",
+	"notification_template",
+	"oauth2_app",
+	"oauth2_app_code_token",
+	"oauth2_app_secret",
+	"organization",
+	"organization_member",
+	"provisioner_daemon",
+	"provisioner_keys",
+	"replicas",
+	"system",
+	"tailnet_coordinator",
+	"template",
+	"user",
+	"workspace",
+	"workspace_dormant",
+	"workspace_proxy",
+];
 
 // From codersdk/audit.go
-export type ResourceType = "api_key" | "convert_login" | "custom_role" | "git_ssh_key" | "group" | "health_settings" | "license" | "notifications_settings" | "oauth2_provider_app" | "oauth2_provider_app_secret" | "organization" | "template" | "template_version" | "user" | "workspace" | "workspace_build" | "workspace_proxy"
-export const ResourceTypes: ResourceType[] = ["api_key", "convert_login", "custom_role", "git_ssh_key", "group", "health_settings", "license", "notifications_settings", "oauth2_provider_app", "oauth2_provider_app_secret", "organization", "template", "template_version", "user", "workspace", "workspace_build", "workspace_proxy"]
+export type ResourceType =
+	| "api_key"
+	| "convert_login"
+	| "custom_role"
+	| "git_ssh_key"
+	| "group"
+	| "health_settings"
+	| "license"
+	| "notifications_settings"
+	| "oauth2_provider_app"
+	| "oauth2_provider_app_secret"
+	| "organization"
+	| "template"
+	| "template_version"
+	| "user"
+	| "workspace"
+	| "workspace_build"
+	| "workspace_proxy";
+export const ResourceTypes: ResourceType[] = [
+	"api_key",
+	"convert_login",
+	"custom_role",
+	"git_ssh_key",
+	"group",
+	"health_settings",
+	"license",
+	"notifications_settings",
+	"oauth2_provider_app",
+	"oauth2_provider_app_secret",
+	"organization",
+	"template",
+	"template_version",
+	"user",
+	"workspace",
+	"workspace_build",
+	"workspace_proxy",
+];
 
 // From codersdk/serversentevents.go
-export type ServerSentEventType = "data" | "error" | "ping"
-export const ServerSentEventTypes: ServerSentEventType[] = ["data", "error", "ping"]
+export type ServerSentEventType = "data" | "error" | "ping";
+export const ServerSentEventTypes: ServerSentEventType[] = [
+	"data",
+	"error",
+	"ping",
+];
 
 // From codersdk/insights.go
-export type TemplateAppsType = "app" | "builtin"
-export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"]
+export type TemplateAppsType = "app" | "builtin";
+export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"];
 
 // From codersdk/insights.go
-export type TemplateInsightsSection = "interval_reports" | "report"
-export const TemplateInsightsSections: TemplateInsightsSection[] = ["interval_reports", "report"]
+export type TemplateInsightsSection = "interval_reports" | "report";
+export const TemplateInsightsSections: TemplateInsightsSection[] = [
+	"interval_reports",
+	"report",
+];
 
 // From codersdk/templates.go
-export type TemplateRole = "" | "admin" | "use"
-export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
+export type TemplateRole = "" | "admin" | "use";
+export const TemplateRoles: TemplateRole[] = ["", "admin", "use"];
 
 // From codersdk/templateversions.go
-export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
-export const TemplateVersionWarnings: TemplateVersionWarning[] = ["UNSUPPORTED_WORKSPACES"]
+export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES";
+export const TemplateVersionWarnings: TemplateVersionWarning[] = [
+	"UNSUPPORTED_WORKSPACES",
+];
 
 // From codersdk/workspaces.go
-export type UsageAppName = "jetbrains" | "reconnecting-pty" | "ssh" | "vscode"
-export const UsageAppNames: UsageAppName[] = ["jetbrains", "reconnecting-pty", "ssh", "vscode"]
+export type UsageAppName = "jetbrains" | "reconnecting-pty" | "ssh" | "vscode";
+export const UsageAppNames: UsageAppName[] = [
+	"jetbrains",
+	"reconnecting-pty",
+	"ssh",
+	"vscode",
+];
 
 // From codersdk/users.go
-export type UserStatus = "active" | "dormant" | "suspended"
-export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"]
+export type UserStatus = "active" | "dormant" | "suspended";
+export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
 
 // From codersdk/templateversions.go
-export type ValidationMonotonicOrder = "decreasing" | "increasing"
-export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = ["decreasing", "increasing"]
+export type ValidationMonotonicOrder = "decreasing" | "increasing";
+export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
+	"decreasing",
+	"increasing",
+];
 
 // From codersdk/workspaceagents.go
-export type WorkspaceAgentLifecycle = "created" | "off" | "ready" | "shutdown_error" | "shutdown_timeout" | "shutting_down" | "start_error" | "start_timeout" | "starting"
-export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = ["created", "off", "ready", "shutdown_error", "shutdown_timeout", "shutting_down", "start_error", "start_timeout", "starting"]
+export type WorkspaceAgentLifecycle =
+	| "created"
+	| "off"
+	| "ready"
+	| "shutdown_error"
+	| "shutdown_timeout"
+	| "shutting_down"
+	| "start_error"
+	| "start_timeout"
+	| "starting";
+export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
+	"created",
+	"off",
+	"ready",
+	"shutdown_error",
+	"shutdown_timeout",
+	"shutting_down",
+	"start_error",
+	"start_timeout",
+	"starting",
+];
 
 // From codersdk/workspaceagentportshare.go
-export type WorkspaceAgentPortShareLevel = "authenticated" | "owner" | "public"
-export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = ["authenticated", "owner", "public"]
+export type WorkspaceAgentPortShareLevel = "authenticated" | "owner" | "public";
+export const WorkspaceAgentPortShareLevels: WorkspaceAgentPortShareLevel[] = [
+	"authenticated",
+	"owner",
+	"public",
+];
 
 // From codersdk/workspaceagentportshare.go
-export type WorkspaceAgentPortShareProtocol = "http" | "https"
-export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[] = ["http", "https"]
+export type WorkspaceAgentPortShareProtocol = "http" | "https";
+export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[] =
+	["http", "https"];
 
 // From codersdk/workspaceagents.go
-export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking"
-export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] = ["blocking", "non-blocking"]
+export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";
+export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] =
+	["blocking", "non-blocking"];
 
 // From codersdk/workspaceagents.go
-export type WorkspaceAgentStatus = "connected" | "connecting" | "disconnected" | "timeout"
-export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = ["connected", "connecting", "disconnected", "timeout"]
+export type WorkspaceAgentStatus =
+	| "connected"
+	| "connecting"
+	| "disconnected"
+	| "timeout";
+export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
+	"connected",
+	"connecting",
+	"disconnected",
+	"timeout",
+];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy"
-export const WorkspaceAppHealths: WorkspaceAppHealth[] = ["disabled", "healthy", "initializing", "unhealthy"]
+export type WorkspaceAppHealth =
+	| "disabled"
+	| "healthy"
+	| "initializing"
+	| "unhealthy";
+export const WorkspaceAppHealths: WorkspaceAppHealth[] = [
+	"disabled",
+	"healthy",
+	"initializing",
+	"unhealthy",
+];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public"
-export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = ["authenticated", "owner", "public"]
+export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";
+export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
+	"authenticated",
+	"owner",
+	"public",
+];
 
 // From codersdk/workspacebuilds.go
-export type WorkspaceStatus = "canceled" | "canceling" | "deleted" | "deleting" | "failed" | "pending" | "running" | "starting" | "stopped" | "stopping"
-export const WorkspaceStatuses: WorkspaceStatus[] = ["canceled", "canceling", "deleted", "deleting", "failed", "pending", "running", "starting", "stopped", "stopping"]
+export type WorkspaceStatus =
+	| "canceled"
+	| "canceling"
+	| "deleted"
+	| "deleting"
+	| "failed"
+	| "pending"
+	| "running"
+	| "starting"
+	| "stopped"
+	| "stopping";
+export const WorkspaceStatuses: WorkspaceStatus[] = [
+	"canceled",
+	"canceling",
+	"deleted",
+	"deleting",
+	"failed",
+	"pending",
+	"running",
+	"starting",
+	"stopped",
+	"stopping",
+];
 
 // From codersdk/workspacebuilds.go
-export type WorkspaceTransition = "delete" | "start" | "stop"
-export const WorkspaceTransitions: WorkspaceTransition[] = ["delete", "start", "stop"]
+export type WorkspaceTransition = "delete" | "start" | "stop";
+export const WorkspaceTransitions: WorkspaceTransition[] = [
+	"delete",
+	"start",
+	"stop",
+];
 
 // From codersdk/workspaceproxy.go
-export type RegionTypes = Region | WorkspaceProxy
+export type RegionTypes = Region | WorkspaceProxy;
 
 // The code below is generated from codersdk/healthsdk.
 
@@ -2310,8 +2678,21 @@ export interface WorkspaceProxyReport extends BaseReport {
 }
 
 // From healthsdk/healthsdk.go
-export type HealthSection = "AccessURL" | "DERP" | "Database" | "ProvisionerDaemons" | "Websocket" | "WorkspaceProxy"
-export const HealthSections: HealthSection[] = ["AccessURL", "DERP", "Database", "ProvisionerDaemons", "Websocket", "WorkspaceProxy"]
+export type HealthSection =
+	| "AccessURL"
+	| "DERP"
+	| "Database"
+	| "ProvisionerDaemons"
+	| "Websocket"
+	| "WorkspaceProxy";
+export const HealthSections: HealthSection[] = [
+	"AccessURL",
+	"DERP",
+	"Database",
+	"ProvisionerDaemons",
+	"Websocket",
+	"WorkspaceProxy",
+];
 
 // The code below is generated from coderd/healthcheck/health.
 
@@ -2322,17 +2703,54 @@ export interface HealthMessage {
 }
 
 // From health/model.go
-export type HealthCode = "EACS01" | "EACS02" | "EACS03" | "EACS04" | "EDB01" | "EDB02" | "EDERP01" | "EDERP02" | "EPD01" | "EPD02" | "EPD03" | "EUNKNOWN" | "EWP01" | "EWP02" | "EWP04" | "EWS01" | "EWS02" | "EWS03"
-export const HealthCodes: HealthCode[] = ["EACS01", "EACS02", "EACS03", "EACS04", "EDB01", "EDB02", "EDERP01", "EDERP02", "EPD01", "EPD02", "EPD03", "EUNKNOWN", "EWP01", "EWP02", "EWP04", "EWS01", "EWS02", "EWS03"]
+export type HealthCode =
+	| "EACS01"
+	| "EACS02"
+	| "EACS03"
+	| "EACS04"
+	| "EDB01"
+	| "EDB02"
+	| "EDERP01"
+	| "EDERP02"
+	| "EPD01"
+	| "EPD02"
+	| "EPD03"
+	| "EUNKNOWN"
+	| "EWP01"
+	| "EWP02"
+	| "EWP04"
+	| "EWS01"
+	| "EWS02"
+	| "EWS03";
+export const HealthCodes: HealthCode[] = [
+	"EACS01",
+	"EACS02",
+	"EACS03",
+	"EACS04",
+	"EDB01",
+	"EDB02",
+	"EDERP01",
+	"EDERP02",
+	"EPD01",
+	"EPD02",
+	"EPD03",
+	"EUNKNOWN",
+	"EWP01",
+	"EWP02",
+	"EWP04",
+	"EWS01",
+	"EWS02",
+	"EWS03",
+];
 
 // From health/model.go
-export type HealthSeverity = "error" | "ok" | "warning"
-export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"]
+export type HealthSeverity = "error" | "ok" | "warning";
+export const HealthSeveritys: HealthSeverity[] = ["error", "ok", "warning"];
 
 // The code below is generated from github.com/coder/serpent.
 
 // From serpent/serpent.go
-export type SerpentAnnotations = Record<string, string>
+export type SerpentAnnotations = Record<string, string>;
 
 // From serpent/serpent.go
 export interface SerpentGroup {
@@ -2362,9 +2780,14 @@ export interface SerpentOption {
 }
 
 // From serpent/option.go
-export type SerpentOptionSet = Readonly<Array<SerpentOption>>
+export type SerpentOptionSet = Readonly<Array<SerpentOption>>;
 
 // From serpent/option.go
-export type SerpentValueSource = "" | "default" | "env" | "flag" | "yaml"
-export const SerpentValueSources: SerpentValueSource[] = ["", "default", "env", "flag", "yaml"]
-
+export type SerpentValueSource = "" | "default" | "env" | "flag" | "yaml";
+export const SerpentValueSources: SerpentValueSource[] = [
+	"",
+	"default",
+	"env",
+	"flag",
+	"yaml",
+];

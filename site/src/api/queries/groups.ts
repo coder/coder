@@ -8,16 +8,19 @@ import type { QueryClient, UseQueryOptions } from "react-query";
 
 type GroupSortOrder = "asc" | "desc";
 
-const getGroupsQueryKey = (organization: string) => [
-	"organization",
-	organization,
-	"groups",
-];
+const groupsQueryKey = ["groups"];
 
-export const groups = (organization: string) => {
+export const groups = () => {
 	return {
-		queryKey: getGroupsQueryKey(organization),
-		queryFn: () => API.getGroups(organization),
+		queryKey: groupsQueryKey,
+		queryFn: () => API.getGroups(),
+	} satisfies UseQueryOptions<Group[]>;
+};
+
+export const groupsByOrganization = (organization: string) => {
+	return {
+		queryKey: [organization, ...groupsQueryKey],
+		queryFn: () => API.getGroupsByOrganization(organization),
 	} satisfies UseQueryOptions<Group[]>;
 };
 
@@ -37,9 +40,9 @@ export const group = (organization: string, groupName: string) => {
 
 export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
 
-export function groupsByUserId(organization: string) {
+export function groupsByUserId() {
 	return {
-		...groups(organization),
+		...groups(),
 		select: (allGroups) => {
 			// Sorting here means that nothing has to be sorted for the individual
 			// user arrays later
@@ -63,14 +66,13 @@ export function groupsByUserId(organization: string) {
 	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
 
-export function groupsForUser(organization: string, userId: string) {
+export function groupsForUser(userId: string) {
 	return {
-		...groups(organization),
+		...groups(),
 		select: (allGroups) => {
-			const groupsForUser = allGroups.filter((group) => {
-				const groupMemberIds = group.members.map((member) => member.id);
-				return groupMemberIds.includes(userId);
-			});
+			const groupsForUser = allGroups.filter((group) =>
+				group.members.some((member) => member.id === userId),
+			);
 
 			return sortGroupsByName(groupsForUser, "asc");
 		},
@@ -106,7 +108,8 @@ export const createGroup = (queryClient: QueryClient, organization: string) => {
 		mutationFn: (request: CreateGroupRequest) =>
 			API.createGroup(organization, request),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(getGroupsQueryKey(organization));
+			await queryClient.invalidateQueries(groupsQueryKey);
+			await queryClient.invalidateQueries([organization, ...groupsQueryKey]);
 		},
 	};
 };
@@ -155,7 +158,8 @@ export const invalidateGroup = (
 	groupId: string,
 ) =>
 	Promise.all([
-		queryClient.invalidateQueries(getGroupsQueryKey(organization)),
+		queryClient.invalidateQueries(groupsQueryKey),
+		queryClient.invalidateQueries([organization, ...groupsQueryKey]),
 		queryClient.invalidateQueries(getGroupQueryKey(organization, groupId)),
 	]);
 

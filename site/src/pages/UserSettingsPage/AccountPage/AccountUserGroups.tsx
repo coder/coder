@@ -55,12 +55,7 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 									imgUrl={group.avatar_url}
 									altText={group.display_name || group.name}
 									header={group.display_name || group.name}
-									subtitle={
-										<>
-											{group.total_member_count} member
-											{group.total_member_count !== 1 && "s"}
-										</>
-									}
+									subtitle={group.organization_display_name}
 								/>
 							</Grid>
 						))}

@@ -669,7 +669,7 @@ func (m metricsStore) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return r0, r1
 }
 
-func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroups").Observe(time.Since(start).Seconds())
