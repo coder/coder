@@ -38,4 +38,4 @@ We recommend starting with a universal template that can be used for basic tasks
 
 ## Template permissions & policies (enterprise)
 
-TODO
+TODO Link permissions page.

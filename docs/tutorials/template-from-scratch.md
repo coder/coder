@@ -299,7 +299,7 @@ resource "docker_volume" "home_volume" {
 
 ```
 
-For details, see [Resource persistence](./resource-persistence.md).
+For details, see [Resource persistence](../admin/templates/extending-templates/resource-persistence.md).
 
 ## 6. Set up the Docker container
 

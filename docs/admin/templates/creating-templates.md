@@ -131,5 +131,5 @@ Refer to the following resources:
 
 ## Next steps
 
-- [Extending templates](#TODO)
-- [TODO](#TODO)
+- [Extending templates](./extending-templates/README.md)
+- [Managing templates](./managing-templates/README.md)

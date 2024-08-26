@@ -1,9 +1,9 @@
 # Workspaces
 
 A workspace is the environment that a developer works in. Developers in a team
-each work from their own workspace and can use [multiple IDEs](./ides.md).
+each work from their own workspace and can use [multiple IDEs](./user-guides/workspace-access/README.md).
 
-A developer creates a workspace from a [shared template](./templates/index.md).
+A developer creates a workspace from a [shared template](./admin/templates/README.md).
 This lets an entire team work in environments that are identically configured
 and provisioned with the same resources.
 
@@ -22,7 +22,7 @@ You can manage your existing templates in the **Workspaces** tab.
 You can also create a workspace from the command line:
 
 Each Coder user has their own workspaces created from
-[shared templates](./templates/index.md):
+[templates](./admin/templates/README.md):
 
 ```shell
 # create a workspace from the template; specify any variables
@@ -67,7 +67,7 @@ To set a workspace's schedule, go to the workspace, then **Settings** >
 ![Scheduling UI](./images/schedule.png)
 
 Coder might also stop a workspace automatically if there is a
-[template update](./templates/index.md#Start/stop) available.
+[template update](./admin/templates/README.md#Start/stop) available.
 
 ### Autostart and autostop
 
@@ -170,7 +170,7 @@ any activity or if there was a
 
 Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template. For more information, see
-[Resource Persistence](./templates/resource-persistence.md).
+[Resource Persistence](./admin/templates/extending-templates/resource-persistence.md).
 
 > ⚠️ To avoid data loss, refer to your template documentation for information on
 > where to store files, install software, etc., so that they persist. Default

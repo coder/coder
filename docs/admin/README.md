@@ -38,3 +38,5 @@ Guides for day 2+ operations with Coder, including preparing for production and 
   - Measure user adoption (weekly active users)
   - Identifying Coder power users
   - Reading template usage metrics
+
+<children></children>
