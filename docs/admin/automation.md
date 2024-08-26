@@ -33,9 +33,10 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 
 ## Documentation
 
-We publish an [API reference](../reference/api/README.md) in our documentation. You can
-also enable a [Swagger endpoint](../reference/cli/server.md#--swagger-enable) on
-your Coder deployment.
+We publish an [API reference](../reference/api/README.md) in our documentation.
+You can also enable a
+[Swagger endpoint](../reference/cli/server.md#--swagger-enable) on your Coder
+deployment.
 
 ## Use cases
 
