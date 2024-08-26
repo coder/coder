@@ -1,10 +1,12 @@
-package coderd
+package idpsync_test
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/idpsync"
 )
 
 func TestParseStringSliceClaim(t *testing.T) {
@@ -123,7 +125,7 @@ func TestParseStringSliceClaim(t *testing.T) {
 				require.NoError(t, err, "unmarshal json claim")
 			}
 
-			found, err := parseStringSliceClaim(c.GoClaim)
+			found, err := idpsync.ParseStringSliceClaim(c.GoClaim)
 			if c.ErrorExpected {
 				require.Error(t, err)
 			} else {

@@ -25,6 +25,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/idpsync"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -767,6 +768,16 @@ type OIDCConfig struct {
 	// UserRolesDefault is the default set of roles to assign to a user if role sync
 	// is enabled.
 	UserRolesDefault []string
+	// OrganizationField selects the claim field to be used as the created user's
+	// organizations. If the field is the empty string, then no organization updates
+	// will ever come from the OIDC provider.
+	OrganizationField string
+	// OrganizationMapping controls how organizations returned by the OIDC provider get mapped
+	OrganizationMapping map[string][]string
+	// OrganizationAlwaysAssign will ensure all users that authenticate will be
+	// placed into the specified organizations. 'default' is a special keyword
+	// that will use the `IsDefault` organization.
+	OrganizationAlwaysAssign []string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
@@ -1095,7 +1106,7 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 		usingGroups = true
 		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
 		if ok {
-			parsedGroups, err := parseStringSliceClaim(groupsRaw)
+			parsedGroups, err := idpsync.ParseStringSliceClaim(groupsRaw)
 			if err != nil {
 				api.Logger.Debug(ctx, "groups field was an unknown type in oidc claims",
 					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
@@ -1174,7 +1185,7 @@ func (api *API) oidcRoles(ctx context.Context, mergedClaims map[string]interface
 		rolesRow = []interface{}{}
 	}
 
-	parsedRoles, err := parseStringSliceClaim(rolesRow)
+	parsedRoles, err := idpsync.ParseStringSliceClaim(rolesRow)
 	if err != nil {
 		api.Logger.Error(ctx, "oidc claims user roles field was an unknown type",
 			slog.F("type", fmt.Sprintf("%T", rolesRow)),
@@ -1264,6 +1275,8 @@ type oauthLoginParams struct {
 	Username     string
 	Name         string
 	AvatarURL    string
+	// OrganizationSync has the organizations that the user will be assigned to.
+	OrganizationSync idpsync.OrganizationParams
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
 	UsingGroups         bool
@@ -1438,8 +1451,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			//nolint:gocritic
 			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-					Email:           params.Email,
-					Username:        params.Username,
+					Email:    params.Email,
+					Username: params.Username,
+					// TODO: Remove this, and only use organization sync from
+					// params
 					OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
 				},
 				LoginType: params.LoginType,
@@ -1867,51 +1882,4 @@ func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType)
 		detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
 			params, user, addedMsg),
 	}
-}
-
-// parseStringSliceClaim parses the claim for groups and roles, expected []string.
-//
-// Some providers like ADFS return a single string instead of an array if there
-// is only 1 element. So this function handles the edge cases.
-func parseStringSliceClaim(claim interface{}) ([]string, error) {
-	groups := make([]string, 0)
-	if claim == nil {
-		return groups, nil
-	}
-
-	// The simple case is the type is exactly what we expected
-	asStringArray, ok := claim.([]string)
-	if ok {
-		return asStringArray, nil
-	}
-
-	asArray, ok := claim.([]interface{})
-	if ok {
-		for i, item := range asArray {
-			asString, ok := item.(string)
-			if !ok {
-				return nil, xerrors.Errorf("invalid claim type. Element %d expected a string, got: %T", i, item)
-			}
-			groups = append(groups, asString)
-		}
-		return groups, nil
-	}
-
-	asString, ok := claim.(string)
-	if ok {
-		if asString == "" {
-			// Empty string should be 0 groups.
-			return []string{}, nil
-		}
-		// If it is a single string, first check if it is a csv.
-		// If a user hits this, it is likely a misconfiguration and they need
-		// to reconfigure their IDP to send an array instead.
-		if strings.Contains(asString, ",") {
-			return nil, xerrors.Errorf("invalid claim type. Got a csv string (%q), change this claim to return an array of strings instead.", asString)
-		}
-		return []string{asString}, nil
-	}
-
-	// Not sure what the user gave us.
-	return nil, xerrors.Errorf("invalid claim type. Expected an array of strings, got: %T", claim)
 }
