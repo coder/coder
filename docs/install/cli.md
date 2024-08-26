@@ -56,4 +56,4 @@ coder login https://coder.example.com
 
 ## Next up
 
-- [Create your first template](../templates/tutorial.md)
+- [Create your first template](../start/first-template.md)

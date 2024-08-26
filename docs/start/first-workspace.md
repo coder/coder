@@ -1,7 +1,8 @@
 # Creating your first coder workspace
 
 A workspace is the environment that a developer works in. Developers in a team
-each work from their own workspace and can use [multiple IDEs](../ides.md).
+each work from their own workspace and can use
+[multiple IDEs](../user-guides/workspace-access/READEME.md).
 
 A developer creates a workspace from a
 [shared template](../tutorials/templates/README.md). This lets an entire team
@@ -38,16 +39,18 @@ The Docker starter template lets you connect to your workspace in a few ways:
 - VS Code Desktop: Loads your workspace into
   [VS Code Desktop](https://code.visualstudio.com/Download) installed on your
   local computer.
-- code-server: Opens [browser-based VS Code](../ides/web-ides.md) with your
-  workspace.
+- code-server: Opens
+  [browser-based VS Code](../user-guides/workspace-access/web-ides.md#code-server)
+  with your workspace.
 - Terminal: Opens a browser-based terminal with a shell in the workspace's
   Docker instance.
+- JetBrains Gateway: Opens JetBrains IDEs via JetBrains Gateway.
 - SSH: Use SSH to log in to the workspace from your local machine. If you
   haven't already, you'll have to install Coder on your local machine to
   configure your SSH client.
 
 > **Tip**: You can edit the template to let developers connect to a workspace in
-> [a few more ways](../ides.md).
+> [a few more ways](../admin/templates/extending-templates/web-ides.md).
 
 ## 3. Modify your workspace settings
 
@@ -60,8 +63,7 @@ Once you're finished, you can stop your workspace.
 
 ## Read more on using workspaces
 
-- Creating workspaces with the CLI
-- Creating worksapces with the API
--
+- Creating workspaces with the [CLI](../reference/cli/create.md)
+- Creating workspaces with the [API](../reference/api/workspaces.md)
 
 ## Next Steps

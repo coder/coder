@@ -287,5 +287,5 @@ Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm
 chart. If you do not have a domain set up, this should be the IP address of
 Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../templates/index.md#troubleshooting-templates)
-for more steps.
+See [troubleshooting templates](../admin//templates/troubleshooting.md) for more
+steps.

@@ -22,7 +22,7 @@ Coder allows workspaces to be hosted on either VMs or containers and is not opin
 
 Admins have visibility for every workspace in a deployment under the **Workspaces** tab. The name, associated template, and status are shown for each workspace.
 
-![Workspace listing UI](../images/user-guides/workspace-list-ui.png)
+![Workspace listing UI](../../images/user-guides/workspace-list-ui.png)
 
 You can filter these workspaces using pre-defined filters or
 Coder's filter query. For example, you can find the workspaces that you own or

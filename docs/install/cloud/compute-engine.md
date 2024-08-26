@@ -23,7 +23,7 @@ We recommend keeping the default instance type (`e2-standard-4`, 4 cores and 16
 GB memory) if you plan on provisioning Docker containers as workspaces on this
 VM instance. Keep in mind this platforms is intended for proof-of-concept
 deployments and you should adjust your infrastructure when preparing for
-production use. See: [Scaling Coder](../admin/scaling/scale-testing.md)
+production use. See: [Scaling Coder](../../admin/infrastructure/README.md)
 
 <video autoplay playsinline loop>
   <source src="https://github.com/coder/coder/blob/main/docs/images/platforms/gcp/launch.mp4?raw=true" type="video/mp4">
@@ -48,8 +48,8 @@ pre-installed.
 
 Coder is primarily configured by server-side flags and environment variables.
 Given you created or added key-pairs when launching the instance, you can
-[configure your Coder deployment](../admin/configure.md) by logging in via SSH
-or using the console:
+[configure your Coder deployment](../../admin/configure.md) by logging in via
+SSH or using the console:
 
 ```shell
 ssh ubuntu@<gcp-public-IPv4>
@@ -72,7 +72,7 @@ to set up authentication.
 
 ## Next Steps
 
-- [IDEs with Coder](../ides.md)
-- [Writing custom templates for Coder](../templates/index.md)
-- [Configure the Coder server](../admin/configure.md)
-- [Use your own domain + TLS](../admin/configure.md#tls--reverse-proxy)
+- [IDEs with Coder](../../ides.md)
+- [Writing custom templates for Coder](../../admin/templates/README.md)
+- [Configure the Coder server](../../admin/configure.md)
+- [Use your own domain + TLS](../../admin/configure.md#tls--reverse-proxy)

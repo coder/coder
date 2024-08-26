@@ -133,7 +133,7 @@ steps:
 
 ## System packages
 
-If you've installed Coder via a [system package](../install/index.md), you can
+If you've installed Coder via a [system package](../install/cli.md), you can
 configure the server by setting the following variables in
 `/etc/coder.d/coder.env`:
 
@@ -187,6 +187,8 @@ sudo systemctl restart coder
 To configure Coder behind a corporate proxy, set the environment variables
 `HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the server. Lowercase values
 (e.g. `http_proxy`) are also respected in this case.
+
+<!-- TODO. Should we Split all configurations in separate guides? -->
 
 ## External Authentication
 

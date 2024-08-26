@@ -84,8 +84,8 @@ Coder's [configuration options](../admin/configure.md).
 ### Docker-based workspace is stuck in "Connecting..."
 
 Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See
-[troubleshooting templates](../templates/index.md#troubleshooting-templates) for
-more steps.
+[troubleshooting templates](../admin/templates/troubleshooting.md) for more
+steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 

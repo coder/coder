@@ -7,10 +7,8 @@ We recommend enterprise customers test the compatibility of new releases with
 their infrastructure on a staging environment before upgrading a production
 deployment.
 
-We support two release channels:
-[mainline](https://github.com/coder/coder/releases/tag/v2.13.0) for the bleeding
-edge version of Coder and
-[stable](https://github.com/coder/coder/releases/latest) for those with lower
+We support two release channels: [mainline](#mainline-releases) for the bleeding
+edge version of Coder and [stable](#stable-releases) for those with lower
 tolerance for fault. We field our mainline releases publicly for one month
 before promoting them to stable.
 
@@ -42,7 +40,7 @@ latest stable release:
 curl -fsSL https://coder.com/install.sh | sh -s -- --stable
 ```
 
-Best practices for installing Coder can be found on our [install](./index.md)
+Best practices for installing Coder can be found on our [install](./README.md)
 pages.
 
 ## Release schedule

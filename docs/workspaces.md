@@ -167,8 +167,8 @@ coder update <workspace-name>
 ## Workspace resources
 
 Workspaces in Coder are started and stopped, often based on whether there was
-any activity or if there was a
-[template update](./templates/index.md#Start/stop) available.
+any activity or if there was a [template update](./admin/templates/README.md)
+available.
 
 Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template. For more information, see
