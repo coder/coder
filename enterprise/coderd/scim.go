@@ -25,7 +25,7 @@ import (
 
 func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !api.entitlements.Enabled(codersdk.FeatureSCIM) {
+		if !api.Entitlements.Enabled(codersdk.FeatureSCIM) {
 			httpapi.RouteNotFound(rw)
 			return
 		}

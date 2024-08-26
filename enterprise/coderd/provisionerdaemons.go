@@ -39,7 +39,7 @@ import (
 
 func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !api.entitlements.Enabled(codersdk.FeatureExternalProvisionerDaemons) {
+		if !api.Entitlements.Enabled(codersdk.FeatureExternalProvisionerDaemons) {
 			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
 				Message: "External provisioner daemons is an Enterprise feature. Contact sales!",
 			})

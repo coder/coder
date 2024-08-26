@@ -107,7 +107,7 @@ func (api *API) jfrogEnabledMW(next http.Handler) http.Handler {
 		// This doesn't actually use the external auth feature but we want
 		// to lock this behind an enterprise license and it's somewhat
 		// related to external auth (in that it is JFrog integration).
-		if !api.entitlements.Enabled(codersdk.FeatureMultipleExternalAuth) {
+		if !api.Entitlements.Enabled(codersdk.FeatureMultipleExternalAuth) {
 			httpapi.RouteNotFound(rw)
 			return
 		}
