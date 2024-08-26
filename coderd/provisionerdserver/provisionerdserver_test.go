@@ -1848,12 +1848,17 @@ func TestNotifications(t *testing.T) {
 
 		// then
 		require.Len(t, notifEnq.Sent, 1)
-		require.Equal(t, notifEnq.Sent[0].UserID, templateAdmin.ID)
-		require.Equal(t, notifEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceManualBuildFailed)
-		require.Contains(t, notifEnq.Sent[0].Targets, template.ID)
-		require.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
-		require.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
-		require.Contains(t, notifEnq.Sent[0].Targets, user.ID)
+		assert.Equal(t, notifEnq.Sent[0].UserID, templateAdmin.ID)
+		assert.Equal(t, notifEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceManualBuildFailed)
+		assert.Contains(t, notifEnq.Sent[0].Targets, template.ID)
+		assert.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
+		assert.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
+		assert.Contains(t, notifEnq.Sent[0].Targets, user.ID)
+		assert.Equal(t, workspace.Name, notifEnq.Sent[0].Labels["name"])
+		assert.Equal(t, template.Name, notifEnq.Sent[0].Labels["template_name"])
+		assert.Equal(t, version.Name, notifEnq.Sent[0].Labels["template_version_name"])
+		assert.Equal(t, user.Username, notifEnq.Sent[0].Labels["initiator"])
+		assert.Equal(t, user.Username, notifEnq.Sent[0].Labels["workspace_owner_username"])
 	})
 }
 

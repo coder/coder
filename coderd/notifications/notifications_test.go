@@ -822,6 +822,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
+					"template_version_name":    "bobby-template-version",
 					"initiator":                "joe",
 					"workspace_owner_username": "mrbobby",
 				},

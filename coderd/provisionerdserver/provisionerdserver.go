@@ -1130,6 +1130,12 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 		return
 	}
 
+	templateVersion, err := s.Database.GetTemplateVersionByID(ctx, build.TemplateVersionID)
+	if err != nil {
+		s.Logger.Error(ctx, "unable to fetch template version", slog.Error(err))
+		return
+	}
+
 	workspaceOwner, err := s.Database.GetUserByID(ctx, workspace.OwnerID)
 	if err != nil {
 		s.Logger.Error(ctx, "unable to fetch workspace owner", slog.Error(err))
@@ -1141,8 +1147,9 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 			map[string]string{
 				"name":                     workspace.Name,
 				"template_name":            template.Name,
+				"template_version_name":    templateVersion.Name,
 				"initiator":                build.InitiatorByUsername,
-				"workspace_owner_username": workspaceOwner.Name,
+				"workspace_owner_username": workspaceOwner.Username,
 			}, "provisionerdserver",
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
