@@ -14,7 +14,7 @@ import (
 
 // nolint: revive
 func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error {
-	if !api.entitlements.Enabled(codersdk.FeatureTemplateRBAC) {
+	if !api.Entitlements.Enabled(codersdk.FeatureTemplateRBAC) {
 		return nil
 	}
 
@@ -78,7 +78,7 @@ func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db databa
 }
 
 func (api *API) setUserSiteRoles(ctx context.Context, logger slog.Logger, db database.Store, userID uuid.UUID, roles []string) error {
-	if !api.entitlements.Enabled(codersdk.FeatureUserRoleManagement) {
+	if !api.Entitlements.Enabled(codersdk.FeatureUserRoleManagement) {
 		logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise entitlement, roles left unchanged",
 			slog.F("user_id", userID), slog.F("roles", roles),
 		)
