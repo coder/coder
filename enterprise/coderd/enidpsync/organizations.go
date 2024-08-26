@@ -4,13 +4,15 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims map[string]interface{}) (idpsync.OrganizationParams, *HttpError) {
+func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims map[string]interface{}) (idpsync.OrganizationParams, *idpsync.HttpError) {
 	s := e.agpl
 	if !e.entitlements.Enabled(codersdk.FeatureMultipleOrganizations) {
 		// Default to agpl if multi-org is not enabled
@@ -19,6 +21,7 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 
 	// nolint:gocritic // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
+	userOrganizations := make([]uuid.UUID, 0)
 
 	// Pull extra organizations from the claims.
 	if s.OrganizationField != "" {
