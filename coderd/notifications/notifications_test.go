@@ -814,6 +814,19 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateWorkspaceManualBuildFailed",
+			id:   notifications.TemplateWorkspaceManualBuildFailed,
+			payload: types.MessagePayload{
+				UserName: "bobby",
+				Labels: map[string]string{
+					"name":                     "bobby-workspace",
+					"template_name":            "bobby-template",
+					"initiator":                "joe",
+					"workspace_owner_username": "mrbobby",
+				},
+			},
+		},
 	}
 
 	allTemplates, err := enumerateAllTemplates(t)
