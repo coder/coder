@@ -13,10 +13,9 @@ import (
 )
 
 func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims map[string]interface{}) (idpsync.OrganizationParams, *idpsync.HttpError) {
-	s := e.agpl
 	if !e.entitlements.Enabled(codersdk.FeatureMultipleOrganizations) {
 		// Default to agpl if multi-org is not enabled
-		return e.agpl.ParseOrganizationClaims(ctx, mergedClaims)
+		return e.AGPLIDPSync.ParseOrganizationClaims(ctx, mergedClaims)
 	}
 
 	// nolint:gocritic // all syncing is done as a system user
@@ -24,8 +23,8 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 	userOrganizations := make([]uuid.UUID, 0)
 
 	// Pull extra organizations from the claims.
-	if s.OrganizationField != "" {
-		organizationRaw, ok := mergedClaims[s.OrganizationField]
+	if e.OrganizationField != "" {
+		organizationRaw, ok := mergedClaims[e.OrganizationField]
 		if ok {
 			parsedOrganizations, err := idpsync.ParseStringSliceClaim(organizationRaw)
 			if err != nil {
@@ -41,7 +40,7 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 			// Keep track of which claims are not mapped for debugging purposes.
 			var ignored []string
 			for _, parsedOrg := range parsedOrganizations {
-				if mappedOrganization, ok := s.OrganizationMapping[parsedOrg]; ok {
+				if mappedOrganization, ok := e.OrganizationMapping[parsedOrg]; ok {
 					// parsedOrg is in the mapping, so add the mapped organizations to the
 					// user's organizations.
 					userOrganizations = append(userOrganizations, mappedOrganization...)
@@ -50,7 +49,7 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 				}
 			}
 
-			s.Logger.Debug(ctx, "parsed organizations from claim",
+			e.Logger.Debug(ctx, "parsed organizations from claim",
 				slog.F("len", len(parsedOrganizations)),
 				slog.F("ignored", ignored),
 				slog.F("organizations", parsedOrganizations),
@@ -60,7 +59,7 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 
 	return idpsync.OrganizationParams{
 		SyncEnabled:    true,
-		IncludeDefault: s.OrganizationAssignDefault,
+		IncludeDefault: e.OrganizationAssignDefault,
 		Organizations:  userOrganizations,
 	}, nil
 }

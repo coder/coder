@@ -10,17 +10,21 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
 
+// NewSync is a factory function for creating an IDP sync object.
+// Due to the way we instantiate Coder, there is no way for the enterprise
+// cli wrapper to pass in the enterprise IDP sync object.
+// So instead, if the code is compiled with the enterprise logic, it will
+// override this function to return the enterprise IDP sync object.
+// For unit testing, the callers can specifically choose which "NewSync" to use.
+var NewSync = NewAGPLSync
+
 type IDPSync interface {
-	// Configure is a method on the struct only because it is easier to configure
-	// from the AGPL initialization. For the enterprise code to get these settings,
-	// it makes sense to have the AGPL call 'Configure' rather than duplicate
-	// the code to create these settings.
-	Configure(settings SyncSettings)
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
 	ParseOrganizationClaims(ctx context.Context, _ map[string]interface{}) (OrganizationParams, *HttpError)
@@ -50,18 +54,11 @@ type SyncSettings struct {
 	OrganizationAssignDefault bool
 }
 
-func NewSync(logger slog.Logger) *AGPLIDPSync {
+func NewAGPLSync(logger slog.Logger, _ *entitlements.Set, settings SyncSettings) IDPSync {
 	return &AGPLIDPSync{
-		Logger: logger.Named("idp-sync"),
-		SyncSettings: SyncSettings{
-			// A sane default
-			OrganizationAssignDefault: true,
-		},
+		Logger:       logger.Named("idp-sync"),
+		SyncSettings: settings,
 	}
-}
-
-func (s *AGPLIDPSync) Configure(settings SyncSettings) {
-	s.SyncSettings = settings
 }
 
 // ParseStringSliceClaim parses the claim for groups and roles, expected []string.

@@ -7,14 +7,18 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 )
 
-type EnterpriseIDPSync struct {
-	entitlements *entitlements.Set
-	agpl         *idpsync.AGPLIDPSync
+func init() {
+	idpsync.NewSync = NewSync
 }
 
-func NewSync(logger slog.Logger, entitlements *entitlements.Set) *EnterpriseIDPSync {
+type EnterpriseIDPSync struct {
+	entitlements *entitlements.Set
+	*idpsync.AGPLIDPSync
+}
+
+func NewSync(logger slog.Logger, entitlements *entitlements.Set, settings idpsync.SyncSettings) idpsync.IDPSync {
 	return &EnterpriseIDPSync{
 		entitlements: entitlements,
-		agpl:         idpsync.NewSync(logger),
+		AGPLIDPSync:  idpsync.NewAGPLSync(logger, entitlements, settings),
 	}
 }

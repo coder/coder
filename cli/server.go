@@ -55,6 +55,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
@@ -108,7 +109,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
-func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
+func createOIDCConfig(ctx context.Context, logger slog.Logger, entitlements *entitlements.Set, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
 		return nil, xerrors.Errorf("OIDC client ID must be set!")
 	}
@@ -170,13 +171,6 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		groupAllowList[group] = true
 	}
 
-	idpSyncSetting := idpsync.SyncSettings{
-		OrganizationField:         vals.OIDC.OrganizationField.Value(),
-		OrganizationMapping:       vals.OIDC.OrganizationMapping.Value,
-		OrganizationAssignDefault: vals.OIDC.OrganizationAssignDefault.Value(),
-	}
-	syncer.Configure(idpSyncSetting)
-
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -205,7 +199,11 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
-		IDPSync:             syncer,
+		IDPSync: idpsync.NewSync(logger, entitlements, idpsync.SyncSettings{
+			OrganizationField:         vals.OIDC.OrganizationField.Value(),
+			OrganizationMapping:       vals.OIDC.OrganizationMapping.Value,
+			OrganizationAssignDefault: vals.OIDC.OrganizationAssignDefault.Value(),
+		}),
 	}, nil
 }
 
