@@ -1098,7 +1098,8 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
 	var reason string
 	if build.Reason.Valid() && build.Reason == database.BuildReasonInitiator {
-		return // failed workspace build initiated by a user should not notify
+		s.notifyWorkspaceManualBuildFailed(ctx, workspace, build)
+		return
 	}
 	reason = string(build.Reason)
 
@@ -1111,6 +1112,43 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 	); err != nil {
 		s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
+	}
+}
+
+func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
+	templateAdmins, err := s.Database.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
+	})
+	if err != nil {
+		s.Logger.Error(ctx, "unable to fetch template admins", slog.Error(err))
+		return
+	}
+
+	template, err := s.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		s.Logger.Error(ctx, "unable to fetch template", slog.Error(err))
+		return
+	}
+
+	workspaceOwner, err := s.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		s.Logger.Error(ctx, "unable to fetch workspace owner", slog.Error(err))
+		return
+	}
+
+	for _, templateAdmin := range templateAdmins {
+		if _, err := s.NotificationsEnqueuer.Enqueue(ctx, templateAdmin.ID, notifications.TemplateWorkspaceManualBuildFailed,
+			map[string]string{
+				"name":                     workspace.Name,
+				"template_name":            template.Name,
+				"initiator":                build.InitiatorByUsername,
+				"workspace_owner_username": workspaceOwner.Name,
+			}, "provisionerdserver",
+			// Associate this notification with all the related entities.
+			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
+		); err != nil {
+			s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
+		}
 	}
 }
 
