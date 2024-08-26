@@ -155,17 +155,23 @@ locals {
   repo_url                   = data.coder_parameter.repo.value
   # The envbuilder provider requires a key-value map of environment variables.
   envbuilder_env = {
+    # ENVBUILDER_GIT_URL and ENVBUILDER_CACHE_REPO will be overridden by the provider
+    # if the cache repo is enabled.
+    "ENVBUILDER_GIT_URL" : local.repo_url,
+    "ENVBUILDER_CACHE_REPO" : var.cache_repo,
     "CODER_AGENT_TOKEN" : coder_agent.main.token,
     # Use the docker gateway if the access URL is 127.0.0.1
     "CODER_AGENT_URL" : replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
-    "ENVBUILDER_GIT_URL" : local.repo_url,
     # Use the docker gateway if the access URL is 127.0.0.1
     "ENVBUILDER_INIT_SCRIPT" : replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
     "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
-    "ENVBUILDER_CACHE_REPO" : var.cache_repo,
     "ENVBUILDER_DOCKER_CONFIG_BASE64" : try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], ""),
     "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
     "ENVBUILDER_INSECURE" : "${var.insecure_cache_repo}",
+    # You may need to adjust this if you get an error regarding deleting files when building the workspace.
+    # For example, when testing in KinD, it was necessary to set `/product_name` and `/product_uuid` in
+    # addition to `/var/run`.
+    # "ENVBUILDER_IGNORE_PATHS": "/product_name,/product_uuid,/var/run",
   }
 }
 
@@ -260,49 +266,19 @@ resource "kubernetes_deployment" "main" {
           image             = var.cache_repo == "" ? local.devcontainer_builder_image : envbuilder_cached_image.cached.0.image
           image_pull_policy = "Always"
           security_context {}
-          env {
-            name  = "CODER_AGENT_TOKEN"
-            value = coder_agent.main.token
+
+          # Set the environment using cached_image.cached.0.env if the cache repo is enabled.
+          # Otherwise, use the local.envbuilder_env.
+          # You could alternatively write the environment variables to a ConfigMap or Secret
+          # and use that as `env_from`.
+          dynamic "env" {
+            for_each = nonsensitive(var.cache_repo == "" ? local.envbuilder_env : envbuilder_cached_image.cached.0.env_map)
+            content {
+              name  = env.key
+              value = env.value
+            }
           }
-          env {
-            name  = "CODER_AGENT_URL"
-            value = data.coder_workspace.me.access_url
-          }
-          env {
-            name  = "ENVBUILDER_GIT_URL"
-            value = local.repo_url
-          }
-          env {
-            name  = "ENVBUILDER_INIT_SCRIPT"
-            value = coder_agent.main.init_script
-          }
-          env {
-            name  = "ENVBUILDER_FALLBACK_IMAGE"
-            value = data.coder_parameter.fallback_image.value
-          }
-          env {
-            name  = "ENVBUILDER_CACHE_REPO"
-            value = var.cache_repo
-          }
-          env {
-            name  = "ENVBUILDER_PUSH_IMAGE"
-            value = var.cache_repo == "" ? "" : "true"
-          }
-          env {
-            name  = "ENVBUILDER_INSECURE"
-            value = var.insecure_cache_repo
-          }
-          env {
-            name  = "ENVBUILDER_DOCKER_CONFIG_BASE64"
-            value = try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], "")
-          }
-          # You may need to adjust this if you get an error regarding deleting files when building the workspace.
-          # For example, when testing in KinD, it was necessary to set `/product_name` and `/product_uuid` in
-          # addition to `/var/run`.
-          #           env {
-          #             name = "ENVBUILDER_IGNORE_PATHS"
-          #             value = "/product_name,/product_uuid,/var/run"
-          #           }
+
           resources {
             requests = {
               "cpu"    = "250m"

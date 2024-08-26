@@ -30,10 +30,10 @@
 	},
 	"devDependencies": {
 		"@types/lodash": "4.14.196",
-		"@types/node": "18.19.0",
+		"@types/node": "20.14.8",
 		"@types/react": "18.3.3",
 		"@types/react-dom": "18.3.0",
-		"eslint": "8.56.0",
+		"eslint": "8.57.0",
 		"eslint-config-next": "14.0.1",
 		"prettier": "3.3.3",
 		"typescript": "5.5.4"

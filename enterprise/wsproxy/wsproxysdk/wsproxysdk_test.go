@@ -177,6 +177,7 @@ func TestDialCoordinator(t *testing.T) {
 			DERPMapUpdateFrequency:  time.Hour,
 			DERPMapFn:               func() *tailcfg.DERPMap { panic("not implemented") },
 			NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) { panic("not implemented") },
+			ResumeTokenProvider:     agpl.NewInsecureTestResumeTokenProvider(),
 		})
 		require.NoError(t, err)
 

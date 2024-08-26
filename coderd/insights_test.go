@@ -523,7 +523,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 
 		// Prepare all test users.
 		for _, user := range users {
-			user.client, user.sdk = coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+			user.client, user.sdk = coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 				r.Username = user.name
 			})
 			user.client.SetLogger(logger.Named("user").With(slog.Field{Name: "name", Value: user.name}))

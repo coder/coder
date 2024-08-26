@@ -733,6 +733,7 @@ func (c *Conn) SendConnectedTelemetry(ip netip.Addr, application string) {
 	c.telemetryStore.markConnected(&ip, application)
 	e := c.newTelemetryEvent()
 	e.Status = proto.TelemetryEvent_CONNECTED
+	e.ConnectionSetup = durationpb.New(time.Since(c.createdAt))
 	c.sendTelemetryBackground(e)
 }
 
@@ -845,6 +846,10 @@ func (c *Conn) GetPeerDiagnostics(peerID uuid.UUID) PeerDiagnostics {
 	c.nodeUpdater.fillPeerDiagnostics(&d)
 	c.configMaps.fillPeerDiagnostics(&d, peerID)
 	return d
+}
+
+func (c *Conn) GetKnownPeerIDs() []uuid.UUID {
+	return c.configMaps.knownPeerIDs()
 }
 
 type listenKey struct {

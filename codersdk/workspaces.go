@@ -572,8 +572,8 @@ type WorkspaceQuota struct {
 	Budget          int `json:"budget"`
 }
 
-func (c *Client) WorkspaceQuota(ctx context.Context, userID string) (WorkspaceQuota, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspace-quota/%s", userID), nil)
+func (c *Client) WorkspaceQuota(ctx context.Context, organizationID string, userID string) (WorkspaceQuota, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/%s/workspace-quota", organizationID, userID), nil)
 	if err != nil {
 		return WorkspaceQuota{}, err
 	}

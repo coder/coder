@@ -42,18 +42,18 @@ Search for a workspace with a query.
 
 ### -c, --column
 
-|         |                                                                     |
-| ------- | ------------------------------------------------------------------- |
-| Type    | <code>string-array</code>                                           |
-| Default | <code>workspace,starts at,starts next,stops after,stops next</code> |
+|         |                                                                           |
+| ------- | ------------------------------------------------------------------------- |
+| Type    | <code>[workspace\|starts at\|starts next\|stops after\|stops next]</code> |
+| Default | <code>workspace,starts at,starts next,stops after,stops next</code>       |
 
-Columns to display in table output. Available columns: workspace, starts at, starts next, stops after, stops next.
+Columns to display in table output.
 
 ### -o, --output
 
-|         |                     |
-| ------- | ------------------- |
-| Type    | <code>string</code> |
-| Default | <code>table</code>  |
+|         |                          |
+| ------- | ------------------------ |
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
 
-Output format. Available formats: table, json.
+Output format.

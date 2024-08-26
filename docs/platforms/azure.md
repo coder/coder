@@ -56,7 +56,7 @@ as a system service.
 
 For this instance, we will run Coder as a system service, however you can run
 Coder a multitude of different ways. You can learn more about those
-[here](https://coder.com/docs/coder-oss/latest/install).
+[here](https://coder.com/docs/install).
 
 In the Azure VM instance, run the following command to install Coder
 

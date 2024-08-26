@@ -4,8 +4,9 @@ All actions possible through the Coder dashboard can also be automated as it
 utilizes the same public REST API. There are several ways to extend/automate
 Coder:
 
-- [CLI](../reference/cli/README.md)
-- [REST API](../reference/api/README.md)
+- [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest)
+- [CLI](../reference/cli)
+- [REST API](../reference/api)
 - [Coder SDK](https://pkg.go.dev/github.com/coder/coder/v2/codersdk)
 
 ## Quickstart
@@ -32,21 +33,25 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 
 ## Documentation
 
-We publish an [API reference](../reference/api/README.md) in our documentation.
-You can also enable a
-[Swagger endpoint](../reference/cli/server.md#--swagger-enable) on your Coder
-deployment.
+We publish an [API reference](../reference/api) in our documentation. You can
+also enable a [Swagger endpoint](../reference/cli/server.md#--swagger-enable) on
+your Coder deployment.
 
 ## Use cases
 
 We strive to keep the following use cases up to date, but please note that
 changes to API queries and routes can occur. For the most recent queries and
-payloads, we recommend checking the CLI and API documentation.
+payloads, we recommend checking the relevant documentation.
+
+### Users & Groups
+
+- [Manage Users via Terraform](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/user)
+- [Manage Groups via Terraform](https://registry.terraform.io/providers/coder/coderd/latest/docs/resources/group)
 
 ### Templates
 
-- [Update templates in CI](../templates/change-management.md): Store all
-  templates and git and update templates in CI/CD pipelines.
+- [Manage templates via Terraform or CLI](../templates/change-management.md):
+  Store all templates in git and update them in CI/CD pipelines.
 
 ### Workspace agents
 

@@ -1029,6 +1029,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspaces(arg0, arg1, arg2 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspaces", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspaces), arg0, arg1, arg2)
 }
 
+// GetCoordinatorResumeTokenSigningKey mocks base method.
+func (m *MockStore) GetCoordinatorResumeTokenSigningKey(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCoordinatorResumeTokenSigningKey", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCoordinatorResumeTokenSigningKey indicates an expected call of GetCoordinatorResumeTokenSigningKey.
+func (mr *MockStoreMockRecorder) GetCoordinatorResumeTokenSigningKey(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCoordinatorResumeTokenSigningKey", reflect.TypeOf((*MockStore)(nil).GetCoordinatorResumeTokenSigningKey), arg0)
+}
+
 // GetDBCryptKeys mocks base method.
 func (m *MockStore) GetDBCryptKeys(arg0 context.Context) ([]database.DBCryptKey, error) {
 	m.ctrl.T.Helper()
@@ -1945,7 +1960,7 @@ func (mr *MockStoreMockRecorder) GetProvisionerLogsAfterID(arg0, arg1 any) *gomo
 }
 
 // GetQuotaAllowanceForUser mocks base method.
-func (m *MockStore) GetQuotaAllowanceForUser(arg0 context.Context, arg1 uuid.UUID) (int64, error) {
+func (m *MockStore) GetQuotaAllowanceForUser(arg0 context.Context, arg1 database.GetQuotaAllowanceForUserParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQuotaAllowanceForUser", arg0, arg1)
 	ret0, _ := ret[0].(int64)
@@ -1960,7 +1975,7 @@ func (mr *MockStoreMockRecorder) GetQuotaAllowanceForUser(arg0, arg1 any) *gomoc
 }
 
 // GetQuotaConsumedForUser mocks base method.
-func (m *MockStore) GetQuotaConsumedForUser(arg0 context.Context, arg1 uuid.UUID) (int64, error) {
+func (m *MockStore) GetQuotaConsumedForUser(arg0 context.Context, arg1 database.GetQuotaConsumedForUserParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetQuotaConsumedForUser", arg0, arg1)
 	ret0, _ := ret[0].(int64)
@@ -3589,6 +3604,21 @@ func (mr *MockStoreMockRecorder) InsertProvisionerJobLogs(arg0, arg1 any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProvisionerJobLogs", reflect.TypeOf((*MockStore)(nil).InsertProvisionerJobLogs), arg0, arg1)
 }
 
+// InsertProvisionerJobTimings mocks base method.
+func (m *MockStore) InsertProvisionerJobTimings(arg0 context.Context, arg1 database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertProvisionerJobTimings", arg0, arg1)
+	ret0, _ := ret[0].([]database.ProvisionerJobTiming)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertProvisionerJobTimings indicates an expected call of InsertProvisionerJobTimings.
+func (mr *MockStoreMockRecorder) InsertProvisionerJobTimings(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertProvisionerJobTimings", reflect.TypeOf((*MockStore)(nil).InsertProvisionerJobTimings), arg0, arg1)
+}
+
 // InsertProvisionerKey mocks base method.
 func (m *MockStore) InsertProvisionerKey(arg0 context.Context, arg1 database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()
@@ -4992,6 +5022,20 @@ func (m *MockStore) UpsertApplicationName(arg0 context.Context, arg1 string) err
 func (mr *MockStoreMockRecorder) UpsertApplicationName(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), arg0, arg1)
+}
+
+// UpsertCoordinatorResumeTokenSigningKey mocks base method.
+func (m *MockStore) UpsertCoordinatorResumeTokenSigningKey(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertCoordinatorResumeTokenSigningKey", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertCoordinatorResumeTokenSigningKey indicates an expected call of UpsertCoordinatorResumeTokenSigningKey.
+func (mr *MockStoreMockRecorder) UpsertCoordinatorResumeTokenSigningKey(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCoordinatorResumeTokenSigningKey", reflect.TypeOf((*MockStore)(nil).UpsertCoordinatorResumeTokenSigningKey), arg0, arg1)
 }
 
 // UpsertDefaultProxy mocks base method.

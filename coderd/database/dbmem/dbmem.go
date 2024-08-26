@@ -196,20 +196,21 @@ type data struct {
 	customRoles                   []database.CustomRole
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
-	locks                   map[int64]struct{}
-	deploymentID            string
-	derpMeshKey             string
-	lastUpdateCheck         []byte
-	announcementBanners     []byte
-	healthSettings          []byte
-	notificationsSettings   []byte
-	applicationName         string
-	logoURL                 string
-	appSecurityKey          string
-	oauthSigningKey         string
-	lastLicenseID           int32
-	defaultProxyDisplayName string
-	defaultProxyIconURL     string
+	locks                            map[int64]struct{}
+	deploymentID                     string
+	derpMeshKey                      string
+	lastUpdateCheck                  []byte
+	announcementBanners              []byte
+	healthSettings                   []byte
+	notificationsSettings            []byte
+	applicationName                  string
+	logoURL                          string
+	appSecurityKey                   string
+	oauthSigningKey                  string
+	coordinatorResumeTokenSigningKey string
+	lastLicenseID                    int32
+	defaultProxyDisplayName          string
+	defaultProxyIconURL              string
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
@@ -2222,6 +2223,15 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
+func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	if q.coordinatorResumeTokenSigningKey == "" {
+		return "", sql.ErrNoRows
+	}
+	return q.coordinatorResumeTokenSigningKey, nil
+}
+
 func (q *FakeQuerier) GetDBCryptKeys(_ context.Context) ([]database.DBCryptKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3304,13 +3314,13 @@ func (q *FakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.
 	return logs, nil
 }
 
-func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, params database.GetQuotaAllowanceForUserParams) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var sum int64
 	for _, member := range q.groupMembers {
-		if member.UserID != userID {
+		if member.UserID != params.UserID {
 			continue
 		}
 		if _, err := q.getOrganizationByIDNoLock(member.GroupID); err == nil {
@@ -3330,7 +3340,7 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 	// Grab the quota for the Everyone group iff the user is a member of
 	// said organization.
 	for _, mem := range q.organizationMembers {
-		if mem.UserID != userID {
+		if mem.UserID != params.UserID {
 			continue
 		}
 
@@ -3338,19 +3348,25 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		if err != nil {
 			return -1, xerrors.Errorf("failed to get everyone group for org %q", mem.OrganizationID.String())
 		}
+		if group.OrganizationID != params.OrganizationID {
+			continue
+		}
 		sum += int64(group.QuotaAllowance)
 	}
 
 	return sum, nil
 }
 
-func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, params database.GetQuotaConsumedForUserParams) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var sum int64
 	for _, workspace := range q.workspaces {
-		if workspace.OwnerID != userID {
+		if workspace.OwnerID != params.OwnerID {
+			continue
+		}
+		if workspace.OrganizationID != params.OrganizationID {
 			continue
 		}
 		if workspace.Deleted {
@@ -6642,6 +6658,15 @@ func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
+func (*FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
 func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -8942,6 +8967,14 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 	return nil
 }
 
+func (q *FakeQuerier) UpsertCoordinatorResumeTokenSigningKey(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.coordinatorResumeTokenSigningKey = value
+	return nil
+}
+
 func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
 	q.defaultProxyDisplayName = arg.DisplayName
 	q.defaultProxyIconURL = arg.IconUrl
@@ -10170,7 +10203,7 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 	if arg.Offset > 0 {
 		if int(arg.Offset) > len(workspaces) {
-			return []database.GetWorkspacesRow{}, nil
+			return q.convertToWorkspaceRowsNoLock(ctx, []database.Workspace{}, int64(beforePageCount), arg.WithSummary), nil
 		}
 		workspaces = workspaces[arg.Offset:]
 	}

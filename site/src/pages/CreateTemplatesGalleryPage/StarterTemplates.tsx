@@ -12,7 +12,6 @@ const getTagLabel = (tag: string) => {
 		aws: "AWS",
 		google: "Google Cloud",
 	};
-	// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- this can be undefined
 	return labelByTag[tag] ?? tag;
 };
 

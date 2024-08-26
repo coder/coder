@@ -1107,6 +1107,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 	"dormant_ttl_ms": 0,
 	"failure_ttl_ms": 0,
 	"icon": "string",
+	"max_port_share_level": "owner",
 	"name": "string",
 	"require_active_version": true,
 	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
@@ -1131,6 +1132,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `dormant_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
 | `failure_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
 | `icon`                                                                                                                                                                                    | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
+| `max_port_share_level`                                                                                                                                                                    | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              | Max port share level allows optionally specifying the maximum port share level for workspaces created from the template.                                                                                                                                                                                            |
 | `name`                                                                                                                                                                                    | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
 | `require_active_version`                                                                                                                                                                  | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                         | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
@@ -1282,15 +1284,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `scope`  | `all`                 |
 | `scope`  | `application_connect` |
 
-## codersdk.CreateUserRequest
+## codersdk.CreateUserRequestWithOrgs
 
 ```json
 {
-	"disable_login": true,
 	"email": "user@example.com",
 	"login_type": "",
 	"name": "string",
-	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 	"password": "string",
 	"username": "string"
 }
@@ -1298,15 +1299,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                     | Required | Restrictions | Description                                                                                                                                                                                                        |
-| ----------------- | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `disable_login`   | boolean                                  | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. Deprecated: Set UserLoginType=LoginTypeDisabled instead. |
-| `email`           | string                                   | true     |              |                                                                                                                                                                                                                    |
-| `login_type`      | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                                                                                                                                                          |
-| `name`            | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `organization_id` | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `password`        | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `username`        | string                                   | true     |              |                                                                                                                                                                                                                    |
+| Name               | Type                                     | Required | Restrictions | Description                                                                         |
+| ------------------ | ---------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `email`            | string                                   | true     |              |                                                                                     |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                           |
+| `name`             | string                                   | false    |              |                                                                                     |
+| `organization_ids` | array of string                          | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
+| `password`         | string                                   | false    |              |                                                                                     |
+| `username`         | string                                   | true     |              |                                                                                     |
 
 ## codersdk.CreateWorkspaceBuildRequest
 

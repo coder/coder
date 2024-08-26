@@ -53,22 +53,22 @@ export default {
 		},
 	},
 	notice: {
-		background: colors.yellow[50],
-		outline: colors.yellow[600],
-		text: colors.yellow[950],
-		fill: {
-			solid: colors.yellow[500],
-			outline: colors.yellow[500],
-			text: colors.white,
-		},
-	},
-	info: {
 		background: colors.blue[50],
 		outline: colors.blue[400],
 		text: colors.blue[950],
 		fill: {
 			solid: colors.blue[700],
 			outline: colors.blue[600],
+			text: colors.white,
+		},
+	},
+	info: {
+		background: colors.zinc[50],
+		outline: colors.zinc[400],
+		text: colors.zinc[950],
+		fill: {
+			solid: colors.zinc[700],
+			outline: colors.zinc[600],
 			text: colors.white,
 		},
 	},

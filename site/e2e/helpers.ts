@@ -241,8 +241,7 @@ export const sshIntoWorkspace = async (
 			},
 			write: cp.stdin.write.bind(cp.stdin),
 		});
-		// eslint-disable-next-line no-console -- Helpful for debugging
-		cp.stderr.on("data", (data) => console.log(data.toString()));
+		cp.stderr.on("data", (data) => console.info(data.toString()));
 		cp.stdout.on("readable", (...args) => {
 			proxyStream.emit("readable", ...args);
 			if (cp.stdout.readableLength > 0) {
@@ -355,10 +354,8 @@ export const downloadCoderVersion = async (
 				},
 			},
 		);
-		// eslint-disable-next-line no-console -- Needed for debugging
 		cp.stderr.on("data", (data) => console.error(data.toString()));
-		// eslint-disable-next-line no-console -- Needed for debugging
-		cp.stdout.on("data", (data) => console.log(data.toString()));
+		cp.stdout.on("data", (data) => console.info(data.toString()));
 		cp.on("close", (code) => {
 			if (code === 0) {
 				resolve();
@@ -484,6 +481,7 @@ const createTemplateVersionTar = async (
 					resources: response.apply?.resources ?? [],
 					parameters: response.apply?.parameters ?? [],
 					externalAuthProviders: response.apply?.externalAuthProviders ?? [],
+					timings: response.apply?.timings ?? [],
 				},
 			};
 		});
@@ -585,6 +583,7 @@ const createTemplateVersionTar = async (
 			resources: [],
 			parameters: [],
 			externalAuthProviders: [],
+			timings: [],
 			...response.apply,
 		} as ApplyComplete;
 		response.apply.resources = response.apply.resources?.map(fillResource);
@@ -600,6 +599,7 @@ const createTemplateVersionTar = async (
 			resources: [],
 			parameters: [],
 			externalAuthProviders: [],
+			timings: [],
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);

@@ -43,6 +43,7 @@ type ClientServiceOptions struct {
 	DERPMapUpdateFrequency  time.Duration
 	DERPMapFn               func() *tailcfg.DERPMap
 	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
+	ResumeTokenProvider     ResumeTokenProvider
 }
 
 // ClientService is a tailnet coordination service that accepts a connection and version from a
@@ -66,6 +67,7 @@ func NewClientService(options ClientServiceOptions) (
 		DerpMapUpdateFrequency:  options.DERPMapUpdateFrequency,
 		DerpMapFn:               options.DERPMapFn,
 		NetworkTelemetryHandler: options.NetworkTelemetryHandler,
+		ResumeTokenProvider:     options.ResumeTokenProvider,
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	if err != nil {
@@ -127,6 +129,7 @@ type DRPCService struct {
 	DerpMapUpdateFrequency  time.Duration
 	DerpMapFn               func() *tailcfg.DERPMap
 	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
+	ResumeTokenProvider     ResumeTokenProvider
 }
 
 func (s *DRPCService) PostTelemetry(_ context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
@@ -165,6 +168,19 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 		case <-ticker.C:
 		}
 	}
+}
+
+func (s *DRPCService) RefreshResumeToken(ctx context.Context, _ *proto.RefreshResumeTokenRequest) (*proto.RefreshResumeTokenResponse, error) {
+	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
+	if !ok {
+		return nil, xerrors.New("no Stream ID")
+	}
+
+	res, err := s.ResumeTokenProvider.GenerateResumeToken(streamID.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("generate resume token: %w", err)
+	}
+	return res, nil
 }
 
 func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) error {
