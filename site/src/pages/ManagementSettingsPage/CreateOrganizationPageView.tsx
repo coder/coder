@@ -85,8 +85,7 @@ export const CreateOrganizationPageView: FC<
 						<PopoverPaywall
 							message="Organizations"
 							description="Organizations allow you to run a Coder deployment with multiple platform teams, all with unique use cases, templates, and even underlying infrastructure."
-							// TODO: No documentation link yet.
-							documentationLink={docs("/admin")}
+							documentationLink={docs("/guides/using-organizations")}
 							licenseType="premium"
 						/>
 					</PopoverContent>
