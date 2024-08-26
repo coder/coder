@@ -612,6 +612,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					SSHConfigOptions: configSSHOptions,
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
+				Entitlements:          entitlements.New(),
 				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
@@ -674,7 +675,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// Missing:
 				//	- Userinfo
 				//	- Verify
-				oc, err := createOIDCConfig(ctx, options.Logger, vals)
+				oc, err := createOIDCConfig(ctx, options.Logger, options.Entitlements, vals)
 				if err != nil {
 					return xerrors.Errorf("create oidc config: %w", err)
 				}

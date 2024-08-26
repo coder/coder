@@ -22,7 +22,9 @@ import (
 // So instead, if the code is compiled with the enterprise logic, it will
 // override this function to return the enterprise IDP sync object.
 // For unit testing, the callers can specifically choose which "NewSync" to use.
-var NewSync = NewAGPLSync
+var NewSync = func(logger slog.Logger, entitlements *entitlements.Set, settings SyncSettings) IDPSync {
+	return NewAGPLSync(logger, entitlements, settings)
+}
 
 type IDPSync interface {
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
@@ -54,7 +56,7 @@ type SyncSettings struct {
 	OrganizationAssignDefault bool
 }
 
-func NewAGPLSync(logger slog.Logger, _ *entitlements.Set, settings SyncSettings) IDPSync {
+func NewAGPLSync(logger slog.Logger, _ *entitlements.Set, settings SyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
 		Logger:       logger.Named("idp-sync"),
 		SyncSettings: settings,

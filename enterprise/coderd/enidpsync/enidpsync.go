@@ -8,7 +8,9 @@ import (
 )
 
 func init() {
-	idpsync.NewSync = NewSync
+	idpsync.NewSync = func(logger slog.Logger, entitlements *entitlements.Set, settings idpsync.SyncSettings) idpsync.IDPSync {
+		return NewSync(logger, entitlements, settings)
+	}
 }
 
 type EnterpriseIDPSync struct {
@@ -16,9 +18,9 @@ type EnterpriseIDPSync struct {
 	*idpsync.AGPLIDPSync
 }
 
-func NewSync(logger slog.Logger, entitlements *entitlements.Set, settings idpsync.SyncSettings) idpsync.IDPSync {
+func NewSync(logger slog.Logger, entitlements *entitlements.Set, settings idpsync.SyncSettings) *EnterpriseIDPSync {
 	return &EnterpriseIDPSync{
 		entitlements: entitlements,
-		AGPLIDPSync:  idpsync.NewAGPLSync(logger, entitlements, settings),
+		AGPLIDPSync:  idpsync.NewAGPLSync(logger.With(slog.F("enterprise_capable", "true")), entitlements, settings),
 	}
 }
