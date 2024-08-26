@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/unhanger"
@@ -268,9 +269,18 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.DeploymentValues == nil {
 		options.DeploymentValues = DeploymentValues(t)
 	}
-	// This value is not safe to run in parallel.
-	if options.DeploymentValues.DisableOwnerWorkspaceExec {
-		t.Logf("WARNING: DisableOwnerWorkspaceExec is set, this is not safe in parallel tests!")
+	// DisableOwnerWorkspaceExec modifies the 'global' RBAC roles. Fast-fail tests if we detect this.
+	if !options.DeploymentValues.DisableOwnerWorkspaceExec.Value() {
+		ownerSubj := rbac.Subject{
+			Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Scope: rbac.ScopeAll,
+		}
+		if err := options.Authorizer.Authorize(context.Background(), ownerSubj, policy.ActionSSH, rbac.ResourceWorkspace); err != nil {
+			if rbac.IsUnauthorizedError(err) {
+				t.Fatal("Side-effect of DisableOwnerWorkspaceExec detected in unrelated test. Please move the test that requires DisableOwnerWorkspaceExec to its own package so that it does not impact other tests!")
+			}
+			require.NoError(t, err)
+		}
 	}
 
 	// If no ratelimits are set, disable all rate limiting for tests.
