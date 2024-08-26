@@ -294,6 +294,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}()
 	if server.telemetryStore != nil {
 		server.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+			server.mutex.Lock()
+			server.lastNetInfo = ni.Clone()
+			server.mutex.Unlock()
 			server.telemetryStore.setNetInfo(ni)
 			nodeUp.setNetInfo(ni)
 			server.telemetryStore.pingPeer(server)
@@ -304,7 +307,12 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		})
 		go server.watchConnChange()
 	} else {
-		server.wireguardEngine.SetNetInfoCallback(nodeUp.setNetInfo)
+		server.wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
+			server.mutex.Lock()
+			server.lastNetInfo = ni.Clone()
+			server.mutex.Unlock()
+			nodeUp.setNetInfo(ni)
+		})
 	}
 	server.wireguardEngine.SetStatusCallback(nodeUp.setStatus)
 	server.magicConn.SetDERPForcedWebsocketCallback(nodeUp.setDERPForcedWebsocket)
@@ -373,6 +381,13 @@ type Conn struct {
 	watchCancel func()
 
 	trafficStats *connstats.Statistics
+	lastNetInfo  *tailcfg.NetInfo
+}
+
+func (c *Conn) GetNetInfo() *tailcfg.NetInfo {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.lastNetInfo.Clone()
 }
 
 func (c *Conn) SetTunnelDestination(id uuid.UUID) {
