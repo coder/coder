@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -179,6 +180,9 @@ func TestPGPubsubDriver(t *testing.T) {
 
 	// wait for the reconnect
 	_ = testutil.RequireRecvCtx(ctx, t, subDriver.Connections)
+	// we need to sleep because the raw connection notification
+	// is sent before the pq.Listener can reestablish it's listeners
+	time.Sleep(1 * time.Second)
 
 	// ensure our old subscription still fires
 	err = pubber.Publish("test", []byte("hello-again"))
