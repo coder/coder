@@ -47,10 +47,16 @@ export const deleteOrganization = (queryClient: QueryClient) => {
 	};
 };
 
+export const organizationMembersKey = (id: string) => [
+	"organization",
+	id,
+	"members",
+];
+
 export const organizationMembers = (id: string) => {
 	return {
 		queryFn: () => API.getOrganizationMembers(id),
-		queryKey: ["organization", id, "members"],
+		queryKey: organizationMembersKey(id),
 	};
 };
 
