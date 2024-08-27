@@ -132,6 +132,92 @@ func TestOrganizationSync(t *testing.T) {
 				}
 			},
 		},
+		{
+			Name: "MultiOrgWithDefault",
+			Case: func(t *testing.T, db database.Store) OrganizationSyncTestCase {
+				def, _ := db.GetDefaultOrganization(context.Background())
+				one := dbgen.Organization(t, db, database.Organization{})
+				two := dbgen.Organization(t, db, database.Organization{})
+				three := dbgen.Organization(t, db, database.Organization{})
+				return OrganizationSyncTestCase{
+					Entitlements: entitled,
+					Settings: idpsync.SyncSettings{
+						OrganizationField: "organizations",
+						OrganizationMapping: map[string][]uuid.UUID{
+							"first":  {one.ID},
+							"second": {two.ID},
+							"third":  {three.ID},
+						},
+						OrganizationAssignDefault: true,
+					},
+					Exps: []Expectations{
+						{
+							Name:   "NoOrganizations",
+							Claims: jwt.MapClaims{},
+							ExpectedParams: idpsync.OrganizationParams{
+								SyncEnabled:    true,
+								IncludeDefault: true,
+								Organizations:  []uuid.UUID{},
+							},
+							Sync: ExpectedUser{
+								Organizations: []uuid.UUID{def.ID},
+							},
+						},
+						{
+							Name: "AlreadyInOrgs",
+							Claims: jwt.MapClaims{
+								"organizations": []string{"second", "extra"},
+							},
+							ExpectedParams: idpsync.OrganizationParams{
+								SyncEnabled:    true,
+								IncludeDefault: true,
+								Organizations:  []uuid.UUID{two.ID},
+							},
+							Mutate: func(t *testing.T, db database.Store, user database.User) {
+								dbgen.OrganizationMember(t, db, database.OrganizationMember{
+									UserID:         user.ID,
+									OrganizationID: def.ID,
+								})
+								dbgen.OrganizationMember(t, db, database.OrganizationMember{
+									UserID:         user.ID,
+									OrganizationID: one.ID,
+								})
+							},
+							Sync: ExpectedUser{
+								Organizations: []uuid.UUID{def.ID, two.ID},
+							},
+						},
+						{
+							Name: "ManyClaims",
+							Claims: jwt.MapClaims{
+								// Add some repeats
+								"organizations": []string{"second", "extra", "first", "third", "second", "second"},
+							},
+							ExpectedParams: idpsync.OrganizationParams{
+								SyncEnabled:    true,
+								IncludeDefault: true,
+								Organizations: []uuid.UUID{
+									two.ID, one.ID, three.ID,
+								},
+							},
+							Mutate: func(t *testing.T, db database.Store, user database.User) {
+								dbgen.OrganizationMember(t, db, database.OrganizationMember{
+									UserID:         user.ID,
+									OrganizationID: def.ID,
+								})
+								dbgen.OrganizationMember(t, db, database.OrganizationMember{
+									UserID:         user.ID,
+									OrganizationID: one.ID,
+								})
+							},
+							Sync: ExpectedUser{
+								Organizations: []uuid.UUID{def.ID, one.ID, two.ID, three.ID},
+							},
+						},
+					},
+				}
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -157,6 +243,7 @@ func TestOrganizationSync(t *testing.T) {
 						exp.ParseError(t, httpErr)
 						return
 					}
+					require.Nil(t, httpErr, "no parse error")
 
 					require.Equal(t, exp.ExpectedParams.SyncEnabled, params.SyncEnabled, "match enabled")
 					require.Equal(t, exp.ExpectedParams.IncludeDefault, params.IncludeDefault, "match include default")
@@ -167,14 +254,15 @@ func TestOrganizationSync(t *testing.T) {
 
 					user := dbgen.User(t, db, database.User{})
 					if exp.Mutate != nil {
-						exp.Mutate(t, db, user)
+						exp.Mutate(t, rdb, user)
 					}
 
-					err := sync.SyncOrganizations(ctx, db, user, params)
+					err := sync.SyncOrganizations(ctx, rdb, user, params)
 					if exp.Sync.SyncError {
 						require.Error(t, err)
 						return
 					}
+					require.NoError(t, err)
 					requireUserOrgs(t, db, user, exp.Sync.Organizations)
 				})
 			}

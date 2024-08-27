@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -62,6 +63,7 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 		// If the field is not set, then sync is not enabled.
 		SyncEnabled:    e.OrganizationField != "",
 		IncludeDefault: e.OrganizationAssignDefault,
-		Organizations:  userOrganizations,
+		// Do not return duplicates
+		Organizations: slice.Unique(userOrganizations),
 	}, nil
 }
