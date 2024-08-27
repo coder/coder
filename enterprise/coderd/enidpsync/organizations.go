@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
@@ -12,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims map[string]interface{}) (idpsync.OrganizationParams, *idpsync.HttpError) {
+func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.OrganizationParams, *idpsync.HttpError) {
 	if !e.entitlements.Enabled(codersdk.FeatureMultipleOrganizations) {
 		// Default to agpl if multi-org is not enabled
 		return e.AGPLIDPSync.ParseOrganizationClaims(ctx, mergedClaims)

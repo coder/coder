@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -29,7 +30,7 @@ var NewSync = func(logger slog.Logger, entitlements *entitlements.Set, settings 
 type IDPSync interface {
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
-	ParseOrganizationClaims(ctx context.Context, _ map[string]interface{}) (OrganizationParams, *HttpError)
+	ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HttpError)
 	// SyncOrganizations assigns and removed users from organizations based on the
 	// provided params.
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error

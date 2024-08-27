@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -15,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-func (s AGPLIDPSync) ParseOrganizationClaims(ctx context.Context, _ map[string]interface{}) (OrganizationParams, *HttpError) {
+func (s AGPLIDPSync) ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HttpError) {
 	// nolint:gocritic // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
