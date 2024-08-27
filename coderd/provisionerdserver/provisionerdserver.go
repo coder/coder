@@ -490,7 +490,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 		ownerGroupNames := []string{}
 		for _, group := range ownerGroups {
-			ownerGroupNames = append(ownerGroupNames, group.Name)
+			ownerGroupNames = append(ownerGroupNames, group.Group.Name)
 		}
 		err = s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
 		if err != nil {

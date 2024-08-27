@@ -456,12 +456,12 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 
 	resp := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		members, err := api.Database.GetGroupMembersByGroupID(ctx, group.ID)
+		members, err := api.Database.GetGroupMembersByGroupID(ctx, group.Group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.Group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return

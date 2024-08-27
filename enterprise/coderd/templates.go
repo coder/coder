@@ -147,7 +147,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		groups = append(groups, codersdk.TemplateGroup{
-			Group: db2sdk.Group(group.Group, members, int(memberCount)),
+			Group: db2sdk.Group(group, members, int(memberCount)),
 			Role:  convertToTemplateRole(group.Actions),
 		})
 	}
