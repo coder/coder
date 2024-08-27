@@ -208,18 +208,25 @@ func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []c
 	})
 }
 
-func Group(group database.GetGroupsRow, members []database.GroupMember, totalMemberCount int) codersdk.Group {
+func Group(group database.Group, members []database.GroupMember, totalMemberCount int) codersdk.Group {
 	return codersdk.Group{
-		ID:                      group.Group.ID,
-		Name:                    group.Group.Name,
-		DisplayName:             group.Group.DisplayName,
-		OrganizationID:          group.Group.OrganizationID,
-		OrganizationDisplayName: group.OrganizationDisplayName,
-		AvatarURL:               group.Group.AvatarURL,
-		Members:                 ReducedUsersFromGroupMembers(members),
-		TotalMemberCount:        totalMemberCount,
-		QuotaAllowance:          int(group.Group.QuotaAllowance),
-		Source:                  codersdk.GroupSource(group.Group.Source),
+		ID:               group.ID,
+		Name:             group.Name,
+		DisplayName:      group.DisplayName,
+		OrganizationID:   group.OrganizationID,
+		AvatarURL:        group.AvatarURL,
+		Members:          ReducedUsersFromGroupMembers(members),
+		TotalMemberCount: totalMemberCount,
+		QuotaAllowance:   int(group.QuotaAllowance),
+		Source:           codersdk.GroupSource(group.Source),
+	}
+}
+
+func GroupWithOrganizationInfo(group database.Group, orgDisplayName string, members []database.GroupMember, totalMemberCount int) codersdk.GroupWithOrganizationInfo {
+	sdkGroup := Group(group, members, totalMemberCount)
+	return codersdk.GroupWithOrganizationInfo{
+		Group:                   sdkGroup,
+		OrganizationDisplayName: orgDisplayName,
 	}
 }
 

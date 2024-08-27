@@ -454,7 +454,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]codersdk.Group, 0, len(groups))
+	resp := make([]codersdk.GroupWithOrganizationInfo, 0, len(groups))
 	for _, group := range groups {
 		members, err := api.Database.GetGroupMembersByGroupID(ctx, group.Group.ID)
 		if err != nil {
@@ -467,7 +467,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp = append(resp, db2sdk.Group(group, members, int(memberCount)))
+		resp = append(resp, db2sdk.GroupWithOrganizationInfo(group.Group, group.OrganizationDisplayName, members, int(memberCount)))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

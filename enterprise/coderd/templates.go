@@ -61,18 +61,18 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
 		// nolint:gocritic
-		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), group.Group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.Group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
 
-		sdkGroups = append(sdkGroups, db2sdk.Group(group, members, int(memberCount)))
+		sdkGroups = append(sdkGroups, db2sdk.Group(group.Group, members, int(memberCount)))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
@@ -147,7 +147,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		groups = append(groups, codersdk.TemplateGroup{
-			Group: db2sdk.Group(group, members, int(memberCount)),
+			Group: db2sdk.Group(group.Group, members, int(memberCount)),
 			Role:  convertToTemplateRole(group.Actions),
 		})
 	}

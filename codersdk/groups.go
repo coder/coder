@@ -41,6 +41,11 @@ type Group struct {
 	Source           GroupSource `json:"source"`
 }
 
+type GroupWithOrganizationInfo struct {
+	Group
+	OrganizationDisplayName string `json:"organization_display_name"`
+}
+
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
 }
