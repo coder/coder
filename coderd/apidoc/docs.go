@@ -9013,6 +9013,10 @@ const docTemplate = `{
                     "description": "ExternalURL references the current Coder version.\nFor production builds, this will link directly to a release. For development builds, this will link to a commit.",
                     "type": "string"
                 },
+                "provisioner_api_version": {
+                    "description": "ProvisionerAPIVersion is the current version of the Provisioner API",
+                    "type": "string"
+                },
                 "telemetry": {
                     "description": "Telemetry is a boolean that indicates whether telemetry is enabled.",
                     "type": "boolean"

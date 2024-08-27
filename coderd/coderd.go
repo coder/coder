@@ -489,14 +489,15 @@ func New(options *Options) *API {
 	api.AppearanceFetcher.Store(&f)
 	api.PortSharer.Store(&portsharing.DefaultPortSharer)
 	buildInfo := codersdk.BuildInfoResponse{
-		ExternalURL:     buildinfo.ExternalURL(),
-		Version:         buildinfo.Version(),
-		AgentAPIVersion: AgentAPIVersionREST,
-		DashboardURL:    api.AccessURL.String(),
-		WorkspaceProxy:  false,
-		UpgradeMessage:  api.DeploymentValues.CLIUpgradeMessage.String(),
-		DeploymentID:    api.DeploymentID,
-		Telemetry:       api.Telemetry.Enabled(),
+		ExternalURL:           buildinfo.ExternalURL(),
+		Version:               buildinfo.Version(),
+		AgentAPIVersion:       AgentAPIVersionREST,
+		ProvisionerAPIVersion: proto.CurrentVersion.String(),
+		DashboardURL:          api.AccessURL.String(),
+		WorkspaceProxy:        false,
+		UpgradeMessage:        api.DeploymentValues.CLIUpgradeMessage.String(),
+		DeploymentID:          api.DeploymentID,
+		Telemetry:             api.Telemetry.Enabled(),
 	}
 	api.SiteHandler = site.New(&site.Options{
 		BinFS:             binFS,
