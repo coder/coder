@@ -1562,7 +1562,9 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 
 const getGroups = `-- name: GetGroups :many
 SELECT
-		groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source, organizations.display_name AS organization_display_name
+		groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source,
+		organizations.name AS organization_name,
+		organizations.display_name AS organization_display_name
 FROM
 		groups
 INNER JOIN
@@ -1599,6 +1601,7 @@ type GetGroupsParams struct {
 
 type GetGroupsRow struct {
 	Group                   Group  `db:"group" json:"group"`
+	OrganizationName        string `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string `db:"organization_display_name" json:"organization_display_name"`
 }
 
@@ -1619,6 +1622,7 @@ func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetG
 			&i.Group.QuotaAllowance,
 			&i.Group.DisplayName,
 			&i.Group.Source,
+			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 		); err != nil {
 			return nil, err

@@ -618,7 +618,6 @@ export interface Group {
 	readonly name: string;
 	readonly display_name: string;
 	readonly organization_id: string;
-	readonly organization_display_name: string;
 	readonly members: Readonly<Array<ReducedUser>>;
 	readonly total_member_count: number;
 	readonly avatar_url: string;
@@ -634,6 +633,7 @@ export interface GroupArguments {
 
 // From codersdk/groups.go
 export interface GroupWithOrganizationInfo extends Group {
+	readonly organization_name: string;
 	readonly organization_display_name: string;
 }
 

@@ -22,7 +22,9 @@ LIMIT
 
 -- name: GetGroups :many
 SELECT
-		sqlc.embed(groups), organizations.display_name AS organization_display_name
+		sqlc.embed(groups),
+		organizations.name AS organization_name,
+		organizations.display_name AS organization_display_name
 FROM
 		groups
 INNER JOIN

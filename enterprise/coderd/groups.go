@@ -467,7 +467,11 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp = append(resp, db2sdk.GroupWithOrganizationInfo(group.Group, group.OrganizationDisplayName, members, int(memberCount)))
+		resp = append(resp, db2sdk.GroupWithOrganizationInfo(
+			group.Group,
+			group.OrganizationName, group.OrganizationDisplayName,
+			members, int(memberCount),
+		))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

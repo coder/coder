@@ -219,7 +219,6 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
 			}
 		],
 		"name": "string",
-		"organization_display_name": "string",
 		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 		"quota_allowance": 0,
 		"source": "user",
@@ -238,30 +237,29 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
 
 Status Code **200**
 
-| Name                          | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
-| ----------------------------- | ------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                | array                                                  | false    |              |                                                                                                                                                                       |
-| `» avatar_url`                | string                                                 | false    |              |                                                                                                                                                                       |
-| `» display_name`              | string                                                 | false    |              |                                                                                                                                                                       |
-| `» id`                        | string(uuid)                                           | false    |              |                                                                                                                                                                       |
-| `» members`                   | array                                                  | false    |              |                                                                                                                                                                       |
-| `»» avatar_url`               | string(uri)                                            | false    |              |                                                                                                                                                                       |
-| `»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
-| `»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
-| `»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
-| `»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
-| `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
-| `»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
-| `»» status`                   | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
-| `»» theme_preference`         | string                                                 | false    |              |                                                                                                                                                                       |
-| `»» updated_at`               | string(date-time)                                      | false    |              |                                                                                                                                                                       |
-| `»» username`                 | string                                                 | true     |              |                                                                                                                                                                       |
-| `» name`                      | string                                                 | false    |              |                                                                                                                                                                       |
-| `» organization_display_name` | string                                                 | false    |              |                                                                                                                                                                       |
-| `» organization_id`           | string(uuid)                                           | false    |              |                                                                                                                                                                       |
-| `» quota_allowance`           | integer                                                | false    |              |                                                                                                                                                                       |
-| `» source`                    | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |                                                                                                                                                                       |
-| `» total_member_count`        | integer                                                | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+| Name                   | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`         | array                                                  | false    |              |                                                                                                                                                                       |
+| `» avatar_url`         | string                                                 | false    |              |                                                                                                                                                                       |
+| `» display_name`       | string                                                 | false    |              |                                                                                                                                                                       |
+| `» id`                 | string(uuid)                                           | false    |              |                                                                                                                                                                       |
+| `» members`            | array                                                  | false    |              |                                                                                                                                                                       |
+| `»» avatar_url`        | string(uri)                                            | false    |              |                                                                                                                                                                       |
+| `»» created_at`        | string(date-time)                                      | true     |              |                                                                                                                                                                       |
+| `»» email`             | string(email)                                          | true     |              |                                                                                                                                                                       |
+| `»» id`                | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»» last_seen_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                       |
+| `»» login_type`        | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
+| `»» name`              | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» status`            | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
+| `»» theme_preference`  | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» updated_at`        | string(date-time)                                      | false    |              |                                                                                                                                                                       |
+| `»» username`          | string                                                 | true     |              |                                                                                                                                                                       |
+| `» name`               | string                                                 | false    |              |                                                                                                                                                                       |
+| `» organization_id`    | string(uuid)                                           | false    |              |                                                                                                                                                                       |
+| `» quota_allowance`    | integer                                                | false    |              |                                                                                                                                                                       |
+| `» source`             | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |                                                                                                                                                                       |
+| `» total_member_count` | integer                                                | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
 
 #### Enumerated Values
 
@@ -324,7 +322,6 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 		}
 	],
 	"name": "string",
-	"organization_display_name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"quota_allowance": 0,
 	"source": "user",
@@ -384,7 +381,6 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 		}
 	],
 	"name": "string",
-	"organization_display_name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"quota_allowance": 0,
 	"source": "user",
@@ -459,7 +455,6 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 		}
 	],
 	"name": "string",
-	"organization_display_name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"quota_allowance": 0,
 	"source": "user",
@@ -1219,7 +1214,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 			}
 		],
 		"name": "string",
-		"organization_display_name": "string",
 		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 		"quota_allowance": 0,
 		"source": "user",
@@ -1238,30 +1232,29 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 
 Status Code **200**
 
-| Name                          | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
-| ----------------------------- | ------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                | array                                                  | false    |              |                                                                                                                                                                       |
-| `» avatar_url`                | string                                                 | false    |              |                                                                                                                                                                       |
-| `» display_name`              | string                                                 | false    |              |                                                                                                                                                                       |
-| `» id`                        | string(uuid)                                           | false    |              |                                                                                                                                                                       |
-| `» members`                   | array                                                  | false    |              |                                                                                                                                                                       |
-| `»» avatar_url`               | string(uri)                                            | false    |              |                                                                                                                                                                       |
-| `»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
-| `»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
-| `»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
-| `»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
-| `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
-| `»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
-| `»» status`                   | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
-| `»» theme_preference`         | string                                                 | false    |              |                                                                                                                                                                       |
-| `»» updated_at`               | string(date-time)                                      | false    |              |                                                                                                                                                                       |
-| `»» username`                 | string                                                 | true     |              |                                                                                                                                                                       |
-| `» name`                      | string                                                 | false    |              |                                                                                                                                                                       |
-| `» organization_display_name` | string                                                 | false    |              |                                                                                                                                                                       |
-| `» organization_id`           | string(uuid)                                           | false    |              |                                                                                                                                                                       |
-| `» quota_allowance`           | integer                                                | false    |              |                                                                                                                                                                       |
-| `» source`                    | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |                                                                                                                                                                       |
-| `» total_member_count`        | integer                                                | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+| Name                   | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`         | array                                                  | false    |              |                                                                                                                                                                       |
+| `» avatar_url`         | string                                                 | false    |              |                                                                                                                                                                       |
+| `» display_name`       | string                                                 | false    |              |                                                                                                                                                                       |
+| `» id`                 | string(uuid)                                           | false    |              |                                                                                                                                                                       |
+| `» members`            | array                                                  | false    |              |                                                                                                                                                                       |
+| `»» avatar_url`        | string(uri)                                            | false    |              |                                                                                                                                                                       |
+| `»» created_at`        | string(date-time)                                      | true     |              |                                                                                                                                                                       |
+| `»» email`             | string(email)                                          | true     |              |                                                                                                                                                                       |
+| `»» id`                | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»» last_seen_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                       |
+| `»» login_type`        | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
+| `»» name`              | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» status`            | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
+| `»» theme_preference`  | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» updated_at`        | string(date-time)                                      | false    |              |                                                                                                                                                                       |
+| `»» username`          | string                                                 | true     |              |                                                                                                                                                                       |
+| `» name`               | string                                                 | false    |              |                                                                                                                                                                       |
+| `» organization_id`    | string(uuid)                                           | false    |              |                                                                                                                                                                       |
+| `» quota_allowance`    | integer                                                | false    |              |                                                                                                                                                                       |
+| `» source`             | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |                                                                                                                                                                       |
+| `» total_member_count` | integer                                                | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
 
 #### Enumerated Values
 
@@ -1337,7 +1330,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 		}
 	],
 	"name": "string",
-	"organization_display_name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"quota_allowance": 0,
 	"source": "user",
@@ -1398,7 +1390,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 		}
 	],
 	"name": "string",
-	"organization_display_name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"quota_allowance": 0,
 	"source": "user",
@@ -2145,7 +2136,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
 					}
 				],
 				"name": "string",
-				"organization_display_name": "string",
 				"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 				"quota_allowance": 0,
 				"source": "user",
@@ -2181,32 +2171,31 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
 
 Status Code **200**
 
-| Name                           | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
-| ------------------------------ | ------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[array item]`                 | array                                                  | false    |              |                                                                                                                                                                       |
-| `» groups`                     | array                                                  | false    |              |                                                                                                                                                                       |
-| `»» avatar_url`                | string                                                 | false    |              |                                                                                                                                                                       |
-| `»» display_name`              | string                                                 | false    |              |                                                                                                                                                                       |
-| `»» id`                        | string(uuid)                                           | false    |              |                                                                                                                                                                       |
-| `»» members`                   | array                                                  | false    |              |                                                                                                                                                                       |
-| `»»» avatar_url`               | string(uri)                                            | false    |              |                                                                                                                                                                       |
-| `»»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
-| `»»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
-| `»»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
-| `»»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
-| `»»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
-| `»»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
-| `»»» status`                   | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
-| `»»» theme_preference`         | string                                                 | false    |              |                                                                                                                                                                       |
-| `»»» updated_at`               | string(date-time)                                      | false    |              |                                                                                                                                                                       |
-| `»»» username`                 | string                                                 | true     |              |                                                                                                                                                                       |
-| `»» name`                      | string                                                 | false    |              |                                                                                                                                                                       |
-| `»» organization_display_name` | string                                                 | false    |              |                                                                                                                                                                       |
-| `»» organization_id`           | string(uuid)                                           | false    |              |                                                                                                                                                                       |
-| `»» quota_allowance`           | integer                                                | false    |              |                                                                                                                                                                       |
-| `»» source`                    | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |                                                                                                                                                                       |
-| `»» total_member_count`        | integer                                                | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
-| `» users`                      | array                                                  | false    |              |                                                                                                                                                                       |
+| Name                    | Type                                                   | Required | Restrictions | Description                                                                                                                                                           |
+| ----------------------- | ------------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[array item]`          | array                                                  | false    |              |                                                                                                                                                                       |
+| `» groups`              | array                                                  | false    |              |                                                                                                                                                                       |
+| `»» avatar_url`         | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» display_name`       | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» id`                 | string(uuid)                                           | false    |              |                                                                                                                                                                       |
+| `»» members`            | array                                                  | false    |              |                                                                                                                                                                       |
+| `»»» avatar_url`        | string(uri)                                            | false    |              |                                                                                                                                                                       |
+| `»»» created_at`        | string(date-time)                                      | true     |              |                                                                                                                                                                       |
+| `»»» email`             | string(email)                                          | true     |              |                                                                                                                                                                       |
+| `»»» id`                | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»»» last_seen_at`      | string(date-time)                                      | false    |              |                                                                                                                                                                       |
+| `»»» login_type`        | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
+| `»»» name`              | string                                                 | false    |              |                                                                                                                                                                       |
+| `»»» status`            | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |                                                                                                                                                                       |
+| `»»» theme_preference`  | string                                                 | false    |              |                                                                                                                                                                       |
+| `»»» updated_at`        | string(date-time)                                      | false    |              |                                                                                                                                                                       |
+| `»»» username`          | string                                                 | true     |              |                                                                                                                                                                       |
+| `»» name`               | string                                                 | false    |              |                                                                                                                                                                       |
+| `»» organization_id`    | string(uuid)                                           | false    |              |                                                                                                                                                                       |
+| `»» quota_allowance`    | integer                                                | false    |              |                                                                                                                                                                       |
+| `»» source`             | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |                                                                                                                                                                       |
+| `»» total_member_count` | integer                                                | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+| `» users`               | array                                                  | false    |              |                                                                                                                                                                       |
 
 #### Enumerated Values
 

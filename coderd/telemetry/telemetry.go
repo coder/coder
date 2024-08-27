@@ -373,7 +373,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.Groups = make([]Group, 0, len(groups))
 		for _, group := range groups {
-			snapshot.Groups = append(snapshot.Groups, ConvertGroup(group))
+			snapshot.Groups = append(snapshot.Groups, ConvertGroup(group.Group))
 		}
 		return nil
 	})
@@ -669,15 +669,15 @@ func ConvertUser(dbUser database.User) User {
 	}
 }
 
-func ConvertGroup(row database.GetGroupsRow) Group {
+func ConvertGroup(group database.Group) Group {
 	return Group{
-		ID:             row.Group.ID,
-		Name:           row.Group.Name,
-		OrganizationID: row.Group.OrganizationID,
-		AvatarURL:      row.Group.AvatarURL,
-		QuotaAllowance: row.Group.QuotaAllowance,
-		DisplayName:    row.Group.DisplayName,
-		Source:         row.Group.Source,
+		ID:             group.ID,
+		Name:           group.Name,
+		OrganizationID: group.OrganizationID,
+		AvatarURL:      group.AvatarURL,
+		QuotaAllowance: group.QuotaAllowance,
+		DisplayName:    group.DisplayName,
+		Source:         group.Source,
 	}
 }
 

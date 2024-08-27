@@ -222,10 +222,11 @@ func Group(group database.Group, members []database.GroupMember, totalMemberCoun
 	}
 }
 
-func GroupWithOrganizationInfo(group database.Group, orgDisplayName string, members []database.GroupMember, totalMemberCount int) codersdk.GroupWithOrganizationInfo {
+func GroupWithOrganizationInfo(group database.Group, orgName, orgDisplayName string, members []database.GroupMember, totalMemberCount int) codersdk.GroupWithOrganizationInfo {
 	sdkGroup := Group(group, members, totalMemberCount)
 	return codersdk.GroupWithOrganizationInfo{
 		Group:                   sdkGroup,
+		OrganizationName:        orgName,
 		OrganizationDisplayName: orgDisplayName,
 	}
 }
