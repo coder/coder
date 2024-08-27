@@ -16,6 +16,24 @@ type Runtime[T Value] struct {
 	key string
 }
 
+func NewRuntimeConfigurable[T Value](key, val string) (out Runtime[T], err error) {
+	out.Init(key)
+
+	if err = out.Set(val); err != nil {
+		return out, err
+	}
+
+	return out, nil
+}
+
+func MustNewRuntimeConfigurable[T Value](key, val string) Runtime[T] {
+	out, err := NewRuntimeConfigurable[T](key, val)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
 func (o *Runtime[T]) Init(key string) {
 	o.val = create[T]()
 	o.key = key
@@ -65,6 +83,7 @@ func (o *Runtime[T]) Save(m Mutator, val T) error {
 
 func (o *Runtime[T]) Coalesce(r Resolver) (T, error) {
 	var zero T
+
 	resolved, err := o.resolve(r)
 	if err != nil {
 		if errors.Is(err, EntryNotFound) {

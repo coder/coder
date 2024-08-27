@@ -32,7 +32,7 @@ func TestConfig(t *testing.T) {
 	t.Run("panics unless initialized", func(t *testing.T) {
 		t.Parallel()
 
-		field := config.RuntimeOrgScoped[*serpent.String]{}
+		field := config.Runtime[*serpent.String]{}
 		require.Panics(t, func() {
 			field.StartupValue().String()
 		})
@@ -55,7 +55,7 @@ func TestConfig(t *testing.T) {
 			override = serpent.String("dogfood@dev.coder.com")
 		)
 
-		field := config.RuntimeOrgScoped[*serpent.String]{}
+		field := config.Runtime[*serpent.String]{}
 		field.Init("my-field")
 		// Check that no default has been set.
 		require.Empty(t, field.StartupValue().String())

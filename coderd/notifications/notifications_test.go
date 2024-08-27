@@ -140,20 +140,19 @@ func TestSMTPDispatch(t *testing.T) {
 	// GIVEN: an SMTP setup referencing a mock SMTP server
 	const from = "danny@coder.com"
 	method := database.NotificationMethodSmtp
-	cfg := defaultNotificationsConfig(method)
-	cfg.SMTP = codersdk.NotificationsEmailConfig{
-		From:      from,
-		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
-		Hello:     "localhost",
-	}
-	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, defaultHelpers(), api.Logger.Named("smtp")))
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	cfg := coderdtest.DeploymentValues(t, defaultNotificationsMutator(method), func(vals *codersdk.DeploymentValues) {
+		require.NoError(t, vals.Notifications.SMTP.From.Set(from))
+		vals.Notifications.SMTP.Hello = "localhost"
+		vals.Notifications.SMTP.Smarthost = serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())}
+	})
+	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.Notifications.SMTP, defaultHelpers(), api.Logger.Named("smtp")))
+	mgr, err := notifications.NewManager(cfg.Notifications, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg.Notifications, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	user := createSampleUser(t, api.Database)
@@ -1007,23 +1006,22 @@ func TestCustomNotificationMethod(t *testing.T) {
 	require.Equal(t, customMethod, out.Method.NotificationMethod)
 
 	// GIVEN: a manager configured with multiple dispatch methods
-	cfg := defaultNotificationsConfig(defaultMethod)
-	cfg.SMTP = codersdk.NotificationsEmailConfig{
-		From:      "danny@coder.com",
-		Hello:     "localhost",
-		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
-	}
-	cfg.Webhook = codersdk.NotificationsWebhookConfig{
-		Endpoint: *serpent.URLOf(endpoint),
-	}
+	cfg := coderdtest.DeploymentValues(t, defaultNotificationsMutator(defaultMethod), func(vals *codersdk.DeploymentValues) {
+		require.NoError(t, vals.Notifications.SMTP.From.Set("danny@coder.com"))
+		vals.Notifications.SMTP.Hello = "localhost"
+		vals.Notifications.SMTP.Smarthost = serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())}
+		vals.Notifications.Webhook = codersdk.NotificationsWebhookConfig{
+			Endpoint: *serpent.URLOf(endpoint),
+		}
+	})
 
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg.Notifications, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = mgr.Stop(ctx)
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger, quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg.Notifications, api.Database, defaultHelpers(), api.Logger, quartz.NewReal())
 	require.NoError(t, err)
 
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.

@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func create[T Value]() T {
+func create[T any]() T {
 	var zero T
 	return reflect.New(reflect.TypeOf(zero).Elem()).Interface().(T)
 }

@@ -35,6 +35,20 @@ func defaultNotificationsConfig(method database.NotificationMethod) codersdk.Not
 	}
 }
 
+func defaultNotificationsMutator(method database.NotificationMethod) func(vals *codersdk.DeploymentValues) {
+	return func(vals *codersdk.DeploymentValues) {
+		vals.Notifications.Method = serpent.String(method)
+		vals.Notifications.MaxSendAttempts = 5
+		vals.Notifications.FetchInterval = serpent.Duration(time.Millisecond * 100)
+		vals.Notifications.StoreSyncInterval = serpent.Duration(time.Millisecond * 200)
+		vals.Notifications.LeasePeriod = serpent.Duration(time.Second * 10)
+		vals.Notifications.DispatchTimeout = serpent.Duration(time.Second * 5)
+		vals.Notifications.RetryInterval = serpent.Duration(time.Millisecond * 50)
+		vals.Notifications.LeaseCount = 10
+		vals.Notifications.StoreSyncBufferSize = 50
+	}
+}
+
 func defaultHelpers() map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return "http://test.com" },
