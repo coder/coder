@@ -109,7 +109,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
-func createOIDCConfig(ctx context.Context, logger slog.Logger, entitlements *entitlements.Set, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
+func createOIDCConfig(ctx context.Context, logger slog.Logger, set *entitlements.Set, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
 		return nil, xerrors.Errorf("OIDC client ID must be set!")
 	}
@@ -199,7 +199,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, entitlements *ent
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
-		IDPSync: idpsync.NewSync(logger, entitlements, idpsync.SyncSettings{
+		IDPSync: idpsync.NewSync(logger, set, idpsync.SyncSettings{
 			OrganizationField:         vals.OIDC.OrganizationField.Value(),
 			OrganizationMapping:       vals.OIDC.OrganizationMapping.Value,
 			OrganizationAssignDefault: vals.OIDC.OrganizationAssignDefault.Value(),

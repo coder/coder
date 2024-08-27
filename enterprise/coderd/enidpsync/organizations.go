@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.OrganizationParams, *idpsync.HttpError) {
+func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.OrganizationParams, *idpsync.HTTPError) {
 	if !e.entitlements.Enabled(codersdk.FeatureMultipleOrganizations) {
 		// Default to agpl if multi-org is not enabled
 		return e.AGPLIDPSync.ParseOrganizationClaims(ctx, mergedClaims)
@@ -30,7 +30,7 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 		if ok {
 			parsedOrganizations, err := idpsync.ParseStringSliceClaim(organizationRaw)
 			if err != nil {
-				return idpsync.OrganizationParams{}, &idpsync.HttpError{
+				return idpsync.OrganizationParams{}, &idpsync.HTTPError{
 					Code:                 http.StatusBadRequest,
 					Msg:                  "Failed to sync organizations from the OIDC claims",
 					Detail:               err.Error(),

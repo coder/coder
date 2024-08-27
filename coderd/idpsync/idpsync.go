@@ -23,14 +23,14 @@ import (
 // So instead, if the code is compiled with the enterprise logic, it will
 // override this function to return the enterprise IDP sync object.
 // For unit testing, the callers can specifically choose which "NewSync" to use.
-var NewSync = func(logger slog.Logger, entitlements *entitlements.Set, settings SyncSettings) IDPSync {
-	return NewAGPLSync(logger, entitlements, settings)
+var NewSync = func(logger slog.Logger, set *entitlements.Set, settings SyncSettings) IDPSync {
+	return NewAGPLSync(logger, set, settings)
 }
 
 type IDPSync interface {
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
-	ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HttpError)
+	ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HTTPError)
 	// SyncOrganizations assigns and removed users from organizations based on the
 	// provided params.
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
@@ -111,10 +111,10 @@ func ParseStringSliceClaim(claim interface{}) ([]string, error) {
 	return nil, xerrors.Errorf("invalid claim type. Expected an array of strings, got: %T", claim)
 }
 
-// HttpError is a helper struct for returning errors from the IDP sync process.
+// HTTPError is a helper struct for returning errors from the IDP sync process.
 // A regular error is not sufficient because many of these errors are surfaced
 // to a user logging in, and the errors should be descriptive.
-type HttpError struct {
+type HTTPError struct {
 	Code                 int
 	Msg                  string
 	Detail               string
@@ -122,7 +122,7 @@ type HttpError struct {
 	RenderDetailMarkdown bool
 }
 
-func (e HttpError) Write(rw http.ResponseWriter, r *http.Request) {
+func (e HTTPError) Write(rw http.ResponseWriter, r *http.Request) {
 	if e.RenderStaticPage {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:       e.Code,
@@ -142,7 +142,7 @@ func (e HttpError) Write(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (e HttpError) Error() string {
+func (e HTTPError) Error() string {
 	if e.Detail != "" {
 		return e.Detail
 	}

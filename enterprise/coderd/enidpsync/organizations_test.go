@@ -1,4 +1,4 @@
-package enidpsync
+package enidpsync_test
 
 import (
 	"context"
@@ -32,7 +32,7 @@ type Expectations struct {
 	Name   string
 	Claims jwt.MapClaims
 	// Parse
-	ParseError     func(t *testing.T, httpErr *idpsync.HttpError)
+	ParseError     func(t *testing.T, httpErr *idpsync.HTTPError)
 	ExpectedParams idpsync.OrganizationParams
 	// Mutate allows mutating the user before syncing
 	Mutate func(t *testing.T, db database.Store, user database.User)
@@ -235,7 +235,7 @@ func TestOrganizationSync(t *testing.T) {
 			}
 
 			// Create a new sync object
-			sync := NewSync(logger, caseData.Entitlements, caseData.Settings)
+			sync := idpsync.NewSync(logger, caseData.Entitlements, caseData.Settings)
 			for _, exp := range caseData.Exps {
 				t.Run(exp.Name, func(t *testing.T) {
 					params, httpErr := sync.ParseOrganizationClaims(ctx, exp.Claims)

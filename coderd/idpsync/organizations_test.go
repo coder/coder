@@ -1,4 +1,4 @@
-package idpsync
+package idpsync_test
 
 import (
 	"testing"
@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -18,7 +19,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 	t.Run("SingleOrgDeployment", func(t *testing.T) {
 		t.Parallel()
 
-		s := NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), entitlements.New(), SyncSettings{
+		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), entitlements.New(), idpsync.SyncSettings{
 			OrganizationField:         "",
 			OrganizationMapping:       nil,
 			OrganizationAssignDefault: true,
@@ -38,7 +39,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 		t.Parallel()
 
 		// AGPL has limited behavior
-		s := NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), entitlements.New(), SyncSettings{
+		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), entitlements.New(), idpsync.SyncSettings{
 			OrganizationField: "orgs",
 			OrganizationMapping: map[string][]uuid.UUID{
 				"random": {uuid.New()},

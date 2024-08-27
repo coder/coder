@@ -16,10 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-func (s AGPLIDPSync) ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HttpError) {
-	// nolint:gocritic // all syncing is done as a system user
-	ctx = dbauthz.AsSystemRestricted(ctx)
-
+func (s AGPLIDPSync) ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HTTPError) {
 	// For AGPL we only sync the default organization.
 	return OrganizationParams{
 		SyncEnabled:    false,
