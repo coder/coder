@@ -179,14 +179,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		defer cancel()
 
 		// given
-		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, tmpl, tv, now.Add(-8*24*time.Hour), t.Name())
-
-		// Make sure that agent logs have been collected.
-		agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-			AgentID: agent,
-		})
-		require.NoError(t, err)
-		require.NotZero(t, agentLogs, "agent logs must be present")
+		agent1 := mustCreateAgentWithLogs(ctx, t, db, user, org, tmpl, tv, now.Add(-8*24*time.Hour), t.Name()+"-1")
 
 		// when
 		closer := dbpurge.New(ctx, logger, db)
@@ -194,16 +187,16 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 
 		// then
 		assert.Eventually(t, func() bool {
-			agentLogs, err = db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-				AgentID: agent,
+			agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+				AgentID: agent1,
 			})
 			if err != nil {
 				return false
 			}
+			assert.NoError(t, err)
+			assert.NotContains(t, agentLogs, t.Name())
 			return !containsAgentLog(agentLogs, t.Name())
 		}, testutil.WaitShort, testutil.IntervalFast)
-		require.NoError(t, err)
-		require.NotContains(t, agentLogs, t.Name())
 	})
 
 	//nolint:paralleltest // It uses LockIDDBPurge.
@@ -246,6 +239,12 @@ func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Stor
 		Level:     []database.LogLevel{database.LogLevelDebug},
 	})
 	require.NoError(t, err)
+	// Make sure that agent logs have been collected.
+	agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+		AgentID: agent.ID,
+	})
+	require.NoError(t, err)
+	require.NotZero(t, agentLogs, "agent logs must be present")
 	return agent.ID
 }
 
@@ -268,6 +267,7 @@ func mustCreateAgent(t *testing.T, db database.Store, user database.User, org da
 		JobID:      job.ID,
 		Transition: database.WorkspaceTransitionStart,
 	})
+
 	return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: resource.ID,
 	})
