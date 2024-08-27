@@ -1546,6 +1546,31 @@ when required by your organization's security policy.`,
 			YAML:        "ignoreUserInfo",
 		},
 		{
+			Name: "OIDC Organization Field",
+			Description: "This field must be set if using the organization sync feature." +
+				" Set to the claim to be used for organizations.",
+			Flag: "oidc-organization-field",
+			Env:  "CODER_OIDC_ORGANIZATION_FIELD",
+			// Empty value means sync is disabled
+			Default: "",
+			Value:   &c.OIDC.OrganizationField,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "organizationField",
+		},
+		{
+			Name: "OIDC Assign Default Organization",
+			Description: "If set to true, users will always be added to the default organization. " +
+				"If organization sync is enabled, then the default org is always added to the user's set of expected" +
+				"organizations.",
+			Flag: "oidc-organization-assign-default",
+			Env:  "CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT",
+			// Single org deployments should always have this enabled.
+			Default: "true",
+			Value:   &c.OIDC.OrganizationAssignDefault,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "organizationAssignDefault",
+		},
+		{
 			Name:        "OIDC Group Field",
 			Description: "This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.",
 			Flag:        "oidc-group-field",

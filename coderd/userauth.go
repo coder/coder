@@ -742,9 +742,6 @@ type OIDCConfig struct {
 	// support the userinfo endpoint, or if the userinfo endpoint causes
 	// undesirable behavior.
 	IgnoreUserInfo bool
-	// IDPSync contains all the configuration for syncing user information
-	// from the external IDP.
-	IDPSync idpsync.IDPSync
 
 	// TODO: Move all idp fields into the IDPSync struct
 	// GroupField selects the claim field to be used as the created user's
@@ -1030,7 +1027,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgSync, orgSyncErr := api.OIDCConfig.IDPSync.ParseOrganizationClaims(ctx, mergedClaims)
+	orgSync, orgSyncErr := api.IDPSync.ParseOrganizationClaims(ctx, mergedClaims)
 	if orgSyncErr != nil {
 		orgSyncErr.Write(rw, r)
 		return
@@ -1491,9 +1488,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 		}
 
-		// Only OIDC really supports syncing like this. At some point, we might
-		// want to move this configuration and allow github to allow do org syncing.
-		err = api.OIDCConfig.IDPSync.SyncOrganizations(ctx, tx, user, params.OrganizationSync)
+		err = api.IDPSync.SyncOrganizations(ctx, tx, user, params.OrganizationSync)
 		if err != nil {
 			return xerrors.Errorf("sync organizations: %w", err)
 		}

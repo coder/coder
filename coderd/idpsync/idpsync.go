@@ -11,21 +11,10 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
-
-// NewSync is a factory function for creating an IDP sync object.
-// Due to the way we instantiate Coder, there is no way for the enterprise
-// cli wrapper to pass in the enterprise IDP sync object.
-// So instead, if the code is compiled with the enterprise logic, it will
-// override this function to return the enterprise IDP sync object.
-// For unit testing, the callers can specifically choose which "NewSync" to use.
-var NewSync = func(logger slog.Logger, set *entitlements.Set, settings SyncSettings) IDPSync {
-	return NewAGPLSync(logger, set, settings)
-}
 
 type IDPSync interface {
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
@@ -57,7 +46,7 @@ type SyncSettings struct {
 	OrganizationAssignDefault bool
 }
 
-func NewAGPLSync(logger slog.Logger, _ *entitlements.Set, settings SyncSettings) *AGPLIDPSync {
+func NewAGPLSync(logger slog.Logger, settings SyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
 		Logger:       logger.Named("idp-sync"),
 		SyncSettings: settings,
