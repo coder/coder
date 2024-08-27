@@ -2491,12 +2491,13 @@ export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	budget: 100,
 };
 
-export const MockGroup: TypesGen.Group = {
+export const MockGroup: TypesGen.GroupWithOrganizationInfo = {
 	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
 	name: "Front-End",
 	display_name: "Front-End",
 	avatar_url: "https://example.com",
 	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
 	organization_display_name: MockOrganization.display_name,
 	members: [MockUser, MockUser2],
 	quota_allowance: 5,
@@ -2504,22 +2505,21 @@ export const MockGroup: TypesGen.Group = {
 	total_member_count: 2,
 };
 
-const everyOneGroup = (organizationId: string): TypesGen.Group => ({
-	id: organizationId,
+const MockEveryoneGroup: TypesGen.Group = {
+	id: `${MockOrganization.id}-everyone`,
 	name: "Everyone",
 	display_name: "",
-	organization_id: organizationId,
-	organization_display_name: "",
+	organization_id: MockOrganization.id,
 	members: [],
 	avatar_url: "",
 	quota_allowance: 0,
 	source: "user",
 	total_member_count: 0,
-});
+};
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
-		{ ...everyOneGroup(MockOrganization.id), role: "use" },
+		{ ...MockEveryoneGroup, role: "use" },
 		{ ...MockGroup, role: "admin" },
 	],
 	users: [{ ...MockUser, role: "use" }],
