@@ -146,12 +146,6 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 	);
 };
 
-interface ActionCheckboxesProps {
-	permissions: readonly Permission[] | undefined;
-	form: ReturnType<typeof useFormik<Role>> & { values: Role };
-	allResources: boolean;
-}
-
 const ResourceActionComparator = (
 	p: Permission,
 	resource: string,
@@ -160,6 +154,7 @@ const ResourceActionComparator = (
 	p.resource_type === resource &&
 	(p.action.toString() === "*" || p.action === action);
 
+// the subset of resources that are useful for most users
 const DEFAULT_RESOURCES = [
 	"audit_log",
 	"group",
@@ -177,6 +172,12 @@ const filteredRBACResourceActions = Object.fromEntries(
 	),
 );
 
+interface ActionCheckboxesProps {
+	permissions: readonly Permission[];
+	form: ReturnType<typeof useFormik<Role>> & { values: Role };
+	allResources: boolean;
+}
+
 const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	permissions,
 	form,
@@ -184,6 +185,10 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 }) => {
 	const [checkedActions, setCheckActions] = useState(permissions);
 	const [showAllResources, setShowAllResources] = useState(allResources);
+
+	const resourceActions = showAllResources
+		? RBACResourceActions
+		: filteredRBACResourceActions;
 
 	const handleActionCheckChange = async (
 		e: ChangeEvent<HTMLInputElement>,
@@ -194,7 +199,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 
 		const newPermissions = checked
 			? [
-					...(checkedActions ?? []),
+					...checkedActions,
 					{
 						negate: false,
 						resource_type: resource_type as RBACResource,
@@ -209,9 +214,36 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 		await form.setFieldValue("organization_permissions", newPermissions);
 	};
 
-	const resourceActions = showAllResources
-		? RBACResourceActions
-		: filteredRBACResourceActions;
+	const handleResourceCheckChange = async (
+		e: ChangeEvent<HTMLInputElement>,
+		form: ReturnType<typeof useFormik<Role>> & { values: Role },
+		indeterminate: boolean,
+	) => {
+		const { name, checked } = e.currentTarget;
+		const resource = name as RBACResource;
+
+		const resourceActionsForResource = resourceActions[resource] || {};
+
+		const newCheckedActions =
+			!checked || indeterminate
+				? checkedActions?.filter((p) => p.resource_type !== resource)
+				: checkedActions;
+
+		const newPermissions =
+			checked || indeterminate
+				? [
+						...newCheckedActions,
+						...Object.keys(resourceActionsForResource).map((resourceKey) => ({
+							negate: false,
+							resource_type: resource as RBACResource,
+							action: resourceKey as RBACAction,
+						})),
+					]
+				: [...newCheckedActions];
+
+		setCheckActions(newPermissions);
+		await form.setFieldValue("organization_permissions", newPermissions);
+	};
 
 	return (
 		<TableContainer>
@@ -233,36 +265,17 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 				<TableBody>
 					{Object.entries(resourceActions).map(([resourceKey, value]) => {
 						return (
-							<TableRow key={resourceKey}>
-								<TableCell sx={{ paddingLeft: 2 }} colSpan={2}>
-									<li key={resourceKey} css={styles.checkBoxes}>
-										{resourceKey}
-										<ul css={styles.checkBoxes}>
-											{Object.entries(value).map(([actionKey, value]) => (
-												<li key={actionKey}>
-													<span css={styles.actionText}>
-														<Checkbox
-															size="small"
-															name={`${resourceKey}:${actionKey}`}
-															checked={checkedActions?.some((p) =>
-																ResourceActionComparator(
-																	p,
-																	resourceKey,
-																	actionKey,
-																),
-															)}
-															onChange={(e) => handleActionCheckChange(e, form)}
-														/>
-														{actionKey}
-													</span>{" "}
-													&ndash;{" "}
-													<span css={styles.actionDescription}>{value}</span>
-												</li>
-											))}
-										</ul>
-									</li>
-								</TableCell>
-							</TableRow>
+							<PermissionCheckboxGroup
+								key={resourceKey}
+								checkedActions={checkedActions?.filter(
+									(a) => a.resource_type === resourceKey,
+								)}
+								resourceKey={resourceKey}
+								value={value}
+								form={form}
+								handleActionCheckChange={handleActionCheckChange}
+								handleResourceCheckChange={handleResourceCheckChange}
+							/>
 						);
 					})}
 				</TableBody>
@@ -282,6 +295,76 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 				</TableFooter>
 			</Table>
 		</TableContainer>
+	);
+};
+
+interface PermissionCheckboxGroupProps {
+	checkedActions: readonly Permission[];
+	resourceKey: string;
+	value: Partial<Record<RBACAction, string>>;
+	form: ReturnType<typeof useFormik<Role>> & { values: Role };
+	handleActionCheckChange: (
+		e: ChangeEvent<HTMLInputElement>,
+		form: ReturnType<typeof useFormik<Role>> & { values: Role },
+	) => Promise<void>;
+	handleResourceCheckChange: (
+		e: ChangeEvent<HTMLInputElement>,
+		form: ReturnType<typeof useFormik<Role>> & { values: Role },
+		indeterminate: boolean,
+	) => Promise<void>;
+}
+
+const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
+	checkedActions,
+	resourceKey,
+	value,
+	form,
+	handleActionCheckChange,
+	handleResourceCheckChange,
+}) => {
+	return (
+		<TableRow key={resourceKey}>
+			<TableCell sx={{ paddingLeft: 2 }} colSpan={2}>
+				<li key={resourceKey} css={styles.checkBoxes}>
+					<Checkbox
+						size="small"
+						name={`${resourceKey}`}
+						checked={checkedActions.length === Object.keys(value).length}
+						indeterminate={
+							checkedActions.length > 0 &&
+							checkedActions.length < Object.keys(value).length
+						}
+						onChange={(e) =>
+							handleResourceCheckChange(
+								e,
+								form,
+								checkedActions.length > 0 &&
+									checkedActions.length < Object.keys(value).length,
+							)
+						}
+					/>
+					{resourceKey}
+					<ul css={styles.checkBoxes}>
+						{Object.entries(value).map(([actionKey, value]) => (
+							<li key={actionKey}>
+								<span css={styles.actionText}>
+									<Checkbox
+										size="small"
+										name={`${resourceKey}:${actionKey}`}
+										checked={checkedActions.some((p) =>
+											ResourceActionComparator(p, resourceKey, actionKey),
+										)}
+										onChange={(e) => handleActionCheckChange(e, form)}
+									/>
+									{actionKey}
+								</span>{" "}
+								&ndash; <span css={styles.actionDescription}>{value}</span>
+							</li>
+						))}
+					</ul>
+				</li>
+			</TableCell>
+		</TableRow>
 	);
 };
 
