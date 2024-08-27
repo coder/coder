@@ -10,6 +10,8 @@ curl http://127.0.0.1:2113/debug/logs
 
 `GET /debug/logs`
 
+Get the first 10MiB of data from `$CODER_AGENT_LOG_DIR/coder-agent.log`.
+
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema |
@@ -26,11 +28,8 @@ curl http://127.0.0.1:2113/debug/magicsock
 
 `GET /debug/magicsock`
 
-### Responses
-
 See
-[Tailscale's documentation](https://pkg.go.dev/tailscale.com/wgengine/magicsock#Conn.ServeHTTPDebug)
-for response format.
+[Tailscale's documentation](https://pkg.go.dev/tailscale.com/wgengine/magicsock#Conn.ServeHTTPDebug).
 
 ## Toggle debug logging for magicsock
 
@@ -41,6 +40,10 @@ curl http://127.0.0.1:2113/debug/magicsock/debug-logging/true
 ```
 
 `GET /debug/magicsock/debug-logging/{state}`
+
+Set whether debug logging is enabled. See
+[Tailscale's documentation](https://pkg.go.dev/tailscale.com/wgengine/magicsock#Conn.SetDebugLoggingEnabled)
+for more information.
 
 ### Parameters
 
@@ -63,6 +66,8 @@ curl http://127.0.0.1:2113/debug/manifest
 ```
 
 `GET /debug/manifest`
+
+Get the manifest the agent fetched from `coderd` upon startup.
 
 ### Responses
 
