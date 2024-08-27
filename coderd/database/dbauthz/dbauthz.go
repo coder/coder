@@ -1144,11 +1144,11 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return q.db.DeleteOldProvisionerDaemons(ctx)
 }
 
-func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
+func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteOldWorkspaceAgentLogs(ctx)
+	return q.db.DeleteOldWorkspaceAgentLogs(ctx, threshold)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {

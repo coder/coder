@@ -501,17 +501,17 @@ func (mr *MockStoreMockRecorder) DeleteOldProvisionerDaemons(arg0 any) *gomock.C
 }
 
 // DeleteOldWorkspaceAgentLogs mocks base method.
-func (m *MockStore) DeleteOldWorkspaceAgentLogs(arg0 context.Context) error {
+func (m *MockStore) DeleteOldWorkspaceAgentLogs(arg0 context.Context, arg1 time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldWorkspaceAgentLogs", arg0)
+	ret := m.ctrl.Call(m, "DeleteOldWorkspaceAgentLogs", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteOldWorkspaceAgentLogs indicates an expected call of DeleteOldWorkspaceAgentLogs.
-func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentLogs(arg0 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentLogs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceAgentLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceAgentLogs), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceAgentLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceAgentLogs), arg0, arg1)
 }
 
 // DeleteOldWorkspaceAgentStats mocks base method.

@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	delay = 10 * time.Minute
+	delay          = 10 * time.Minute
+	maxAgentLogAge = 7 * 24 * time.Hour
 )
 
 // New creates a new periodically purging database instance.
@@ -31,10 +32,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 	// Use time.Nanosecond to force an initial tick. It will be reset to the
 	// correct duration after executing once.
 	ticker := time.NewTicker(time.Nanosecond)
-	doTick := func() {
+	doTick := func(start time.Time) {
 		defer ticker.Reset(delay)
 
-		start := time.Now()
 		// Start a transaction to grab advisory lock, we don't want to run
 		// multiple purges at the same time (multiple replicas).
 		if err := db.InTx(func(tx database.Store) error {
@@ -49,7 +49,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 				return nil
 			}
 
-			if err := tx.DeleteOldWorkspaceAgentLogs(ctx); err != nil {
+			if err := tx.DeleteOldWorkspaceAgentLogs(ctx, start.Add(-maxAgentLogAge)); err != nil {
 				return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
 			}
 			if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
@@ -78,9 +78,12 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case now, ok := <-ticker.C:
+				if !ok {
+					return
+				}
 				ticker.Stop()
-				doTick()
+				doTick(now)
 			}
 		}
 	}()

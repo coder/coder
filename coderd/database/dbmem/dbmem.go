@@ -1706,19 +1706,15 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context) error {
+func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context, threshold time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-
-	now := dbtime.Now()
-	weekInterval := 7 * 24 * time.Hour
-	weekAgo := now.Add(-weekInterval)
 
 	var validLogs []database.WorkspaceAgentLog
 	for _, log := range q.workspaceAgentLogs {
 		var toBeDeleted bool
 		for _, agent := range q.workspaceAgents {
-			if agent.ID == log.AgentID && agent.LastConnectedAt.Valid && agent.LastConnectedAt.Time.Before(weekAgo) {
+			if agent.ID == log.AgentID && agent.LastConnectedAt.Valid && agent.LastConnectedAt.Time.Before(threshold) {
 				toBeDeleted = true
 				break
 			}

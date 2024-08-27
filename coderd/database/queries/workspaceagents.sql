@@ -192,7 +192,7 @@ SELECT * FROM workspace_agent_log_sources WHERE workspace_agent_id = ANY(@ids ::
 -- name: DeleteOldWorkspaceAgentLogs :exec
 DELETE FROM workspace_agent_logs WHERE agent_id IN
 	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
-		AND last_connected_at < NOW() - INTERVAL '7 day');
+		AND last_connected_at < @threshold :: timestamptz);
 
 -- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
 SELECT

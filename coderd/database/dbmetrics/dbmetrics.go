@@ -305,9 +305,9 @@ func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return r0
 }
 
-func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
+func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, arg time.Time) error {
 	start := time.Now()
-	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx)
+	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
 	return r0
 }
