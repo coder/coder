@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -1143,12 +1144,36 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) ([]database.GetUsersRow,
 	database.Template, database.TemplateVersion, database.User, error,
 ) {
-	templateAdmins, err := s.Database.GetUsers(ctx, database.GetUsersParams{
+	users, err := s.Database.GetUsers(ctx, database.GetUsersParams{
 		RbacRole: []string{codersdk.RoleTemplateAdmin},
 	})
 	if err != nil {
 		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch template admins: %w", err)
 	}
+
+	usersByIDs := map[uuid.UUID]database.GetUsersRow{}
+	var userIDs []uuid.UUID
+	for _, user := range users {
+		usersByIDs[user.ID] = user
+		userIDs = append(userIDs, user.ID)
+	}
+
+	var templateAdmins []database.GetUsersRow
+	if len(userIDs) > 0 {
+		orgIDsByMemberIDs, err := s.Database.GetOrganizationIDsByMemberIDs(ctx, userIDs)
+		if err != nil {
+			return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch organization IDs by member IDs: %w", err)
+		}
+
+		for _, entry := range orgIDsByMemberIDs {
+			if slices.Contains(entry.OrganizationIDs, workspace.OrganizationID) {
+				templateAdmins = append(templateAdmins, usersByIDs[entry.UserID])
+			}
+		}
+	}
+	sort.Slice(templateAdmins, func(i, j int) bool {
+		return templateAdmins[i].Username < templateAdmins[j].Username
+	})
 
 	template, err := s.Database.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {

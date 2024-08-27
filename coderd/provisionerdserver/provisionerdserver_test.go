@@ -1814,7 +1814,10 @@ func TestNotifications(t *testing.T) {
 		srv, db, ps, pd := setup(t, true /* ignoreLogErrors */, &overrides{notificationEnqueuer: notifEnq})
 
 		templateAdmin := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
+		_ /* other template admin, should not receive notification */ = dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: templateAdmin.ID, OrganizationID: pd.OrganizationID})
 		user := dbgen.User(t, db, database.User{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: pd.OrganizationID})
 
 		template := dbgen.Template(t, db, database.Template{
 			Name: "template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
