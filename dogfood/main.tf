@@ -9,11 +9,6 @@ terraform {
   }
 }
 
-import {
-  to = coderd_template.dogfood
-  id = "0d286645-29aa-4eaf-9b52-cc5d2740c90b"
-}
-
 data "coderd_organization" "default" {
   is_default = true
 }
