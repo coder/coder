@@ -1116,29 +1116,9 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 }
 
 func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
-	templateAdmins, err := s.Database.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleTemplateAdmin},
-	})
+	templateAdmins, template, templateVersion, workspaceOwner, err := s.prepareForNotifyWorkspaceManualBuildFailed(ctx, workspace, build)
 	if err != nil {
-		s.Logger.Error(ctx, "unable to fetch template admins", slog.Error(err))
-		return
-	}
-
-	template, err := s.Database.GetTemplateByID(ctx, workspace.TemplateID)
-	if err != nil {
-		s.Logger.Error(ctx, "unable to fetch template", slog.Error(err))
-		return
-	}
-
-	templateVersion, err := s.Database.GetTemplateVersionByID(ctx, build.TemplateVersionID)
-	if err != nil {
-		s.Logger.Error(ctx, "unable to fetch template version", slog.Error(err))
-		return
-	}
-
-	workspaceOwner, err := s.Database.GetUserByID(ctx, workspace.OwnerID)
-	if err != nil {
-		s.Logger.Error(ctx, "unable to fetch workspace owner", slog.Error(err))
+		s.Logger.Error(ctx, "unable to collect data for manual build failed notification", slog.Error(err))
 		return
 	}
 
@@ -1158,6 +1138,32 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 			s.Logger.Warn(ctx, "failed to notify of failed workspace manual build", slog.Error(err))
 		}
 	}
+}
+
+func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) ([]database.GetUsersRow,
+	database.Template, database.TemplateVersion, database.User, error) {
+	templateAdmins, err := s.Database.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
+	})
+	if err != nil {
+		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch template admins: %w", err)
+	}
+
+	template, err := s.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch template: %w", err)
+	}
+
+	templateVersion, err := s.Database.GetTemplateVersionByID(ctx, build.TemplateVersionID)
+	if err != nil {
+		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch template version: %w", err)
+	}
+
+	workspaceOwner, err := s.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch workspace owner: %w", err)
+	}
+	return templateAdmins, template, templateVersion, workspaceOwner, nil
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
