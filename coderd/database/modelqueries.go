@@ -167,7 +167,7 @@ func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]
 	WHERE
 		users.deleted = false
 	AND
-		users.status = 'active';
+		users.status != 'suspended';
 	`
 
 	var tus []TemplateUser
