@@ -2,6 +2,7 @@ import { API } from "api/api";
 import type {
 	CreateGroupRequest,
 	Group,
+	GroupWithOrganizationInfo,
 	PatchGroupRequest,
 } from "api/typesGenerated";
 import type { QueryClient, UseQueryOptions } from "react-query";
@@ -14,7 +15,7 @@ export const groups = () => {
 	return {
 		queryKey: groupsQueryKey,
 		queryFn: () => API.getGroups(),
-	} satisfies UseQueryOptions<Group[]>;
+	} satisfies UseQueryOptions<GroupWithOrganizationInfo[]>;
 };
 
 export const groupsByOrganization = (organization: string) => {
@@ -76,7 +77,11 @@ export function groupsForUser(userId: string) {
 
 			return sortGroupsByName(groupsForUser, "asc");
 		},
-	} as const satisfies UseQueryOptions<Group[], unknown, readonly Group[]>;
+	} as const satisfies UseQueryOptions<
+		GroupWithOrganizationInfo[],
+		unknown,
+		readonly GroupWithOrganizationInfo[]
+	>;
 }
 
 export const groupPermissionsKey = (groupId: string) => [
@@ -163,8 +168,8 @@ export const invalidateGroup = (
 		queryClient.invalidateQueries(getGroupQueryKey(organization, groupId)),
 	]);
 
-export function sortGroupsByName(
-	groups: readonly Group[],
+export function sortGroupsByName<T extends Group>(
+	groups: readonly T[],
 	order: GroupSortOrder,
 ) {
 	return [...groups].sort((g1, g2) => {

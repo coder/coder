@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import type { Group } from "api/typesGenerated";
 import {
 	MockGroup as MockGroup1,
 	MockUser,
@@ -7,7 +6,7 @@ import {
 } from "testHelpers/entities";
 import { AccountUserGroups } from "./AccountUserGroups";
 
-const MockGroup2: Group = {
+const MockGroup2 = {
 	...MockGroup1,
 	avatar_url: "",
 	display_name: "Goofy Goobers",

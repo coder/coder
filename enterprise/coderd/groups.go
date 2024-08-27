@@ -408,7 +408,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization query string true "Organization ID or name"
 // @Param has_member query string true "User ID or name"
-// @Success 200 {array} codersdk.Group
+// @Success 200 {array} codersdk.GroupWithOrganizationInfo
 // @Router /groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
