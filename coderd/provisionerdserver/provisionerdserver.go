@@ -1141,6 +1141,9 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 	}
 }
 
+// prepareForNotifyWorkspaceManualBuildFailed collects data required to build notifications for template admins.
+// The template `notifications.TemplateWorkspaceManualBuildFailed` is quite detailed as it requires information about the template,
+// template version, workspace, workspace build, etc.
 func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) ([]database.GetUsersRow,
 	database.Template, database.TemplateVersion, database.User, error,
 ) {
