@@ -41,7 +41,6 @@ import (
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/site"
 )
 
 const (
@@ -665,7 +664,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	})
 	cookies, user, key, err := api.oauthLogin(r, params)
 	defer params.CommitAuditLogs()
-	var httpErr httpError
+	var httpErr idpsync.HttpError
 	if xerrors.As(err, &httpErr) {
 		httpErr.Write(rw, r)
 		return
@@ -1065,7 +1064,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	})
 	cookies, user, key, err := api.oauthLogin(r, params)
 	defer params.CommitAuditLogs()
-	var httpErr httpError
+	var httpErr idpsync.HttpError
 	if xerrors.As(err, &httpErr) {
 		httpErr.Write(rw, r)
 		return
@@ -1093,7 +1092,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 }
 
 // oidcGroups returns the groups for the user from the OIDC claims.
-func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interface{}) (bool, []string, *httpError) {
+func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interface{}) (bool, []string, *idpsync.HttpError) {
 	logger := api.Logger.Named(userAuthLoggerName)
 	usingGroups := false
 	var groups []string
@@ -1114,11 +1113,11 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
 					slog.Error(err),
 				)
-				return false, nil, &httpError{
-					code:             http.StatusBadRequest,
-					msg:              "Failed to sync groups from OIDC claims",
-					detail:           err.Error(),
-					renderStaticPage: false,
+				return false, nil, &idpsync.HttpError{
+					Code:             http.StatusBadRequest,
+					Msg:              "Failed to sync groups from OIDC claims",
+					Detail:           err.Error(),
+					RenderStaticPage: false,
 				}
 			}
 
@@ -1147,11 +1146,11 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 			if len(groups) == 0 {
 				detail = "You are currently not a member of any groups! Ask an administrator to add you to an authorized group to login."
 			}
-			return usingGroups, groups, &httpError{
-				code:             http.StatusForbidden,
-				msg:              "Not a member of an allowed group",
-				detail:           detail,
-				renderStaticPage: true,
+			return usingGroups, groups, &idpsync.HttpError{
+				Code:             http.StatusForbidden,
+				Msg:              "Not a member of an allowed group",
+				Detail:           detail,
+				RenderStaticPage: true,
 			}
 		}
 	}
@@ -1171,7 +1170,7 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 // It would be preferred to just return an error, however this function
 // decorates returned errors with the appropriate HTTP status codes and details
 // that are hard to carry in a standard `error` without more work.
-func (api *API) oidcRoles(ctx context.Context, mergedClaims map[string]interface{}) ([]string, *httpError) {
+func (api *API) oidcRoles(ctx context.Context, mergedClaims map[string]interface{}) ([]string, *idpsync.HttpError) {
 	roles := api.OIDCConfig.UserRolesDefault
 	if !api.OIDCConfig.RoleSyncEnabled() {
 		return roles, nil
@@ -1193,11 +1192,11 @@ func (api *API) oidcRoles(ctx context.Context, mergedClaims map[string]interface
 			slog.F("type", fmt.Sprintf("%T", rolesRow)),
 			slog.Error(err),
 		)
-		return nil, &httpError{
-			code:             http.StatusInternalServerError,
-			msg:              "Login disabled until OIDC config is fixed",
-			detail:           fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
-			renderStaticPage: false,
+		return nil, &idpsync.HttpError{
+			Code:             http.StatusInternalServerError,
+			Msg:              "Login disabled until OIDC config is fixed",
+			Detail:           fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
+			RenderStaticPage: false,
 		}
 	}
 
@@ -1318,43 +1317,6 @@ func (p *oauthLoginParams) CommitAuditLogs() {
 	}
 }
 
-type httpError struct {
-	code             int
-	msg              string
-	detail           string
-	renderStaticPage bool
-
-	renderDetailMarkdown bool
-}
-
-func (e httpError) Write(rw http.ResponseWriter, r *http.Request) {
-	if e.renderStaticPage {
-		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       e.code,
-			HideStatus:   true,
-			Title:        e.msg,
-			Description:  e.detail,
-			RetryEnabled: false,
-			DashboardURL: "/login",
-
-			RenderDescriptionMarkdown: e.renderDetailMarkdown,
-		})
-		return
-	}
-	httpapi.Write(r.Context(), rw, e.code, codersdk.Response{
-		Message: e.msg,
-		Detail:  e.detail,
-	})
-}
-
-func (e httpError) Error() string {
-	if e.detail != "" {
-		return e.detail
-	}
-
-	return e.msg
-}
-
 func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.User, database.APIKey, error) {
 	var (
 		ctx     = r.Context()
@@ -1391,13 +1353,12 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			if api.OIDCConfig != nil && api.OIDCConfig.SignupsDisabledText != "" {
 				signupsDisabledText = render.HTMLFromMarkdown(api.OIDCConfig.SignupsDisabledText)
 			}
-			return httpError{
-				code:             http.StatusForbidden,
-				msg:              "Signups are disabled",
-				detail:           signupsDisabledText,
-				renderStaticPage: true,
-
-				renderDetailMarkdown: true,
+			return &idpsync.HttpError{
+				Code:                 http.StatusForbidden,
+				Msg:                  "Signups are disabled",
+				Detail:               signupsDisabledText,
+				RenderStaticPage:     true,
+				RenderDetailMarkdown: true,
 			}
 		}
 
@@ -1443,9 +1404,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 					}
 				}
 				if !validUsername {
-					return httpError{
-						code: http.StatusConflict,
-						msg:  fmt.Sprintf("exhausted alternatives for taken username %q", original),
+					return &idpsync.HttpError{
+						Code: http.StatusConflict,
+						Msg:  fmt.Sprintf("exhausted alternatives for taken username %q", original),
 					}
 				}
 			}
@@ -1586,11 +1547,11 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			//nolint:gocritic
 			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, filtered)
 			if err != nil {
-				return httpError{
-					code:             http.StatusBadRequest,
-					msg:              "Invalid roles through OIDC claims",
-					detail:           fmt.Sprintf("Error from role assignment attempt: %s", err.Error()),
-					renderStaticPage: true,
+				return &idpsync.HttpError{
+					Code:             http.StatusBadRequest,
+					Msg:              "Invalid roles through OIDC claims",
+					Detail:           fmt.Sprintf("Error from role assignment attempt: %s", err.Error()),
+					RenderStaticPage: true,
 				}
 			}
 			if len(ignored) > 0 {
@@ -1701,17 +1662,17 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// Trying to convert to OIDC, but the email does not match.
 	// So do not make a new user, just block the request.
 	if user.ID == uuid.Nil {
-		return database.User{}, httpError{
-			code: http.StatusBadRequest,
-			msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
+		return database.User{}, idpsync.HttpError{
+			Code: http.StatusBadRequest,
+			Msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
 		}
 	}
 
 	jwtCookie, err := r.Cookie(OAuthConvertCookieValue)
 	if err != nil {
-		return database.User{}, httpError{
-			code: http.StatusBadRequest,
-			msg: fmt.Sprintf("Convert to oauth cookie not found. Missing signed jwt to authorize this action. " +
+		return database.User{}, idpsync.HttpError{
+			Code: http.StatusBadRequest,
+			Msg: fmt.Sprintf("Convert to oauth cookie not found. Missing signed jwt to authorize this action. " +
 				"Please try again."),
 		}
 	}
@@ -1721,15 +1682,15 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	})
 	if xerrors.Is(err, jwt.ErrSignatureInvalid) || !token.Valid {
 		// These errors are probably because the user is mixing 2 coder deployments.
-		return database.User{}, httpError{
-			code: http.StatusBadRequest,
-			msg:  "Using an invalid jwt to authorize this action. Ensure there is only 1 coder deployment and try again.",
+		return database.User{}, idpsync.HttpError{
+			Code: http.StatusBadRequest,
+			Msg:  "Using an invalid jwt to authorize this action. Ensure there is only 1 coder deployment and try again.",
 		}
 	}
 	if err != nil {
-		return database.User{}, httpError{
-			code: http.StatusInternalServerError,
-			msg:  fmt.Sprintf("Error parsing jwt: %v", err),
+		return database.User{}, idpsync.HttpError{
+			Code: http.StatusInternalServerError,
+			Msg:  fmt.Sprintf("Error parsing jwt: %v", err),
 		}
 	}
 
@@ -1749,16 +1710,16 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	oauthConvertAudit.Old = user
 
 	if claims.RegisteredClaims.Issuer != api.DeploymentID {
-		return database.User{}, httpError{
-			code: http.StatusForbidden,
-			msg:  "Request to convert login type failed. Issuer mismatch. Found a cookie from another coder deployment, please try again.",
+		return database.User{}, idpsync.HttpError{
+			Code: http.StatusForbidden,
+			Msg:  "Request to convert login type failed. Issuer mismatch. Found a cookie from another coder deployment, please try again.",
 		}
 	}
 
 	if params.State.StateString != claims.State {
-		return database.User{}, httpError{
-			code: http.StatusForbidden,
-			msg:  "Request to convert login type failed. State mismatch.",
+		return database.User{}, idpsync.HttpError{
+			Code: http.StatusForbidden,
+			Msg:  "Request to convert login type failed. State mismatch.",
 		}
 	}
 
@@ -1768,9 +1729,9 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	if user.ID != claims.UserID ||
 		codersdk.LoginType(user.LoginType) != claims.FromLoginType ||
 		codersdk.LoginType(params.LoginType) != claims.ToLoginType {
-		return database.User{}, httpError{
-			code: http.StatusForbidden,
-			msg:  fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType),
+		return database.User{}, idpsync.HttpError{
+			Code: http.StatusForbidden,
+			Msg:  fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType),
 		}
 	}
 
@@ -1784,9 +1745,9 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		UserID:       user.ID,
 	})
 	if err != nil {
-		return database.User{}, httpError{
-			code: http.StatusInternalServerError,
-			msg:  "Failed to convert user to new login type",
+		return database.User{}, idpsync.HttpError{
+			Code: http.StatusInternalServerError,
+			Msg:  "Failed to convert user to new login type",
 		}
 	}
 	oauthConvertAudit.New = user
@@ -1872,16 +1833,16 @@ func clearOAuthConvertCookie() *http.Cookie {
 	}
 }
 
-func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) httpError {
+func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) idpsync.HttpError {
 	addedMsg := ""
 	if user == database.LoginTypePassword {
 		addedMsg = " You can convert your account to use this login type by visiting your account settings."
 	}
-	return httpError{
-		code:             http.StatusForbidden,
-		renderStaticPage: true,
-		msg:              "Incorrect login type",
-		detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
+	return idpsync.HttpError{
+		Code:             http.StatusForbidden,
+		RenderStaticPage: true,
+		Msg:              "Incorrect login type",
+		Detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
 			params, user, addedMsg),
 	}
 }
