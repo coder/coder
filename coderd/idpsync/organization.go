@@ -29,7 +29,9 @@ func (s AGPLIDPSync) ParseOrganizationClaims(ctx context.Context, _ map[string]i
 
 type OrganizationParams struct {
 	// SyncEnabled if false will skip syncing the user's organizations.
-	SyncEnabled    bool
+	SyncEnabled bool
+	// IncludeDefault is primarily for single org deployments. It will ensure
+	// a user is always inserted into the default org.
 	IncludeDefault bool
 	// Organizations is the list of organizations the user should be a member of
 	// assuming syncing is turned on.

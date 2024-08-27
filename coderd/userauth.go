@@ -659,6 +659,11 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		AvatarURL:    ghUser.GetAvatarURL(),
 		Name:         normName,
 		DebugContext: OauthDebugContext{},
+		OrganizationSync: idpsync.OrganizationParams{
+			SyncEnabled:    false,
+			IncludeDefault: true,
+			Organizations:  []uuid.UUID{},
+		},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
@@ -1411,14 +1416,19 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				}
 			}
 
+			// Even if org sync is disabled, single org deployments will always
+			// have this set to true.
+			orgIDs := []uuid.UUID{}
+			if params.OrganizationSync.IncludeDefault {
+				orgIDs = append(orgIDs, defaultOrganization.ID)
+			}
+
 			//nolint:gocritic
 			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-					Email:    params.Email,
-					Username: params.Username,
-					// TODO: Remove this, and only use organization sync from
-					// params
-					OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
+					Email:           params.Email,
+					Username:        params.Username,
+					OrganizationIDs: orgIDs,
 				},
 				LoginType: params.LoginType,
 			})
@@ -1479,6 +1489,13 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)
 			}
+		}
+
+		// Only OIDC really supports syncing like this. At some point, we might
+		// want to move this configuration and allow github to allow do org syncing.
+		err = api.OIDCConfig.IDPSync.SyncOrganizations(ctx, tx, user, params.OrganizationSync)
+		if err != nil {
+			return xerrors.Errorf("sync organizations: %w", err)
 		}
 
 		// Ensure groups are correct.
