@@ -2632,7 +2632,6 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 				groupIDs[orgMember.OrganizationID] = struct{}{}
 			}
 		}
-
 	}
 
 	organizationDisplayNames := make(map[uuid.UUID]string)
