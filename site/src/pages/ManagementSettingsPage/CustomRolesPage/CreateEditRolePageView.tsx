@@ -346,7 +346,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 					{resourceKey}
 					<ul css={styles.checkBoxes}>
 						{Object.entries(value).map(([actionKey, value]) => (
-							<li key={actionKey}>
+							<li key={actionKey} css={styles.actionItem}>
 								<span css={styles.actionText}>
 									<Checkbox
 										size="small"
@@ -357,8 +357,8 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 										onChange={(e) => handleActionCheckChange(e, form)}
 									/>
 									{actionKey}
-								</span>{" "}
-								&ndash; <span css={styles.actionDescription}>{value}</span>
+								</span>
+								<span css={styles.actionDescription}>{value}</span>
 							</li>
 						))}
 					</ul>
@@ -412,7 +412,12 @@ const styles = {
 	}),
 	actionDescription: (theme) => ({
 		color: theme.palette.text.secondary,
+		paddingTop: 6,
 	}),
+	actionItem: {
+		display: "grid",
+		gridTemplateColumns: "270px 3fr",
+	},
 } satisfies Record<string, Interpolation<Theme>>;
 
 export default CreateEditRolePageView;
