@@ -720,6 +720,58 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 		},
 		{
+			name: "ClientHasStunNoUDP",
+			diags: cliui.ConnDiags{
+				ConnInfo: &workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{
+						Regions: map[int]*tailcfg.DERPRegion{
+							999: {
+								Nodes: []*tailcfg.DERPNode{
+									{
+										STUNPort: 1337,
+									},
+								},
+							},
+						},
+					},
+				},
+				LocalNetInfo: &tailcfg.NetInfo{
+					UDP: false,
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`❗ Client could not connect to STUN over UDP, which may be preventing a direct connection`,
+			},
+		},
+		{
+			name: "AgentHasStunNoUDP",
+			diags: cliui.ConnDiags{
+				ConnInfo: &workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{
+						Regions: map[int]*tailcfg.DERPRegion{
+							999: {
+								Nodes: []*tailcfg.DERPNode{
+									{
+										STUNPort: 1337,
+									},
+								},
+							},
+						},
+					},
+				},
+				AgentNetcheck: &healthsdk.AgentNetcheckReport{
+					NetInfo: &tailcfg.NetInfo{
+						UDP: false,
+					},
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`❗ Agent could not connect to STUN over UDP, which may be preventing a direct connection`,
+			},
+		},
+		{
 			name: "ClientHardNat",
 			diags: cliui.ConnDiags{
 				LocalNetInfo: &tailcfg.NetInfo{
@@ -780,6 +832,28 @@ func TestConnDiagnostics(t *testing.T) {
 			want: []string{
 				`❗ Client: network interface eth1 has MTU 1310, (less than 1378), which may cause problems with direct connections`,
 				`✔ You are connected directly (p2p)`,
+			},
+		},
+		{
+			name: "ClientAWSIP",
+			diags: cliui.ConnDiags{
+				ClientIPIsAWS: true,
+				AgentIPIsAWS:  false,
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`❗ Client IP address is within an AWS range, which is known to cause problems with forming direct connections (AWS uses hard NAT)`,
+			},
+		},
+		{
+			name: "AgentAWSIP",
+			diags: cliui.ConnDiags{
+				ClientIPIsAWS: false,
+				AgentIPIsAWS:  true,
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`❗ Agent IP address is within an AWS range, which is known to cause problems with forming direct connections (AWS uses hard NAT)`,
 			},
 		},
 	}

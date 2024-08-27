@@ -357,10 +357,18 @@ type ConnDiags struct {
 	LocalNetInfo    *tailcfg.NetInfo
 	LocalInterfaces *healthsdk.InterfacesReport
 	AgentNetcheck   *healthsdk.AgentNetcheckReport
+	ClientIPIsAWS   bool
+	AgentIPIsAWS    bool
 	// TODO: More diagnostics
 }
 
 func ConnDiagnostics(w io.Writer, d ConnDiags) {
+	if d.PingP2P {
+		_, _ = fmt.Fprint(w, "✔ You are connected directly (p2p)\n")
+	} else {
+		_, _ = fmt.Fprint(w, "❗ You are connected via a DERP relay, not directly (p2p)\n")
+	}
+
 	if d.AgentNetcheck != nil {
 		for _, msg := range d.AgentNetcheck.Interfaces.Warnings {
 			_, _ = fmt.Fprintf(w, "❗ Agent: %s\n", msg.Message)
@@ -373,12 +381,6 @@ func ConnDiagnostics(w io.Writer, d ConnDiags) {
 		}
 	}
 
-	if d.PingP2P {
-		_, _ = fmt.Fprint(w, "✔ You are connected directly (p2p)\n")
-		return
-	}
-	_, _ = fmt.Fprint(w, "❗ You are connected via a DERP relay, not directly (p2p)\n")
-
 	if d.DisableDirect {
 		_, _ = fmt.Fprint(w, "❗ Direct connections are disabled locally, by `--disable-direct` or `CODER_DISABLE_DIRECT`\n")
 		return
@@ -389,15 +391,32 @@ func ConnDiagnostics(w io.Writer, d ConnDiags) {
 		return
 	}
 
-	if d.ConnInfo != nil && d.ConnInfo.DERPMap != nil && !d.ConnInfo.DERPMap.HasSTUN() {
-		_, _ = fmt.Fprint(w, "✘ The DERP map is not configured to use STUN, which will prevent direct connections from starting outside of local networks\n")
+	if d.ConnInfo != nil && d.ConnInfo.DERPMap != nil {
+		if !d.ConnInfo.DERPMap.HasSTUN() {
+			_, _ = fmt.Fprint(w, "✘ The DERP map is not configured to use STUN, which will prevent direct connections from starting outside of local networks\n")
+		} else if d.LocalNetInfo != nil && !d.LocalNetInfo.UDP {
+			_, _ = fmt.Fprint(w, "❗ Client could not connect to STUN over UDP, which may be preventing a direct connection\n")
+		}
 	}
 
 	if d.LocalNetInfo != nil && d.LocalNetInfo.MappingVariesByDestIP.EqualBool(true) {
 		_, _ = fmt.Fprint(w, "❗ Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n")
 	}
 
-	if d.AgentNetcheck != nil && d.AgentNetcheck.NetInfo != nil && d.AgentNetcheck.NetInfo.MappingVariesByDestIP.EqualBool(true) {
-		_, _ = fmt.Fprint(w, "❗ Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n")
+	if d.AgentNetcheck != nil && d.AgentNetcheck.NetInfo != nil {
+		if d.AgentNetcheck.NetInfo.MappingVariesByDestIP.EqualBool(true) {
+			_, _ = fmt.Fprint(w, "❗ Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n")
+		}
+		if !d.AgentNetcheck.NetInfo.UDP {
+			_, _ = fmt.Fprint(w, "❗ Agent could not connect to STUN over UDP, which may be preventing a direct connection\n")
+		}
+	}
+
+	if d.ClientIPIsAWS {
+		_, _ = fmt.Fprint(w, "❗ Client IP address is within an AWS range, which is known to cause problems with forming direct connections (AWS uses hard NAT)\n")
+	}
+
+	if d.AgentIPIsAWS {
+		_, _ = fmt.Fprint(w, "❗ Agent IP address is within an AWS range, which is known to cause problems with forming direct connections (AWS uses hard NAT)\n")
 	}
 }
