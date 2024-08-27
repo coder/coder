@@ -2659,13 +2659,7 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 		}
 
 		filtered = append(filtered, database.GetGroupsRow{
-			ID:                      group.ID,
-			Name:                    group.Name,
-			OrganizationID:          group.OrganizationID,
-			AvatarURL:               group.AvatarURL,
-			QuotaAllowance:          group.QuotaAllowance,
-			DisplayName:             group.DisplayName,
-			Source:                  group.Source,
+			Group:                   group,
 			OrganizationDisplayName: orgDisplayName,
 		})
 	}

@@ -669,15 +669,15 @@ func ConvertUser(dbUser database.User) User {
 	}
 }
 
-func ConvertGroup(group database.Group) Group {
+func ConvertGroup(row database.GetGroupsRow) Group {
 	return Group{
-		ID:             group.ID,
-		Name:           group.Name,
-		OrganizationID: group.OrganizationID,
-		AvatarURL:      group.AvatarURL,
-		QuotaAllowance: group.QuotaAllowance,
-		DisplayName:    group.DisplayName,
-		Source:         group.Source,
+		ID:             row.Group.ID,
+		Name:           row.Group.Name,
+		OrganizationID: row.Group.OrganizationID,
+		AvatarURL:      row.Group.AvatarURL,
+		QuotaAllowance: row.Group.QuotaAllowance,
+		DisplayName:    row.Group.DisplayName,
+		Source:         row.Group.Source,
 	}
 }
 

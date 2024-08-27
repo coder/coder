@@ -1598,14 +1598,8 @@ type GetGroupsParams struct {
 }
 
 type GetGroupsRow struct {
-	ID                      uuid.UUID   `db:"id" json:"id"`
-	Name                    string      `db:"name" json:"name"`
-	OrganizationID          uuid.UUID   `db:"organization_id" json:"organization_id"`
-	AvatarURL               string      `db:"avatar_url" json:"avatar_url"`
-	QuotaAllowance          int32       `db:"quota_allowance" json:"quota_allowance"`
-	DisplayName             string      `db:"display_name" json:"display_name"`
-	Source                  GroupSource `db:"source" json:"source"`
-	OrganizationDisplayName string      `db:"organization_display_name" json:"organization_display_name"`
+	Group                   Group  `db:"group" json:"group"`
+	OrganizationDisplayName string `db:"organization_display_name" json:"organization_display_name"`
 }
 
 func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error) {
@@ -1618,13 +1612,13 @@ func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetG
 	for rows.Next() {
 		var i GetGroupsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-			&i.DisplayName,
-			&i.Source,
+			&i.Group.ID,
+			&i.Group.Name,
+			&i.Group.OrganizationID,
+			&i.Group.AvatarURL,
+			&i.Group.QuotaAllowance,
+			&i.Group.DisplayName,
+			&i.Group.Source,
 			&i.OrganizationDisplayName,
 		); err != nil {
 			return nil, err
