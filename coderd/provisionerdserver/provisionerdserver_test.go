@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1859,6 +1860,7 @@ func TestNotifications(t *testing.T) {
 		assert.Equal(t, version.Name, notifEnq.Sent[0].Labels["template_version_name"])
 		assert.Equal(t, user.Username, notifEnq.Sent[0].Labels["initiator"])
 		assert.Equal(t, user.Username, notifEnq.Sent[0].Labels["workspace_owner_username"])
+		assert.Equal(t, strconv.Itoa(int(build.BuildNumber)), notifEnq.Sent[0].Labels["workspace_build_number"])
 	})
 }
 

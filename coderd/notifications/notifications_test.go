@@ -825,6 +825,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 					"template_version_name":    "bobby-template-version",
 					"initiator":                "joe",
 					"workspace_owner_username": "mrbobby",
+					"workspace_build_number":   "3",
 				},
 			},
 		},

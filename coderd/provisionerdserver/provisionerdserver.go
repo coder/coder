@@ -1150,6 +1150,7 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 				"template_version_name":    templateVersion.Name,
 				"initiator":                build.InitiatorByUsername,
 				"workspace_owner_username": workspaceOwner.Username,
+				"workspace_build_number":   strconv.Itoa(int(build.BuildNumber)),
 			}, "provisionerdserver",
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
