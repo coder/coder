@@ -1154,7 +1154,7 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 		); err != nil {
-			s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
+			s.Logger.Warn(ctx, "failed to notify of failed workspace manual build", slog.Error(err))
 		}
 	}
 }
