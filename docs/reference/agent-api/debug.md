@@ -66,6 +66,6 @@ curl http://127.0.0.1:2113/debug/manifest
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema |
-| ------ | ------------------------------------------------------- | ----------- | ------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+| Status | Meaning                                                 | Description | Schema                                          |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.Manifest](./schemas#agentsdkmanifest) |
