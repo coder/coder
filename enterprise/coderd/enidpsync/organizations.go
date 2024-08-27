@@ -58,7 +58,8 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 	}
 
 	return idpsync.OrganizationParams{
-		SyncEnabled:    true,
+		// If the field is not set, then sync is not enabled.
+		SyncEnabled:    e.OrganizationField != "",
 		IncludeDefault: e.OrganizationAssignDefault,
 		Organizations:  userOrganizations,
 	}, nil

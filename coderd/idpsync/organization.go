@@ -36,6 +36,8 @@ type OrganizationParams struct {
 	Organizations []uuid.UUID
 }
 
+// SyncOrganizations if enabled will ensure the user is a member of the provided
+// organizations. It will add and remove their membership to match the expected set.
 func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error {
 	// Nothing happens if sync is not enabled
 	if !params.SyncEnabled {
