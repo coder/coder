@@ -1141,7 +1141,7 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 }
 
 func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) ([]database.GetUsersRow,
-	database.Template, database.TemplateVersion, database.User, error
+	database.Template, database.TemplateVersion, database.User, error,
 ) {
 	templateAdmins, err := s.Database.GetUsers(ctx, database.GetUsersParams{
 		RbacRole: []string{codersdk.RoleTemplateAdmin},
