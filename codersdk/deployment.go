@@ -2754,6 +2754,8 @@ type BuildInfoResponse struct {
 	// AgentAPIVersion is the current version of the Agent API (back versions
 	// MAY still be supported).
 	AgentAPIVersion string `json:"agent_api_version"`
+	// ProvisionerAPIVersion is the current version of the Provisioner API
+	ProvisionerAPIVersion string `json:"provisioner_api_version"`
 
 	// UpgradeMessage is the message displayed to users when an outdated client
 	// is detected.

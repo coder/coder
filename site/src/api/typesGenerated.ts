@@ -172,6 +172,7 @@ export interface BuildInfoResponse {
 	readonly telemetry: boolean;
 	readonly workspace_proxy: boolean;
 	readonly agent_api_version: string;
+	readonly provisioner_api_version: string;
 	readonly upgrade_message: string;
 	readonly deployment_id: string;
 }

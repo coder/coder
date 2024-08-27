@@ -215,6 +215,7 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
+	provisioner_api_version: "1.1",
 	external_url: "file:///mock-url",
 	version: "v99.999.9999+c9cdf14",
 	dashboard_url: "https:///mock-url",
