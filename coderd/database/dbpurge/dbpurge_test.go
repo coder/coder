@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
@@ -29,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestMain(m *testing.M) {
@@ -36,19 +36,40 @@ func TestMain(m *testing.M) {
 }
 
 // Ensures no goroutines leak.
+//
+//nolint:paralleltest // It uses LockIDDBPurge.
 func TestPurge(t *testing.T) {
-	t.Parallel()
-	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), dbmem.New())
-	err := purger.Close()
-	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	clk := quartz.NewMock(t)
+
+	// We want to make sure dbpurge is actually started so that this test is meaningful.
+	trapStop := clk.Trap().TickerStop()
+
+	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), dbmem.New(), clk)
+
+	// Wait for the initial nanosecond tick.
+	clk.Advance(time.Nanosecond).MustWait(ctx)
+	// Wait for ticker.Stop call that happens in the goroutine.
+	trapStop.MustWait(ctx).Release()
+	// Stop the trap now to avoid blocking further.
+	trapStop.Close()
+
+	require.NoError(t, purger.Close())
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
-	db, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
 
 	now := dbtime.Now()
+	// TODO: must refactor DeleteOldWorkspaceAgentStats to allow passing in cutoff
+	//       before using quarts.NewMock()
+	clk := quartz.NewReal()
+	db, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	defer func() {
 		if t.Failed() {
@@ -77,9 +98,6 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 			_ = s.Err()
 		}
 	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
 
 	// given
 	// Note: We use increments of 2 hours to ensure we avoid any DST
@@ -114,7 +132,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	})
 
 	// when
-	closer := dbpurge.New(ctx, logger, db)
+	closer := dbpurge.New(ctx, logger, db, clk)
 	defer closer.Close()
 
 	// then
@@ -139,7 +157,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	// Start a new purger to immediately trigger delete after rollup.
 	_ = closer.Close()
-	closer = dbpurge.New(ctx, logger, db)
+	closer = dbpurge.New(ctx, logger, db, clk)
 	defer closer.Close()
 
 	// then
@@ -177,50 +195,75 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	t.Run("AgentHasNotConnectedSinceWeek_LogsExpired", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
 
-		// given
-		agent1 := mustCreateAgentWithLogs(ctx, t, db, user, org, tmpl, tv, now.Add(-8*24*time.Hour), t.Name()+"-1")
+		// After dbpurge completes, the ticker is reset. Trap this call.
+		trapReset := clk.Trap().TickerReset()
+		defer trapReset.Close()
 
-		// when
-		closer := dbpurge.New(ctx, logger, db)
+		// given: an agent with logs older than threshold
+		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, tmpl, tv, now.Add(-8*24*time.Hour), t.Name())
+
+		// when dbpurge runs
+		closer := dbpurge.New(ctx, logger, db, clk)
 		defer closer.Close()
+		// Wait for the initial nanosecond tick.
+		clk.Advance(time.Nanosecond).MustWait(ctx)
 
-		// then
-		assert.Eventually(t, func() bool {
-			agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-				AgentID: agent1,
-			})
-			if err != nil {
-				return false
-			}
-			assert.NoError(t, err)
-			assert.NotContains(t, agentLogs, t.Name())
-			return !containsAgentLog(agentLogs, t.Name())
-		}, testutil.WaitShort, testutil.IntervalFast)
+		trapReset.MustWait(ctx).Release() // Wait for ticker.Reset()
+		d, w := clk.AdvanceNext()
+		require.Equal(t, 10*time.Minute, d)
+
+		closer.Close() // doTick() has now run.
+		w.MustWait(ctx)
+
+		// then the logs should be gone
+		agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+			AgentID:      agent,
+			CreatedAfter: 0,
+		})
+		require.NoError(t, err)
+		require.Empty(t, agentLogs, "expected agent logs to be empty")
 	})
 
 	//nolint:paralleltest // It uses LockIDDBPurge.
 	t.Run("AgentConnectedSixDaysAgo_LogsValid", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
 
-		// given
+		// After dbpurge completes, the ticker is reset. Trap this call.
+		trapReset := clk.Trap().TickerReset()
+		defer trapReset.Close()
+
+		// given: an agent with logs newer than threshold
 		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, tmpl, tv, now.Add(-6*24*time.Hour), t.Name())
 
-		// when
-		closer := dbpurge.New(ctx, logger, db)
+		// when dbpurge runs
+		closer := dbpurge.New(ctx, logger, db, clk)
 		defer closer.Close()
 
-		// then
-		require.Eventually(t, func() bool {
-			agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-				AgentID: agent,
-			})
-			if err != nil {
-				return false
-			}
-			return containsAgentLog(agentLogs, t.Name())
-		}, testutil.WaitShort, testutil.IntervalFast)
+		// Wait for the initial nanosecond tick.
+		clk.Advance(time.Nanosecond).MustWait(ctx)
+
+		trapReset.MustWait(ctx).Release() // Wait for ticker.Reset()
+		d, w := clk.AdvanceNext()
+		require.Equal(t, 10*time.Minute, d)
+
+		closer.Close() // doTick() has now run.
+		w.MustWait(ctx)
+
+		// then the logs should still be there
+		agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+			AgentID: agent,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, agentLogs)
+		for _, al := range agentLogs {
+			require.Equal(t, t.Name(), al.Output)
+		}
 	})
 }
 
@@ -273,14 +316,11 @@ func mustCreateAgent(t *testing.T, db database.Store, user database.User, org da
 	})
 }
 
-func containsAgentLog(daemons []database.WorkspaceAgentLog, output string) bool {
-	return slices.ContainsFunc(daemons, func(d database.WorkspaceAgentLog) bool {
-		return d.Output == output
-	})
-}
-
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldProvisionerDaemons(t *testing.T) {
+	// TODO: must refactor DeleteOldProvisionerDaemons to allow passing in cutoff
+	//       before using quartz.NewMock
+	clk := quartz.NewReal()
 	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	defaultOrg := dbgen.Organization(t, db, database.Organization{})
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -347,7 +387,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 
 	// when
-	closer := dbpurge.New(ctx, logger, db)
+	closer := dbpurge.New(ctx, logger, db, clk)
 	defer closer.Close()
 
 	// then

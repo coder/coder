@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -22,19 +23,16 @@ const (
 // It is the caller's responsibility to call Close on the returned instance.
 //
 // This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	//nolint:gocritic // The system purges old db records without user input.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	// Use time.Nanosecond to force an initial tick. It will be reset to the
-	// correct duration after executing once.
-	ticker := time.NewTicker(time.Nanosecond)
+	ticker := clk.NewTicker(time.Nanosecond)
 	doTick := func(start time.Time) {
 		defer ticker.Reset(delay)
-
 		// Start a transaction to grab advisory lock, we don't want to run
 		// multiple purges at the same time (multiple replicas).
 		if err := db.InTx(func(tx database.Store) error {
@@ -62,7 +60,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
 			}
 
-			logger.Info(ctx, "purged old database entries", slog.F("duration", time.Since(start)))
+			logger.Info(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
 
 			return nil
 		}, nil); err != nil {
@@ -78,12 +76,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 			select {
 			case <-ctx.Done():
 				return
-			case now, ok := <-ticker.C:
-				if !ok {
-					return
-				}
+			case tick := <-ticker.C:
 				ticker.Stop()
-				doTick(now)
+				doTick(tick)
 			}
 		}
 	}()
