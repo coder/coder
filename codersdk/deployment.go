@@ -24,7 +24,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
-	"github.com/coder/coder/v2/coderd/config"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
 
@@ -686,7 +686,7 @@ type NotificationsConfig struct {
 
 type NotificationsEmailConfig struct {
 	// The sender's address.
-	From config.Runtime[*serpent.String] `json:"from" typescript:",notnull"`
+	From runtimeconfig.Entry[*serpent.String] `json:"from" typescript:",notnull"`
 	// The intermediary SMTP host through which emails are sent (host:port).
 	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
 	// The hostname identifying the SMTP server.
@@ -2595,7 +2595,7 @@ Write out the current server config as YAML to stdout.`,
 		c.opts = opts
 
 		for _, opt := range opts {
-			d, ok := opt.Value.(config.RuntimeConfigInitializer)
+			d, ok := opt.Value.(runtimeconfig.Initializer)
 			if !ok {
 				continue
 			}

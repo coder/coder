@@ -296,17 +296,13 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						nextBuildReason = string(nextBuild.Reason)
 					}
 
-					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
-						map[string]string{
-							"name":                     ws.Name,
-							"initiator":                "autobuild",
-							"reason":                   nextBuildReason,
-							"template_version_name":    activeTemplateVersion.Name,
-							"template_version_message": activeTemplateVersion.Message,
-						}, "autobuild",
-						// Associate this notification with all the related entities.
-						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
-					); err != nil {
+					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, uuid.Nil, notifications.TemplateWorkspaceAutoUpdated, map[string]string{
+						"name":                     ws.Name,
+						"initiator":                "autobuild",
+						"reason":                   nextBuildReason,
+						"template_version_name":    activeTemplateVersion.Name,
+						"template_version_message": activeTemplateVersion.Message,
+					}, "autobuild", ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID); err != nil {
 						log.Warn(e.ctx, "failed to notify of autoupdated workspace", slog.Error(err))
 					}
 				}
@@ -325,21 +321,11 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				}
 				if shouldNotifyDormancy {
 					dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
-					_, err = e.notificationsEnqueuer.Enqueue(
-						e.ctx,
-						ws.OwnerID,
-						notifications.TemplateWorkspaceDormant,
-						map[string]string{
-							"name":           ws.Name,
-							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": humanize.Time(dormantTime),
-						},
-						"lifecycle_executor",
-						ws.ID,
-						ws.OwnerID,
-						ws.TemplateID,
-						ws.OrganizationID,
-					)
+					_, err = e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, uuid.Nil, notifications.TemplateWorkspaceDormant, map[string]string{
+						"name":           ws.Name,
+						"reason":         "inactivity exceeded the dormancy threshold",
+						"timeTilDormant": humanize.Time(dormantTime),
+					}, "lifecycle_executor", ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID)
 					if err != nil {
 						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", ws.ID))
 					}

@@ -577,12 +577,9 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountDeleted,
-			map[string]string{
-				"deleted_account_name": user.Username,
-			}, "api-users-delete",
-			user.ID,
-		); err != nil {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, uuid.Nil, notifications.TemplateUserAccountDeleted, map[string]string{
+			"deleted_account_name": user.Username,
+		}, "api-users-delete", user.ID); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about deleted user", slog.F("deleted_user", user.Username), slog.Error(err))
 		}
 	}
@@ -899,21 +896,15 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, user database.User,
 
 	// Send notifications to user admins and affected user
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, adminTemplateID,
-			map[string]string{
-				key: user.Username,
-			}, "api-put-user-status",
-			user.ID,
-		); err != nil {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, uuid.Nil, adminTemplateID, map[string]string{
+			key: user.Username,
+		}, "api-put-user-status", user.ID); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
 		}
 	}
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, user.ID, personalTemplateID,
-		map[string]string{
-			key: user.Username,
-		}, "api-put-user-status",
-		user.ID,
-	); err != nil {
+	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, user.ID, uuid.Nil, personalTemplateID, map[string]string{
+		key: user.Username,
+	}, "api-put-user-status", user.ID); err != nil {
 		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", user.Username), slog.Error(err))
 	}
 	return nil
@@ -1367,12 +1358,9 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
-			map[string]string{
-				"created_account_name": user.Username,
-			}, "api-users-create",
-			user.ID,
-		); err != nil {
+		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, uuid.Nil, notifications.TemplateUserAccountCreated, map[string]string{
+			"created_account_name": user.Username,
+		}, "api-users-create", user.ID); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Username), slog.Error(err))
 		}
 	}

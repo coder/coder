@@ -22,6 +22,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -194,6 +195,7 @@ type data struct {
 	workspaces                    []database.Workspace
 	workspaceProxies              []database.WorkspaceProxy
 	customRoles                   []database.CustomRole
+	runtimeConfig                 runtimeconfig.Store
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                            map[int64]struct{}
@@ -1030,6 +1032,7 @@ func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg databas
 
 		out = append(out, database.AcquireNotificationMessagesRow{
 			ID:            nm.ID,
+			OrgID:         nm.OrgID.UUID,
 			Payload:       nm.Payload,
 			Method:        nm.Method,
 			TitleTemplate: "This is a title with {{.Labels.variable}}",
@@ -1861,6 +1864,14 @@ func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	return nil
 }
 
+func (q *FakeQuerier) DeleteRuntimeConfig(ctx context.Context, key string) error {
+	if q.runtimeConfig == nil {
+		q.runtimeConfig = runtimeconfig.NewInMemoryStore()
+	}
+
+	return q.runtimeConfig.DeleteRuntimeSetting(ctx, key)
+}
+
 func (*FakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
 }
@@ -1949,8 +1960,13 @@ func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database
 		return err
 	}
 
+	var orgID uuid.NullUUID
+	if err = orgID.Scan(arg.OrgID.String()); err != nil {
+		return xerrors.Errorf("invalid UUID %q: %w", arg.OrgID, err)
+	}
 	nm := database.NotificationMessage{
 		ID:                     arg.ID,
+		OrgID:                  orgID,
 		UserID:                 arg.UserID,
 		Method:                 arg.Method,
 		Payload:                arg.Payload,
@@ -3410,6 +3426,14 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *FakeQuerier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
+	if q.runtimeConfig == nil {
+		q.runtimeConfig = runtimeconfig.NewInMemoryStore()
+	}
+
+	return q.runtimeConfig.GetRuntimeSetting(ctx, key)
 }
 
 func (*FakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
@@ -9091,6 +9115,19 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil
+}
+
+func (q *FakeQuerier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	if q.runtimeConfig == nil {
+		q.runtimeConfig = runtimeconfig.NewInMemoryStore()
+	}
+
+	return q.runtimeConfig.UpsertRuntimeSetting(ctx, arg.Key, arg.Value)
 }
 
 func (*FakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

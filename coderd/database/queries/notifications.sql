@@ -13,10 +13,11 @@ WHERE nt.id = @notification_template_id
   AND u.id = @user_id;
 
 -- name: EnqueueNotificationMessage :exec
-INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by, created_at)
+INSERT INTO notification_messages (id, notification_template_id, user_id, org_id, method, payload, targets, created_by, created_at)
 VALUES (@id,
         @notification_template_id,
         @user_id,
+        @org_id::uuid,
         @method::notification_method,
         @payload::jsonb,
         @targets,
@@ -81,6 +82,7 @@ SELECT
     nm.id,
     nm.payload,
     nm.method,
+    nm.org_id::uuid                                                       AS org_id,
     nm.attempt_count::int                                                 AS attempt_count,
     nm.queued_seconds::float                                              AS queued_seconds,
     -- template

@@ -1,6 +1,8 @@
-package config
+package runtimeconfig
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
@@ -16,8 +18,8 @@ func NewStoreMutator(store Store) *StoreMutator {
 	return &StoreMutator{store}
 }
 
-func (s *StoreMutator) MutateByKey(key, val string) error {
-	err := s.store.UpsertRuntimeSetting(key, val)
+func (s *StoreMutator) MutateByKey(ctx context.Context, key, val string) error {
+	err := s.store.UpsertRuntimeSetting(ctx, key, val)
 	if err != nil {
 		return xerrors.Errorf("update %q: %w", err)
 	}
@@ -29,10 +31,10 @@ type OrgMutator struct {
 	orgID uuid.UUID
 }
 
-func NewOrgMutator(inner Mutator, orgID uuid.UUID) *OrgMutator {
+func NewOrgMutator(orgID uuid.UUID, inner Mutator) *OrgMutator {
 	return &OrgMutator{inner: inner, orgID: orgID}
 }
 
-func (m OrgMutator) MutateByKey(key, val string) error {
-	return m.inner.MutateByKey(orgKey(m.orgID, key), val)
+func (m OrgMutator) MutateByKey(ctx context.Context, key, val string) error {
+	return m.inner.MutateByKey(ctx, orgKey(m.orgID, key), val)
 }

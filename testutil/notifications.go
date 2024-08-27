@@ -19,7 +19,7 @@ type Notification struct {
 	Targets            []uuid.UUID
 }
 
-func (f *FakeNotificationsEnqueuer) Enqueue(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (f *FakeNotificationsEnqueuer) Enqueue(ctx context.Context, userID, orgID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

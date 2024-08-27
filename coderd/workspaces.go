@@ -1066,21 +1066,11 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 		if initiatorErr == nil && tmplErr == nil {
 			dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
-			_, err = api.NotificationsEnqueuer.Enqueue(
-				ctx,
-				workspace.OwnerID,
-				notifications.TemplateWorkspaceDormant,
-				map[string]string{
-					"name":           workspace.Name,
-					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": humanize.Time(dormantTime),
-				},
-				"api",
-				workspace.ID,
-				workspace.OwnerID,
-				workspace.TemplateID,
-				workspace.OrganizationID,
-			)
+			_, err = api.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, uuid.Nil, notifications.TemplateWorkspaceDormant, map[string]string{
+				"name":           workspace.Name,
+				"reason":         "a " + initiator.Username + " request",
+				"timeTilDormant": humanize.Time(dormantTime),
+			}, "api", workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID)
 			if err != nil {
 				api.Logger.Warn(ctx, "failed to notify of workspace marked as dormant", slog.Error(err))
 			}

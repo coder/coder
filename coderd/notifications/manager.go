@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -37,7 +38,8 @@ var ErrInvalidDispatchTimeout = xerrors.New("dispatch timeout must be less than 
 // we split notifiers out into separate targets for greater processing throughput; in this case we will need an
 // alternative mechanism for handling backpressure.
 type Manager struct {
-	cfg codersdk.NotificationsConfig
+	cfg      codersdk.NotificationsConfig
+	cfgStore runtimeconfig.Store
 
 	store Store
 	log   slog.Logger
@@ -60,7 +62,7 @@ type Manager struct {
 //
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
 // access URL etc.
-func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.FuncMap, metrics *Metrics, log slog.Logger) (*Manager, error) {
+func NewManager(cfg codersdk.NotificationsConfig, cfgStore runtimeconfig.Store, store Store, helpers template.FuncMap, metrics *Metrics, log slog.Logger) (*Manager, error) {
 	// TODO(dannyk): add the ability to use multiple notification methods.
 	var method database.NotificationMethod
 	if err := method.Scan(cfg.Method.String()); err != nil {
@@ -75,9 +77,10 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 	}
 
 	return &Manager{
-		log:   log,
-		cfg:   cfg,
-		store: store,
+		log:      log,
+		cfg:      cfg,
+		cfgStore: cfgStore,
+		store:    store,
 
 		// Buffer successful/failed notification dispatches in memory to reduce load on the store.
 		//
@@ -150,7 +153,7 @@ func (m *Manager) loop(ctx context.Context) error {
 	var eg errgroup.Group
 
 	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
-	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers, m.metrics)
+	m.notifier = newNotifier(m.cfg, m.cfgStore, uuid.New(), m.log, m.store, m.handlers, m.metrics)
 	eg.Go(func() error {
 		return m.notifier.run(ctx, m.success, m.failure)
 	})

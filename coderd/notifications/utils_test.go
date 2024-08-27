@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -82,13 +83,13 @@ func newDispatchInterceptor(h notifications.Handler) *dispatchInterceptor {
 }
 
 func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
+	return func(ctx context.Context, cfgResolver runtimeconfig.Resolver, msgID uuid.UUID) (retryable bool, err error) {
 		deliveryFn, err := i.handler.Dispatcher(payload, title, body)
 		if err != nil {
 			return false, err
 		}
 
-		retryable, err = deliveryFn(ctx, msgID)
+		retryable, err = deliveryFn(ctx, cfgResolver, msgID)
 
 		if err != nil {
 			i.err.Add(1)

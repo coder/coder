@@ -1,4 +1,4 @@
-package config_test
+package runtimeconfig_test
 
 import (
 	"testing"
@@ -7,10 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/config"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestConfig demonstrates creating org-level overrides for deployment-level settings.
@@ -32,7 +33,7 @@ func TestConfig(t *testing.T) {
 	t.Run("panics unless initialized", func(t *testing.T) {
 		t.Parallel()
 
-		field := config.Runtime[*serpent.String]{}
+		field := runtimeconfig.Entry[*serpent.String]{}
 		require.Panics(t, func() {
 			field.StartupValue().String()
 		})
@@ -46,16 +47,17 @@ func TestConfig(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		t.Parallel()
 
-		store := config.NewInMemoryStore()
-		resolver := config.NewOrgResolver(config.NewStoreResolver(store), altOrg.ID)
-		mutator := config.NewOrgMutator(config.NewStoreMutator(store), altOrg.ID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := runtimeconfig.NewInMemoryStore()
+		resolver := runtimeconfig.NewOrgResolver(altOrg.ID, runtimeconfig.NewStoreResolver(store))
+		mutator := runtimeconfig.NewOrgMutator(altOrg.ID, runtimeconfig.NewStoreMutator(store))
 
 		var (
 			base     = serpent.String("system@dev.coder.com")
 			override = serpent.String("dogfood@dev.coder.com")
 		)
 
-		field := config.Runtime[*serpent.String]{}
+		field := runtimeconfig.Entry[*serpent.String]{}
 		field.Init("my-field")
 		// Check that no default has been set.
 		require.Empty(t, field.StartupValue().String())
@@ -65,13 +67,13 @@ func TestConfig(t *testing.T) {
 		require.Equal(t, base.String(), field.String())
 		// Validate that there is no org-level override right now.
 		_, err := field.Resolve(resolver)
-		require.ErrorIs(t, err, config.EntryNotFound)
+		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
 		// Coalesce returns the deployment-wide value.
 		val, err := field.Coalesce(resolver)
 		require.NoError(t, err)
 		require.Equal(t, base.String(), val.String())
 		// Set an org-level override.
-		require.NoError(t, field.Save(mutator, &override))
+		require.NoError(t, field.Save(ctx, mutator, &override))
 		// Coalesce now returns the org-level value.
 		val, err = field.Coalesce(resolver)
 		require.NoError(t, err)
@@ -81,11 +83,12 @@ func TestConfig(t *testing.T) {
 	t.Run("complex", func(t *testing.T) {
 		t.Parallel()
 
-		store := config.NewInMemoryStore()
-		resolver := config.NewOrgResolver(config.NewStoreResolver(store), altOrg.ID)
-		mutator := config.NewOrgMutator(config.NewStoreMutator(store), altOrg.ID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := runtimeconfig.NewInMemoryStore()
+		resolver := runtimeconfig.NewOrgResolver(altOrg.ID, runtimeconfig.NewStoreResolver(store))
+		mutator := runtimeconfig.NewOrgMutator(altOrg.ID, runtimeconfig.NewStoreMutator(store))
 
-		field := config.Runtime[*serpent.Struct[map[string]string]]{}
+		field := runtimeconfig.Entry[*serpent.Struct[map[string]string]]{}
 		field.Init("my-field")
 		var (
 			base = serpent.Struct[map[string]string]{
@@ -105,13 +108,13 @@ func TestConfig(t *testing.T) {
 		require.NoError(t, field.Set(base.String()))
 		// Validate that there is no org-level override right now.
 		_, err := field.Resolve(resolver)
-		require.ErrorIs(t, err, config.EntryNotFound)
+		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
 		// Coalesce returns the deployment-wide value.
 		val, err := field.Coalesce(resolver)
 		require.NoError(t, err)
 		require.Equal(t, base.Value, val.Value)
 		// Set an org-level override.
-		require.NoError(t, field.Save(mutator, &override))
+		require.NoError(t, field.Save(ctx, mutator, &override))
 		// Coalesce now returns the org-level value.
 		structVal, err := field.Resolve(resolver)
 		require.NoError(t, err)

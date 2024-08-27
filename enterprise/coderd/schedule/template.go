@@ -207,22 +207,11 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	for _, ws := range markedForDeletion {
 		dormantTime := dbtime.Now().Add(opts.TimeTilDormantAutoDelete)
-		_, err = s.enqueuer.Enqueue(
-			ctx,
-			ws.OwnerID,
-			notifications.TemplateWorkspaceMarkedForDeletion,
-			map[string]string{
-				"name":           ws.Name,
-				"reason":         "an update to the template's dormancy",
-				"timeTilDormant": humanize.Time(dormantTime),
-			},
-			"scheduletemplate",
-			// Associate this notification with all the related entities.
-			ws.ID,
-			ws.OwnerID,
-			ws.TemplateID,
-			ws.OrganizationID,
-		)
+		_, err = s.enqueuer.Enqueue(ctx, ws.OwnerID, uuid.Nil, notifications.TemplateWorkspaceMarkedForDeletion, map[string]string{
+			"name":           ws.Name,
+			"reason":         "an update to the template's dormancy",
+			"timeTilDormant": humanize.Time(dormantTime),
+		}, "scheduletemplate", ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID)
 		if err != nil {
 			s.logger.Warn(ctx, "failed to notify of workspace marked for deletion", slog.Error(err), slog.F("workspace_id", ws.ID))
 		}

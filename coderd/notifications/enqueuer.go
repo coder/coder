@@ -54,7 +54,7 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
-func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, orgID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -83,6 +83,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 	id := uuid.New()
 	err = s.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 		ID:                     id,
+		OrgID:                  orgID,
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
 		Method:                 dispatchMethod,
@@ -157,7 +158,7 @@ func NewNoopEnqueuer() *NoopEnqueuer {
 	return &NoopEnqueuer{}
 }
 
-func (*NoopEnqueuer) Enqueue(context.Context, uuid.UUID, uuid.UUID, map[string]string, string, ...uuid.UUID) (*uuid.UUID, error) {
+func (*NoopEnqueuer) Enqueue(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, map[string]string, string, ...uuid.UUID) (*uuid.UUID, error) {
 	// nolint:nilnil // irrelevant.
 	return nil, nil
 }

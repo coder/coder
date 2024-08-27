@@ -1,6 +1,7 @@
-package config
+package runtimeconfig
 
 import (
+	"context"
 	"errors"
 	"reflect"
 
@@ -11,12 +12,12 @@ import (
 // TODO: comment
 type Value pflag.Value
 
-type Runtime[T Value] struct {
+type Entry[T Value] struct {
 	val T
 	key string
 }
 
-func NewRuntimeConfigurable[T Value](key, val string) (out Runtime[T], err error) {
+func New[T Value](key, val string) (out Entry[T], err error) {
 	out.Init(key)
 
 	if err = out.Set(val); err != nil {
@@ -26,46 +27,46 @@ func NewRuntimeConfigurable[T Value](key, val string) (out Runtime[T], err error
 	return out, nil
 }
 
-func MustNewRuntimeConfigurable[T Value](key, val string) Runtime[T] {
-	out, err := NewRuntimeConfigurable[T](key, val)
+func MustNew[T Value](key, val string) Entry[T] {
+	out, err := New[T](key, val)
 	if err != nil {
 		panic(err)
 	}
 	return out
 }
 
-func (o *Runtime[T]) Init(key string) {
+func (o *Entry[T]) Init(key string) {
 	o.val = create[T]()
 	o.key = key
 }
 
-func (o *Runtime[T]) Set(s string) error {
+func (o *Entry[T]) Set(s string) error {
 	if reflect.ValueOf(o.val).IsNil() {
 		return xerrors.Errorf("instance of %T is uninitialized", o.val)
 	}
 	return o.val.Set(s)
 }
 
-func (o *Runtime[T]) Type() string {
+func (o *Entry[T]) Type() string {
 	return o.val.Type()
 }
 
-func (o *Runtime[T]) String() string {
+func (o *Entry[T]) String() string {
 	return o.val.String()
 }
 
-func (o *Runtime[T]) StartupValue() T {
+func (o *Entry[T]) StartupValue() T {
 	return o.val
 }
 
-func (o *Runtime[T]) Resolve(r Resolver) (T, error) {
+func (o *Entry[T]) Resolve(r Resolver) (T, error) {
 	return o.resolve(r)
 }
 
-func (o *Runtime[T]) resolve(r Resolver) (T, error) {
+func (o *Entry[T]) resolve(r Resolver) (T, error) {
 	var zero T
 
-	val, err := r.ResolveByKey(o.key)
+	val, err := r.ResolveByKey(nil, o.key)
 	if err != nil {
 		return zero, err
 	}
@@ -77,11 +78,11 @@ func (o *Runtime[T]) resolve(r Resolver) (T, error) {
 	return inst, nil
 }
 
-func (o *Runtime[T]) Save(m Mutator, val T) error {
-	return m.MutateByKey(o.key, val.String())
+func (o *Entry[T]) Save(ctx context.Context, m Mutator, val T) error {
+	return m.MutateByKey(ctx, o.key, val.String())
 }
 
-func (o *Runtime[T]) Coalesce(r Resolver) (T, error) {
+func (o *Entry[T]) Coalesce(r Resolver) (T, error) {
 	var zero T
 
 	resolved, err := o.resolve(r)

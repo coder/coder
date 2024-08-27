@@ -1102,14 +1102,10 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 	}
 	reason = string(build.Reason)
 
-	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceAutobuildFailed,
-		map[string]string{
-			"name":   workspace.Name,
-			"reason": reason,
-		}, "provisionerdserver",
-		// Associate this notification with all the related entities.
-		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
-	); err != nil {
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, uuid.Nil, notifications.TemplateWorkspaceAutobuildFailed, map[string]string{
+		"name":   workspace.Name,
+		"reason": reason,
+	}, "provisionerdserver", workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID); err != nil {
 		s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
 	}
 }
@@ -1602,15 +1598,11 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 			slog.F("reason", reason), slog.F("workspace_id", workspace.ID), slog.F("build_id", build.ID))
 	}
 
-	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted,
-		map[string]string{
-			"name":      workspace.Name,
-			"reason":    reason,
-			"initiator": initiator,
-		}, "provisionerdserver",
-		// Associate this notification with all the related entities.
-		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
-	); err != nil {
+	if _, err := s.NotificationsEnqueuer.Enqueue(ctx, workspace.OwnerID, uuid.Nil, notifications.TemplateWorkspaceDeleted, map[string]string{
+		"name":      workspace.Name,
+		"reason":    reason,
+		"initiator": initiator,
+	}, "provisionerdserver", workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID); err != nil {
 		s.Logger.Warn(ctx, "failed to notify of workspace deletion", slog.Error(err))
 	}
 }

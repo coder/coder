@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	markdown "github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -57,7 +58,7 @@ func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bod
 }
 
 func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, title, body, endpoint string) DeliveryFunc {
-	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
+	return func(ctx context.Context, cfgResolver runtimeconfig.Resolver, msgID uuid.UUID) (retryable bool, err error) {
 		// Prepare payload.
 		payload := WebhookPayload{
 			Version: "1.0",

@@ -135,14 +135,10 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		return
 	}
 
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateDeleted,
-		map[string]string{
-			"name":      template.Name,
-			"initiator": initiator.Username,
-		}, "api-templates-delete",
-		// Associate this notification with all the related entities.
-		template.ID, template.OrganizationID,
-	); err != nil {
+	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, uuid.Nil, notifications.TemplateTemplateDeleted, map[string]string{
+		"name":      template.Name,
+		"initiator": initiator.Username,
+	}, "api-templates-delete", template.ID, template.OrganizationID); err != nil {
 		api.Logger.Warn(ctx, "failed to notify of template deletion", slog.F("deleted_template_id", template.ID), slog.Error(err))
 	}
 }

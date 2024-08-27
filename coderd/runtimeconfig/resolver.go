@@ -1,6 +1,7 @@
-package config
+package runtimeconfig
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 
@@ -16,12 +17,12 @@ func NewStoreResolver(store Store) *StoreResolver {
 	return &StoreResolver{store}
 }
 
-func (s StoreResolver) ResolveByKey(key string) (string, error) {
+func (s StoreResolver) ResolveByKey(ctx context.Context, key string) (string, error) {
 	if s.store == nil {
 		panic("developer error: store must be set")
 	}
 
-	val, err := s.store.GetRuntimeSetting(key)
+	val, err := s.store.GetRuntimeSetting(ctx, key)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", xerrors.Errorf("%q: %w", key, EntryNotFound)
@@ -37,7 +38,7 @@ type OrgResolver struct {
 	orgID uuid.UUID
 }
 
-func NewOrgResolver(inner Resolver, orgID uuid.UUID) *OrgResolver {
+func NewOrgResolver(orgID uuid.UUID, inner Resolver) *OrgResolver {
 	if inner == nil {
 		panic("developer error: resolver is nil")
 	}
@@ -45,6 +46,6 @@ func NewOrgResolver(inner Resolver, orgID uuid.UUID) *OrgResolver {
 	return &OrgResolver{inner: inner, orgID: orgID}
 }
 
-func (r OrgResolver) ResolveByKey(key string) (string, error) {
-	return r.inner.ResolveByKey(orgKey(r.orgID, key))
+func (r OrgResolver) ResolveByKey(ctx context.Context, key string) (string, error) {
+	return r.inner.ResolveByKey(ctx, orgKey(r.orgID, key))
 }

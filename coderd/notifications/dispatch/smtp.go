@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	markdown "github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -100,7 +101,7 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 // NOTE: this is inspired by Alertmanager's email notifier:
 // https://github.com/prometheus/alertmanager/blob/342f6a599ce16c138663f18ed0b880e777c3017d/notify/email/email.go
 func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) DeliveryFunc {
-	return func(ctx context.Context, msgID uuid.UUID) (bool, error) {
+	return func(ctx context.Context, cfgResolver runtimeconfig.Resolver, msgID uuid.UUID) (bool, error) {
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
@@ -153,7 +154,11 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}
 
 		// Sender identification.
-		from, err := s.validateFromAddr(s.cfg.From.String())
+		val, err := s.cfg.From.Coalesce(cfgResolver)
+		if err != nil {
+			return true, xerrors.Errorf("resolve from runtime config: %w", err)
+		}
+		from, err := s.validateFromAddr(val.String())
 		if err != nil {
 			return false, xerrors.Errorf("'from' validation: %w", err)
 		}

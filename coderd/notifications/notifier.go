@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 
 	"cdr.dev/slog"
@@ -24,10 +25,11 @@ import (
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {
-	id    uuid.UUID
-	cfg   codersdk.NotificationsConfig
-	log   slog.Logger
-	store Store
+	id       uuid.UUID
+	cfg      codersdk.NotificationsConfig
+	cfgStore runtimeconfig.Store
+	log      slog.Logger
+	store    Store
 
 	tick     *time.Ticker
 	stopOnce sync.Once
@@ -38,10 +40,11 @@ type notifier struct {
 	metrics  *Metrics
 }
 
-func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler, metrics *Metrics) *notifier {
+func newNotifier(cfg codersdk.NotificationsConfig, cfgStore runtimeconfig.Store, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler, metrics *Metrics) *notifier {
 	return &notifier{
 		id:       id,
 		cfg:      cfg,
+		cfgStore: cfgStore,
 		log:      log.Named("notifier").With(slog.F("notifier_id", id)),
 		quit:     make(chan any),
 		done:     make(chan any),
@@ -246,7 +249,15 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 	n.metrics.QueuedSeconds.WithLabelValues(string(msg.Method)).Observe(msg.QueuedSeconds)
 
 	start := time.Now()
-	retryable, err := deliver(ctx, msg.ID)
+
+	if msg.OrgID == uuid.Nil {
+		n.log.Warn(ctx, "no organization specified for notification delivery", slog.F("msg_id", msg.ID))
+		// TODO: ?
+	}
+
+	resolver := runtimeconfig.NewOrgResolver(msg.OrgID, runtimeconfig.NewStoreResolver(n.cfgStore))
+
+	retryable, err := deliver(ctx, resolver, msg.ID)
 
 	n.metrics.DispatcherSendSeconds.WithLabelValues(string(msg.Method)).Observe(time.Since(start).Seconds())
 	n.metrics.InflightDispatches.WithLabelValues(string(msg.Method), msg.TemplateID.String()).Dec()

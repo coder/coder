@@ -11,6 +11,8 @@ ON CONFLICT
 DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
 ;
 
+-- TODO: turn these into runtimeconfig.Entry instances
+
 -- name: GetDefaultProxyConfig :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'default_proxy_display_name'), 'Default') :: text AS display_name,
@@ -95,4 +97,15 @@ SELECT
 -- name: UpsertNotificationsSettings :exec
 INSERT INTO site_configs (key, value) VALUES ('notifications_settings', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'notifications_settings';
+
+-- name: GetRuntimeConfig :one
+SELECT value FROM site_configs WHERE site_configs.key = $1;
+
+-- name: UpsertRuntimeConfig :exec
+INSERT INTO site_configs (key, value) VALUES ($1, $2)
+ON CONFLICT (key) DO UPDATE SET value = $2 WHERE site_configs.key = $1;
+
+-- name: DeleteRuntimeConfig :exec
+DELETE FROM site_configs
+WHERE site_configs.key = $1;
 

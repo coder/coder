@@ -1,6 +1,7 @@
-package config
+package runtimeconfig
 
 import (
+	"context"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -9,9 +10,9 @@ import (
 var EntryNotFound = xerrors.New("entry not found")
 
 type Store interface {
-	GetRuntimeSetting(key string) (string, error)
-	UpsertRuntimeSetting(key, value string) error
-	DeleteRuntimeSetting(key string) error
+	GetRuntimeSetting(ctx context.Context, key string) (string, error)
+	UpsertRuntimeSetting(ctx context.Context, key, value string) error
+	DeleteRuntimeSetting(ctx context.Context, key string) error
 }
 
 type InMemoryStore struct {
@@ -23,7 +24,7 @@ func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{store: make(map[string]string)}
 }
 
-func (s *InMemoryStore) GetRuntimeSetting(key string) (string, error) {
+func (s *InMemoryStore) GetRuntimeSetting(_ context.Context, key string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -35,15 +36,15 @@ func (s *InMemoryStore) GetRuntimeSetting(key string) (string, error) {
 	return val, nil
 }
 
-func (s *InMemoryStore) UpsertRuntimeSetting(key, val string) error {
+func (s *InMemoryStore) UpsertRuntimeSetting(_ context.Context, key, value string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.store[key] = val
+	s.store[key] = value
 	return nil
 }
 
-func (s *InMemoryStore) DeleteRuntimeSetting(key string) error {
+func (s *InMemoryStore) DeleteRuntimeSetting(_ context.Context, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
