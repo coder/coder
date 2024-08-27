@@ -607,7 +607,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(database.GetGroupsParams{
 			OrganizationID: o.ID,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).
-			Returns([]database.Group{a, b}).
+			Returns([]database.GetGroupsRow{
+				{Group: a, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+				{Group: b, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+			}).
 			// Fail the system check shortcut
 			FailSystemObjectChecks()
 	}))
