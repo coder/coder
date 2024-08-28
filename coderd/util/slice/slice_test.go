@@ -52,6 +52,22 @@ func TestUnique(t *testing.T) {
 		slice.Unique([]string{
 			"a", "a", "a",
 		}))
+
+	require.ElementsMatch(t,
+		[]int{1, 2, 3, 4, 5},
+		slice.UniqueFunc([]int{
+			1, 2, 3, 4, 5, 1, 2, 3, 4, 5,
+		}, func(a, b int) bool {
+			return a == b
+		}))
+
+	require.ElementsMatch(t,
+		[]string{"a"},
+		slice.UniqueFunc([]string{
+			"a", "a", "a",
+		}, func(a, b string) bool {
+			return a == b
+		}))
 }
 
 func TestContains(t *testing.T) {
@@ -229,5 +245,16 @@ func TestSymmetricDifference(t *testing.T) {
 		)
 		require.ElementsMatch(t, []int{1, 2, 3}, add)
 		require.ElementsMatch(t, []int{}, remove)
+	})
+
+	t.Run("Duplicates", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{5, 5, 5, 1, 1, 1, 3, 3, 3, 5, 5, 5},
+			[]int{2, 2, 2, 1, 1, 1, 2, 4, 4, 4, 5, 5, 5, 1, 1},
+		)
+		require.ElementsMatch(t, []int{2, 4}, add)
+		require.ElementsMatch(t, []int{3}, remove)
 	})
 }
