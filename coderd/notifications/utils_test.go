@@ -20,22 +20,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func defaultNotificationsConfig(method database.NotificationMethod) codersdk.NotificationsConfig {
-	return codersdk.NotificationsConfig{
-		Method:              serpent.String(method),
-		MaxSendAttempts:     5,
-		FetchInterval:       serpent.Duration(time.Millisecond * 100),
-		StoreSyncInterval:   serpent.Duration(time.Millisecond * 200),
-		LeasePeriod:         serpent.Duration(time.Second * 10),
-		DispatchTimeout:     serpent.Duration(time.Second * 5),
-		RetryInterval:       serpent.Duration(time.Millisecond * 50),
-		LeaseCount:          10,
-		StoreSyncBufferSize: 50,
-		SMTP:                codersdk.NotificationsEmailConfig{},
-		Webhook:             codersdk.NotificationsWebhookConfig{},
-	}
-}
-
 func defaultNotificationsMutator(method database.NotificationMethod) func(vals *codersdk.DeploymentValues) {
 	return func(vals *codersdk.DeploymentValues) {
 		vals.Notifications.Method = serpent.String(method)
@@ -57,11 +41,20 @@ func defaultHelpers() map[string]any {
 	}
 }
 
-func createSampleUser(t *testing.T, db database.Store) database.User {
-	return dbgen.User(t, db, database.User{
-		Email:    "bob@coder.com",
-		Username: "bob",
-	})
+func createSampleOrgMember(t *testing.T, db database.Store, mut ...func(u *database.User, o *database.Organization)) database.OrganizationMember {
+	org := database.Organization{}
+	user := database.User{
+		Email: "user@coder.com",
+	}
+
+	for _, fn := range mut {
+		fn(&user, &org)
+	}
+
+	o := dbgen.Organization(t, db, org)
+	u := dbgen.User(t, db, user)
+
+	return dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
 }
 
 func createMetrics() *notifications.Metrics {

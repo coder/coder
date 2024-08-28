@@ -59,14 +59,14 @@ func (o *Entry[T]) StartupValue() T {
 	return o.val
 }
 
-func (o *Entry[T]) Resolve(r Resolver) (T, error) {
-	return o.resolve(r)
+func (o *Entry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
+	return o.resolve(ctx, r)
 }
 
-func (o *Entry[T]) resolve(r Resolver) (T, error) {
+func (o *Entry[T]) resolve(ctx context.Context, r Resolver) (T, error) {
 	var zero T
 
-	val, err := r.ResolveByKey(nil, o.key)
+	val, err := r.ResolveByKey(ctx, o.key)
 	if err != nil {
 		return zero, err
 	}
@@ -82,10 +82,10 @@ func (o *Entry[T]) Save(ctx context.Context, m Mutator, val T) error {
 	return m.MutateByKey(ctx, o.key, val.String())
 }
 
-func (o *Entry[T]) Coalesce(r Resolver) (T, error) {
+func (o *Entry[T]) Coalesce(ctx context.Context, r Resolver) (T, error) {
 	var zero T
 
-	resolved, err := o.resolve(r)
+	resolved, err := o.resolve(ctx, r)
 	if err != nil {
 		if errors.Is(err, EntryNotFound) {
 			return o.StartupValue(), nil

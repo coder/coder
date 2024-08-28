@@ -7,40 +7,40 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 )
 
-// RuntimeConfig TODO
+// RuntimeConfigStore TODO
 // Created here to avoid dependency cycle with database in runtimeconfig package.
-type RuntimeConfig struct {
+type RuntimeConfigStore struct {
 	store    *runtimeConfigStore
 	resolver *runtimeconfig.StoreResolver
 	mutator  *runtimeconfig.StoreMutator
 }
 
-func NewRuntimeConfig(store database.Store) *RuntimeConfig {
+func NewRuntimeConfigStore(store database.Store) *RuntimeConfigStore {
 	runtimeStore := &runtimeConfigStore{store}
-	return &RuntimeConfig{
+	return &RuntimeConfigStore{
 		store:    runtimeStore,
 		resolver: runtimeconfig.NewStoreResolver(runtimeStore),
 		mutator:  runtimeconfig.NewStoreMutator(runtimeStore),
 	}
 }
 
-func (r RuntimeConfig) GetRuntimeSetting(ctx context.Context, key string) (string, error) {
+func (r RuntimeConfigStore) GetRuntimeSetting(ctx context.Context, key string) (string, error) {
 	return r.store.GetRuntimeSetting(ctx, key)
 }
 
-func (r RuntimeConfig) UpsertRuntimeSetting(ctx context.Context, key, value string) error {
+func (r RuntimeConfigStore) UpsertRuntimeSetting(ctx context.Context, key, value string) error {
 	return r.store.UpsertRuntimeSetting(ctx, key, value)
 }
 
-func (r RuntimeConfig) DeleteRuntimeSetting(ctx context.Context, key string) error {
+func (r RuntimeConfigStore) DeleteRuntimeSetting(ctx context.Context, key string) error {
 	return r.store.DeleteRuntimeSetting(ctx, key)
 }
 
-func (r RuntimeConfig) ResolveByKey(ctx context.Context, key string) (string, error) {
+func (r RuntimeConfigStore) ResolveByKey(ctx context.Context, key string) (string, error) {
 	return r.resolver.ResolveByKey(ctx, key)
 }
 
-func (r RuntimeConfig) MutateByKey(ctx context.Context, key, val string) error {
+func (r RuntimeConfigStore) MutateByKey(ctx context.Context, key, val string) error {
 	return r.mutator.MutateByKey(ctx, key, val)
 }
 

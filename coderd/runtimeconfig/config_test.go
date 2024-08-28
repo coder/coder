@@ -66,16 +66,16 @@ func TestConfig(t *testing.T) {
 		// Validate that it returns that value.
 		require.Equal(t, base.String(), field.String())
 		// Validate that there is no org-level override right now.
-		_, err := field.Resolve(resolver)
+		_, err := field.Resolve(ctx, resolver)
 		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
 		// Coalesce returns the deployment-wide value.
-		val, err := field.Coalesce(resolver)
+		val, err := field.Coalesce(ctx, resolver)
 		require.NoError(t, err)
 		require.Equal(t, base.String(), val.String())
 		// Set an org-level override.
 		require.NoError(t, field.Save(ctx, mutator, &override))
 		// Coalesce now returns the org-level value.
-		val, err = field.Coalesce(resolver)
+		val, err = field.Coalesce(ctx, resolver)
 		require.NoError(t, err)
 		require.Equal(t, override.String(), val.String())
 	})
@@ -107,16 +107,16 @@ func TestConfig(t *testing.T) {
 		// Initialize the value.
 		require.NoError(t, field.Set(base.String()))
 		// Validate that there is no org-level override right now.
-		_, err := field.Resolve(resolver)
+		_, err := field.Resolve(false, resolver)
 		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
 		// Coalesce returns the deployment-wide value.
-		val, err := field.Coalesce(resolver)
+		val, err := field.Coalesce(false, resolver)
 		require.NoError(t, err)
 		require.Equal(t, base.Value, val.Value)
 		// Set an org-level override.
 		require.NoError(t, field.Save(ctx, mutator, &override))
 		// Coalesce now returns the org-level value.
-		structVal, err := field.Resolve(resolver)
+		structVal, err := field.Resolve(false, resolver)
 		require.NoError(t, err)
 		require.Equal(t, override.Value, structVal.Value)
 	})

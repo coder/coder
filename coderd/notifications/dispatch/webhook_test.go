@@ -19,6 +19,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -131,7 +132,7 @@ func TestWebhook(t *testing.T) {
 			deliveryFn, err := handler.Dispatcher(msgPayload, titleTemplate, bodyTemplate)
 			require.NoError(t, err)
 
-			retryable, err := deliveryFn(ctx, msgID)
+			retryable, err := deliveryFn(ctx, runtimeconfig.NewNoopResolver(), msgID)
 			if tc.expectSuccess {
 				require.NoError(t, err)
 				require.False(t, retryable)

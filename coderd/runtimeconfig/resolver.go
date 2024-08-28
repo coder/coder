@@ -49,3 +49,15 @@ func NewOrgResolver(orgID uuid.UUID, inner Resolver) *OrgResolver {
 func (r OrgResolver) ResolveByKey(ctx context.Context, key string) (string, error) {
 	return r.inner.ResolveByKey(ctx, orgKey(r.orgID, key))
 }
+
+// NoopResolver will always fail to resolve the given key.
+// Useful in tests where you just want to look up the startup value of configs, and are not concerned with runtime config.
+type NoopResolver struct {}
+
+func NewNoopResolver() *NoopResolver {
+	return &NoopResolver{}
+}
+
+func (n NoopResolver) ResolveByKey(context.Context, string) (string, error) {
+	return "", EntryNotFound
+}

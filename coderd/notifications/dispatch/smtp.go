@@ -154,7 +154,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}
 
 		// Sender identification.
-		val, err := s.cfg.From.Coalesce(cfgResolver)
+		val, err := s.cfg.From.Coalesce(ctx, cfgResolver)
 		if err != nil {
 			return true, xerrors.Errorf("resolve from runtime config: %w", err)
 		}
