@@ -195,6 +195,12 @@ WHERE
 			workspaces.owner_id = @owner_id
 		ELSE true
 	END
+  	-- Filter by organization_id
+  	AND CASE
+		  WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  workspaces.organization_id = @organization_id
+		  ELSE true
+	END
 	-- Filter by build parameter
    	-- @has_param will match any build that includes the parameter.
 	AND CASE WHEN array_length(@has_param :: text[], 1) > 0  THEN

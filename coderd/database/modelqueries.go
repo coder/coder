@@ -247,6 +247,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
+		arg.OrganizationID,
 		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
 		arg.TemplateName,
