@@ -15,7 +15,7 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import {
@@ -26,6 +26,7 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -65,11 +66,16 @@ export const OrganizationSettingsPageView: FC<
 	const [isDeleting, setIsDeleting] = useState(false);
 
 	return (
-		<div>
-			<SettingsHeader title="Settings" />
+		<Stack spacing={4}>
+			<Breadcrumbs>
+				<Crumb>Organizations</Crumb>
+				<Crumb href={`/organizations/${organization.name}`} active>
+					{organization.display_name || organization.name}
+				</Crumb>
+			</Breadcrumbs>
 
 			{Boolean(error) && !isApiValidationError(error) && (
-				<div css={{ marginBottom: 32 }}>
+				<div>
 					<ErrorAlert error={error} />
 				</div>
 			)}
@@ -146,7 +152,7 @@ export const OrganizationSettingsPageView: FC<
 				entity="organization"
 				name={organization.name}
 			/>
-		</div>
+		</Stack>
 	);
 };
 
