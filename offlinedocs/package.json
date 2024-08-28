@@ -17,7 +17,7 @@
 		"@emotion/react": "11.11.4",
 		"@emotion/styled": "11.11.5",
 		"archiver": "6.0.2",
-		"framer-motion": "^10.17.6",
+		"framer-motion": "^10.18.0",
 		"front-matter": "4.0.2",
 		"lodash": "4.17.21",
 		"next": "14.2.7",
