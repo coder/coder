@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-func (s AGPLIDPSync) OrganizationSyncEnabled() bool {
+func (AGPLIDPSync) OrganizationSyncEnabled() bool {
 	// AGPL does not support syncing organizations.
 	return false
 }

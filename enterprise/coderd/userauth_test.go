@@ -1016,8 +1016,8 @@ func (r *oidcTestRunner) AssertOrganizations(t *testing.T, userIdent string, inc
 	userOrgs, err := r.AdminClient.OrganizationsByUser(ctx, userIdent)
 	require.NoError(t, err)
 
-	cpy := make([]uuid.UUID, len(expected))
-	copy(cpy, expected)
+	cpy := make([]uuid.UUID, 0, len(expected))
+	cpy = append(cpy, expected...)
 	hasDefault := false
 	userOrgIDs := db2sdk.List(userOrgs, func(o codersdk.Organization) uuid.UUID {
 		if o.IsDefault {

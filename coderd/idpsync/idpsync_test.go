@@ -137,6 +137,8 @@ func TestParseStringSliceClaim(t *testing.T) {
 }
 
 func TestIsHTTPError(t *testing.T) {
+	t.Parallel()
+
 	herr := idpsync.HTTPError{}
 	require.NotNil(t, idpsync.IsHTTPError(herr))
 	require.NotNil(t, idpsync.IsHTTPError(&herr))

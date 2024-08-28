@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -235,7 +236,7 @@ func TestOrganizationSync(t *testing.T) {
 			}
 
 			// Create a new sync object
-			sync := idpsync.NewSync(logger, caseData.Entitlements, caseData.Settings)
+			sync := enidpsync.NewSync(logger, caseData.Entitlements, caseData.Settings)
 			for _, exp := range caseData.Exps {
 				t.Run(exp.Name, func(t *testing.T) {
 					params, httpErr := sync.ParseOrganizationClaims(ctx, exp.Claims)
