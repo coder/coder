@@ -15,6 +15,15 @@ OPTIONS:
       --log-stackdriver string, $CODER_AGENT_LOGGING_STACKDRIVER
           Output Stackdriver compatible logs to a given file.
 
+      --agent-header string-array, $CODER_AGENT_HEADER
+          Additional HTTP headers added to all requests. Provide as key=value.
+          Can be specified multiple times.
+
+      --agent-header-command string, $CODER_AGENT_HEADER_COMMAND
+          An external command that outputs additional HTTP headers added to all
+          requests. The command must output each header as `key=value` on its
+          own line.
+
       --auth string, $CODER_AGENT_AUTH (default: token)
           Specify the authentication type to use for the agent.
 
