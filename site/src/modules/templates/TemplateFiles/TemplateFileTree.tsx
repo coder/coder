@@ -2,12 +2,11 @@ import { css } from "@emotion/react";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FormatAlignLeftOutlined from "@mui/icons-material/FormatAlignLeftOutlined";
-import TreeItem from "@mui/lab/TreeItem";
-import TreeView from "@mui/lab/TreeView";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import { type CSSProperties, type FC, useState } from "react";
+import { type CSSProperties, type ElementType, type FC, useState } from "react";
 import type { FileTree } from "utils/filetree";
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
@@ -80,23 +79,21 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			);
 		}
 
-		let icon: JSX.Element | null = isFolder(content) ? null : (
-			<FormatAlignLeftOutlined />
-		);
-
-		if (filename.endsWith(".tf")) {
-			icon = <FileTypeTerraform />;
-		}
-		if (filename.endsWith(".md")) {
-			icon = <FileTypeMarkdown />;
-		}
-		if (filename.endsWith("Dockerfile")) {
-			icon = <DockerIcon />;
+		let icon: ElementType | undefined;
+		if (isFolder(content)) {
+			icon = FormatAlignLeftOutlined;
+		} else if (filename.endsWith(".tf")) {
+			icon = FileTypeTerraform;
+		} else if (filename.endsWith(".md")) {
+			icon = FileTypeMarkdown;
+		} else if (filename.endsWith("Dockerfile")) {
+			icon = DockerIcon;
 		}
 
 		return (
 			<TreeItem
-				nodeId={currentPath}
+				slots={{ icon }}
+				itemId={currentPath}
 				key={currentPath}
 				label={
 					Label ? (
@@ -115,6 +112,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
           user-select: none;
 
           & > .MuiTreeItem-content {
+						border-radius: 0;
             padding: 2px 16px;
             color: ${
 							isHiddenFile
@@ -176,7 +174,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 								},
 					);
 				}}
-				icon={icon}
 				style={
 					{
 						"--level": parentPath ? parentPath.split("/").length : 0,
@@ -195,12 +192,11 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	};
 
 	return (
-		<TreeView
-			defaultCollapseIcon={<ExpandMoreIcon />}
-			defaultExpandIcon={<ChevronRightIcon />}
+		<SimpleTreeView
+			slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
 			aria-label="Files"
-			defaultExpanded={activePath ? expandablePaths(activePath) : []}
-			defaultSelected={activePath}
+			defaultExpandedItems={activePath ? expandablePaths(activePath) : []}
+			defaultSelectedItems={activePath}
 		>
 			{Object.keys(fileTree)
 				.sort(sortFileTree(fileTree))
@@ -253,7 +249,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 					Delete
 				</MenuItem>
 			</Menu>
-		</TreeView>
+		</SimpleTreeView>
 	);
 };
 
@@ -268,7 +264,13 @@ const FileTypeTerraform: FC = () => (
 );
 
 const FileTypeMarkdown: FC = () => (
-	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#755838">
+	<svg
+		xmlns="http://www.w3.org/2000/svg"
+		viewBox="0 0 32 32"
+		fill="#755838"
+		role="img"
+		aria-label="Markdown icon"
+	>
 		<rect
 			x="2.5"
 			y="7.955"
