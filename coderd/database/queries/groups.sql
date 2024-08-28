@@ -28,7 +28,7 @@ SELECT
 FROM
 		groups
 INNER JOIN
-		organizations ON ((groups.organization_id = organizations.id))
+		organizations ON groups.organization_id = organizations.id
 WHERE
 		true
 		AND CASE

@@ -43,8 +43,6 @@ const UsersPage: FC = () => {
 	const { entitlements, experiments } = useDashboard();
 	const [searchParams] = searchParamsResult;
 
-	// TODO: DEAL WITH THIS BEFORE YOU MERGE IT KAYLA
-	// SERIOUSLY, PAY ATTENTION
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
 	const authMethodsQuery = useQuery(authMethods());
 

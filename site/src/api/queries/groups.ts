@@ -18,9 +18,15 @@ export const groups = () => {
 	} satisfies UseQueryOptions<GroupWithOrganizationInfo[]>;
 };
 
+const getGroupsByOrganizationQueryKey = (organization: string) => [
+	"organization",
+	organization,
+	"groups",
+];
+
 export const groupsByOrganization = (organization: string) => {
 	return {
-		queryKey: [organization, ...groupsQueryKey],
+		queryKey: getGroupsByOrganizationQueryKey(organization),
 		queryFn: () => API.getGroupsByOrganization(organization),
 	} satisfies UseQueryOptions<Group[]>;
 };
@@ -114,7 +120,9 @@ export const createGroup = (queryClient: QueryClient, organization: string) => {
 			API.createGroup(organization, request),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries(groupsQueryKey);
-			await queryClient.invalidateQueries([organization, ...groupsQueryKey]);
+			await queryClient.invalidateQueries(
+				getGroupsByOrganizationQueryKey(organization),
+			);
 		},
 	};
 };
@@ -164,7 +172,9 @@ export const invalidateGroup = (
 ) =>
 	Promise.all([
 		queryClient.invalidateQueries(groupsQueryKey),
-		queryClient.invalidateQueries([organization, ...groupsQueryKey]),
+		queryClient.invalidateQueries(
+			getGroupsByOrganizationQueryKey(organization),
+		),
 		queryClient.invalidateQueries(getGroupQueryKey(organization, groupId)),
 	]);
 

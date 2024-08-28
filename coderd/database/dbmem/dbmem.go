@@ -2634,7 +2634,7 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 		}
 	}
 
-	organizationDisplayNames := make(map[uuid.UUID]struct{ name, displayName string })
+	orgDetailsCache := make(map[uuid.UUID]struct{ name, displayName string })
 	filtered := make([]database.GetGroupsRow, 0)
 	for _, group := range q.groups {
 		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
@@ -2646,7 +2646,7 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 			continue
 		}
 
-		orgDetails, ok := organizationDisplayNames[group.ID]
+		orgDetails, ok := orgDetailsCache[group.ID]
 		if !ok {
 			for _, org := range q.organizations {
 				if group.OrganizationID == org.ID {
@@ -2656,7 +2656,7 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 					break
 				}
 			}
-			organizationDisplayNames[group.ID] = orgDetails
+			orgDetailsCache[group.ID] = orgDetails
 		}
 
 		filtered = append(filtered, database.GetGroupsRow{

@@ -1615,7 +1615,7 @@ class ApiMethods {
 		organization: string,
 	): Promise<TypesGen.Group[]> => {
 		const response = await this.axios.get(
-			`/api/v2/organization/${organization}/groups`,
+			`/api/v2/organizations/${organization}/groups`,
 		);
 		return response.data;
 	};
