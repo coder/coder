@@ -3034,14 +3034,24 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
-func (q *FakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
+func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if len(q.organizations) == 0 {
-		return nil, sql.ErrNoRows
+	tmp := make([]database.Organization, 0)
+	for _, org := range q.organizations {
+		if len(args.IDs) > 0 {
+			if !slices.Contains(args.IDs, org.ID) {
+				continue
+			}
+		}
+		if args.Name != "" && !strings.EqualFold(org.Name, args.Name) {
+			continue
+		}
+		tmp = append(tmp, org)
 	}
-	return q.organizations, nil
+
+	return tmp, nil
 }
 
 func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UUID) ([]database.Organization, error) {
@@ -3060,9 +3070,7 @@ func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 			organizations = append(organizations, organization)
 		}
 	}
-	if len(organizations) == 0 {
-		return nil, sql.ErrNoRows
-	}
+
 	return organizations, nil
 }
 

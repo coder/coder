@@ -1700,9 +1700,9 @@ func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
-func (q *querier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
+func (q *querier) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
-		return q.db.GetOrganizations(ctx)
+		return q.db.GetOrganizations(ctx, args)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }

@@ -4596,10 +4596,28 @@ SELECT
 	id, name, description, created_at, updated_at, is_default, display_name, icon
 FROM
 	organizations
+WHERE
+	true
+	  -- Filter by ids
+	AND CASE
+		WHEN array_length($1 :: uuid[], 1) > 0 THEN
+			id = ANY($1)
+		ELSE true
+	END
+  	AND CASE
+		  WHEN $2::text != '' THEN
+			  LOWER("name") = LOWER($2)
+		  ELSE true
+	END
 `
 
-func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizations)
+type GetOrganizationsParams struct {
+	IDs  []uuid.UUID `db:"ids" json:"ids"`
+	Name string      `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizations, pq.Array(arg.IDs), arg.Name)
 	if err != nil {
 		return nil, err
 	}

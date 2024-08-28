@@ -635,7 +635,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		def, _ := db.GetDefaultOrganization(context.Background())
 		a := dbgen.Organization(s.T(), db, database.Organization{})
 		b := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args().Asserts(def, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(def, a, b))
+		check.Args(database.GetOrganizationsParams{}).Asserts(def, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(def, a, b))
 	}))
 	s.Run("GetOrganizationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

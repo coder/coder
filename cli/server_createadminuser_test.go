@@ -60,7 +60,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		require.EqualValues(t, []string{codersdk.RoleOwner}, user.RBACRoles, "user does not have owner role")
 
 		// Check that user is admin in every org.
-		orgs, err := db.GetOrganizations(ctx)
+		orgs, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
 		require.NoError(t, err)
 		orgIDs := make(map[uuid.UUID]struct{}, len(orgs))
 		for _, org := range orgs {
