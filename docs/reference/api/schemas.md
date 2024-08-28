@@ -1849,6 +1849,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"ignore_user_info": true,
 			"issuer_url": "string",
 			"name_field": "string",
+			"organization_assign_default": true,
+			"organization_field": "string",
+			"organization_mapping": {},
 			"scopes": ["string"],
 			"sign_in_text": "string",
 			"signups_disabled_text": "string",
@@ -2272,6 +2275,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"ignore_user_info": true,
 		"issuer_url": "string",
 		"name_field": "string",
+		"organization_assign_default": true,
+		"organization_field": "string",
+		"organization_mapping": {},
 		"scopes": ["string"],
 		"sign_in_text": "string",
 		"signups_disabled_text": "string",
@@ -3639,6 +3645,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"ignore_user_info": true,
 	"issuer_url": "string",
 	"name_field": "string",
+	"organization_assign_default": true,
+	"organization_field": "string",
+	"organization_mapping": {},
 	"scopes": ["string"],
 	"sign_in_text": "string",
 	"signups_disabled_text": "string",
@@ -3652,34 +3661,37 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                    | Type                             | Required | Restrictions | Description                                                                      |
-| ----------------------- | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
-| `allow_signups`         | boolean                          | false    |              |                                                                                  |
-| `auth_url_params`       | object                           | false    |              |                                                                                  |
-| `client_cert_file`      | string                           | false    |              |                                                                                  |
-| `client_id`             | string                           | false    |              |                                                                                  |
-| `client_key_file`       | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
-| `client_secret`         | string                           | false    |              |                                                                                  |
-| `email_domain`          | array of string                  | false    |              |                                                                                  |
-| `email_field`           | string                           | false    |              |                                                                                  |
-| `group_allow_list`      | array of string                  | false    |              |                                                                                  |
-| `group_auto_create`     | boolean                          | false    |              |                                                                                  |
-| `group_mapping`         | object                           | false    |              |                                                                                  |
-| `group_regex_filter`    | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
-| `groups_field`          | string                           | false    |              |                                                                                  |
-| `icon_url`              | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
-| `ignore_email_verified` | boolean                          | false    |              |                                                                                  |
-| `ignore_user_info`      | boolean                          | false    |              |                                                                                  |
-| `issuer_url`            | string                           | false    |              |                                                                                  |
-| `name_field`            | string                           | false    |              |                                                                                  |
-| `scopes`                | array of string                  | false    |              |                                                                                  |
-| `sign_in_text`          | string                           | false    |              |                                                                                  |
-| `signups_disabled_text` | string                           | false    |              |                                                                                  |
-| `skip_issuer_checks`    | boolean                          | false    |              |                                                                                  |
-| `user_role_field`       | string                           | false    |              |                                                                                  |
-| `user_role_mapping`     | object                           | false    |              |                                                                                  |
-| `user_roles_default`    | array of string                  | false    |              |                                                                                  |
-| `username_field`        | string                           | false    |              |                                                                                  |
+| Name                          | Type                             | Required | Restrictions | Description                                                                      |
+| ----------------------------- | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
+| `allow_signups`               | boolean                          | false    |              |                                                                                  |
+| `auth_url_params`             | object                           | false    |              |                                                                                  |
+| `client_cert_file`            | string                           | false    |              |                                                                                  |
+| `client_id`                   | string                           | false    |              |                                                                                  |
+| `client_key_file`             | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
+| `client_secret`               | string                           | false    |              |                                                                                  |
+| `email_domain`                | array of string                  | false    |              |                                                                                  |
+| `email_field`                 | string                           | false    |              |                                                                                  |
+| `group_allow_list`            | array of string                  | false    |              |                                                                                  |
+| `group_auto_create`           | boolean                          | false    |              |                                                                                  |
+| `group_mapping`               | object                           | false    |              |                                                                                  |
+| `group_regex_filter`          | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
+| `groups_field`                | string                           | false    |              |                                                                                  |
+| `icon_url`                    | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
+| `ignore_email_verified`       | boolean                          | false    |              |                                                                                  |
+| `ignore_user_info`            | boolean                          | false    |              |                                                                                  |
+| `issuer_url`                  | string                           | false    |              |                                                                                  |
+| `name_field`                  | string                           | false    |              |                                                                                  |
+| `organization_assign_default` | boolean                          | false    |              |                                                                                  |
+| `organization_field`          | string                           | false    |              |                                                                                  |
+| `organization_mapping`        | object                           | false    |              |                                                                                  |
+| `scopes`                      | array of string                  | false    |              |                                                                                  |
+| `sign_in_text`                | string                           | false    |              |                                                                                  |
+| `signups_disabled_text`       | string                           | false    |              |                                                                                  |
+| `skip_issuer_checks`          | boolean                          | false    |              |                                                                                  |
+| `user_role_field`             | string                           | false    |              |                                                                                  |
+| `user_role_mapping`           | object                           | false    |              |                                                                                  |
+| `user_roles_default`          | array of string                  | false    |              |                                                                                  |
+| `username_field`              | string                           | false    |              |                                                                                  |
 
 ## codersdk.Organization
 

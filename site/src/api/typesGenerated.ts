@@ -879,6 +879,9 @@ export interface OIDCConfig {
 	readonly email_field: string;
 	readonly auth_url_params: Record<string, string>;
 	readonly ignore_user_info: boolean;
+	readonly organization_field: string;
+	readonly organization_mapping: Record<string, Readonly<Array<string>>>;
+	readonly organization_assign_default: boolean;
 	readonly group_auto_create: boolean;
 	readonly group_regex_filter: string;
 	readonly group_allow_list: string[];
