@@ -22,6 +22,7 @@ import (
 // claims to the internal representation of a user in Coder.
 // TODO: Move group + role sync into this interface.
 type IDPSync interface {
+	OrganizationSyncEnabled() bool
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
 	ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HTTPError)
@@ -103,6 +104,21 @@ func ParseStringSliceClaim(claim interface{}) ([]string, error) {
 
 	// Not sure what the user gave us.
 	return nil, xerrors.Errorf("invalid claim type. Expected an array of strings, got: %T", claim)
+}
+
+// IsHTTPError handles us being inconsistent with returning errors as values or
+// pointers.
+func IsHTTPError(err error) *HTTPError {
+	var httpErr HTTPError
+	if xerrors.As(err, &httpErr) {
+		return &httpErr
+	}
+
+	var httpErrPtr *HTTPError
+	if xerrors.As(err, &httpErrPtr) {
+		return httpErrPtr
+	}
+	return nil
 }
 
 // HTTPError is a helper struct for returning errors from the IDP sync process.

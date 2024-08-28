@@ -14,8 +14,12 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func (e EnterpriseIDPSync) OrganizationSyncEnabled() bool {
+	return e.entitlements.Enabled(codersdk.FeatureMultipleOrganizations) && e.OrganizationField != ""
+}
+
 func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.OrganizationParams, *idpsync.HTTPError) {
-	if !e.entitlements.Enabled(codersdk.FeatureMultipleOrganizations) {
+	if !e.OrganizationSyncEnabled() {
 		// Default to agpl if multi-org is not enabled
 		return e.AGPLIDPSync.ParseOrganizationClaims(ctx, mergedClaims)
 	}

@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -42,6 +43,14 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 	)
 	aReq.Old = database.AuditableOrganizationMember{}
 	defer commitAudit()
+
+	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.OrganizationSyncEnabled() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for this user.",
+			Detail:  fmt.Sprintf("User %s is an OIDC user and organization sync is enabled. Ask an administrator to resolve this in your external IDP.", user.ID),
+		})
+		return
+	}
 
 	member, err := api.Database.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 		OrganizationID: organization.ID,

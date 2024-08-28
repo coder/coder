@@ -135,3 +135,11 @@ func TestParseStringSliceClaim(t *testing.T) {
 		})
 	}
 }
+
+func TestIsHTTPError(t *testing.T) {
+	herr := idpsync.HTTPError{}
+	require.NotNil(t, idpsync.IsHTTPError(herr))
+	require.NotNil(t, idpsync.IsHTTPError(&herr))
+
+	require.Nil(t, error(nil))
+}

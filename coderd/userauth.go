@@ -669,12 +669,11 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	})
 	cookies, user, key, err := api.oauthLogin(r, params)
 	defer params.CommitAuditLogs()
-	var httpErr idpsync.HTTPError
-	if xerrors.As(err, &httpErr) {
-		httpErr.Write(rw, r)
-		return
-	}
 	if err != nil {
+		if httpErr := idpsync.IsHTTPError(err); httpErr != nil {
+			httpErr.Write(rw, r)
+			return
+		}
 		logger.Error(ctx, "oauth2: login failed", slog.F("user", user.Username), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
@@ -1066,12 +1065,11 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	})
 	cookies, user, key, err := api.oauthLogin(r, params)
 	defer params.CommitAuditLogs()
-	var httpErr idpsync.HTTPError
-	if xerrors.As(err, &httpErr) {
-		httpErr.Write(rw, r)
-		return
-	}
 	if err != nil {
+		if hErr := idpsync.IsHTTPError(err); hErr != nil {
+			hErr.Write(rw, r)
+			return
+		}
 		logger.Error(ctx, "oauth2: login failed", slog.F("user", user.Username), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",

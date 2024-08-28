@@ -16,10 +16,15 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
+func (s AGPLIDPSync) OrganizationSyncEnabled() bool {
+	// AGPL does not support syncing organizations.
+	return false
+}
+
 func (s AGPLIDPSync) ParseOrganizationClaims(_ context.Context, _ jwt.MapClaims) (OrganizationParams, *HTTPError) {
 	// For AGPL we only sync the default organization.
 	return OrganizationParams{
-		SyncEnabled:    false,
+		SyncEnabled:    s.OrganizationSyncEnabled(),
 		IncludeDefault: s.OrganizationAssignDefault,
 		Organizations:  []uuid.UUID{},
 	}, nil

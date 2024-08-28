@@ -1294,10 +1294,6 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	var user database.User
 	err := store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
-		// Organization is required to know where to allocate the user.
-		if len(req.OrganizationIDs) == 0 {
-			return xerrors.Errorf("organization ID must be provided")
-		}
 
 		params := database.InsertUserParams{
 			ID:             uuid.New(),
