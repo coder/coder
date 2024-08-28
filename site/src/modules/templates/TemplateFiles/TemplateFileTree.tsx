@@ -2,9 +2,9 @@ import { css } from "@emotion/react";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FormatAlignLeftOutlined from "@mui/icons-material/FormatAlignLeftOutlined";
-import { SimpleTreeView, TreeItem } from '@mui/x-tree-view';
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
 import { type CSSProperties, type ElementType, type FC, useState } from "react";
 import type { FileTree } from "utils/filetree";
@@ -79,20 +79,20 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			);
 		}
 
-		let icon: ElementType | undefined
-		if(isFolder(content)) {
-			icon = FormatAlignLeftOutlined
+		let icon: ElementType | undefined;
+		if (isFolder(content)) {
+			icon = FormatAlignLeftOutlined;
 		} else if (filename.endsWith(".tf")) {
-			icon =FileTypeTerraform;
+			icon = FileTypeTerraform;
 		} else if (filename.endsWith(".md")) {
 			icon = FileTypeMarkdown;
 		} else if (filename.endsWith("Dockerfile")) {
 			icon = DockerIcon;
-		};
+		}
 
 		return (
 			<TreeItem
-			slots={{ icon }}
+				slots={{ icon }}
 				itemId={currentPath}
 				key={currentPath}
 				label={
@@ -193,7 +193,7 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 
 	return (
 		<SimpleTreeView
-			slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon, }}
+			slots={{ collapseIcon: ExpandMoreIcon, expandIcon: ChevronRightIcon }}
 			aria-label="Files"
 			defaultExpandedItems={activePath ? expandablePaths(activePath) : []}
 			defaultSelectedItems={activePath}
@@ -264,7 +264,13 @@ const FileTypeTerraform: FC = () => (
 );
 
 const FileTypeMarkdown: FC = () => (
-	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#755838" role="img" aria-label="Markdown icon">
+	<svg
+		xmlns="http://www.w3.org/2000/svg"
+		viewBox="0 0 32 32"
+		fill="#755838"
+		role="img"
+		aria-label="Markdown icon"
+	>
 		<rect
 			x="2.5"
 			y="7.955"
