@@ -39,33 +39,13 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 		Email:          parser.String(values, "", "email"),
 		DateFrom:       parser.Time(values, time.Time{}, "date_from", dateLayout),
 		DateTo:         parser.Time(values, time.Time{}, "date_to", dateLayout),
+		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
 		ResourceType:   string(httpapi.ParseCustom(parser, values, "", "resource_type", httpapi.ParseEnum[database.ResourceType])),
 		Action:         string(httpapi.ParseCustom(parser, values, "", "action", httpapi.ParseEnum[database.AuditAction])),
 		BuildReason:    string(httpapi.ParseCustom(parser, values, "", "build_reason", httpapi.ParseEnum[database.BuildReason])),
 	}
 	if !filter.DateTo.IsZero() {
 		filter.DateTo = filter.DateTo.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
-	}
-
-	// Convert the "organization" parameter to an organization uuid. This can require
-	// a database lookup.
-	organizationArg := parser.String(values, "", "organization")
-	if organizationArg != "" {
-		organizationID, err := uuid.Parse(organizationArg)
-		if err == nil {
-			filter.OrganizationID = organizationID
-		} else {
-			// Organization could be a name
-			organization, err := db.GetOrganizationByName(ctx, organizationArg)
-			if err != nil {
-				parser.Errors = append(parser.Errors, codersdk.ValidationError{
-					Field:  "organization",
-					Detail: fmt.Sprintf("Organization %q either does not exist, or you are unauthorized to view it", organizationArg),
-				})
-			} else {
-				filter.OrganizationID = organization.ID
-			}
-		}
 	}
 
 	parser.ErrorExcessParams(values)
@@ -95,7 +75,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
-func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
@@ -145,6 +125,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		// which will return all workspaces.
 		Valid: values.Has("outdated"),
 	}
+	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 
 	type paramMatch struct {
 		name  string
@@ -198,32 +179,12 @@ func Templates(ctx context.Context, db database.Store, query string) (database.G
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetTemplatesWithFilterParams{
-		Deleted:    parser.Boolean(values, false, "deleted"),
-		ExactName:  parser.String(values, "", "exact_name"),
-		FuzzyName:  parser.String(values, "", "name"),
-		IDs:        parser.UUIDs(values, []uuid.UUID{}, "ids"),
-		Deprecated: parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
-	}
-
-	// Convert the "organization" parameter to an organization uuid. This can require
-	// a database lookup.
-	organizationArg := parser.String(values, "", "organization")
-	if organizationArg != "" {
-		organizationID, err := uuid.Parse(organizationArg)
-		if err == nil {
-			filter.OrganizationID = organizationID
-		} else {
-			// Organization could be a name
-			organization, err := db.GetOrganizationByName(ctx, organizationArg)
-			if err != nil {
-				parser.Errors = append(parser.Errors, codersdk.ValidationError{
-					Field:  "organization",
-					Detail: fmt.Sprintf("Organization %q either does not exist, or you are unauthorized to view it", organizationArg),
-				})
-			} else {
-				filter.OrganizationID = organization.ID
-			}
-		}
+		Deleted:        parser.Boolean(values, false, "deleted"),
+		ExactName:      parser.String(values, "", "exact_name"),
+		FuzzyName:      parser.String(values, "", "name"),
+		IDs:            parser.UUIDs(values, []uuid.UUID{}, "ids"),
+		Deprecated:     parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
+		OrganizationID: parseOrganization(ctx, db, parser, values, "organization"),
 	}
 
 	parser.ErrorExcessParams(values)
@@ -269,6 +230,23 @@ func searchTerms(query string, defaultKey func(term string, values url.Values) e
 	}
 
 	return searchValues, nil
+}
+
+func parseOrganization(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string) uuid.UUID {
+	return httpapi.ParseCustom(parser, vals, uuid.Nil, queryParam, func(v string) (uuid.UUID, error) {
+		if v == "" {
+			return uuid.Nil, nil
+		}
+		organizationID, err := uuid.Parse(v)
+		if err == nil {
+			return organizationID, nil
+		}
+		organization, err := db.GetOrganizationByName(ctx, v)
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", v)
+		}
+		return organization.ID, nil
+	})
 }
 
 // splitQueryParameterByDelimiter takes a query string and splits it into the individual elements

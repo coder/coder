@@ -9964,6 +9964,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		if arg.OrganizationID != uuid.Nil {
+			if workspace.OrganizationID != arg.OrganizationID {
+				continue
+			}
+		}
+
 		if arg.OwnerUsername != "" {
 			owner, err := q.getUserByIDNoLock(workspace.OwnerID)
 			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
