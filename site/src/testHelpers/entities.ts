@@ -2506,7 +2506,9 @@ export const MockGroup: TypesGen.Group = {
 };
 
 const MockEveryoneGroup: TypesGen.Group = {
-	id: `${MockOrganization.id}-everyone`,
+	// The "Everyone" group must have the same ID as a the organization it belongs
+	// to.
+	id: MockOrganization.id,
 	name: "Everyone",
 	display_name: "",
 	organization_id: MockOrganization.id,
