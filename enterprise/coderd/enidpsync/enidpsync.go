@@ -7,6 +7,11 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 )
 
+// EnterpriseIDPSync enabled syncing user information from an external IDP.
+// The sync is an enterprise feature, so this struct wraps the AGPL implementation
+// and extends it with enterprise capabilities. These capabilities can entirely
+// be changed in the Parsing, and leaving the "syncing" part (which holds the
+// more complex logic) to the shared AGPL implementation.
 type EnterpriseIDPSync struct {
 	entitlements *entitlements.Set
 	*idpsync.AGPLIDPSync

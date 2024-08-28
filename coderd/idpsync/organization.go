@@ -30,17 +30,6 @@ func (s AGPLIDPSync) ParseOrganizationClaims(_ context.Context, _ jwt.MapClaims)
 	}, nil
 }
 
-type OrganizationParams struct {
-	// SyncEnabled if false will skip syncing the user's organizations.
-	SyncEnabled bool
-	// IncludeDefault is primarily for single org deployments. It will ensure
-	// a user is always inserted into the default org.
-	IncludeDefault bool
-	// Organizations is the list of organizations the user should be a member of
-	// assuming syncing is turned on.
-	Organizations []uuid.UUID
-}
-
 // SyncOrganizations if enabled will ensure the user is a member of the provided
 // organizations. It will add and remove their membership to match the expected set.
 func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error {
