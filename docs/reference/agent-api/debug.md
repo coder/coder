@@ -5,7 +5,7 @@
 ### Code samples
 
 ```shell
-curl http://127.0.0.1:2113/debug/logs
+curl $CODER_AGENT_DEBUG_ADDRESS/debug/logs
 ```
 
 `GET /debug/logs`
@@ -23,7 +23,7 @@ Get the first 10MiB of data from `$CODER_AGENT_LOG_DIR/coder-agent.log`.
 ### Code samples
 
 ```shell
-curl http://127.0.0.1:2113/debug/magicsock
+curl $CODER_AGENT_DEBUG_ADDRESS/debug/magicsock
 ```
 
 `GET /debug/magicsock`
@@ -36,7 +36,7 @@ See
 ### Code samples
 
 ```shell
-curl http://127.0.0.1:2113/debug/magicsock/debug-logging/true
+curl $CODER_AGENT_DEBUG_ADDRESS/debug/magicsock/debug-logging/true
 ```
 
 `GET /debug/magicsock/debug-logging/{state}`
@@ -62,7 +62,7 @@ for more information.
 ### Code samples
 
 ```shell
-curl http://127.0.0.1:2113/debug/manifest
+curl $CODER_AGENT_DEBUG_ADDRESS/debug/manifest
 ```
 
 `GET /debug/manifest`
