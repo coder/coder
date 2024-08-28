@@ -2510,6 +2510,8 @@ const MockEveryoneGroup: TypesGen.Group = {
 	name: "Everyone",
 	display_name: "",
 	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
 	members: [],
 	avatar_url: "",
 	quota_allowance: 0,
