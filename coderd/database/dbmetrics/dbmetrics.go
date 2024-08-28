@@ -865,9 +865,9 @@ func (m metricsStore) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []u
 	return organizations, err
 }
 
-func (m metricsStore) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
+func (m metricsStore) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	start := time.Now()
-	organizations, err := m.s.GetOrganizations(ctx)
+	organizations, err := m.s.GetOrganizations(ctx, args)
 	m.queryLatencies.WithLabelValues("GetOrganizations").Observe(time.Since(start).Seconds())
 	return organizations, err
 }

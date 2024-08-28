@@ -3024,7 +3024,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO 
+INSERT INTO
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3033,7 +3033,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES 
+VALUES
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -4596,10 +4596,28 @@ SELECT
 	id, name, description, created_at, updated_at, is_default, display_name, icon
 FROM
 	organizations
+WHERE
+	true
+	  -- Filter by ids
+	AND CASE
+		WHEN array_length($1 :: uuid[], 1) > 0 THEN
+			id = ANY($1)
+		ELSE true
+	END
+  	AND CASE
+		  WHEN $2::text != '' THEN
+			  LOWER("name") = LOWER($2)
+		  ELSE true
+	END
 `
 
-func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizations)
+type GetOrganizationsParams struct {
+	IDs  []uuid.UUID `db:"ids" json:"ids"`
+	Name string      `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizations, pq.Array(arg.IDs), arg.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -5743,7 +5761,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -7460,7 +7478,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE 
+UPDATE
 	tailnet_peers
 SET
 	status = $2
