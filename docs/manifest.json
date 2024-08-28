@@ -1105,6 +1105,22 @@
 							"path": "reference/cli/whoami.md"
 						}
 					]
+				},
+				{
+					"title": "Agent API",
+					"description": "Learn how to use Coder Agent API",
+					"path": "./reference/agent-api/README.md",
+					"icon_path": "./images/icons/api.svg",
+					"children": [
+						{
+							"title": "Debug",
+							"path": "./reference/agent-api/debug.md"
+						},
+						{
+							"title": "Schemas",
+							"path": "./reference/agent-api/schemas.md"
+						}
+					]
 				}
 			]
 		},

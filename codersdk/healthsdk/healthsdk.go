@@ -273,3 +273,10 @@ type ClientNetcheckReport struct {
 	DERP       DERPHealthReport `json:"derp"`
 	Interfaces InterfacesReport `json:"interfaces"`
 }
+
+// @typescript-ignore AgentNetcheckReport
+type AgentNetcheckReport struct {
+	BaseReport
+	NetInfo    *tailcfg.NetInfo `json:"net_info"`
+	Interfaces InterfacesReport `json:"interfaces"`
+}
