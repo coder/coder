@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/serpent"
 )
@@ -61,7 +64,8 @@ func (r *RootCmd) ping() *serpent.Command {
 			if !r.disableNetworkTelemetry {
 				opts.EnableTelemetry = true
 			}
-			conn, err := workspacesdk.New(client).DialAgent(ctx, workspaceAgent.ID, opts)
+			client := workspacesdk.New(client)
+			conn, err := client.DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err
 			}
@@ -138,11 +142,44 @@ func (r *RootCmd) ping() *serpent.Command {
 				)
 
 				if n == int(pingNum) {
-					diags := conn.GetPeerDiagnostics()
-					cliui.PeerDiagnostics(inv.Stdout, diags)
-					return nil
+					break
 				}
 			}
+			ctx, cancel = context.WithTimeout(inv.Context(), 30*time.Second)
+			defer cancel()
+			diags := conn.GetPeerDiagnostics()
+			cliui.PeerDiagnostics(inv.Stdout, diags)
+
+			connDiags := cliui.ConnDiags{
+				PingP2P:       didP2p,
+				DisableDirect: r.disableDirect,
+				LocalNetInfo:  conn.GetNetInfo(),
+			}
+			connInfo, err := client.AgentConnectionInfoGeneric(ctx)
+			if err == nil {
+				connDiags.ConnInfo = &connInfo
+			} else {
+				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve connection info from server: %v\n", err)
+			}
+			ifReport, err := healthsdk.RunInterfacesReport()
+			if err == nil {
+				connDiags.LocalInterfaces = &ifReport
+			} else {
+				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve local interfaces report: %v\n", err)
+			}
+			agentNetcheck, err := conn.Netcheck(ctx)
+			if err == nil {
+				connDiags.AgentNetcheck = &agentNetcheck
+			} else {
+				var sdkErr *codersdk.Error
+				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+					_, _ = fmt.Fprint(inv.Stdout, "Could not generate full connection report as the workspace agent is outdated\n")
+				} else {
+					_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve connection report from agent: %v\n", err)
+				}
+			}
+			cliui.ConnDiagnostics(inv.Stdout, connDiags)
+			return nil
 		},
 	}
 

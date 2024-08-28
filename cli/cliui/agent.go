@@ -10,8 +10,11 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
@@ -344,5 +347,57 @@ func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
 		_, _ = fmt.Fprintf(w, "%s Wireguard handshake %s ago\n", symbol, ago.Round(time.Second))
 	} else {
 		_, _ = fmt.Fprint(w, "✘ Wireguard is not connected\n")
+	}
+}
+
+type ConnDiags struct {
+	ConnInfo        *workspacesdk.AgentConnectionInfo
+	PingP2P         bool
+	DisableDirect   bool
+	LocalNetInfo    *tailcfg.NetInfo
+	LocalInterfaces *healthsdk.InterfacesReport
+	AgentNetcheck   *healthsdk.AgentNetcheckReport
+	// TODO: More diagnostics
+}
+
+func ConnDiagnostics(w io.Writer, d ConnDiags) {
+	if d.AgentNetcheck != nil {
+		for _, msg := range d.AgentNetcheck.Interfaces.Warnings {
+			_, _ = fmt.Fprintf(w, "❗ Agent: %s\n", msg.Message)
+		}
+	}
+
+	if d.LocalInterfaces != nil {
+		for _, msg := range d.LocalInterfaces.Warnings {
+			_, _ = fmt.Fprintf(w, "❗ Client: %s\n", msg.Message)
+		}
+	}
+
+	if d.PingP2P {
+		_, _ = fmt.Fprint(w, "✔ You are connected directly (p2p)\n")
+		return
+	}
+	_, _ = fmt.Fprint(w, "❗ You are connected via a DERP relay, not directly (p2p)\n")
+
+	if d.DisableDirect {
+		_, _ = fmt.Fprint(w, "❗ Direct connections are disabled locally, by `--disable-direct` or `CODER_DISABLE_DIRECT`\n")
+		return
+	}
+
+	if d.ConnInfo != nil && d.ConnInfo.DisableDirectConnections {
+		_, _ = fmt.Fprint(w, "❗ Your Coder administrator has blocked direct connections\n")
+		return
+	}
+
+	if d.ConnInfo != nil && d.ConnInfo.DERPMap != nil && !d.ConnInfo.DERPMap.HasSTUN() {
+		_, _ = fmt.Fprint(w, "✘ The DERP map is not configured to use STUN, which will prevent direct connections from starting outside of local networks\n")
+	}
+
+	if d.LocalNetInfo != nil && d.LocalNetInfo.MappingVariesByDestIP.EqualBool(true) {
+		_, _ = fmt.Fprint(w, "❗ Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n")
+	}
+
+	if d.AgentNetcheck != nil && d.AgentNetcheck.NetInfo != nil && d.AgentNetcheck.NetInfo.MappingVariesByDestIP.EqualBool(true) {
+		_, _ = fmt.Fprint(w, "❗ Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n")
 	}
 }
