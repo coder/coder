@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
@@ -46,7 +47,7 @@ func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
-		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, _, api, adminUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			DontAddLicense: true,
 		})
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
@@ -54,6 +55,9 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, res.HasLicense)
 		require.Empty(t, res.Warnings)
+
+		// Ensure the entitlements are the same reference
+		require.Equal(t, fmt.Sprintf("%p", api.Entitlements), fmt.Sprintf("%p", api.AGPL.Entitlements))
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		// PGCoordinator requires a real postgres

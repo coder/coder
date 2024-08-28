@@ -20,8 +20,11 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -668,6 +671,132 @@ func TestPeerDiagnostics(t *testing.T) {
 			if i < len(tc.want) {
 				t.Logf("failed to match regexp: %s\ngot:\n%s", tc.want[i].String(), strings.Join(got, "\n"))
 				t.FailNow()
+			}
+		})
+	}
+}
+
+func TestConnDiagnostics(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name  string
+		diags cliui.ConnDiags
+		want  []string
+	}{
+		{
+			name: "Direct",
+			diags: cliui.ConnDiags{
+				ConnInfo:     &workspacesdk.AgentConnectionInfo{},
+				PingP2P:      true,
+				LocalNetInfo: &tailcfg.NetInfo{},
+			},
+			want: []string{
+				`✔ You are connected directly (p2p)`,
+			},
+		},
+		{
+			name: "DirectBlocked",
+			diags: cliui.ConnDiags{
+				ConnInfo: &workspacesdk.AgentConnectionInfo{
+					DisableDirectConnections: true,
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`❗ Your Coder administrator has blocked direct connections`,
+			},
+		},
+		{
+			name: "NoStun",
+			diags: cliui.ConnDiags{
+				ConnInfo: &workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				LocalNetInfo: &tailcfg.NetInfo{},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`✘ The DERP map is not configured to use STUN, which will prevent direct connections from starting outside of local networks`,
+			},
+		},
+		{
+			name: "ClientHardNat",
+			diags: cliui.ConnDiags{
+				LocalNetInfo: &tailcfg.NetInfo{
+					MappingVariesByDestIP: "true",
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`❗ Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers`,
+			},
+		},
+		{
+			name: "AgentHardNat",
+			diags: cliui.ConnDiags{
+				ConnInfo:     &workspacesdk.AgentConnectionInfo{},
+				PingP2P:      false,
+				LocalNetInfo: &tailcfg.NetInfo{},
+				AgentNetcheck: &healthsdk.AgentNetcheckReport{
+					NetInfo: &tailcfg.NetInfo{MappingVariesByDestIP: "true"},
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`❗ Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers`,
+			},
+		},
+		{
+			name: "AgentInterfaceWarnings",
+			diags: cliui.ConnDiags{
+				PingP2P: true,
+				AgentNetcheck: &healthsdk.AgentNetcheckReport{
+					Interfaces: healthsdk.InterfacesReport{
+						BaseReport: healthsdk.BaseReport{
+							Warnings: []health.Message{
+								health.Messagef(health.CodeInterfaceSmallMTU, "network interface eth0 has MTU 1280, (less than 1378), which may cause problems with direct connections"),
+							},
+						},
+					},
+				},
+			},
+			want: []string{
+				`❗ Agent: network interface eth0 has MTU 1280, (less than 1378), which may cause problems with direct connections`,
+				`✔ You are connected directly (p2p)`,
+			},
+		},
+		{
+			name: "LocalInterfaceWarnings",
+			diags: cliui.ConnDiags{
+				PingP2P: true,
+				LocalInterfaces: &healthsdk.InterfacesReport{
+					BaseReport: healthsdk.BaseReport{
+						Warnings: []health.Message{
+							health.Messagef(health.CodeInterfaceSmallMTU, "network interface eth1 has MTU 1310, (less than 1378), which may cause problems with direct connections"),
+						},
+					},
+				},
+			},
+			want: []string{
+				`❗ Client: network interface eth1 has MTU 1310, (less than 1378), which may cause problems with direct connections`,
+				`✔ You are connected directly (p2p)`,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r, w := io.Pipe()
+			go func() {
+				defer w.Close()
+				cliui.ConnDiagnostics(w, tc.diags)
+			}()
+			bytes, err := io.ReadAll(r)
+			require.NoError(t, err)
+			output := string(bytes)
+			for _, want := range tc.want {
+				require.Contains(t, output, want)
 			}
 		})
 	}

@@ -21,7 +21,7 @@ export const groups = (organization: string) => {
 	} satisfies UseQueryOptions<Group[]>;
 };
 
-const getGroupQueryKey = (organization: string, groupName: string) => [
+export const getGroupQueryKey = (organization: string, groupName: string) => [
 	"organization",
 	organization,
 	"group",
@@ -77,9 +77,15 @@ export function groupsForUser(organization: string, userId: string) {
 	} as const satisfies UseQueryOptions<Group[], unknown, readonly Group[]>;
 }
 
+export const groupPermissionsKey = (groupId: string) => [
+	"group",
+	groupId,
+	"permissions",
+];
+
 export const groupPermissions = (groupId: string) => {
 	return {
-		queryKey: ["group", groupId, "permissions"],
+		queryKey: groupPermissionsKey(groupId),
 		queryFn: () =>
 			API.checkAuthorization({
 				checks: {

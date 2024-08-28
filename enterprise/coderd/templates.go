@@ -349,7 +349,7 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Entitlement must be enabled.
-			if !api.entitlements.Enabled(feat) {
+			if !api.Entitlements.Enabled(feat) {
 				licenseType := "a Premium"
 				if feat.Enterprise() {
 					licenseType = "an Enterprise"

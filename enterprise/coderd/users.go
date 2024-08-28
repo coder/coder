@@ -18,7 +18,7 @@ const TimeFormatHHMM = "15:04"
 
 func (api *API) autostopRequirementEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		feature, ok := api.entitlements.Feature(codersdk.FeatureAdvancedTemplateScheduling)
+		feature, ok := api.Entitlements.Feature(codersdk.FeatureAdvancedTemplateScheduling)
 		if !ok || !feature.Entitlement.Entitled() {
 			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
 				Message: "Advanced template scheduling (and user quiet hours schedule) is an Enterprise feature. Contact sales!",

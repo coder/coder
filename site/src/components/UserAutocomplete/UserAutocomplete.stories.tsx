@@ -10,7 +10,7 @@ const meta: Meta<typeof UserAutocomplete> = {
 export default meta;
 type Story = StoryObj<typeof UserAutocomplete>;
 
-export const Example: Story = {
+export const WithLabel: Story = {
 	args: {
 		value: MockUser,
 		label: "User",
