@@ -270,6 +270,7 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
+			// TODO: Replace this with the mock database.
 			db := dbmem.New()
 			if c.Setup != nil {
 				c.Setup(t, db)
