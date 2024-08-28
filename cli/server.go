@@ -108,7 +108,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
-func createOIDCConfig(ctx context.Context, logger slog.Logger, set *entitlements.Set, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
+func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
 		return nil, xerrors.Errorf("OIDC client ID must be set!")
 	}
@@ -669,7 +669,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// Missing:
 				//	- Userinfo
 				//	- Verify
-				oc, err := createOIDCConfig(ctx, options.Logger, options.Entitlements, vals)
+				oc, err := createOIDCConfig(ctx, options.Logger, vals)
 				if err != nil {
 					return xerrors.Errorf("create oidc config: %w", err)
 				}

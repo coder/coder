@@ -1571,6 +1571,17 @@ when required by your organization's security policy.`,
 			YAML:    "organizationAssignDefault",
 		},
 		{
+			Name: "OIDC Organization Sync Mapping",
+			Description: "A map of OIDC claims and the organizations in Coder it should map to. " +
+				"This is required because organization IDs must be used within Coder.",
+			Flag:    "oidc-organization-mapping",
+			Env:     "CODER_OIDC_ORGANIZATION_MAPPING",
+			Default: "{}",
+			Value:   &c.OIDC.OrganizationMapping,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "organizationMapping",
+		},
+		{
 			Name:        "OIDC Group Field",
 			Description: "This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.",
 			Flag:        "oidc-group-field",

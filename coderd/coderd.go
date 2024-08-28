@@ -275,6 +275,8 @@ func New(options *Options) *API {
 		options.Entitlements = entitlements.New()
 	}
 	if options.IDPSync == nil {
+		// If this is set in the options, it is probably the enterprise
+		// version of the code.
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, idpsync.SyncSettings{
 			OrganizationField:         options.DeploymentValues.OIDC.OrganizationField.Value(),
 			OrganizationMapping:       options.DeploymentValues.OIDC.OrganizationMapping.Value,

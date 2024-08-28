@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -19,7 +18,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 	t.Run("SingleOrgDeployment", func(t *testing.T) {
 		t.Parallel()
 
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), entitlements.New(), idpsync.SyncSettings{
+		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), idpsync.SyncSettings{
 			OrganizationField:         "",
 			OrganizationMapping:       nil,
 			OrganizationAssignDefault: true,
@@ -39,7 +38,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 		t.Parallel()
 
 		// AGPL has limited behavior
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), entitlements.New(), idpsync.SyncSettings{
+		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), idpsync.SyncSettings{
 			OrganizationField: "orgs",
 			OrganizationMapping: map[string][]uuid.UUID{
 				"random": {uuid.New()},
