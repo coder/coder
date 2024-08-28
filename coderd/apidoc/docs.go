@@ -1070,7 +1070,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.GroupWithOrganizationInfo"
+                                "$ref": "#/definitions/codersdk.Group"
                             }
                         }
                     }
@@ -2377,7 +2377,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.GroupWithOrganizationInfo"
+                                "$ref": "#/definitions/codersdk.Group"
                             }
                         }
                     }
@@ -10343,9 +10343,15 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "organization_display_name": {
+                    "type": "string"
+                },
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
                 },
                 "quota_allowance": {
                     "type": "integer"
@@ -10369,50 +10375,6 @@ const docTemplate = `{
                 "GroupSourceUser",
                 "GroupSourceOIDC"
             ]
-        },
-        "codersdk.GroupWithOrganizationInfo": {
-            "type": "object",
-            "properties": {
-                "avatar_url": {
-                    "type": "string"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "members": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ReducedUser"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_display_name": {
-                    "type": "string"
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "organization_name": {
-                    "type": "string"
-                },
-                "quota_allowance": {
-                    "type": "integer"
-                },
-                "source": {
-                    "$ref": "#/definitions/codersdk.GroupSource"
-                },
-                "total_member_count": {
-                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
-                    "type": "integer"
-                }
-            }
         },
         "codersdk.Healthcheck": {
             "type": "object",

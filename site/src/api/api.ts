@@ -1603,7 +1603,7 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getGroups = async (): Promise<TypesGen.GroupWithOrganizationInfo[]> => {
+	getGroups = async (): Promise<TypesGen.Group[]> => {
 		const response = await this.axios.get("/api/v2/groups");
 		return response.data;
 	};

@@ -623,18 +623,14 @@ export interface Group {
 	readonly avatar_url: string;
 	readonly quota_allowance: number;
 	readonly source: GroupSource;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
 }
 
 // From codersdk/groups.go
 export interface GroupArguments {
 	readonly Organization: string;
 	readonly HasMember: string;
-}
-
-// From codersdk/groups.go
-export interface GroupWithOrganizationInfo extends Group {
-	readonly organization_name: string;
-	readonly organization_display_name: string;
 }
 
 // From codersdk/workspaceapps.go

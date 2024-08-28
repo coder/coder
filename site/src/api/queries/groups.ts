@@ -2,7 +2,6 @@ import { API } from "api/api";
 import type {
 	CreateGroupRequest,
 	Group,
-	GroupWithOrganizationInfo,
 	PatchGroupRequest,
 } from "api/typesGenerated";
 import type { QueryClient, UseQueryOptions } from "react-query";
@@ -15,7 +14,7 @@ export const groups = () => {
 	return {
 		queryKey: groupsQueryKey,
 		queryFn: () => API.getGroups(),
-	} satisfies UseQueryOptions<GroupWithOrganizationInfo[]>;
+	} satisfies UseQueryOptions<Group[]>;
 };
 
 const getGroupsByOrganizationQueryKey = (organization: string) => [
@@ -83,11 +82,7 @@ export function groupsForUser(userId: string) {
 
 			return sortGroupsByName(groupsForUser, "asc");
 		},
-	} as const satisfies UseQueryOptions<
-		GroupWithOrganizationInfo[],
-		unknown,
-		readonly GroupWithOrganizationInfo[]
-	>;
+	} as const satisfies UseQueryOptions<Group[], unknown, readonly Group[]>;
 }
 
 export const groupPermissionsKey = (groupId: string) => [
