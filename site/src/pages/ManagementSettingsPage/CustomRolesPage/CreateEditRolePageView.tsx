@@ -334,6 +334,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 							checkedActions.length > 0 &&
 							checkedActions.length < Object.keys(value).length
 						}
+						data-testid={`${resourceKey}`}
 						onChange={(e) =>
 							handleResourceCheckChange(
 								e,
@@ -416,7 +417,7 @@ const styles = {
 	}),
 	actionItem: {
 		display: "grid",
-		gridTemplateColumns: "270px 3fr",
+		gridTemplateColumns: "270px 1fr",
 	},
 } satisfies Record<string, Interpolation<Theme>>;
 

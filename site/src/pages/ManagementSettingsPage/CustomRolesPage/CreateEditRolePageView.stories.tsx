@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockRoleWithOrgPermissions,
+	MockRole2WithOrgPermissions,
 	assignableRole,
 	mockApiError,
 } from "testHelpers/entities";
 import { CreateEditRolePageView } from "./CreateEditRolePageView";
+import { userEvent, within, expect } from "@storybook/test";
 
 const meta: Meta<typeof CreateEditRolePageView> = {
 	title: "pages/OrganizationCreateEditRolePage",
@@ -19,6 +21,16 @@ export const Default: Story = {
 		role: assignableRole(MockRoleWithOrgPermissions, true),
 		onSubmit: () => null,
 		error: undefined,
+		isLoading: false,
+		organizationName: "my-org",
+		canAssignOrgRole: true,
+	},
+};
+
+export const CheckboxIndeterminate: Story = {
+	args: {
+		role: assignableRole(MockRole2WithOrgPermissions, true),
+		onSubmit: () => null,
 		isLoading: false,
 		organizationName: "my-org",
 		canAssignOrgRole: true,
@@ -59,5 +71,19 @@ export const ShowAllResources: Story = {
 		organizationName: "my-org",
 		canAssignOrgRole: true,
 		allResources: true,
+	},
+};
+
+export const ToggleParentCheckbox: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const checkbox = await canvas
+			.getByTestId("audit_log")
+			.getElementsByTagName("input")[0];
+		await user.click(checkbox);
+		await expect(checkbox).toBeChecked();
+		await user.click(checkbox);
+		await expect(checkbox).not.toBeChecked();
 	},
 };
