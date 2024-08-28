@@ -576,7 +576,7 @@ func TestNotifierPaused(t *testing.T) {
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
-	// Prepare the test
+	// Prepare the test.
 	handler := &fakeHandler{}
 	method := database.NotificationMethodSmtp
 	user := createSampleUser(t, api.Database)
@@ -593,32 +593,39 @@ func TestNotifierPaused(t *testing.T) {
 	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	mgr.Run(ctx)
-
 	// Pause the notifier.
 	settingsJSON, err := json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: true})
 	require.NoError(t, err)
 	err = api.Database.UpsertNotificationsSettings(ctx, string(settingsJSON))
 	require.NoError(t, err)
 
+	// Start the manager so that notifications are processed, except it will be paused at this point.
+	// If it is started before pausing, there's a TOCTOU possibility between checking whether the notifier is paused or
+	// not, and processing the messages (see notifier.run).
+	mgr.Run(ctx)
+
 	// Notifier is paused, enqueue the next message.
 	sid, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success", "i": "1"}, "test")
 	require.NoError(t, err)
 
-	// Sleep for a few fetch intervals to be sure we aren't getting false-positives in the next step.
-	// TODO: use quartz instead.
-	time.Sleep(fetchInterval * 5)
-
 	// Ensure we have a pending message and it's the expected one.
+	pendingMessages, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+		Status: database.NotificationMessageStatusPending,
+		Limit:  10,
+	})
+	require.NoError(t, err)
+	require.Len(t, pendingMessages, 1)
+	require.Equal(t, pendingMessages[0].ID.String(), sid.String())
+
+	// Wait a few fetch intervals to be sure that no new notifications are being sent.
+	// TODO: use quartz instead.
+	// nolint:gocritic // These magic numbers are fine.
 	require.Eventually(t, func() bool {
-		pendingMessages, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
-			Status: database.NotificationMessageStatusPending,
-			Limit:  10,
-		})
-		assert.NoError(t, err)
-		return len(pendingMessages) == 1 &&
-			pendingMessages[0].ID.String() == sid.String()
-	}, testutil.WaitShort, testutil.IntervalFast)
+		handler.mu.RLock()
+		defer handler.mu.RUnlock()
+
+		return len(handler.succeeded)+len(handler.failed) == 0
+	}, fetchInterval*5, testutil.IntervalFast)
 
 	// Unpause the notifier.
 	settingsJSON, err = json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: false})
@@ -627,11 +634,12 @@ func TestNotifierPaused(t *testing.T) {
 	require.NoError(t, err)
 
 	// Notifier is running again, message should be dequeued.
+	// nolint:gocritic // These magic numbers are fine.
 	require.Eventually(t, func() bool {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 		return slices.Contains(handler.succeeded, sid.String())
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, fetchInterval*5, testutil.IntervalFast)
 }
 
 //go:embed events.go
