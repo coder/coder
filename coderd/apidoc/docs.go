@@ -2377,7 +2377,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.Group"
+                                "$ref": "#/definitions/codersdk.GroupWithOrganizationInfo"
                             }
                         }
                     }

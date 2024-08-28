@@ -389,7 +389,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Success 200 {array} codersdk.Group
+// @Success 200 {array} codersdk.GroupWithOrganizationInfo
 // @Router /organizations/{organization}/groups [get]
 func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
