@@ -71,6 +71,6 @@ Get the manifest the agent fetched from `coderd` upon startup.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                          |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.Manifest](./schemas#agentsdkmanifest) |
+| Status | Meaning                                                 | Description | Schema                                             |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.Manifest](./schemas.md#agentsdkmanifest) |

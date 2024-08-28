@@ -91,15 +91,15 @@
 | `workspace_name`             | string                                                                                            | true     |              |             |
 | `git_auth_configs`           | int                                                                                               | true     |              |             |
 | `vscode_port_proxy_uri`      | string                                                                                            | true     |              |             |
-| `apps`                       | array of [codersdk.WorkspaceApp](../api/schemas#codersdkworkspaceapp)                             | true     |              |             |
-| `derpmap`                    | [tailcfg.DERPMap](../api/schemas#tailcfgderpmap)                                                  | true     |              |             |
+| `apps`                       | array of [codersdk.WorkspaceApp](../api/schemas.md#codersdkworkspaceapp)                          | true     |              |             |
+| `derpmap`                    | [tailcfg.DERPMap](../api/schemas.md#tailcfgderpmap)                                               | true     |              |             |
 | `derp_force_websockets`      | boolean                                                                                           | true     |              |             |
 | `environment_variables`      | object                                                                                            | true     |              |             |
 | `directory`                  | string                                                                                            | true     |              |             |
 | `motd_file`                  | string                                                                                            | true     |              |             |
 | `disable_direct_connections` | boolean                                                                                           | true     |              |             |
 | `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | true     |              |             |
-| `scripts`                    | array of [codersdk.WorkspaceAgentScript](../api/schemas#codersdkworkspaceagentscript)             | true     |              |             |
+| `scripts`                    | array of [codersdk.WorkspaceAgentScript](../api/schemas.md#codersdkworkspaceagentscript)          | true     |              |             |
 
 ## codersdk.WorkspaceAgentMetadataDescription
 
