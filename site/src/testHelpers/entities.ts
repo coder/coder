@@ -392,6 +392,21 @@ export const MockRoleWithOrgPermissions: TypesGen.Role = {
 	user_permissions: [],
 };
 
+export const MockRole2WithOrgPermissions: TypesGen.Role = {
+	name: "my-role-1",
+	display_name: "My Role 1",
+	organization_id: MockOrganization.id,
+	site_permissions: [],
+	organization_permissions: [
+		{
+			negate: false,
+			resource_type: "audit_log",
+			action: "create",
+		},
+	],
+	user_permissions: [],
+};
+
 // assignableRole takes a role and a boolean. The boolean implies if the
 // actor can assign (add/remove) the role from other users.
 export function assignableRole(
