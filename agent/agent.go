@@ -1787,7 +1787,7 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	// Limit to 10MB.
+	// Limit to 10MiB.
 	w.WriteHeader(http.StatusOK)
 	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
 	if err != nil && !errors.Is(err, io.EOF) {
