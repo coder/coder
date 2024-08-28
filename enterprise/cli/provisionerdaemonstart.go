@@ -262,7 +262,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
-			err = srv.Shutdown(ctx, waitForProvisionerJobs)
+			err = srv.Shutdown(ctx, !waitForProvisionerJobs)
 			if err != nil {
 				return xerrors.Errorf("shutdown: %w", err)
 			}
