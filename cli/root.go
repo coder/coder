@@ -578,7 +578,7 @@ func (r *RootCmd) CheckExistingUserSession() serpent.MiddlewareFunc {
 
 			// IF r.token and r.clientUR, exists then print warning "You are already logged in to $"
 			if r.token != "" && r.clientURL.String() != "" {
-				_, _ = fmt.Fprintf(inv.Stdout, Caret+"%s!\n", pretty.Sprint(cliui.DefaultStyles.Warn, "You are already logged in to "+r.clientURL.String()))
+				_, _ = fmt.Fprintf(inv.Stderr, Caret+"%s!\n", pretty.Sprint(cliui.DefaultStyles.Warn, "You are already logged in to "+r.clientURL.String()+"!"))
 			}
 
 			// We remove the token and clientURL from the RootCmd, so the user can still go ahead and login
