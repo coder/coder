@@ -501,6 +501,12 @@
 					"description": "Learn how to monitor the health of your Coder deployment",
 					"path": "./admin/healthcheck.md",
 					"icon_path": "./images/icons/health.svg"
+				},
+				{
+					"title": "Notifications",
+					"description": "Learn how to configure notifications",
+					"path": "./admin/notifications.md",
+					"icon_path": "./images/icons/info.svg"
 				}
 			]
 		},
