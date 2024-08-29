@@ -50,6 +50,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		slogJSONPath        string
 		slogStackdriverPath string
 		blockFileTransfer   bool
+		agentHeaderCommand  string
+		agentHeader         []string
 	)
 	cmd := &serpent.Command{
 		Use:   "agent",
@@ -176,6 +178,14 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// with large payloads can take a bit. e.g. startup scripts
 			// may take a while to insert.
 			client.SDK.HTTPClient.Timeout = 30 * time.Second
+			// Attach header transport so we process --agent-header and
+			// --agent-header-command flags
+			headerTransport, err := headerTransport(ctx, r.agentURL, agentHeader, agentHeaderCommand)
+			if err != nil {
+				return xerrors.Errorf("configure header transport: %w", err)
+			}
+			headerTransport.Transport = client.SDK.HTTPClient.Transport
+			client.SDK.HTTPClient.Transport = headerTransport
 
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
@@ -360,6 +370,18 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_PPROF_ADDRESS",
 			Value:       serpent.StringOf(&pprofAddress),
 			Description: "The address to serve pprof.",
+		},
+		{
+			Flag:        "agent-header-command",
+			Env:         "CODER_AGENT_HEADER_COMMAND",
+			Value:       serpent.StringOf(&agentHeaderCommand),
+			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
+		},
+		{
+			Flag:        "agent-header",
+			Env:         "CODER_AGENT_HEADER",
+			Value:       serpent.StringArrayOf(&agentHeader),
+			Description: "Additional HTTP headers added to all requests. Provide as " + `key=value` + ". Can be specified multiple times.",
 		},
 		{
 			Flag: "no-reap",
