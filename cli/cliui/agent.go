@@ -374,13 +374,13 @@ func (d ConnDiags) Write(w io.Writer) {
 	if len(client) > 0 {
 		_, _ = fmt.Fprint(w, "Possible client-side issues with direct connection:\n\n")
 		for _, msg := range client {
-			_, _ = fmt.Fprintf(w, "  - %s\n\n", msg)
+			_, _ = fmt.Fprintf(w, "  %s\n\n", msg)
 		}
 	}
 	if len(agent) > 0 {
 		_, _ = fmt.Fprint(w, "Possible agent-side issues with direct connections:\n\n")
 		for _, msg := range agent {
-			_, _ = fmt.Fprintf(w, "  - %s\n\n", msg)
+			_, _ = fmt.Fprintf(w, "  %s\n\n", msg)
 		}
 	}
 }
