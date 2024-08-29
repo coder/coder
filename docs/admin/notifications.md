@@ -3,7 +3,8 @@
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
 
-**Notifications are currently an experimental feature.**
+**Notifications are currently an experimental feature (as of their release in
+[2.15.0](https://github.com/coder/coder/releases/tag/v2.15.0)).**
 
 ## Enable experiment
 
