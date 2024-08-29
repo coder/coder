@@ -374,13 +374,13 @@ func (d ConnDiags) Write(w io.Writer) {
 	if len(client) > 0 {
 		_, _ = fmt.Fprint(w, "Possible client-side issues with direct connection:\n\n")
 		for _, msg := range client {
-			_, _ = fmt.Fprintf(w, "  %s\n\n", msg)
+			_, _ = fmt.Fprintf(w, " - %s\n\n", msg)
 		}
 	}
 	if len(agent) > 0 {
 		_, _ = fmt.Fprint(w, "Possible agent-side issues with direct connections:\n\n")
 		for _, msg := range agent {
-			_, _ = fmt.Fprintf(w, "  %s\n\n", msg)
+			_, _ = fmt.Fprintf(w, " - %s\n\n", msg)
 		}
 	}
 }
@@ -423,30 +423,30 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 	}
 
 	if !d.ConnInfo.DERPMap.HasSTUN() {
-		general = append(general, "✘ The DERP map is not configured to use STUN")
+		general = append(general, "The DERP map is not configured to use STUN")
 	} else if d.LocalNetInfo != nil && !d.LocalNetInfo.UDP {
-		client = append(client, "✘ Client could not connect to STUN over UDP")
+		client = append(client, "Client could not connect to STUN over UDP")
 	}
 
 	if d.LocalNetInfo != nil && d.LocalNetInfo.MappingVariesByDestIP.EqualBool(true) {
-		client = append(client, "❗ Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers")
+		client = append(client, "Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers")
 	}
 
 	if d.AgentNetcheck != nil && d.AgentNetcheck.NetInfo != nil {
 		if d.AgentNetcheck.NetInfo.MappingVariesByDestIP.EqualBool(true) {
-			agent = append(agent, "❗ Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers")
+			agent = append(agent, "Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers")
 		}
 		if !d.AgentNetcheck.NetInfo.UDP {
-			agent = append(agent, "✘ Agent could not connect to STUN over UDP")
+			agent = append(agent, "Agent could not connect to STUN over UDP")
 		}
 	}
 
-	if d.ClientIPIsAWS {
-		client = append(client, "❗ Client IP address is within an AWS range (AWS uses hard NAT)")
+	if true {
+		client = append(client, "Client IP address is within an AWS range (AWS uses hard NAT)")
 	}
 
-	if d.AgentIPIsAWS {
-		agent = append(agent, "❗ Agent IP address is within an AWS range (AWS uses hard NAT)")
+	if true {
+		agent = append(agent, "Agent IP address is within an AWS range (AWS uses hard NAT)")
 	}
 	return general, client, agent
 }
@@ -457,5 +457,5 @@ func formatHealthMessage(msg health.Message) string {
 	}
 	r := []rune(strings.Replace(msg.Message, ", which may cause problems with direct connections", "", -1))
 	out := string(append([]rune{unicode.ToUpper(r[0])}, r[1:]...))
-	return fmt.Sprintf("❗ %s, which may degrade the quality of direct connections", out)
+	return fmt.Sprintf("%s, which may degrade the quality of direct connections", out)
 }

@@ -719,7 +719,7 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`✘ The DERP map is not configured to use STUN`,
+				`The DERP map is not configured to use STUN`,
 			},
 		},
 		{
@@ -744,7 +744,7 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`✘ Client could not connect to STUN over UDP`,
+				`Client could not connect to STUN over UDP`,
 			},
 		},
 		{
@@ -771,7 +771,7 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`✘ Agent could not connect to STUN over UDP`,
+				`Agent could not connect to STUN over UDP`,
 			},
 		},
 		{
@@ -786,7 +786,7 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`❗ Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers`,
+				`Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers`,
 			},
 		},
 		{
@@ -803,7 +803,7 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`❗ Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers`,
+				`Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers`,
 			},
 		},
 		{
@@ -824,8 +824,8 @@ func TestConnDiagnostics(t *testing.T) {
 				},
 			},
 			want: []string{
-				`❗ Network interface eth0 has MTU 1280, (less than 1378), which may degrade the quality of direct connections`,
 				`✔ You are connected directly (p2p)`,
+				`Network interface eth0 has MTU 1280, (less than 1378), which may degrade the quality of direct connections`,
 			},
 		},
 		{
@@ -844,8 +844,8 @@ func TestConnDiagnostics(t *testing.T) {
 				},
 			},
 			want: []string{
-				`❗ Network interface eth1 has MTU 1310, (less than 1378), which may degrade the quality of direct connections`,
 				`✔ You are connected directly (p2p)`,
+				`Network interface eth1 has MTU 1310, (less than 1378), which may degrade the quality of direct connections`,
 			},
 		},
 		{
@@ -859,7 +859,7 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`❗ Client IP address is within an AWS range (AWS uses hard NAT)`,
+				`Client IP address is within an AWS range (AWS uses hard NAT)`,
 			},
 		},
 		{
@@ -873,7 +873,7 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`❗ Agent IP address is within an AWS range (AWS uses hard NAT)`,
+				`Agent IP address is within an AWS range (AWS uses hard NAT)`,
 			},
 		},
 	}
