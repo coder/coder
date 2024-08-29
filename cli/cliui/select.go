@@ -281,11 +281,7 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 			return values, Canceled
 		}
 
-		for _, option := range m.options {
-			if option.chosen {
-				values = append(values, option.option)
-			}
-		}
+		values = m.selectedOptions()
 	}
 	return values, err
 }
@@ -393,7 +389,7 @@ func (m multiSelectModel) View() string {
 			s += fmt.Sprintf("%s%s %s\n", cursor, chosen, o)
 		}
 	} else {
-		selected := pretty.Sprint(DefaultStyles.Keyword, strings.Join(m.SelectedOptions(), ", "))
+		selected := pretty.Sprint(DefaultStyles.Keyword, strings.Join(m.selectedOptions(), ", "))
 
 		s += fmt.Sprintf("%s %s\n", msg, selected)
 	}
@@ -401,7 +397,7 @@ func (m multiSelectModel) View() string {
 	return s
 }
 
-func (m multiSelectModel) SelectedOptions() []string {
+func (m multiSelectModel) selectedOptions() []string {
 	selected := []string{}
 	for _, o := range m.options {
 		if o.chosen {
