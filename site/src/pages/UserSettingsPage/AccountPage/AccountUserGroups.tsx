@@ -5,9 +5,9 @@ import type { Group } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarCard } from "components/AvatarCard/AvatarCard";
 import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Section } from "../Section";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 type AccountGroupsProps = {
 	groups: readonly Group[] | undefined;

@@ -4,8 +4,8 @@ import {
 	MockUser,
 	mockApiError,
 } from "testHelpers/entities";
-import { AccountUserGroups } from "./AccountUserGroups";
 import { withDashboardProvider } from "testHelpers/storybook";
+import { AccountUserGroups } from "./AccountUserGroups";
 
 const MockGroup2 = {
 	...MockGroup1,
