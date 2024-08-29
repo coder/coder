@@ -1603,14 +1603,20 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getGroups = async (): Promise<TypesGen.Group[]> => {
+		const response = await this.axios.get("/api/v2/groups");
+		return response.data;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */
-	getGroups = async (organization: string): Promise<TypesGen.Group[]> => {
+	getGroupsByOrganization = async (
+		organization: string,
+	): Promise<TypesGen.Group[]> => {
 		const response = await this.axios.get(
 			`/api/v2/organizations/${organization}/groups`,
 		);
-
 		return response.data;
 	};
 

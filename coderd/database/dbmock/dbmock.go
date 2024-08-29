@@ -1330,10 +1330,10 @@ func (mr *MockStoreMockRecorder) GetGroupMembersCountByGroupID(arg0, arg1 any) *
 }
 
 // GetGroups mocks base method.
-func (m *MockStore) GetGroups(arg0 context.Context, arg1 database.GetGroupsParams) ([]database.Group, error) {
+func (m *MockStore) GetGroups(arg0 context.Context, arg1 database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGroups", arg0, arg1)
-	ret0, _ := ret[0].([]database.Group)
+	ret0, _ := ret[0].([]database.GetGroupsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

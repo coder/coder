@@ -2512,27 +2512,33 @@ export const MockGroup: TypesGen.Group = {
 	display_name: "Front-End",
 	avatar_url: "https://example.com",
 	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
 	members: [MockUser, MockUser2],
 	quota_allowance: 5,
 	source: "user",
 	total_member_count: 2,
 };
 
-const everyOneGroup = (organizationId: string): TypesGen.Group => ({
-	id: organizationId,
+const MockEveryoneGroup: TypesGen.Group = {
+	// The "Everyone" group must have the same ID as a the organization it belongs
+	// to.
+	id: MockOrganization.id,
 	name: "Everyone",
 	display_name: "",
-	organization_id: organizationId,
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
 	members: [],
 	avatar_url: "",
 	quota_allowance: 0,
 	source: "user",
 	total_member_count: 0,
-});
+};
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
-		{ ...everyOneGroup(MockOrganization.id), role: "use" },
+		{ ...MockEveryoneGroup, role: "use" },
 		{ ...MockGroup, role: "admin" },
 	],
 	users: [{ ...MockUser, role: "use" }],

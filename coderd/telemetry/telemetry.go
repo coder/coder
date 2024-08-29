@@ -373,7 +373,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.Groups = make([]Group, 0, len(groups))
 		for _, group := range groups {
-			snapshot.Groups = append(snapshot.Groups, ConvertGroup(group))
+			snapshot.Groups = append(snapshot.Groups, ConvertGroup(group.Group))
 		}
 		return nil
 	})

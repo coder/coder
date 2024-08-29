@@ -1503,7 +1503,7 @@ func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uui
 	return memberCount, nil
 }
 
-func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err == nil {
 		// Optimize this query for system users as it is used in telemetry.
 		// Calling authz on all groups in a deployment for telemetry jobs is
