@@ -63,7 +63,6 @@ type OrganizationParams struct {
 	Organizations []uuid.UUID
 }
 
-
 func NewAGPLSync(logger slog.Logger, settings SyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
 		Logger:       logger.Named("idp-sync"),
