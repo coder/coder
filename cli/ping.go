@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -15,6 +17,7 @@ import (
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -145,31 +148,42 @@ func (r *RootCmd) ping() *serpent.Command {
 					break
 				}
 			}
-			ctx, cancel = context.WithTimeout(inv.Context(), 30*time.Second)
-			defer cancel()
+			diagCtx, diagCancel := context.WithTimeout(inv.Context(), 30*time.Second)
+			defer diagCancel()
 			diags := conn.GetPeerDiagnostics()
 			cliui.PeerDiagnostics(inv.Stdout, diags)
 
+			ni := conn.GetNetInfo()
 			connDiags := cliui.ConnDiags{
 				PingP2P:       didP2p,
 				DisableDirect: r.disableDirect,
-				LocalNetInfo:  conn.GetNetInfo(),
+				LocalNetInfo:  ni,
+				Verbose:       r.verbose,
 			}
-			connInfo, err := client.AgentConnectionInfoGeneric(ctx)
-			if err == nil {
-				connDiags.ConnInfo = &connInfo
-			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve connection info from server: %v\n", err)
+
+			awsRanges, err := cliutil.FetchAWSIPRanges(diagCtx, cliutil.AWSIPRangesURL)
+			if err != nil {
+				opts.Logger.Debug(inv.Context(), "failed to retrieve AWS IP ranges", slog.Error(err))
 			}
+
+			connDiags.ClientIPIsAWS = isAWSIP(awsRanges, ni)
+
+			connInfo, err := client.AgentConnectionInfoGeneric(diagCtx)
+			if err != nil || connInfo.DERPMap == nil {
+				return xerrors.Errorf("Failed to retrieve connection info from server: %w\n", err)
+			}
+			connDiags.ConnInfo = connInfo
 			ifReport, err := healthsdk.RunInterfacesReport()
 			if err == nil {
 				connDiags.LocalInterfaces = &ifReport
 			} else {
 				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve local interfaces report: %v\n", err)
 			}
-			agentNetcheck, err := conn.Netcheck(ctx)
+
+			agentNetcheck, err := conn.Netcheck(diagCtx)
 			if err == nil {
 				connDiags.AgentNetcheck = &agentNetcheck
+				connDiags.AgentIPIsAWS = isAWSIP(awsRanges, agentNetcheck.NetInfo)
 			} else {
 				var sdkErr *codersdk.Error
 				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
@@ -178,7 +192,8 @@ func (r *RootCmd) ping() *serpent.Command {
 					_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve connection report from agent: %v\n", err)
 				}
 			}
-			cliui.ConnDiagnostics(inv.Stdout, connDiags)
+
+			connDiags.Write(inv.Stdout)
 			return nil
 		},
 	}
@@ -206,4 +221,23 @@ func (r *RootCmd) ping() *serpent.Command {
 		},
 	}
 	return cmd
+}
+
+func isAWSIP(awsRanges *cliutil.AWSIPRanges, ni *tailcfg.NetInfo) bool {
+	if awsRanges == nil {
+		return false
+	}
+	if ni.GlobalV4 != "" {
+		ip, err := netip.ParseAddr(ni.GlobalV4)
+		if err == nil && awsRanges.CheckIP(ip) {
+			return true
+		}
+	}
+	if ni.GlobalV6 != "" {
+		ip, err := netip.ParseAddr(ni.GlobalV6)
+		if err == nil && awsRanges.CheckIP(ip) {
+			return true
+		}
+	}
+	return false
 }
