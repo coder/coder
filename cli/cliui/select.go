@@ -140,14 +140,19 @@ func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeyUp:
+			options := m.filteredOptions()
 			if m.cursor > 0 {
 				m.cursor--
+			} else {
+				m.cursor = len(options) - 1
 			}
 
 		case tea.KeyDown:
 			options := m.filteredOptions()
 			if m.cursor < len(options)-1 {
 				m.cursor++
+			} else {
+				m.cursor = 0
 			}
 		}
 	}
@@ -332,13 +337,19 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeyUp:
+			options := m.filteredOptions()
 			if m.cursor > 0 {
 				m.cursor--
+			} else {
+				m.cursor = len(options) - 1
 			}
 
 		case tea.KeyDown:
-			if m.cursor < len(m.options)-1 {
+			options := m.filteredOptions()
+			if m.cursor < len(options)-1 {
 				m.cursor++
+			} else {
+				m.cursor = 0
 			}
 
 		case tea.KeyRight:
