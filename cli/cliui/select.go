@@ -267,7 +267,6 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 			option: option,
 			chosen: chosen,
 		}
-
 	}
 
 	initialModel := multiSelectModel{
