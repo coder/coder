@@ -227,10 +227,10 @@ func (m selectModel) viewableOptions() ([]string, int) {
 func (m selectModel) filteredOptions() []string {
 	options := []string{}
 	for _, o := range m.options {
-		prefix := strings.ToLower(m.search.Value())
+		filter := strings.ToLower(m.search.Value())
 		option := strings.ToLower(o)
 
-		if strings.HasPrefix(option, prefix) {
+		if strings.Contains(option, filter) {
 			options = append(options, o)
 		}
 	}
@@ -249,15 +249,20 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 		return opts.Defaults, nil
 	}
 
-	options := make([]multiSelectOption, len(opts.Options))
+	options := make([]*multiSelectOption, len(opts.Options))
 	for i, option := range opts.Options {
-		options[i].option = option
-
+		chosen := false
 		for _, d := range opts.Defaults {
 			if option == d {
-				options[i].chosen = true
+				chosen = true
 			}
 		}
+
+		options[i] = &multiSelectOption{
+			option: option,
+			chosen: chosen,
+		}
+
 	}
 
 	initialModel := multiSelectModel{
@@ -293,7 +298,7 @@ type multiSelectOption struct {
 
 type multiSelectModel struct {
 	search   textinput.Model
-	options  []multiSelectOption
+	options  []*multiSelectOption
 	cursor   int
 	message  string
 	canceled bool
@@ -321,8 +326,9 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeySpace:
-			if len(m.options) != 0 {
-				m.options[m.cursor].chosen = !m.options[m.cursor].chosen
+			options := m.filteredOptions()
+			if len(options) != 0 {
+				options[m.cursor].chosen = !options[m.cursor].chosen
 			}
 
 		case tea.KeyUp:
@@ -336,13 +342,15 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeyRight:
-			for i := range m.options {
-				m.options[i].chosen = true
+			options := m.filteredOptions()
+			for _, option := range options {
+				option.chosen = false
 			}
 
 		case tea.KeyLeft:
-			for i := range m.options {
-				m.options[i].chosen = false
+			options := m.filteredOptions()
+			for _, option := range options {
+				option.chosen = false
 			}
 
 		default:
@@ -352,8 +360,9 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// If the search query has changed then we need to ensure
 			// the cursor is still pointing at a valid option.
 			if m.search.Value() != oldSearch {
-				if m.cursor > len(m.options)-1 {
-					m.cursor = max(0, len(m.options)-1)
+				options := m.filteredOptions()
+				if m.cursor > len(options)-1 {
+					m.cursor = max(0, len(options)-1)
 				}
 			}
 		}
@@ -370,23 +379,27 @@ func (m multiSelectModel) View() string {
 	if !m.selected {
 		s += fmt.Sprintf("%s %s[Use arrows to move, space to select, <right> to all, <left> to none, type to filter]\n", msg, m.search.View())
 
-		for i, option := range m.options {
+		for i, option := range m.filteredOptions() {
 			cursor := "  "
+			chosen := "[ ]"
+			o := option.option
+
 			if m.cursor == i {
 				cursor = pretty.Sprint(pretty.FgColor(Green), "> ")
+				chosen = pretty.Sprint(pretty.FgColor(Green), "[ ]")
+				o = pretty.Sprint(pretty.FgColor(Green), o)
 			}
 
-			chosen := "[ ]"
 			if option.chosen {
 				chosen = pretty.Sprint(pretty.FgColor(Green), "[x]")
 			}
 
-			o := option.option
-			if m.cursor == i {
-				o = pretty.Sprint(pretty.FgColor(Green), o)
-			}
-
-			s += fmt.Sprintf("%s%s %s\n", cursor, chosen, o)
+			s += fmt.Sprintf(
+				"%s%s %s\n",
+				cursor,
+				chosen,
+				o,
+			)
 		}
 	} else {
 		selected := pretty.Sprint(DefaultStyles.Keyword, strings.Join(m.selectedOptions(), ", "))
@@ -395,6 +408,19 @@ func (m multiSelectModel) View() string {
 	}
 
 	return s
+}
+
+func (m multiSelectModel) filteredOptions() []*multiSelectOption {
+	options := []*multiSelectOption{}
+	for _, o := range m.options {
+		filter := strings.ToLower(m.search.Value())
+		option := strings.ToLower(o.option)
+
+		if strings.Contains(option, filter) {
+			options = append(options, o)
+		}
+	}
+	return options
 }
 
 func (m multiSelectModel) selectedOptions() []string {
