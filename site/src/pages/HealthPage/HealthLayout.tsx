@@ -152,11 +152,9 @@ export const HealthLayout: FC = () => {
 							</div>
 
 							<nav css={{ display: "flex", flexDirection: "column", gap: 1 }}>
-								{Object.keys(visibleSections)
+								{Object.entries(visibleSections)
 									.sort()
-									.map((key) => {
-										const label =
-											visibleSections[key as keyof typeof visibleSections];
+									.map(([key, label]) => {
 										const healthSection =
 											healthStatus[key as keyof typeof visibleSections];
 

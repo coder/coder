@@ -9,17 +9,23 @@ import { DockerIcon } from "components/Icons/DockerIcon";
 import { type CSSProperties, type ElementType, type FC, useState } from "react";
 import type { FileTree } from "utils/filetree";
 
-const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
-	const contentA = fileTree[a];
-	const contentB = fileTree[b];
-	if (typeof contentA === "object") {
-		return -1;
+const isFolder = (content?: FileTree | string): content is FileTree =>
+	typeof content === "object";
+
+type FileTreeEntry = [key: string, content: FileTree | string];
+function compareFileTreeEntries(
+	[keyA, contentA]: FileTreeEntry,
+	[keyB, contentB]: FileTreeEntry,
+) {
+	// A and B are either both files or both folders, so they should be sorted
+	// lexically.
+	if (isFolder(contentA) === isFolder(contentB)) {
+		return keyA.localeCompare(keyB);
 	}
-	if (typeof contentB === "object") {
-		return 1;
-	}
-	return a.localeCompare(b);
-};
+	// Either A or B is a folder, and the other is a file. Put whichever one is a
+	// folder first.
+	return isFolder(contentA) ? -1 : 1;
+}
 
 type ContextMenu = {
 	path: string;
@@ -50,9 +56,6 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 	Label,
 }) => {
 	const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
-
-	const isFolder = (content?: FileTree | string): content is FileTree =>
-		typeof content === "object";
 
 	const buildTreeItems = (
 		label: string,
@@ -181,12 +184,11 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 				}
 			>
 				{isFolder(content) &&
-					Object.keys(content)
-						.sort(sortFileTree(content))
-						.map((filename) => {
-							const child = content[filename];
-							return buildTreeItems(filename, filename, child, currentPath);
-						})}
+					Object.entries(content)
+						.sort(compareFileTreeEntries)
+						.map(([filename, child]) =>
+							buildTreeItems(filename, filename, child, currentPath),
+						)}
 			</TreeItem>
 		);
 	};
@@ -198,12 +200,9 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			defaultExpandedItems={activePath ? expandablePaths(activePath) : []}
 			defaultSelectedItems={activePath}
 		>
-			{Object.keys(fileTree)
-				.sort(sortFileTree(fileTree))
-				.map((filename) => {
-					const child = fileTree[filename];
-					return buildTreeItems(filename, filename, child);
-				})}
+			{Object.entries(fileTree)
+				.sort(compareFileTreeEntries)
+				.map(([filename, child]) => buildTreeItems(filename, filename, child))}
 
 			<Menu
 				onClose={() => setContextMenu(undefined)}
