@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
@@ -181,7 +182,16 @@ func containsWorkspaceAgentStat(stats []database.GetWorkspaceAgentStatsRow, need
 
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
-	db, _ := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	clk := quartz.NewMock(t)
+	now := dbtime.Now()
+	threshold := now.Add(-7 * 24 * time.Hour)
+	beforeThreshold := threshold.Add(-time.Hour)
+	afterThreshold := threshold.Add(time.Hour)
+	clk.Set(now).MustWait(ctx)
+
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
 	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
@@ -189,131 +199,171 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	now := dbtime.Now()
 
-	//nolint:paralleltest // It uses LockIDDBPurge.
-	t.Run("AgentHasNotConnectedSinceWeek_LogsExpired", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-		clk := quartz.NewMock(t)
-		clk.Set(now).MustWait(ctx)
+	// Given the following:
 
-		// After dbpurge completes, the ticker is reset. Trap this call.
-		trapReset := clk.Trap().TickerReset()
-		defer trapReset.Close()
+	// Workspace A was built once before the threshold, and never connected.
+	wsA := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wbA1 := mustCreateWorkspaceBuild(t, db, org, tv, wsA.ID, beforeThreshold, 1)
+	agentA1 := mustCreateAgent(t, db, wbA1)
+	mustCreateAgentLogs(ctx, t, db, agentA1.ID, nil, "agent a1 logs should be deleted")
 
-		// given: an agent with logs older than threshold
-		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, tmpl, tv, now.Add(-8*24*time.Hour), t.Name())
+	// Workspace B was built twice before the threshold.
+	wsB := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wbB1 := mustCreateWorkspaceBuild(t, db, org, tv, wsB.ID, beforeThreshold, 1)
+	wbB2 := mustCreateWorkspaceBuild(t, db, org, tv, wsB.ID, beforeThreshold, 2)
+	agentB1 := mustCreateAgent(t, db, wbB1)
+	agentB2 := mustCreateAgent(t, db, wbB2)
+	mustCreateAgentLogs(ctx, t, db, agentB1.ID, &beforeThreshold, "agent b1 logs should be deleted")
+	mustCreateAgentLogs(ctx, t, db, agentB2.ID, &beforeThreshold, "agent b2 logs should be retained")
 
-		// when dbpurge runs
-		closer := dbpurge.New(ctx, logger, db, clk)
-		defer closer.Close()
-		// Wait for the initial nanosecond tick.
-		clk.Advance(time.Nanosecond).MustWait(ctx)
+	// Workspace C was built once before the threshold, and once after.
+	wsC := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wbC1 := mustCreateWorkspaceBuild(t, db, org, tv, wsC.ID, beforeThreshold, 1)
+	wbC2 := mustCreateWorkspaceBuild(t, db, org, tv, wsC.ID, afterThreshold, 2)
+	agentC1 := mustCreateAgent(t, db, wbC1)
+	agentC2 := mustCreateAgent(t, db, wbC2)
+	mustCreateAgentLogs(ctx, t, db, agentC1.ID, &beforeThreshold, "agent c1 logs should be deleted")
+	mustCreateAgentLogs(ctx, t, db, agentC2.ID, &afterThreshold, "agent c2 logs should be retained")
 
-		trapReset.MustWait(ctx).Release() // Wait for ticker.Reset()
-		d, w := clk.AdvanceNext()
-		require.Equal(t, 10*time.Minute, d)
+	// Workspace D was built twice after the threshold.
+	wsD := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wbD1 := mustCreateWorkspaceBuild(t, db, org, tv, wsD.ID, afterThreshold, 1)
+	wbD2 := mustCreateWorkspaceBuild(t, db, org, tv, wsD.ID, afterThreshold, 2)
+	agentD1 := mustCreateAgent(t, db, wbD1)
+	agentD2 := mustCreateAgent(t, db, wbD2)
+	mustCreateAgentLogs(ctx, t, db, agentD1.ID, &afterThreshold, "agent d1 logs should be retained")
+	mustCreateAgentLogs(ctx, t, db, agentD2.ID, &afterThreshold, "agent d2 logs should be retained")
 
-		closer.Close() // doTick() has now run.
-		w.MustWait(ctx)
+	// Workspace E was build once after threshold but never connected.
+	wsE := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wbE1 := mustCreateWorkspaceBuild(t, db, org, tv, wsE.ID, beforeThreshold, 1)
+	agentE1 := mustCreateAgent(t, db, wbE1)
+	mustCreateAgentLogs(ctx, t, db, agentE1.ID, nil, "agent e1 logs should be retained")
 
-		// then the logs should be gone
-		agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-			AgentID:      agent,
-			CreatedAfter: 0,
-		})
-		require.NoError(t, err)
-		require.Empty(t, agentLogs, "expected agent logs to be empty")
-	})
+	// when dbpurge runs
 
-	//nolint:paralleltest // It uses LockIDDBPurge.
-	t.Run("AgentConnectedSixDaysAgo_LogsValid", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-		clk := quartz.NewMock(t)
-		clk.Set(now).MustWait(ctx)
+	// After dbpurge completes, the ticker is reset. Trap this call.
+	trapReset := clk.Trap().TickerReset()
+	defer trapReset.Close()
 
-		// After dbpurge completes, the ticker is reset. Trap this call.
-		trapReset := clk.Trap().TickerReset()
-		defer trapReset.Close()
+	closer := dbpurge.New(ctx, logger, db, clk)
+	defer closer.Close()
+	// Wait for the initial nanosecond tick.
+	clk.Advance(time.Nanosecond).MustWait(ctx)
 
-		// given: an agent with logs newer than threshold
-		agent := mustCreateAgentWithLogs(ctx, t, db, user, org, tmpl, tv, now.Add(-6*24*time.Hour), t.Name())
+	trapReset.MustWait(ctx).Release() // Wait for ticker.Reset()
+	d, w := clk.AdvanceNext()
+	require.Equal(t, 10*time.Minute, d)
 
-		// when dbpurge runs
-		closer := dbpurge.New(ctx, logger, db, clk)
-		defer closer.Close()
+	closer.Close() // doTick() has now run.
+	w.MustWait(ctx)
 
-		// Wait for the initial nanosecond tick.
-		clk.Advance(time.Nanosecond).MustWait(ctx)
+	// then logs related to the following agents should be deleted:
+	// Agent A1 never connected and was created before the threshold.
+	assertNoWorkspaceAgentLogs(ctx, t, db, agentA1.ID)
+	// Agent B1 is not the latest build and the logs are from before threshold.
+	assertNoWorkspaceAgentLogs(ctx, t, db, agentB1.ID)
+	// Agent C1 is not the latest build and the logs are from before threshold.
+	assertNoWorkspaceAgentLogs(ctx, t, db, agentC1.ID)
 
-		trapReset.MustWait(ctx).Release() // Wait for ticker.Reset()
-		d, w := clk.AdvanceNext()
-		require.Equal(t, 10*time.Minute, d)
-
-		closer.Close() // doTick() has now run.
-		w.MustWait(ctx)
-
-		// then the logs should still be there
-		agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-			AgentID: agent,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, agentLogs)
-		for _, al := range agentLogs {
-			require.Equal(t, t.Name(), al.Output)
-		}
-	})
+	// then logs related to the following agents should be retained:
+	// Agent B2 is the latest build.
+	assertWorkspaceAgentLogs(ctx, t, db, agentB2.ID, "agent b2 logs should be retained")
+	// Agent C2 is the latest build.
+	assertWorkspaceAgentLogs(ctx, t, db, agentC2.ID, "agent c2 logs should be retained")
+	// Agents D1, D2, and E1 are all after threshold.
+	assertWorkspaceAgentLogs(ctx, t, db, agentD1.ID, "agent d1 logs should be retained")
+	assertWorkspaceAgentLogs(ctx, t, db, agentD2.ID, "agent d2 logs should be retained")
+	assertWorkspaceAgentLogs(ctx, t, db, agentE1.ID, "agent e1 logs should be retained")
 }
 
-func mustCreateAgentWithLogs(ctx context.Context, t *testing.T, db database.Store, user database.User, org database.Organization, tmpl database.Template, tv database.TemplateVersion, agentLastConnectedAt time.Time, output string) uuid.UUID {
-	agent := mustCreateAgent(t, db, user, org, tmpl, tv)
-
-	err := db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
-		ID:              agent.ID,
-		LastConnectedAt: sql.NullTime{Time: agentLastConnectedAt, Valid: true},
-	})
-	require.NoError(t, err)
-	_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-		AgentID:   agent.ID,
-		CreatedAt: agentLastConnectedAt,
-		Output:    []string{output},
-		Level:     []database.LogLevel{database.LogLevelDebug},
-	})
-	require.NoError(t, err)
-	// Make sure that agent logs have been collected.
+func assertNoWorkspaceAgentLogs(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID) {
+	t.Helper()
 	agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-		AgentID: agent.ID,
+		AgentID:      agentID,
+		CreatedAfter: 0,
 	})
 	require.NoError(t, err)
-	require.NotZero(t, agentLogs, "agent logs must be present")
-	return agent.ID
+	assert.Empty(t, agentLogs)
 }
 
-func mustCreateAgent(t *testing.T, db database.Store, user database.User, org database.Organization, tmpl database.Template, tv database.TemplateVersion) database.WorkspaceAgent {
-	workspace := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+func assertWorkspaceAgentLogs(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID, msg string) {
+	t.Helper()
+	agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+		AgentID:      agentID,
+		CreatedAfter: 0,
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, agentLogs)
+	for _, al := range agentLogs {
+		assert.Equal(t, msg, al.Output)
+	}
+}
+
+func mustCreateWorkspaceBuild(t *testing.T, db database.Store, org database.Organization, tv database.TemplateVersion, wsID uuid.UUID, createdAt time.Time, n int32) database.WorkspaceBuild {
+	t.Helper()
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		CreatedAt:      createdAt,
 		OrganizationID: org.ID,
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		Provisioner:    database.ProvisionerTypeEcho,
 		StorageMethod:  database.ProvisionerStorageMethodFile,
 	})
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       workspace.ID,
+	wb := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		CreatedAt:         createdAt,
+		WorkspaceID:       wsID,
 		JobID:             job.ID,
 		TemplateVersionID: tv.ID,
 		Transition:        database.WorkspaceTransitionStart,
 		Reason:            database.BuildReasonInitiator,
+		BuildNumber:       n,
 	})
+	require.Equal(t, createdAt.UTC(), wb.CreatedAt.UTC())
+	return wb
+}
+
+func mustCreateAgent(t *testing.T, db database.Store, wb database.WorkspaceBuild) database.WorkspaceAgent {
+	t.Helper()
 	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		JobID:      job.ID,
+		JobID:      wb.JobID,
 		Transition: database.WorkspaceTransitionStart,
+		CreatedAt:  wb.CreatedAt,
 	})
 
-	return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID: resource.ID,
+	wa := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID:       resource.ID,
+		CreatedAt:        wb.CreatedAt,
+		FirstConnectedAt: sql.NullTime{},
+		DisconnectedAt:   sql.NullTime{},
+		LastConnectedAt:  sql.NullTime{},
 	})
+	require.Equal(t, wb.CreatedAt.UTC(), wa.CreatedAt.UTC())
+	return wa
+}
+
+func mustCreateAgentLogs(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID, agentLastConnectedAt *time.Time, output string) uuid.UUID {
+	t.Helper()
+	if agentLastConnectedAt != nil {
+		require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:              agentID,
+			LastConnectedAt: sql.NullTime{Time: *agentLastConnectedAt, Valid: true},
+		}))
+	}
+	_, err := db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
+		AgentID: agentID,
+		// CreatedAt: agentLastConnectedAt,
+		Output: []string{output},
+		Level:  []database.LogLevel{database.LogLevelDebug},
+	})
+	require.NoError(t, err)
+	// Make sure that agent logs have been collected.
+	agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
+		AgentID: agentID,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, agentLogs, "agent logs must be present")
+	return agentID
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
