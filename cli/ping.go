@@ -158,21 +158,21 @@ func (r *RootCmd) ping() *serpent.Command {
 				PingP2P:       didP2p,
 				DisableDirect: r.disableDirect,
 				LocalNetInfo:  ni,
+				Verbose:       r.verbose,
 			}
 
 			awsRanges, err := cliutil.FetchAWSIPRanges(ctx, cliutil.AWSIPRangesURL)
 			if err != nil {
-				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve AWS IP ranges: %v\n", err)
+				opts.Logger.Debug(inv.Context(), "failed to retrieve AWS IP ranges", slog.Error(err))
 			}
 
 			connDiags.ClientIPIsAWS = isAWSIP(awsRanges, ni)
 
 			connInfo, err := client.AgentConnectionInfoGeneric(ctx)
-			if err == nil {
-				connDiags.ConnInfo = &connInfo
-			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve connection info from server: %v\n", err)
+			if err != nil || connInfo.DERPMap == nil {
+				return xerrors.Errorf("Failed to retrieve connection info from server: %v\n", err)
 			}
+			connDiags.ConnInfo = connInfo
 			ifReport, err := healthsdk.RunInterfacesReport()
 			if err == nil {
 				connDiags.LocalInterfaces = &ifReport
@@ -193,7 +193,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				}
 			}
 
-			cliui.ConnDiagnostics(inv.Stdout, connDiags)
+			connDiags.Write(inv.Stdout)
 			return nil
 		},
 	}
@@ -224,6 +224,9 @@ func (r *RootCmd) ping() *serpent.Command {
 }
 
 func isAWSIP(awsRanges *cliutil.AWSIPRanges, ni *tailcfg.NetInfo) bool {
+	if awsRanges == nil {
+		return false
+	}
 	if ni.GlobalV4 != "" {
 		ip, err := netip.ParseAddr(ni.GlobalV4)
 		if err == nil && awsRanges.CheckIP(ip) {

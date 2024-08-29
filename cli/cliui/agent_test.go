@@ -686,7 +686,9 @@ func TestConnDiagnostics(t *testing.T) {
 		{
 			name: "Direct",
 			diags: cliui.ConnDiags{
-				ConnInfo:     &workspacesdk.AgentConnectionInfo{},
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
 				PingP2P:      true,
 				LocalNetInfo: &tailcfg.NetInfo{},
 			},
@@ -697,7 +699,8 @@ func TestConnDiagnostics(t *testing.T) {
 		{
 			name: "DirectBlocked",
 			diags: cliui.ConnDiags{
-				ConnInfo: &workspacesdk.AgentConnectionInfo{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap:                  &tailcfg.DERPMap{},
 					DisableDirectConnections: true,
 				},
 			},
@@ -709,20 +712,20 @@ func TestConnDiagnostics(t *testing.T) {
 		{
 			name: "NoStun",
 			diags: cliui.ConnDiags{
-				ConnInfo: &workspacesdk.AgentConnectionInfo{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
 					DERPMap: &tailcfg.DERPMap{},
 				},
 				LocalNetInfo: &tailcfg.NetInfo{},
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`✘ The DERP map is not configured to use STUN, which will prevent direct connections from starting outside of local networks`,
+				`✘ The DERP map is not configured to use STUN`,
 			},
 		},
 		{
 			name: "ClientHasStunNoUDP",
 			diags: cliui.ConnDiags{
-				ConnInfo: &workspacesdk.AgentConnectionInfo{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
 					DERPMap: &tailcfg.DERPMap{
 						Regions: map[int]*tailcfg.DERPRegion{
 							999: {
@@ -741,13 +744,13 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`❗ Client could not connect to STUN over UDP, which may be preventing a direct connection`,
+				`✘ Client could not connect to STUN over UDP`,
 			},
 		},
 		{
 			name: "AgentHasStunNoUDP",
 			diags: cliui.ConnDiags{
-				ConnInfo: &workspacesdk.AgentConnectionInfo{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
 					DERPMap: &tailcfg.DERPMap{
 						Regions: map[int]*tailcfg.DERPRegion{
 							999: {
@@ -768,12 +771,15 @@ func TestConnDiagnostics(t *testing.T) {
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`❗ Agent could not connect to STUN over UDP, which may be preventing a direct connection`,
+				`✘ Agent could not connect to STUN over UDP`,
 			},
 		},
 		{
 			name: "ClientHardNat",
 			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
 				LocalNetInfo: &tailcfg.NetInfo{
 					MappingVariesByDestIP: "true",
 				},
@@ -786,7 +792,9 @@ func TestConnDiagnostics(t *testing.T) {
 		{
 			name: "AgentHardNat",
 			diags: cliui.ConnDiags{
-				ConnInfo:     &workspacesdk.AgentConnectionInfo{},
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
 				PingP2P:      false,
 				LocalNetInfo: &tailcfg.NetInfo{},
 				AgentNetcheck: &healthsdk.AgentNetcheckReport{
@@ -801,6 +809,9 @@ func TestConnDiagnostics(t *testing.T) {
 		{
 			name: "AgentInterfaceWarnings",
 			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
 				PingP2P: true,
 				AgentNetcheck: &healthsdk.AgentNetcheckReport{
 					Interfaces: healthsdk.InterfacesReport{
@@ -813,13 +824,16 @@ func TestConnDiagnostics(t *testing.T) {
 				},
 			},
 			want: []string{
-				`❗ Agent: network interface eth0 has MTU 1280, (less than 1378), which may cause problems with direct connections`,
+				`❗ Network interface eth0 has MTU 1280, (less than 1378), which may degrade the quality of direct connections`,
 				`✔ You are connected directly (p2p)`,
 			},
 		},
 		{
 			name: "LocalInterfaceWarnings",
 			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
 				PingP2P: true,
 				LocalInterfaces: &healthsdk.InterfacesReport{
 					BaseReport: healthsdk.BaseReport{
@@ -830,30 +844,36 @@ func TestConnDiagnostics(t *testing.T) {
 				},
 			},
 			want: []string{
-				`❗ Client: network interface eth1 has MTU 1310, (less than 1378), which may cause problems with direct connections`,
+				`❗ Network interface eth1 has MTU 1310, (less than 1378), which may degrade the quality of direct connections`,
 				`✔ You are connected directly (p2p)`,
 			},
 		},
 		{
 			name: "ClientAWSIP",
 			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
 				ClientIPIsAWS: true,
 				AgentIPIsAWS:  false,
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`❗ Client IP address is within an AWS range, which is known to cause problems with forming direct connections (AWS uses hard NAT)`,
+				`❗ Client IP address is within an AWS range (AWS uses hard NAT)`,
 			},
 		},
 		{
 			name: "AgentAWSIP",
 			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
 				ClientIPIsAWS: false,
 				AgentIPIsAWS:  true,
 			},
 			want: []string{
 				`❗ You are connected via a DERP relay, not directly (p2p)`,
-				`❗ Agent IP address is within an AWS range, which is known to cause problems with forming direct connections (AWS uses hard NAT)`,
+				`❗ Agent IP address is within an AWS range (AWS uses hard NAT)`,
 			},
 		},
 	}
@@ -864,7 +884,7 @@ func TestConnDiagnostics(t *testing.T) {
 			r, w := io.Pipe()
 			go func() {
 				defer w.Close()
-				cliui.ConnDiagnostics(w, tc.diags)
+				tc.diags.Write(w)
 			}()
 			bytes, err := io.ReadAll(r)
 			require.NoError(t, err)
