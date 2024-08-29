@@ -74,15 +74,9 @@ export function groupsByUserId() {
 
 export function groupsForUser(userId: string) {
 	return {
-		...groups(),
-		select: (allGroups) => {
-			const groupsForUser = allGroups.filter((group) =>
-				group.members.some((member) => member.id === userId),
-			);
-
-			return sortGroupsByName(groupsForUser, "asc");
-		},
-	} as const satisfies UseQueryOptions<Group[], unknown, readonly Group[]>;
+		queryKey: groupsQueryKey,
+		queryFn: () => API.getGroups({ userId }),
+	} as const satisfies UseQueryOptions<Group[]>;
 }
 
 export const groupPermissionsKey = (groupId: string) => [

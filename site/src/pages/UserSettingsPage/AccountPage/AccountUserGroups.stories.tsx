@@ -5,6 +5,7 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import { AccountUserGroups } from "./AccountUserGroups";
+import { withDashboardProvider } from "testHelpers/storybook";
 
 const MockGroup2 = {
 	...MockGroup1,
@@ -24,12 +25,19 @@ const meta: Meta<typeof AccountUserGroups> = {
 		groups: [MockGroup1, MockGroup2],
 		loading: false,
 	},
+	decorators: [withDashboardProvider],
 };
 
 export default meta;
 type Story = StoryObj<typeof AccountUserGroups>;
 
 export const Example: Story = {};
+
+export const ExampleWithOrganizations: Story = {
+	parameters: {
+		showOrganizations: true,
+	},
+};
 
 export const NoGroups: Story = {
 	args: {
