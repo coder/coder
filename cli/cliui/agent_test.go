@@ -817,7 +817,7 @@ func TestConnDiagnostics(t *testing.T) {
 					Interfaces: healthsdk.InterfacesReport{
 						BaseReport: healthsdk.BaseReport{
 							Warnings: []health.Message{
-								health.Messagef(health.CodeInterfaceSmallMTU, "network interface eth0 has MTU 1280, (less than 1378), which may cause problems with direct connections"),
+								health.Messagef(health.CodeInterfaceSmallMTU, "Network interface eth0 has MTU 1280, (less than 1378), which may degrade the quality of direct connections"),
 							},
 						},
 					},
@@ -838,7 +838,7 @@ func TestConnDiagnostics(t *testing.T) {
 				LocalInterfaces: &healthsdk.InterfacesReport{
 					BaseReport: healthsdk.BaseReport{
 						Warnings: []health.Message{
-							health.Messagef(health.CodeInterfaceSmallMTU, "network interface eth1 has MTU 1310, (less than 1378), which may cause problems with direct connections"),
+							health.Messagef(health.CodeInterfaceSmallMTU, "Network interface eth1 has MTU 1310, (less than 1378), which may degrade the quality of direct connections"),
 						},
 					},
 				},

@@ -7,13 +7,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -394,13 +392,13 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 
 	if d.AgentNetcheck != nil {
 		for _, msg := range d.AgentNetcheck.Interfaces.Warnings {
-			agent = append(agent, formatHealthMessage(msg))
+			agent = append(agent, msg.Message)
 		}
 	}
 
 	if d.LocalInterfaces != nil {
 		for _, msg := range d.LocalInterfaces.Warnings {
-			client = append(client, formatHealthMessage(msg))
+			client = append(client, msg.Message)
 		}
 	}
 
@@ -441,21 +439,12 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 		}
 	}
 
-	if true {
+	if d.ClientIPIsAWS {
 		client = append(client, "Client IP address is within an AWS range (AWS uses hard NAT)")
 	}
 
-	if true {
+	if d.AgentIPIsAWS {
 		agent = append(agent, "Agent IP address is within an AWS range (AWS uses hard NAT)")
 	}
 	return general, client, agent
-}
-
-func formatHealthMessage(msg health.Message) string {
-	if msg.Code != health.CodeInterfaceSmallMTU {
-		return msg.Message
-	}
-	r := []rune(strings.Replace(msg.Message, ", which may cause problems with direct connections", "", -1))
-	out := string(append([]rune{unicode.ToUpper(r[0])}, r[1:]...))
-	return fmt.Sprintf("%s, which may degrade the quality of direct connections", out)
 }

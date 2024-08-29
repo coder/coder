@@ -148,8 +148,8 @@ func (r *RootCmd) ping() *serpent.Command {
 					break
 				}
 			}
-			ctx, cancel = context.WithTimeout(inv.Context(), 30*time.Second)
-			defer cancel()
+			diagCtx, diagCancel := context.WithTimeout(inv.Context(), 30*time.Second)
+			defer diagCancel()
 			diags := conn.GetPeerDiagnostics()
 			cliui.PeerDiagnostics(inv.Stdout, diags)
 
@@ -161,16 +161,16 @@ func (r *RootCmd) ping() *serpent.Command {
 				Verbose:       r.verbose,
 			}
 
-			awsRanges, err := cliutil.FetchAWSIPRanges(ctx, cliutil.AWSIPRangesURL)
+			awsRanges, err := cliutil.FetchAWSIPRanges(diagCtx, cliutil.AWSIPRangesURL)
 			if err != nil {
 				opts.Logger.Debug(inv.Context(), "failed to retrieve AWS IP ranges", slog.Error(err))
 			}
 
 			connDiags.ClientIPIsAWS = isAWSIP(awsRanges, ni)
 
-			connInfo, err := client.AgentConnectionInfoGeneric(ctx)
+			connInfo, err := client.AgentConnectionInfoGeneric(diagCtx)
 			if err != nil || connInfo.DERPMap == nil {
-				return xerrors.Errorf("Failed to retrieve connection info from server: %v\n", err)
+				return xerrors.Errorf("Failed to retrieve connection info from server: %w\n", err)
 			}
 			connDiags.ConnInfo = connInfo
 			ifReport, err := healthsdk.RunInterfacesReport()
@@ -180,7 +180,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				_, _ = fmt.Fprintf(inv.Stdout, "Failed to retrieve local interfaces report: %v\n", err)
 			}
 
-			agentNetcheck, err := conn.Netcheck(ctx)
+			agentNetcheck, err := conn.Netcheck(diagCtx)
 			if err == nil {
 				connDiags.AgentNetcheck = &agentNetcheck
 				connDiags.AgentIPIsAWS = isAWSIP(awsRanges, agentNetcheck.NetInfo)
