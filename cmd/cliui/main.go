@@ -79,10 +79,22 @@ func main() {
 		Use: "select",
 		Handler: func(inv *serpent.Invocation) error {
 			value, err := cliui.Select(inv, cliui.SelectOptions{
-				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
-				Size:    3,
+				Options:    []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
+				Size:       3,
+				HideSearch: true,
 			})
 			_, _ = fmt.Printf("Selected: %q\n", value)
+			return err
+		},
+	})
+
+	root.Children = append(root.Children, &serpent.Command{
+		Use: "multi-select",
+		Handler: func(inv *serpent.Invocation) error {
+			values, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
+				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
+			})
+			_, _ = fmt.Printf("Selected: %q\n", values)
 			return err
 		},
 	})

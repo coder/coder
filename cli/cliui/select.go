@@ -1,13 +1,12 @@
 package cliui
 
 import (
-	"errors"
 	"flag"
-	"io"
-	"os"
+	"fmt"
+	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -66,6 +65,7 @@ func RichSelect(inv *serpent.Invocation, richOptions RichSelectOptions) (*coders
 
 // Select displays a list of user options.
 func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
+	// TODO: Check if this is still true for Bubbletea.
 	// The survey library used *always* fails when testing on Windows,
 	// as it requires a live TTY (can't be a conpty). We should fork
 	// this library to add a dummy fallback, that simply reads/writes
@@ -75,31 +75,152 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 		return opts.Options[0], nil
 	}
 
-	var defaultOption interface{}
-	if opts.Default != "" {
-		defaultOption = opts.Default
+	initialModel := selectModel{
+		search:     textinput.New(),
+		hideSearch: opts.HideSearch,
+		options:    opts.Options,
+		height:     opts.Size,
 	}
 
+	if initialModel.height == 0 {
+		initialModel.height = 5 // TODO: Pick a default?
+	}
+
+	initialModel.search.Prompt = ""
+	initialModel.search.Focus()
+
+	m, err := tea.NewProgram(
+		initialModel,
+		tea.WithInput(inv.Stdin),
+		tea.WithOutput(inv.Stdout),
+	).Run()
+
 	var value string
-	err := survey.AskOne(&survey.Select{
-		Options:  opts.Options,
-		Default:  defaultOption,
-		PageSize: opts.Size,
-		Message:  opts.Message,
-	}, &value, survey.WithIcons(func(is *survey.IconSet) {
-		is.Help.Text = "Type to search"
-		if opts.HideSearch {
-			is.Help.Text = ""
+	if m, ok := m.(selectModel); ok {
+		if m.canceled {
+			return value, Canceled
 		}
-	}), survey.WithStdio(fileReadWriter{
-		Reader: inv.Stdin,
-	}, fileReadWriter{
-		Writer: inv.Stdout,
-	}, inv.Stdout))
-	if errors.Is(err, terminal.InterruptErr) {
-		return value, Canceled
+		value = m.selected
 	}
 	return value, err
+}
+
+type selectModel struct {
+	search     textinput.Model
+	options    []string
+	cursor     int
+	height     int
+	selected   string
+	canceled   bool
+	hideSearch bool
+}
+
+func (selectModel) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+//nolint:revive The linter complains about modifying 'm' but this is typical practice for bubbletea
+func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		switch msg.Type {
+		case tea.KeyCtrlC:
+			m.canceled = true
+			return m, tea.Quit
+
+		case tea.KeyEnter:
+			options := m.filteredOptions()
+			if len(options) != 0 {
+				m.selected = options[m.cursor]
+				return m, tea.Quit
+			}
+
+		case tea.KeyUp:
+			if m.cursor > 0 {
+				m.cursor--
+			}
+
+		case tea.KeyDown:
+			options := m.filteredOptions()
+			if m.cursor < len(options)-1 {
+				m.cursor++
+			}
+		}
+	}
+
+	if !m.hideSearch {
+		oldSearch := m.search.Value()
+		m.search, cmd = m.search.Update(msg)
+
+		// If the search query has changed then we need to ensure
+		// the cursor is still pointing at a valid option.
+		if m.search.Value() != oldSearch {
+			options := m.filteredOptions()
+
+			if m.cursor > len(options)-1 {
+				m.cursor = max(0, len(options)-1)
+			}
+		}
+	}
+
+	return m, cmd
+}
+
+func (m selectModel) View() string {
+	var s string
+
+	if m.hideSearch {
+		s += "? [Use arrows to move]\n"
+	} else {
+		s += fmt.Sprintf("? %s [Use arrows to move, type to filter]\n", m.search.View())
+	}
+
+	options, start := m.viewableOptions()
+
+	for i, option := range options {
+		// Is this the currently selected option?
+		cursor := " "
+		if m.cursor == start+i {
+			cursor = ">"
+		}
+
+		s += fmt.Sprintf("%s %s\n", cursor, option)
+	}
+
+	return s
+}
+
+func (m selectModel) viewableOptions() ([]string, int) {
+	options := m.filteredOptions()
+	halfHeight := m.height / 2
+	bottom := 0
+	top := len(options)
+
+	switch {
+	case m.cursor <= halfHeight:
+		top = min(top, m.height)
+	case m.cursor < top-halfHeight:
+		bottom = m.cursor - halfHeight
+		top = min(top, m.cursor+halfHeight+1)
+	default:
+		bottom = top - m.height
+	}
+
+	return options[bottom:top], bottom
+}
+
+func (m selectModel) filteredOptions() []string {
+	options := []string{}
+	for _, o := range m.options {
+		prefix := strings.ToLower(m.search.Value())
+		option := strings.ToLower(o)
+
+		if strings.HasPrefix(option, prefix) {
+			options = append(options, o)
+		}
+	}
+	return options
 }
 
 type MultiSelectOptions struct {
@@ -114,35 +235,129 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 		return opts.Defaults, nil
 	}
 
-	prompt := &survey.MultiSelect{
-		Options: opts.Options,
-		Default: opts.Defaults,
-		Message: opts.Message,
+	options := make([]multiSelectOption, len(opts.Options))
+	for i, option := range opts.Options {
+		options[i].option = option
 	}
 
-	var values []string
-	err := survey.AskOne(prompt, &values, survey.WithStdio(fileReadWriter{
-		Reader: inv.Stdin,
-	}, fileReadWriter{
-		Writer: inv.Stdout,
-	}, inv.Stdout))
-	if errors.Is(err, terminal.InterruptErr) {
-		return nil, Canceled
+	initialModel := multiSelectModel{
+		search:  textinput.New(),
+		options: options,
+	}
+
+	initialModel.search.Prompt = ""
+	initialModel.search.Focus()
+
+	m, err := tea.NewProgram(
+		initialModel,
+		tea.WithInput(inv.Stdin),
+		tea.WithOutput(inv.Stdout),
+	).Run()
+
+	values := []string{}
+	if m, ok := m.(multiSelectModel); ok {
+		if m.canceled {
+			return values, Canceled
+		}
+
+		for _, option := range m.options {
+			if option.chosen {
+				values = append(values, option.option)
+			}
+		}
 	}
 	return values, err
 }
 
-type fileReadWriter struct {
-	io.Reader
-	io.Writer
+type multiSelectOption struct {
+	option string
+	chosen bool
 }
 
-func (f fileReadWriter) Fd() uintptr {
-	if file, ok := f.Reader.(*os.File); ok {
-		return file.Fd()
+type multiSelectModel struct {
+	search   textinput.Model
+	options  []multiSelectOption
+	cursor   int
+	canceled bool
+}
+
+func (multiSelectModel) Init() tea.Cmd {
+	return nil
+}
+
+//nolint:revive For same reason as previous Update definition
+func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	if msg, ok := msg.(tea.KeyMsg); ok {
+		switch msg.Type {
+		case tea.KeyCtrlC:
+			m.canceled = true
+			return m, tea.Quit
+
+		case tea.KeyEnter:
+			if len(m.options) != 0 {
+				return m, tea.Quit
+			}
+
+		case tea.KeySpace:
+			if len(m.options) != 0 {
+				m.options[m.cursor].chosen = true
+			}
+
+		case tea.KeyUp:
+			if m.cursor > 0 {
+				m.cursor--
+			}
+
+		case tea.KeyDown:
+			if m.cursor < len(m.options)-1 {
+				m.cursor++
+			}
+
+		case tea.KeyRight:
+			for i := range m.options {
+				m.options[i].chosen = true
+			}
+
+		case tea.KeyLeft:
+			for i := range m.options {
+				m.options[i].chosen = false
+			}
+
+		default:
+			oldSearch := m.search.Value()
+			m.search, cmd = m.search.Update(msg)
+
+			// If the search query has changed then we need to ensure
+			// the cursor is still pointing at a valid option.
+			if m.search.Value() != oldSearch {
+				if m.cursor > len(m.options)-1 {
+					m.cursor = max(0, len(m.options)-1)
+				}
+			}
+		}
 	}
-	if file, ok := f.Writer.(*os.File); ok {
-		return file.Fd()
+
+	return m, cmd
+}
+
+func (m multiSelectModel) View() string {
+	s := fmt.Sprintf("? %s [Use arrows to move, space to select, <right> to all, <left> to none, type to filter]\n", m.search.View())
+
+	for i, option := range m.options {
+		cursor := " "
+		if m.cursor == i {
+			cursor = ">"
+		}
+
+		chosen := "[ ]"
+		if option.chosen {
+			chosen = "[x]"
+		}
+
+		s += fmt.Sprintf("%s %s %s\n", cursor, chosen, option.option)
 	}
-	return 0
+
+	return s
 }
