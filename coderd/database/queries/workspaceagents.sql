@@ -202,7 +202,7 @@ WITH
 	),
 	old_agents AS (
 		SELECT
-			wa.id, wa.last_connected_at, wb.build_number, wb.workspace_id
+			wa.id
 		FROM
 			workspace_agents AS wa
 		JOIN
