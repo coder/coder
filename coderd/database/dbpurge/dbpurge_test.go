@@ -182,13 +182,12 @@ func containsWorkspaceAgentStat(stats []database.GetWorkspaceAgentStatsRow, need
 
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+	ctx := testutil.Context(t, testutil.WaitShort)
 	clk := quartz.NewMock(t)
 	now := dbtime.Now()
 	threshold := now.Add(-7 * 24 * time.Hour)
-	beforeThreshold := threshold.Add(-time.Hour)
-	afterThreshold := threshold.Add(time.Hour)
+	beforeThreshold := threshold.Add(-24 * time.Hour)
+	afterThreshold := threshold.Add(24 * time.Hour)
 	clk.Set(now).MustWait(ctx)
 
 	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
@@ -202,44 +201,48 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 
 	// Given the following:
 
-	// Workspace A was built once before the threshold, and never connected.
-	wsA := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	// Workspace A was built twice before the threshold, and never connected on
+	// either attempt.
+	wsA := dbgen.Workspace(t, db, database.Workspace{Name: "a", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbA1 := mustCreateWorkspaceBuild(t, db, org, tv, wsA.ID, beforeThreshold, 1)
+	wbA2 := mustCreateWorkspaceBuild(t, db, org, tv, wsA.ID, beforeThreshold, 2)
 	agentA1 := mustCreateAgent(t, db, wbA1)
-	mustCreateAgentLogs(ctx, t, db, agentA1.ID, nil, "agent a1 logs should be deleted")
+	agentA2 := mustCreateAgent(t, db, wbA2)
+	mustCreateAgentLogs(ctx, t, db, agentA1, nil, "agent a1 logs should be deleted")
+	mustCreateAgentLogs(ctx, t, db, agentA2, nil, "agent a2 logs should be retained")
 
 	// Workspace B was built twice before the threshold.
-	wsB := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsB := dbgen.Workspace(t, db, database.Workspace{Name: "b", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbB1 := mustCreateWorkspaceBuild(t, db, org, tv, wsB.ID, beforeThreshold, 1)
 	wbB2 := mustCreateWorkspaceBuild(t, db, org, tv, wsB.ID, beforeThreshold, 2)
 	agentB1 := mustCreateAgent(t, db, wbB1)
 	agentB2 := mustCreateAgent(t, db, wbB2)
-	mustCreateAgentLogs(ctx, t, db, agentB1.ID, &beforeThreshold, "agent b1 logs should be deleted")
-	mustCreateAgentLogs(ctx, t, db, agentB2.ID, &beforeThreshold, "agent b2 logs should be retained")
+	mustCreateAgentLogs(ctx, t, db, agentB1, &beforeThreshold, "agent b1 logs should be deleted")
+	mustCreateAgentLogs(ctx, t, db, agentB2, &beforeThreshold, "agent b2 logs should be retained")
 
 	// Workspace C was built once before the threshold, and once after.
-	wsC := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsC := dbgen.Workspace(t, db, database.Workspace{Name: "c", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbC1 := mustCreateWorkspaceBuild(t, db, org, tv, wsC.ID, beforeThreshold, 1)
 	wbC2 := mustCreateWorkspaceBuild(t, db, org, tv, wsC.ID, afterThreshold, 2)
 	agentC1 := mustCreateAgent(t, db, wbC1)
 	agentC2 := mustCreateAgent(t, db, wbC2)
-	mustCreateAgentLogs(ctx, t, db, agentC1.ID, &beforeThreshold, "agent c1 logs should be deleted")
-	mustCreateAgentLogs(ctx, t, db, agentC2.ID, &afterThreshold, "agent c2 logs should be retained")
+	mustCreateAgentLogs(ctx, t, db, agentC1, &beforeThreshold, "agent c1 logs should be deleted")
+	mustCreateAgentLogs(ctx, t, db, agentC2, &afterThreshold, "agent c2 logs should be retained")
 
 	// Workspace D was built twice after the threshold.
-	wsD := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsD := dbgen.Workspace(t, db, database.Workspace{Name: "d", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbD1 := mustCreateWorkspaceBuild(t, db, org, tv, wsD.ID, afterThreshold, 1)
 	wbD2 := mustCreateWorkspaceBuild(t, db, org, tv, wsD.ID, afterThreshold, 2)
 	agentD1 := mustCreateAgent(t, db, wbD1)
 	agentD2 := mustCreateAgent(t, db, wbD2)
-	mustCreateAgentLogs(ctx, t, db, agentD1.ID, &afterThreshold, "agent d1 logs should be retained")
-	mustCreateAgentLogs(ctx, t, db, agentD2.ID, &afterThreshold, "agent d2 logs should be retained")
+	mustCreateAgentLogs(ctx, t, db, agentD1, &afterThreshold, "agent d1 logs should be retained")
+	mustCreateAgentLogs(ctx, t, db, agentD2, &afterThreshold, "agent d2 logs should be retained")
 
 	// Workspace E was build once after threshold but never connected.
-	wsE := dbgen.Workspace(t, db, database.Workspace{OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsE := dbgen.Workspace(t, db, database.Workspace{Name: "e", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbE1 := mustCreateWorkspaceBuild(t, db, org, tv, wsE.ID, beforeThreshold, 1)
 	agentE1 := mustCreateAgent(t, db, wbE1)
-	mustCreateAgentLogs(ctx, t, db, agentE1.ID, nil, "agent e1 logs should be retained")
+	mustCreateAgentLogs(ctx, t, db, agentE1, nil, "agent e1 logs should be retained")
 
 	// when dbpurge runs
 
@@ -260,7 +263,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	w.MustWait(ctx)
 
 	// then logs related to the following agents should be deleted:
-	// Agent A1 never connected and was created before the threshold.
+	// Agent A1 never connected, was created before the threshold, and is not the
+	// latest build.
 	assertNoWorkspaceAgentLogs(ctx, t, db, agentA1.ID)
 	// Agent B1 is not the latest build and the logs are from before threshold.
 	assertNoWorkspaceAgentLogs(ctx, t, db, agentB1.ID)
@@ -268,6 +272,8 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	assertNoWorkspaceAgentLogs(ctx, t, db, agentC1.ID)
 
 	// then logs related to the following agents should be retained:
+	// Agent A2 is the latest build.
+	assertWorkspaceAgentLogs(ctx, t, db, agentA2.ID, "agent a2 logs should be retained")
 	// Agent B2 is the latest build.
 	assertWorkspaceAgentLogs(ctx, t, db, agentB2.ID, "agent b2 logs should be retained")
 	// Agent C2 is the latest build.
@@ -331,7 +337,11 @@ func mustCreateAgent(t *testing.T, db database.Store, wb database.WorkspaceBuild
 		CreatedAt:  wb.CreatedAt,
 	})
 
+	ws, err := db.GetWorkspaceByID(context.Background(), wb.WorkspaceID)
+	require.NoError(t, err)
+
 	wa := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		Name:             fmt.Sprintf("%s%d", ws.Name, wb.BuildNumber),
 		ResourceID:       resource.ID,
 		CreatedAt:        wb.CreatedAt,
 		FirstConnectedAt: sql.NullTime{},
@@ -342,28 +352,27 @@ func mustCreateAgent(t *testing.T, db database.Store, wb database.WorkspaceBuild
 	return wa
 }
 
-func mustCreateAgentLogs(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID, agentLastConnectedAt *time.Time, output string) uuid.UUID {
+func mustCreateAgentLogs(ctx context.Context, t *testing.T, db database.Store, agent database.WorkspaceAgent, agentLastConnectedAt *time.Time, output string) {
 	t.Helper()
 	if agentLastConnectedAt != nil {
 		require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
-			ID:              agentID,
+			ID:              agent.ID,
 			LastConnectedAt: sql.NullTime{Time: *agentLastConnectedAt, Valid: true},
 		}))
 	}
 	_, err := db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-		AgentID: agentID,
-		// CreatedAt: agentLastConnectedAt,
-		Output: []string{output},
-		Level:  []database.LogLevel{database.LogLevelDebug},
+		AgentID:   agent.ID,
+		CreatedAt: agent.CreatedAt,
+		Output:    []string{output},
+		Level:     []database.LogLevel{database.LogLevelDebug},
 	})
 	require.NoError(t, err)
 	// Make sure that agent logs have been collected.
 	agentLogs, err := db.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
-		AgentID: agentID,
+		AgentID: agent.ID,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, agentLogs, "agent logs must be present")
-	return agentID
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
