@@ -228,45 +228,41 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			<TemplatesFilter filter={filter} />
+			<TemplatesFilter filter={filter} error={error} />
+			
+			<TableContainer>
+				<Table>
+					<TableHead>
+						<TableRow>
+							<TableCell width="35%">{Language.nameLabel}</TableCell>
+							<TableCell width="15%">
+								{showOrganizations ? "Organization" : Language.usedByLabel}
+							</TableCell>
+							<TableCell width="10%">{Language.buildTimeLabel}</TableCell>
+							<TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
+							<TableCell width="1%" />
+						</TableRow>
+					</TableHead>
+					<TableBody>
+						{isLoading && <TableLoader />}
 
-			{error ? (
-				<ErrorAlert error={error} />
-			) : (
-				<TableContainer>
-					<Table>
-						<TableHead>
-							<TableRow>
-								<TableCell width="35%">{Language.nameLabel}</TableCell>
-								<TableCell width="15%">
-									{showOrganizations ? "Organization" : Language.usedByLabel}
-								</TableCell>
-								<TableCell width="10%">{Language.buildTimeLabel}</TableCell>
-								<TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-								<TableCell width="1%" />
-							</TableRow>
-						</TableHead>
-						<TableBody>
-							{isLoading && <TableLoader />}
-
-							{isEmpty ? (
-								<EmptyTemplates
-									canCreateTemplates={canCreateTemplates}
-									examples={examples ?? []}
+						{isEmpty ? (
+							<EmptyTemplates
+								canCreateTemplates={canCreateTemplates}
+								examples={examples ?? []}
+							/>
+						) : (
+							templates?.map((template) => (
+								<TemplateRow
+									key={template.id}
+									showOrganizations={showOrganizations}
+									template={template}
 								/>
-							) : (
-								templates?.map((template) => (
-									<TemplateRow
-										key={template.id}
-										showOrganizations={showOrganizations}
-										template={template}
-									/>
-								))
-							)}
-						</TableBody>
-					</Table>
-				</TableContainer>
-			)}
+							))
+						)}
+					</TableBody>
+				</Table>
+			</TableContainer>
 		</Margins>
 	);
 };

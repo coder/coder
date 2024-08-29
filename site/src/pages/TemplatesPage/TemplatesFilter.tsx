@@ -16,9 +16,10 @@ import type { FC } from "react";
 
 interface TemplatesFilterProps {
 	filter: ReturnType<typeof useFilter>;
+	error?: unknown;
 }
 
-export const TemplatesFilter: FC<TemplatesFilterProps> = ({ filter }) => {
+export const TemplatesFilter: FC<TemplatesFilterProps> = ({ filter, error }) => {
 	const organizationMenu = useFilterMenu({
 		onChange: (option) =>
 			filter.update({ ...filter.values, organization: option?.value }),
@@ -48,6 +49,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({ filter }) => {
 			// learnMoreLink={docs("/templates#template-filtering")}
 			isLoading={false}
 			filter={filter}
+			error={error}
 			options={
 				<>
 					<SelectFilter
