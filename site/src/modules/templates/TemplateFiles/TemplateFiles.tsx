@@ -2,7 +2,7 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import EditOutlined from "@mui/icons-material/EditOutlined";
 import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
-import set from "lodash/fp/set";
+import set from "lodash/set";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
@@ -31,8 +31,6 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 	const getLink = useLinks();
 	const theme = useTheme();
 
-	const filenames = Object.keys(currentFiles);
-
 	const fileInfo = useCallback(
 		(filename: string) => {
 			const value = currentFiles[filename].trim();
@@ -49,13 +47,13 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 	);
 
 	const fileTree: FileTree = useMemo(() => {
-		let tree: FileTree = {};
-		for (const filename of filenames) {
+		const tree: FileTree = {};
+		for (const filename of Object.keys(currentFiles)) {
 			const info = fileInfo(filename);
-			tree = set(filename.split("/"), info.value, tree);
+			set(filename.split("/"), info.value, tree);
 		}
 		return tree;
-	}, [fileInfo, filenames]);
+	}, [fileInfo, currentFiles]);
 
 	const versionLink = `${getLink(
 		linkToTemplate(organizationName, templateName),
@@ -88,7 +86,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 				</div>
 
 				<div css={styles.files} data-testid="template-files-content">
-					{[...filenames]
+					{Object.keys(currentFiles)
 						.sort((a, b) => a.localeCompare(b))
 						.map((filename) => {
 							const info = fileInfo(filename);
