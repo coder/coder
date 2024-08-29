@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/quartz"
 )
 
@@ -47,7 +48,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 				return nil
 			}
 
-			if err := tx.DeleteOldWorkspaceAgentLogs(ctx, start.Add(-maxAgentLogAge)); err != nil {
+			deleteOldWorkspaceAgentLogsBefore := start.Add(-maxAgentLogAge)
+			if err := tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore); err != nil {
 				return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
 			}
 			if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
@@ -78,7 +80,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 				return
 			case tick := <-ticker.C:
 				ticker.Stop()
-				doTick(tick)
+				doTick(dbtime.Time(tick).UTC())
 			}
 		}
 	}()
