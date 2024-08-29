@@ -1,7 +1,6 @@
 package cliui
 
 import (
-	"flag"
 	"fmt"
 	"strings"
 
@@ -66,16 +65,6 @@ func RichSelect(inv *serpent.Invocation, richOptions RichSelectOptions) (*coders
 
 // Select displays a list of user options.
 func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
-	// TODO: Check if this is still true for Bubbletea.
-	// The survey library used *always* fails when testing on Windows,
-	// as it requires a live TTY (can't be a conpty). We should fork
-	// this library to add a dummy fallback, that simply reads/writes
-	// to the IO provided. See:
-	// https://github.com/AlecAivazis/survey/blob/master/terminal/runereader_windows.go#L94
-	if flag.Lookup("test.v") != nil {
-		return opts.Options[0], nil
-	}
-
 	initialModel := selectModel{
 		search:     textinput.New(),
 		hideSearch: opts.HideSearch,
@@ -249,11 +238,6 @@ type MultiSelectOptions struct {
 }
 
 func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, error) {
-	// Similar hack is applied to Select()
-	if flag.Lookup("test.v") != nil {
-		return opts.Defaults, nil
-	}
-
 	options := make([]*multiSelectOption, len(opts.Options))
 	for i, option := range opts.Options {
 		chosen := false
