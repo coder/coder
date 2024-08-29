@@ -1710,19 +1710,90 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context, threshold t
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	var validLogs []database.WorkspaceAgentLog
-	for _, log := range q.workspaceAgentLogs {
-		var toBeDeleted bool
-		for _, agent := range q.workspaceAgents {
-			if agent.ID == log.AgentID && agent.LastConnectedAt.Valid && agent.LastConnectedAt.Time.Before(threshold) {
-				toBeDeleted = true
-				break
+	/*
+		WITH
+			latest_builds AS (
+				SELECT
+					workspace_id, max(build_number) AS max_build_number
+				FROM
+					workspace_builds
+				GROUP BY
+					workspace_id
+			),
+	*/
+	latestBuilds := make(map[uuid.UUID]int32)
+	for _, wb := range q.workspaceBuilds {
+		if lastBuildNumber, found := latestBuilds[wb.WorkspaceID]; found && lastBuildNumber > wb.BuildNumber {
+			continue
+		}
+		// not found or newer build number
+		latestBuilds[wb.WorkspaceID] = wb.BuildNumber
+	}
+
+	/*
+		old_agents AS (
+			SELECT
+				wa.id
+			FROM
+				workspace_agents AS wa
+			JOIN
+				workspace_resources AS wr
+			ON
+				wa.resource_id = wr.id
+			JOIN
+				workspace_builds AS wb
+			ON
+				wb.job_id = wr.job_id
+			LEFT JOIN
+				latest_builds
+			ON
+				latest_builds.workspace_id = wb.workspace_id
+			AND
+				latest_builds.max_build_number = wb.build_number
+			WHERE
+				-- Filter out the latest builds for each workspace.
+				latest_builds.workspace_id IS NULL
+			AND CASE
+				-- If the last time the agent connected was before @threshold
+				WHEN wa.last_connected_at IS NOT NULL THEN
+					wa.last_connected_at < @threshold :: timestamptz
+				-- The agent never connected, and was created before @threshold
+				ELSE wa.created_at < @threshold :: timestamptz
+			END
+		)
+	*/
+	oldAgents := make(map[uuid.UUID]struct{})
+	for _, wa := range q.workspaceAgents {
+		for _, wr := range q.workspaceResources {
+			if wr.ID != wa.ResourceID {
+				continue
+			}
+			for _, wb := range q.workspaceBuilds {
+				if wb.JobID != wr.JobID {
+					continue
+				}
+				latestBuildNumber, found := latestBuilds[wb.WorkspaceID]
+				if !found {
+					panic("workspaceBuilds got modified somehow while q was locked! This is a bug in dbmem!")
+				}
+				if latestBuildNumber == wb.BuildNumber {
+					continue
+				}
+				if wa.LastConnectedAt.Valid && wa.LastConnectedAt.Time.Before(threshold) || wa.CreatedAt.Before(threshold) {
+					oldAgents[wa.ID] = struct{}{}
+				}
 			}
 		}
-
-		if !toBeDeleted {
-			validLogs = append(validLogs, log)
+	}
+	/*
+		DELETE FROM workspace_agent_logs WHERE agent_id IN (SELECT id FROM old_agents);
+	*/
+	var validLogs []database.WorkspaceAgentLog
+	for _, log := range q.workspaceAgentLogs {
+		if _, found := oldAgents[log.AgentID]; found {
+			continue
 		}
+		validLogs = append(validLogs, log)
 	}
 	q.workspaceAgentLogs = validLogs
 	return nil
