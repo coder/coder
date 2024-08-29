@@ -59,6 +59,8 @@ _These notifications are sent to users with **template admin** roles._
 
 ## Configuration
 
+You can modify the notification delivery behavior using the following server flags. 
+
 | Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
 |:--------:|-------------------------------------|-----------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------|---------|
 |    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
@@ -206,7 +208,13 @@ The `payload` object has these keys:
   buttons
 - `labels`: dynamic map of zero or more string key-value pairs; these vary from event to event
 
-## Preferences (enterprise)
+## User Preferences
+
+All users have the option to opt-out of any notifications. Go to **Account** ->  **Notifications** to turn notifications on or off. The delivery method for each notification is indicated on the right hand side of this table. 
+
+![User Notification Preferences](../images/user-notification-preferences.PNG)
+
+## Delivery Preferences (enterprise)
 
 Administrators can configure which delivery methods are used for each different [event type](#event-types).
 
@@ -216,9 +224,11 @@ You can find this page under `https://$CODER_ACCESS_URL/deployment/notifications
 
 ## Stop sending notifications
 
-To pause sending notifications, execute `coder notifications pause`.
+Administrators may wish to stop _all_ notifications across the deployment. We support a killswitch in the CLI for these cases.
 
-To resume sending notifications, execute `coder notifications resume`.
+To pause sending notifications, execute [`coder notifications pause`](https://coder.com/docs/reference/cli/notifications_pause).
+
+To resume sending notifications, execute [`coder notifications resume`](https://coder.com/docs/reference/cli/notifications_resume).
 
 ## Internals
 
