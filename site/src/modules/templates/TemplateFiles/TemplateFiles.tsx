@@ -50,7 +50,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 		const tree: FileTree = {};
 		for (const filename of Object.keys(currentFiles)) {
 			const info = fileInfo(filename);
-			set(filename.split("/"), info.value, tree);
+			set(tree, filename.split("/"), info.value);
 		}
 		return tree;
 	}, [fileInfo, currentFiles]);
