@@ -2,27 +2,29 @@ FROM rust:slim AS rust-utils
 # Install rust helper programs
 # ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_INSTALL_ROOT=/tmp/
-RUN cargo install exa bat ripgrep typos-cli watchexec-cli
+RUN cargo install exa bat ripgrep typos-cli watchexec-cli && \
+	# Reduce image size.
+	rm -rf /usr/local/cargo/registry
 
 FROM ubuntu:jammy AS go
 
-RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.22.5
-RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
-RUN curl --silent --show-error --location \
+RUN apt-get update && \
+	apt-get install --yes curl && \
+	curl --silent --show-error --location \
 	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
 	-o /usr/local/go.tar.gz
 
-RUN tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1
-
 ENV PATH=$PATH:/usr/local/go/bin
-
-# Install Go utilities.
 ARG GOPATH="/tmp/"
-RUN mkdir --parents "$GOPATH" && \
+# Install Go utilities.
+RUN apt-get install --yes gcc && \
+	mkdir --parents /usr/local/go && \
+	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
+	mkdir --parents "$GOPATH" && \
 	# moq for Go tests.
 	go install github.com/matryer/moq@v0.2.3 && \
 	# swag for Swagger doc generation
@@ -73,17 +75,28 @@ RUN mkdir --parents "$GOPATH" && \
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.30.6 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install go.uber.org/mock/mockgen@v0.4.0
+	go install go.uber.org/mock/mockgen@v0.4.0 && \
+	# Reduce image size.
+	apt-get remove --yes gcc && \
+	apt-get autoremove --yes && \
+	apt-get clean && \
+	rm -rf /usr/local/go && \
+	rm -rf /tmp/go/pkg && \
+	rm -rf /tmp/go/src
 
 FROM gcr.io/coder-dev-1/alpine:3.18 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
-RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
-RUN unzip protoc.zip
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip && \
+	unzip protoc.zip && \
+	rm protoc.zip
 
 FROM ubuntu:jammy
 
 SHELL ["/bin/bash", "-c"]
+
+# Install packages from apt repositories
+ARG DEBIAN_FRONTEND="noninteractive"
 
 # Updated certificates are necessary to use the teraswitch mirror.
 # This must be ran before copying in configuration since the config replaces
@@ -91,15 +104,13 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update && apt-get install --yes ca-certificates
 
 COPY files /
+
 # We used to copy /etc/sudoers.d/* in from files/ but this causes issues with
 # permissions and layer caching. Instead, create the file directly.
 RUN mkdir -p /etc/sudoers.d && \
 	echo 'coder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd && \
 	chmod 750 /etc/sudoers.d/ && \
 	chmod 640 /etc/sudoers.d/nopasswd
-
-# Install packages from apt repositories
-ARG DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update --quiet && apt-get install --yes \
 	ansible \
@@ -231,7 +242,9 @@ RUN systemctl disable \
 # Configure systemd services for CVMs
 RUN systemctl enable \
 	docker \
-	ssh
+	ssh && \
+	# Workaround for envbuilder cache probing not working unless the filesystem is modified.
+	touch /tmp/.envbuilder-systemctl-enable-docker-ssh-workaround
 
 # Install tools with published releases, where that is the
 # preferred/recommended installation method.
