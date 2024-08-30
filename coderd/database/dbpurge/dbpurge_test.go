@@ -43,20 +43,11 @@ func TestPurge(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	clk := quartz.NewMock(t)
-
 	// We want to make sure dbpurge is actually started so that this test is meaningful.
-	trapStop := clk.Trap().TickerStop()
-
+	clk := quartz.NewMock(t)
+	done := awaitDoTick(ctx, t, clk)
 	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), dbmem.New(), clk)
-
-	// Wait for the initial nanosecond tick.
-	clk.Advance(time.Nanosecond).MustWait(ctx)
-	// Wait for ticker.Stop call that happens in the goroutine.
-	trapStop.MustWait(ctx).Release()
-	// Stop the trap now to avoid blocking further.
-	trapStop.Close()
-
+	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
 
@@ -247,20 +238,11 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	// when dbpurge runs
 
 	// After dbpurge completes, the ticker is reset. Trap this call.
-	trapReset := clk.Trap().TickerReset()
-	defer trapReset.Close()
 
+	done := awaitDoTick(ctx, t, clk)
 	closer := dbpurge.New(ctx, logger, db, clk)
 	defer closer.Close()
-	// Wait for the initial nanosecond tick.
-	clk.Advance(time.Nanosecond).MustWait(ctx)
-
-	trapReset.MustWait(ctx).Release() // Wait for ticker.Reset()
-	d, w := clk.AdvanceNext()
-	require.Equal(t, 10*time.Minute, d)
-
-	closer.Close() // doTick() has now run.
-	w.MustWait(ctx)
+	<-done // doTick() has now run.
 
 	// then logs related to the following agents should be deleted:
 	// Agent A1 never connected, was created before the threshold, and is not the
@@ -282,6 +264,34 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	assertWorkspaceAgentLogs(ctx, t, db, agentD1.ID, "agent d1 logs should be retained")
 	assertWorkspaceAgentLogs(ctx, t, db, agentD2.ID, "agent d2 logs should be retained")
 	assertWorkspaceAgentLogs(ctx, t, db, agentE1.ID, "agent e1 logs should be retained")
+}
+
+func awaitDoTick(ctx context.Context, t *testing.T, clk *quartz.Mock) chan struct{} {
+	t.Helper()
+	ch := make(chan struct{})
+	trapStop := clk.Trap().TickerStop()
+	trapReset := clk.Trap().TickerReset()
+	go func() {
+		defer close(ch)
+		defer trapStop.Close()
+		defer trapReset.Close()
+		// Wait for the initial nanosecond tick.
+		trapReset.MustWait(ctx).Release()
+		clk.Advance(time.Nanosecond).MustWait(ctx)
+		// Wait for the ticker stop event.
+		trapStop.MustWait(ctx).Release()
+		// doTick runs here. Wait for the next
+		// ticker reset event that signifies it's completed.
+		trapReset.MustWait(ctx).Release()
+		// Ensure that the duration is reset to the original delay.
+		d, w := clk.AdvanceNext()
+		assert.Equal(t, 10*time.Minute, d)
+		if !assert.NoError(t, w.Wait(ctx)) {
+			return
+		}
+	}()
+
+	return ch
 }
 
 func assertNoWorkspaceAgentLogs(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID) {
