@@ -2422,7 +2422,6 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.Notifications.SMTP.Auth.Password,
 			Group:       &deploymentGroupNotificationsEmailAuth,
-			YAML:        "password",
 		},
 		{
 			Name:        "Notifications: Email Auth: Password File",

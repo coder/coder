@@ -20,7 +20,7 @@ $ CODER_EXPERIMENTS=notifications coder server
 ```
 
 More information on experiments can be found
-[here](/docs/contributing/feature-stages#experimental-features).
+[here](https://coder.com/docs/contributing/feature-stages#experimental-features).
 
 ## Event Types
 
@@ -82,7 +82,7 @@ Enterprise customers can configured which method to use for each of the
 supported [Events](#events); see the [Preferences](#preferences) section below
 for more details.
 
-## SMTP
+## SMTP (Email)
 
 Use the `smtp` method to deliver notifications by email to your users. Coder
 does not ship with an SMTP server, so you will need to configure Coder to use an
@@ -230,7 +230,7 @@ All users have the option to opt-out of any notifications. Go to **Account** ->
 **Notifications** to turn notifications on or off. The delivery method for each
 notification is indicated on the right hand side of this table.
 
-![User Notification Preferences](../images/user-notification-preferences.PNG)
+![User Notification Preferences](../images/user-notification-preferences.png)
 
 ## Delivery Preferences (enterprise)
 
