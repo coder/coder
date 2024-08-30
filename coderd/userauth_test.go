@@ -366,6 +366,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, "Kylium Carbonate", user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
@@ -419,6 +420,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, strings.Repeat("a", 128), user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
@@ -474,6 +476,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, "Kylium Carbonate", user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -536,6 +539,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "mathias@coder.com", user.Email)
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -598,6 +602,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "mathias@coder.com", user.Email)
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -1270,6 +1275,7 @@ func TestUserOIDC(t *testing.T) {
 				require.Len(t, auditor.AuditLogs(), numLogs)
 				require.NotEqual(t, uuid.Nil, auditor.AuditLogs()[numLogs-1].UserID)
 				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
+				require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 			}
 		})
 	}

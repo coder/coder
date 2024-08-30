@@ -38,6 +38,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -243,6 +244,9 @@ type Options struct {
 	WorkspaceUsageTracker *workspacestats.UsageTracker
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	NotificationsEnqueuer notifications.Enqueuer
+
+	// IDPSync holds all configured values for syncing external IDP users into Coder.
+	IDPSync idpsync.IDPSync
 }
 
 // @title Coder API
@@ -269,6 +273,13 @@ func New(options *Options) *API {
 	}
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
+	}
+	if options.IDPSync == nil {
+		options.IDPSync = idpsync.NewAGPLSync(options.Logger, idpsync.SyncSettings{
+			OrganizationField:         options.DeploymentValues.OIDC.OrganizationField.Value(),
+			OrganizationMapping:       options.DeploymentValues.OIDC.OrganizationMapping.Value,
+			OrganizationAssignDefault: options.DeploymentValues.OIDC.OrganizationAssignDefault.Value(),
+		})
 	}
 	if options.NewTicker == nil {
 		options.NewTicker = func(duration time.Duration) (tick <-chan time.Time, done func()) {

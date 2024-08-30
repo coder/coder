@@ -558,6 +558,38 @@ OIDC auth URL parameters to pass to the upstream provider.
 
 Ignore the userinfo endpoint and only use the ID token for user information.
 
+### --oidc-organization-field
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_OIDC_ORGANIZATION_FIELD</code> |
+| YAML        | <code>oidc.organizationField</code>         |
+
+This field must be set if using the organization sync feature. Set to the claim to be used for organizations.
+
+### --oidc-organization-assign-default
+
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT</code> |
+| YAML        | <code>oidc.organizationAssignDefault</code>          |
+| Default     | <code>true</code>                                    |
+
+If set to true, users will always be added to the default organization. If organization sync is enabled, then the default org is always added to the user's set of expectedorganizations.
+
+### --oidc-organization-mapping
+
+|             |                                               |
+| ----------- | --------------------------------------------- |
+| Type        | <code>struct[map[string][]uuid.UUID]</code>   |
+| Environment | <code>$CODER_OIDC_ORGANIZATION_MAPPING</code> |
+| YAML        | <code>oidc.organizationMapping</code>         |
+| Default     | <code>{}</code>                               |
+
+A map of OIDC claims and the organizations in Coder it should map to. This is required because organization IDs must be used within Coder.
+
 ### --oidc-group-field
 
 |             |                                      |

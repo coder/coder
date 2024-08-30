@@ -11083,6 +11083,15 @@ const docTemplate = `{
                 "name_field": {
                     "type": "string"
                 },
+                "organization_assign_default": {
+                    "type": "boolean"
+                },
+                "organization_field": {
+                    "type": "string"
+                },
+                "organization_mapping": {
+                    "type": "object"
+                },
                 "scopes": {
                     "type": "array",
                     "items": {

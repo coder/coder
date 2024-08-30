@@ -16,8 +16,10 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
 	"golang.org/x/xerrors"
@@ -77,6 +79,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
+	}
+	if options.IDPSync == nil {
+		options.IDPSync = enidpsync.NewSync(options.Logger, options.Entitlements, idpsync.SyncSettings{
+			OrganizationField:         options.DeploymentValues.OIDC.OrganizationField.Value(),
+			OrganizationMapping:       options.DeploymentValues.OIDC.OrganizationMapping.Value,
+			OrganizationAssignDefault: options.DeploymentValues.OIDC.OrganizationAssignDefault.Value(),
+		})
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
