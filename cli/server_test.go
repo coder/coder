@@ -45,10 +45,12 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1832,6 +1834,12 @@ func TestServer_InvalidDERP(t *testing.T) {
 func TestServer_DisabledDERP(t *testing.T) {
 	t.Parallel()
 
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpapi.Write(context.Background(), w, http.StatusOK, derpMap)
+	}))
+	t.Cleanup(srv.Close)
+
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
@@ -1843,7 +1851,7 @@ func TestServer_DisabledDERP(t *testing.T) {
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
-		"--derp-config-url", "https://controlplane.tailscale.com/derpmap/default",
+		"--derp-config-url", srv.URL,
 	)
 	clitest.Start(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)
