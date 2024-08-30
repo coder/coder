@@ -11,30 +11,28 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/quartz"
 )
 
 const (
-	delay = 10 * time.Minute
+	delay          = 10 * time.Minute
+	maxAgentLogAge = 7 * 24 * time.Hour
 )
 
 // New creates a new periodically purging database instance.
 // It is the caller's responsibility to call Close on the returned instance.
 //
 // This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	//nolint:gocritic // The system purges old db records without user input.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	// Use time.Nanosecond to force an initial tick. It will be reset to the
-	// correct duration after executing once.
-	ticker := time.NewTicker(time.Nanosecond)
-	doTick := func() {
+	ticker := clk.NewTicker(time.Nanosecond)
+	doTick := func(start time.Time) {
 		defer ticker.Reset(delay)
-
-		start := time.Now()
 		// Start a transaction to grab advisory lock, we don't want to run
 		// multiple purges at the same time (multiple replicas).
 		if err := db.InTx(func(tx database.Store) error {
@@ -49,7 +47,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 				return nil
 			}
 
-			if err := tx.DeleteOldWorkspaceAgentLogs(ctx); err != nil {
+			if err := tx.DeleteOldWorkspaceAgentLogs(ctx, start.Add(-maxAgentLogAge)); err != nil {
 				return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
 			}
 			if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
@@ -62,7 +60,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 				return xerrors.Errorf("failed to delete old notification messages: %w", err)
 			}
 
-			logger.Info(ctx, "purged old database entries", slog.F("duration", time.Since(start)))
+			logger.Info(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
 
 			return nil
 		}, nil); err != nil {
@@ -78,9 +76,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case tick := <-ticker.C:
 				ticker.Stop()
-				doTick()
+				doTick(tick)
 			}
 		}
 	}()
