@@ -183,7 +183,6 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		if err != nil {
 			return true, xerrors.Errorf("message transmission: %w", err)
 		}
-		defer message.Close()
 
 		// Create message headers.
 		msg := &bytes.Buffer{}
@@ -249,6 +248,10 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		_, err = message.Write(multipartBuffer.Bytes())
 		if err != nil {
 			return false, xerrors.Errorf("write body buffer: %w", err)
+		}
+
+		if err = message.Close(); err != nil {
+			return true, xerrors.Errorf("delivery failure: %w", err)
 		}
 
 		// Returning false, nil indicates successful send (i.e. non-retryable non-error)
