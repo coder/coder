@@ -88,6 +88,7 @@ type sqlcQuerier interface {
 	// connectivity issues (no provisioner daemon activity since registration).
 	DeleteOldProvisionerDaemons(ctx context.Context) error
 	// If an agent hasn't connected in the last 7 days, we purge it's logs.
+	// Exception: if the logs are related to the latest build, we keep those around.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
