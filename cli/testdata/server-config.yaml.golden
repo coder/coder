@@ -529,9 +529,6 @@ notifications:
       # Username to use with PLAIN/LOGIN authentication.
       # (default: <unset>, type: string)
       username: ""
-      # Password to use with PLAIN/LOGIN authentication.
-      # (default: <unset>, type: string)
-      password: ""
       # File from which to load password for use with PLAIN/LOGIN authentication.
       # (default: <unset>, type: string)
       passwordFile: ""
