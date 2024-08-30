@@ -16,12 +16,14 @@ RUN apt-get update && \
 	apt-get install --yes curl && \
 	curl --silent --show-error --location \
 	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
-	-o /usr/local/go.tar.gz
+	-o /usr/local/go.tar.gz && \
+	rm -rf /var/lib/apt/lists/*
 
 ENV PATH=$PATH:/usr/local/go/bin
 ARG GOPATH="/tmp/"
 # Install Go utilities.
-RUN apt-get install --yes gcc && \
+RUN apt-get update && \
+	apt-get install --yes gcc && \
 	mkdir --parents /usr/local/go && \
 	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
 	mkdir --parents "$GOPATH" && \
@@ -80,6 +82,7 @@ RUN apt-get install --yes gcc && \
 	apt-get remove --yes gcc && \
 	apt-get autoremove --yes && \
 	apt-get clean && \
+	rm -rf /var/lib/apt/lists/* && \
 	rm -rf /usr/local/go && \
 	rm -rf /tmp/go/pkg && \
 	rm -rf /tmp/go/src
