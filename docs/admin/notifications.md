@@ -73,7 +73,7 @@ flags.
 
 ## Delivery Methods
 
-Notifications can currently be delivery by either SMTP or webhook. Each message
+Notifications can currently be delivered by either SMTP or webhook. Each message
 can only be delivered to one method, and this method is configured globally with
 [`CODER_NOTIFICATIONS_METHOD`](https://coder.com/docs/reference/cli/server#--notifications-method)
 (default: `smtp`).

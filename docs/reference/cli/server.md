@@ -1296,7 +1296,6 @@ Username to use with PLAIN/LOGIN authentication.
 | ----------- | ----------------------------------------------------- |
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD</code> |
-| YAML        | <code>notifications.email.emailAuth.password</code>   |
 
 Password to use with PLAIN/LOGIN authentication.
 
