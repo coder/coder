@@ -7,6 +7,7 @@ export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
 	description?: string | ReactNode;
 	cta?: ReactNode;
 	image?: ReactNode;
+	isCompact?: boolean;
 }
 
 /**
@@ -19,6 +20,7 @@ export const EmptyState: FC<EmptyStateProps> = ({
 	description,
 	cta,
 	image,
+	isCompact,
 	...attrs
 }) => {
 	return (
@@ -30,8 +32,8 @@ export const EmptyState: FC<EmptyStateProps> = ({
 				justifyContent: "center",
 				alignItems: "center",
 				textAlign: "center",
-				minHeight: 360,
-				padding: "80px 40px",
+				minHeight: isCompact ? 180 : 360,
+				padding: isCompact ? "10px 40px" : "80px 40px",
 				position: "relative",
 			}}
 			{...attrs}
