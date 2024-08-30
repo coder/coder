@@ -229,7 +229,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 			</PageHeader>
 
 			<TemplatesFilter filter={filter} error={error} />
-			
+
 			<TableContainer>
 				<Table>
 					<TableHead>

@@ -19,7 +19,10 @@ interface TemplatesFilterProps {
 	error?: unknown;
 }
 
-export const TemplatesFilter: FC<TemplatesFilterProps> = ({ filter, error }) => {
+export const TemplatesFilter: FC<TemplatesFilterProps> = ({
+	filter,
+	error,
+}) => {
 	const organizationMenu = useFilterMenu({
 		onChange: (option) =>
 			filter.update({ ...filter.values, organization: option?.value }),
