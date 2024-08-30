@@ -1,12 +1,12 @@
 // biome-ignore lint/nursery/noRestrictedImports: We still use `Theme` as a basis for our actual theme, for now.
 import type { Theme as MuiTheme } from "@mui/material/styles";
 import type * as monaco from "monaco-editor";
+import type { ColorRoles } from "./colorRoles";
 import dark from "./dark";
 import darkBlue from "./darkBlue";
 import type { NewTheme } from "./experimental";
 import type { ExternalImageModeStyles } from "./externalImages";
 import light from "./light";
-import type { ColorRoles } from "./colorRoles";
 
 export interface Theme extends Omit<MuiTheme, "palette"> {
 	/** @deprecated prefer `theme.roles` when possible */

@@ -1,4 +1,4 @@
-import type { InteractiveColorRole, ColorRole } from "./colorRoles";
+import type { ColorRole, InteractiveColorRole } from "./colorRoles";
 
 export interface NewTheme {
 	l1: ColorRole; // page background, things which sit at the "root level"
