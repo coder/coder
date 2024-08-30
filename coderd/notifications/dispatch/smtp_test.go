@@ -62,6 +62,7 @@ func TestSMTP(t *testing.T) {
 		expectedErr      string
 		retryable        bool
 		useTLS           bool
+		failOnDataFn     func() error
 	}{
 		/**
 		 * LOGIN auth mechanism
@@ -381,6 +382,21 @@ func TestSMTP(t *testing.T) {
 			toAddrs:          []string{to},
 			expectedAuthMeth: sasl.Plain,
 		},
+		/**
+		 * Other errors
+		 */
+		{
+			name: "Rejected on DATA",
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+			},
+			failOnDataFn: func() error {
+				return &smtp.SMTPError{Code: 501, EnhancedCode: smtp.EnhancedCode{5, 5, 4}, Message: "Rejected!"}
+			},
+			expectedErr: "SMTP error 501: Rejected!",
+			retryable:   true,
+		},
 	}
 
 	// nolint:paralleltest // Reinitialization is not required as of Go v1.22.
@@ -398,6 +414,8 @@ func TestSMTP(t *testing.T) {
 				AcceptedIdentity: tc.cfg.Auth.Identity.String(),
 				AcceptedUsername: username,
 				AcceptedPassword: password,
+
+				FailOnDataFn: tc.failOnDataFn,
 			})
 
 			// Create a mock SMTP server which conditionally listens for plain or TLS connections.
