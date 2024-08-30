@@ -183,6 +183,15 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		if err != nil {
 			return true, xerrors.Errorf("message transmission: %w", err)
 		}
+		closeOnce := sync.OnceValue(func() error {
+			return message.Close()
+		})
+		// Close the message when this method exits in order to not leak resources. Even though we're calling this explicitly
+		// further down, the method may exit before then.
+		defer func() {
+			// If we try close an already-closed writer, it'll send a subsequent request to the server which is invalid.
+			_ = closeOnce()
+		}()
 
 		// Create message headers.
 		msg := &bytes.Buffer{}
@@ -250,7 +259,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 			return false, xerrors.Errorf("write body buffer: %w", err)
 		}
 
-		if err = message.Close(); err != nil {
+		if err = closeOnce(); err != nil {
 			return true, xerrors.Errorf("delivery failure: %w", err)
 		}
 
