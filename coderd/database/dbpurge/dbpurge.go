@@ -31,7 +31,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 	//nolint:gocritic // The system purges old db records without user input.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	ticker := clk.NewTicker(time.Nanosecond)
+	// Start the ticker with the initial delay.
+	ticker := clk.NewTicker(delay)
 	doTick := func(start time.Time) {
 		defer ticker.Reset(delay)
 		// Start a transaction to grab advisory lock, we don't want to run
@@ -74,6 +75,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 	go func() {
 		defer close(closed)
 		defer ticker.Stop()
+		// Force an initial tick immediately.
+		ticker.Reset(time.Nanosecond)
 		for {
 			select {
 			case <-ctx.Done():
