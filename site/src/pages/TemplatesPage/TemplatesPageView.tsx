@@ -9,6 +9,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ExternalAvatar } from "components/Avatar/Avatar";
@@ -228,6 +229,10 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
+			{/* Validation errors are shown on the filter, other errors are an alert box. */}
+			{hasError(error) && !isApiValidationError(error) && (
+				<ErrorAlert error={error} />
+			)}
 			<TemplatesFilter filter={filter} error={error} />
 
 			<TableContainer>
