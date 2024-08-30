@@ -75,8 +75,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 	go func() {
 		defer close(closed)
 		defer ticker.Stop()
-		// Force an initial tick immediately.
-		ticker.Reset(time.Nanosecond)
+		// Force an initial tick.
+		doTick(dbtime.Time(clk.Now()).UTC())
 		for {
 			select {
 			case <-ctx.Done():

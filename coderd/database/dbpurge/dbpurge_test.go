@@ -269,26 +269,27 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 func awaitDoTick(ctx context.Context, t *testing.T, clk *quartz.Mock) chan struct{} {
 	t.Helper()
 	ch := make(chan struct{})
+	trapNow := clk.Trap().Now()
 	trapStop := clk.Trap().TickerStop()
 	trapReset := clk.Trap().TickerReset()
 	go func() {
 		defer close(ch)
-		defer trapStop.Close()
 		defer trapReset.Close()
-		// Wait for the initial nanosecond tick.
-		trapReset.MustWait(ctx).Release()
-		clk.Advance(time.Nanosecond).MustWait(ctx)
-		// Wait for the ticker stop event.
-		trapStop.MustWait(ctx).Release()
+		defer trapStop.Close()
+		defer trapNow.Close()
+		// Wait for the initial tick signified by a call to Now().
+		trapNow.MustWait(ctx).Release()
 		// doTick runs here. Wait for the next
 		// ticker reset event that signifies it's completed.
 		trapReset.MustWait(ctx).Release()
-		// Ensure that the duration is reset to the original delay.
+		// Ensure that the next tick happens in 10 minutes from start.
 		d, w := clk.AdvanceNext()
-		assert.Equal(t, 10*time.Minute, d)
-		if !assert.NoError(t, w.Wait(ctx)) {
+		if !assert.Equal(t, 10*time.Minute, d) {
 			return
 		}
+		w.MustWait(ctx)
+		// Wait for the ticker stop event.
+		trapStop.MustWait(ctx).Release()
 	}()
 
 	return ch
