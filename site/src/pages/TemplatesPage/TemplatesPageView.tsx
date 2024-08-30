@@ -229,11 +229,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
+			<TemplatesFilter filter={filter} error={error} />
 			{/* Validation errors are shown on the filter, other errors are an alert box. */}
 			{hasError(error) && !isApiValidationError(error) && (
 				<ErrorAlert error={error} />
 			)}
-			<TemplatesFilter filter={filter} error={error} />
 
 			<TableContainer>
 				<Table>
