@@ -1,6 +1,7 @@
 package dispatch_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -41,10 +42,10 @@ func TestWebhook(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		serverURL     string
-		serverTimeout time.Duration
-		serverFn      func(uuid.UUID, http.ResponseWriter, *http.Request)
+		name           string
+		serverURL      string
+		serverDeadline time.Time
+		serverFn       func(uuid.UUID, http.ResponseWriter, *http.Request)
 
 		expectSuccess   bool
 		expectRetryable bool
@@ -76,9 +77,12 @@ func TestWebhook(t *testing.T) {
 		},
 		{
 			name:            "timeout",
-			serverTimeout:   time.Nanosecond,
+			serverDeadline:  time.Now().Add(-time.Hour),
 			expectSuccess:   false,
 			expectRetryable: true,
+			serverFn: func(u uuid.UUID, writer http.ResponseWriter, request *http.Request) {
+				t.Fatalf("should not get here")
+			},
 			expectErr:       "request timeout",
 		},
 		{
@@ -99,14 +103,20 @@ func TestWebhook(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			timeout := testutil.WaitLong
-			if tc.serverTimeout > 0 {
-				timeout = tc.serverTimeout
+			var (
+				ctx    context.Context
+				cancel context.CancelFunc
+			)
+
+			if !tc.serverDeadline.IsZero() {
+				ctx, cancel = context.WithDeadline(context.Background(), tc.serverDeadline)
+			} else {
+				ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
 			}
+			t.Cleanup(cancel)
 
 			var (
 				err   error
-				ctx   = testutil.Context(t, timeout)
 				msgID = uuid.New()
 			)
 
