@@ -275,6 +275,13 @@ const OrganizationSettingsNavigation: FC<
 								Roles
 							</SidebarNavSubItem>
 						)}
+					{organization.permissions.viewProvisioners && (
+						<SidebarNavSubItem
+							href={urlForSubpage(organization.name, "provisioners")}
+						>
+							Provisioners
+						</SidebarNavSubItem>
+					)}
 				</Stack>
 			)}
 		</>

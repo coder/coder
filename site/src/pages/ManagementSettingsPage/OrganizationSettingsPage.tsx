@@ -17,6 +17,7 @@ import {
 } from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const OrganizationSettingsPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
@@ -42,9 +43,13 @@ const OrganizationSettingsPage: FC = () => {
 		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
 
-	const permissions = permissionsQuery.data;
-	if (!organizations || !permissions) {
+	if (permissionsQuery.isLoading) {
 		return <Loader />;
+	}
+
+	const permissions = permissionsQuery.data;
+	if (permissionsQuery.error || !permissions) {
+		return <ErrorAlert error={permissionsQuery.error} />;
 	}
 
 	// Redirect /organizations => /organizations/default-org, or if they cannot edit
