@@ -41,6 +41,7 @@ func TestIPV4Check(t *testing.T) {
 			},
 		})
 	}))
+	t.Cleanup(srv.Close)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ranges, err := FetchAWSIPRanges(ctx, srv.URL)
 	require.NoError(t, err)

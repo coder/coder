@@ -78,10 +78,10 @@ WHERE
 				-- use between 15 mins and 1 hour of data. We keep a
 				-- little bit more (1 day) just in case.
 				MAX(start_time) - '1 days'::interval,
-				-- Fall back to 6 months ago if there are no template
+				-- Fall back to ~6 months ago if there are no template
 				-- usage stats so that we don't delete the data before
 				-- it's rolled up.
-				NOW() - '6 months'::interval
+				NOW() - '180 days'::interval
 			)
 		FROM
 			template_usage_stats
