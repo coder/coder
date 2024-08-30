@@ -24,6 +24,7 @@ var (
 type Config struct {
 	AuthMechanisms                                       []string
 	AcceptedIdentity, AcceptedUsername, AcceptedPassword string
+	FailOnDataFn                                         func() error
 }
 
 type Message struct {
@@ -145,6 +146,10 @@ func (s *Session) Data(r io.Reader) error {
 	b, err := io.ReadAll(r)
 	if err != nil {
 		return err
+	}
+
+	if s.backend.cfg.FailOnDataFn != nil {
+		return s.backend.cfg.FailOnDataFn()
 	}
 
 	s.backend.lastMsg.Contents = string(b)

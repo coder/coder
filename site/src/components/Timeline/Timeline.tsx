@@ -37,16 +37,12 @@ export const Timeline = <TData,>({
 
 	return (
 		<>
-			{Object.keys(itemsByDate).map((dateStr) => {
-				const items = itemsByDate[dateStr];
-
-				return (
-					<Fragment key={dateStr}>
-						<TimelineDateRow date={new Date(dateStr)} />
-						{items.map(row)}
-					</Fragment>
-				);
-			})}
+			{Object.entries(itemsByDate).map(([dateStr, items]) => (
+				<Fragment key={dateStr}>
+					<TimelineDateRow date={new Date(dateStr)} />
+					{items.map(row)}
+				</Fragment>
+			))}
 		</>
 	);
 };

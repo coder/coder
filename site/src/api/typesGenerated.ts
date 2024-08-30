@@ -623,6 +623,8 @@ export interface Group {
 	readonly avatar_url: string;
 	readonly quota_allowance: number;
 	readonly source: GroupSource;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
 }
 
 // From codersdk/groups.go

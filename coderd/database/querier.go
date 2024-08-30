@@ -89,7 +89,7 @@ type sqlcQuerier interface {
 	DeleteOldProvisionerDaemons(ctx context.Context) error
 	// If an agent hasn't connected in the last 7 days, we purge it's logs.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
-	DeleteOldWorkspaceAgentLogs(ctx context.Context) error
+	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOrganization(ctx context.Context, id uuid.UUID) error
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
@@ -152,7 +152,7 @@ type sqlcQuerier interface {
 	// count even if the caller does not have read access to ResourceGroupMember.
 	// They only need ResourceGroup read access.
 	GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error)
-	GetGroups(ctx context.Context, arg GetGroupsParams) ([]Group, error)
+	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
@@ -180,7 +180,7 @@ type sqlcQuerier interface {
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
-	GetOrganizations(ctx context.Context) ([]Organization, error)
+	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)

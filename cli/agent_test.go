@@ -3,10 +3,13 @@ package cli_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -228,6 +231,43 @@ func TestWorkspaceAgent(t *testing.T) {
 		// Sorted
 		require.Equal(t, codersdk.AgentSubsystemEnvbox, resources[0].Agents[0].Subsystems[0])
 		require.Equal(t, codersdk.AgentSubsystemExectrace, resources[0].Agents[0].Subsystems[1])
+	})
+	t.Run("Header", func(t *testing.T) {
+		t.Parallel()
+
+		var url string
+		var called int64
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
+			assert.Equal(t, "Ethan was Here!", r.Header.Get("Cool-Header"))
+			assert.Equal(t, "very-wow-"+url, r.Header.Get("X-Process-Testing"))
+			assert.Equal(t, "more-wow", r.Header.Get("X-Process-Testing2"))
+			atomic.AddInt64(&called, 1)
+			w.WriteHeader(http.StatusGone)
+		}))
+		defer srv.Close()
+		url = srv.URL
+		coderURLEnv := "$CODER_URL"
+		if runtime.GOOS == "windows" {
+			coderURLEnv = "%CODER_URL%"
+		}
+
+		logDir := t.TempDir()
+		inv, _ := clitest.New(t,
+			"agent",
+			"--auth", "token",
+			"--agent-token", "fake-token",
+			"--agent-url", srv.URL,
+			"--log-dir", logDir,
+			"--agent-header", "X-Testing=wow",
+			"--agent-header", "Cool-Header=Ethan was Here!",
+			"--agent-header-command", "printf X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
+		)
+
+		clitest.Start(t, inv)
+		require.Eventually(t, func() bool {
+			return atomic.LoadInt64(&called) > 0
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 

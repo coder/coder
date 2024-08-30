@@ -607,7 +607,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(database.GetGroupsParams{
 			OrganizationID: o.ID,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).
-			Returns([]database.Group{a, b}).
+			Returns([]database.GetGroupsRow{
+				{Group: a, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+				{Group: b, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+			}).
 			// Fail the system check shortcut
 			FailSystemObjectChecks()
 	}))
@@ -635,7 +638,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		def, _ := db.GetDefaultOrganization(context.Background())
 		a := dbgen.Organization(s.T(), db, database.Organization{})
 		b := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args().Asserts(def, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(def, a, b))
+		check.Args(database.GetOrganizationsParams{}).Asserts(def, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(def, a, b))
 	}))
 	s.Run("GetOrganizationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -2514,7 +2517,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("DeleteOldWorkspaceAgentLogs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+		check.Args(time.Time{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentStatsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).Errors(errMatchAny)

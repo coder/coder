@@ -305,9 +305,9 @@ func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return r0
 }
 
-func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
+func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, arg time.Time) error {
 	start := time.Now()
-	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx)
+	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
 	return r0
 }
@@ -669,7 +669,7 @@ func (m metricsStore) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return r0, r1
 }
 
-func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroups").Observe(time.Since(start).Seconds())
@@ -865,9 +865,9 @@ func (m metricsStore) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []u
 	return organizations, err
 }
 
-func (m metricsStore) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
+func (m metricsStore) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	start := time.Now()
-	organizations, err := m.s.GetOrganizations(ctx)
+	organizations, err := m.s.GetOrganizations(ctx, args)
 	m.queryLatencies.WithLabelValues("GetOrganizations").Observe(time.Since(start).Seconds())
 	return organizations, err
 }

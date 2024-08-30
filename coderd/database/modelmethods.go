@@ -183,6 +183,10 @@ func (g Group) RBACObject() rbac.Object {
 		})
 }
 
+func (g GetGroupsRow) RBACObject() rbac.Object {
+	return g.Group.RBACObject()
+}
+
 func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }

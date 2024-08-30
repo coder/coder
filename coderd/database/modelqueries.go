@@ -167,7 +167,7 @@ func (q *sqlQuerier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]
 	WHERE
 		users.deleted = false
 	AND
-		users.status = 'active';
+		users.status != 'suspended';
 	`
 
 	var tus []TemplateUser
@@ -247,6 +247,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
+		arg.OrganizationID,
 		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
 		arg.TemplateName,

@@ -1706,19 +1706,15 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context) error {
+func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context, threshold time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-
-	now := dbtime.Now()
-	weekInterval := 7 * 24 * time.Hour
-	weekAgo := now.Add(-weekInterval)
 
 	var validLogs []database.WorkspaceAgentLog
 	for _, log := range q.workspaceAgentLogs {
 		var toBeDeleted bool
 		for _, agent := range q.workspaceAgents {
-			if agent.ID == log.AgentID && agent.LastConnectedAt.Valid && agent.LastConnectedAt.Time.Before(weekAgo) {
+			if agent.ID == log.AgentID && agent.LastConnectedAt.Valid && agent.LastConnectedAt.Time.Before(threshold) {
 				toBeDeleted = true
 				break
 			}
@@ -1749,10 +1745,10 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 						-- use between 15 mins and 1 hour of data. We keep a
 						-- little bit more (1 day) just in case.
 						MAX(start_time) - '1 days'::interval,
-						-- Fall back to 6 months ago if there are no template
+						-- Fall back to ~6 months ago if there are no template
 						-- usage stats so that we don't delete the data before
 						-- it's rolled up.
-						NOW() - '6 months'::interval
+						NOW() - '180 days'::interval
 					)
 				FROM
 					template_usage_stats
@@ -1778,7 +1774,7 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	}
 	// COALESCE
 	if limit.IsZero() {
-		limit = now.AddDate(0, -6, 0)
+		limit = now.AddDate(0, 0, -180)
 	}
 
 	var validStats []database.WorkspaceAgentStat
@@ -2609,7 +2605,7 @@ func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return int64(len(users)), nil
 }
 
-func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2634,7 +2630,8 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 		}
 	}
 
-	filtered := make([]database.Group, 0)
+	orgDetailsCache := make(map[uuid.UUID]struct{ name, displayName string })
+	filtered := make([]database.GetGroupsRow, 0)
 	for _, group := range q.groups {
 		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
 			continue
@@ -2645,7 +2642,24 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 			continue
 		}
 
-		filtered = append(filtered, group)
+		orgDetails, ok := orgDetailsCache[group.ID]
+		if !ok {
+			for _, org := range q.organizations {
+				if group.OrganizationID == org.ID {
+					orgDetails = struct{ name, displayName string }{
+						name: org.Name, displayName: org.DisplayName,
+					}
+					break
+				}
+			}
+			orgDetailsCache[group.ID] = orgDetails
+		}
+
+		filtered = append(filtered, database.GetGroupsRow{
+			Group:                   group,
+			OrganizationName:        orgDetails.name,
+			OrganizationDisplayName: orgDetails.displayName,
+		})
 	}
 
 	return filtered, nil
@@ -3034,14 +3048,24 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
-func (q *FakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
+func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if len(q.organizations) == 0 {
-		return nil, sql.ErrNoRows
+	tmp := make([]database.Organization, 0)
+	for _, org := range q.organizations {
+		if len(args.IDs) > 0 {
+			if !slices.Contains(args.IDs, org.ID) {
+				continue
+			}
+		}
+		if args.Name != "" && !strings.EqualFold(org.Name, args.Name) {
+			continue
+		}
+		tmp = append(tmp, org)
 	}
-	return q.organizations, nil
+
+	return tmp, nil
 }
 
 func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UUID) ([]database.Organization, error) {
@@ -3060,9 +3084,7 @@ func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 			organizations = append(organizations, organization)
 		}
 	}
-	if len(organizations) == 0 {
-		return nil, sql.ErrNoRows
-	}
+
 	return organizations, nil
 }
 
@@ -9960,6 +9982,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 				return match
 			})
 			if index < 0 {
+				continue
+			}
+		}
+
+		if arg.OrganizationID != uuid.Nil {
+			if workspace.OrganizationID != arg.OrganizationID {
 				continue
 			}
 		}

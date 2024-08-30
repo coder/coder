@@ -60,15 +60,10 @@ export const ProvisionerDaemonsPage: FC = () => {
 					const daemonScope = daemon.tags.scope || "organization";
 					const iconScope =
 						daemonScope === "organization" ? <Business /> : <Person />;
-					const extraTags = Object.keys(daemon.tags)
-						.filter((key) => key !== "scope" && key !== "owner")
-						.reduce(
-							(acc, key) => {
-								acc[key] = daemon.tags[key];
-								return acc;
-							},
-							{} as Record<string, string>,
-						);
+
+					const extraTags = Object.entries(daemon.tags).filter(
+						([key]) => key !== "scope" && key !== "owner",
+					);
 					const isWarning = warnings.length > 0;
 					return (
 						<div
@@ -131,8 +126,8 @@ export const ProvisionerDaemonsPage: FC = () => {
 											</span>
 										</Pill>
 									</Tooltip>
-									{Object.keys(extraTags).map((k) => (
-										<ProvisionerTag key={k} k={k} v={extraTags[k]} />
+									{extraTags.map(([key, value]) => (
+										<ProvisionerTag key={key} tagName={key} tagValue={value} />
 									))}
 								</div>
 							</header>
@@ -150,8 +145,8 @@ export const ProvisionerDaemonsPage: FC = () => {
 							>
 								{warnings.length > 0 ? (
 									<div css={{ display: "flex", flexDirection: "column" }}>
-										{warnings.map((warning, i) => (
-											<span key={i}>{warning.message}</span>
+										{warnings.map((warning) => (
+											<span key={warning.code}>{warning.message}</span>
 										))}
 									</div>
 								) : (
@@ -191,32 +186,30 @@ const parseBool = (s: string): { valid: boolean; value: boolean } => {
 };
 
 interface ProvisionerTagProps {
-	k: string;
-	v: string;
-	onDelete?: (key: string) => void;
+	tagName: string;
+	tagValue: string;
+	onDelete?: (tagName: string) => void;
 }
 
-export const ProvisionerTag: FC<ProvisionerTagProps> = ({ k, v, onDelete }) => {
-	const { valid, value: boolValue } = parseBool(v);
-	const kv = `${k}: ${v}`;
+export const ProvisionerTag: FC<ProvisionerTagProps> = ({
+	tagName,
+	tagValue,
+	onDelete,
+}) => {
+	const { valid, value: boolValue } = parseBool(tagValue);
+	const kv = `${tagName}: ${tagValue}`;
 	const content = onDelete ? (
 		<>
 			{kv}
 			<IconButton
-				aria-label={`delete-${k}`}
+				aria-label={`delete-${tagName}`}
 				size="small"
 				color="secondary"
 				onClick={() => {
-					onDelete(k);
+					onDelete(tagName);
 				}}
 			>
-				<CloseIcon
-					fontSize="inherit"
-					css={{
-						width: 14,
-						height: 14,
-					}}
-				/>
+				<CloseIcon fontSize="inherit" css={{ width: 14, height: 14 }} />
 			</IconButton>
 		</>
 	) : (

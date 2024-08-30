@@ -501,17 +501,17 @@ func (mr *MockStoreMockRecorder) DeleteOldProvisionerDaemons(arg0 any) *gomock.C
 }
 
 // DeleteOldWorkspaceAgentLogs mocks base method.
-func (m *MockStore) DeleteOldWorkspaceAgentLogs(arg0 context.Context) error {
+func (m *MockStore) DeleteOldWorkspaceAgentLogs(arg0 context.Context, arg1 time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldWorkspaceAgentLogs", arg0)
+	ret := m.ctrl.Call(m, "DeleteOldWorkspaceAgentLogs", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteOldWorkspaceAgentLogs indicates an expected call of DeleteOldWorkspaceAgentLogs.
-func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentLogs(arg0 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentLogs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceAgentLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceAgentLogs), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceAgentLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceAgentLogs), arg0, arg1)
 }
 
 // DeleteOldWorkspaceAgentStats mocks base method.
@@ -1330,10 +1330,10 @@ func (mr *MockStoreMockRecorder) GetGroupMembersCountByGroupID(arg0, arg1 any) *
 }
 
 // GetGroups mocks base method.
-func (m *MockStore) GetGroups(arg0 context.Context, arg1 database.GetGroupsParams) ([]database.Group, error) {
+func (m *MockStore) GetGroups(arg0 context.Context, arg1 database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGroups", arg0, arg1)
-	ret0, _ := ret[0].([]database.Group)
+	ret0, _ := ret[0].([]database.GetGroupsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1750,18 +1750,18 @@ func (mr *MockStoreMockRecorder) GetOrganizationIDsByMemberIDs(arg0, arg1 any) *
 }
 
 // GetOrganizations mocks base method.
-func (m *MockStore) GetOrganizations(arg0 context.Context) ([]database.Organization, error) {
+func (m *MockStore) GetOrganizations(arg0 context.Context, arg1 database.GetOrganizationsParams) ([]database.Organization, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrganizations", arg0)
+	ret := m.ctrl.Call(m, "GetOrganizations", arg0, arg1)
 	ret0, _ := ret[0].([]database.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOrganizations indicates an expected call of GetOrganizations.
-func (mr *MockStoreMockRecorder) GetOrganizations(arg0 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetOrganizations(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizations", reflect.TypeOf((*MockStore)(nil).GetOrganizations), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizations", reflect.TypeOf((*MockStore)(nil).GetOrganizations), arg0, arg1)
 }
 
 // GetOrganizationsByUserID mocks base method.

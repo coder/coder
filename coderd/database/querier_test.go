@@ -516,7 +516,7 @@ func TestDefaultOrg(t *testing.T) {
 	ctx := context.Background()
 
 	// Should start with the default org
-	all, err := db.GetOrganizations(ctx)
+	all, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
 	require.NoError(t, err)
 	require.Len(t, all, 1)
 	require.True(t, all[0].IsDefault, "first org should always be default")
@@ -1211,7 +1211,7 @@ func TestExpectOne(t *testing.T) {
 		dbgen.Organization(t, db, database.Organization{})
 
 		// Organizations is an easy table without foreign key dependencies
-		_, err = database.ExpectOne(db.GetOrganizations(ctx))
+		_, err = database.ExpectOne(db.GetOrganizations(ctx, database.GetOrganizationsParams{}))
 		require.ErrorContains(t, err, "too many rows returned")
 	})
 }

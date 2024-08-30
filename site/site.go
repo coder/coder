@@ -205,6 +205,18 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	case reqFile == "bin" || strings.HasPrefix(reqFile, "bin/"):
 		h.handler.ServeHTTP(rw, r)
 		return
+	// If requesting assets, serve straight up with caching.
+	case reqFile == "assets" || strings.HasPrefix(reqFile, "assets/"):
+		// It could make sense to cache 404s, but the problem is that during an
+		// upgrade a load balancer may route partially to the old server, and that
+		// would make new asset paths get cached as 404s and not load even once the
+		// new server was in place.  To combat that, only cache if we have the file.
+		if h.exists(reqFile) && ShouldCacheFile(reqFile) {
+			rw.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		// If the asset does not exist, this will return a 404.
+		h.handler.ServeHTTP(rw, r)
+		return
 	// If the original file path exists we serve it.
 	case h.exists(reqFile):
 		if ShouldCacheFile(reqFile) {

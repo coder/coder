@@ -176,7 +176,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 			// Create the user.
 			var newUser database.User
 			err = db.InTx(func(tx database.Store) error {
-				orgs, err := tx.GetOrganizations(ctx)
+				orgs, err := tx.GetOrganizations(ctx, database.GetOrganizationsParams{})
 				if err != nil {
 					return xerrors.Errorf("get organizations: %w", err)
 				}

@@ -1144,11 +1144,11 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return q.db.DeleteOldProvisionerDaemons(ctx)
 }
 
-func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
+func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteOldWorkspaceAgentLogs(ctx)
+	return q.db.DeleteOldWorkspaceAgentLogs(ctx, threshold)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
@@ -1503,7 +1503,7 @@ func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, groupID uui
 	return memberCount, nil
 }
 
-func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err == nil {
 		// Optimize this query for system users as it is used in telemetry.
 		// Calling authz on all groups in a deployment for telemetry jobs is
@@ -1700,9 +1700,9 @@ func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationIDsByMemberIDs)(ctx, ids)
 }
 
-func (q *querier) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
+func (q *querier) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	fetch := func(ctx context.Context, _ interface{}) ([]database.Organization, error) {
-		return q.db.GetOrganizations(ctx)
+		return q.db.GetOrganizations(ctx, args)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }

@@ -43,7 +43,7 @@ const UsersPage: FC = () => {
 	const { entitlements, experiments } = useDashboard();
 	const [searchParams] = searchParamsResult;
 
-	const groupsByUserIdQuery = useQuery(groupsByUserId("default"));
+	const groupsByUserIdQuery = useQuery(groupsByUserId());
 	const authMethodsQuery = useQuery(authMethods());
 
 	const { permissions, user: me } = useAuthenticated();

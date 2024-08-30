@@ -550,44 +550,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) serpent.MiddlewareFunc {
 // HeaderTransport creates a new transport that executes `--header-command`
 // if it is set to add headers for all outbound requests.
 func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*codersdk.HeaderTransport, error) {
-	transport := &codersdk.HeaderTransport{
-		Transport: http.DefaultTransport,
-		Header:    http.Header{},
-	}
-	headers := r.header
-	if r.headerCommand != "" {
-		shell := "sh"
-		caller := "-c"
-		if runtime.GOOS == "windows" {
-			shell = "cmd.exe"
-			caller = "/c"
-		}
-		var outBuf bytes.Buffer
-		// #nosec
-		cmd := exec.CommandContext(ctx, shell, caller, r.headerCommand)
-		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
-		cmd.Stdout = &outBuf
-		cmd.Stderr = io.Discard
-		err := cmd.Run()
-		if err != nil {
-			return nil, xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
-		}
-		scanner := bufio.NewScanner(&outBuf)
-		for scanner.Scan() {
-			headers = append(headers, scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			return nil, xerrors.Errorf("scan %v: %w", cmd.Args, err)
-		}
-	}
-	for _, header := range headers {
-		parts := strings.SplitN(header, "=", 2)
-		if len(parts) < 2 {
-			return nil, xerrors.Errorf("split header %q had less than two parts", header)
-		}
-		transport.Header.Add(parts[0], parts[1])
-	}
-	return transport, nil
+	return headerTransport(ctx, serverURL, r.header, r.headerCommand)
 }
 
 func (r *RootCmd) configureClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL, inv *serpent.Invocation) error {
@@ -1272,4 +1235,47 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+// HeaderTransport creates a new transport that executes `--header-command`
+// if it is set to add headers for all outbound requests.
+func headerTransport(ctx context.Context, serverURL *url.URL, header []string, headerCommand string) (*codersdk.HeaderTransport, error) {
+	transport := &codersdk.HeaderTransport{
+		Transport: http.DefaultTransport,
+		Header:    http.Header{},
+	}
+	headers := header
+	if headerCommand != "" {
+		shell := "sh"
+		caller := "-c"
+		if runtime.GOOS == "windows" {
+			shell = "cmd.exe"
+			caller = "/c"
+		}
+		var outBuf bytes.Buffer
+		// #nosec
+		cmd := exec.CommandContext(ctx, shell, caller, headerCommand)
+		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
+		cmd.Stdout = &outBuf
+		cmd.Stderr = io.Discard
+		err := cmd.Run()
+		if err != nil {
+			return nil, xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
+		}
+		scanner := bufio.NewScanner(&outBuf)
+		for scanner.Scan() {
+			headers = append(headers, scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, xerrors.Errorf("scan %v: %w", cmd.Args, err)
+		}
+	}
+	for _, header := range headers {
+		parts := strings.SplitN(header, "=", 2)
+		if len(parts) < 2 {
+			return nil, xerrors.Errorf("split header %q had less than two parts", header)
+		}
+		transport.Header.Add(parts[0], parts[1])
+	}
+	return transport, nil
 }

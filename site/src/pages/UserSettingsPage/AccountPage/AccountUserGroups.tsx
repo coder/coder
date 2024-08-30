@@ -5,6 +5,7 @@ import type { Group } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarCard } from "components/AvatarCard/AvatarCard";
 import { Loader } from "components/Loader/Loader";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Section } from "../Section";
 
@@ -20,6 +21,7 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 	loading,
 }) => {
 	const theme = useTheme();
+	const { showOrganizations } = useDashboard();
 
 	return (
 		<Section
@@ -56,10 +58,14 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 									altText={group.display_name || group.name}
 									header={group.display_name || group.name}
 									subtitle={
-										<>
-											{group.total_member_count} member
-											{group.total_member_count !== 1 && "s"}
-										</>
+										showOrganizations ? (
+											group.organization_display_name
+										) : (
+											<>
+												{group.total_member_count} member
+												{group.total_member_count !== 1 && "s"}
+											</>
+										)
 									}
 								/>
 							</Grid>

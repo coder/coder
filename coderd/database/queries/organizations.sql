@@ -12,7 +12,21 @@ LIMIT
 SELECT
 	*
 FROM
-	organizations;
+	organizations
+WHERE
+	true
+	  -- Filter by ids
+	AND CASE
+		WHEN array_length(@ids :: uuid[], 1) > 0 THEN
+			id = ANY(@ids)
+		ELSE true
+	END
+  	AND CASE
+		  WHEN @name::text != '' THEN
+			  LOWER("name") = LOWER(@name)
+		  ELSE true
+	END
+;
 
 -- name: GetOrganizationByID :one
 SELECT

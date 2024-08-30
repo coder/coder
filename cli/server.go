@@ -985,7 +985,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database)
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, quartz.NewReal())
 			defer purger.Close()
 
 			// Updates workspace usage

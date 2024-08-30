@@ -1562,32 +1562,36 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 
 const getGroups = `-- name: GetGroups :many
 SELECT
-    id, name, organization_id, avatar_url, quota_allowance, display_name, source
+		groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source,
+		organizations.name AS organization_name,
+		organizations.display_name AS organization_display_name
 FROM
-    groups
+		groups
+INNER JOIN
+		organizations ON groups.organization_id = organizations.id
 WHERE
-    true
-    AND CASE
-        WHEN $1:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            groups.organization_id = $1
-        ELSE true
-    END
-    AND CASE
-        -- Filter to only include groups a user is a member of
-        WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-            EXISTS (
-                SELECT
-                    1
-                FROM
-                    -- this view handles the 'everyone' group in orgs.
-                    group_members_expanded
-                WHERE
-                    group_members_expanded.group_id = groups.id
-                AND
-                    group_members_expanded.user_id = $2
-            )
-        ELSE true
-    END
+		true
+		AND CASE
+				WHEN $1:: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+						groups.organization_id = $1
+				ELSE true
+		END
+		AND CASE
+				-- Filter to only include groups a user is a member of
+				WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+						EXISTS (
+								SELECT
+										1
+								FROM
+										-- this view handles the 'everyone' group in orgs.
+										group_members_expanded
+								WHERE
+										group_members_expanded.group_id = groups.id
+								AND
+										group_members_expanded.user_id = $2
+						)
+				ELSE true
+		END
 `
 
 type GetGroupsParams struct {
@@ -1595,23 +1599,31 @@ type GetGroupsParams struct {
 	HasMemberID    uuid.UUID `db:"has_member_id" json:"has_member_id"`
 }
 
-func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]Group, error) {
+type GetGroupsRow struct {
+	Group                   Group  `db:"group" json:"group"`
+	OrganizationName        string `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string `db:"organization_display_name" json:"organization_display_name"`
+}
+
+func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroups, arg.OrganizationID, arg.HasMemberID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Group
+	var items []GetGroupsRow
 	for rows.Next() {
-		var i Group
+		var i GetGroupsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.OrganizationID,
-			&i.AvatarURL,
-			&i.QuotaAllowance,
-			&i.DisplayName,
-			&i.Source,
+			&i.Group.ID,
+			&i.Group.Name,
+			&i.Group.OrganizationID,
+			&i.Group.AvatarURL,
+			&i.Group.QuotaAllowance,
+			&i.Group.DisplayName,
+			&i.Group.Source,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -1703,15 +1715,15 @@ INSERT INTO groups (
 	id,
 	name,
 	organization_id,
-    	    	source
+						source
 )
 SELECT
-    	    	gen_random_uuid(),
-    	    	group_name,
-    	    	$1,
-    	    	$2
+						gen_random_uuid(),
+						group_name,
+						$1,
+						$2
 FROM
-    	    	UNNEST($3 :: text[]) AS group_name
+						UNNEST($3 :: text[]) AS group_name
 ON CONFLICT DO NOTHING
 RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source
 `
@@ -4596,10 +4608,28 @@ SELECT
 	id, name, description, created_at, updated_at, is_default, display_name, icon
 FROM
 	organizations
+WHERE
+	true
+	  -- Filter by ids
+	AND CASE
+		WHEN array_length($1 :: uuid[], 1) > 0 THEN
+			id = ANY($1)
+		ELSE true
+	END
+  	AND CASE
+		  WHEN $2::text != '' THEN
+			  LOWER("name") = LOWER($2)
+		  ELSE true
+	END
 `
 
-func (q *sqlQuerier) GetOrganizations(ctx context.Context) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, getOrganizations)
+type GetOrganizationsParams struct {
+	IDs  []uuid.UUID `db:"ids" json:"ids"`
+	Name string      `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizations, pq.Array(arg.IDs), arg.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -10454,13 +10484,13 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
 DELETE FROM workspace_agent_logs WHERE agent_id IN
 	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
-		AND last_connected_at < NOW() - INTERVAL '7 day')
+		AND last_connected_at < $1 :: timestamptz)
 `
 
 // If an agent hasn't connected in the last 7 days, we purge it's logs.
 // Logs can take up a lot of space, so it's important we clean up frequently.
-func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs)
+func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs, threshold)
 	return err
 }
 
@@ -11451,10 +11481,10 @@ WHERE
 				-- use between 15 mins and 1 hour of data. We keep a
 				-- little bit more (1 day) just in case.
 				MAX(start_time) - '1 days'::interval,
-				-- Fall back to 6 months ago if there are no template
+				-- Fall back to ~6 months ago if there are no template
 				-- usage stats so that we don't delete the data before
 				-- it's rolled up.
-				NOW() - '6 months'::interval
+				NOW() - '180 days'::interval
 			)
 		FROM
 			template_usage_stats
@@ -13708,9 +13738,15 @@ WHERE
 			workspaces.owner_id = $5
 		ELSE true
 	END
+  	-- Filter by organization_id
+  	AND CASE
+		  WHEN $6 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  workspaces.organization_id = $6
+		  ELSE true
+	END
 	-- Filter by build parameter
    	-- @has_param will match any build that includes the parameter.
-	AND CASE WHEN array_length($6 :: text[], 1) > 0  THEN
+	AND CASE WHEN array_length($7 :: text[], 1) > 0  THEN
 		EXISTS (
 			SELECT
 				1
@@ -13719,7 +13755,7 @@ WHERE
 			WHERE
 				workspace_build_parameters.workspace_build_id = latest_build.id AND
 				-- ILIKE is case insensitive
-				workspace_build_parameters.name ILIKE ANY($6)
+				workspace_build_parameters.name ILIKE ANY($7)
 		)
 		ELSE true
 	END
@@ -13744,40 +13780,40 @@ WHERE
 
 	-- Filter by owner_name
 	AND CASE
-		WHEN $7 :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower($7) AND deleted = false)
+		WHEN $8 :: text != '' THEN
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower($8) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
 	-- There can be more than 1 template with the same name across organizations.
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
-		WHEN $8 :: text != '' THEN
-			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($8) AND deleted = false)
+		WHEN $9 :: text != '' THEN
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($9) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
-		WHEN array_length($9 :: uuid[], 1) > 0 THEN
-			workspaces.template_id = ANY($9)
+		WHEN array_length($10 :: uuid[], 1) > 0 THEN
+			workspaces.template_id = ANY($10)
 		ELSE true
 	END
   	-- Filter by workspace_ids
   	AND CASE
-		  WHEN array_length($10 :: uuid[], 1) > 0 THEN
-			  workspaces.id = ANY($10)
+		  WHEN array_length($11 :: uuid[], 1) > 0 THEN
+			  workspaces.id = ANY($11)
 		  ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
-		WHEN $11 :: text != '' THEN
-			workspaces.name ILIKE '%' || $11 || '%'
+		WHEN $12 :: text != '' THEN
+			workspaces.name ILIKE '%' || $12 || '%'
 		ELSE true
 	END
 	-- Filter by agent status
 	-- has-agent: is only applicable for workspaces in "start" transition. Stopped and deleted workspaces don't have agents.
 	AND CASE
-		WHEN $12 :: text != '' THEN
+		WHEN $13 :: text != '' THEN
 			(
 				SELECT COUNT(*)
 				FROM
@@ -13789,7 +13825,7 @@ WHERE
 				WHERE
 					workspace_resources.job_id = latest_build.provisioner_job_id AND
 					latest_build.transition = 'start'::workspace_transition AND
-					$12 = (
+					$13 = (
 						CASE
 							WHEN workspace_agents.first_connected_at IS NULL THEN
 								CASE
@@ -13800,7 +13836,7 @@ WHERE
 								END
 							WHEN workspace_agents.disconnected_at > workspace_agents.last_connected_at THEN
 								'disconnected'
-							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $13 :: bigint THEN
+							WHEN NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $14 :: bigint THEN
 								'disconnected'
 							WHEN workspace_agents.last_connected_at IS NOT NULL THEN
 								'connected'
@@ -13813,24 +13849,24 @@ WHERE
 	END
 	-- Filter by dormant workspaces.
 	AND CASE
-		WHEN $14 :: boolean != 'false' THEN
+		WHEN $15 :: boolean != 'false' THEN
 			dormant_at IS NOT NULL
 		ELSE true
 	END
 	-- Filter by last_used
 	AND CASE
-		  WHEN $15 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at <= $15
+		  WHEN $16 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= $16
 		  ELSE true
 	END
 	AND CASE
-		  WHEN $16 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
-				  workspaces.last_used_at >= $16
+		  WHEN $17 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= $17
 		  ELSE true
 	END
   	AND CASE
-		  WHEN $17 :: boolean IS NOT NULL THEN
-			  (latest_build.template_version_id = template.active_version_id) = $17 :: boolean
+		  WHEN $18 :: boolean IS NOT NULL THEN
+			  (latest_build.template_version_id = template.active_version_id) = $18 :: boolean
 		  ELSE true
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
@@ -13842,7 +13878,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $18 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $19 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -13851,11 +13887,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $20 :: integer > 0 THEN
-				$20
+			WHEN $21 :: integer > 0 THEN
+				$21
 		END
 	OFFSET
-		$19
+		$20
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.template_name, fwo.template_version_id, fwo.template_version_name, fwo.username, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status
@@ -13891,7 +13927,7 @@ WHERE
 		'start'::workspace_transition, -- latest_build_transition
 		'unknown'::provisioner_job_status -- latest_build_status
 	WHERE
-		$21 :: boolean = true
+		$22 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -13913,6 +13949,7 @@ type GetWorkspacesParams struct {
 	Deleted                               bool         `db:"deleted" json:"deleted"`
 	Status                                string       `db:"status" json:"status"`
 	OwnerID                               uuid.UUID    `db:"owner_id" json:"owner_id"`
+	OrganizationID                        uuid.UUID    `db:"organization_id" json:"organization_id"`
 	HasParam                              []string     `db:"has_param" json:"has_param"`
 	OwnerUsername                         string       `db:"owner_username" json:"owner_username"`
 	TemplateName                          string       `db:"template_name" json:"template_name"`
@@ -13969,6 +14006,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Deleted,
 		arg.Status,
 		arg.OwnerID,
+		arg.OrganizationID,
 		pq.Array(arg.HasParam),
 		arg.OwnerUsername,
 		arg.TemplateName,
