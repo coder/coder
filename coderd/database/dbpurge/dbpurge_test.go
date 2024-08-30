@@ -86,27 +86,27 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	// conflicts, verifying DST behavior is beyond the scope of this
 	// test.
 	// Let's use RxBytes to identify stat entries.
-	// Stat inserted 6 months + 2 hour ago, should be deleted.
+	// Stat inserted 180 days + 2 hour ago, should be deleted.
 	first := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt:                 now.AddDate(0, -6, 0).Add(-2 * time.Hour),
+		CreatedAt:                 now.AddDate(0, 0, -180).Add(-2 * time.Hour),
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   1111,
 		SessionCountSSH:           1,
 	})
 
-	// Stat inserted 6 months - 2 hour ago, should not be deleted before rollup.
+	// Stat inserted 180 days - 2 hour ago, should not be deleted before rollup.
 	second := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt:                 now.AddDate(0, -6, 0).Add(2 * time.Hour),
+		CreatedAt:                 now.AddDate(0, 0, -180).Add(2 * time.Hour),
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   2222,
 		SessionCountSSH:           1,
 	})
 
-	// Stat inserted 6 months - 1 day - 4 hour ago, should not be deleted at all.
+	// Stat inserted 179 days - 4 hour ago, should not be deleted at all.
 	third := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		CreatedAt:                 now.AddDate(0, -6, 0).AddDate(0, 0, 1).Add(4 * time.Hour),
+		CreatedAt:                 now.AddDate(0, 0, -179).Add(4 * time.Hour),
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 1,
 		RxBytes:                   3333,
@@ -121,8 +121,8 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	var stats []database.GetWorkspaceAgentStatsRow
 	var err error
 	require.Eventuallyf(t, func() bool {
-		// Query all stats created not earlier than 7 months ago
-		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, -7, 0))
+		// Query all stats created not earlier than ~7 months ago
+		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, 0, -210))
 		if err != nil {
 			return false
 		}
@@ -144,8 +144,8 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	// then
 	require.Eventuallyf(t, func() bool {
-		// Query all stats created not earlier than 7 months ago
-		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, -7, 0))
+		// Query all stats created not earlier than ~7 months ago
+		stats, err = db.GetWorkspaceAgentStats(ctx, now.AddDate(0, 0, -210))
 		if err != nil {
 			return false
 		}
