@@ -83,7 +83,7 @@ func TestWebhook(t *testing.T) {
 			serverFn: func(u uuid.UUID, writer http.ResponseWriter, request *http.Request) {
 				t.Fatalf("should not get here")
 			},
-			expectErr:       "request timeout",
+			expectErr: "request timeout",
 		},
 		{
 			name: "non-200 response",
