@@ -287,6 +287,8 @@ var (
 	ErrInvalidVersion        = xerrors.New("license must be version 3")
 	ErrMissingKeyID          = xerrors.Errorf("JOSE header must contain %s", HeaderKeyID)
 	ErrMissingLicenseExpires = xerrors.New("license missing license_expires")
+	ErrMissingExp            = xerrors.New("exp claim missing or not parsable")
+	ErrMultipleIssues        = xerrors.New("license has multiple issues; contact support")
 )
 
 type Features map[codersdk.FeatureName]int64
@@ -336,7 +338,7 @@ func ParseRaw(l string, keys map[string]ed25519.PublicKey) (jwt.MapClaims, error
 	return nil, xerrors.New("unable to parse Claims")
 }
 
-// ParseClaims validates a database.License record, and if valid, returns the claims.  If
+// ParseClaims validates a raw JWT, and if valid, returns the claims.  If
 // unparsable or invalid, it returns an error
 func ParseClaims(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, error) {
 	tok, err := jwt.ParseWithClaims(
@@ -348,16 +350,51 @@ func ParseClaims(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, err
 	if err != nil {
 		return nil, err
 	}
-	if claims, ok := tok.Claims.(*Claims); ok && tok.Valid {
+	return validateClaims(tok)
+}
+
+func validateClaims(tok *jwt.Token) (*Claims, error) {
+	if claims, ok := tok.Claims.(*Claims); ok {
 		if claims.Version != uint64(CurrentVersion) {
 			return nil, ErrInvalidVersion
 		}
 		if claims.LicenseExpires == nil {
 			return nil, ErrMissingLicenseExpires
 		}
+		if claims.ExpiresAt == nil {
+			return nil, ErrMissingExp
+		}
 		return claims, nil
 	}
 	return nil, xerrors.New("unable to parse Claims")
+}
+
+// ParseClaimsIgnoreNbf validates a raw JWT, but ignores `nbf` claim. If otherwise valid, it returns
+// the claims.  If unparsable or invalid, it returns an error. Ignoring the `nbf` (not before) is
+// useful to determine if a JWT _will_ become valid at any point now or in the future.
+func ParseClaimsIgnoreNbf(rawJWT string, keys map[string]ed25519.PublicKey) (*Claims, error) {
+	tok, err := jwt.ParseWithClaims(
+		rawJWT,
+		&Claims{},
+		keyFunc(keys),
+		jwt.WithValidMethods(ValidMethods),
+	)
+	var vErr *jwt.ValidationError
+	if xerrors.As(err, &vErr) {
+		// zero out the NotValidYet error to check if there were other problems
+		vErr.Errors = vErr.Errors & (^jwt.ValidationErrorNotValidYet)
+		if vErr.Errors != 0 {
+			// There are other errors besides not being valid yet. We _could_ go
+			// through all the jwt.ValidationError bits and try to work out the
+			// correct error, but if we get here something very strange is
+			// going on so let's just return a generic error that says to get in
+			// touch with our support team.
+			return nil, ErrMultipleIssues
+		}
+	} else if err != nil {
+		return nil, err
+	}
+	return validateClaims(tok)
 }
 
 func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, error) {
