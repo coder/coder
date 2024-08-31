@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
-	MockRoleWithOrgPermissions,
 	MockOrganizationAuditorRole,
+	MockRoleWithOrgPermissions,
 } from "testHelpers/entities";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
