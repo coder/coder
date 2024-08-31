@@ -145,10 +145,14 @@ const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
 
 			<TableCell>
 				<Stack direction="row" spacing={1}>
-					<PermissionsPill
-						resource={resourceTypes[0]}
-						permissions={role.organization_permissions}
-					/>
+					{role.organization_permissions.length > 0 ? (
+						<PermissionsPill
+							resource={resourceTypes[0]}
+							permissions={role.organization_permissions}
+						/>
+					) : (
+						<p>None</p>
+					)}
 
 					{resourceTypes.length > 1 && (
 						<OverflowPermissionPill
