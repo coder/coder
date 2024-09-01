@@ -13,8 +13,8 @@ importers:
   .:
     dependencies:
       '@alwaysmeticulous/recorder-loader':
-        specifier: 2.137.0
-        version: 2.137.0
+        specifier: 2.149.0
+        version: 2.149.0
       '@emoji-mart/data':
         specifier: 1.2.1
         version: 1.2.1
@@ -413,8 +413,8 @@ packages:
   '@adobe/css-tools@4.4.0':
     resolution: {integrity: sha512-Ff9+ksdQQB3rMncgqDK78uLznstjyfIf2Arnh22pW8kBpLs6rpKDwgnZT46hin5Hl1WzazzK64DOrhSwYpS7bQ==}
 
-  '@alwaysmeticulous/recorder-loader@2.137.0':
-    resolution: {integrity: sha512-ux/xGYCNsOe8BzquEg7k7YSNJiw/0Sg2Pd/7fppYiVr5xEefpPeIhh3qwuupZgx6sB2t5KpKQdodNWVmGeyh/w==}
+  '@alwaysmeticulous/recorder-loader@2.149.0':
+    resolution: {integrity: sha512-aPTKBoGuOeJOM5ZdvaQUhd9apvfhRkwmXIrvmMN2RPYcSrZBjqnAZIxY77ZB82pDjpQA9Bs4KyWPlp0/7HwXkg==}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -6978,7 +6978,7 @@ snapshots:
 
   '@adobe/css-tools@4.4.0': {}
 
-  '@alwaysmeticulous/recorder-loader@2.137.0': {}
+  '@alwaysmeticulous/recorder-loader@2.149.0': {}
 
   '@ampproject/remapping@2.3.0':
     dependencies:
