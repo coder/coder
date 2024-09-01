@@ -91,7 +91,7 @@
 		"react-window": "1.8.10",
 		"remark-gfm": "4.0.0",
 		"rollup-plugin-visualizer": "5.12.0",
-		"semver": "7.6.2",
+		"semver": "7.6.3",
 		"tzdata": "1.0.40",
 		"ua-parser-js": "1.0.33",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
@@ -168,7 +168,7 @@
 	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
 	"resolutions": {
 		"optionator": "0.9.3",
-		"semver": "7.6.2"
+		"semver": "7.6.3"
 	},
 	"engines": {
 		"npm": ">=9.0.0 <10.0.0",
