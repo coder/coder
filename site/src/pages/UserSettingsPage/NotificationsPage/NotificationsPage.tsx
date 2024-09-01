@@ -18,7 +18,7 @@ import type {
 	NotificationPreference,
 	NotificationTemplate,
 } from "api/typesGenerated";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
