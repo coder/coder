@@ -3487,6 +3487,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 
 const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one
 SELECT nt.name                                                    AS notification_name,
+       nt.id                                                      AS notification_template_id,
        nt.actions                                                 AS actions,
        nt.method                                                  AS custom_method,
        u.id                                                       AS user_id,
@@ -3505,13 +3506,14 @@ type FetchNewMessageMetadataParams struct {
 }
 
 type FetchNewMessageMetadataRow struct {
-	NotificationName string                 `db:"notification_name" json:"notification_name"`
-	Actions          []byte                 `db:"actions" json:"actions"`
-	CustomMethod     NullNotificationMethod `db:"custom_method" json:"custom_method"`
-	UserID           uuid.UUID              `db:"user_id" json:"user_id"`
-	UserEmail        string                 `db:"user_email" json:"user_email"`
-	UserName         string                 `db:"user_name" json:"user_name"`
-	UserUsername     string                 `db:"user_username" json:"user_username"`
+	NotificationName       string                 `db:"notification_name" json:"notification_name"`
+	NotificationTemplateID uuid.UUID              `db:"notification_template_id" json:"notification_template_id"`
+	Actions                []byte                 `db:"actions" json:"actions"`
+	CustomMethod           NullNotificationMethod `db:"custom_method" json:"custom_method"`
+	UserID                 uuid.UUID              `db:"user_id" json:"user_id"`
+	UserEmail              string                 `db:"user_email" json:"user_email"`
+	UserName               string                 `db:"user_name" json:"user_name"`
+	UserUsername           string                 `db:"user_username" json:"user_username"`
 }
 
 // This is used to build up the notification_message's JSON payload.
@@ -3520,6 +3522,7 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 	var i FetchNewMessageMetadataRow
 	err := row.Scan(
 		&i.NotificationName,
+		&i.NotificationTemplateID,
 		&i.Actions,
 		&i.CustomMethod,
 		&i.UserID,

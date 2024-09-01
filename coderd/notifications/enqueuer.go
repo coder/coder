@@ -123,7 +123,8 @@ func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRo
 	payload := types.MessagePayload{
 		Version: "1.0",
 
-		NotificationName: metadata.NotificationName,
+		NotificationName:       metadata.NotificationName,
+		NotificationTemplateID: metadata.NotificationTemplateID.String(),
 
 		UserID:       metadata.UserID.String(),
 		UserEmail:    metadata.UserEmail,

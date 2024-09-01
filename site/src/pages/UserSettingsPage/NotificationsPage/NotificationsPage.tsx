@@ -18,7 +18,7 @@ import type {
 	NotificationPreference,
 	NotificationTemplate,
 } from "api/typesGenerated";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -28,8 +28,10 @@ import {
 	methodLabels,
 } from "modules/notifications/utils";
 import { type FC, Fragment } from "react";
+import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
@@ -60,6 +62,27 @@ export const NotificationsPage: FC = () => {
 	const updatePreferences = useMutation(
 		updateUserNotificationPreferences(user.id, queryClient),
 	);
+	const [searchParams] = useSearchParams();
+	const unsubscribeTemplateId = searchParams.get("unsubscribe");
+
+	useEffect(() => {
+		if (unsubscribeTemplateId) {
+			handleUnsubscribe(unsubscribeTemplateId);
+		}
+	}, [unsubscribeTemplateId]);
+
+	const handleUnsubscribe = async (templateId: string) => {
+		await updatePreferences.mutateAsync({
+			template_disabled_map: {
+				[templateId]: true,
+			},
+		});
+		displaySuccess("Notification preferences updated");
+		queryClient.invalidateQueries(
+			userNotificationPreferences(user.id).queryKey,
+		);
+	};
+
 	const ready =
 		disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;
 
