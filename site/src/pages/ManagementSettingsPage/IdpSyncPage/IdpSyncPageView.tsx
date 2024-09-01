@@ -103,9 +103,7 @@ const RoleTable: FC<RoleTableProps> = ({ roles }) => {
 											<Button
 												startIcon={<LaunchOutlined />}
 												component="a"
-												href={docs(
-													"/cli/server#--notifications-webhook-endpoint",
-												)}
+												href={docs("/admin/auth#group-sync-enterprise")}
 												target="_blank"
 											>
 												How to setup IdP role sync

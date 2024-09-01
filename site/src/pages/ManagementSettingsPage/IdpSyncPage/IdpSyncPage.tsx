@@ -13,9 +13,10 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useParams } from "react-router-dom";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
-import { docs } from "utils/docs";
+import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
 
 export const IdpSyncPage: FC = () => {
@@ -59,12 +60,13 @@ export const IdpSyncPage: FC = () => {
 				<SettingsHeader
 					title="IdP Sync"
 					description="Group and role sync mappings (configured outside Coder)."
+					tooltip={<IdpSyncHelpTooltip />}
 				/>
 				<Stack direction="row" spacing={2}>
 					<Button
 						startIcon={<LaunchOutlined />}
 						component="a"
-						href={docs("/cli/server#--notifications-webhook-endpoint")}
+						href={docs("/admin/auth#group-sync-enterprise")}
 						target="_blank"
 					>
 						Setup IdP Sync

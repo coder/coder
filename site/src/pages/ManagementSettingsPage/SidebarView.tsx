@@ -286,7 +286,7 @@ const OrganizationSettingsNavigation: FC<
 						<SidebarNavSubItem
 							href={urlForSubpage(organization.name, "idp-sync")}
 						>
-							Idp Sync
+							IdP Sync
 						</SidebarNavSubItem>
 					)}
 				</Stack>
