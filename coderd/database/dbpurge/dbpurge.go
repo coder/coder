@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/quartz"
 )
 
@@ -30,7 +31,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 	//nolint:gocritic // The system purges old db records without user input.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	ticker := clk.NewTicker(time.Nanosecond)
+	// Start the ticker with the initial delay.
+	ticker := clk.NewTicker(delay)
 	doTick := func(start time.Time) {
 		defer ticker.Reset(delay)
 		// Start a transaction to grab advisory lock, we don't want to run
@@ -47,7 +49,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 				return nil
 			}
 
-			if err := tx.DeleteOldWorkspaceAgentLogs(ctx, start.Add(-maxAgentLogAge)); err != nil {
+			deleteOldWorkspaceAgentLogsBefore := start.Add(-maxAgentLogAge)
+			if err := tx.DeleteOldWorkspaceAgentLogs(ctx, deleteOldWorkspaceAgentLogsBefore); err != nil {
 				return xerrors.Errorf("failed to delete old workspace agent logs: %w", err)
 			}
 			if err := tx.DeleteOldWorkspaceAgentStats(ctx); err != nil {
@@ -72,13 +75,15 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 	go func() {
 		defer close(closed)
 		defer ticker.Stop()
+		// Force an initial tick.
+		doTick(dbtime.Time(clk.Now()).UTC())
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case tick := <-ticker.C:
 				ticker.Stop()
-				doTick(tick)
+				doTick(dbtime.Time(tick).UTC())
 			}
 		}
 	}()

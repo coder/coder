@@ -243,7 +243,7 @@ var (
 					rbac.ResourceAssignOrgRole.Type:          rbac.ResourceAssignOrgRole.AvailableActions(),
 					rbac.ResourceSystem.Type:                 {policy.WildcardSymbol},
 					rbac.ResourceOrganization.Type:           {policy.ActionCreate, policy.ActionRead},
-					rbac.ResourceOrganizationMember.Type:     {policy.ActionCreate},
+					rbac.ResourceOrganizationMember.Type:     {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
 					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionUpdate},
 					rbac.ResourceProvisionerKeys.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),

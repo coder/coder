@@ -10482,12 +10482,50 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 }
 
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
-DELETE FROM workspace_agent_logs WHERE agent_id IN
-	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
-		AND last_connected_at < $1 :: timestamptz)
+WITH
+	latest_builds AS (
+		SELECT
+			workspace_id, max(build_number) AS max_build_number
+		FROM
+			workspace_builds
+		GROUP BY
+			workspace_id
+	),
+	old_agents AS (
+		SELECT
+			wa.id
+		FROM
+			workspace_agents AS wa
+		JOIN
+			workspace_resources AS wr
+		ON
+			wa.resource_id = wr.id
+		JOIN
+			workspace_builds AS wb
+		ON
+			wb.job_id = wr.job_id
+		LEFT JOIN
+			latest_builds
+		ON
+			latest_builds.workspace_id = wb.workspace_id
+		AND
+			latest_builds.max_build_number = wb.build_number
+		WHERE
+			-- Filter out the latest builds for each workspace.
+			latest_builds.workspace_id IS NULL
+		AND CASE
+			-- If the last time the agent connected was before @threshold
+			WHEN wa.last_connected_at IS NOT NULL THEN
+				 wa.last_connected_at < $1 :: timestamptz
+			-- The agent never connected, and was created before @threshold
+			ELSE wa.created_at < $1 :: timestamptz
+		END
+	)
+DELETE FROM workspace_agent_logs WHERE agent_id IN (SELECT id FROM old_agents)
 `
 
 // If an agent hasn't connected in the last 7 days, we purge it's logs.
+// Exception: if the logs are related to the latest build, we keep those around.
 // Logs can take up a lot of space, so it's important we clean up frequently.
 func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
 	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs, threshold)
