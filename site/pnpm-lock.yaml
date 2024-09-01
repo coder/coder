@@ -329,8 +329,8 @@ importers:
         specifier: 4.3.1
         version: 4.3.1(vite@5.4.1(@types/node@20.14.8))
       chromatic:
-        specifier: 11.3.0
-        version: 11.3.0
+        specifier: 11.7.1
+        version: 11.7.1
       eventsourcemock:
         specifier: 2.0.0
         version: 2.0.0
@@ -3529,20 +3529,8 @@ packages:
   chroma-js@2.4.2:
     resolution: {integrity: sha512-U9eDw6+wt7V8z5NncY2jJfZa+hUH8XEj8FQHgFJTrUFnJfXYf4Ml4adI2vXZOjqRDpFWtYVWypDfZwnJ+HIR4A==}
 
-  chromatic@11.3.0:
-    resolution: {integrity: sha512-q1ZtJDJrjLGnz60ivpC16gmd7KFzcaA4eTb7gcytCqbaKqlHhCFr1xQmcUDsm14CK7JsqdkFU6S+JQdOd2ZNJg==}
-    hasBin: true
-    peerDependencies:
-      '@chromatic-com/cypress': ^0.*.* || ^1.0.0
-      '@chromatic-com/playwright': ^0.*.* || ^1.0.0
-    peerDependenciesMeta:
-      '@chromatic-com/cypress':
-        optional: true
-      '@chromatic-com/playwright':
-        optional: true
-
-  chromatic@11.5.4:
-    resolution: {integrity: sha512-+J+CopeUSyGUIQJsU6X7CfvSmeVBs0j6LZ9AgF4+XTjI4pFmUiUXsTc00rH9x9W1jCppOaqDXv2kqJJXGDK3mA==}
+  chromatic@11.7.1:
+    resolution: {integrity: sha512-LvgPimdQdnQB07ZDxLEC2KtxgYeqTw0X71GA7fi3zhgtKLxZcE+BSZ/5I9rrQp1V8ydmfElfw0ZwnUH4fVgUAQ==}
     hasBin: true
     peerDependencies:
       '@chromatic-com/cypress': ^0.*.* || ^1.0.0
@@ -8164,7 +8152,7 @@ snapshots:
 
   '@chromatic-com/storybook@1.6.0(react@18.3.1)':
     dependencies:
-      chromatic: 11.5.4
+      chromatic: 11.7.1
       filesize: 10.1.2
       jsonfile: 6.1.0
       react-confetti: 6.1.0(react@18.3.1)
@@ -10911,9 +10899,7 @@ snapshots:
 
   chroma-js@2.4.2: {}
 
-  chromatic@11.3.0: {}
-
-  chromatic@11.5.4: {}
+  chromatic@11.7.1: {}
 
   ci-info@3.9.0: {}
 
