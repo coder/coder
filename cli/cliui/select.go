@@ -84,7 +84,7 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	}
 
 	if initialModel.height == 0 {
-		initialModel.height = 5 // TODO: Pick a default?
+		initialModel.height = 7
 	}
 
 	initialModel.search.Prompt = ""
