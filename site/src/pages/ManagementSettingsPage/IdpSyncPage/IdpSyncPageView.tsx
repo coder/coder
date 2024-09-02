@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -24,7 +25,34 @@ export type IdpSyncPageViewProps = {
 	oidcConfig: OIDCConfig | undefined;
 };
 
+type CircleProps = {
+	color: string;
+	variant?: "solid" | "outlined";
+};
+
+const Circle: FC<CircleProps> = ({ color, variant = "solid" }) => {
+	return (
+		<div
+			aria-hidden
+			css={{
+				width: 8,
+				height: 8,
+				backgroundColor: variant === "solid" ? color : undefined,
+				border: variant === "outlined" ? `1px solid ${color}` : undefined,
+				borderRadius: 9999,
+			}}
+		/>
+	);
+};
+
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
+	const theme = useTheme();
+	const {
+		groups_field,
+		user_role_field,
+		group_regex_filter,
+		group_auto_create,
+	} = oidcConfig || {};
 	return (
 		<>
 			<ChooseOne>
@@ -43,9 +71,21 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 							<legend css={styles.legend}>Groups</legend>
 							<Stack direction={"row"} alignItems={"center"} spacing={3}>
 								<h4>Sync Field</h4>
-								<p css={styles.secondary}>{oidcConfig?.groups_field}</p>
+								<p css={styles.secondary}>
+									{groups_field || (
+										<Stack
+											style={{ color: theme.palette.text.secondary }}
+											direction="row"
+											spacing={1}
+											alignItems="center"
+										>
+											<Circle color={theme.roles.error.fill.solid} />
+											<p>disabled</p>
+										</Stack>
+									)}
+								</p>
 								<h4>Regex Filter</h4>
-								<p css={styles.secondary}>{oidcConfig?.group_regex_filter}</p>
+								<p css={styles.secondary}>{group_regex_filter || "none"}</p>
 								<h4>Auto Create</h4>
 								<p css={styles.secondary}>
 									{oidcConfig?.group_auto_create.toString()}
@@ -56,7 +96,19 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 							<legend css={styles.legend}>Roles</legend>
 							<Stack direction={"row"} alignItems={"center"} spacing={3}>
 								<h4>Sync Field</h4>
-								<p css={styles.secondary}>{oidcConfig?.user_role_field}</p>
+								<p css={styles.secondary}>
+									{user_role_field || (
+										<Stack
+											style={{ color: theme.palette.text.secondary }}
+											direction="row"
+											spacing={1}
+											alignItems="center"
+										>
+											<Circle color={theme.roles.error.fill.solid} />
+											<p>disabled</p>
+										</Stack>
+									)}
+								</p>
 							</Stack>
 						</fieldset>
 					</Stack>
@@ -64,8 +116,10 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 						<IdpMappingTable
 							type="Role"
 							isEmpty={Boolean(
-								(oidcConfig?.user_role_mapping &&
-									Object.entries(oidcConfig?.user_role_mapping).length === 0) ||
+								!oidcConfig?.user_role_mapping ||
+									(oidcConfig?.user_role_mapping &&
+										Object.entries(oidcConfig?.user_role_mapping).length ===
+											0) ||
 									false,
 							)}
 						>
@@ -85,8 +139,9 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 						<IdpMappingTable
 							type="Group"
 							isEmpty={Boolean(
-								(oidcConfig?.user_role_mapping &&
-									Object.entries(oidcConfig?.group_mapping).length === 0) ||
+								!oidcConfig?.group_mapping ||
+									(oidcConfig?.group_mapping &&
+										Object.entries(oidcConfig?.group_mapping).length === 0) ||
 									false,
 							)}
 						>
