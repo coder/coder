@@ -219,10 +219,10 @@ func (m selectModel) viewableOptions() ([]string, int) {
 	case m.cursor <= halfHeight:
 		top = min(top, m.height)
 	case m.cursor < top-halfHeight:
-		bottom = m.cursor - halfHeight
+		bottom = max(0, m.cursor-halfHeight)
 		top = min(top, m.cursor+halfHeight+1)
 	default:
-		bottom = top - m.height
+		bottom = max(0, top-m.height)
 	}
 
 	return options[bottom:top], bottom
