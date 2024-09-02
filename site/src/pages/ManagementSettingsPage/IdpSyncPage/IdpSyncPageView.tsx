@@ -8,7 +8,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { Role } from "api/typesGenerated";
+import type { OIDCConfig } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
@@ -21,10 +21,10 @@ import type { FC } from "react";
 import { docs } from "utils/docs";
 
 export type IdpSyncPageViewProps = {
-	roles: Role[] | undefined;
+	oidcConfig: OIDCConfig | undefined;
 };
 
-export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ roles }) => {
+export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 	return (
 		<>
 			<ChooseOne>
@@ -43,24 +43,66 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ roles }) => {
 							<legend css={styles.legend}>Groups</legend>
 							<Stack direction={"row"} alignItems={"center"} spacing={3}>
 								<h4>Sync Field</h4>
-								<p css={styles.secondary}>groups</p>
+								<p css={styles.secondary}>{oidcConfig?.groups_field}</p>
 								<h4>Regex Filter</h4>
-								<p css={styles.secondary}>^Coder-.*$</p>
+								<p css={styles.secondary}>{oidcConfig?.group_regex_filter}</p>
 								<h4>Auto Create</h4>
-								<p css={styles.secondary}>false</p>
+								<p css={styles.secondary}>
+									{oidcConfig?.group_auto_create.toString()}
+								</p>
 							</Stack>
 						</fieldset>
 						<fieldset css={styles.box}>
 							<legend css={styles.legend}>Roles</legend>
 							<Stack direction={"row"} alignItems={"center"} spacing={3}>
 								<h4>Sync Field</h4>
-								<p css={styles.secondary}>roles</p>
+								<p css={styles.secondary}>{oidcConfig?.user_role_field}</p>
 							</Stack>
 						</fieldset>
 					</Stack>
-					<Stack spacing={4}>
-						<RoleTable roles={roles} />
-						<RoleTable roles={roles} />
+					<Stack spacing={6}>
+						<IdpMappingTable
+							type="Role"
+							isEmpty={Boolean(
+								(oidcConfig?.user_role_mapping &&
+									Object.entries(oidcConfig?.user_role_mapping).length === 0) ||
+									false,
+							)}
+						>
+							<>
+								{oidcConfig?.user_role_mapping &&
+									Object.entries(oidcConfig.user_role_mapping).map(
+										([idpRole, roles]) => (
+											<RoleRow
+												key={idpRole}
+												idpRole={idpRole}
+												coderRoles={roles}
+											/>
+										),
+									)}
+							</>
+						</IdpMappingTable>
+						<IdpMappingTable
+							type="Group"
+							isEmpty={Boolean(
+								(oidcConfig?.user_role_mapping &&
+									Object.entries(oidcConfig?.group_mapping).length === 0) ||
+									false,
+							)}
+						>
+							<>
+								{oidcConfig?.user_role_mapping &&
+									Object.entries(oidcConfig.group_mapping).map(
+										([idpGroup, group]) => (
+											<GroupRow
+												key={idpGroup}
+												idpGroup={idpGroup}
+												coderGroup={group}
+											/>
+										),
+									)}
+							</>
+						</IdpMappingTable>
 					</Stack>
 				</Cond>
 			</ChooseOne>
@@ -68,20 +110,26 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ roles }) => {
 	);
 };
 
-interface RoleTableProps {
-	roles: Role[] | undefined;
+interface IdpMappingTableProps {
+	type: "Role" | "Group";
+	isEmpty: boolean;
+	children: React.ReactNode;
 }
 
-const RoleTable: FC<RoleTableProps> = ({ roles }) => {
+const IdpMappingTable: FC<IdpMappingTableProps> = ({
+	type,
+	isEmpty,
+	children,
+}) => {
 	const isLoading = false;
-	const isEmpty = Boolean(roles && roles.length === 0);
+
 	return (
 		<TableContainer>
 			<Table>
 				<TableHead>
 					<TableRow>
-						<TableCell width="45%">Idp Role</TableCell>
-						<TableCell width="55%">Coder Role</TableCell>
+						<TableCell width="45%">Idp {type}</TableCell>
+						<TableCell width="55%">Coder {type}</TableCell>
 					</TableRow>
 				</TableHead>
 				<TableBody>
@@ -94,10 +142,7 @@ const RoleTable: FC<RoleTableProps> = ({ roles }) => {
 							<TableRow>
 								<TableCell colSpan={999}>
 									<EmptyState
-										message="No Role Mappings"
-										description={
-											"Configure role sync mappings to manage permissions outside of Coder."
-										}
+										message={`No ${type} Mappings`}
 										isCompact
 										cta={
 											<Button
@@ -106,7 +151,7 @@ const RoleTable: FC<RoleTableProps> = ({ roles }) => {
 												href={docs("/admin/auth#group-sync-enterprise")}
 												target="_blank"
 											>
-												How to setup IdP role sync
+												How to setup IdP {type} sync
 											</Button>
 										}
 									/>
@@ -114,11 +159,7 @@ const RoleTable: FC<RoleTableProps> = ({ roles }) => {
 							</TableRow>
 						</Cond>
 
-						<Cond>
-							{roles?.map((role) => (
-								<RoleRow key={role.name} role={role} />
-							))}
-						</Cond>
+						<Cond>{children}</Cond>
 					</ChooseOne>
 				</TableBody>
 			</Table>
@@ -126,15 +167,30 @@ const RoleTable: FC<RoleTableProps> = ({ roles }) => {
 	);
 };
 
-interface RoleRowProps {
-	role: Role;
+interface GroupRowProps {
+	idpGroup: string;
+	coderGroup: string;
 }
 
-const RoleRow: FC<RoleRowProps> = ({ role }) => {
+const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
 	return (
-		<TableRow data-testid={`role-${role.name}`}>
-			<TableCell>{role.display_name || role.name}</TableCell>
-			<TableCell css={styles.secondary}>test</TableCell>
+		<TableRow data-testid={`group-${idpGroup}`}>
+			<TableCell>{idpGroup}</TableCell>
+			<TableCell css={styles.secondary}>{coderGroup}</TableCell>
+		</TableRow>
+	);
+};
+
+interface RoleRowProps {
+	idpRole: string;
+	coderRoles: ReadonlyArray<string>;
+}
+
+const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles }) => {
+	return (
+		<TableRow data-testid={`role-${idpRole}`}>
+			<TableCell>{idpRole}</TableCell>
+			<TableCell css={styles.secondary}>coderRoles Placeholder</TableCell>
 		</TableRow>
 	);
 };
@@ -161,10 +217,10 @@ const styles = {
 	secondary: (theme) => ({
 		color: theme.palette.text.secondary,
 	}),
-	fields: (theme) => ({
+	fields: () => ({
 		marginBottom: "60px",
 	}),
-	legend: (theme) => ({
+	legend: () => ({
 		padding: "0px 6px",
 		fontWeight: 600,
 	}),
