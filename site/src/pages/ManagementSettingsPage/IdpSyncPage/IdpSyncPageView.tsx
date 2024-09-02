@@ -87,9 +87,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 								<h4>Regex Filter</h4>
 								<p css={styles.secondary}>{group_regex_filter || "none"}</p>
 								<h4>Auto Create</h4>
-								<p css={styles.secondary}>
-									{oidcConfig?.group_auto_create.toString()}
-								</p>
+								<p css={styles.secondary}>{group_auto_create?.toString()}</p>
 							</Stack>
 						</fieldset>
 						<fieldset css={styles.box}>
