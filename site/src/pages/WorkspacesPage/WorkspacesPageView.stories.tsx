@@ -22,6 +22,7 @@ import {
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
+import { expect, within } from "@storybook/test";
 
 const createWorkspace = (
 	status: WorkspaceStatus,
@@ -263,5 +264,32 @@ export const InvalidPageNumber: Story = {
 		count: 200,
 		limit: 25,
 		page: 1000,
+	},
+};
+
+export const ShowOrganizations: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				organization_name: "Limbus Co.",
+			},
+		],
+	},
+
+	parameters: {
+		showOrganizations: true,
+	},
+
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const accessibleTableCell = await canvas.findByRole("cell", {
+			// Need whitespace classes because different parts of the element
+			// are going in different spans, and Storybook doesn't consolidate
+			// these
+			name: /org\s?(?:anization)?\s?:\s?Limbus Co\./i,
+		});
+
+		expect(accessibleTableCell).toBeDefined();
 	},
 };
