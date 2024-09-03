@@ -175,21 +175,25 @@ func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m selectModel) View() string {
-	var s string
+	var s strings.Builder
 
 	msg := pretty.Sprintf(pretty.Bold(), "? %s", m.message)
 
 	if m.selected != "" {
 		selected := pretty.Sprint(DefaultStyles.Keyword, m.selected)
-		s += fmt.Sprintf("%s %s\n", msg, selected)
+		_, _ = s.WriteString(fmt.Sprintf("%s %s\n", msg, selected))
 
-		return s
+		return s.String()
 	}
 
 	if m.hideSearch {
-		s += fmt.Sprintf("%s [Use arrows to move]\n", msg)
+		_, _ = s.WriteString(fmt.Sprintf("%s [Use arrows to move]\n", msg))
 	} else {
-		s += fmt.Sprintf("%s %s[Use arrows to move, type to filter]\n", msg, m.search.View())
+		_, _ = s.WriteString(fmt.Sprintf(
+			"%s %s[Use arrows to move, type to filter]\n",
+			msg,
+			m.search.View(),
+		))
 	}
 
 	options, start := m.viewableOptions()
@@ -204,11 +208,11 @@ func (m selectModel) View() string {
 			}
 		}
 
-		s += pretty.Sprint(style, option)
-		s += "\n"
+		_, _ = s.WriteString(pretty.Sprint(style, option))
+		_, _ = s.WriteString("\n")
 	}
 
-	return s
+	return s.String()
 }
 
 func (m selectModel) viewableOptions() ([]string, int) {
