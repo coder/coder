@@ -368,19 +368,18 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for _, option := range options {
 				option.chosen = false
 			}
+		}
+	}
 
-		default:
-			oldSearch := m.search.Value()
-			m.search, cmd = m.search.Update(msg)
+	oldSearch := m.search.Value()
+	m.search, cmd = m.search.Update(msg)
 
-			// If the search query has changed then we need to ensure
-			// the cursor is still pointing at a valid option.
-			if m.search.Value() != oldSearch {
-				options := m.filteredOptions()
-				if m.cursor > len(options)-1 {
-					m.cursor = max(0, len(options)-1)
-				}
-			}
+	// If the search query has changed then we need to ensure
+	// the cursor is still pointing at a valid option.
+	if m.search.Value() != oldSearch {
+		options := m.filteredOptions()
+		if m.cursor > len(options)-1 {
+			m.cursor = max(0, len(options)-1)
 		}
 	}
 
