@@ -179,31 +179,33 @@ func (m selectModel) View() string {
 
 	msg := pretty.Sprintf(pretty.Bold(), "? %s", m.message)
 
-	if m.selected == "" {
-		if m.hideSearch {
-			s += fmt.Sprintf("%s [Use arrows to move]\n", msg)
-		} else {
-			s += fmt.Sprintf("%s %s[Use arrows to move, type to filter]\n", msg, m.search.View())
-		}
-
-		options, start := m.viewableOptions()
-
-		for i, option := range options {
-			// Is this the currently selected option?
-			style := pretty.Wrap("  ", "")
-			if m.cursor == start+i {
-				style = pretty.Style{
-					pretty.Wrap("> ", ""),
-					pretty.FgColor(Green),
-				}
-			}
-
-			s += pretty.Sprint(style, option)
-			s += "\n"
-		}
-	} else {
+	if m.selected != "" {
 		selected := pretty.Sprint(DefaultStyles.Keyword, m.selected)
 		s += fmt.Sprintf("%s %s\n", msg, selected)
+
+		return s
+	}
+
+	if m.hideSearch {
+		s += fmt.Sprintf("%s [Use arrows to move]\n", msg)
+	} else {
+		s += fmt.Sprintf("%s %s[Use arrows to move, type to filter]\n", msg, m.search.View())
+	}
+
+	options, start := m.viewableOptions()
+
+	for i, option := range options {
+		// Is this the currently selected option?
+		style := pretty.Wrap("  ", "")
+		if m.cursor == start+i {
+			style = pretty.Style{
+				pretty.Wrap("> ", ""),
+				pretty.FgColor(Green),
+			}
+		}
+
+		s += pretty.Sprint(style, option)
+		s += "\n"
 	}
 
 	return s
@@ -259,6 +261,7 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 		for _, d := range opts.Defaults {
 			if option == d {
 				chosen = true
+				break
 			}
 		}
 
@@ -353,7 +356,7 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyRight:
 			options := m.filteredOptions()
 			for _, option := range options {
-				option.chosen = false
+				option.chosen = true
 			}
 
 		case tea.KeyLeft:
@@ -381,42 +384,47 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m multiSelectModel) View() string {
-	var s string
+	var s strings.Builder
 
 	msg := pretty.Sprintf(pretty.Bold(), "? %s", m.message)
 
-	if !m.selected {
-		s += fmt.Sprintf("%s %s[Use arrows to move, space to select, <right> to all, <left> to none, type to filter]\n", msg, m.search.View())
-
-		for i, option := range m.filteredOptions() {
-			cursor := "  "
-			chosen := "[ ]"
-			o := option.option
-
-			if m.cursor == i {
-				cursor = pretty.Sprint(pretty.FgColor(Green), "> ")
-				chosen = pretty.Sprint(pretty.FgColor(Green), "[ ]")
-				o = pretty.Sprint(pretty.FgColor(Green), o)
-			}
-
-			if option.chosen {
-				chosen = pretty.Sprint(pretty.FgColor(Green), "[x]")
-			}
-
-			s += fmt.Sprintf(
-				"%s%s %s\n",
-				cursor,
-				chosen,
-				o,
-			)
-		}
-	} else {
+	if m.selected {
 		selected := pretty.Sprint(DefaultStyles.Keyword, strings.Join(m.selectedOptions(), ", "))
+		_, _ = s.WriteString(fmt.Sprintf("%s %s\n", msg, selected))
 
-		s += fmt.Sprintf("%s %s\n", msg, selected)
+		return s.String()
 	}
 
-	return s
+	_, _ = s.WriteString(fmt.Sprintf(
+		"%s %s[Use arrows to move, space to select, <right> to all, <left> to none, type to filter]\n",
+		msg,
+		m.search.View(),
+	))
+
+	for i, option := range m.filteredOptions() {
+		cursor := "  "
+		chosen := "[ ]"
+		o := option.option
+
+		if m.cursor == i {
+			cursor = pretty.Sprint(pretty.FgColor(Green), "> ")
+			chosen = pretty.Sprint(pretty.FgColor(Green), "[ ]")
+			o = pretty.Sprint(pretty.FgColor(Green), o)
+		}
+
+		if option.chosen {
+			chosen = pretty.Sprint(pretty.FgColor(Green), "[x]")
+		}
+
+		_, _ = s.WriteString(fmt.Sprintf(
+			"%s%s %s\n",
+			cursor,
+			chosen,
+			o,
+		))
+	}
+
+	return s.String()
 }
 
 func (m multiSelectModel) filteredOptions() []*multiSelectOption {
