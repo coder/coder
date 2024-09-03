@@ -6703,6 +6703,16 @@ func (q *sqlQuerier) UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleP
 	return i, err
 }
 
+const deleteRuntimeConfig = `-- name: DeleteRuntimeConfig :exec
+DELETE FROM site_configs
+WHERE site_configs.key = $1
+`
+
+func (q *sqlQuerier) DeleteRuntimeConfig(ctx context.Context, key string) error {
+	_, err := q.db.ExecContext(ctx, deleteRuntimeConfig, key)
+	return err
+}
+
 const getAnnouncementBanners = `-- name: GetAnnouncementBanners :one
 SELECT value FROM site_configs WHERE key = 'announcement_banners'
 `
@@ -6844,6 +6854,17 @@ func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getRuntimeConfig = `-- name: GetRuntimeConfig :one
+SELECT value FROM site_configs WHERE site_configs.key = $1
+`
+
+func (q *sqlQuerier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getRuntimeConfig, key)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -6972,6 +6993,21 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signi
 
 func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
+	return err
+}
+
+const upsertRuntimeConfig = `-- name: UpsertRuntimeConfig :exec
+INSERT INTO site_configs (key, value) VALUES ($1, $2)
+ON CONFLICT (key) DO UPDATE SET value = $2 WHERE site_configs.key = $1
+`
+
+type UpsertRuntimeConfigParams struct {
+	Key   string `db:"key" json:"key"`
+	Value string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) UpsertRuntimeConfig(ctx context.Context, arg UpsertRuntimeConfigParams) error {
+	_, err := q.db.ExecContext(ctx, upsertRuntimeConfig, arg.Key, arg.Value)
 	return err
 }
 
