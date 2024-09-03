@@ -1,21 +1,13 @@
 import AddIcon from "@mui/icons-material/AddOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
-import { getErrorMessage } from "api/errors";
-import { organizationPermissions } from "api/queries/organizations";
-import { organizationRoles } from "api/queries/roles";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { type FC, useEffect, useState } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQuery, useQueryClient } from "react-query";
-import { Link as RouterLink, useParams } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
 
@@ -52,31 +44,19 @@ const mockOIDCConfig = {
 };
 
 export const IdpSyncPage: FC = () => {
-	const queryClient = useQueryClient();
-	// const { custom_roles: isCustomRolesEnabled } = useFeatureVisibility();
-	const { organization: organizationName } = useParams() as {
-		organization: string;
-	};
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
-	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
-	const permissions = permissionsQuery.data;
+	// feature visibility and permissions to be implemented when integrating with backend
+	// const feats = useFeatureVisibility();
+	// const { organization: organizationName } = useParams() as {
+	// 	organization: string;
+	// };
+	// const { organizations } = useOrganizationSettings();
+	// const organization = organizations?.find((o) => o.name === organizationName);
+	// const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+	// const permissions = permissionsQuery.data;
 
-	useEffect(() => {
-		if (organizationRolesQuery.error) {
-			displayError(
-				getErrorMessage(
-					organizationRolesQuery.error,
-					"Error loading custom roles.",
-				),
-			);
-		}
-	}, [organizationRolesQuery.error]);
-
-	if (!permissions) {
-		return <Loader />;
-	}
+	// if (!permissions) {
+	// 	return <Loader />;
+	// }
 
 	return (
 		<>
