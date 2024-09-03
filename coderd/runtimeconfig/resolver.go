@@ -17,7 +17,7 @@ func NewStoreResolver(store Store) *StoreResolver {
 	return &StoreResolver{store}
 }
 
-func (s StoreResolver) ResolveByKey(ctx context.Context, key string) (string, error) {
+func (s StoreResolver) GetRuntimeSetting(ctx context.Context, key string) (string, error) {
 	if s.store == nil {
 		panic("developer error: store must be set")
 	}
@@ -46,8 +46,8 @@ func NewOrgResolver(orgID uuid.UUID, inner Resolver) *OrgResolver {
 	return &OrgResolver{inner: inner, orgID: orgID}
 }
 
-func (r OrgResolver) ResolveByKey(ctx context.Context, key string) (string, error) {
-	return r.inner.ResolveByKey(ctx, orgKey(r.orgID, key))
+func (r OrgResolver) GetRuntimeSetting(ctx context.Context, key string) (string, error) {
+	return r.inner.GetRuntimeSetting(ctx, orgKey(r.orgID, key))
 }
 
 // NoopResolver will always fail to resolve the given key.
@@ -58,6 +58,6 @@ func NewNoopResolver() *NoopResolver {
 	return &NoopResolver{}
 }
 
-func (n NoopResolver) ResolveByKey(context.Context, string) (string, error) {
+func (n NoopResolver) GetRuntimeSetting(context.Context, string) (string, error) {
 	return "", EntryNotFound
 }

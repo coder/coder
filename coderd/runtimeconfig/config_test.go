@@ -17,21 +17,77 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestUsage(t *testing.T) {
+	t.Run("deployment value without runtimeconfig", func(t *testing.T) {
+		t.Parallel()
+
+		var field serpent.StringArray
+		opt := serpent.Option{
+			Name:        "my deployment value",
+			Description: "this mimicks an option we'd define in codersdk/deployment.go",
+			Env:         "MY_DEPLOYMENT_VALUE",
+			Default:     "pestle,mortar",
+			Value:       &field,
+		}
+
+		set := serpent.OptionSet{opt}
+		require.NoError(t, set.SetDefaults())
+		require.Equal(t, []string{"pestle", "mortar"}, field.Value())
+	})
+
+	t.Run("deployment value with runtimeconfig", func(t *testing.T) {
+		t.Parallel()
+
+		_, altOrg := setup(t)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := dbmem.New()
+		resolver := runtimeconfig.NewOrgResolver(altOrg.ID, runtimeconfig.NewStoreResolver(store))
+		mutator := runtimeconfig.NewOrgMutator(altOrg.ID, runtimeconfig.NewStoreMutator(store))
+
+		// NOTE: this field is now wrapped
+		var field runtimeconfig.Entry[*serpent.HostPort]
+		opt := serpent.Option{
+			Name:        "my deployment value",
+			Description: "this mimicks an option we'd define in codersdk/deployment.go",
+			Env:         "MY_DEPLOYMENT_VALUE",
+			Default:     "localhost:1234",
+			Value:       &field,
+		}
+
+		set := serpent.OptionSet{opt}
+		require.NoError(t, set.SetDefaults())
+
+		// The value has to now be retrieved from a StartupValue() call.
+		require.Equal(t, "localhost:1234", field.StartupValue().String())
+
+		// One new constraint is that we have to set the key on the runtimeconfig.Entry.
+		// Attempting to perform any operation which accesses the store will enforce the need for a key.
+		_, err := field.Resolve(ctx, resolver)
+		require.ErrorIs(t, err, runtimeconfig.ErrKeyNotSet)
+
+		// Let's see that key. The environment var name is likely to be the most stable.
+		field.SetKey(opt.Env)
+
+		newVal := serpent.HostPort{Host: "12.34.56.78", Port: "1234"}
+		// Now that we've set it, we can update the runtime value of this field, which modifies given store.
+		require.NoError(t, field.SetRuntimeValue(ctx, mutator, &newVal))
+
+		// ...and we can retrieve the value, as well.
+		resolved, err := field.Resolve(ctx, resolver)
+		require.NoError(t, err)
+		require.Equal(t, newVal.String(), resolved.String())
+
+		// We can also remove the runtime config.
+		require.NoError(t, field.UnsetRuntimeValue(ctx, mutator))
+	})
+}
+
 // TestConfig demonstrates creating org-level overrides for deployment-level settings.
 func TestConfig(t *testing.T) {
 	t.Parallel()
 
-	vals := coderdtest.DeploymentValues(t)
-	vals.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-	adminClient, _, _, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{DeploymentValues: vals},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureMultipleOrganizations: 1,
-			},
-		},
-	})
-	altOrg := coderdenttest.CreateOrganization(t, adminClient, coderdenttest.CreateOrganizationOptions{})
+	_, altOrg := setup(t)
 
 	t.Run("new", func(t *testing.T) {
 		t.Parallel()
@@ -119,7 +175,7 @@ func TestConfig(t *testing.T) {
 			}
 		)
 
-		field := runtimeconfig.MustNew[*serpent.Struct[map[string]string]]("my-field",  base.String())
+		field := runtimeconfig.MustNew[*serpent.Struct[map[string]string]]("my-field", base.String())
 
 		// Check that default has been set.
 		require.Equal(t, base.String(), field.StartupValue().String())
@@ -137,4 +193,21 @@ func TestConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, override.Value, structVal.Value)
 	})
+}
+
+// setup creates a new API, enabled notifications + multi-org experiments, and returns the API client and a new org.
+func setup(t *testing.T) (*codersdk.Client, codersdk.Organization) {
+	t.Helper()
+
+	vals := coderdtest.DeploymentValues(t)
+	vals.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
+	adminClient, _, _, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: vals},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	return adminClient, coderdenttest.CreateOrganization(t, adminClient, coderdenttest.CreateOrganizationOptions{})
 }
