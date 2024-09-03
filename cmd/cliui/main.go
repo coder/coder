@@ -79,9 +79,8 @@ func main() {
 		Use: "select",
 		Handler: func(inv *serpent.Invocation) error {
 			value, err := cliui.Select(inv, cliui.SelectOptions{
-				Options:    []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
-				Size:       3,
-				HideSearch: true,
+				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
+				Size:    3,
 			})
 			_, _ = fmt.Printf("Selected: %q\n", value)
 			return err
