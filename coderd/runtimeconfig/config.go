@@ -56,6 +56,10 @@ func (e *Entry[T]) SetKey(k string) {
 	e.k = k
 }
 
+func (e *Entry[T]) Set(s string) error {
+	return e.SetStartupValue(s)
+}
+
 func (e *Entry[T]) SetStartupValue(s string) error {
 	return e.val().Set(s)
 }
@@ -75,6 +79,9 @@ func (e *Entry[T]) String() string {
 	return e.val().String()
 }
 
+// StartupValue returns the wrapped type T which represents the state as of the definition of this Entry.
+// This function would've been named Value, but this conflicts with a field named Value on some implementations of T in
+// the serpent library; plus it's just more clear.
 func (e *Entry[T]) StartupValue() T {
 	return e.val()
 }
@@ -85,7 +92,16 @@ func (e *Entry[T]) SetRuntimeValue(ctx context.Context, m Mutator, val T) error 
 		return err
 	}
 
-	return m.MutateByKey(ctx, key, val.String())
+	return m.UpsertRuntimeSetting(ctx, key, val.String())
+}
+
+func (e *Entry[T]) UnsetRuntimeValue(ctx context.Context, m Mutator) error {
+	key, err := e.key()
+	if err != nil {
+		return err
+	}
+
+	return m.DeleteRuntimeSetting(ctx, key)
 }
 
 func (e *Entry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
@@ -96,7 +112,7 @@ func (e *Entry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
 		return zero, err
 	}
 
-	val, err := r.ResolveByKey(ctx, key)
+	val, err := r.GetRuntimeSetting(ctx, key)
 	if err != nil {
 		return zero, err
 	}

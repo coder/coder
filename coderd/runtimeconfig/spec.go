@@ -7,9 +7,10 @@ type Initializer interface {
 }
 
 type Resolver interface {
-	ResolveByKey(ctx context.Context, key string) (string, error)
+	GetRuntimeSetting(ctx context.Context, key string) (string, error)
 }
 
 type Mutator interface {
-	MutateByKey(ctx context.Context, key, val string) error
+	UpsertRuntimeSetting(ctx context.Context, key, val string) error
+	DeleteRuntimeSetting(ctx context.Context, key string) error
 }
