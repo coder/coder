@@ -135,28 +135,38 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			groupsToAdd = append(groupsToAdd, assignGroups...)
 		}
 
-		tx.InsertUserGroupsByID(ctx, database.InsertUserGroupsByIDParams{
-			UserID: user.ID,
-			GroupIds:   groupsToAdd,
+		assignedGroupIDs, err := tx.InsertUserGroupsByID(ctx, database.InsertUserGroupsByIDParams{
+			UserID:   user.ID,
+			GroupIds: groupsToAdd,
 		})
+		if err != nil {
+			return xerrors.Errorf("insert user into %d groups: %w", len(groupsToAdd), err)
+		}
+		if len(assignedGroupIDs) != len(groupsToAdd) {
+			s.Logger.Debug(ctx, "failed to assign all groups to user",
+				slog.F("user_id", user.ID),
+				slog.F("groups_assigned_count", len(assignedGroupIDs)),
+				slog.F("expected_count", len(groupsToAdd)),
+			)
+		}
+
+		removedGroupIDs, err := tx.RemoveUserFromGroups(ctx, database.RemoveUserFromGroupsParams{
+			UserID:   user.ID,
+			GroupIds: groupsToRemove,
+		})
+		if err != nil {
+			return xerrors.Errorf("remove user from %d groups: %w", len(groupsToRemove), err)
+		}
+		if len(removedGroupIDs) != len(groupsToRemove) {
+			s.Logger.Debug(ctx, "failed to remove user from all groups",
+				slog.F("user_id", user.ID),
+				slog.F("groups_removed_count", len(removedGroupIDs)),
+				slog.F("expected_count", len(groupsToRemove)),
+			)
+		}
+
 		return nil
 	}, nil)
-
-	//
-	//tx.InTx(func(tx database.Store) error {
-	//	// When setting the user's groups, it's easier to just clear their groups and re-add them.
-	//	// This ensures that the user's groups are always in sync with the auth provider.
-	//	 err := tx.RemoveUserFromAllGroups(ctx, user.ID)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	for _, org := range userOrgs {
-	//
-	//	}
-	//
-	//	return nil
-	//}, nil)
 
 	return nil
 }

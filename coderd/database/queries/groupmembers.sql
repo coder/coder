@@ -54,6 +54,14 @@ DELETE FROM
 WHERE
 	user_id = @user_id;
 
+-- name: RemoveUserFromGroups :many
+DELETE FROM
+	group_members
+WHERE
+	user_id = @user_id AND
+	group_id = ANY(@group_ids :: uuid [])
+RETURNING group_id;
+
 -- name: InsertGroupMember :exec
 INSERT INTO
     group_members (user_id, group_id)

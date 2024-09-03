@@ -7637,6 +7637,15 @@ func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUI
 	return nil
 }
 
+func (q *FakeQuerier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

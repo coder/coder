@@ -398,6 +398,7 @@ type sqlcQuerier interface {
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error
+	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//

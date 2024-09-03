@@ -1537,6 +1537,43 @@ func (q *sqlQuerier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UU
 	return err
 }
 
+const removeUserFromGroups = `-- name: RemoveUserFromGroups :many
+DELETE FROM
+	group_members
+WHERE
+	user_id = $1 AND
+	group_id = ANY($2 :: uuid [])
+RETURNING group_id
+`
+
+type RemoveUserFromGroupsParams struct {
+	UserID   uuid.UUID   `db:"user_id" json:"user_id"`
+	GroupIds []uuid.UUID `db:"group_ids" json:"group_ids"`
+}
+
+func (q *sqlQuerier) RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, removeUserFromGroups, arg.UserID, pq.Array(arg.GroupIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var group_id uuid.UUID
+		if err := rows.Scan(&group_id); err != nil {
+			return nil, err
+		}
+		items = append(items, group_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteGroupByID = `-- name: DeleteGroupByID :exec
 DELETE FROM
 	groups

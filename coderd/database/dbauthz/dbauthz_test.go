@@ -397,7 +397,7 @@ func (s *MethodTestSuite) TestGroup() {
 		check.Args(database.InsertUserGroupsByIDParams{
 			UserID:   u1.ID,
 			GroupIds: slice.New(g1.ID, g2.ID),
-		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1, g2))
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
 	}))
 	s.Run("RemoveUserFromAllGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})

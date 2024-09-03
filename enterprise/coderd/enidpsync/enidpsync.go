@@ -16,7 +16,7 @@ type EnterpriseIDPSync struct {
 	*idpsync.AGPLIDPSync
 }
 
-func NewSync(logger slog.Logger, set *entitlements.Set, settings idpsync.SyncSettings) *EnterpriseIDPSync {
+func NewSync(logger slog.Logger, set *entitlements.Set, settings idpsync.DeploymentSyncSettings) *EnterpriseIDPSync {
 	return &EnterpriseIDPSync{
 		entitlements: set,
 		AGPLIDPSync:  idpsync.NewAGPLSync(logger.With(slog.F("enterprise_capable", "true")), settings),
