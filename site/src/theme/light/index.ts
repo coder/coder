@@ -1,8 +1,8 @@
 import { forLightThemes } from "../externalImages";
-import roles from "./roles";
 import experimental from "./experimental";
 import monaco from "./monaco";
 import muiTheme from "./mui";
+import roles from "./roles";
 
 export default {
 	...muiTheme,
