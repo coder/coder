@@ -221,13 +221,16 @@ func TestPendingUpdatesMetric(t *testing.T) {
 
 	// GIVEN: a notification manager whose store updates are intercepted so we can read the number of pending updates set in the metric
 	cfg := defaultNotificationsConfig(method)
-	cfg.FetchInterval = serpent.Duration(time.Millisecond * 50)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
 
 	syncer := &syncInterceptor{Store: api.Database}
 	interceptor := newUpdateSignallingInterceptor(syncer)
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), metrics, api.Logger.Named("manager"))
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().NewTicker("Manager", "storeSync")
+	defer trap.Close()
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), metrics, api.Logger.Named("manager"),
+		notifications.WithTestClock(mClock))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -249,6 +252,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
+	trap.MustWait(ctx).Release() // ensures ticker has been set
 
 	// THEN:
 	// Wait until the handler has dispatched the given notifications.
@@ -259,17 +263,20 @@ func TestPendingUpdatesMetric(t *testing.T) {
 		return len(handler.succeeded) == 1 && len(handler.failed) == 1
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	// Wait until we intercept the calls to sync the pending updates to the store.
-	success := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateSuccess)
-	failure := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateFailure)
-
-	// Wait for the metric to be updated with the expected count of metrics.
+	// Both handler calls should be pending in the metrics.
 	require.Eventually(t, func() bool {
-		return promtest.ToFloat64(metrics.PendingUpdates) == float64(success+failure)
+		return promtest.ToFloat64(metrics.PendingUpdates) == float64(2)
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	// Unpause the interceptor so the updates can proceed.
-	interceptor.unpause()
+	// THEN:
+	// Trigger syncing updates
+	mClock.Advance(cfg.StoreSyncInterval.Value()).MustWait(ctx)
+
+	// Wait until we intercept the calls to sync the pending updates to the store.
+	success := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateSuccess)
+	require.EqualValues(t, 1, success)
+	failure := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateFailure)
+	require.EqualValues(t, 1, failure)
 
 	// Validate that the store synced the expected number of updates.
 	require.Eventually(t, func() bool {
@@ -464,43 +471,25 @@ func fingerprintLabels(lbs ...string) model.Fingerprint {
 // signaled by the caller so it can continue.
 type updateSignallingInterceptor struct {
 	notifications.Store
-
-	pause chan any
-
 	updateSuccess chan int
 	updateFailure chan int
 }
 
 func newUpdateSignallingInterceptor(interceptor notifications.Store) *updateSignallingInterceptor {
 	return &updateSignallingInterceptor{
-		Store: interceptor,
-
-		pause: make(chan any, 1),
-
+		Store:         interceptor,
 		updateSuccess: make(chan int, 1),
 		updateFailure: make(chan int, 1),
 	}
 }
 
-func (u *updateSignallingInterceptor) unpause() {
-	close(u.pause)
-}
-
 func (u *updateSignallingInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	u.updateSuccess <- len(arg.IDs)
-
-	// Wait until signaled so we have a chance to read the number of pending updates.
-	<-u.pause
-
 	return u.Store.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
 func (u *updateSignallingInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	u.updateFailure <- len(arg.IDs)
-
-	// Wait until signaled so we have a chance to read the number of pending updates.
-	<-u.pause
-
 	return u.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
 }
 

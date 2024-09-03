@@ -328,6 +328,11 @@
 					"title": "Remote Desktops",
 					"description": "Learn how to use Remote Desktops with Coder",
 					"path": "./ides/remote-desktops.md"
+				},
+				{
+					"title": "VSCode Extensions",
+					"description": "Learn how to use extensions in VSCode with Coder",
+					"path": "./ides/vscode-extensions.md"
 				}
 			]
 		},

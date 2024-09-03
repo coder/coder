@@ -77,9 +77,9 @@ can only be delivered to one method, and this method is configured globally with
 [`CODER_NOTIFICATIONS_METHOD`](https://coder.com/docs/reference/cli/server#--notifications-method)
 (default: `smtp`).
 
-Enterprise customers can configured which method to use for each of the
-supported [Events](#events); see the [Preferences](#preferences) section below
-for more details.
+Enterprise customers can configure which method to use for each of the supported
+[Events](#events); see the [Preferences](#preferences) section below for more
+details.
 
 ## SMTP (Email)
 
@@ -93,7 +93,7 @@ existing one.
 | :------: | --------------------------------- | ------------------------------------- | ----------- | ----------------------------------------- | ------------- |
 |    ✔️    | `--notifications-email-from`      | `CODER_NOTIFICATIONS_EMAIL_FROM`      | `string`    | The sender's address to use.              |               |
 |    ✔️    | `--notifications-email-smarthost` | `CODER_NOTIFICATIONS_EMAIL_SMARTHOST` | `host:port` | The SMTP relay to send messages through.  | localhost:587 |
-|    -️    | `--notifications-email-hello`     | `CODER_NOTIFICATIONS_EMAIL_HELLO`     | `string`    | The hostname identifying the SMTP server. | localhost     |
+|    ✔️    | `--notifications-email-hello`     | `CODER_NOTIFICATIONS_EMAIL_HELLO`     | `string`    | The hostname identifying the SMTP server. | localhost     |
 
 **Authentication Settings:**
 
@@ -252,6 +252,18 @@ To pause sending notifications, execute
 To resume sending notifications, execute
 [`coder notifications resume`](https://coder.com/docs/reference/cli/notifications_resume).
 
+## Troubleshooting
+
+If notifications are not being delivered, use the following methods to
+troubleshoot:
+
+1. Ensure notifications are being added to the `notification_messages` table
+2. Review any error messages in the `status_reason` column, should an error have
+   occurred
+3. Review the logs (search for the term `notifications`) for diagnostic
+   information<br> _If you do not see any relevant logs, set
+   `CODER_VERBOSE=true` or `--verbose` to output debug logs_
+
 ## Internals
 
 The notification system is built to operate concurrently in a single- or
@@ -288,5 +300,4 @@ messages._
   - after `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` is exceeded, it transitions to
     `permanent_failure`
 
-Diagnostic messages will be saved in the `notification_messages` table and will
-be logged, in the case of failure.
+See [Troubleshooting](#troubleshooting) above for more details.

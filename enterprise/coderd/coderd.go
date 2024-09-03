@@ -582,26 +582,10 @@ type API struct {
 // This header is used by the CLI to display warnings to the user without having
 // to make additional requests!
 func (api *API) writeEntitlementWarningsHeader(a rbac.Subject, header http.Header) {
-	roles, err := a.Roles.Expand()
+	err := api.AGPL.HTTPAuth.Authorizer.Authorize(api.ctx, a, policy.ActionRead, rbac.ResourceDeploymentConfig)
 	if err != nil {
 		return
 	}
-	nonMemberRoles := 0
-	for _, role := range roles {
-		// The member role is implied, and not assignable.
-		// If there is no display name, then the role is also unassigned.
-		// This is not the ideal logic, but works for now.
-		if role.Identifier == rbac.RoleMember() || (role.DisplayName == "") {
-			continue
-		}
-		nonMemberRoles++
-	}
-	if nonMemberRoles == 0 {
-		// Don't show entitlement warnings if the user
-		// has no roles. This is a normal user!
-		return
-	}
-
 	api.Entitlements.WriteEntitlementWarningHeaders(header)
 }
 
