@@ -28,6 +28,7 @@ var (
 
 // Template-related events.
 var (
-	TemplateTemplateDeleted       = uuid.MustParse("29a09665-2a4c-403f-9648-54301670e7be")
+	TemplateTemplateDeleted = uuid.MustParse("29a09665-2a4c-403f-9648-54301670e7be")
+
 	TemplateWorkspaceBuildSummary = uuid.MustParse("bc0d9b9c-6dca-40a7-a209-fb2681e3341a")
 )
