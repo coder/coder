@@ -1,16 +1,12 @@
 import { useTheme } from "@emotion/react";
 import Business from "@mui/icons-material/Business";
 import Person from "@mui/icons-material/Person";
-import SwapHoriz from "@mui/icons-material/SwapHoriz";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthMessage, ProvisionerDaemon } from "api/typesGenerated";
+import { Pill } from "components/Pill/Pill";
 import type { FC } from "react";
 import { createDayString } from "utils/createDayString";
 import { ProvisionerTag } from "./ProvisionerTag";
-
-// TODO: Importing from a page in here sucks, but idk how to refactor this...
-// it's kind of a mess of a file...
-import { Pill } from "pages/HealthPage/Content";
 
 interface ProvisionerProps {
 	readonly provisioner: ProvisionerDaemon;
@@ -32,13 +28,14 @@ export const Provisioner: FC<ProvisionerProps> = ({
 	return (
 		<div
 			key={provisioner.name}
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${
-					isWarning ? theme.palette.warning.light : theme.palette.divider
-				}`,
-				fontSize: 14,
-			}}
+			css={[
+				{
+					borderRadius: 8,
+					border: `1px solid ${theme.palette.divider}`,
+					fontSize: 14,
+				},
+				isWarning && { borderColor: theme.palette.warning.light },
+			]}
 		>
 			<header
 				css={{
@@ -72,13 +69,8 @@ export const Provisioner: FC<ProvisionerProps> = ({
 						gap: 12,
 					}}
 				>
-					<Tooltip title="API Version">
-						<Pill icon={<SwapHoriz />}>
-							<code>{provisioner.api_version}</code>
-						</Pill>
-					</Tooltip>
 					<Tooltip title="Scope">
-						<Pill icon={iconScope}>
+						<Pill size="lg" icon={iconScope}>
 							<span
 								css={{
 									":first-letter": { textTransform: "uppercase" },

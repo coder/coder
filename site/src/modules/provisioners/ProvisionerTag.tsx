@@ -1,11 +1,11 @@
 import CloseIcon from "@mui/icons-material/Close";
 import Sell from "@mui/icons-material/Sell";
 import IconButton from "@mui/material/IconButton";
-import type { FC } from "react";
-
-// TODO: Importing from a page in here sucks, but idk how to refactor this...
-// it's kind of a mess of a file...
-import { BooleanPill, Pill } from "pages/HealthPage/Content";
+import type { ComponentProps, FC } from "react";
+import { Pill } from "components/Pill/Pill";
+import type { Interpolation, Theme } from "@emotion/react";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import DoNotDisturbOnOutlined from "@mui/icons-material/DoNotDisturbOnOutlined";
 
 const parseBool = (s: string): { valid: boolean; value: boolean } => {
 	switch (s.toLowerCase()) {
@@ -57,5 +57,41 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 	if (valid) {
 		return <BooleanPill value={boolValue}>{content}</BooleanPill>;
 	}
-	return <Pill icon={<Sell />}>{content}</Pill>;
+	return <Pill size="lg" icon={<Sell />}>{content}</Pill>;
 };
+
+type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
+	value: boolean;
+};
+
+export const BooleanPill: FC<BooleanPillProps> = ({
+	value,
+	children,
+	...divProps
+}) => {
+	return (
+		<Pill
+			type={value ? "active" : "danger"}
+			size="lg"
+			icon={
+				value ? (
+					<CheckCircleOutlined css={styles.truePill} />
+				) : (
+					<DoNotDisturbOnOutlined css={styles.falsePill} />
+				)
+			}
+			{...divProps}
+		>
+			{children}
+		</Pill>
+	);
+};
+
+const styles = {
+	truePill: (theme) => ({
+		color: theme.roles.active.outline,
+	}),
+	falsePill: (theme) => ({
+		color: theme.roles.danger.outline,
+	}),
+} satisfies Record<string, Interpolation<Theme>>;
