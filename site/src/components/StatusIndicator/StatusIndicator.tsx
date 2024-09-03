@@ -4,9 +4,13 @@ import type { ThemeRole } from "theme/roles";
 
 interface StatusIndicatorProps {
 	color: ThemeRole;
+	variant?: "solid" | "outlined";
 }
 
-export const StatusIndicator: FC<StatusIndicatorProps> = ({ color }) => {
+export const StatusIndicator: FC<StatusIndicatorProps> = ({
+	color,
+	variant = "solid",
+}) => {
 	const theme = useTheme();
 
 	return (
@@ -15,7 +19,12 @@ export const StatusIndicator: FC<StatusIndicatorProps> = ({ color }) => {
 				height: 8,
 				width: 8,
 				borderRadius: 4,
-				backgroundColor: theme.roles[color].fill.solid,
+				backgroundColor:
+					variant === "solid" ? theme.roles[color].fill.solid : undefined,
+				border:
+					variant === "outlined"
+						? `1px solid ${theme.roles[color].outline}`
+						: undefined,
 			}}
 		/>
 	);
