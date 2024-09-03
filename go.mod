@@ -187,7 +187,7 @@ require (
 	golang.org/x/tools v0.24.0
 	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9
 	google.golang.org/api v0.195.0
-	google.golang.org/grpc v1.65.0
+	google.golang.org/grpc v1.66.0
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/DataDog/dd-trace-go.v1 v1.67.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
