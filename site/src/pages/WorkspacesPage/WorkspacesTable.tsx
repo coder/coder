@@ -28,6 +28,8 @@ import type { FC, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { visuallyHidden } from "@mui/utils";
 
 export interface WorkspacesTableProps {
 	workspaces?: readonly Workspace[];
@@ -52,6 +54,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	canCreateTemplate,
 }) => {
 	const theme = useTheme();
+	const dashboard = useDashboard();
 
 	return (
 		<TableContainer>
@@ -172,7 +175,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													)}
 												</Stack>
 											}
-											subtitle={workspace.owner_name}
+											subtitle={`user:${workspace.owner_name}`}
 											avatar={
 												<ExternalAvatar
 													src={workspace.template_icon}
@@ -189,7 +192,29 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								</TableCell>
 
 								<TableCell>
-									{getDisplayWorkspaceTemplateName(workspace)}
+									<span css={{ display: "block" }}>
+										{getDisplayWorkspaceTemplateName(workspace)}
+									</span>
+
+									{dashboard.showOrganizations && (
+										<span
+											css={{
+												display: "block",
+												fontSize: 13,
+												color: theme.palette.text.secondary,
+												lineHeight: 1.5,
+											}}
+										>
+											{/*
+												Only using shorthand version of "organizations" for aesthetics,
+												but because screen readers don't care about aesthetics, we can
+												always display the full text to them
+											*/}
+											org
+											<span css={{ ...visuallyHidden }}>anization</span>:
+											{workspace.organization_name}
+										</span>
+									)}
 								</TableCell>
 
 								<TableCell>
