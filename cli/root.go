@@ -256,7 +256,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		cmd.Use = fmt.Sprintf("%s %s %s", tokens[0], flags, tokens[1])
 	})
 
-	// Add alises when appropriate.
+	// Add aliases when appropriate.
 	cmd.Walk(func(cmd *serpent.Command) {
 		// TODO: we should really be consistent about naming.
 		if cmd.Name() == "delete" || cmd.Name() == "remove" {
