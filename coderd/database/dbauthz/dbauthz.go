@@ -2892,6 +2892,14 @@ func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams)
 	return insert(q.log, q.auth, obj, q.db.InsertUser)(ctx, arg)
 }
 
+func (q *querier) InsertUserGroupsByID(ctx context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+	// This is used by OIDC sync. So only used by a system user.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.InsertUserGroupsByID(ctx, arg)
+}
+
 func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
 	// This will add the user to all named groups. This counts as updating a group.
 	// NOTE: instead of checking if the user has permission to update each group, we instead

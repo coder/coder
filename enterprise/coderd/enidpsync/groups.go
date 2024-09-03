@@ -14,7 +14,9 @@ func (e EnterpriseIDPSync) GroupSyncEnabled() bool {
 
 }
 
-// ParseGroupClaims returns the groups from the external IDP.
+// ParseGroupClaims parses the user claims and handles deployment wide group behavior.
+// Almost all behavior is deferred since each organization configures it's own
+// group sync settings.
 // TODO: Implement group allow_list behavior here since that is deployment wide.
 func (e EnterpriseIDPSync) ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.GroupParams, *idpsync.HTTPError) {
 	if !e.GroupSyncEnabled() {

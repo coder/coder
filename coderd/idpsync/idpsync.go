@@ -13,8 +13,10 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
+	"github.com/coder/serpent"
 )
 
 // IDPSync is an interface, so we can implement this as AGPL and as enterprise,
@@ -45,7 +47,8 @@ type AGPLIDPSync struct {
 	SyncSettings
 }
 
-type SyncSettings struct {
+// DeploymentSyncSettings are static and are sourced from the deployment config.
+type DeploymentSyncSettings struct {
 	// OrganizationField selects the claim field to be used as the created user's
 	// organizations. If the field is the empty string, then no organization updates
 	// will ever come from the OIDC provider.
@@ -56,6 +59,12 @@ type SyncSettings struct {
 	// placed into the default organization. This is mostly a hack to support
 	// legacy deployments.
 	OrganizationAssignDefault bool
+}
+
+type SyncSettings struct {
+	DeploymentSyncSettings
+
+	Group runtimeconfig.Entry[*serpent.Struct[GroupSyncSettings]]
 
 	// Group options here are set by the deployment config and only apply to
 	// the default organization.
@@ -65,10 +74,12 @@ type SyncSettings struct {
 	GroupFilter         *regexp.Regexp
 }
 
-func NewAGPLSync(logger slog.Logger, settings SyncSettings) *AGPLIDPSync {
+func NewAGPLSync(logger slog.Logger, settings DeploymentSyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
-		Logger:       logger.Named("idp-sync"),
-		SyncSettings: settings,
+		Logger: logger.Named("idp-sync"),
+		SyncSettings: SyncSettings{
+			DeploymentSyncSettings: settings,
+		},
 	}
 }
 

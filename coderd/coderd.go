@@ -312,7 +312,7 @@ func New(options *Options) *API {
 	)
 
 	if options.IDPSync == nil {
-		options.IDPSync = idpsync.NewAGPLSync(options.Logger, idpsync.SyncSettings{
+		options.IDPSync = idpsync.NewAGPLSync(options.Logger, idpsync.DeploymentSyncSettings{
 			OrganizationField:         options.DeploymentValues.OIDC.OrganizationField.Value(),
 			OrganizationMapping:       options.DeploymentValues.OIDC.OrganizationMapping.Value,
 			OrganizationAssignDefault: options.DeploymentValues.OIDC.OrganizationAssignDefault.Value(),

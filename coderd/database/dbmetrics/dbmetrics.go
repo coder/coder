@@ -1789,6 +1789,13 @@ func (m metricsStore) InsertUser(ctx context.Context, arg database.InsertUserPar
 	return user, err
 }
 
+func (m metricsStore) InsertUserGroupsByID(ctx context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0 := m.s.InsertUserGroupsByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUserGroupsByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
 	start := time.Now()
 	err := m.s.InsertUserGroupsByName(ctx, arg)

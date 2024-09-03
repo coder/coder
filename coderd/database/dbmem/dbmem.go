@@ -7015,7 +7015,37 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
+func (q *FakeQuerier) InsertUserGroupsByID(ctx context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var groupIDs []uuid.UUID
+	for _, group := range q.groups {
+		for _, groupID := range arg.GroupIds {
+			if group.ID == groupID {
+				q.groupMembers = append(q.groupMembers, database.GroupMemberTable{
+					UserID:  arg.UserID,
+					GroupID: groupID,
+				})
+				groupIDs = append(groupIDs, group.ID)
+			}
+		}
+	}
+
+	return groupIDs, nil
+}
+
 func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.InsertUserGroupsByNameParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
