@@ -14,6 +14,8 @@ import (
 	"github.com/coder/serpent"
 )
 
+const defaultSelectModelHeight = 7
+
 type SelectOptions struct {
 	Options []string
 	// Default will be highlighted first if it's a valid option.
@@ -84,7 +86,7 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	}
 
 	if initialModel.height == 0 {
-		initialModel.height = 7
+		initialModel.height = defaultSelectModelHeight
 	}
 
 	initialModel.search.Prompt = ""
