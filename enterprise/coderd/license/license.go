@@ -100,6 +100,13 @@ func LicensesEntitlements(
 	//   'Entitlements' group as a whole.
 	for _, license := range licenses {
 		claims, err := ParseClaims(license.JWT, keys)
+		var vErr *jwt.ValidationError
+		if xerrors.As(err, &vErr) && vErr.Is(jwt.ErrTokenNotValidYet) {
+			// The license isn't valid yet.  We don't consider any entitlements contained in it, but
+			// it's also not an error.  Just skip it silently.  This can happen if an administrator
+			// uploads a license for a new term that hasn't started yet.
+			continue
+		}
 		if err != nil {
 			entitlements.Errors = append(entitlements.Errors,
 				fmt.Sprintf("Invalid license (%s) parsing claims: %s", license.UUID.String(), err.Error()))
