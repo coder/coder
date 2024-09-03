@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -81,6 +82,53 @@ func TestPostLicense(t *testing.T) {
 		} else {
 			t.Error("expected to get error status 400")
 		}
+	})
+
+	// Test a license that isn't yet valid, but will be in the future.  We should allow this so that
+	// operators can upload a license ahead of time.
+	t.Run("NotYet", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		respLic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType: license.AccountTypeSalesforce,
+			AccountID:   "testing",
+			Features: license.Features{
+				codersdk.FeatureAuditLog: 1,
+			},
+			NotBefore: time.Now().Add(time.Hour),
+			GraceAt:   time.Now().Add(2 * time.Hour),
+			ExpiresAt: time.Now().Add(3 * time.Hour),
+		})
+		assert.GreaterOrEqual(t, respLic.ID, int32(0))
+		// just a couple spot checks for sanity
+		assert.Equal(t, "testing", respLic.Claims["account_id"])
+		features, err := respLic.FeaturesClaims()
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, features[codersdk.FeatureAuditLog])
+	})
+
+	// Test we still reject a license that isn't valid yet, but has other issues (e.g. expired
+	// before it starts).
+	t.Run("NotEver", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		lic := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+			AccountType: license.AccountTypeSalesforce,
+			AccountID:   "testing",
+			Features: license.Features{
+				codersdk.FeatureAuditLog: 1,
+			},
+			NotBefore: time.Now().Add(time.Hour),
+			GraceAt:   time.Now().Add(2 * time.Hour),
+			ExpiresAt: time.Now().Add(-time.Hour),
+		})
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+			License: lic,
+		})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		require.Contains(t, errResp.Detail, license.ErrMultipleIssues.Error())
 	})
 }
 
