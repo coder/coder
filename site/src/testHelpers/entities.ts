@@ -388,6 +388,31 @@ export const MockRoleWithOrgPermissions: TypesGen.Role = {
 			resource_type: "audit_log",
 			action: "read",
 		},
+		{
+			negate: false,
+			resource_type: "group",
+			action: "create",
+		},
+		{
+			negate: false,
+			resource_type: "group",
+			action: "delete",
+		},
+		{
+			negate: false,
+			resource_type: "group",
+			action: "read",
+		},
+		{
+			negate: false,
+			resource_type: "group",
+			action: "update",
+		},
+		{
+			negate: false,
+			resource_type: "provisioner_daemon",
+			action: "create",
+		},
 	],
 	user_permissions: [],
 };
