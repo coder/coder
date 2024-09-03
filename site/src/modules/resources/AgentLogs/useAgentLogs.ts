@@ -62,7 +62,7 @@ export function useAgentLogs(
 		// If the agent is off, we don't need to stream logs. This is the only state
 		// where the Coder API can't receive logs for the agent from third-party
 		// apps like envbuilder.
-		if(agentLifeCycleState === "off") {
+		if (agentLifeCycleState === "off") {
 			return;
 		}
 
