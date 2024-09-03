@@ -174,6 +174,10 @@ type LicenseOptions struct {
 	// ExpiresAt is the time at which the license will hard expire.
 	// ExpiresAt should always be greater then GraceAt.
 	ExpiresAt time.Time
+	// NotBefore is the time at which the license becomes valid. If set to the
+	// zero value, the `nbf` claim on the license is set to 1 minute in the
+	// past.
+	NotBefore time.Time
 	Features  license.Features
 }
 
@@ -233,13 +237,16 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 	if options.GraceAt.IsZero() {
 		options.GraceAt = time.Now().Add(time.Hour)
 	}
+	if options.NotBefore.IsZero() {
+		options.NotBefore = time.Now().Add(-time.Minute)
+	}
 
 	c := &license.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        uuid.NewString(),
 			Issuer:    "test@testing.test",
 			ExpiresAt: jwt.NewNumericDate(options.ExpiresAt),
-			NotBefore: jwt.NewNumericDate(time.Now().Add(-time.Minute)),
+			NotBefore: jwt.NewNumericDate(options.NotBefore),
 			IssuedAt:  jwt.NewNumericDate(time.Now().Add(-time.Minute)),
 		},
 		LicenseExpires: jwt.NewNumericDate(options.GraceAt),
