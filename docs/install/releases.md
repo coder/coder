@@ -47,14 +47,14 @@ pages.
 
 | Release name | Release Date       | Status           |
 | ------------ | ------------------ | ---------------- |
-| 2.8.x        | February 06, 2024  | Not Supported    |
 | 2.9.x        | March 07, 2024     | Not Supported    |
 | 2.10.x       | April 03, 2024     | Not Supported    |
 | 2.11.x       | May 07, 2024       | Not Supported    |
-| 2.12.x       | June 04, 2024      | Security Support |
-| 2.13.x       | July 02, 2024      | Stable           |
-| 2.14.x       | August 06, 2024    | Mainline         |
-| 2.15.x       | September 03, 2024 | Not Released     |
+| 2.12.x       | June 04, 2024      | Not Supported    |
+| 2.13.x       | July 02, 2024      | Security Support |
+| 2.14.x       | August 06, 2024    | Stable           |
+| 2.15.x       | September 03, 2024 | Mainline         |
+| 2.16.x       | October 01, 2024   | Not Released     |
 
 > **Tip**: We publish a
 > [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image
