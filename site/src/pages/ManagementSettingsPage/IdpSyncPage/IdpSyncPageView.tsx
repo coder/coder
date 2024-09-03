@@ -14,6 +14,7 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -23,26 +24,6 @@ import { docs } from "utils/docs";
 
 export type IdpSyncPageViewProps = {
 	oidcConfig: OIDCConfig | undefined;
-};
-
-type CircleProps = {
-	color: string;
-	variant?: "solid" | "outlined";
-};
-
-const Circle: FC<CircleProps> = ({ color, variant = "solid" }) => {
-	return (
-		<div
-			aria-hidden
-			css={{
-				width: 8,
-				height: 8,
-				backgroundColor: variant === "solid" ? color : undefined,
-				border: variant === "outlined" ? `1px solid ${color}` : undefined,
-				borderRadius: 9999,
-			}}
-		/>
-	);
 };
 
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
@@ -79,7 +60,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 											spacing={1}
 											alignItems="center"
 										>
-											<Circle color={theme.roles.error.fill.solid} />
+											<StatusIndicator color="error" />
 											<p>disabled</p>
 										</Stack>
 									)}
@@ -102,7 +83,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 											spacing={1}
 											alignItems="center"
 										>
-											<Circle color={theme.roles.error.fill.solid} />
+											<StatusIndicator color="error" />
 											<p>disabled</p>
 										</Stack>
 									)}
