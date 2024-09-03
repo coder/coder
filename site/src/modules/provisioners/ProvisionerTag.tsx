@@ -57,7 +57,11 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 	if (valid) {
 		return <BooleanPill value={boolValue}>{content}</BooleanPill>;
 	}
-	return <Pill size="lg" icon={<Sell />}>{content}</Pill>;
+	return (
+		<Pill size="lg" icon={<Sell />}>
+			{content}
+		</Pill>
+	);
 };
 
 type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
