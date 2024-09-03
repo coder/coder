@@ -121,7 +121,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 // actions which can be taken by the recipient.
 func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRow, labels map[string]string) (*types.MessagePayload, error) {
 	payload := types.MessagePayload{
-		Version: "1.0",
+		Version: "1.1",
 
 		NotificationName:       metadata.NotificationName,
 		NotificationTemplateID: metadata.NotificationTemplateID.String(),

@@ -26,7 +26,7 @@
       <div style="border-top: 1px solid #e2e8f0; color: #475569; font-size: 12px; margin-top: 64px; padding-top: 24px; line-height: 1.6;">
         <p>&copy;&nbsp;{{ current_year }}&nbsp;Coder. All rights reserved&nbsp;-&nbsp;<a href="{{ base_url }}" style="color: #2563eb; text-decoration: none;">{{ base_url }}</a></p>
         <p><a href="{{ base_url }}/settings/notifications" style="color: #2563eb; text-decoration: none;">Click here to manage your notification settings</a></p>
-        <p><a href="{{ base_url }}/settings/notifications?unsubscribe={{ .NotificationTemplateID }}" style="color: #2563eb; text-decoration: none;">Stop receiving emails like this</a></p>
+        <p><a href="{{ base_url }}/settings/notifications?disabled={{ .NotificationTemplateID }}" style="color: #2563eb; text-decoration: none;">Stop receiving emails like this</a></p>
       </div>
     </div>
   </body>

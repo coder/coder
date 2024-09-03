@@ -18,7 +18,7 @@ import type {
 	NotificationPreference,
 	NotificationTemplate,
 } from "api/typesGenerated";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -63,24 +63,38 @@ export const NotificationsPage: FC = () => {
 		updateUserNotificationPreferences(user.id, queryClient),
 	);
 	const [searchParams] = useSearchParams();
-	const unsubscribeTemplateId = searchParams.get("unsubscribe");
+	const templateId = searchParams.get("disabled");
 
 	useEffect(() => {
-		if (unsubscribeTemplateId) {
-			handleUnsubscribe(unsubscribeTemplateId);
+		if (templateId && templatesByGroup.isSuccess && templatesByGroup.data) {
+			disableTemplate(templateId);
 		}
-	}, [unsubscribeTemplateId]);
+	}, [templateId, templatesByGroup.isSuccess, templatesByGroup.data]);
 
-	const handleUnsubscribe = async (templateId: string) => {
-		await updatePreferences.mutateAsync({
-			template_disabled_map: {
-				[templateId]: true,
-			},
-		});
-		displaySuccess("Notification preferences updated");
-		queryClient.invalidateQueries(
-			userNotificationPreferences(user.id).queryKey,
-		);
+	const disableTemplate = async (templateId: string) => {
+		try {
+			await updatePreferences.mutateAsync({
+				template_disabled_map: {
+					[templateId]: true,
+				},
+			});
+
+			const allTemplates = Object.values(templatesByGroup.data ?? {}).flat();
+			const template = allTemplates.find((t) => t.id === templateId);
+
+			if (!template) {
+				throw new Error(`Template with ID ${templateId} not found`);
+			}
+
+			displaySuccess(`${template.name} notification has been disabled`);
+
+			queryClient.invalidateQueries(
+				userNotificationPreferences(user.id).queryKey,
+			);
+		} catch (error) {
+			console.error(error);
+			displayError("Error on disabling notification");
+		}
 	};
 
 	const ready =
