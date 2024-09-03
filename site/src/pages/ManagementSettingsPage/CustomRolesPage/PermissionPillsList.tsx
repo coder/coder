@@ -129,9 +129,9 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 
 const styles = {
 	permissionPill: (theme) => ({
-		backgroundColor: theme.experimental.pill.background,
-		borderColor: theme.experimental.pill.outline,
-		color: theme.experimental.pill.text,
+		backgroundColor: theme.experimental.pillDefault.background,
+		borderColor: theme.experimental.pillDefault.outline,
+		color: theme.experimental.pillDefault.text,
 		width: "fit-content",
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
