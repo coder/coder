@@ -3,7 +3,10 @@ package cliui
 import (
 	"flag"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +18,36 @@ import (
 )
 
 const defaultSelectModelHeight = 7
+
+type terminateMsg struct{}
+
+func installSignalHandler(p *tea.Program) func() {
+	ch := make(chan struct{})
+
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
+		defer func() {
+			signal.Stop(sig)
+			close(ch)
+		}()
+
+		for {
+			select {
+			case <-ch:
+				return
+
+			case <-sig:
+				p.Send(terminateMsg{})
+			}
+		}
+	}()
+
+	return func() {
+		ch <- struct{}{}
+	}
+}
 
 type SelectOptions struct {
 	Options []string
@@ -92,12 +125,18 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	initialModel.search.Prompt = ""
 	initialModel.search.Focus()
 
-	m, err := tea.NewProgram(
+	p := tea.NewProgram(
 		initialModel,
+		tea.WithoutSignalHandler(),
 		tea.WithContext(inv.Context()),
 		tea.WithInput(inv.Stdin),
 		tea.WithOutput(inv.Stdout),
-	).Run()
+	)
+
+	closeSignalHandler := installSignalHandler(p)
+	defer closeSignalHandler()
+
+	m, err := p.Run()
 	if err != nil {
 		return "", err
 	}
@@ -126,14 +165,19 @@ type selectModel struct {
 }
 
 func (selectModel) Init() tea.Cmd {
-	return textinput.Blink
+	return nil
 }
 
 //nolint:revive // The linter complains about modifying 'm' but this is typical practice for bubbletea
 func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	switch msg := msg.(type) {
+	case terminateMsg:
+		m.canceled = true
+		return m, tea.Quit
+
+	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			m.canceled = true
@@ -292,12 +336,18 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 	initialModel.search.Prompt = ""
 	initialModel.search.Focus()
 
-	m, err := tea.NewProgram(
+	p := tea.NewProgram(
 		initialModel,
+		tea.WithoutSignalHandler(),
 		tea.WithContext(inv.Context()),
 		tea.WithInput(inv.Stdin),
 		tea.WithOutput(inv.Stdout),
-	).Run()
+	)
+
+	closeSignalHandler := installSignalHandler(p)
+	defer closeSignalHandler()
+
+	m, err := p.Run()
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +386,12 @@ func (multiSelectModel) Init() tea.Cmd {
 func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	switch msg := msg.(type) {
+	case terminateMsg:
+		m.canceled = true
+		return m, tea.Quit
+
+	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			m.canceled = true
@@ -353,6 +408,9 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(options) != 0 {
 				options[m.cursor].chosen = !options[m.cursor].chosen
 			}
+			// We back out early here otherwise a space will be inserted
+			// into the search field.
+			return m, nil
 
 		case tea.KeyUp:
 			options := m.filteredOptions()
