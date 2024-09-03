@@ -16,8 +16,7 @@ In the UI, click the Deployment tab -> Licenses and upload the `jwt` license
 file.
 
 > To add the license with the CLI, first
-> [install the Coder CLI](./install/index.md#install-script) and server to the
-> latest release.
+> [install the Coder CLI](./install/cli.md) and server to the latest release.
 
 If the license is a text string:
 
@@ -37,12 +36,12 @@ The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
 
 Coder's networking stack has intelligence to attempt a peer-to-peer or
-[Direct connection](https://coder.com/docs/networking#direct-connections)
-between the local IDE and the workspace. However, this requires some additional
-protocols like UDP and being able to reach a STUN server to echo the IP
-addresses of the local IDE machine and workspace, for sharing using a Wireguard
-Coordination Server. By default, Coder assumes Internet and attempts to reach
-Google's STUN servers to perform this IP echo.
+[Direct connection](./admin/networking/README.md#direct-connections) between the
+local IDE and the workspace. However, this requires some additional protocols
+like UDP and being able to reach a STUN server to echo the IP addresses of the
+local IDE machine and workspace, for sharing using a Wireguard Coordination
+Server. By default, Coder assumes Internet and attempts to reach Google's STUN
+servers to perform this IP echo.
 
 Operators experimenting with Coder may run into networking issues if UDP (which
 STUN requires) or the STUN servers are unavailable, potentially resulting in
@@ -54,7 +53,7 @@ troubleshooting.
 
 | Flag                                                                                                 | Value       | Meaning                               |
 | ---------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
-| [`CODER_BLOCK_DIRECT`](https://coder.com/docs/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_BLOCK_DIRECT`](./reference/cli/server#--block-direct-connections)                            | `true`      | Blocks direct connections             |
 | [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
 | [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
@@ -118,9 +117,9 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the [`CODER_ACCESS_URL`](https://coder.com/docs/admin/configure#access-url)
-is not accessible from a workspace, the workspace may build, but the agent
-cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
+If the [`CODER_ACCESS_URL`](./admin/configure.md#access-url) is not accessible
+from a workspace, the workspace may build, but the agent cannot reach Coder, and
+thus the missing icons. e.g., Terminal, IDEs, Apps.
 
 > By default, `coder server` automatically creates an Internet-accessible
 > reverse proxy so that workspaces you create can reach the server.
@@ -148,9 +147,9 @@ of these values can lead to existing workspaces failing to start. This issue
 occurs because the Terraform state will not be in sync with the new template.
 
 However, a lesser-known CLI sub-command,
-[`coder update`](https://coder.com/docs/cli/update), can resolve this issue.
-This command re-prompts users to re-enter the input variables, potentially
-saving the workspace from a failed status.
+[`coder update`](./reference/cli/update), can resolve this issue. This command
+re-prompts users to re-enter the input variables, potentially saving the
+workspace from a failed status.
 
 ```sh
 coder update --always-prompt <workspace name>
@@ -289,7 +288,7 @@ References:
 
 - [Public Github Issue 6117](https://github.com/coder/coder/issues/6117)
 - [Public Github Issue 5677](https://github.com/coder/coder/issues/5677)
-- [Coder docs: Templates/Change Management](https://coder.com/docs/templates/change-management)
+- [Coder docs: Templates/Change Management](./admin/templates/managing-templates/change-management)
 
 ### Can I run Coder in an air-gapped or offline mode? (no Internet)?
 

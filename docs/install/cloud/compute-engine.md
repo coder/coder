@@ -72,7 +72,7 @@ to set up authentication.
 
 ## Next Steps
 
-- [IDEs with Coder](../../ides.md)
+- [IDEs with Coder](../../user-guides/workspace-access/README.md)
 - [Writing custom templates for Coder](../../admin/templates/README.md)
 - [Configure the Coder server](../../admin/configure.md)
 - [Use your own domain + TLS](../../admin/configure.md#tls--reverse-proxy)
