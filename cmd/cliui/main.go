@@ -89,17 +89,6 @@ func main() {
 	})
 
 	root.Children = append(root.Children, &serpent.Command{
-		Use: "multi-select",
-		Handler: func(inv *serpent.Invocation) error {
-			values, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
-				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
-			})
-			_, _ = fmt.Printf("Selected: %q\n", values)
-			return err
-		},
-	})
-
-	root.Children = append(root.Children, &serpent.Command{
 		Use: "job",
 		Handler: func(inv *serpent.Invocation) error {
 			job := codersdk.ProvisionerJob{
