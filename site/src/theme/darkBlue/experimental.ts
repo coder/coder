@@ -43,4 +43,10 @@ export default {
 			},
 		},
 	},
+
+	pill: {
+		background: colors.gray[800],
+		outline: colors.gray[700],
+		text: colors.gray[200],
+	},
 } satisfies NewTheme;
