@@ -5,6 +5,8 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 type StoreMutator struct {
@@ -19,7 +21,7 @@ func NewStoreMutator(store Store) *StoreMutator {
 }
 
 func (s *StoreMutator) MutateByKey(ctx context.Context, key, val string) error {
-	err := s.store.UpsertRuntimeSetting(ctx, key, val)
+	err := s.store.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{Key: key, Value: val})
 	if err != nil {
 		return xerrors.Errorf("update %q: %w", err)
 	}

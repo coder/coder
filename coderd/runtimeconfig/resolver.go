@@ -22,7 +22,7 @@ func (s StoreResolver) ResolveByKey(ctx context.Context, key string) (string, er
 		panic("developer error: store must be set")
 	}
 
-	val, err := s.store.GetRuntimeSetting(ctx, key)
+	val, err := s.store.GetRuntimeConfig(ctx, key)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", xerrors.Errorf("%q: %w", key, EntryNotFound)
