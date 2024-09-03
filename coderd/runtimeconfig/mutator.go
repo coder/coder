@@ -38,3 +38,13 @@ func NewOrgMutator(orgID uuid.UUID, inner Mutator) *OrgMutator {
 func (m OrgMutator) MutateByKey(ctx context.Context, key, val string) error {
 	return m.inner.MutateByKey(ctx, orgKey(m.orgID, key), val)
 }
+
+type NoopMutator struct{}
+
+func (n *NoopMutator) MutateByKey(ctx context.Context, key, val string) error {
+	return nil
+}
+
+func NewNoopMutator() *NoopMutator {
+	return &NoopMutator{}
+}
