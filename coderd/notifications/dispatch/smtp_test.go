@@ -203,9 +203,18 @@ func TestSMTP(t *testing.T) {
 			retryable:        false,
 		},
 		{
-			// No auth, no problem!
 			name:      "No auth mechanisms supported, none configured",
 			authMechs: []string{},
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+			},
+			toAddrs:          []string{to},
+			expectedAuthMeth: "",
+		},
+		{
+			name:      "Auth mechanisms supported optionally, none configured",
+			authMechs: []string{sasl.Login, sasl.Plain},
 			cfg: codersdk.NotificationsEmailConfig{
 				Hello: hello,
 				From:  from,

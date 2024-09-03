@@ -53,7 +53,8 @@ type SMTPHandler struct {
 	cfg codersdk.NotificationsEmailConfig
 	log slog.Logger
 
-	loginWarnOnce sync.Once
+	noAuthWarnOnce sync.Once
+	loginWarnOnce  sync.Once
 
 	helpers template.FuncMap
 }
@@ -430,6 +431,15 @@ func (s *SMTPHandler) loadCertificate() (*tls.Certificate, error) {
 // auth returns a value which implements the smtp.Auth based on the available auth mechanisms.
 func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, error) {
 	username := s.cfg.Auth.Username.String()
+
+	// All auth mechanisms require username, so if one is not defined then don't return an auth client.
+	if username == "" {
+		s.noAuthWarnOnce.Do(func() {
+			s.log.Warn(ctx, "skipping auth; no username configured", slog.F("support_mechanisms", mechs))
+		})
+		// nolint:nilnil // This is a valid response.
+		return nil, nil
+	}
 
 	var errs error
 	list := strings.Split(mechs, " ")
