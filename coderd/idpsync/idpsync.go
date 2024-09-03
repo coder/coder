@@ -3,6 +3,7 @@ package idpsync
 import (
 	"context"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -29,6 +30,11 @@ type IDPSync interface {
 	// SyncOrganizations assigns and removed users from organizations based on the
 	// provided params.
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
+
+	GroupSyncEnabled() bool
+	// ParseGroupClaims takes claims from an OIDC provider, and returns the
+	// group sync params for assigning users into groups.
+	ParseGroupClaims(ctx context.Context, _ jwt.MapClaims) (GroupParams, *HTTPError)
 }
 
 // AGPLIDPSync is the configuration for syncing user information from an external
@@ -50,17 +56,13 @@ type SyncSettings struct {
 	// placed into the default organization. This is mostly a hack to support
 	// legacy deployments.
 	OrganizationAssignDefault bool
-}
 
-type OrganizationParams struct {
-	// SyncEnabled if false will skip syncing the user's organizations.
-	SyncEnabled bool
-	// IncludeDefault is primarily for single org deployments. It will ensure
-	// a user is always inserted into the default org.
-	IncludeDefault bool
-	// Organizations is the list of organizations the user should be a member of
-	// assuming syncing is turned on.
-	Organizations []uuid.UUID
+	// Group options here are set by the deployment config and only apply to
+	// the default organization.
+	GroupField          string
+	CreateMissingGroups bool
+	GroupMapping        map[string]string
+	GroupFilter         *regexp.Regexp
 }
 
 func NewAGPLSync(logger slog.Logger, settings SyncSettings) *AGPLIDPSync {

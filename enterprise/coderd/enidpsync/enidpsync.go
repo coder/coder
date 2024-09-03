@@ -2,7 +2,6 @@ package enidpsync
 
 import (
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 )

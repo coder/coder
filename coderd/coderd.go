@@ -276,13 +276,6 @@ func New(options *Options) *API {
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
 	}
-	if options.IDPSync == nil {
-		options.IDPSync = idpsync.NewAGPLSync(options.Logger, idpsync.SyncSettings{
-			OrganizationField:         options.DeploymentValues.OIDC.OrganizationField.Value(),
-			OrganizationMapping:       options.DeploymentValues.OIDC.OrganizationMapping.Value,
-			OrganizationAssignDefault: options.DeploymentValues.OIDC.OrganizationAssignDefault.Value(),
-		})
-	}
 	if options.NewTicker == nil {
 		options.NewTicker = func(duration time.Duration) (tick <-chan time.Time, done func()) {
 			ticker := time.NewTicker(duration)
@@ -317,6 +310,14 @@ func New(options *Options) *API {
 		options.Logger.Named("authz_querier"),
 		options.AccessControlStore,
 	)
+
+	if options.IDPSync == nil {
+		options.IDPSync = idpsync.NewAGPLSync(options.Logger, idpsync.SyncSettings{
+			OrganizationField:         options.DeploymentValues.OIDC.OrganizationField.Value(),
+			OrganizationMapping:       options.DeploymentValues.OIDC.OrganizationMapping.Value,
+			OrganizationAssignDefault: options.DeploymentValues.OIDC.OrganizationAssignDefault.Value(),
+		})
+	}
 
 	experiments := ReadExperiments(
 		options.Logger, options.DeploymentValues.Experiments.Value(),
