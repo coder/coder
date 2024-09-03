@@ -3,15 +3,15 @@ import {
 	provisionerDaemons,
 } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
+import NotFoundPage from "pages/404Page/404Page";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import NotFoundPage from "pages/404Page/404Page";
 
 const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
@@ -54,12 +54,7 @@ const OrganizationProvisionersPage: FC = () => {
 		return <NotFoundPage />;
 	}
 
-	return (
-		<OrganizationProvisionersPageView
-			organization={organization}
-			provisioners={provisioners}
-		/>
-	);
+	return <OrganizationProvisionersPageView provisioners={provisioners} />;
 };
 
 export default OrganizationProvisionersPage;

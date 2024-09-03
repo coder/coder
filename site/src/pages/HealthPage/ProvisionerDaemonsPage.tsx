@@ -1,5 +1,6 @@
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Provisioner } from "modules/provisioners/Provisioner";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router-dom";
@@ -12,7 +13,6 @@ import {
 	Main,
 } from "./Content";
 import { DismissWarningButton } from "./DismissWarningButton";
-import { Provisioner } from "modules/provisioners/Provisioner";
 
 export const ProvisionerDaemonsPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();

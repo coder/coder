@@ -4,6 +4,7 @@ import {
 	updateOrganization,
 } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -17,7 +18,6 @@ import {
 } from "./ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const OrganizationSettingsPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
