@@ -92,18 +92,25 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 
 	m, err := tea.NewProgram(
 		initialModel,
+		tea.WithContext(inv.Context()),
 		tea.WithInput(inv.Stdin),
 		tea.WithOutput(inv.Stdout),
 	).Run()
 
-	var value string
-	if m, ok := m.(selectModel); ok {
-		if m.canceled {
-			return value, Canceled
-		}
-		value = m.selected
+	if err != nil {
+		return "", err
 	}
-	return value, err
+
+	model, ok := m.(selectModel)
+	if !ok {
+		return "", xerrors.New(fmt.Sprintf("unknown model found %T (%+v)", m, m))
+	}
+
+	if model.canceled {
+		return "", Canceled
+	}
+
+	return model.selected, err
 }
 
 type selectModel struct {
@@ -286,19 +293,25 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 
 	m, err := tea.NewProgram(
 		initialModel,
+		tea.WithContext(inv.Context()),
 		tea.WithInput(inv.Stdin),
 		tea.WithOutput(inv.Stdout),
 	).Run()
 
-	values := []string{}
-	if m, ok := m.(multiSelectModel); ok {
-		if m.canceled {
-			return values, Canceled
-		}
-
-		values = m.selectedOptions()
+	if err != nil {
+		return nil, err
 	}
-	return values, err
+
+	model, ok := m.(multiSelectModel)
+	if !ok {
+		return nil, xerrors.New(fmt.Sprintf("unknown model found %T (%+v)", m, m))
+	}
+
+	if model.canceled {
+		return nil, Canceled
+	}
+
+	return model.selectedOptions(), err
 }
 
 type multiSelectOption struct {
