@@ -199,6 +199,13 @@ func (opts *LicenseOptions) Valid(now time.Time) *LicenseOptions {
 	return opts
 }
 
+func (opts *LicenseOptions) FutureTerm(now time.Time) *LicenseOptions {
+	opts.NotBefore = now.Add(time.Hour * 24)
+	opts.ExpiresAt = now.Add(time.Hour * 24 * 60)
+	opts.GraceAt = now.Add(time.Hour * 24 * 53)
+	return opts
+}
+
 func (opts *LicenseOptions) UserLimit(limit int64) *LicenseOptions {
 	return opts.Feature(codersdk.FeatureUserLimit, limit)
 }
