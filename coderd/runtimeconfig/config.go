@@ -9,18 +9,20 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var ErrKeyNotSet = xerrors.New("key is not set")
+
 // TODO: comment
 type Value pflag.Value
 
 type Entry[T Value] struct {
-	val T
-	key string
+	k string
+	v T
 }
 
 func New[T Value](key, val string) (out Entry[T], err error) {
-	out.Init(key)
+	out.k = key
 
-	if err = out.Set(val); err != nil {
+	if err = out.SetStartupValue(val); err != nil {
 		return out, err
 	}
 
@@ -35,38 +37,66 @@ func MustNew[T Value](key, val string) Entry[T] {
 	return out
 }
 
-func (o *Entry[T]) Init(key string) {
-	o.val = create[T]()
-	o.key = key
-}
-
-func (o *Entry[T]) Set(s string) error {
-	if reflect.ValueOf(o.val).IsNil() {
-		return xerrors.Errorf("instance of %T is uninitialized", o.val)
+func (e *Entry[T]) val() T {
+	if reflect.ValueOf(e.v).IsNil() {
+		e.v = create[T]()
 	}
-	return o.val.Set(s)
+	return e.v
 }
 
-func (o *Entry[T]) Type() string {
-	return o.val.Type()
+func (e *Entry[T]) key() (string, error) {
+	if e.k == "" {
+		return "", ErrKeyNotSet
+	}
+
+	return e.k, nil
 }
 
-func (o *Entry[T]) String() string {
-	return o.val.String()
+func (e *Entry[T]) SetKey(k string) {
+	e.k = k
 }
 
-func (o *Entry[T]) StartupValue() T {
-	return o.val
+func (e *Entry[T]) SetStartupValue(s string) error {
+	return e.val().Set(s)
 }
 
-func (o *Entry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
-	return o.resolve(ctx, r)
+func (e *Entry[T]) MustSet(s string) {
+	err := e.val().Set(s)
+	if err != nil {
+		panic(err)
+	}
 }
 
-func (o *Entry[T]) resolve(ctx context.Context, r Resolver) (T, error) {
+func (e *Entry[T]) Type() string {
+	return e.val().Type()
+}
+
+func (e *Entry[T]) String() string {
+	return e.val().String()
+}
+
+func (e *Entry[T]) StartupValue() T {
+	return e.val()
+}
+
+func (e *Entry[T]) SetRuntimeValue(ctx context.Context, m Mutator, val T) error {
+	key, err := e.key()
+	if err != nil {
+		return err
+	}
+
+	return m.MutateByKey(ctx, key, val.String())
+}
+
+func (e *Entry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
 	var zero T
 
-	val, err := r.ResolveByKey(ctx, o.key)
+	key, err := e.key()
+	if err != nil {
+		return zero, err
+	}
+
+	val, err := r.ResolveByKey(ctx, key)
 	if err != nil {
 		return zero, err
 	}
@@ -78,17 +108,13 @@ func (o *Entry[T]) resolve(ctx context.Context, r Resolver) (T, error) {
 	return inst, nil
 }
 
-func (o *Entry[T]) Save(ctx context.Context, m Mutator, val T) error {
-	return m.MutateByKey(ctx, o.key, val.String())
-}
-
-func (o *Entry[T]) Coalesce(ctx context.Context, r Resolver) (T, error) {
+func (e *Entry[T]) Coalesce(ctx context.Context, r Resolver) (T, error) {
 	var zero T
 
-	resolved, err := o.resolve(ctx, r)
+	resolved, err := e.Resolve(ctx, r)
 	if err != nil {
 		if errors.Is(err, EntryNotFound) {
-			return o.StartupValue(), nil
+			return e.StartupValue(), nil
 		}
 		return zero, err
 	}
