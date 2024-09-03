@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, within } from "@storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -22,7 +23,6 @@ import {
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspacesPageView } from "./WorkspacesPageView";
-import { expect, within } from "@storybook/test";
 
 const createWorkspace = (
 	status: WorkspaceStatus,
