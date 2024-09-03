@@ -96,7 +96,6 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 		tea.WithInput(inv.Stdin),
 		tea.WithOutput(inv.Stdout),
 	).Run()
-
 	if err != nil {
 		return "", err
 	}
@@ -110,7 +109,7 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 		return "", Canceled
 	}
 
-	return model.selected, err
+	return model.selected, nil
 }
 
 type selectModel struct {
@@ -297,7 +296,6 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 		tea.WithInput(inv.Stdin),
 		tea.WithOutput(inv.Stdout),
 	).Run()
-
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +309,7 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 		return nil, Canceled
 	}
 
-	return model.selectedOptions(), err
+	return model.selectedOptions(), nil
 }
 
 type multiSelectOption struct {
