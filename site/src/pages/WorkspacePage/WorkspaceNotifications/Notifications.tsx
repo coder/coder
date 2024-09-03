@@ -9,7 +9,7 @@ import {
 	usePopover,
 } from "components/Popover/Popover";
 import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/colorRoles";
+import type { ThemeRole } from "theme/roles";
 
 export type NotificationItem = {
 	title: string;

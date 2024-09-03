@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import type { FC } from "react";
-import type { ThemeRole } from "theme/colorRoles";
+import type { ThemeRole } from "theme/roles";
 
 interface StatusIndicatorProps {
 	color: ThemeRole;

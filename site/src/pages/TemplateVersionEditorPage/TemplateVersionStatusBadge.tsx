@@ -4,7 +4,7 @@ import QueuedIcon from "@mui/icons-material/HourglassEmpty";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Pill, PillSpinner } from "components/Pill/Pill";
 import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/colorRoles";
+import type { ThemeRole } from "theme/roles";
 import { getPendingStatusLabel } from "utils/provisionerJob";
 
 interface TemplateVersionStatusBadgeProps {

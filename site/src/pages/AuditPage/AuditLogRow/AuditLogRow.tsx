@@ -12,7 +12,7 @@ import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import type { ThemeRole } from "theme/colorRoles";
+import type { ThemeRole } from "theme/roles";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";

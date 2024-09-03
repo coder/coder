@@ -9,7 +9,7 @@ import {
 	forwardRef,
 	useMemo,
 } from "react";
-import type { ThemeRole } from "theme/colorRoles";
+import type { ThemeRole } from "theme/roles";
 
 export type PillProps = HTMLAttributes<HTMLDivElement> & {
 	icon?: ReactNode;

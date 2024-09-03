@@ -1,30 +1,20 @@
-import type { ColorRoles } from "../colorRoles";
+import type { Roles } from "../roles";
 import colors from "../tailwindColors";
 
 export default {
-	default: {
-		background: colors.zinc[200],
-		outline: colors.zinc[300],
-		text: colors.zinc[700],
-		fill: {
-			solid: colors.gray[300],
-			outline: colors.gray[400],
-			text: colors.gray[800],
-		},
-	},
 	danger: {
-		background: colors.orange[50],
-		outline: colors.orange[400],
-		text: colors.orange[950],
+		background: colors.orange[950],
+		outline: colors.orange[500],
+		text: colors.orange[50],
 		fill: {
-			solid: colors.orange[600],
-			outline: colors.orange[600],
+			solid: colors.orange[500],
+			outline: colors.orange[400],
 			text: colors.white,
 		},
 		disabled: {
-			background: colors.orange[50],
+			background: colors.orange[950],
 			outline: colors.orange[800],
-			text: colors.orange[800],
+			text: colors.orange[200],
 			fill: {
 				solid: colors.orange[800],
 				outline: colors.orange[800],
@@ -32,9 +22,9 @@ export default {
 			},
 		},
 		hover: {
-			background: colors.orange[100],
+			background: colors.orange[900],
 			outline: colors.orange[500],
-			text: colors.black,
+			text: colors.white,
 			fill: {
 				solid: colors.orange[500],
 				outline: colors.orange[500],
@@ -43,19 +33,19 @@ export default {
 		},
 	},
 	error: {
-		background: colors.red[100],
-		outline: colors.red[500],
-		text: colors.red[950],
+		background: colors.red[950],
+		outline: colors.red[600],
+		text: colors.red[50],
 		fill: {
-			solid: colors.red[600],
-			outline: colors.red[600],
+			solid: colors.red[400],
+			outline: colors.red[400],
 			text: colors.white,
 		},
 	},
 	warning: {
-		background: colors.amber[50],
+		background: colors.amber[950],
 		outline: colors.amber[300],
-		text: colors.amber[950],
+		text: colors.amber[50],
 		fill: {
 			solid: colors.amber[500],
 			outline: colors.amber[500],
@@ -63,38 +53,38 @@ export default {
 		},
 	},
 	notice: {
-		background: colors.blue[50],
+		background: colors.blue[950],
 		outline: colors.blue[400],
-		text: colors.blue[950],
+		text: colors.blue[50],
 		fill: {
-			solid: colors.blue[700],
+			solid: colors.blue[500],
 			outline: colors.blue[600],
 			text: colors.white,
 		},
 	},
 	info: {
-		background: colors.zinc[50],
+		background: colors.zinc[950],
 		outline: colors.zinc[400],
-		text: colors.zinc[950],
+		text: colors.zinc[50],
 		fill: {
-			solid: colors.zinc[700],
+			solid: colors.zinc[500],
 			outline: colors.zinc[600],
 			text: colors.white,
 		},
 	},
 	success: {
-		background: colors.green[50],
+		background: colors.green[950],
 		outline: colors.green[500],
-		text: colors.green[950],
+		text: colors.green[50],
 		fill: {
 			solid: colors.green[600],
 			outline: colors.green[600],
 			text: colors.white,
 		},
 		disabled: {
-			background: colors.green[50],
+			background: colors.green[950],
 			outline: colors.green[800],
-			text: colors.green[800],
+			text: colors.green[200],
 			fill: {
 				solid: colors.green[800],
 				outline: colors.green[800],
@@ -102,9 +92,9 @@ export default {
 			},
 		},
 		hover: {
-			background: colors.green[100],
+			background: colors.green[900],
 			outline: colors.green[500],
-			text: colors.black,
+			text: colors.white,
 			fill: {
 				solid: colors.green[500],
 				outline: colors.green[500],
@@ -113,16 +103,16 @@ export default {
 		},
 	},
 	active: {
-		background: colors.sky[100],
+		background: colors.sky[950],
 		outline: colors.sky[500],
-		text: colors.sky[950],
+		text: colors.sky[50],
 		fill: {
 			solid: colors.sky[600],
-			outline: colors.sky[600],
+			outline: colors.sky[400],
 			text: colors.white,
 		},
 		disabled: {
-			background: colors.sky[50],
+			background: colors.sky[950],
 			outline: colors.sky[800],
 			text: colors.sky[200],
 			fill: {
@@ -132,9 +122,9 @@ export default {
 			},
 		},
 		hover: {
-			background: colors.sky[200],
-			outline: colors.sky[400],
-			text: colors.black,
+			background: colors.sky[900],
+			outline: colors.sky[500],
+			text: colors.white,
 			fill: {
 				solid: colors.sky[500],
 				outline: colors.sky[500],
@@ -143,23 +133,23 @@ export default {
 		},
 	},
 	inactive: {
-		background: colors.gray[100],
-		outline: colors.gray[400],
-		text: colors.gray[950],
+		background: colors.zinc[950],
+		outline: colors.zinc[500],
+		text: colors.zinc[50],
 		fill: {
-			solid: colors.gray[600],
-			outline: colors.gray[600],
+			solid: colors.zinc[400],
+			outline: colors.zinc[400],
 			text: colors.white,
 		},
 	},
 	preview: {
-		background: colors.violet[50],
+		background: colors.violet[950],
 		outline: colors.violet[500],
-		text: colors.violet[950],
+		text: colors.violet[50],
 		fill: {
-			solid: colors.violet[600],
-			outline: colors.violet[600],
+			solid: colors.violet[400],
+			outline: colors.violet[400],
 			text: colors.white,
 		},
 	},
-} satisfies ColorRoles;
+} satisfies Roles;

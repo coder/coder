@@ -1,54 +1,49 @@
-export type ThemeRole = keyof ColorRoles;
+export type ThemeRole = keyof Roles;
 
 export type InteractiveThemeRole = keyof {
-	[K in keyof ColorRoles as ColorRoles[K] extends InteractiveColorRole
-		? K
-		: never]: unknown;
+	[K in keyof Roles as Roles[K] extends InteractiveRole ? K : never]: unknown;
 };
 
-export interface ColorRoles {
-	/** The default color role for general use */
-	default: ColorRole;
-
+export interface Roles {
 	/** Something is wrong; either unexpectedly, or in a meaningful way. */
-	error: ColorRole;
+	error: Role;
 
 	/** Something isn't quite right, but without serious consequence. */
-	warning: ColorRole;
+	warning: Role;
 
 	/** A prompt for action, to correct or look into something. */
-	notice: ColorRole;
+	notice: Role;
 
 	/** Notable information; just so you know! */
-	info: ColorRole;
+	info: Role;
 
 	/** Confirmation, or affirming that things are as desired. */
-	success: InteractiveColorRole;
+	success: InteractiveRole;
 
 	/** Selected, in progress, of particular relevance right now. */
-	active: InteractiveColorRole;
+	active: InteractiveRole;
 
 	/** For things that can be made "active", but are not currently so.
 	 * Paused, stopped, off, etc.
 	 */
-	inactive: ColorRole;
+	inactive: Role;
 
 	/** Actions that have long lasting or irreversible effects.
 	 * Deletion, immutable parameters, etc.
 	 */
-	danger: InteractiveColorRole;
+	danger: InteractiveRole;
 
 	/** This isn't quite ready for prime-time, but you're welcome to look around!
 	 * Preview features, experiments, unstable, etc.
 	 */
-	preview: ColorRole;
+	preview: Role;
 }
 
 /**
  * A set of colors which work together to fill a desirable "communication role"
  * ie. I wish to communicate an error, I wish to communicate that this is dangerous, etc.
  */
-export interface ColorRole {
+export interface Role {
 	/** A background color that works best with the corresponding `outline` and `text` colors */
 	background: string;
 
@@ -72,10 +67,10 @@ export interface ColorRole {
 }
 
 /** Provides additional colors which can indicate different states for interactive elements */
-export interface InteractiveColorRole extends ColorRole {
+export interface InteractiveRole extends Role {
 	/** A set of colors which can indicate a disabled state */
-	disabled: ColorRole;
+	disabled: Role;
 
 	/** A set of colors which can indicate mouse hover (or keyboard focus)  */
-	hover: ColorRole;
+	hover: Role;
 }

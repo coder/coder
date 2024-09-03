@@ -1,17 +1,7 @@
-import type { ColorRoles } from "../colorRoles";
+import type { Roles } from "../roles";
 import colors from "../tailwindColors";
 
 export default {
-	default: {
-		background: colors.zinc[800],
-		outline: colors.zinc[700],
-		text: colors.zinc[200],
-		fill: {
-			solid: colors.zinc[700],
-			outline: colors.zinc[600],
-			text: colors.zinc[50],
-		},
-	},
 	danger: {
 		background: colors.orange[950],
 		outline: colors.orange[500],
@@ -73,12 +63,12 @@ export default {
 		},
 	},
 	info: {
-		background: colors.zinc[950],
-		outline: colors.zinc[400],
-		text: colors.zinc[50],
+		background: colors.gray[950],
+		outline: colors.gray[400],
+		text: colors.gray[50],
 		fill: {
-			solid: colors.zinc[500],
-			outline: colors.zinc[600],
+			solid: colors.gray[500],
+			outline: colors.gray[600],
 			text: colors.white,
 		},
 	},
@@ -143,12 +133,12 @@ export default {
 		},
 	},
 	inactive: {
-		background: colors.zinc[950],
-		outline: colors.zinc[500],
-		text: colors.zinc[50],
+		background: colors.gray[950],
+		outline: colors.gray[500],
+		text: colors.gray[50],
 		fill: {
-			solid: colors.zinc[400],
-			outline: colors.zinc[400],
+			solid: colors.gray[400],
+			outline: colors.gray[400],
 			text: colors.white,
 		},
 	},
@@ -162,4 +152,4 @@ export default {
 			text: colors.white,
 		},
 	},
-} satisfies ColorRoles;
+} satisfies Roles;
