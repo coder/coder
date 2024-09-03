@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
-import type { Permission, Role } from "api/typesGenerated";
+import type { Permission } from "api/typesGenerated";
 import { Pill } from "components/Pill/Pill";
 import {
 	Popover,
@@ -21,7 +21,7 @@ interface PermissionPillsListProps {
 export const PermissionPillsList: FC<PermissionPillsListProps> = ({
 	permissions,
 }) => {
-	const resourceTypes: string[] = getUniqueResourceTypes(permissions);
+	const resourceTypes = getUniqueResourceTypes(permissions);
 
 	return (
 		<Stack direction="row" spacing={1}>
@@ -53,11 +53,9 @@ const PermissionsPill: FC<PermissionPillProps> = ({
 	resource,
 	permissions,
 }) => {
-	const actions = permissions.filter((p) => {
-		if (resource === p.resource_type) {
-			return p.action;
-		}
-	});
+	const actions = permissions.filter(
+		(p) => resource === p.resource_type && p.action,
+	);
 
 	return (
 		<Pill css={styles.permissionPill}>
