@@ -9,12 +9,14 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/quartz"
 
 	"cdr.dev/slog"
 
@@ -24,8 +26,10 @@ import (
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {
-	id    uuid.UUID
-	cfg   codersdk.NotificationsConfig
+	id         uuid.UUID
+	cfg        codersdk.NotificationsConfig
+	runtimeCfg runtimeconfig.Manager
+
 	log   slog.Logger
 	store Store
 
@@ -41,21 +45,21 @@ type notifier struct {
 	clock quartz.Clock
 }
 
-func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store,
-	hr map[database.NotificationMethod]Handler, metrics *Metrics, clock quartz.Clock,
-) *notifier {
+func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, runtimeCfg runtimeconfig.Manager,
+	hr map[database.NotificationMethod]Handler, metrics *Metrics, clock quartz.Clock) *notifier {
 	tick := clock.NewTicker(cfg.FetchInterval.Value(), "notifier", "fetchInterval")
 	return &notifier{
-		id:       id,
-		cfg:      cfg,
-		log:      log.Named("notifier").With(slog.F("notifier_id", id)),
-		quit:     make(chan any),
-		done:     make(chan any),
-		tick:     tick,
-		store:    db,
-		handlers: hr,
-		metrics:  metrics,
-		clock:    clock,
+		id:         id,
+		cfg:        cfg,
+		runtimeCfg: runtimeCfg,
+		log:        log.Named("notifier").With(slog.F("notifier_id", id)),
+		quit:       make(chan any),
+		done:       make(chan any),
+		tick:       tick,
+		store:      db,
+		handlers:   hr,
+		metrics:    metrics,
+		clock:      clock,
 	}
 }
 
@@ -228,7 +232,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return handler.Dispatcher(payload, title, body)
+	return handler.Dispatcher(runtimeconfig.NewNoopManager(), payload, title, body)
 }
 
 // deliver sends a given notification message via its defined method.

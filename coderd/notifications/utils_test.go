@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -67,9 +68,9 @@ func newDispatchInterceptor(h notifications.Handler) *dispatchInterceptor {
 	return &dispatchInterceptor{handler: h}
 }
 
-func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+func (i *dispatchInterceptor) Dispatcher(cfg runtimeconfig.Manager, payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		deliveryFn, err := i.handler.Dispatcher(payload, title, body)
+		deliveryFn, err := i.handler.Dispatcher(runtimeconfig.NewNoopManager(), payload, title, body)
 		if err != nil {
 			return false, err
 		}

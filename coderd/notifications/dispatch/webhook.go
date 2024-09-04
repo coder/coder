@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	markdown "github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -39,8 +40,13 @@ func NewWebhookHandler(cfg codersdk.NotificationsWebhookConfig, log slog.Logger)
 	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{}}
 }
 
-func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
-	if w.cfg.Endpoint.String() == "" {
+func (w *WebhookHandler) Dispatcher(cfg runtimeconfig.Manager, payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
+	endpoint, err := w.cfg.Endpoint.Coalesce(context.Background(), cfg)
+	if err != nil {
+		return nil, xerrors.Errorf("resolve endpoint value: %w", err)
+	}
+
+	if endpoint.String() == "" {
 		return nil, xerrors.New("webhook endpoint not defined")
 	}
 
@@ -53,7 +59,7 @@ func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bod
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return w.dispatch(payload, title, body, w.cfg.Endpoint.String()), nil
+	return w.dispatch(payload, title, body, endpoint.String()), nil
 }
 
 func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, title, body, endpoint string) DeliveryFunc {

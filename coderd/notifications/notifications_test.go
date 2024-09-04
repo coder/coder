@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -1167,7 +1168,7 @@ type fakeHandler struct {
 	succeeded, failed []string
 }
 
-func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (f *fakeHandler) Dispatcher(cfg runtimeconfig.Manager, payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(_ context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()

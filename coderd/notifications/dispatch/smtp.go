@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	markdown "github.com/coder/coder/v2/coderd/render"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -63,7 +64,7 @@ func NewSMTPHandler(cfg codersdk.NotificationsEmailConfig, helpers template.Func
 	return &SMTPHandler{cfg: cfg, helpers: helpers, log: log}
 }
 
-func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
+func (s *SMTPHandler) Dispatcher(cfg runtimeconfig.Manager, payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
 	// First render the subject & body into their own discrete strings.
 	subject, err := markdown.PlaintextFromMarkdown(titleTmpl)
 	if err != nil {

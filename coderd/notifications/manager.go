@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -38,7 +39,8 @@ var ErrInvalidDispatchTimeout = xerrors.New("dispatch timeout must be less than 
 // we split notifiers out into separate targets for greater processing throughput; in this case we will need an
 // alternative mechanism for handling backpressure.
 type Manager struct {
-	cfg codersdk.NotificationsConfig
+	cfg        codersdk.NotificationsConfig
+	runtimeCfg runtimeconfig.Manager
 
 	store Store
 	log   slog.Logger
@@ -69,6 +71,16 @@ func WithTestClock(clock quartz.Clock) ManagerOption {
 	}
 }
 
+func WithRuntimeConfigManager(mgr runtimeconfig.Manager) ManagerOption {
+	if mgr == nil {
+		panic("developer error: runtime config manager is nil")
+	}
+
+	return func(m *Manager) {
+		m.runtimeCfg = mgr
+	}
+}
+
 // NewManager instantiates a new Manager instance which coordinates notification enqueuing and delivery.
 //
 // helpers is a map of template helpers which are used to customize notification messages to use global settings like
@@ -88,9 +100,11 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 	}
 
 	m := &Manager{
-		log:   log,
-		cfg:   cfg,
-		store: store,
+		log: log,
+
+		cfg:        cfg,
+		runtimeCfg: runtimeconfig.NewNoopManager(),
+		store:      store,
 
 		// Buffer successful/failed notification dispatches in memory to reduce load on the store.
 		//
@@ -169,7 +183,7 @@ func (m *Manager) loop(ctx context.Context) error {
 	var eg errgroup.Group
 
 	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
-	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers, m.metrics, m.clock)
+	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.runtimeCfg, m.handlers, m.metrics, m.clock)
 	eg.Go(func() error {
 		return m.notifier.run(ctx, m.success, m.failure)
 	})

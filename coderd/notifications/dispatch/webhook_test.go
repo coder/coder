@@ -10,16 +10,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -66,14 +70,6 @@ func TestWebhook(t *testing.T) {
 				assert.NoError(t, err)
 			},
 			expectSuccess: true,
-		},
-		{
-			name: "invalid endpoint",
-			// Build a deliberately invalid URL to fail validation.
-			serverURL:       "invalid .com",
-			expectSuccess:   false,
-			expectErr:       "invalid URL escape",
-			expectRetryable: false,
 		},
 		{
 			name:            "timeout",
@@ -134,11 +130,11 @@ func TestWebhook(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			cfg := codersdk.NotificationsWebhookConfig{
-				Endpoint: *serpent.URLOf(endpoint),
-			}
-			handler := dispatch.NewWebhookHandler(cfg, logger.With(slog.F("test", tc.name)))
-			deliveryFn, err := handler.Dispatcher(msgPayload, titleTemplate, bodyTemplate)
+			vals := coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+				require.NoError(t, values.Notifications.Webhook.Endpoint.Set(endpoint.String()))
+			})
+			handler := dispatch.NewWebhookHandler(vals.Notifications.Webhook, logger.With(slog.F("test", tc.name)))
+			deliveryFn, err := handler.Dispatcher(runtimeconfig.NewNoopManager(), msgPayload, titleTemplate, bodyTemplate)
 			require.NoError(t, err)
 
 			retryable, err := deliveryFn(ctx, msgID)
@@ -152,4 +148,65 @@ func TestWebhook(t *testing.T) {
 			require.Equal(t, tc.expectRetryable, retryable)
 		})
 	}
+}
+
+func TestRuntimeEndpointChange(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	const (
+		titleTemplate = "this is the title ({{.Labels.foo}})"
+		bodyTemplate  = "this is the body ({{.Labels.baz}})"
+
+		startEndpoint = "http://localhost:0"
+	)
+
+	msgPayload := types.MessagePayload{
+		Version:          "1.0",
+		NotificationName: "test",
+		Labels: map[string]string{
+			"foo": "bar",
+			"baz": "quux",
+		},
+	}
+
+	// Setup: start up a mock HTTP server
+	received := make(chan *http.Request, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r
+		close(received)
+	}))
+	t.Cleanup(server.Close)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	runtimeEndpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	_ = runtimeEndpoint
+
+	// Initially, set the endpoint to a hostport we know to not be listening for HTTP requests.
+	vals := coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+		require.NoError(t, values.Notifications.Webhook.Endpoint.Set(startEndpoint))
+	})
+
+	// Setup runtime config manager.
+	mgr := coderd.NewRuntimeConfigStore(dbmem.New())
+
+	// Dispatch a notification and it will fail.
+	handler := dispatch.NewWebhookHandler(vals.Notifications.Webhook, logger.With(slog.F("test", t.Name())))
+	deliveryFn, err := handler.Dispatcher(mgr, msgPayload, titleTemplate, bodyTemplate)
+	require.NoError(t, err)
+
+	msgID := uuid.New()
+	_, err = deliveryFn(ctx, msgID)
+	require.ErrorContains(t, err, "can't assign requested address")
+
+	// Set the runtime value to the mock HTTP server.
+	require.NoError(t, vals.Notifications.Webhook.Endpoint.SetRuntimeValue(ctx, mgr, serpent.URLOf(runtimeEndpoint)))
+	deliveryFn, err = handler.Dispatcher(mgr, msgPayload, titleTemplate, bodyTemplate)
+	require.NoError(t, err)
+	_, err = deliveryFn(ctx, msgID)
+	require.NoError(t, err)
+	testutil.RequireRecvCtx(ctx, t, received)
 }

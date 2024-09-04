@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -205,7 +206,7 @@ type santaHandler struct {
 	nice    atomic.Int32
 }
 
-func (s *santaHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (s *santaHandler) Dispatcher(cfg runtimeconfig.Manager, payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		if payload.Labels["nice"] != "true" {
 			s.naughty.Add(1)

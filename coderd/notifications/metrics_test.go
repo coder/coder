@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -506,8 +507,8 @@ func newDelayingHandler(delay time.Duration, handler notifications.Handler) *del
 	}
 }
 
-func (d *delayingHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	deliverFn, err := d.h.Dispatcher(payload, title, body)
+func (d *delayingHandler) Dispatcher(cfg runtimeconfig.Manager, payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+	deliverFn, err := d.h.Dispatcher(runtimeconfig.NewNoopManager(), payload, title, body)
 	if err != nil {
 		return nil, err
 	}

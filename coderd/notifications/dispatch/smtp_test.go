@@ -23,6 +23,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -486,7 +487,7 @@ func TestSMTP(t *testing.T) {
 				Labels:    make(map[string]string),
 			}
 
-			dispatchFn, err := handler.Dispatcher(payload, subject, body)
+			dispatchFn, err := handler.Dispatcher(runtimeconfig.NewNoopManager(), payload, subject, body)
 			require.NoError(t, err)
 
 			msgID := uuid.New()
