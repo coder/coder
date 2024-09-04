@@ -723,7 +723,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(c.Resources)),
-				slog.F("resources", c.Resources),
+				slog.F("resources", resourceNames(c.Resources)),
 			)
 
 			return &templateImportProvision{
@@ -853,7 +853,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
 	cost := sumDailyCost(resources)
 	r.logger.Debug(ctx, "committing quota",
-		slog.F("resources", resources),
+		slog.F("resources", resourceNames(resources)),
 		slog.F("cost", cost),
 	)
 	if cost == 0 {
@@ -964,7 +964,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 
 	r.logger.Info(context.Background(), "plan request successful",
 		slog.F("resource_count", len(planComplete.Resources)),
-		slog.F("resources", planComplete.Resources),
+		slog.F("resources", resourceNames(planComplete.Resources)),
 	)
 	r.flushQueuedLogs(ctx)
 	if commitQuota {
@@ -1015,7 +1015,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 
 	r.logger.Info(context.Background(), "apply successful",
 		slog.F("resource_count", len(applyComplete.Resources)),
-		slog.F("resources", applyComplete.Resources),
+		slog.F("resources", resourceNames(applyComplete.Resources)),
 		slog.F("state_len", len(applyComplete.State)),
 	)
 	r.flushQueuedLogs(ctx)
@@ -1029,6 +1029,19 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			},
 		},
 	}, nil
+}
+
+func resourceNames(rs []*sdkproto.Resource) []string {
+	var sb strings.Builder
+	names := make([]string, 0, len(rs))
+	for _, r := range rs {
+		_, _ = sb.WriteString(r.Type)
+		_, _ = sb.WriteString(".")
+		_, _ = sb.WriteString(r.Name)
+		names = append(names, sb.String())
+		sb.Reset()
+	}
+	return names
 }
 
 func (r *Runner) failedWorkspaceBuildf(format string, args ...interface{}) *proto.FailedJob {
