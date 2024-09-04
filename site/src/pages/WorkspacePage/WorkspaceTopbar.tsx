@@ -132,7 +132,8 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					rowGap: 8,
 					flexWrap: "wrap",
 					// 12px - It is needed to keep vertical spacing when the content is wrapped
-					padding: "12px 0 12px 16px",
+					padding: "12px",
+					marginRight: "auto",
 				}}
 			>
 				<TopbarData>
@@ -144,7 +145,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					<Tooltip title="Owner">
 						<span>{workspace.owner_name}</span>
 					</Tooltip>
+
 					<TopbarDivider />
+
 					<Popover mode="hover">
 						<PopoverTrigger>
 							<span
@@ -200,16 +203,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					</Popover>
 				</TopbarData>
 
-				{!isImmutable && (
-					<WorkspaceScheduleControls
-						workspace={workspace}
-						template={template}
-						canUpdateSchedule={
-							canUpdateWorkspace && template.allow_user_autostop
-						}
-					/>
-				)}
-
 				{shouldDisplayDormantData && (
 					<TopbarData>
 						<TopbarIcon>
@@ -221,7 +214,13 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							title="Schedule settings"
 							css={{ color: "inherit" }}
 						>
-							Deletion on {new Date(workspace.deleting_at!).toLocaleString()}
+							{workspace.deleting_at ? (
+								<>
+									Deletion on {new Date(workspace.deleting_at).toLocaleString()}
+								</>
+							) : (
+								"Deleting soon"
+							)}
 						</Link>
 					</TopbarData>
 				)}
@@ -244,49 +243,53 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				)}
 			</div>
 
-			<div
-				css={{
-					marginLeft: "auto",
-					display: "flex",
-					alignItems: "center",
-					gap: 12,
-				}}
-			>
-				{!isImmutable && (
-					<>
-						<WorkspaceNotifications
-							workspace={workspace}
-							template={template}
-							latestVersion={latestVersion}
-							permissions={permissions}
-							onRestartWorkspace={handleRestart}
-							onUpdateWorkspace={handleUpdate}
-							onActivateWorkspace={handleDormantActivate}
-						/>
-						<WorkspaceStatusBadge workspace={workspace} />
-						<WorkspaceActions
-							workspace={workspace}
-							handleStart={handleStart}
-							handleStop={handleStop}
-							handleRestart={handleRestart}
-							handleDelete={handleDelete}
-							handleUpdate={handleUpdate}
-							handleCancel={handleCancel}
-							handleSettings={handleSettings}
-							handleRetry={handleRetry}
-							handleDebug={handleDebug}
-							handleChangeVersion={handleChangeVersion}
-							handleDormantActivate={handleDormantActivate}
-							handleToggleFavorite={handleToggleFavorite}
-							canDebug={canDebugMode}
-							canChangeVersions={canChangeVersions}
-							isUpdating={isUpdating}
-							isRestarting={isRestarting}
-							isOwner={isOwner}
-						/>
-					</>
-				)}
-			</div>
+			{!isImmutable && (
+				<div
+					css={{
+						display: "flex",
+						alignItems: "center",
+						gap: 8,
+					}}
+				>
+					<WorkspaceScheduleControls
+						workspace={workspace}
+						template={template}
+						canUpdateSchedule={
+							canUpdateWorkspace && template.allow_user_autostop
+						}
+					/>
+					<WorkspaceNotifications
+						workspace={workspace}
+						template={template}
+						latestVersion={latestVersion}
+						permissions={permissions}
+						onRestartWorkspace={handleRestart}
+						onUpdateWorkspace={handleUpdate}
+						onActivateWorkspace={handleDormantActivate}
+					/>
+					<WorkspaceStatusBadge workspace={workspace} />
+					<WorkspaceActions
+						workspace={workspace}
+						handleStart={handleStart}
+						handleStop={handleStop}
+						handleRestart={handleRestart}
+						handleDelete={handleDelete}
+						handleUpdate={handleUpdate}
+						handleCancel={handleCancel}
+						handleSettings={handleSettings}
+						handleRetry={handleRetry}
+						handleDebug={handleDebug}
+						handleChangeVersion={handleChangeVersion}
+						handleDormantActivate={handleDormantActivate}
+						handleToggleFavorite={handleToggleFavorite}
+						canDebug={canDebugMode}
+						canChangeVersions={canChangeVersions}
+						isUpdating={isUpdating}
+						isRestarting={isRestarting}
+						isOwner={isOwner}
+					/>
+				</div>
+			)}
 		</Topbar>
 	);
 };
