@@ -19,3 +19,26 @@ type Mutator interface {
 	// DeleteRuntimeSetting deletes a runtime setting by name.
 	DeleteRuntimeSetting(ctx context.Context, name string) error
 }
+
+type Manager interface {
+	Resolver
+	Mutator
+}
+
+type NoopManager struct {}
+
+func NewNoopManager() *NoopManager {
+	return &NoopManager{}
+}
+
+func (n NoopManager) GetRuntimeSetting(context.Context, string) (string, error) {
+	return "", EntryNotFound
+}
+
+func (n NoopManager) UpsertRuntimeSetting(context.Context, string, string) error {
+	return EntryNotFound
+}
+
+func (n NoopManager) DeleteRuntimeSetting(context.Context, string) error {
+	return EntryNotFound
+}
