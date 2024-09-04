@@ -39,7 +39,7 @@ func (*Server) x11Callback(_ ssh.Context, _ ssh.X11) bool {
 
 // x11Handler is called when a session has requested X11 forwarding.
 // It listens for X11 connections and forwards them to the client.
-func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (display int, handled bool) {
+func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, handled bool) {
 	serverConn, valid := ctx.Value(ssh.ContextKeyConn).(*gossh.ServerConn)
 	if !valid {
 		s.logger.Warn(ctx, "failed to get server connection")
@@ -53,24 +53,13 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (display int, handled 
 		return -1, false
 	}
 
-	var (
-		lc   net.ListenConfig
-		ln   net.Listener
-		port = X11StartPort + *s.config.X11DisplayOffset
-	)
-	// Look for an open port to listen on..
-	for ; port >= X11StartPort && port < math.MaxUint16; port++ {
-		ln, err = lc.Listen(ctx, "tcp", fmt.Sprintf("localhost:%d", port))
-		if err == nil {
-			display = port - X11StartPort
-			break
-		}
-	}
-	if ln == nil {
-		s.logger.Warn(ctx, "failed to listen for X11", slog.Error(err))
+	ln, display, err := createX11Listener(ctx, *s.config.X11DisplayOffset)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to create X11 listener", slog.Error(err))
 		s.metrics.x11HandlerErrors.WithLabelValues("listen").Add(1)
 		return -1, false
 	}
+
 	s.trackListener(ln, true)
 	defer func() {
 		if !handled {
@@ -150,6 +139,21 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (display int, handled 
 	}()
 
 	return display, true
+}
+
+// createX11Listener creates a listener for X11 forwarding, it will use
+// the next available port starting from X11StartPort and displayOffset.
+func createX11Listener(ctx context.Context, displayOffset int) (ln net.Listener, display int, err error) {
+	var lc net.ListenConfig
+	// Look for an open port to listen on.
+	for port := X11StartPort + displayOffset; port < math.MaxUint16; port++ {
+		ln, err = lc.Listen(ctx, "tcp", fmt.Sprintf("localhost:%d", port))
+		if err == nil {
+			display = port - X11StartPort
+			return ln, display, nil
+		}
+	}
+	return nil, -1, xerrors.Errorf("failed to find open port for X11 listener: %w", err)
 }
 
 // addXauthEntry adds an Xauthority entry to the Xauthority file.
