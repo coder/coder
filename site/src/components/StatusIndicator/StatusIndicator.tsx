@@ -15,17 +15,19 @@ export const StatusIndicator: FC<StatusIndicatorProps> = ({
 
 	return (
 		<div
-			css={{
-				height: 8,
-				width: 8,
-				borderRadius: 4,
-				backgroundColor:
-					variant === "solid" ? theme.roles[color].fill.solid : undefined,
-				border:
-					variant === "outlined"
-						? `1px solid ${theme.roles[color].outline}`
-						: undefined,
-			}}
+			css={[
+				{
+					height: 8,
+					width: 8,
+					borderRadius: 4,
+				},
+				variant === "solid" && {
+					backgroundColor: theme.roles[color].fill.solid,
+				},
+				variant === "outlined" && {
+					border: `1px solid ${theme.roles[color].outline}`,
+				},
+			]}
 		/>
 	);
 };

@@ -25,17 +25,23 @@ export const EmptyState: FC<EmptyStateProps> = ({
 }) => {
 	return (
 		<div
-			css={{
-				overflow: "hidden",
-				display: "flex",
-				flexDirection: "column",
-				justifyContent: "center",
-				alignItems: "center",
-				textAlign: "center",
-				minHeight: isCompact ? 180 : 360,
-				padding: isCompact ? "10px 40px" : "80px 40px",
-				position: "relative",
-			}}
+			css={[
+				{
+					overflow: "hidden",
+					display: "flex",
+					flexDirection: "column",
+					justifyContent: "center",
+					alignItems: "center",
+					textAlign: "center",
+					minHeight: 360,
+					padding: "80px 40px",
+					position: "relative",
+				},
+				isCompact && {
+					minHeight: 180,
+					padding: "10px 40px",
+				},
+			]}
 			{...attrs}
 		>
 			<h5 css={{ fontSize: 24, fontWeight: 500, margin: 0 }}>{message}</h5>
