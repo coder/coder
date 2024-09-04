@@ -34,15 +34,19 @@ type IDPSync interface {
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
 
 	GroupSyncEnabled() bool
-	// ParseGroupClaims takes claims from an OIDC provider, and returns the
-	// group sync params for assigning users into groups.
+	// ParseGroupClaims takes claims from an OIDC provider, and returns the params
+	// for group syncing. Most of the logic happens in SyncGroups.
 	ParseGroupClaims(ctx context.Context, _ jwt.MapClaims) (GroupParams, *HTTPError)
+
+	// SyncGroups assigns and removes users from groups based on the provided params.
+	SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error
 }
 
 // AGPLIDPSync is the configuration for syncing user information from an external
 // IDP. All related code to syncing user information should be in this package.
 type AGPLIDPSync struct {
-	Logger slog.Logger
+	Logger  slog.Logger
+	Manager runtimeconfig.Manager
 
 	SyncSettings
 }
@@ -74,9 +78,10 @@ type SyncSettings struct {
 	GroupFilter         *regexp.Regexp
 }
 
-func NewAGPLSync(logger slog.Logger, settings DeploymentSyncSettings) *AGPLIDPSync {
+func NewAGPLSync(logger slog.Logger, manager runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
-		Logger: logger.Named("idp-sync"),
+		Logger:  logger.Named("idp-sync"),
+		Manager: manager,
 		SyncSettings: SyncSettings{
 			DeploymentSyncSettings: settings,
 		},
