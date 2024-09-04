@@ -104,7 +104,7 @@ func (e *Entry[T]) StartupValue() T {
 }
 
 // SetRuntimeValue attempts to update the runtime value of this field in the store via the given Mutator.
-func (e *Entry[T]) SetRuntimeValue(ctx context.Context, m Mutator, val T) error {
+func (e *Entry[T]) SetRuntimeValue(ctx context.Context, m Manager, val T) error {
 	name, err := e.name()
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (e *Entry[T]) SetRuntimeValue(ctx context.Context, m Mutator, val T) error 
 }
 
 // UnsetRuntimeValue removes the runtime value from the store.
-func (e *Entry[T]) UnsetRuntimeValue(ctx context.Context, m Mutator) error {
+func (e *Entry[T]) UnsetRuntimeValue(ctx context.Context, m Manager) error {
 	name, err := e.name()
 	if err != nil {
 		return err
@@ -124,7 +124,7 @@ func (e *Entry[T]) UnsetRuntimeValue(ctx context.Context, m Mutator) error {
 }
 
 // Resolve attempts to resolve the runtime value of this field from the store via the given Resolver.
-func (e *Entry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
+func (e *Entry[T]) Resolve(ctx context.Context, r Manager) (T, error) {
 	var zero T
 
 	name, err := e.name()
@@ -144,9 +144,9 @@ func (e *Entry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
 	return inst, nil
 }
 
-// Coalesce attempts to resolve the runtime value of this field from the store via the given Resolver. Should no runtime
+// Coalesce attempts to resolve the runtime value of this field from the store via the given Manager. Should no runtime
 // value be found, the startup value will be used.
-func (e *Entry[T]) Coalesce(ctx context.Context, r Resolver) (T, error) {
+func (e *Entry[T]) Coalesce(ctx context.Context, r Manager) (T, error) {
 	var zero T
 
 	resolved, err := e.Resolve(ctx, r)

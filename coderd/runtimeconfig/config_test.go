@@ -4,16 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/coder/serpent"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -38,12 +36,8 @@ func TestUsage(t *testing.T) {
 	t.Run("deployment value with runtimeconfig", func(t *testing.T) {
 		t.Parallel()
 
-		_, altOrg := setup(t)
-
 		ctx := testutil.Context(t, testutil.WaitShort)
-		store := dbmem.New()
-		resolver := runtimeconfig.NewOrgResolver(altOrg.ID, runtimeconfig.NewStoreResolver(store))
-		mutator := runtimeconfig.NewOrgMutator(altOrg.ID, runtimeconfig.NewStoreMutator(store))
+		mgr := runtimeconfig.NewStoreManager(dbmem.New())
 
 		// NOTE: this field is now wrapped
 		var field runtimeconfig.Entry[*serpent.HostPort]
@@ -63,7 +57,7 @@ func TestUsage(t *testing.T) {
 
 		// One new constraint is that we have to set the name on the runtimeconfig.Entry.
 		// Attempting to perform any operation which accesses the store will enforce the need for a name.
-		_, err := field.Resolve(ctx, resolver)
+		_, err := field.Resolve(ctx, mgr)
 		require.ErrorIs(t, err, runtimeconfig.ErrNameNotSet)
 
 		// Let's set that name; the environment var name is likely to be the most stable.
@@ -71,23 +65,21 @@ func TestUsage(t *testing.T) {
 
 		newVal := serpent.HostPort{Host: "12.34.56.78", Port: "1234"}
 		// Now that we've set it, we can update the runtime value of this field, which modifies given store.
-		require.NoError(t, field.SetRuntimeValue(ctx, mutator, &newVal))
+		require.NoError(t, field.SetRuntimeValue(ctx, mgr, &newVal))
 
 		// ...and we can retrieve the value, as well.
-		resolved, err := field.Resolve(ctx, resolver)
+		resolved, err := field.Resolve(ctx, mgr)
 		require.NoError(t, err)
 		require.Equal(t, newVal.String(), resolved.String())
 
 		// We can also remove the runtime config.
-		require.NoError(t, field.UnsetRuntimeValue(ctx, mutator))
+		require.NoError(t, field.UnsetRuntimeValue(ctx, mgr))
 	})
 }
 
 // TestConfig demonstrates creating org-level overrides for deployment-level settings.
 func TestConfig(t *testing.T) {
 	t.Parallel()
-
-	_, altOrg := setup(t)
 
 	t.Run("new", func(t *testing.T) {
 		t.Parallel()
@@ -105,6 +97,8 @@ func TestConfig(t *testing.T) {
 	t.Run("zero", func(t *testing.T) {
 		t.Parallel()
 
+		mgr := runtimeconfig.NewNoopManager()
+
 		// A zero-value declaration of a runtimeconfig.Entry should behave as a zero value of the generic type.
 		// NB! A name has not been set for this entry; it is "uninitialized".
 		var field runtimeconfig.Entry[*serpent.Bool]
@@ -115,20 +109,18 @@ func TestConfig(t *testing.T) {
 		require.NoError(t, field.SetStartupValue("true"))
 
 		// But attempting to resolve will produce an error.
-		_, err := field.Resolve(context.Background(), runtimeconfig.NewNoopResolver())
+		_, err := field.Resolve(context.Background(), mgr)
 		require.ErrorIs(t, err, runtimeconfig.ErrNameNotSet)
 		// But attempting to set the runtime value will produce an error.
 		val := serpent.BoolOf(ptr.Ref(true))
-		require.ErrorIs(t, field.SetRuntimeValue(context.Background(), runtimeconfig.NewNoopMutator(), val), runtimeconfig.ErrNameNotSet)
+		require.ErrorIs(t, field.SetRuntimeValue(context.Background(), mgr, val), runtimeconfig.ErrNameNotSet)
 	})
 
 	t.Run("simple", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		store := dbmem.New()
-		resolver := runtimeconfig.NewOrgResolver(altOrg.ID, runtimeconfig.NewStoreResolver(store))
-		mutator := runtimeconfig.NewOrgMutator(altOrg.ID, runtimeconfig.NewStoreMutator(store))
+		mgr := runtimeconfig.NewStoreManager(dbmem.New())
 
 		var (
 			base     = serpent.String("system@dev.coder.com")
@@ -141,16 +133,16 @@ func TestConfig(t *testing.T) {
 		// Validate that it returns that value.
 		require.Equal(t, base.String(), field.String())
 		// Validate that there is no org-level override right now.
-		_, err := field.Resolve(ctx, resolver)
+		_, err := field.Resolve(ctx, mgr)
 		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
 		// Coalesce returns the deployment-wide value.
-		val, err := field.Coalesce(ctx, resolver)
+		val, err := field.Coalesce(ctx, mgr)
 		require.NoError(t, err)
 		require.Equal(t, base.String(), val.String())
 		// Set an org-level override.
-		require.NoError(t, field.SetRuntimeValue(ctx, mutator, &override))
+		require.NoError(t, field.SetRuntimeValue(ctx, mgr, &override))
 		// Coalesce now returns the org-level value.
-		val, err = field.Coalesce(ctx, resolver)
+		val, err = field.Coalesce(ctx, mgr)
 		require.NoError(t, err)
 		require.Equal(t, override.String(), val.String())
 	})
@@ -159,9 +151,7 @@ func TestConfig(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		store := dbmem.New()
-		resolver := runtimeconfig.NewOrgResolver(altOrg.ID, runtimeconfig.NewStoreResolver(store))
-		mutator := runtimeconfig.NewOrgMutator(altOrg.ID, runtimeconfig.NewStoreMutator(store))
+		mgr := runtimeconfig.NewStoreManager(dbmem.New())
 
 		var (
 			base = serpent.Struct[map[string]string]{
@@ -180,34 +170,65 @@ func TestConfig(t *testing.T) {
 		// Check that default has been set.
 		require.Equal(t, base.String(), field.StartupValue().String())
 		// Validate that there is no org-level override right now.
-		_, err := field.Resolve(ctx, resolver)
+		_, err := field.Resolve(ctx, mgr)
 		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
 		// Coalesce returns the deployment-wide value.
-		val, err := field.Coalesce(ctx, resolver)
+		val, err := field.Coalesce(ctx, mgr)
 		require.NoError(t, err)
 		require.Equal(t, base.Value, val.Value)
 		// Set an org-level override.
-		require.NoError(t, field.SetRuntimeValue(ctx, mutator, &override))
+		require.NoError(t, field.SetRuntimeValue(ctx, mgr, &override))
 		// Coalesce now returns the org-level value.
-		structVal, err := field.Resolve(ctx, resolver)
+		structVal, err := field.Resolve(ctx, mgr)
 		require.NoError(t, err)
 		require.Equal(t, override.Value, structVal.Value)
 	})
 }
 
-// setup creates a new API, enabled notifications + multi-org experiments, and returns the API client and a new org.
-func setup(t *testing.T) (*codersdk.Client, codersdk.Organization) {
-	t.Helper()
+func TestScoped(t *testing.T) {
+	orgId := uuid.New()
 
-	vals := coderdtest.DeploymentValues(t)
-	vals.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-	adminClient, _, _, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{DeploymentValues: vals},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureMultipleOrganizations: 1,
-			},
-		},
-	})
-	return adminClient, coderdenttest.CreateOrganization(t, adminClient, coderdenttest.CreateOrganizationOptions{})
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Set up a config manager and a field which will have runtime configs.
+	mgr := runtimeconfig.NewStoreManager(dbmem.New())
+	field := runtimeconfig.MustNew[*serpent.HostPort]("addr", "localhost:3000")
+
+	// No runtime value set at this point, Coalesce will return startup value.
+	_, err := field.Resolve(ctx, mgr)
+	require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
+	val, err := field.Coalesce(ctx, mgr)
+	require.NoError(t, err)
+	require.Equal(t, field.StartupValue().String(), val.String())
+
+	// Set a runtime value which is NOT org-scoped.
+	host, port := "localhost", "1234"
+	require.NoError(t, field.SetRuntimeValue(ctx, mgr, &serpent.HostPort{Host: host, Port: port}))
+	val, err = field.Resolve(ctx, mgr)
+	require.NoError(t, err)
+	require.Equal(t, host, val.Host)
+	require.Equal(t, port, val.Port)
+
+	orgMgr := mgr.Scoped(orgId.String())
+	// Using the org scope, nothing will be returned.
+	_, err = field.Resolve(ctx, orgMgr)
+	require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
+
+	// Now set an org-scoped value.
+	host, port = "localhost", "4321"
+	require.NoError(t, field.SetRuntimeValue(ctx, orgMgr, &serpent.HostPort{Host: host, Port: port}))
+	val, err = field.Resolve(ctx, orgMgr)
+	require.NoError(t, err)
+	require.Equal(t, host, val.Host)
+	require.Equal(t, port, val.Port)
+
+	// Ensure the two runtime configs are NOT equal to each other nor the startup value.
+	global, err := field.Resolve(ctx, mgr)
+	require.NoError(t, err)
+	org, err := field.Resolve(ctx, orgMgr)
+	require.NoError(t, err)
+
+	require.NotEqual(t, global.String(), org.String())
+	require.NotEqual(t, field.StartupValue().String(), global.String())
+	require.NotEqual(t, field.StartupValue().String(), org.String())
 }
