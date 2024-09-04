@@ -54,15 +54,17 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 								<h4>Sync Field</h4>
 								<p css={styles.secondary}>
 									{groups_field || (
-										<Stack
-											style={{ color: theme.palette.text.secondary }}
-											direction="row"
-											spacing={1}
-											alignItems="center"
+										<div
+											css={{
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+												height: 0,
+											}}
 										>
 											<StatusIndicator color="error" />
 											<p>disabled</p>
-										</Stack>
+										</div>
 									)}
 								</p>
 								<h4>Regex Filter</h4>
@@ -77,15 +79,17 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 								<h4>Sync Field</h4>
 								<p css={styles.secondary}>
 									{user_role_field || (
-										<Stack
-											style={{ color: theme.palette.text.secondary }}
-											direction="row"
-											spacing={1}
-											alignItems="center"
+										<div
+											css={{
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+												height: 0,
+											}}
 										>
 											<StatusIndicator color="error" />
 											<p>disabled</p>
-										</Stack>
+										</div>
 									)}
 								</p>
 							</Stack>
@@ -96,45 +100,40 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 							type="Role"
 							isEmpty={Boolean(
 								!oidcConfig?.user_role_mapping ||
-									(oidcConfig?.user_role_mapping &&
-										Object.entries(oidcConfig?.user_role_mapping).length ===
-											0) ||
-									false,
+									Object.entries(oidcConfig?.user_role_mapping).length === 0,
 							)}
 						>
 							<>
 								{oidcConfig?.user_role_mapping &&
-									Object.entries(oidcConfig.user_role_mapping).map(
-										([idpRole, roles]) => (
+									Object.entries(oidcConfig.user_role_mapping)
+										.sort()
+										.map(([idpRole, roles]) => (
 											<RoleRow
 												key={idpRole}
 												idpRole={idpRole}
 												coderRoles={roles}
 											/>
-										),
-									)}
+										))}
 							</>
 						</IdpMappingTable>
 						<IdpMappingTable
 							type="Group"
 							isEmpty={Boolean(
 								!oidcConfig?.group_mapping ||
-									(oidcConfig?.group_mapping &&
-										Object.entries(oidcConfig?.group_mapping).length === 0) ||
-									false,
+									Object.entries(oidcConfig?.group_mapping).length === 0,
 							)}
 						>
 							<>
 								{oidcConfig?.user_role_mapping &&
-									Object.entries(oidcConfig.group_mapping).map(
-										([idpGroup, group]) => (
+									Object.entries(oidcConfig.group_mapping)
+										.sort()
+										.map(([idpGroup, group]) => (
 											<GroupRow
 												key={idpGroup}
 												idpGroup={idpGroup}
 												coderGroup={group}
 											/>
-										),
-									)}
+										))}
 							</>
 						</IdpMappingTable>
 					</Stack>
