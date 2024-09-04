@@ -59,7 +59,6 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, ha
 		s.metrics.x11HandlerErrors.WithLabelValues("listen").Add(1)
 		return -1, false
 	}
-
 	s.trackListener(ln, true)
 	defer func() {
 		if !handled {
