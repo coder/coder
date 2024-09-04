@@ -2,14 +2,14 @@ INSERT INTO notification_templates (id, name, title_template, body_template, "gr
 VALUES ('bc0d9b9c-6dca-40a7-a209-fb2681e3341a', 'Report: Workspace Builds Failed For Template', E'Workspace builds failed for template "{{.Labels.template_display_name}}"',
         E'Hi {{.UserName}},
 
-Template {{.Labels.template_display_name}} has failed to build {{.Labels.failed_builds})/{{.Labels.total_builds}} times over the last {{.Labels.report_frequency}} and may be unstable.
+Template {{.Labels.template_display_name}} has failed to build {{.Data.failed_builds})/{{.Data.total_builds}} times over the last {{.Data.report_frequency}} and may be unstable.
 
 **Report:**
 
-{{range $index, $version := .Labels.template_versions}}
-  {{add $index 1}}. "{{$version.TemplateDisplayName}}" failed {{$version.FailedCount}} time{{if gt $version.FailedCount 1}}s{{end}}:
-  {{range $i, $build := $version.FailedBuilds}}
-    * [{{$build.WorkspaceOwnerUsername}} / {{$build.WorkspaceName}} / #{{$build.BuildNumber}}]({{base_url}}/@{{$build.WorkspaceOwnerUsername}}/{{$build.WorkspaceName}}/builds/{{$build.BuildNumber}})
+{{range $index, $version := .Data.template_versions}}
+  {{add $index 1}}. "{{$version.template_version_name}}" failed {{$version.failed_count}} time{{if gt $version.failed_count 1}}s{{end}}:
+  {{range $i, $build := $version.failed_builds}}
+    * [{{$build.workspace_owner_username}} / {{$build.workspace_name}} / #{{$build.build_number}}]({{base_url}}/@{{$build.workspace_owner_username}}/{{$build.workspace_name}}/builds/{{$build.build_number}})
   {{end}}
 {{end}}
 
