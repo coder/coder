@@ -51,7 +51,7 @@ import (
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
-var updateGoldenFiles = flag.Bool("update", true, "Update golden files")
+var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
@@ -861,7 +861,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 						{
 							"template_version_name": "bobby-template-version-1",
 							"failed_count":          3,
-							"builds": []map[string]any{
+							"failed_builds": []map[string]any{
 								{
 									"workspace_owner_username": "mtojek",
 									"workspace_name":           "workspace-1",
@@ -882,7 +882,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 						{
 							"template_version_name": "bobby-template-version-2",
 							"failed_count":          1,
-							"builds": []map[string]any{
+							"failed_builds": []map[string]any{
 								{
 									"workspace_owner_username": "ben",
 									"workspace_name":           "cool-workspace",
