@@ -1,6 +1,8 @@
-import { CircularProgress, type CircularProgressProps } from "@mui/material";
-import type { FC } from "react";
+import CircularProgress, {
+	type CircularProgressProps,
+} from "@mui/material/CircularProgress";
 import isChromatic from "chromatic/isChromatic";
+import type { FC } from "react";
 
 /**
  * Spinner component used to indicate loading states. This component abstracts
@@ -17,4 +19,4 @@ export const Spinner: FC<CircularProgressProps> = (props) => {
 		props.value = 75;
 	}
 	return <CircularProgress {...props} />;
-}
+};
