@@ -45,8 +45,9 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
 				ref={ref}
 				css={[
 					styles.pill,
+					icon && size === "md" && styles.pillWithIcon,
 					size === "lg" && styles.pillLg,
-					icon && styles.pillWithIcon,
+					icon && size === "lg" && styles.pillLgWithIcon,
 					typeStyles,
 				]}
 				{...divProps}
@@ -89,12 +90,16 @@ const styles = {
 	}),
 
 	pillWithIcon: {
-		paddingLeft: PILL_ICON_SPACING * 2,
+		paddingLeft: PILL_ICON_SPACING,
 	},
 
 	pillLg: {
 		gap: PILL_ICON_SPACING * 2,
 		padding: "14px 16px",
+	},
+
+	pillLgWithIcon: {
+		paddingLeft: PILL_ICON_SPACING * 2,
 	},
 
 	spinner: (theme) => ({

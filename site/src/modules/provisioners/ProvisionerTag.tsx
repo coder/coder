@@ -36,7 +36,11 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 	onDelete,
 }) => {
 	const { valid, value: boolValue } = parseBool(tagValue);
-	const kv = `${tagName}: ${tagValue}`;
+	const kv = (
+		<>
+			<span css={{ fontWeight: 600 }}>{tagName}</span> <span>{tagValue}</span>
+		</>
+	);
 	const content = onDelete ? (
 		<>
 			{kv}
