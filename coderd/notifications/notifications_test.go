@@ -892,9 +892,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			if *updateGoldenFiles {
 				err = os.MkdirAll(filepath.Dir(bodyGoldenFile), 0o755)
 				require.NoError(t, err, "want no error creating golden file directory")
-				err = os.WriteFile(bodyGoldenFile, []byte(body), 0600)
+				err = os.WriteFile(bodyGoldenFile, []byte(body), 0o600)
 				require.NoError(t, err, "want no error writing body golden file")
-				err = os.WriteFile(titleGoldenFile, []byte(title), 0600)
+				err = os.WriteFile(titleGoldenFile, []byte(title), 0o600)
 				require.NoError(t, err, "want no error writing title golden file")
 				return
 			}
