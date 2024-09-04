@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import CircularProgress from "@mui/material/CircularProgress";
+import { Spinner } from "components/Spinner/Spinner";
 import type { FC, HTMLAttributes } from "react";
 
 interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
@@ -18,7 +18,7 @@ export const Loader: FC<LoaderProps> = ({
 			data-testid="loader"
 			{...attrs}
 		>
-			<CircularProgress size={size} />
+			<Spinner aria-label="Loading..." size={size} />
 		</div>
 	);
 };
