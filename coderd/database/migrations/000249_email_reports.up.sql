@@ -2,7 +2,7 @@ INSERT INTO notification_templates (id, name, title_template, body_template, "gr
 VALUES ('bc0d9b9c-6dca-40a7-a209-fb2681e3341a', 'Report: Workspace Builds Failed For Template', E'Workspace builds failed for template "{{.Labels.template_display_name}}"',
         E'Hi {{.UserName}},
 
-Template {{.Labels.template_display_name}} has failed to build {{.Data.failed_builds})/{{.Data.total_builds}} times over the last {{.Data.report_frequency}} and may be unstable.
+Template {{.Labels.template_display_name}} has failed to build {{.Data.failed_builds}}/{{.Data.total_builds}} times over the last {{.Data.report_frequency}} and may be unstable.
 
 **Report:**
 
