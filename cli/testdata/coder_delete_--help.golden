@@ -8,6 +8,11 @@ USAGE:
   Aliases: rm
 
 OPTIONS:
+      --debug-provisioner bool
+          Sets the provisioner log level to debug.
+          This will print additional information about the build process.
+          This is useful for troubleshooting build issues.
+
       --orphan bool
           Delete a workspace without deleting its resources. This can delete a
           workspace in a broken state, but may also lead to unaccounted cloud

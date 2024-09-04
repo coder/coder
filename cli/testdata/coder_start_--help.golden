@@ -16,6 +16,11 @@ OPTIONS:
       --build-options bool
           Prompt for one-time build options defined with ephemeral parameters.
 
+      --debug-provisioner bool
+          Sets the provisioner log level to debug.
+          This will print additional information about the build process.
+          This is useful for troubleshooting build issues.
+
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
 

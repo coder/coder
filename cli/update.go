@@ -10,8 +10,10 @@ import (
 )
 
 func (r *RootCmd) update() *serpent.Command {
-	var parameterFlags workspaceParameterFlags
-
+	var (
+		parameterFlags workspaceParameterFlags
+		debugFlags     buildDebugFlags
+	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -32,7 +34,7 @@ func (r *RootCmd) update() *serpent.Command {
 				return nil
 			}
 
-			build, err := startWorkspace(inv, client, workspace, parameterFlags, WorkspaceUpdate)
+			build, err := startWorkspace(inv, client, workspace, parameterFlags, debugFlags, WorkspaceUpdate)
 			if err != nil {
 				return xerrors.Errorf("start workspace: %w", err)
 			}
@@ -54,5 +56,6 @@ func (r *RootCmd) update() *serpent.Command {
 	}
 
 	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
+	cmd.Options = append(cmd.Options, debugFlags.cliOptions()...)
 	return cmd
 }
