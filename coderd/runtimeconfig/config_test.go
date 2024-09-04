@@ -16,6 +16,8 @@ import (
 )
 
 func TestUsage(t *testing.T) {
+	t.Parallel()
+
 	t.Run("deployment value without runtimeconfig", func(t *testing.T) {
 		t.Parallel()
 
@@ -186,7 +188,9 @@ func TestConfig(t *testing.T) {
 }
 
 func TestScoped(t *testing.T) {
-	orgId := uuid.New()
+	t.Parallel()
+
+	orgID := uuid.New()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -209,7 +213,7 @@ func TestScoped(t *testing.T) {
 	require.Equal(t, host, val.Host)
 	require.Equal(t, port, val.Port)
 
-	orgMgr := mgr.Scoped(orgId.String())
+	orgMgr := mgr.Scoped(orgID.String())
 	// Using the org scope, nothing will be returned.
 	_, err = field.Resolve(ctx, orgMgr)
 	require.ErrorIs(t, err, runtimeconfig.EntryNotFound)

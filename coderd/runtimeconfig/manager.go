@@ -17,15 +17,15 @@ func NewNoopManager() *NoopManager {
 	return &NoopManager{}
 }
 
-func (n NoopManager) GetRuntimeSetting(context.Context, string) (string, error) {
+func (NoopManager) GetRuntimeSetting(context.Context, string) (string, error) {
 	return "", EntryNotFound
 }
 
-func (n NoopManager) UpsertRuntimeSetting(context.Context, string, string) error {
+func (NoopManager) UpsertRuntimeSetting(context.Context, string, string) error {
 	return EntryNotFound
 }
 
-func (n NoopManager) DeleteRuntimeSetting(context.Context, string) error {
+func (NoopManager) DeleteRuntimeSetting(context.Context, string) error {
 	return EntryNotFound
 }
 
@@ -62,7 +62,7 @@ func (m StoreManager) GetRuntimeSetting(ctx context.Context, key string) (string
 func (m StoreManager) UpsertRuntimeSetting(ctx context.Context, key, val string) error {
 	err := m.Store.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{Key: m.namespacedKey(key), Value: val})
 	if err != nil {
-		return xerrors.Errorf("update %q: %w", err)
+		return xerrors.Errorf("update %q: %w", key, err)
 	}
 	return nil
 }
