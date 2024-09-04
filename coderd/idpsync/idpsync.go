@@ -63,6 +63,29 @@ type DeploymentSyncSettings struct {
 	// placed into the default organization. This is mostly a hack to support
 	// legacy deployments.
 	OrganizationAssignDefault bool
+
+	// GroupField at the deployment level is used for deployment level group claim
+	// settings.
+	GroupField string
+	// GroupAllowList (if set) will restrict authentication to only users who
+	// have at least one group in this list.
+	// A map representation is used for easier lookup.
+	GroupAllowList map[string]struct{}
+}
+
+func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings {
+	if dv == nil {
+		panic("Developer error: DeploymentValues should not be nil")
+	}
+	return DeploymentSyncSettings{
+		OrganizationField:         dv.OIDC.OrganizationField.Value(),
+		OrganizationMapping:       dv.OIDC.OrganizationMapping.Value,
+		OrganizationAssignDefault: dv.OIDC.OrganizationAssignDefault.Value(),
+
+		GroupField:     dv.OIDC.GroupField.Value(),
+		GroupAllowList: ConvertAllowList(dv.OIDC.GroupAllowList.Value()),
+	}
+
 }
 
 type SyncSettings struct {

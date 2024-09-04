@@ -1142,7 +1142,7 @@ func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interfac
 				slog.F("allow_list_count", len(api.OIDCConfig.GroupAllowList)),
 				slog.F("user_group_count", len(groups)),
 			)
-			detail := "Ask an administrator to add one of your groups to the whitelist"
+			detail := "Ask an administrator to add one of your groups to the allow list"
 			if len(groups) == 0 {
 				detail = "You are currently not a member of any groups! Ask an administrator to add you to an authorized group to login."
 			}

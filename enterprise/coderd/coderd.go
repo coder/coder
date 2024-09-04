@@ -113,11 +113,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	options.Database = cryptDB
 
 	if options.IDPSync == nil {
-		options.IDPSync = enidpsync.NewSync(options.Logger, options.Entitlements, idpsync.SyncSettings{
-			OrganizationField:         options.DeploymentValues.OIDC.OrganizationField.Value(),
-			OrganizationMapping:       options.DeploymentValues.OIDC.OrganizationMapping.Value,
-			OrganizationAssignDefault: options.DeploymentValues.OIDC.OrganizationAssignDefault.Value(),
-		})
+		options.IDPSync = enidpsync.NewSync(options.Logger, options.RuntimeConfig, options.Entitlements, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
 
 	api := &API{

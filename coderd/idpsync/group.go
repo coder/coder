@@ -266,3 +266,11 @@ func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.
 
 	return addIDs, nil
 }
+
+func ConvertAllowList(allowList []string) map[string]struct{} {
+	allowMap := make(map[string]struct{}, len(allowList))
+	for _, group := range allowList {
+		allowMap[group] = struct{}{}
+	}
+	return allowMap
+}
