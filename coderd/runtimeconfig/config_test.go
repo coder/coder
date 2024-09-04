@@ -61,13 +61,13 @@ func TestUsage(t *testing.T) {
 		// The value has to now be retrieved from a StartupValue() call.
 		require.Equal(t, "localhost:1234", field.StartupValue().String())
 
-		// One new constraint is that we have to set the key on the runtimeconfig.Entry.
-		// Attempting to perform any operation which accesses the store will enforce the need for a key.
+		// One new constraint is that we have to set the name on the runtimeconfig.Entry.
+		// Attempting to perform any operation which accesses the store will enforce the need for a name.
 		_, err := field.Resolve(ctx, resolver)
-		require.ErrorIs(t, err, runtimeconfig.ErrKeyNotSet)
+		require.ErrorIs(t, err, runtimeconfig.ErrNameNotSet)
 
-		// Let's see that key. The environment var name is likely to be the most stable.
-		field.SetKey(opt.Env)
+		// Let's set that name; the environment var name is likely to be the most stable.
+		field.Initialize(opt.Env)
 
 		newVal := serpent.HostPort{Host: "12.34.56.78", Port: "1234"}
 		// Now that we've set it, we can update the runtime value of this field, which modifies given store.
@@ -94,11 +94,11 @@ func TestConfig(t *testing.T) {
 
 		require.Panics(t, func() {
 			// "hello" cannot be set on a *serpent.Float64 field.
-			runtimeconfig.MustNew[*serpent.Float64]("key", "hello")
+			runtimeconfig.MustNew[*serpent.Float64]("my-field", "hello")
 		})
 
 		require.NotPanics(t, func() {
-			runtimeconfig.MustNew[*serpent.Float64]("key", "91.1234")
+			runtimeconfig.MustNew[*serpent.Float64]("my-field", "91.1234")
 		})
 	})
 
@@ -106,7 +106,7 @@ func TestConfig(t *testing.T) {
 		t.Parallel()
 
 		// A zero-value declaration of a runtimeconfig.Entry should behave as a zero value of the generic type.
-		// NB! A key has not been set for this entry.
+		// NB! A name has not been set for this entry; it is "uninitialized".
 		var field runtimeconfig.Entry[*serpent.Bool]
 		var zero serpent.Bool
 		require.Equal(t, field.StartupValue().Value(), zero.Value())
@@ -116,10 +116,10 @@ func TestConfig(t *testing.T) {
 
 		// But attempting to resolve will produce an error.
 		_, err := field.Resolve(context.Background(), runtimeconfig.NewNoopResolver())
-		require.ErrorIs(t, err, runtimeconfig.ErrKeyNotSet)
+		require.ErrorIs(t, err, runtimeconfig.ErrNameNotSet)
 		// But attempting to set the runtime value will produce an error.
 		val := serpent.BoolOf(ptr.Ref(true))
-		require.ErrorIs(t, field.SetRuntimeValue(context.Background(), runtimeconfig.NewNoopMutator(), val), runtimeconfig.ErrKeyNotSet)
+		require.ErrorIs(t, field.SetRuntimeValue(context.Background(), runtimeconfig.NewNoopMutator(), val), runtimeconfig.ErrNameNotSet)
 	})
 
 	t.Run("simple", func(t *testing.T) {
