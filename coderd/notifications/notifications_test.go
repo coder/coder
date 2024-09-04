@@ -700,7 +700,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceDeleted",
 			id:   notifications.TemplateWorkspaceDeleted,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":      "bobby-workspace",
 					"reason":    "autodeleted due to dormancy",
@@ -712,7 +712,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceAutobuildFailed",
 			id:   notifications.TemplateWorkspaceAutobuildFailed,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":   "bobby-workspace",
 					"reason": "autostart",
@@ -723,7 +723,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceDormant",
 			id:   notifications.TemplateWorkspaceDormant,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "breached the template's threshold for inactivity",
@@ -737,7 +737,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceAutoUpdated",
 			id:   notifications.TemplateWorkspaceAutoUpdated,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_version_name":    "1.0",
@@ -749,7 +749,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceMarkedForDeletion",
 			id:   notifications.TemplateWorkspaceMarkedForDeletion,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "template updated to new dormancy policy",
@@ -762,7 +762,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"created_account_name": "bobby",
 				},
@@ -772,7 +772,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountDeleted",
 			id:   notifications.TemplateUserAccountDeleted,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"deleted_account_name": "bobby",
 				},
@@ -782,7 +782,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountSuspended",
 			id:   notifications.TemplateUserAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"suspended_account_name": "bobby",
 				},
@@ -792,7 +792,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountActivated",
 			id:   notifications.TemplateUserAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"activated_account_name": "bobby",
 				},
@@ -802,7 +802,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateYourAccountSuspended",
 			id:   notifications.TemplateYourAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"suspended_account_name": "bobby",
 				},
@@ -812,7 +812,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateYourAccountActivated",
 			id:   notifications.TemplateYourAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"activated_account_name": "bobby",
 				},
@@ -822,7 +822,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateTemplateDeleted",
 			id:   notifications.TemplateTemplateDeleted,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":      "bobby-template",
 					"initiator": "rob",
@@ -833,7 +833,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceManualBuildFailed",
 			id:   notifications.TemplateWorkspaceManualBuildFailed,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
@@ -848,7 +848,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceBuildSummary",
 			id:   notifications.TemplateWorkspaceBuildSummary,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"template_name":         "bobby-first-template",
 					"template_display_name": "Bobby First Template",
