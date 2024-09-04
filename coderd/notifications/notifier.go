@@ -46,7 +46,8 @@ type notifier struct {
 }
 
 func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, runtimeCfg runtimeconfig.Manager,
-	hr map[database.NotificationMethod]Handler, metrics *Metrics, clock quartz.Clock) *notifier {
+	hr map[database.NotificationMethod]Handler, metrics *Metrics, clock quartz.Clock,
+) *notifier {
 	tick := clock.NewTicker(cfg.FetchInterval.Value(), "notifier", "fetchInterval")
 	return &notifier{
 		id:         id,
