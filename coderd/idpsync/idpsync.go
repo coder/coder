@@ -3,7 +3,6 @@ package idpsync
 import (
 	"context"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -16,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
-	"github.com/coder/serpent"
 )
 
 // IDPSync is an interface, so we can implement this as AGPL and as enterprise,
@@ -45,8 +43,7 @@ type IDPSync interface {
 // AGPLIDPSync is the configuration for syncing user information from an external
 // IDP. All related code to syncing user information should be in this package.
 type AGPLIDPSync struct {
-	Logger  slog.Logger
-	Manager runtimeconfig.Manager
+	Logger slog.Logger
 
 	SyncSettings
 }
@@ -91,22 +88,25 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 type SyncSettings struct {
 	DeploymentSyncSettings
 
-	Group runtimeconfig.Entry[*serpent.Struct[GroupSyncSettings]]
+	Group runtimeconfig.Entry[*GroupSyncSettings]
 
-	// Group options here are set by the deployment config and only apply to
-	// the default organization.
-	GroupField          string
-	CreateMissingGroups bool
-	GroupMapping        map[string]string
-	GroupFilter         *regexp.Regexp
+	//// Group options here are set by the deployment config and only apply to
+	//// the default organization.
+	//GroupField          string
+	//CreateMissingGroups bool
+	//GroupMapping        map[string]string
+	//GroupFilter         *regexp.Regexp
 }
 
 func NewAGPLSync(logger slog.Logger, manager runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
-		Logger:  logger.Named("idp-sync"),
-		Manager: manager,
+		Logger: logger.Named("idp-sync"),
 		SyncSettings: SyncSettings{
 			DeploymentSyncSettings: settings,
+			// Default to '{}' if the group sync settings are not set.
+			// TODO: Feels strange to have to define the type as a string. I should be
+			// able to pass in an empty struct.
+			Group: runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings", "{}"),
 		},
 	}
 }

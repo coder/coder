@@ -64,7 +64,7 @@ func (e EnterpriseIDPSync) ParseGroupClaims(ctx context.Context, mergedClaims jw
 	}
 
 	return idpsync.GroupParams{
-		SyncEnabled:  e.OrganizationSyncEnabled(),
+		SyncEnabled:  true,
 		MergedClaims: mergedClaims,
 	}, nil
 }

@@ -7643,7 +7643,22 @@ func (q *FakeQuerier) RemoveUserFromGroups(ctx context.Context, arg database.Rem
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	removed := make([]uuid.UUID, 0)
+	q.data.groupMembers = slices.DeleteFunc(q.data.groupMembers, func(groupMember database.GroupMemberTable) bool {
+		if groupMember.UserID != arg.UserID {
+			return false
+		}
+		if !slices.Contains(arg.GroupIds, groupMember.GroupID) {
+			return false
+		}
+		removed = append(removed, groupMember.GroupID)
+		return true
+	})
+
+	return removed, nil
 }
 
 func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string) error {

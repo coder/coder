@@ -2,6 +2,7 @@ package idpsync
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -32,7 +34,6 @@ func (s AGPLIDPSync) ParseGroupClaims(_ context.Context, _ jwt.MapClaims) (Group
 	}, nil
 }
 
-// TODO: Group allowlist behavior should probably happen at this step.
 func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error {
 	// Nothing happens if sync is not enabled
 	if !params.SyncEnabled {
@@ -43,6 +44,8 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	db.InTx(func(tx database.Store) error {
+		manager := runtimeconfig.NewStoreManager(tx)
+
 		userGroups, err := tx.GetGroups(ctx, database.GetGroupsParams{
 			HasMemberID: user.ID,
 		})
@@ -60,12 +63,12 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		// For each org, we need to fetch the sync settings
 		orgSettings := make(map[uuid.UUID]GroupSyncSettings)
 		for orgID := range userOrgs {
-			orgResolver := s.Manager.Scoped(orgID.String())
+			orgResolver := manager.Scoped(orgID.String())
 			settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
 			if err != nil {
 				return xerrors.Errorf("resolve group sync settings: %w", err)
 			}
-			orgSettings[orgID] = settings.Value
+			orgSettings[orgID] = *settings
 		}
 
 		// collect all diffs to do 1 sql update for all orgs
@@ -175,6 +178,20 @@ type GroupSyncSettings struct {
 	GroupMapping            map[string][]uuid.UUID `json:"mapping"`
 	RegexFilter             *regexp.Regexp         `json:"regex_filter"`
 	AutoCreateMissingGroups bool                   `json:"auto_create_missing_groups"`
+}
+
+func (s *GroupSyncSettings) Set(v string) error {
+	return json.Unmarshal([]byte(v), s)
+}
+func (s *GroupSyncSettings) String() string {
+	v, err := json.Marshal(s)
+	if err != nil {
+		return "decode failed: " + err.Error()
+	}
+	return string(v)
+}
+func (s *GroupSyncSettings) Type() string {
+	return "GroupSyncSettings"
 }
 
 type ExpectedGroup struct {
