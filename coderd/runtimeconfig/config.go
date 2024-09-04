@@ -9,7 +9,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var ErrKeyNotSet = xerrors.New("key is not set")
+var ErrNameNotSet = xerrors.New("name is not set")
 
 // Value wraps the type used by the serpent library for its option values.
 // This gives us a seam should serpent ever move away from its current implementation.
@@ -18,14 +18,15 @@ type Value pflag.Value
 // Entry is designed to wrap any type which satisfies the Value interface, which currently all serpent.Option instances do.
 // serpent.Option provide configurability to Value instances, and we use this Entry type to extend the functionality of
 // those Value instances.
+// An Entry has a "name" which is used to identify it in the store.
 type Entry[T Value] struct {
-	k string
-	v T
+	n     string
+	inner T
 }
 
-// New creates a new T instance with a defined key and value.
-func New[T Value](key, val string) (out Entry[T], err error) {
-	out.k = key
+// New creates a new T instance with a defined name and value.
+func New[T Value](name, val string) (out Entry[T], err error) {
+	out.n = name
 
 	if err = out.SetStartupValue(val); err != nil {
 		return out, err
@@ -35,34 +36,35 @@ func New[T Value](key, val string) (out Entry[T], err error) {
 }
 
 // MustNew is like New but panics if an error occurs.
-func MustNew[T Value](key, val string) Entry[T] {
-	out, err := New[T](key, val)
+func MustNew[T Value](name, val string) Entry[T] {
+	out, err := New[T](name, val)
 	if err != nil {
 		panic(err)
 	}
 	return out
 }
 
+// Initialize sets the entry's name, and initializes the value.
+func (e *Entry[T]) Initialize(name string) {
+	e.n = name
+	e.val()
+}
+
 // val fronts the T value in the struct, and initializes it should the value be nil.
 func (e *Entry[T]) val() T {
-	if reflect.ValueOf(e.v).IsNil() {
-		e.v = create[T]()
+	if reflect.ValueOf(e.inner).IsNil() {
+		e.inner = create[T]()
 	}
-	return e.v
+	return e.inner
 }
 
-// key returns the configured key, or fails with ErrKeyNotSet.
-func (e *Entry[T]) key() (string, error) {
-	if e.k == "" {
-		return "", ErrKeyNotSet
+// name returns the configured name, or fails with ErrNameNotSet.
+func (e *Entry[T]) name() (string, error) {
+	if e.n == "" {
+		return "", ErrNameNotSet
 	}
 
-	return e.k, nil
-}
-
-// SetKey allows the key to be set.
-func (e *Entry[T]) SetKey(k string) {
-	e.k = k
+	return e.n, nil
 }
 
 // Set is an alias of SetStartupValue.
@@ -103,34 +105,34 @@ func (e *Entry[T]) StartupValue() T {
 
 // SetRuntimeValue attempts to update the runtime value of this field in the store via the given Mutator.
 func (e *Entry[T]) SetRuntimeValue(ctx context.Context, m Mutator, val T) error {
-	key, err := e.key()
+	name, err := e.name()
 	if err != nil {
 		return err
 	}
 
-	return m.UpsertRuntimeSetting(ctx, key, val.String())
+	return m.UpsertRuntimeSetting(ctx, name, val.String())
 }
 
 // UnsetRuntimeValue removes the runtime value from the store.
 func (e *Entry[T]) UnsetRuntimeValue(ctx context.Context, m Mutator) error {
-	key, err := e.key()
+	name, err := e.name()
 	if err != nil {
 		return err
 	}
 
-	return m.DeleteRuntimeSetting(ctx, key)
+	return m.DeleteRuntimeSetting(ctx, name)
 }
 
 // Resolve attempts to resolve the runtime value of this field from the store via the given Resolver.
 func (e *Entry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
 	var zero T
 
-	key, err := e.key()
+	name, err := e.name()
 	if err != nil {
 		return zero, err
 	}
 
-	val, err := r.GetRuntimeSetting(ctx, key)
+	val, err := r.GetRuntimeSetting(ctx, name)
 	if err != nil {
 		return zero, err
 	}
