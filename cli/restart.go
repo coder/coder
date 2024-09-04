@@ -16,7 +16,7 @@ import (
 func (r *RootCmd) restart() *serpent.Command {
 	var (
 		parameterFlags workspaceParameterFlags
-		debugFlags     buildDebugFlags
+		bflags         buildFlags
 	)
 
 	client := new(codersdk.Client)
@@ -38,7 +38,7 @@ func (r *RootCmd) restart() *serpent.Command {
 				return err
 			}
 
-			startReq, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, debugFlags, WorkspaceRestart)
+			startReq, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, bflags, WorkspaceRestart)
 			if err != nil {
 				return err
 			}
@@ -54,7 +54,7 @@ func (r *RootCmd) restart() *serpent.Command {
 			wbr := codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
 			}
-			if debugFlags.provisioner {
+			if bflags.provisionerLogDebug {
 				wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
 			}
 			build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, wbr)
@@ -72,7 +72,7 @@ func (r *RootCmd) restart() *serpent.Command {
 			// workspaces with the active version.
 			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
 				_, _ = fmt.Fprintln(inv.Stdout, "Unable to restart the workspace with the template version from the last build. Policy may require you to restart with the current active template version.")
-				build, err = startWorkspace(inv, client, workspace, parameterFlags, debugFlags, WorkspaceUpdate)
+				build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate)
 				if err != nil {
 					return xerrors.Errorf("start workspace with active template version: %w", err)
 				}
@@ -94,7 +94,7 @@ func (r *RootCmd) restart() *serpent.Command {
 	}
 
 	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
-	cmd.Options = append(cmd.Options, debugFlags.cliOptions()...)
+	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
 
 	return cmd
 }

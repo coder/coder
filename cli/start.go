@@ -15,7 +15,7 @@ import (
 func (r *RootCmd) start() *serpent.Command {
 	var (
 		parameterFlags workspaceParameterFlags
-		debugFlags     buildDebugFlags
+		bflags         buildFlags
 	)
 
 	client := new(codersdk.Client)
@@ -48,12 +48,12 @@ func (r *RootCmd) start() *serpent.Command {
 				)
 				build = workspace.LatestBuild
 			default:
-				build, err = startWorkspace(inv, client, workspace, parameterFlags, debugFlags, WorkspaceStart)
+				build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceStart)
 				// It's possible for a workspace build to fail due to the template requiring starting
 				// workspaces with the active version.
 				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
 					_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with the template version from the last build. Policy may require you to restart with the current active template version.")
-					build, err = startWorkspace(inv, client, workspace, parameterFlags, debugFlags, WorkspaceUpdate)
+					build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate)
 					if err != nil {
 						return xerrors.Errorf("start workspace with active template version: %w", err)
 					}
@@ -76,12 +76,12 @@ func (r *RootCmd) start() *serpent.Command {
 	}
 
 	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
-	cmd.Options = append(cmd.Options, debugFlags.cliOptions()...)
+	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
 
 	return cmd
 }
 
-func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, debugFlags buildDebugFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
+func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
 
 	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
@@ -133,14 +133,14 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 		RichParameterValues: buildParameters,
 		TemplateVersionID:   version,
 	}
-	if debugFlags.provisioner {
+	if buildFlags.provisionerLogDebug {
 		wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
 	}
 
 	return wbr, nil
 }
 
-func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, debugFlags buildDebugFlags, action WorkspaceCLIAction) (codersdk.WorkspaceBuild, error) {
+func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction) (codersdk.WorkspaceBuild, error) {
 	if workspace.DormantAt != nil {
 		_, _ = fmt.Fprintln(inv.Stdout, "Activating dormant workspace...")
 		err := client.UpdateWorkspaceDormancy(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceDormancy{
@@ -150,7 +150,7 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 			return codersdk.WorkspaceBuild{}, xerrors.Errorf("activate workspace: %w", err)
 		}
 	}
-	req, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, debugFlags, action)
+	req, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, buildFlags, action)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err
 	}

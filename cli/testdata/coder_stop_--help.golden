@@ -6,11 +6,6 @@ USAGE:
   Stop a workspace
 
 OPTIONS:
-      --debug-provisioner bool
-          Sets the provisioner log level to debug.
-          This will print additional information about the build process.
-          This is useful for troubleshooting build issues.
-
   -y, --yes bool
           Bypass prompts.
 

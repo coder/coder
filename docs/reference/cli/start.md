@@ -71,11 +71,3 @@ Rich parameter default values in the format "name=value".
 | Type | <code>bool</code> |
 
 Always prompt all parameters. Does not pull parameter values from existing workspace.
-
-### --debug-provisioner
-
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
-
-Sets the provisioner log level to debug.<br/>This will print additional information about the build process.<br/>This is useful for troubleshooting build issues.

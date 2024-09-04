@@ -12,8 +12,8 @@ import (
 // nolint
 func (r *RootCmd) deleteWorkspace() *serpent.Command {
 	var (
-		orphan     bool
-		buildDebug buildDebugFlags
+		orphan bool
+		prov   buildFlags
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -48,7 +48,7 @@ func (r *RootCmd) deleteWorkspace() *serpent.Command {
 				ProvisionerState: state,
 				Orphan:           orphan,
 			}
-			if buildDebug.provisioner {
+			if prov.provisionerLogDebug {
 				req.LogLevel = codersdk.ProvisionerLogLevelDebug
 			}
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, req)
@@ -78,6 +78,6 @@ func (r *RootCmd) deleteWorkspace() *serpent.Command {
 		},
 		cliui.SkipPromptOption(),
 	}
-	cmd.Options = append(cmd.Options, buildDebug.cliOptions()...)
+	cmd.Options = append(cmd.Options, prov.cliOptions()...)
 	return cmd
 }
