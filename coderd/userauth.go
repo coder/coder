@@ -602,7 +602,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ghName := ghUser.GetName()
-	normName := httpapi.NormalizeRealUsername(ghName)
+	normName := codersdk.NormalizeRealUsername(ghName)
 
 	// If we have a nil GitHub ID, that is a big problem. That would mean we link
 	// this user and all other users with this bug to the same uuid.
@@ -951,7 +951,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
-	usernameValid := httpapi.NameValid(username)
+	usernameValid := codersdk.NameValid(username)
 	if usernameValid != nil {
 		// If no username is provided, we can default to use the email address.
 		// This will be converted in the from function below, so it's safe
@@ -959,7 +959,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		if username == "" {
 			username = email
 		}
-		username = httpapi.UsernameFrom(username)
+		username = codersdk.UsernameFrom(username)
 	}
 
 	if len(api.OIDCConfig.EmailDomain) > 0 {
@@ -994,7 +994,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	nameRaw, ok := mergedClaims[api.OIDCConfig.NameField]
 	if ok {
 		name, _ = nameRaw.(string)
-		name = httpapi.NormalizeRealUsername(name)
+		name = codersdk.NormalizeRealUsername(name)
 	}
 
 	var picture string
@@ -1389,7 +1389,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				for i := 0; i < 10; i++ {
 					alternate := fmt.Sprintf("%s-%s", original, namesgenerator.GetRandomName(1))
 
-					params.Username = httpapi.UsernameFrom(alternate)
+					params.Username = codersdk.UsernameFrom(alternate)
 
 					//nolint:gocritic
 					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{

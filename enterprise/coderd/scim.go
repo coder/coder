@@ -206,7 +206,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
-	usernameValid := httpapi.NameValid(sUser.UserName)
+	usernameValid := codersdk.NameValid(sUser.UserName)
 	if usernameValid != nil {
 		// If no username is provided, we can default to use the email address.
 		// This will be converted in the from function below, so it's safe
@@ -214,7 +214,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		if sUser.UserName == "" {
 			sUser.UserName = email
 		}
-		sUser.UserName = httpapi.UsernameFrom(sUser.UserName)
+		sUser.UserName = codersdk.UsernameFrom(sUser.UserName)
 	}
 
 	// TODO: This is a temporary solution that does not support multi-org
