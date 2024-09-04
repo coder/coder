@@ -95,7 +95,11 @@ export const Toggle: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const option = await canvas.findByText("Workspace Marked as Dormant");
-		const toggleButton = within(option.closest("li")!).getByRole("button", {
+		const li = option.closest("li");
+		if(!li) {
+			throw new Error("Could not find li");
+		}
+		const toggleButton = within(li).getByRole("button", {
 			name: "Webhook",
 		});
 		await user.click(toggleButton);
