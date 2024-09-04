@@ -1,4 +1,4 @@
-package httpapi_test
+package codersdk_test
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -62,7 +62,7 @@ func TestUsernameValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Username, func(t *testing.T) {
 			t.Parallel()
-			valid := httpapi.NameValid(testCase.Username)
+			valid := codersdk.NameValid(testCase.Username)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
 	}
@@ -117,7 +117,7 @@ func TestTemplateDisplayNameValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
-			valid := httpapi.DisplayNameValid(testCase.Name)
+			valid := codersdk.DisplayNameValid(testCase.Name)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
 	}
@@ -158,7 +158,7 @@ func TestTemplateVersionNameValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
-			valid := httpapi.TemplateVersionNameValid(testCase.Name)
+			valid := codersdk.TemplateVersionNameValid(testCase.Name)
 			require.Equal(t, testCase.Valid, valid == nil)
 		})
 	}
@@ -169,7 +169,7 @@ func TestGeneratedTemplateVersionNameValid(t *testing.T) {
 
 	for i := 0; i < 1000; i++ {
 		name := testutil.GetRandomName(t)
-		err := httpapi.TemplateVersionNameValid(name)
+		err := codersdk.TemplateVersionNameValid(name)
 		require.NoError(t, err, "invalid template version name: %s", name)
 	}
 }
@@ -199,9 +199,9 @@ func TestFrom(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.From, func(t *testing.T) {
 			t.Parallel()
-			converted := httpapi.UsernameFrom(testCase.From)
+			converted := codersdk.UsernameFrom(testCase.From)
 			t.Log(converted)
-			valid := httpapi.NameValid(converted)
+			valid := codersdk.NameValid(converted)
 			require.True(t, valid == nil)
 			if testCase.Match == "" {
 				require.NotEqual(t, testCase.From, converted)
@@ -245,9 +245,9 @@ func TestUserRealNameValid(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
-			err := httpapi.UserRealNameValid(testCase.Name)
-			norm := httpapi.NormalizeRealUsername(testCase.Name)
-			normErr := httpapi.UserRealNameValid(norm)
+			err := codersdk.UserRealNameValid(testCase.Name)
+			norm := codersdk.NormalizeRealUsername(testCase.Name)
+			normErr := codersdk.UserRealNameValid(norm)
 			assert.NoError(t, normErr)
 			assert.Equal(t, testCase.Valid, err == nil)
 			assert.Equal(t, testCase.Valid, norm == testCase.Name, "invalid name should be different after normalization")

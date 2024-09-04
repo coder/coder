@@ -11,7 +11,6 @@ import (
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/serpent"
@@ -72,7 +71,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				if err != nil {
 					return err
 				}
-				name = httpapi.NormalizeRealUsername(rawName)
+				name = codersdk.NormalizeRealUsername(rawName)
 				if !strings.EqualFold(rawName, name) {
 					cliui.Warnf(inv.Stderr, "Normalized name to %q", name)
 				}
