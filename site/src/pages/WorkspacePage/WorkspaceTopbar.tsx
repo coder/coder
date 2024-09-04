@@ -116,6 +116,12 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		linkToTemplate(workspace.organization_name, workspace.template_name),
 	);
 
+	// Organization logic
+	const { organizations, showOrganizations } = useDashboard();
+	const matchedOrganization = organizations.find(
+		(o) => o.id === workspace.organization_id,
+	);
+
 	return (
 		<Topbar css={{ gridArea: "topbar" }}>
 			<Tooltip title="Back to workspaces">
@@ -145,6 +151,24 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					<Tooltip title="Owner">
 						<span>{workspace.owner_name}</span>
 					</Tooltip>
+
+					{showOrganizations && (
+						<>
+							<TopbarDivider />
+
+							{matchedOrganization && (
+								<UserAvatar
+									size="xs"
+									username={matchedOrganization.display_name}
+									avatarURL={matchedOrganization.icon}
+								/>
+							)}
+
+							<Tooltip title="Organization">
+								<span>{workspace.organization_name}</span>
+							</Tooltip>
+						</>
+					)}
 
 					<TopbarDivider />
 
