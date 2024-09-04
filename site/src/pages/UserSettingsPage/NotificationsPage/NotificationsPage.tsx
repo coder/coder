@@ -8,6 +8,7 @@ import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
 import {
+	disableNotification,
 	notificationDispatchMethods,
 	selectTemplatesByGroup,
 	systemNotificationTemplates,
@@ -62,40 +63,22 @@ export const NotificationsPage: FC = () => {
 	const updatePreferences = useMutation(
 		updateUserNotificationPreferences(user.id, queryClient),
 	);
+	const disableMutation = useMutation(
+		disableNotification(user.id, queryClient),
+	);
 	const [searchParams] = useSearchParams();
-	const templateId = searchParams.get("disabled");
+	const disabledId = searchParams.get("disabled");
 
 	useEffect(() => {
-		if (templateId && templatesByGroup.isSuccess && templatesByGroup.data) {
-			disableTemplate(templateId);
+		if (disabledId && templatesByGroup.isSuccess && templatesByGroup.data) {
+			disableMutation.mutate(disabledId);
 		}
-	}, [templateId, templatesByGroup.isSuccess, templatesByGroup.data]);
-
-	const disableTemplate = async (templateId: string) => {
-		try {
-			await updatePreferences.mutateAsync({
-				template_disabled_map: {
-					[templateId]: true,
-				},
-			});
-
-			const allTemplates = Object.values(templatesByGroup.data ?? {}).flat();
-			const template = allTemplates.find((t) => t.id === templateId);
-
-			if (!template) {
-				throw new Error(`Template with ID ${templateId} not found`);
-			}
-
-			displaySuccess(`${template.name} notification has been disabled`);
-
-			queryClient.invalidateQueries(
-				userNotificationPreferences(user.id).queryKey,
-			);
-		} catch (error) {
-			console.error(error);
-			displayError("Error on disabling notification");
-		}
-	};
+	}, [
+		disabledId,
+		templatesByGroup.isSuccess,
+		templatesByGroup.data,
+		disableMutation,
+	]);
 
 	const ready =
 		disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;

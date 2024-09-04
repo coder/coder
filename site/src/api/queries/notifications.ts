@@ -5,6 +5,7 @@ import type {
 	UpdateNotificationTemplateMethod,
 	UpdateUserNotificationPreferences,
 } from "api/typesGenerated";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { QueryClient, UseMutationOptions } from "react-query";
 
 export const userNotificationPreferencesKey = (userId: string) => [
@@ -135,4 +136,41 @@ export const updateNotificationTemplateMethod = (
 		unknown,
 		UpdateNotificationTemplateMethod
 	>;
+};
+
+export const disableNotification = (
+	userId: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: async (templateId: string) => {
+			const result = await API.putUserNotificationPreferences(userId, {
+				template_disabled_map: {
+					[templateId]: true,
+				},
+			});
+
+			// Invalidate the user notification preferences query
+			queryClient.invalidateQueries(userNotificationPreferencesKey(userId));
+
+			return result;
+		},
+		onSuccess: (_, templateId) => {
+			const allTemplates = queryClient.getQueryData<NotificationTemplate[]>(
+				systemNotificationTemplatesKey,
+			);
+			const template = allTemplates?.find((t) => t.id === templateId);
+
+			if (template) {
+				displaySuccess(`${template.name} notification has been disabled`);
+			} else {
+				displaySuccess("Notification has been disabled");
+			}
+		},
+		onError: () => {
+			displayError(
+				"An error occurred when attempting to disable the requested notification",
+			);
+		},
+	} satisfies UseMutationOptions<NotificationPreference[], unknown, string>;
 };
