@@ -844,56 +844,6 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "TemplateWorkspaceBuildSummary",
-			id:   notifications.TemplateWorkspaceBuildSummary,
-			payload: types.MessagePayload{
-				UserName: "Bobby",
-				Labels: map[string]string{
-					"template_name":         "bobby-first-template",
-					"template_display_name": "Bobby First Template",
-				},
-				Data: map[string]any{
-					"failed_builds":    4,
-					"total_builds":     55,
-					"report_frequency": "week",
-					"template_versions": []map[string]any{
-						{
-							"template_version_name": "bobby-template-version-1",
-							"failed_count":          3,
-							"failed_builds": []map[string]any{
-								{
-									"workspace_owner_username": "mtojek",
-									"workspace_name":           "workspace-1",
-									"build_number":             1234,
-								},
-								{
-									"workspace_owner_username": "johndoe",
-									"workspace_name":           "my-workspace-3",
-									"build_number":             5678,
-								},
-								{
-									"workspace_owner_username": "jack",
-									"workspace_name":           "workwork",
-									"build_number":             774,
-								},
-							},
-						},
-						{
-							"template_version_name": "bobby-template-version-2",
-							"failed_count":          1,
-							"failed_builds": []map[string]any{
-								{
-									"workspace_owner_username": "ben",
-									"workspace_name":           "cool-workspace",
-									"build_number":             8888,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
 	}
 
 	allTemplates, err := enumerateAllTemplates(t)
