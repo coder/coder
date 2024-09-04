@@ -52,7 +52,7 @@ func (r OrgResolver) GetRuntimeSetting(ctx context.Context, key string) (string,
 
 // NoopResolver will always fail to resolve the given key.
 // Useful in tests where you just want to look up the startup value of configs, and are not concerned with runtime config.
-type NoopResolver struct {}
+type NoopResolver struct{}
 
 func NewNoopResolver() *NoopResolver {
 	return &NoopResolver{}
