@@ -22,6 +22,7 @@ export const OrganizationProvisionersPageView: FC<
 				actions={
 					<Button
 						endIcon={<OpenInNewIcon />}
+						target="_blank"
 						href={docs("/admin/provisioners")}
 					>
 						Create a provisioner
