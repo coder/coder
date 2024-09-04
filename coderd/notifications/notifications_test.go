@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -884,8 +885,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			require.NoError(t, err, "failed to render notification body template")
 			require.NotEmpty(t, body, "body should not be empty")
 
-			bodyGoldenFile := filepath.Join("testdata", "rendered-templates", t.Name()+"-body.md.golden")
-			titleGoldenFile := filepath.Join("testdata", "rendered-templates", t.Name()+"-title.md.golden")
+			partialName := strings.Split(t.Name(), "/")[1]
+			bodyGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-body.md.golden")
+			titleGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-title.md.golden")
 
 			if *updateGoldenFiles {
 				err = os.MkdirAll(filepath.Dir(bodyGoldenFile), 0o755)
