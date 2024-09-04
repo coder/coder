@@ -239,6 +239,7 @@ func (c *configMaps) setTunnelDestination(id uuid.UUID) {
 		lc = &peerLifecycle{
 			peerID: id,
 		}
+		c.logger.Debug(context.Background(), "setting peer tunnel destination", slog.F("peer_id", id))
 		c.peers[id] = lc
 	}
 	lc.isDestination = true
