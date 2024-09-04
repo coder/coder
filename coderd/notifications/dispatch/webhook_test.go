@@ -18,7 +18,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
@@ -191,7 +190,7 @@ func TestRuntimeEndpointChange(t *testing.T) {
 	})
 
 	// Setup runtime config manager.
-	mgr := coderd.NewRuntimeConfigStore(dbmem.New())
+	mgr := runtimeconfig.NewStoreManager(dbmem.New())
 
 	// Dispatch a notification and it will fail.
 	handler := dispatch.NewWebhookHandler(vals.Notifications.Webhook, logger.With(slog.F("test", t.Name())))
