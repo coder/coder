@@ -900,7 +900,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			}
 
 			want, err := os.ReadFile(goldenFile)
-			require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
+			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
 			require.Equal(t, string(want), body, "body should be equal")
 		})
 	}
