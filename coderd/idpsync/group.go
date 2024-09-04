@@ -244,16 +244,34 @@ func (s GroupSyncSettings) ParseClaims(mergedClaims jwt.MapClaims) ([]ExpectedGr
 
 func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.Store, orgID uuid.UUID, add []ExpectedGroup) ([]uuid.UUID, error) {
 	if !s.AutoCreateMissingGroups {
-		// Remove all groups that are missing, they will not be created
+		// construct the list of groups to search by name to see if they exist.
+		var lookups []string
 		filter := make([]uuid.UUID, 0)
 		for _, expected := range add {
 			if expected.GroupID != nil {
 				filter = append(filter, *expected.GroupID)
+			} else if expected.GroupName != nil {
+				lookups = append(lookups, *expected.GroupName)
+			}
+		}
+
+		if len(lookups) > 0 {
+			newGroups, err := tx.GetGroups(ctx, database.GetGroupsParams{
+				OrganizationID: uuid.UUID{},
+				HasMemberID:    uuid.UUID{},
+				GroupNames:     lookups,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("get groups by names: %w", err)
+			}
+			for _, g := range newGroups {
+				filter = append(filter, g.Group.ID)
 			}
 		}
 
 		return filter, nil
 	}
+
 	// All expected that are missing IDs means the group does not exist
 	// in the database. Either remove them, or create them if auto create is
 	// turned on.

@@ -8,6 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -152,9 +153,26 @@ func TestGroupSyncTable(t *testing.T) {
 				AutoCreateMissingGroups: true,
 			},
 			Groups: map[uuid.UUID]bool{},
-			ExpectedGroups: []uuid.UUID{
-				ids.ID("create-bar"),
-				ids.ID("create-baz"),
+			ExpectedGroupNames: []string{
+				"create-bar",
+				"create-baz",
+			},
+		},
+		{
+			Name: "GroupNamesNoMapping",
+			Settings: &idpsync.GroupSyncSettings{
+				GroupField:              "groups",
+				RegexFilter:             regexp.MustCompile(".*"),
+				AutoCreateMissingGroups: false,
+			},
+			GroupNames: map[string]bool{
+				"foo":  false,
+				"bar":  false,
+				"goob": true,
+			},
+			ExpectedGroupNames: []string{
+				"foo",
+				"bar",
 			},
 		},
 		{
@@ -219,10 +237,12 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 	org := dbgen.Organization(t, db, database.Organization{
 		ID: def.OrgID,
 	})
+	_, err := db.InsertAllUsersGroup(context.Background(), org.ID)
+	require.NoError(t, err, "Everyone group for an org")
 
 	manager := runtimeconfig.NewStoreManager(db)
 	orgResolver := manager.Scoped(org.ID.String())
-	err := s.Group.SetRuntimeValue(context.Background(), orgResolver, def.Settings)
+	err = s.Group.SetRuntimeValue(context.Background(), orgResolver, def.Settings)
 	require.NoError(t, err)
 
 	if !def.NotMember {
@@ -243,47 +263,76 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 			})
 		}
 	}
+	for groupName, in := range def.GroupNames {
+		group := dbgen.Group(t, db, database.Group{
+			Name:           groupName,
+			OrganizationID: org.ID,
+		})
+		if in {
+			dbgen.GroupMember(t, db, database.GroupMemberTable{
+				UserID:  user.ID,
+				GroupID: group.ID,
+			})
+		}
+	}
 }
 
 type orgSetupDefinition struct {
 	Name  string
 	OrgID uuid.UUID
 	// True if the user is a member of the group
-	Groups    map[uuid.UUID]bool
-	NotMember bool
+	Groups     map[uuid.UUID]bool
+	GroupNames map[string]bool
+	NotMember  bool
 
-	Settings       *idpsync.GroupSyncSettings
-	ExpectedGroups []uuid.UUID
+	Settings           *idpsync.GroupSyncSettings
+	ExpectedGroups     []uuid.UUID
+	ExpectedGroupNames []string
 }
 
 func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
 	t.Helper()
 
-	t.Run(o.Name+"-Assert", func(t *testing.T) {
-		ctx := context.Background()
+	ctx := context.Background()
 
-		members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
-			OrganizationID: orgID,
-			UserID:         user.ID,
-		})
-		require.NoError(t, err)
-		if o.NotMember {
-			require.Len(t, members, 0, "should not be a member")
-		} else {
-			require.Len(t, members, 1, "should be a member")
-		}
+	members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: orgID,
+		UserID:         user.ID,
+	})
+	require.NoError(t, err)
+	if o.NotMember {
+		require.Len(t, members, 0, "should not be a member")
+	} else {
+		require.Len(t, members, 1, "should be a member")
+	}
 
-		userGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
-			OrganizationID: orgID,
-			HasMemberID:    user.ID,
+	userGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
+		OrganizationID: orgID,
+		HasMemberID:    user.ID,
+	})
+	require.NoError(t, err)
+	if o.ExpectedGroups == nil {
+		o.ExpectedGroups = make([]uuid.UUID, 0)
+	}
+	if len(o.ExpectedGroupNames) > 0 && len(o.ExpectedGroups) > 0 {
+		t.Fatal("ExpectedGroups and ExpectedGroupNames are mutually exclusive")
+	}
+
+	// Everyone groups mess up our asserts
+	userGroups = slices.DeleteFunc(userGroups, func(row database.GetGroupsRow) bool {
+		return row.Group.ID == row.Group.OrganizationID
+	})
+
+	if len(o.ExpectedGroupNames) > 0 {
+		found := db2sdk.List(userGroups, func(g database.GetGroupsRow) string {
+			return g.Group.Name
 		})
-		require.NoError(t, err)
-		if o.ExpectedGroups == nil {
-			o.ExpectedGroups = make([]uuid.UUID, 0)
-		}
+		require.ElementsMatch(t, o.ExpectedGroupNames, found, "user groups by name")
+	} else {
+		// Check by ID, recommended
 		found := db2sdk.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
 			return g.Group.ID
 		})
 		require.ElementsMatch(t, o.ExpectedGroups, found, "user groups")
-	})
+	}
 }
