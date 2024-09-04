@@ -195,7 +195,7 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 	...divProps
 }) => {
 	const theme = useTheme();
-	const color = value ? theme.roles.active.outline : theme.roles.danger.outline;
+	const color = value ? theme.roles.success.outline : theme.roles.error.outline;
 
 	return (
 		<Pill
