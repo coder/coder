@@ -5,11 +5,16 @@ import type { FC, HTMLAttributes } from "react";
 interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
 	fullscreen?: boolean;
 	size?: number;
+	/**
+	 * A label for the loader. This is used for accessibility purposes.
+	 */
+	label?: string;
 }
 
 export const Loader: FC<LoaderProps> = ({
 	fullscreen,
 	size = 26,
+	label = "Loading...",
 	...attrs
 }) => {
 	return (
@@ -18,7 +23,7 @@ export const Loader: FC<LoaderProps> = ({
 			data-testid="loader"
 			{...attrs}
 		>
-			<Spinner aria-label="Loading..." size={size} />
+			<Spinner aria-label={label} size={size} />
 		</div>
 	);
 };
