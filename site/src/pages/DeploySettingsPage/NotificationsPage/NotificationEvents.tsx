@@ -39,9 +39,12 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	templatesByGroup,
 	deploymentValues,
 }) => {
+	const hasWebhookNotifications = Object.values(templatesByGroup).flat().some(t => t.method === "webhook")
+	const hasEmailNotifications = Object.values(templatesByGroup).flat().some(t => t.method === "smtp")
+
 	return (
 		<Stack spacing={4}>
-			{availableMethods.includes("smtp") &&
+			{hasWebhookNotifications &&
 				deploymentValues.notifications?.webhook.endpoint === "" && (
 					<Alert
 						severity="warning"
@@ -63,7 +66,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 					</Alert>
 				)}
 
-			{availableMethods.includes("smtp") &&
+			{hasEmailNotifications &&
 				deploymentValues.notifications?.email.smarthost === "" && (
 					<Alert
 						severity="warning"

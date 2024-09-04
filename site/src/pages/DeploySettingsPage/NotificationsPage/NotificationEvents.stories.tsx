@@ -4,10 +4,18 @@ import { API } from "api/api";
 import type { DeploymentValues } from "api/typesGenerated";
 import { baseMeta } from "./storybookUtils";
 import { NotificationEvents } from "./NotificationEvents";
+import { selectTemplatesByGroup } from "api/queries/notifications";
+import { MockNotificationTemplates } from "testHelpers/entities";
 
 const meta: Meta<typeof NotificationEvents> = {
 	title: "pages/DeploymentSettings/NotificationsPage/NotificationEvents",
 	component: NotificationEvents,
+	args: {
+		defaultMethod: "smtp",
+		availableMethods: ["smtp", "webhook"],
+		templatesByGroup: selectTemplatesByGroup(MockNotificationTemplates),
+		deploymentValues: baseMeta.parameters.deploymentValues
+	},
 	...baseMeta,
 };
 
@@ -16,7 +24,7 @@ export default meta;
 type Story = StoryObj<typeof NotificationEvents>;
 
 export const NoEmailSmarthost: Story = {
-	parameters: {
+	args: {
 		deploymentValues: {
 			notifications: {
 				webhook: {
@@ -31,7 +39,7 @@ export const NoEmailSmarthost: Story = {
 };
 
 export const NoWebhookEndpoint: Story = {
-	parameters: {
+	args: {
 		deploymentValues: {
 			notifications: {
 				webhook: {
