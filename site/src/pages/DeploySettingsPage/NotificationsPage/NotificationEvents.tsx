@@ -9,8 +9,8 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import {
-	updateNotificationTemplateMethod,
 	type selectTemplatesByGroup,
+	updateNotificationTemplateMethod,
 } from "api/queries/notifications";
 import type { DeploymentValues } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -39,8 +39,12 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	templatesByGroup,
 	deploymentValues,
 }) => {
-	const hasWebhookNotifications = Object.values(templatesByGroup).flat().some(t => t.method === "webhook")
-	const hasEmailNotifications = Object.values(templatesByGroup).flat().some(t => t.method === "smtp")
+	const hasWebhookNotifications = Object.values(templatesByGroup)
+		.flat()
+		.some((t) => t.method === "webhook");
+	const hasEmailNotifications = Object.values(templatesByGroup)
+		.flat()
+		.some((t) => t.method === "smtp");
 
 	return (
 		<Stack spacing={4}>

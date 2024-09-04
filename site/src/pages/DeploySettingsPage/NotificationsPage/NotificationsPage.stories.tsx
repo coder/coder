@@ -1,9 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "@storybook/test";
+import {
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+} from "api/queries/notifications";
+import {
+	MockNotificationMethodsResponse,
+	MockNotificationTemplates,
+} from "testHelpers/entities";
 import { NotificationsPage } from "./NotificationsPage";
 import { baseMeta } from "./storybookUtils";
-import { notificationDispatchMethodsKey, systemNotificationTemplatesKey } from "api/queries/notifications";
-import { MockNotificationMethodsResponse, MockNotificationTemplates } from "testHelpers/entities";
 
 const meta: Meta<typeof NotificationsPage> = {
 	title: "pages/DeploymentSettings/NotificationsPage",
@@ -26,8 +32,8 @@ export const LoadingTemplates: Story = {
 				key: notificationDispatchMethodsKey,
 				data: MockNotificationMethodsResponse,
 			},
-		]
-	}
+		],
+	},
 };
 
 export const LoadingDispatchMethods: Story = {
@@ -38,8 +44,8 @@ export const LoadingDispatchMethods: Story = {
 				key: notificationDispatchMethodsKey,
 				data: undefined,
 			},
-		]
-	}
+		],
+	},
 };
 
 export const Events: Story = {};

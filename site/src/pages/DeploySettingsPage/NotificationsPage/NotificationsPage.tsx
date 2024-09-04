@@ -6,9 +6,7 @@ import {
 } from "api/queries/notifications";
 import { Loader } from "components/Loader/Loader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import {
-	castNotificationMethod,
-} from "modules/notifications/utils";
+import { castNotificationMethod } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -85,7 +83,6 @@ export const NotificationsPage: FC = () => {
 		</>
 	);
 };
-
 
 export default NotificationsPage;
 

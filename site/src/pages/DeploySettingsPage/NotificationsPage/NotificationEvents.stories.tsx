@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { spyOn, userEvent, within } from "@storybook/test";
 import { API } from "api/api";
-import type { DeploymentValues } from "api/typesGenerated";
-import { baseMeta } from "./storybookUtils";
-import { NotificationEvents } from "./NotificationEvents";
 import { selectTemplatesByGroup } from "api/queries/notifications";
+import type { DeploymentValues } from "api/typesGenerated";
 import { MockNotificationTemplates } from "testHelpers/entities";
+import { NotificationEvents } from "./NotificationEvents";
+import { baseMeta } from "./storybookUtils";
 
 const meta: Meta<typeof NotificationEvents> = {
 	title: "pages/DeploymentSettings/NotificationsPage/NotificationEvents",
@@ -14,7 +14,7 @@ const meta: Meta<typeof NotificationEvents> = {
 		defaultMethod: "smtp",
 		availableMethods: ["smtp", "webhook"],
 		templatesByGroup: selectTemplatesByGroup(MockNotificationTemplates),
-		deploymentValues: baseMeta.parameters.deploymentValues
+		deploymentValues: baseMeta.parameters.deploymentValues,
 	},
 	...baseMeta,
 };
@@ -60,7 +60,7 @@ export const Toggle: Story = {
 		const canvas = within(canvasElement);
 		const option = await canvas.findByText("Workspace Marked as Dormant");
 		const li = option.closest("li");
-		if(!li) {
+		if (!li) {
 			throw new Error("Could not find li");
 		}
 		const toggleButton = within(li).getByRole("button", {
@@ -69,4 +69,3 @@ export const Toggle: Story = {
 		await user.click(toggleButton);
 	},
 };
-
