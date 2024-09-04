@@ -44,6 +44,13 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			if username == "" {
 				username, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Username:",
+					Validate: func(username string) error {
+						err = codersdk.NameValid(username)
+						if err != nil {
+							return xerrors.Errorf("username %q is invalid: %w", username, err)
+						}
+						return nil
+					},
 				})
 				if err != nil {
 					return err
@@ -144,7 +151,16 @@ Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!
 			Flag:          "username",
 			FlagShorthand: "u",
 			Description:   "Specifies a username for the new user.",
-			Value:         serpent.StringOf(&username),
+			Value: serpent.Validate(serpent.StringOf(&username), func(_username *serpent.String) error {
+				username := _username.String()
+				if username != "" {
+					err := codersdk.NameValid(username)
+					if err != nil {
+						return xerrors.Errorf("username %q is invalid: %w", username, err)
+					}
+				}
+				return nil
+			}),
 		},
 		{
 			Flag:          "full-name",
