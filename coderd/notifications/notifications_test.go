@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -12,8 +13,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -45,6 +49,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// updateGoldenFiles is a flag that can be set to update golden files.
+var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
@@ -927,6 +934,24 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			body, err := render.GoTemplate(bodyTmpl, tc.payload, defaultHelpers())
 			require.NoError(t, err, "failed to render notification body template")
 			require.NotEmpty(t, body, "body should not be empty")
+
+			partialName := strings.Join(strings.Split(t.Name(), "/")[1:], "_")
+			goldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-body.md.golden")
+
+			if *updateGoldenFiles {
+				err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+				require.NoError(t, err, "want no error creating golden file directory")
+				f, err := os.Create(goldenFile)
+				require.NoError(t, err, "want no error creating golden file")
+				defer f.Close()
+				_, err = f.WriteString(body)
+				require.NoError(t, err, "want no error writing golden file")
+				return
+			}
+
+			want, err := os.ReadFile(goldenFile)
+			require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
+			require.Equal(t, string(want), body, "body should be equal")
 		})
 	}
 }
