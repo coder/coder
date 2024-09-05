@@ -391,6 +391,7 @@
 		}
 	],
 	"application_name": "string",
+	"docs_url": "string",
 	"logo_url": "string",
 	"service_banner": {
 		"background_color": "string",
@@ -413,6 +414,7 @@
 | ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `docs_url`             | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 | `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |

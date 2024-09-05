@@ -43,11 +43,12 @@ Specifies the wildcard hostname to use for workspace applications in the form "\
 
 ### --docs-url
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Type        | <code>url</code>                |
-| Environment | <code>$CODER_DOCS_URL</code>    |
-| YAML        | <code>networking.docsURL</code> |
+|             |                                     |
+| ----------- | ----------------------------------- |
+| Type        | <code>url</code>                    |
+| Environment | <code>$CODER_DOCS_URL</code>        |
+| YAML        | <code>networking.docsURL</code>     |
+| Default     | <code>https://coder.com/docs</code> |
 
 Specifies the custom docs URL.
 

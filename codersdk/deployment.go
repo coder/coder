@@ -776,6 +776,42 @@ func DefaultCacheDir() string {
 	return filepath.Join(defaultCacheDir, "coder")
 }
 
+func DefaultSupportLinks(docsURL string) []LinkConfig {
+	version := buildinfo.Version()
+	buildInfo := fmt.Sprintf("Version: [`%s`](%s)", version, buildinfo.ExternalURL())
+
+	return []LinkConfig{
+		{
+			Name:   "Documentation",
+			Target: docsURL,
+			Icon:   "docs",
+		},
+		{
+			Name:   "Report a bug",
+			Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=" + buildInfo,
+			Icon:   "bug",
+		},
+		{
+			Name:   "Join the Coder Discord",
+			Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
+			Icon:   "chat",
+		},
+		{
+			Name:   "Star the Repo",
+			Target: "https://github.com/coder/coder",
+			Icon:   "star",
+		},
+	}
+}
+
+func DefaultDocsURL() string {
+	version := strings.Split(buildinfo.Version(), "-")[0]
+	if version == "v0.0.0" {
+		return "https://coder.com/docs"
+	}
+	return "https://coder.com/docs/@" + version
+}
+
 // DeploymentConfig contains both the deployment values and how they're set.
 type DeploymentConfig struct {
 	Values  *DeploymentValues `json:"config,omitempty"`
@@ -994,6 +1030,7 @@ when required by your organization's security policy.`,
 			Name:        "Docs URL",
 			Description: "Specifies the custom docs URL.",
 			Value:       &c.DocsURL,
+			Default:     DefaultDocsURL(),
 			Flag:        "docs-url",
 			Env:         "CODER_DOCS_URL",
 			Group:       &deploymentGroupNetworking,
@@ -2737,6 +2774,7 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 type AppearanceConfig struct {
 	ApplicationName string `json:"application_name"`
 	LogoURL         string `json:"logo_url"`
+	DocsURL         string `json:"docs_url"`
 	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`

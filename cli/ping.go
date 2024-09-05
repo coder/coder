@@ -26,9 +26,10 @@ import (
 
 func (r *RootCmd) ping() *serpent.Command {
 	var (
-		pingNum     int64
-		pingTimeout time.Duration
-		pingWait    time.Duration
+		pingNum          int64
+		pingTimeout      time.Duration
+		pingWait         time.Duration
+		appearanceConfig codersdk.AppearanceConfig
 	)
 
 	client := new(codersdk.Client)
@@ -39,6 +40,7 @@ func (r *RootCmd) ping() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
+			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -67,8 +69,8 @@ func (r *RootCmd) ping() *serpent.Command {
 			if !r.disableNetworkTelemetry {
 				opts.EnableTelemetry = true
 			}
-			client := workspacesdk.New(client)
-			conn, err := client.DialAgent(ctx, workspaceAgent.ID, opts)
+			wsClient := workspacesdk.New(client)
+			conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
 				return err
 			}
@@ -155,10 +157,11 @@ func (r *RootCmd) ping() *serpent.Command {
 
 			ni := conn.GetNetInfo()
 			connDiags := cliui.ConnDiags{
-				PingP2P:       didP2p,
-				DisableDirect: r.disableDirect,
-				LocalNetInfo:  ni,
-				Verbose:       r.verbose,
+				PingP2P:            didP2p,
+				DisableDirect:      r.disableDirect,
+				LocalNetInfo:       ni,
+				Verbose:            r.verbose,
+				TroubleshootingURL: appearanceConfig.DocsURL + "/networking/troubleshooting",
 			}
 
 			awsRanges, err := cliutil.FetchAWSIPRanges(diagCtx, cliutil.AWSIPRangesURL)
@@ -168,7 +171,7 @@ func (r *RootCmd) ping() *serpent.Command {
 
 			connDiags.ClientIPIsAWS = isAWSIP(awsRanges, ni)
 
-			connInfo, err := client.AgentConnectionInfoGeneric(diagCtx)
+			connInfo, err := wsClient.AgentConnectionInfoGeneric(diagCtx)
 			if err != nil || connInfo.DERPMap == nil {
 				return xerrors.Errorf("Failed to retrieve connection info from server: %w\n", err)
 			}

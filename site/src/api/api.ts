@@ -1801,6 +1801,7 @@ class ApiMethods {
 			if (isAxiosError(ex) && ex.response?.status === 404) {
 				return {
 					application_name: "",
+					docs_url: "",
 					logo_url: "",
 					announcement_banners: [],
 					service_banner: {
