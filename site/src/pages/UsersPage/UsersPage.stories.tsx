@@ -15,6 +15,7 @@ import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { deploymentConfigQueryKey } from "api/queries/deployment";
 import { spyOn, userEvent, within } from "@storybook/test";
 import { API } from "api/api";
+import type { User } from "api/typesGenerated";
 
 const parameters = {
 	queries: [
@@ -85,9 +86,14 @@ export const SuspendUserSuccess: Story = {
 		if (!userRow) {
 			throw new Error("No user row found");
 		}
-		spyOn(API, "suspendUser").mockResolvedValue({
-			...MockUsers[0],
-			status: "suspended",
+
+		// Return the updated user in the suspended response and ensure the users
+		// query will return updated data.
+		const updatedUser: User = { ...MockUsers[0], status: "suspended" };
+		spyOn(API, "suspendUser").mockResolvedValue(updatedUser);
+		spyOn(API, "getUsers").mockResolvedValue({
+			users: replaceUser(MockUsers, 0, updatedUser),
+			count: 60,
 		});
 
 		await user.click(within(userRow).getByLabelText("More options"));
@@ -109,7 +115,7 @@ export const SuspendUserError: Story = {
 		if (!userRow) {
 			throw new Error("No user row found");
 		}
-		spyOn(API, "suspendUser").mockRejectedValue({});
+		spyOn(API, "suspendUser").mockRejectedValue(undefined);
 
 		await user.click(within(userRow).getByLabelText("More options"));
 		const suspendButton = await within(userRow).findByText("Suspend", {
@@ -130,7 +136,15 @@ export const DeleteUserSuccess: Story = {
 		if (!userRow) {
 			throw new Error("No user row found");
 		}
+
+		// The delete user operation does not return a value. However, we need to
+		// ensure that the updated list of users, excluding the deleted one, is
+		// returned when the users query is refetched.
 		spyOn(API, "deleteUser").mockResolvedValue();
+		spyOn(API, "getUsers").mockResolvedValue({
+			users: MockUsers.slice(1),
+			count: 59,
+		});
 
 		await user.click(within(userRow).getByLabelText("More options"));
 		const deleteButton = await within(userRow).findByText("Delete", {
@@ -178,8 +192,9 @@ export const ActivateUserSuccess: Story = {
 			{
 				key: usersKey({ limit: 25, offset: 0, q: "" }),
 				data: {
-					users: MockUsers.map((u, i) => {
-						return i === 0 ? { ...u, status: "suspended" } : u;
+					users: replaceUser(MockUsers, 0, {
+						...MockUsers[0],
+						status: "suspended",
 					}),
 					count: 60,
 				},
@@ -192,9 +207,14 @@ export const ActivateUserSuccess: Story = {
 		if (!userRow) {
 			throw new Error("No user row found");
 		}
-		spyOn(API, "activateUser").mockResolvedValue({
-			...MockUsers[0],
-			status: "active",
+
+		// Return the updated user in the activate response and ensure the users
+		// query will return updated data.
+		const updatedUser: User = { ...MockUsers[0], status: "active" };
+		spyOn(API, "activateUser").mockResolvedValue(updatedUser);
+		spyOn(API, "getUsers").mockResolvedValue({
+			users: replaceUser(MockUsers, 0, updatedUser),
+			count: 60,
 		});
 
 		await user.click(within(userRow).getByLabelText("More options"));
@@ -205,7 +225,7 @@ export const ActivateUserSuccess: Story = {
 
 		const dialog = await within(document.body).findByRole("dialog");
 		await user.click(within(dialog).getByRole("button", { name: "Activate" }));
-		await within(document.body).findByText("Successfully activate the user.");
+		await within(document.body).findByText("Successfully activated the user.");
 	},
 };
 
@@ -308,18 +328,13 @@ export const UpdateUserRoleSuccess: Story = {
 			{
 				key: usersKey({ limit: 25, offset: 0, q: "" }),
 				data: {
-					users: MockUsers.map((u, i) => {
-						return i === 0
-							? {
-									...u,
-									roles: [
-										{
-											name: "owner",
-											display_name: "Owner",
-										},
-									],
-								}
-							: u;
+					users: replaceUser(MockUsers, 0, {
+						...MockUsers[0],
+						roles: [
+							{ name: "owner", display_name: "Owner" },
+							// We will update the user role to include auditor
+							{ name: "auditor", display_name: "Auditor" },
+						],
 					}),
 					count: 60,
 				},
@@ -332,13 +347,21 @@ export const UpdateUserRoleSuccess: Story = {
 		if (!userRow) {
 			throw new Error("No user row found");
 		}
-		spyOn(API, "updateUserRoles").mockResolvedValue({
+
+		// Return the updated user in the update roles response and ensure the users
+		// query will return updated data.
+		const updatedUser: User = {
 			...MockUsers[0],
 			roles: [
 				{ name: "owner", display_name: "Owner" },
 				// We will update the user role to include auditor
 				{ name: "auditor", display_name: "Auditor" },
 			],
+		};
+		spyOn(API, "updateUserRoles").mockResolvedValue(updatedUser);
+		spyOn(API, "getUsers").mockResolvedValue({
+			users: replaceUser(MockUsers, 0, updatedUser),
+			count: 60,
 		});
 
 		await user.click(within(userRow).getByLabelText("Edit user roles"));
@@ -368,3 +391,7 @@ export const UpdateUserRoleError: Story = {
 		await within(document.body).findByText("Error updating the user roles.");
 	},
 };
+
+function replaceUser(users: User[], index: number, user: User) {
+	return users.map((u, i) => (i === index ? user : u));
+}
