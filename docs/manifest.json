@@ -301,6 +301,11 @@
 									"title": "Web IDEs and Coder Apps",
 									"description": "Add and configure Web IDEs in your templates as coder apps",
 									"path": "./admin/templates/extending-templates/web-ides.md"
+								},
+								{
+									"title": "Docker in Workspaces",
+									"description": "Use Docker in your workspaces",
+									"path": "./admin/templates/extending-templates/docker-in-workspaces.md"
 								}
 							]
 						},
