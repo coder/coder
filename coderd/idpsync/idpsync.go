@@ -27,7 +27,7 @@ type IDPSync interface {
 	OrganizationSyncEnabled() bool
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
-	ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HTTPError)
+	ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (OrganizationParams, *HTTPError)
 	// SyncOrganizations assigns and removed users from organizations based on the
 	// provided params.
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
@@ -35,7 +35,7 @@ type IDPSync interface {
 	GroupSyncEnabled() bool
 	// ParseGroupClaims takes claims from an OIDC provider, and returns the params
 	// for group syncing. Most of the logic happens in SyncGroups.
-	ParseGroupClaims(ctx context.Context, _ jwt.MapClaims) (GroupParams, *HTTPError)
+	ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (GroupParams, *HTTPError)
 
 	// SyncGroups assigns and removes users from groups based on the provided params.
 	SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error

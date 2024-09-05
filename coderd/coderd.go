@@ -181,7 +181,6 @@ type Options struct {
 	NetworkTelemetryBatchFrequency time.Duration
 	NetworkTelemetryBatchMaxSize   int
 	SwaggerEndpoint                bool
-	SetUserGroups                  func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error
 	SetUserSiteRoles               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
@@ -373,16 +372,6 @@ func New(options *Options) *API {
 	}
 	if options.TracerProvider == nil {
 		options.TracerProvider = trace.NewNoopTracerProvider()
-	}
-	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, orgGroupNames map[uuid.UUID][]string, createMissingGroups bool) error {
-			logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
-				slog.F("user_id", userID),
-				slog.F("groups", orgGroupNames),
-				slog.F("create_missing_groups", createMissingGroups),
-			)
-			return nil
-		}
 	}
 	if options.SetUserSiteRoles == nil {
 		options.SetUserSiteRoles = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, roles []string) error {

@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -76,7 +77,12 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			orgResolver := s.Manager.OrganizationResolver(tx, orgID)
 			settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
 			if err != nil {
-				return xerrors.Errorf("resolve group sync settings: %w", err)
+				if xerrors.Is(err, runtimeconfig.EntryNotFound) {
+					// Default to not being configured
+					settings = &GroupSyncSettings{}
+				} else {
+					return xerrors.Errorf("resolve group sync settings: %w", err)
+				}
 			}
 
 			// Legacy deployment settings will override empty settings.
