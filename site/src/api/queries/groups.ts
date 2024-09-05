@@ -8,7 +8,7 @@ import type { QueryClient, UseQueryOptions } from "react-query";
 
 type GroupSortOrder = "asc" | "desc";
 
-const groupsQueryKey = ["groups"];
+export const groupsQueryKey = ["groups"];
 
 export const groups = () => {
 	return {
@@ -49,27 +49,29 @@ export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
 export function groupsByUserId() {
 	return {
 		...groups(),
-		select: (allGroups) => {
-			// Sorting here means that nothing has to be sorted for the individual
-			// user arrays later
-			const sorted = sortGroupsByName(allGroups, "asc");
-			const userIdMapper = new Map<string, Group[]>();
+		select: selectGroupsByUserId,
+	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
+}
 
-			for (const group of sorted) {
-				for (const user of group.members) {
-					let groupsForUser = userIdMapper.get(user.id);
-					if (groupsForUser === undefined) {
-						groupsForUser = [];
-						userIdMapper.set(user.id, groupsForUser);
-					}
+export function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
+	// Sorting here means that nothing has to be sorted for the individual
+	// user arrays later
+	const sorted = sortGroupsByName(groups, "asc");
+	const userIdMapper = new Map<string, Group[]>();
 
-					groupsForUser.push(group);
-				}
+	for (const group of sorted) {
+		for (const user of group.members) {
+			let groupsForUser = userIdMapper.get(user.id);
+			if (groupsForUser === undefined) {
+				groupsForUser = [];
+				userIdMapper.set(user.id, groupsForUser);
 			}
 
-			return userIdMapper as GroupsByUserId;
-		},
-	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
+			groupsForUser.push(group);
+		}
+	}
+
+	return userIdMapper as GroupsByUserId;
 }
 
 export function groupsForUser(userId: string) {
