@@ -175,7 +175,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													)}
 												</Stack>
 											}
-											subtitle={`user:${workspace.owner_name}`}
+											subtitle={
+												<div>
+													<span css={{ ...visuallyHidden }}>User: </span>
+													{workspace.owner_name}
+												</div>
+											}
 											avatar={
 												<ExternalAvatar
 													src={workspace.template_icon}
@@ -192,28 +197,19 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								</TableCell>
 
 								<TableCell>
-									<span css={{ display: "block" }}>
-										{getDisplayWorkspaceTemplateName(workspace)}
-									</span>
+									<div>{getDisplayWorkspaceTemplateName(workspace)}</div>
 
 									{dashboard.showOrganizations && (
-										<span
+										<div
 											css={{
-												display: "block",
 												fontSize: 13,
 												color: theme.palette.text.secondary,
 												lineHeight: 1.5,
 											}}
 										>
-											{/*
-												Only using shorthand version of "organizations" for aesthetics,
-												but because screen readers don't care about aesthetics, we can
-												always display the full text to them
-											*/}
-											org
-											<span css={{ ...visuallyHidden }}>anization</span>:
+											<span css={{ ...visuallyHidden }}>Organization: </span>
 											{workspace.organization_name}
-										</span>
+										</div>
 									)}
 								</TableCell>
 
