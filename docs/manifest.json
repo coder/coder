@@ -1,5 +1,7 @@
 {
-	"versions": ["main"],
+	"versions": [
+		"main"
+	],
 	"routes": [
 		{
 			"title": "About",
@@ -142,7 +144,7 @@
 			"icon_path": "./images/icons/wrench.svg",
 			"children": [
 				{
-					"title": "Control Plane Configuration",
+					"title": "Control Plane",
 					"description": "Configure user access to your control plane.",
 					"path": "./admin/configure.md"
 				},
