@@ -3,6 +3,7 @@ import {
 	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
 } from "testHelpers/entities";
 import {
 	renderWithAuth,
@@ -103,6 +104,63 @@ describe.each<{
 			expect(screen.getByText(DisplayAppNameMap.vscode)).toBeVisible();
 		} else {
 			expect(screen.queryByText(DisplayAppNameMap.vscode)).toBeNull();
+		}
+	});
+});
+
+describe.each<{
+	props: Partial<AgentRowProps>;
+}>([
+	{
+		props: {
+			agent: {
+				...MockWorkspaceAgent,
+				apps: [
+					{
+						...MockWorkspaceApp,
+						hidden: false,
+					},
+				],
+			},
+		},
+	},
+	{
+		props: {
+			agent: {
+				...MockWorkspaceAgent,
+				apps: [
+					{
+						...MockWorkspaceApp,
+						hidden: true,
+					},
+				],
+			},
+		},
+	},
+])("hidden hides App button", ({ props: testProps }) => {
+	const props: AgentRowProps = {
+		agent: MockWorkspaceAgent,
+		workspace: MockWorkspace,
+		template: MockTemplate,
+		showApps: true,
+		serverVersion: "",
+		serverAPIVersion: "",
+		onUpdateAgent: () => {
+			throw new Error("Function not implemented.");
+		},
+		...testProps,
+	};
+
+	test(`apps: ${props.agent.apps}`, async () => {
+		renderWithAuth(<AgentRow {...props} />);
+		await waitForLoaderToBeRemoved();
+
+		for (const app of props.agent.apps) {
+			if (app.hidden) {
+				expect(screen.queryByText(app.display_name)).toBeNull();
+			} else {
+				expect(screen.getByText(app.display_name)).toBeVisible();
+			}
 		}
 	});
 });
