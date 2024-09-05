@@ -197,6 +197,26 @@ func TestGroupSyncTable(t *testing.T) {
 			Settings: nil,
 			Groups:   map[uuid.UUID]bool{},
 		},
+		{
+			Name: "LegacyMapping",
+			Settings: &idpsync.GroupSyncSettings{
+				GroupField:  "groups",
+				RegexFilter: regexp.MustCompile("^legacy"),
+				LegacyGroupNameMapping: map[string]string{
+					"create-bar": "legacy-bar",
+					"foo":        "legacy-foo",
+				},
+				AutoCreateMissingGroups: true,
+			},
+			Groups: map[uuid.UUID]bool{},
+			GroupNames: map[string]bool{
+				"legacy-foo": false,
+			},
+			ExpectedGroupNames: []string{
+				"legacy-bar",
+				"legacy-foo",
+			},
+		},
 	}
 
 	for _, tc := range testCases {

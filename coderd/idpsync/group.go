@@ -206,7 +206,7 @@ type GroupSyncSettings struct {
 	// group IDs are used to account for group renames.
 	// For legacy configurations, this config option has to remain.
 	// Deprecated: Use GroupMapping instead.
-	LegacyGroupNameMapping map[string]string
+	LegacyGroupNameMapping map[string]string `json:"legacy_group_name_mapping,omitempty"`
 }
 
 func (s *GroupSyncSettings) Set(v string) error {
@@ -251,6 +251,12 @@ func (s GroupSyncSettings) ParseClaims(mergedClaims jwt.MapClaims) ([]ExpectedGr
 
 	groups := make([]ExpectedGroup, 0)
 	for _, group := range parsedGroups {
+		// Legacy group mappings happen before the regex filter.
+		mappedGroupName, ok := s.LegacyGroupNameMapping[group]
+		if ok {
+			group = mappedGroupName
+		}
+
 		// Only allow through groups that pass the regex
 		if s.RegexFilter != nil {
 			if !s.RegexFilter.MatchString(group) {
@@ -267,11 +273,6 @@ func (s GroupSyncSettings) ParseClaims(mergedClaims jwt.MapClaims) ([]ExpectedGr
 			continue
 		}
 
-		mappedGroupName, ok := s.LegacyGroupNameMapping[group]
-		if ok {
-			groups = append(groups, ExpectedGroup{GroupName: &mappedGroupName})
-			continue
-		}
 		group := group
 		groups = append(groups, ExpectedGroup{GroupName: &group})
 	}
@@ -332,6 +333,23 @@ func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.
 	if err != nil {
 		return nil, xerrors.Errorf("insert missing groups: %w", err)
 	}
+
+	if len(missingGroups) != len(createdMissingGroups) {
+		// This is unfortunate, but if legacy params are used, then some existing groups
+		// can come as params. So we need to fetch them
+		allGroups, err := tx.GetGroups(ctx, database.GetGroupsParams{
+			OrganizationID: orgID,
+			GroupNames:     missingGroups,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("get groups by names: %w", err)
+		}
+
+		createdMissingGroups = db2sdk.List(allGroups, func(g database.GetGroupsRow) database.Group {
+			return g.Group
+		})
+	}
+
 	for _, created := range createdMissingGroups {
 		addIDs = append(addIDs, created.ID)
 	}
