@@ -50,48 +50,30 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 						 updates to these fields in a form */}
 						<fieldset css={styles.box}>
 							<legend css={styles.legend}>Groups</legend>
-							<Stack direction={"row"} alignItems={"center"} spacing={3}>
-								<h4>Sync Field</h4>
-								<p css={styles.secondary}>
-									{groups_field || (
-										<div
-											css={{
-												display: "flex",
-												alignItems: "center",
-												gap: "8px",
-												height: 0,
-											}}
-										>
-											<StatusIndicator color="error" />
-											<p>disabled</p>
-										</div>
-									)}
-								</p>
-								<h4>Regex Filter</h4>
-								<p css={styles.secondary}>{group_regex_filter || "none"}</p>
-								<h4>Auto Create</h4>
-								<p css={styles.secondary}>{group_auto_create?.toString()}</p>
+							<Stack direction={"row"} alignItems={"center"} spacing={8}>
+								<IdpField
+									name={"Sync Field"}
+									fieldText={groups_field}
+									showStatusIndicator
+								/>
+								<IdpField
+									name={"Regex Filter"}
+									fieldText={group_regex_filter}
+								/>
+								<IdpField
+									name={"Auto Create"}
+									fieldText={group_auto_create?.toString()}
+								/>
 							</Stack>
 						</fieldset>
 						<fieldset css={styles.box}>
 							<legend css={styles.legend}>Roles</legend>
 							<Stack direction={"row"} alignItems={"center"} spacing={3}>
-								<h4>Sync Field</h4>
-								<p css={styles.secondary}>
-									{user_role_field || (
-										<div
-											css={{
-												display: "flex",
-												alignItems: "center",
-												gap: "8px",
-												height: 0,
-											}}
-										>
-											<StatusIndicator color="error" />
-											<p>disabled</p>
-										</div>
-									)}
-								</p>
+								<IdpField
+									name={"Sync Field"}
+									fieldText={user_role_field}
+									showStatusIndicator
+								/>
 							</Stack>
 						</fieldset>
 					</Stack>
@@ -140,6 +122,40 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 				</Cond>
 			</ChooseOne>
 		</>
+	);
+};
+
+interface IdpFieldProps {
+	name: string;
+	fieldText: string | undefined;
+	showStatusIndicator?: boolean;
+}
+
+const IdpField: FC<IdpFieldProps> = ({
+	name,
+	fieldText,
+	showStatusIndicator = false,
+}) => {
+	return (
+		<span css={{ display: "flex", alignItems: "center", gap: "16px" }}>
+			<h4>{name}</h4>
+			<p css={styles.secondary}>
+				{fieldText ||
+					(showStatusIndicator && (
+						<div
+							css={{
+								display: "flex",
+								alignItems: "center",
+								gap: "8px",
+								height: 0,
+							}}
+						>
+							<StatusIndicator color="error" />
+							<p>disabled</p>
+						</div>
+					))}
+			</p>
+		</span>
 	);
 };
 
