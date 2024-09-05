@@ -65,3 +65,4 @@ coder login https://coder.example.com
 ## Next up
 
 - [Create your first template](../templates/tutorial.md)
+- [Expose your control plane to other users](../admin/configure.md)
