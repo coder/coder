@@ -7291,6 +7291,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
 		Health:               arg.Health,
+		Hidden:               arg.Hidden,
 		DisplayOrder:         arg.DisplayOrder,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)

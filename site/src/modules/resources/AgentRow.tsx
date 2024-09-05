@@ -75,7 +75,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 
 	// Apps visibility
-	const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0;
+	const visibleApps = agent.apps.filter(app => !app.hidden);
+	const hasAppsToDisplay = !hideVSCodeDesktopButton || visibleApps.length > 0;
 	const shouldDisplayApps =
 		showApps &&
 		((agent.status === "connected" && hasAppsToDisplay) ||
@@ -228,7 +229,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 										displayApps={agent.display_apps}
 									/>
 								)}
-								{agent.apps.map((app) => (
+								{visibleApps.map((app) => (
 									<AppLink
 										key={app.slug}
 										app={app}
