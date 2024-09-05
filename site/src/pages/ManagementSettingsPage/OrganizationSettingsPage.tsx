@@ -4,6 +4,7 @@ import {
 	updateOrganization,
 } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -42,9 +43,13 @@ const OrganizationSettingsPage: FC = () => {
 		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
 
-	const permissions = permissionsQuery.data;
-	if (!organizations || !permissions) {
+	if (permissionsQuery.isLoading) {
 		return <Loader />;
+	}
+
+	const permissions = permissionsQuery.data;
+	if (permissionsQuery.error || !permissions) {
+		return <ErrorAlert error={permissionsQuery.error} />;
 	}
 
 	// Redirect /organizations => /organizations/default-org, or if they cannot edit

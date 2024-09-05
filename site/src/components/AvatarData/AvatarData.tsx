@@ -54,7 +54,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 						css={{
 							fontSize: 13,
 							color: theme.palette.text.secondary,
-							lineHeight: "150%",
+							lineHeight: 1.5,
 							maxWidth: 540,
 						}}
 					>
