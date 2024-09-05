@@ -12,18 +12,37 @@ type Story = StoryObj<typeof OrganizationProvisionersPageView>;
 
 export const Provisioners: Story = {
 	args: {
-		provisioners: [
-			MockProvisioner,
-			MockUserProvisioner,
-			{
-				...MockProvisioner,
-				tags: {
-					...MockProvisioner.tags,
-					都市: "ユタ",
-					きっぷ: "yes",
-					ちいさい: "no",
+		provisioners: {
+			builtin: [MockProvisioner, MockProvisioner],
+			psk: [
+				MockProvisioner,
+				MockUserProvisioner,
+				{
+					...MockProvisioner,
+					tags: {
+						...MockProvisioner.tags,
+						都市: "ユタ",
+						きっぷ: "yes",
+						ちいさい: "no",
+					},
 				},
-			},
-		],
+			],
+			keys: new Map([
+				[
+					"ケイラ",
+					[
+						{
+							...MockProvisioner,
+							tags: {
+								...MockProvisioner.tags,
+								都市: "ユタ",
+								きっぷ: "yes",
+								ちいさい: "no",
+							},
+						},
+					],
+				],
+			]),
+		},
 	},
 };

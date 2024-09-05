@@ -2,7 +2,7 @@ import {
 	organizationsPermissions,
 	provisionerDaemons,
 } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
+import type { Organization, ProvisionerDaemon } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
@@ -12,6 +12,39 @@ import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
+
+export interface ProvisionersByGroup {
+	builtin: ProvisionerDaemon[];
+	psk: ProvisionerDaemon[];
+	keys: Map<string, ProvisionerDaemon[]>;
+}
+
+function groupProvisioners(
+	provisioners: readonly ProvisionerDaemon[],
+): ProvisionersByGroup {
+	const groups: ProvisionersByGroup = { builtin: [], psk: [], keys: new Map() };
+	const type = "builtin";
+	const keyName = "TODO";
+
+	for (const it of provisioners) {
+		if (type === "builtin") {
+			groups.builtin.push(it);
+			continue;
+		}
+		if (type === "psk") {
+			groups.psk.push(it);
+			continue;
+		}
+
+		const keyGroup = groups.keys.get(keyName) ?? [];
+		if (!groups.keys.has(keyName)) {
+			groups.keys.set(keyName, keyGroup);
+		}
+		keyGroup.push(it);
+	}
+
+	return groups;
+}
 
 const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
@@ -54,7 +87,11 @@ const OrganizationProvisionersPage: FC = () => {
 		return <NotFoundPage />;
 	}
 
-	return <OrganizationProvisionersPageView provisioners={provisioners} />;
+	return (
+		<OrganizationProvisionersPageView
+			provisioners={groupProvisioners(provisioners)}
+		/>
+	);
 };
 
 export default OrganizationProvisionersPage;
