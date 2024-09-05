@@ -392,6 +392,11 @@
 							"title": "STUN and NAT",
 							"description": "Learn how to forward ports in Coder",
 							"path": "./admin/networking/stun.md"
+						},
+						{
+							"title": "Troubleshooting",
+							"description": "Troubleshoot networking issues in Coder",
+							"path": "./networking/troubleshooting.md"
 						}
 					]
 				},
