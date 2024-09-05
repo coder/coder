@@ -34,27 +34,33 @@
 				{
 					"title": "Coder CLI",
 					"description": "Install the standalone binary",
-					"path": "./install/cli.md"
+					"path": "./install/cli.md",
+					"icon_path": "./images/icons/terminal.svg"
 				},
 				{
 					"title": "Docker",
 					"description": "Install Coder using Docker",
-					"path": "./install/docker.md"
+					"path": "./install/docker.md",
+					"icon_path": "./images/icons/docker.svg"
+
 				},
 				{
 					"title": "Kubernetes",
 					"description": "Install Coder on Kubernetes",
-					"path": "./install/kubernetes.md"
+					"path": "./install/kubernetes.md",
+					"icon_path": "./images/icons/kubernetes.svg"
 				},
 				{
 					"title": "OpenShift",
 					"description": "Install Coder on OpenShift",
-					"path": "./install/openshift.md"
+					"path": "./install/openshift.md",
+					"icon_path": "./images/icons/openshift.svg"
 				},
 				{
 					"title": "Cloud Providers",
 					"description": "Install Coder on cloud providers",
 					"path": "./install/cloud/README.md",
+					"icon_path": "./images/icons/cloud.svg",
 					"children": [
 						{
 							"title": "AWS EC2",
@@ -76,7 +82,8 @@
 				{
 					"title": "Unofficial Install Methods",
 					"description": "Other installation methods",
-					"path": "./install/other/README.md"
+					"path": "./install/other/README.md",
+					"icon_path": "./images/icons/generic.svg"
 				}
 			]
 		},
@@ -131,7 +138,8 @@
 				{
 					"title": "Dotfiles",
 					"description": "Personalize your environment with dotfiles",
-					"path": "./user-guides/workspace-dotfiles.md"
+					"path": "./user-guides/workspace-dotfiles.md",
+					"icon_path": "./images/icons/art-pad.svg"
 				}
 			]
 		},
@@ -144,12 +152,14 @@
 				{
 					"title": "Control Plane",
 					"description": "Configure user access to your control plane.",
-					"path": "./admin/configure.md"
+					"path": "./admin/configure.md",
+					"icon_path": "./images/icons/control-plane.svg"
 				},
 				{
 					"title": "Infrastructure",
 					"description": "How to integrate Coder with your organization's compute",
 					"path": "./admin/infrastructure/README.md",
+					"icon_path": "./images/icons/container.svg",
 					"children": [
 						{
 							"title": "Architecture",
@@ -191,6 +201,7 @@
 					"title": "Users",
 					"description": "Learn how to manage and audit users",
 					"path": "./admin/users/README.md",
+					"icon_path": "./images/icons/users.svg",
 					"children": [
 						{
 							"title": "OIDC Authentication",
@@ -227,6 +238,7 @@
 					"title": "Templates",
 					"description": "Learn how to author and maintain Coder templates",
 					"path": "./admin/templates/README.md",
+					"icon_path": "./images/icons/picture.svg",
 					"children": [
 						{
 							"title": "Creating Templates",
@@ -327,7 +339,8 @@
 				{
 					"title": "Provisioners",
 					"description": "Learn how to run external provisioners with Coder",
-					"path": "./admin/provisioners.md"
+					"path": "./admin/provisioners.md",
+					"icon_path": "./images/icons/key.svg"
 				},
 				{
 					"title": "Integrations",
@@ -375,6 +388,7 @@
 					"title": "Workspaces",
 					"description": "Learn how to manage \u0026 audit workspaces",
 					"path": "./admin/workspaces/README.md",
+					"icon_path": "./images/icons/layers.svg",
 					"children": [
 						{
 							"title": "Workspace Lifecycle",
@@ -387,6 +401,7 @@
 					"title": "Networking",
 					"description": "Understand Coder's networking layer",
 					"path": "./admin/networking/README.md",
+					"icon_path": "./images/icons/networking.svg",
 					"children": [
 						{
 							"title": "Port Forwarding",
@@ -409,6 +424,7 @@
 					"title": "Monitoring",
 					"description": "Configure security policy and audit your deployment",
 					"path": "./admin/monitoring/README.md",
+					"icon_path": "./images/icons/health.svg",
 					"children": [
 						{
 							"title": "Logs",
@@ -431,6 +447,7 @@
 					"title": "Security",
 					"description": "Configure security policy and audit your deployment",
 					"path": "./admin/security/README.md",
+					"icon_path": "./images/icons/lock.svg",
 					"children": [
 						{
 							"title": "Audit Logs",
@@ -447,7 +464,14 @@
 				{
 					"title": "Automation",
 					"description": "DIfferent ways to automate Coder actions and workflows",
-					"path": "./admin/automation.md"
+					"path": "./admin/automation.md",
+					"icon_path": "./images/icons/automation.svg"
+				},
+				{
+					"title": "Notifications",
+					"description": "Configure notifications for your deployment",
+					"path": "./admin/notifications.md",
+					"icon_path": "./images/icons/notifications.svg"
 				}
 			]
 		},
