@@ -2,6 +2,7 @@ package httpmw_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -67,6 +68,33 @@ func TestOAuth2(t *testing.T) {
 		cookie := res.Result().Cookies()[1]
 		require.Equal(t, "/dashboard", cookie.Value)
 	})
+	t.Run("OnlyPathBaseRedirect", func(t *testing.T) {
+		t.Parallel()
+		// Construct a URI to a potentially malicious
+		// site and assert that we omit the host
+		// when redirecting the request.
+		uri := &url.URL{
+			Scheme:   "https",
+			Host:     "some.bad.domain.com",
+			Path:     "/sadf/asdfasdf",
+			RawQuery: "foo=hello&bar=world",
+			Fragment: "my_section",
+		}
+		expectedValue := uri.Path + "?" + uri.RawQuery + "#" + uri.Fragment
+		fmt.Println("uri: ", uri.String())
+		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape(uri.String()), nil)
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
+		location := res.Header().Get("Location")
+		if !assert.NotEmpty(t, location) {
+			return
+		}
+		require.Len(t, res.Result().Cookies(), 2)
+		cookie := res.Result().Cookies()[1]
+		require.Equal(t, expectedValue, cookie.Value)
+	})
+
 	t.Run("NoState", func(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=something", nil)
