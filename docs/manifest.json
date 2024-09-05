@@ -351,6 +351,11 @@
 					"title": "STUN and NAT",
 					"description": "Learn how Coder establishes direct connections",
 					"path": "./networking/stun.md"
+				},
+				{
+					"title": "Troubleshooting",
+					"description": "Troubleshoot networking issues in Coder",
+					"path": "./networking/troubleshooting.md"
 				}
 			]
 		},
