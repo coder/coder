@@ -86,25 +86,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawClaims, err := license.ParseRaw(addLicense.License, api.LicenseKeys)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid license",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	exp, ok := rawClaims["exp"].(float64)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid license",
-			Detail:  "exp claim missing or not parsable",
-		})
-		return
-	}
-	expTime := time.Unix(int64(exp), 0)
-
-	claims, err := license.ParseClaims(addLicense.License, api.LicenseKeys)
+	claims, err := license.ParseClaimsIgnoreNbf(addLicense.License, api.LicenseKeys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid license",
@@ -134,7 +116,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	dl, err := api.Database.InsertLicense(ctx, database.InsertLicenseParams{
 		UploadedAt: dbtime.Now(),
 		JWT:        addLicense.License,
-		Exp:        expTime,
+		Exp:        claims.ExpiresAt.Time,
 		UUID:       id,
 	})
 	if err != nil {
@@ -160,7 +142,15 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		// don't fail the HTTP request, since we did write it successfully to the database
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, rawClaims))
+	c, err := decodeClaims(dl)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to decode database response",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, convertLicense(dl, c))
 }
 
 // postRefreshEntitlements forces an `updateEntitlements` call and publishes

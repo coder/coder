@@ -28,7 +28,7 @@ describe("useAgentLogs", () => {
     expect(wsSpy).not.toHaveBeenCalled();
   });
 
-  it("should return existing logs without network calls", async () => {
+  it("should return existing logs without network calls if state is off", async () => {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(
       agentLogsKey(MockWorkspace.id, MockWorkspaceAgent.id),
@@ -39,7 +39,7 @@ describe("useAgentLogs", () => {
     const { result } = renderUseAgentLogs(queryClient, {
       workspaceId: MockWorkspace.id,
       agentId: MockWorkspaceAgent.id,
-      agentLifeCycleState: "ready",
+      agentLifeCycleState: "off",
     });
     await waitFor(() => {
       expect(result.current).toHaveLength(5);
@@ -48,12 +48,12 @@ describe("useAgentLogs", () => {
     expect(wsSpy).not.toHaveBeenCalled();
   });
 
-  it("should fetch logs when empty and should not connect to WebSocket when not starting", async () => {
+  it("should fetch logs when empty", async () => {
     const queryClient = createTestQueryClient();
     const fetchSpy = jest
       .spyOn(API, "getWorkspaceAgentLogs")
       .mockResolvedValueOnce(generateLogs(5));
-    const wsSpy = jest.spyOn(APIModule, "watchWorkspaceAgentLogs");
+    jest.spyOn(APIModule, "watchWorkspaceAgentLogs");
     const { result } = renderUseAgentLogs(queryClient, {
       workspaceId: MockWorkspace.id,
       agentId: MockWorkspaceAgent.id,
@@ -63,10 +63,9 @@ describe("useAgentLogs", () => {
       expect(result.current).toHaveLength(5);
     });
     expect(fetchSpy).toHaveBeenCalledWith(MockWorkspaceAgent.id);
-    expect(wsSpy).not.toHaveBeenCalled();
   });
 
-  it("should fetch logs and connect to websocket when agent is starting", async () => {
+  it("should fetch logs and connect to websocket", async () => {
     const queryClient = createTestQueryClient();
     const logs = generateLogs(5);
     const fetchSpy = jest

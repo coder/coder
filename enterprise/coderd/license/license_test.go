@@ -824,6 +824,23 @@ func TestLicenseEntitlements(t *testing.T) {
 				assert.True(t, entitlements.Features[codersdk.FeatureMultipleOrganizations].Enabled, "multi-org enabled for premium")
 			},
 		},
+		{
+			Name: "CurrentAndFuture",
+			Licenses: []*coderdenttest.LicenseOptions{
+				enterpriseLicense().UserLimit(100),
+				premiumLicense().UserLimit(200).FutureTerm(time.Now()),
+			},
+			Enablements: defaultEnablements,
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertEnterpriseFeatures(t, entitlements)
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				userFeature := entitlements.Features[codersdk.FeatureUserLimit]
+				assert.Equalf(t, int64(100), *userFeature.Limit, "user limit")
+				assert.Equal(t, codersdk.EntitlementNotEntitled,
+					entitlements.Features[codersdk.FeatureMultipleOrganizations].Entitlement)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

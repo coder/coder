@@ -156,7 +156,7 @@ func TestPatchGroup(t *testing.T) {
 		const displayName = "foobar"
 		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name:           "hi",
+			Name:           "ff7dcee2-e7c4-4bc4-a9e4-84870770e4c5", // GUID should fit.
 			AvatarURL:      "https://example.com",
 			QuotaAllowance: 10,
 			DisplayName:    "",
@@ -165,14 +165,14 @@ func TestPatchGroup(t *testing.T) {
 		require.Equal(t, 10, group.QuotaAllowance)
 
 		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			Name:           "bye",
+			Name:           "ddd502d2-2984-4724-b5bf-1109a4d7462d", // GUID should fit.
 			AvatarURL:      ptr.Ref("https://google.com"),
 			QuotaAllowance: ptr.Ref(20),
 			DisplayName:    ptr.Ref(displayName),
 		})
 		require.NoError(t, err)
 		require.Equal(t, displayName, group.DisplayName)
-		require.Equal(t, "bye", group.Name)
+		require.Equal(t, "ddd502d2-2984-4724-b5bf-1109a4d7462d", group.Name)
 		require.Equal(t, "https://google.com", group.AvatarURL)
 		require.Equal(t, 20, group.QuotaAllowance)
 	})
