@@ -255,10 +255,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
 	accessControlStore.Store(&acs)
 
-	// runtimeManager does not use dbauthz.
-	// TODO: It probably should, but the init code for prod happens before dbauthz
-	// is ready.
-	runtimeManager := runtimeconfig.NewStoreManager(options.Database)
+	runtimeManager := runtimeconfig.NewStoreManager()
 	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore)
 
 	// Some routes expect a deployment ID, so just make sure one exists.

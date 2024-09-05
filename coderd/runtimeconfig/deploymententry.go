@@ -45,7 +45,7 @@ func (e *DeploymentEntry[T]) StartupValue() T {
 
 // Coalesce attempts to resolve the runtime value of this field from the store via the given Manager. Should no runtime
 // value be found, the startup value will be used.
-func (e *DeploymentEntry[T]) Coalesce(ctx context.Context, r Manager) (T, error) {
+func (e *DeploymentEntry[T]) Coalesce(ctx context.Context, r Resolver) (T, error) {
 	var zero T
 
 	resolved, err := e.Resolve(ctx, r)

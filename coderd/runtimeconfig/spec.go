@@ -2,20 +2,19 @@ package runtimeconfig
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Initializer interface {
 	Initialize(name string)
 }
 
-// Manager is just a factory to produce Resolvers.
-// The reason a factory is required, is the Manager can act as a caching
-// layer for runtime settings.
+// TODO: We should probably remove the manager interface and only support
+// 1 implementation.
 type Manager interface {
-	// DeploymentResolver returns a Resolver scoped to the deployment.
 	DeploymentResolver(db Store) Resolver
-	// OrganizationResolver returns a Resolver scoped to the organization.
-	OrganizationResolver(db Store, orgID string) Resolver
+	OrganizationResolver(db Store, orgID uuid.UUID) Resolver
 }
 
 type Resolver interface {

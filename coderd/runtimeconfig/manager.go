@@ -8,10 +8,11 @@ import (
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 )
 
+// StoreManager is the shared singleton that produces resolvers for runtime configuration.
 type StoreManager struct {
 }
 
-func NewStoreManager() *StoreManager {
+func NewStoreManager() Manager {
 	return &StoreManager{}
 }
 
@@ -28,22 +29,23 @@ type cacheEntry struct {
 	lastUpdated time.Time
 }
 
+// MemoryCacheManager is an example of how a caching layer can be added to the
+// resolver from the manager.
+// TODO: Delete MemoryCacheManager and implement it properly in 'StoreManager'.
 type MemoryCacheManager struct {
-	cache   *syncmap.Map[string, cacheEntry]
-	wrapped Manager
+	cache *syncmap.Map[string, cacheEntry]
 }
 
-func NewMemoryCacheManager(wrapped Manager) *MemoryCacheManager {
+func NewMemoryCacheManager() *MemoryCacheManager {
 	return &MemoryCacheManager{
-		cache:   syncmap.New[string, cacheEntry](),
-		wrapped: wrapped,
+		cache: syncmap.New[string, cacheEntry](),
 	}
 }
 
 func (m *MemoryCacheManager) DeploymentResolver(db Store) Resolver {
-	return NewMemoryCachedResolver(m.cache, m.wrapped.DeploymentResolver(db))
+	return NewMemoryCachedResolver(m.cache, NewStoreResolver(db))
 }
 
 func (m *MemoryCacheManager) OrganizationResolver(db Store, orgID uuid.UUID) Resolver {
-	return OrganizationResolver(orgID, NewMemoryCachedResolver(m.cache, m.wrapped.DeploymentResolver(db)))
+	return OrganizationResolver(orgID, NewMemoryCachedResolver(m.cache, NewStoreResolver(db)))
 }

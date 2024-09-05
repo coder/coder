@@ -40,7 +40,7 @@ func TestEntry(t *testing.T) {
 	t.Run("zero", func(t *testing.T) {
 		t.Parallel()
 
-		mgr := runtimeconfig.NewNoopManager()
+		rlv := runtimeconfig.NewNoopResolver()
 
 		// A zero-value declaration of a runtimeconfig.Entry should behave as a zero value of the generic type.
 		// NB! A name has not been set for this entry; it is "uninitialized".
@@ -52,18 +52,19 @@ func TestEntry(t *testing.T) {
 		require.NoError(t, field.SetStartupValue("true"))
 
 		// But attempting to resolve will produce an error.
-		_, err := field.Resolve(context.Background(), mgr)
+		_, err := field.Resolve(context.Background(), rlv)
 		require.ErrorIs(t, err, runtimeconfig.ErrNameNotSet)
 		// But attempting to set the runtime value will produce an error.
 		val := serpent.BoolOf(ptr.Ref(true))
-		require.ErrorIs(t, field.SetRuntimeValue(context.Background(), mgr, val), runtimeconfig.ErrNameNotSet)
+		require.ErrorIs(t, field.SetRuntimeValue(context.Background(), rlv, val), runtimeconfig.ErrNameNotSet)
 	})
 
 	t.Run("simple", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		mgr := runtimeconfig.NewStoreManager(dbmem.New())
+		mgr := runtimeconfig.NewStoreManager()
+		db := dbmem.New()
 
 		var (
 			base     = serpent.String("system@dev.coder.com")
@@ -78,16 +79,16 @@ func TestEntry(t *testing.T) {
 		// Validate that it returns that value.
 		require.Equal(t, base.String(), field.String())
 		// Validate that there is no org-level override right now.
-		_, err := field.Resolve(ctx, mgr)
+		_, err := field.Resolve(ctx, mgr.DeploymentResolver(db))
 		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
 		// Coalesce returns the deployment-wide value.
-		val, err := field.Coalesce(ctx, mgr)
+		val, err := field.Coalesce(ctx, mgr.DeploymentResolver(db))
 		require.NoError(t, err)
 		require.Equal(t, base.String(), val.String())
 		// Set an org-level override.
-		require.NoError(t, field.SetRuntimeValue(ctx, mgr, &override))
+		require.NoError(t, field.SetRuntimeValue(ctx, mgr.DeploymentResolver(db), &override))
 		// Coalesce now returns the org-level value.
-		val, err = field.Coalesce(ctx, mgr)
+		val, err = field.Coalesce(ctx, mgr.DeploymentResolver(db))
 		require.NoError(t, err)
 		require.Equal(t, override.String(), val.String())
 	})
@@ -96,7 +97,8 @@ func TestEntry(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		mgr := runtimeconfig.NewStoreManager(dbmem.New())
+		mgr := runtimeconfig.NewStoreManager()
+		db := dbmem.New()
 
 		var (
 			base = serpent.Struct[map[string]string]{
@@ -117,16 +119,16 @@ func TestEntry(t *testing.T) {
 		// Check that default has been set.
 		require.Equal(t, base.String(), field.StartupValue().String())
 		// Validate that there is no org-level override right now.
-		_, err := field.Resolve(ctx, mgr)
+		_, err := field.Resolve(ctx, mgr.DeploymentResolver(db))
 		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
 		// Coalesce returns the deployment-wide value.
-		val, err := field.Coalesce(ctx, mgr)
+		val, err := field.Coalesce(ctx, mgr.DeploymentResolver(db))
 		require.NoError(t, err)
 		require.Equal(t, base.Value, val.Value)
 		// Set an org-level override.
-		require.NoError(t, field.SetRuntimeValue(ctx, mgr, &override))
+		require.NoError(t, field.SetRuntimeValue(ctx, mgr.DeploymentResolver(db), &override))
 		// Coalesce now returns the org-level value.
-		structVal, err := field.Resolve(ctx, mgr)
+		structVal, err := field.Resolve(ctx, mgr.DeploymentResolver(db))
 		require.NoError(t, err)
 		require.Equal(t, override.Value, structVal.Value)
 	})
