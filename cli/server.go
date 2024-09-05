@@ -821,12 +821,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return err
 			}
 
-			// TODO: Throw a caching layer infront of the RuntimeConfig to prevent
-			// excessive database queries.
-			// Note: This happens before dbauthz, which is really unfortunate.
-			// dbauthz is configured in `Coderd.New()`, but we need the manager
-			// at this level for notifications. We might have to move some init
-			// code around.
 			options.RuntimeConfig = runtimeconfig.NewStoreManager()
 
 			// This should be output before the logs start streaming.
