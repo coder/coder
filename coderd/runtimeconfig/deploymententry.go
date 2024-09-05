@@ -9,8 +9,10 @@ import (
 )
 
 // Ensure serpent values satisfy the ConfigValue interface for easier usage.
-var _ pflag.Value = SerpentEntry(nil)
-var _ pflag.Value = &DeploymentEntry[SerpentEntry]{}
+var (
+	_ pflag.Value = SerpentEntry(nil)
+	_ pflag.Value = &DeploymentEntry[SerpentEntry]{}
+)
 
 type SerpentEntry interface {
 	EntryValue

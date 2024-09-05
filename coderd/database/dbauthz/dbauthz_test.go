@@ -2696,6 +2696,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			AgentID:     uuid.New(),
 		}).Asserts(tpl, policy.ActionCreate)
 	}))
+	s.Run("DeleteRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("GetRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpsertRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("test", "value").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {

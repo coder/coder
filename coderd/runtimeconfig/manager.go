@@ -9,18 +9,17 @@ import (
 )
 
 // StoreManager is the shared singleton that produces resolvers for runtime configuration.
-type StoreManager struct {
-}
+type StoreManager struct{}
 
 func NewStoreManager() Manager {
 	return &StoreManager{}
 }
 
-func (m *StoreManager) DeploymentResolver(db Store) Resolver {
+func (*StoreManager) DeploymentResolver(db Store) Resolver {
 	return NewStoreResolver(db)
 }
 
-func (m *StoreManager) OrganizationResolver(db Store, orgID uuid.UUID) Resolver {
+func (*StoreManager) OrganizationResolver(db Store, orgID uuid.UUID) Resolver {
 	return OrganizationResolver(orgID, NewStoreResolver(db))
 }
 
