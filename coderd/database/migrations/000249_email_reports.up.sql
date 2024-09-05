@@ -6,10 +6,10 @@ Template **{{.Labels.template_display_name}}** has failed to build {{.Data.faile
 
 **Report:**
 {{range $version := .Data.template_versions}}
-  **{{$version.template_version_name}}** failed {{$version.failed_count}} time{{if gt $version.failed_count 1}}s{{end}}:
-  {{range $build := $version.failed_builds}}
-    * [{{$build.workspace_owner_username}} / {{$build.workspace_name}} / #{{$build.build_number}}]({{base_url}}/@{{$build.workspace_owner_username}}/{{$build.workspace_name}}/builds/{{$build.build_number}})
-  {{- end}}
+**{{$version.template_version_name}}** failed {{$version.failed_count}} time{{if gt $version.failed_count 1}}s{{end}}:
+{{range $build := $version.failed_builds}}
+* [{{$build.workspace_owner_username}} / {{$build.workspace_name}} / #{{$build.build_number}}]({{base_url}}/@{{$build.workspace_owner_username}}/{{$build.workspace_name}}/builds/{{$build.build_number}})
+{{- end}}
 {{end}}
 We recommend reviewing these issues to ensure future builds are successful.',
         'Template Events', '[
