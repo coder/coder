@@ -15,7 +15,6 @@ import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { deploymentConfigQueryKey } from "api/queries/deployment";
 import { spyOn, userEvent, within } from "@storybook/test";
 import { API } from "api/api";
-import { SlimRole } from "api/typesGenerated";
 
 const parameters = {
 	queries: [
