@@ -55,7 +55,6 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 			isLoading={menus.user.isInitializing}
 			filter={filter}
 			error={error}
-			breakpoint={menus.organization && "lg"}
 			options={
 				<>
 					<ResourceTypeMenu width={width} menu={menus.resourceType} />

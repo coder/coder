@@ -139,7 +139,13 @@ type FilterProps = {
 	error?: unknown;
 	options?: ReactNode;
 	presets: PresetFilter[];
-	breakpoint?: Breakpoint;
+
+	/**
+	 * The CSS media query breakpoint that defines when the UI will try
+	 * displaying all options on one row, regardless of the number of options
+	 * present
+	 */
+	singleRowBreakpoint?: Breakpoint;
 };
 
 export const Filter: FC<FilterProps> = ({
@@ -152,7 +158,7 @@ export const Filter: FC<FilterProps> = ({
 	learnMoreLabel2,
 	learnMoreLink2,
 	presets,
-	breakpoint = "md",
+	singleRowBreakpoint = "lg",
 }) => {
 	const theme = useTheme();
 	// Storing local copy of the filter query so that it can be updated more
@@ -183,10 +189,10 @@ export const Filter: FC<FilterProps> = ({
 				display: "flex",
 				gap: 8,
 				marginBottom: 16,
-				flexWrap: "nowrap",
+				flexWrap: "wrap",
 
-				[theme.breakpoints.down(breakpoint)]: {
-					flexWrap: "wrap",
+				[theme.breakpoints.up(singleRowBreakpoint)]: {
+					flexWrap: "nowrap",
 				},
 			}}
 		>
