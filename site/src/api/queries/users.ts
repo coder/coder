@@ -79,6 +79,7 @@ export const createFirstUser = () => {
 };
 
 export const suspendUser = (queryClient: QueryClient) => {
+	console.log(API.suspendUser);
 	return {
 		mutationFn: API.suspendUser,
 		onSuccess: async () => {
