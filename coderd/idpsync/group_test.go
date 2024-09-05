@@ -342,6 +342,158 @@ func TestGroupSyncTable(t *testing.T) {
 	})
 }
 
+// TestApplyGroupDifference is mainly testing the database functions
+func TestApplyGroupDifference(t *testing.T) {
+	t.Parallel()
+
+	ids := coderdtest.NewDeterministicUUIDGenerator()
+	testCase := []struct {
+		Name   string
+		Before map[uuid.UUID]bool
+		Add    []uuid.UUID
+		Remove []uuid.UUID
+		Expect []uuid.UUID
+	}{
+		{
+			Name: "Empty",
+		},
+		{
+			Name: "AddFromNone",
+			Before: map[uuid.UUID]bool{
+				ids.ID("g1"): false,
+			},
+			Add: []uuid.UUID{
+				ids.ID("g1"),
+			},
+			Expect: []uuid.UUID{
+				ids.ID("g1"),
+			},
+		},
+		{
+			Name: "AddSome",
+			Before: map[uuid.UUID]bool{
+				ids.ID("g1"): true,
+				ids.ID("g2"): false,
+				ids.ID("g3"): false,
+				uuid.New():   false,
+			},
+			Add: []uuid.UUID{
+				ids.ID("g2"),
+				ids.ID("g3"),
+			},
+			Expect: []uuid.UUID{
+				ids.ID("g1"),
+				ids.ID("g2"),
+				ids.ID("g3"),
+			},
+		},
+		{
+			Name: "RemoveAll",
+			Before: map[uuid.UUID]bool{
+				uuid.New():   false,
+				ids.ID("g2"): true,
+				ids.ID("g3"): true,
+			},
+			Remove: []uuid.UUID{
+				ids.ID("g2"),
+				ids.ID("g3"),
+			},
+			Expect: []uuid.UUID{},
+		},
+		{
+			Name: "Mixed",
+			Before: map[uuid.UUID]bool{
+				// adds
+				ids.ID("a1"): true,
+				ids.ID("a2"): true,
+				ids.ID("a3"): false,
+				ids.ID("a4"): false,
+				// removes
+				ids.ID("r1"): true,
+				ids.ID("r2"): true,
+				ids.ID("r3"): false,
+				ids.ID("r4"): false,
+				// stable
+				ids.ID("s1"): true,
+				ids.ID("s2"): true,
+				// noise
+				uuid.New(): false,
+				uuid.New(): false,
+			},
+			Add: []uuid.UUID{
+				ids.ID("a1"), ids.ID("a2"),
+				ids.ID("a3"), ids.ID("a4"),
+				// Double up to try and confuse
+				ids.ID("a1"),
+				ids.ID("a4"),
+			},
+			Remove: []uuid.UUID{
+				ids.ID("r1"), ids.ID("r2"),
+				ids.ID("r3"), ids.ID("r4"),
+				// Double up to try and confuse
+				ids.ID("r1"),
+				ids.ID("r4"),
+			},
+			Expect: []uuid.UUID{
+				ids.ID("a1"), ids.ID("a2"), ids.ID("a3"), ids.ID("a4"),
+				ids.ID("s1"), ids.ID("s2"),
+			},
+		},
+	}
+
+	for _, tc := range testCase {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			mgr := runtimeconfig.NewStoreManager()
+			db, _ := dbtestutil.NewDB(t)
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			//nolint:gocritic // testing
+			ctx = dbauthz.AsSystemRestricted(ctx)
+
+			org := dbgen.Organization(t, db, database.Organization{})
+			_, err := db.InsertAllUsersGroup(ctx, org.ID)
+			require.NoError(t, err)
+
+			user := dbgen.User(t, db, database.User{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+
+			for gid, in := range tc.Before {
+				group := dbgen.Group(t, db, database.Group{
+					ID:             gid,
+					OrganizationID: org.ID,
+				})
+				if in {
+					_ = dbgen.GroupMember(t, db, database.GroupMemberTable{
+						UserID:  user.ID,
+						GroupID: group.ID,
+					})
+				}
+			}
+
+			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), mgr, idpsync.FromDeploymentValues(coderdtest.DeploymentValues(t)))
+			err = s.ApplyGroupDifference(context.Background(), db, user, tc.Add, tc.Remove)
+			require.NoError(t, err)
+
+			userGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
+				HasMemberID: user.ID,
+			})
+			require.NoError(t, err)
+
+			// assert
+			found := db2sdk.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
+				return g.Group.ID
+			})
+
+			// Add everyone group
+			require.ElementsMatch(t, append(tc.Expect, org.ID), found)
+		})
+	}
+}
+
 func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, user database.User, orgID uuid.UUID, def orgSetupDefinition) {
 	t.Helper()
 

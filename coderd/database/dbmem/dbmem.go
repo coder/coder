@@ -2702,18 +2702,18 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	groupIDs := make(map[uuid.UUID]struct{})
+	userGroupIDs := make(map[uuid.UUID]struct{})
 	if arg.HasMemberID != uuid.Nil {
 		for _, member := range q.groupMembers {
 			if member.UserID == arg.HasMemberID {
-				groupIDs[member.GroupID] = struct{}{}
+				userGroupIDs[member.GroupID] = struct{}{}
 			}
 		}
 
 		// Handle the everyone group
 		for _, orgMember := range q.organizationMembers {
 			if orgMember.UserID == arg.HasMemberID {
-				groupIDs[orgMember.OrganizationID] = struct{}{}
+				userGroupIDs[orgMember.OrganizationID] = struct{}{}
 			}
 		}
 	}
@@ -2725,7 +2725,7 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 			continue
 		}
 
-		_, ok := groupIDs[group.ID]
+		_, ok := userGroupIDs[group.ID]
 		if arg.HasMemberID != uuid.Nil && !ok {
 			continue
 		}

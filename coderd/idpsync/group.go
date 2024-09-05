@@ -168,7 +168,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			groupIDsToAdd = append(groupIDsToAdd, assignGroups...)
 		}
 
-		err = s.applyGroupDifference(ctx, tx, user, groupIDsToAdd, groupIDsToRemove)
+		err = s.ApplyGroupDifference(ctx, tx, user, groupIDsToAdd, groupIDsToRemove)
 		if err != nil {
 			return xerrors.Errorf("apply group difference: %w", err)
 		}
@@ -183,7 +183,8 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 	return nil
 }
 
-func (s AGPLIDPSync) applyGroupDifference(ctx context.Context, tx database.Store, user database.User, add []uuid.UUID, removeIDs []uuid.UUID) error {
+// ApplyGroupDifference will add and remove the user from the specified groups.
+func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store, user database.User, add []uuid.UUID, removeIDs []uuid.UUID) error {
 	// Always do group removal before group add. This way if there is an error,
 	// we error on the underprivileged side.
 	if len(removeIDs) > 0 {
