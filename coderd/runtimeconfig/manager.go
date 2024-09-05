@@ -31,6 +31,7 @@ type cacheEntry struct {
 // MemoryCacheManager is an example of how a caching layer can be added to the
 // resolver from the manager.
 // TODO: Delete MemoryCacheManager and implement it properly in 'StoreManager'.
+// TODO: Handle pubsub-based cache invalidation.
 type MemoryCacheManager struct {
 	cache *syncmap.Map[string, cacheEntry]
 }
