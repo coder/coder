@@ -57,19 +57,9 @@ WHERE
 -- name: RemoveUserFromGroups :many
 DELETE FROM
 	group_members
-	USING groups
 WHERE
-	group_members.group_id = groups.id AND
 	user_id = @user_id AND
-	(
-		CASE WHEN array_length(@group_names :: name_organization_pair[], 1) > 0  THEN
-			 -- Using 'coalesce' to avoid troubles with null literals being an empty string.
-			 (groups.name, coalesce(groups.organization_id, '00000000-0000-0000-0000-000000000000' ::uuid)) = ANY (@group_names::name_organization_pair[])
-		 ELSE false
-		END
-		OR
-		group_id = ANY (@group_ids :: uuid[])
-	)
+	group_id = ANY(@group_ids :: uuid [])
 RETURNING group_id;
 
 -- name: InsertGroupMember :exec

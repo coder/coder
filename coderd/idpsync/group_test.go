@@ -205,6 +205,7 @@ func TestGroupSyncTable(t *testing.T) {
 				LegacyGroupNameMapping: map[string]string{
 					"create-bar": "legacy-bar",
 					"foo":        "legacy-foo",
+					"bop":        "legacy-bop",
 				},
 				AutoCreateMissingGroups: true,
 			},
@@ -214,6 +215,7 @@ func TestGroupSyncTable(t *testing.T) {
 			GroupNames: map[string]bool{
 				"legacy-foo": false,
 				"extra":      true,
+				"legacy-bop": true,
 			},
 			ExpectedGroupNames: []string{
 				"legacy-bar",

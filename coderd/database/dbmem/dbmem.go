@@ -2730,6 +2730,10 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 			continue
 		}
 
+		if len(arg.GroupNames) > 0 && !slices.Contains(arg.GroupNames, group.Name) {
+			continue
+		}
+
 		orgDetails, ok := orgDetailsCache[group.ID]
 		if !ok {
 			for _, org := range q.organizations {
@@ -7661,18 +7665,12 @@ func (q *FakeQuerier) RemoveUserFromGroups(_ context.Context, arg database.Remov
 			return false
 		}
 
-		matchesByID := slices.Contains(arg.GroupIds, groupMember.GroupID)
-		matchesByName := slices.ContainsFunc(arg.GroupNames, func(name database.NameOrganizationPair) bool {
-			_, err := q.getGroupByNameNoLock(name)
-			return err == nil
-		})
-
-		if matchesByName || matchesByID {
-			removed = append(removed, groupMember.GroupID)
-			return true
+		if !slices.Contains(arg.GroupIds, groupMember.GroupID) {
+			return false
 		}
 
-		return false
+		removed = append(removed, groupMember.GroupID)
+		return true
 	})
 
 	return removed, nil
