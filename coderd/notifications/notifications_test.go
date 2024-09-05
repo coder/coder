@@ -848,7 +848,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceBuildSummary",
 			id:   notifications.TemplateWorkspaceBuildSummary,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"template_name":         "bobby-first-template",
 					"template_display_name": "Bobby First Template",
