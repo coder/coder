@@ -9209,7 +9209,7 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 	return d, nil
 }
 
-func (q *FakeQuerier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
+func (q *FakeQuerier) UpsertRuntimeConfig(_ context.Context, arg database.UpsertRuntimeConfigParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
