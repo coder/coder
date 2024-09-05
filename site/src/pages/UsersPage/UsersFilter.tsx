@@ -2,12 +2,7 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import {
-	Filter,
-	MenuSkeleton,
-	SearchFieldSkeleton,
-	type useFilter,
-} from "components/Filter/Filter";
+import { type useFilter, Filter, MenuSkeleton } from "components/Filter/Filter";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,

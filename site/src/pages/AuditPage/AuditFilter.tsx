@@ -6,12 +6,7 @@ import {
 	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
-import {
-	Filter,
-	MenuSkeleton,
-	SearchFieldSkeleton,
-	type useFilter,
-} from "components/Filter/Filter";
+import { type useFilter, Filter, MenuSkeleton } from "components/Filter/Filter";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,

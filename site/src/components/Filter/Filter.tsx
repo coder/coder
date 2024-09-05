@@ -125,10 +125,6 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 	);
 };
 
-export const SearchFieldSkeleton: FC = () => {
-	return <BaseSkeleton width="100%" />;
-};
-
 export const MenuSkeleton: FC = () => {
 	return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
 };
@@ -196,7 +192,7 @@ export const Filter: FC<FilterProps> = ({
 		>
 			{isLoading ? (
 				<>
-					<SearchFieldSkeleton />
+					<BaseSkeleton width="100%" />
 					{optionsSkeleton}
 				</>
 			) : (
