@@ -41,6 +41,9 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		return nil
 	}
 
+	// nolint:gocritic // all syncing is done as a system user
+	ctx = dbauthz.AsSystemRestricted(ctx)
+
 	// Only care about the default org for deployment settings if the
 	// legacy deployment settings exist.
 	defaultOrgID := uuid.Nil
@@ -52,9 +55,6 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		}
 		defaultOrgID = defaultOrganization.ID
 	}
-
-	// nolint:gocritic // all syncing is done as a system user
-	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	err := db.InTx(func(tx database.Store) error {
 		userGroups, err := tx.GetGroups(ctx, database.GetGroupsParams{
@@ -86,12 +86,12 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			}
 
 			// Legacy deployment settings will override empty settings.
-			if orgID == defaultOrgID && settings.GroupField == "" {
+			if orgID == defaultOrgID && settings.Field == "" {
 				settings = &GroupSyncSettings{
-					GroupField:              s.Legacy.GroupField,
-					LegacyGroupNameMapping:  s.Legacy.GroupMapping,
-					RegexFilter:             s.Legacy.GroupFilter,
-					AutoCreateMissingGroups: s.Legacy.CreateMissingGroups,
+					Field:             s.Legacy.GroupField,
+					LegacyNameMapping: s.Legacy.GroupMapping,
+					RegexFilter:       s.Legacy.GroupFilter,
+					AutoCreateMissing: s.Legacy.CreateMissingGroups,
 				}
 			}
 			orgSettings[orgID] = *settings
@@ -102,7 +102,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		groupIDsToRemove := make([]uuid.UUID, 0)
 		// For each org, determine which groups the user should land in
 		for orgID, settings := range orgSettings {
-			if settings.GroupField == "" {
+			if settings.Field == "" {
 				// No group sync enabled for this org, so do nothing.
 				continue
 			}
@@ -231,17 +231,25 @@ func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store
 }
 
 type GroupSyncSettings struct {
-	GroupField string `json:"field"`
-	// GroupMapping maps from an OIDC group --> Coder group ID
-	GroupMapping            map[string][]uuid.UUID `json:"mapping"`
-	RegexFilter             *regexp.Regexp         `json:"regex_filter"`
-	AutoCreateMissingGroups bool                   `json:"auto_create_missing_groups"`
-	// LegacyGroupNameMapping is deprecated. It remaps an IDP group name to
+	// Field selects the claim field to be used as the created user's
+	// groups. If the group field is the empty string, then no group updates
+	// will ever come from the OIDC provider.
+	Field string `json:"field"`
+	// Mapping maps from an OIDC group --> Coder group ID
+	Mapping map[string][]uuid.UUID `json:"mapping"`
+	// RegexFilter is a regular expression that filters the groups returned by
+	// the OIDC provider. Any group not matched by this regex will be ignored.
+	// If the group filter is nil, then no group filtering will occur.
+	RegexFilter *regexp.Regexp `json:"regex_filter"`
+	// AutoCreateMissing controls whether groups returned by the OIDC provider
+	// are automatically created in Coder if they are missing.
+	AutoCreateMissing bool `json:"auto_create_missing_groups"`
+	// LegacyNameMapping is deprecated. It remaps an IDP group name to
 	// a Coder group name. Since configuration is now done at runtime,
 	// group IDs are used to account for group renames.
 	// For legacy configurations, this config option has to remain.
-	// Deprecated: Use GroupMapping instead.
-	LegacyGroupNameMapping map[string]string `json:"legacy_group_name_mapping,omitempty"`
+	// Deprecated: Use Mapping instead.
+	LegacyNameMapping map[string]string `json:"legacy_group_name_mapping,omitempty"`
 }
 
 func (s *GroupSyncSettings) Set(v string) error {
@@ -275,7 +283,7 @@ type ExpectedGroup struct {
 // We have to keep names because group sync supports syncing groups by name if
 // the external IDP group name matches the Coder one.
 func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClaims) ([]ExpectedGroup, error) {
-	groupsRaw, ok := mergedClaims[s.GroupField]
+	groupsRaw, ok := mergedClaims[s.Field]
 	if !ok {
 		return []ExpectedGroup{}, nil
 	}
@@ -290,7 +298,7 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 		group := group
 
 		// Legacy group mappings happen before the regex filter.
-		mappedGroupName, ok := s.LegacyGroupNameMapping[group]
+		mappedGroupName, ok := s.LegacyNameMapping[group]
 		if ok {
 			group = mappedGroupName
 		}
@@ -302,7 +310,7 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 			}
 		}
 
-		mappedGroupIDs, ok := s.GroupMapping[group]
+		mappedGroupIDs, ok := s.Mapping[group]
 		if ok {
 			for _, gid := range mappedGroupIDs {
 				gid := gid
@@ -338,7 +346,7 @@ func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.
 		}
 	}
 
-	if s.AutoCreateMissingGroups && len(missingGroups) > 0 {
+	if s.AutoCreateMissing && len(missingGroups) > 0 {
 		// Insert any missing groups. If the groups already exist, this is a noop.
 		_, err := tx.InsertMissingGroups(ctx, database.InsertMissingGroupsParams{
 			OrganizationID: orgID,

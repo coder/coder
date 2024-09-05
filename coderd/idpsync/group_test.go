@@ -81,8 +81,8 @@ func TestGroupSyncTable(t *testing.T) {
 		{
 			Name: "SwitchGroups",
 			Settings: &idpsync.GroupSyncSettings{
-				GroupField: "groups",
-				GroupMapping: map[string][]uuid.UUID{
+				Field: "groups",
+				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("sg-foo"), ids.ID("sg-foo-2")},
 					"bar": {ids.ID("sg-bar")},
 					"baz": {ids.ID("sg-baz")},
@@ -107,10 +107,10 @@ func TestGroupSyncTable(t *testing.T) {
 		{
 			Name: "StayInGroup",
 			Settings: &idpsync.GroupSyncSettings{
-				GroupField: "groups",
+				Field: "groups",
 				// Only match foo, so bar does not map
 				RegexFilter: regexp.MustCompile("^foo$"),
-				GroupMapping: map[string][]uuid.UUID{
+				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("gg-foo"), uuid.New()},
 					"bar": {ids.ID("gg-bar")},
 					"baz": {ids.ID("gg-baz")},
@@ -127,8 +127,8 @@ func TestGroupSyncTable(t *testing.T) {
 		{
 			Name: "UserJoinsGroups",
 			Settings: &idpsync.GroupSyncSettings{
-				GroupField: "groups",
-				GroupMapping: map[string][]uuid.UUID{
+				Field: "groups",
+				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("ng-foo"), uuid.New()},
 					"bar": {ids.ID("ng-bar"), ids.ID("ng-bar-2")},
 					"baz": {ids.ID("ng-baz")},
@@ -150,9 +150,9 @@ func TestGroupSyncTable(t *testing.T) {
 		{
 			Name: "CreateGroups",
 			Settings: &idpsync.GroupSyncSettings{
-				GroupField:              "groups",
-				RegexFilter:             regexp.MustCompile("^create"),
-				AutoCreateMissingGroups: true,
+				Field:             "groups",
+				RegexFilter:       regexp.MustCompile("^create"),
+				AutoCreateMissing: true,
 			},
 			Groups: map[uuid.UUID]bool{},
 			ExpectedGroupNames: []string{
@@ -163,9 +163,9 @@ func TestGroupSyncTable(t *testing.T) {
 		{
 			Name: "GroupNamesNoMapping",
 			Settings: &idpsync.GroupSyncSettings{
-				GroupField:              "groups",
-				RegexFilter:             regexp.MustCompile(".*"),
-				AutoCreateMissingGroups: false,
+				Field:             "groups",
+				RegexFilter:       regexp.MustCompile(".*"),
+				AutoCreateMissing: false,
 			},
 			GroupNames: map[string]bool{
 				"foo":  false,
@@ -180,13 +180,13 @@ func TestGroupSyncTable(t *testing.T) {
 		{
 			Name: "NoUser",
 			Settings: &idpsync.GroupSyncSettings{
-				GroupField: "groups",
-				GroupMapping: map[string][]uuid.UUID{
+				Field: "groups",
+				Mapping: map[string][]uuid.UUID{
 					// Extra ID that does not map to a group
 					"foo": {ids.ID("ow-foo"), uuid.New()},
 				},
-				RegexFilter:             nil,
-				AutoCreateMissingGroups: false,
+				RegexFilter:       nil,
+				AutoCreateMissing: false,
 			},
 			NotMember: true,
 			Groups: map[uuid.UUID]bool{
@@ -202,14 +202,14 @@ func TestGroupSyncTable(t *testing.T) {
 		{
 			Name: "LegacyMapping",
 			Settings: &idpsync.GroupSyncSettings{
-				GroupField:  "groups",
+				Field:       "groups",
 				RegexFilter: regexp.MustCompile("^legacy"),
-				LegacyGroupNameMapping: map[string]string{
+				LegacyNameMapping: map[string]string{
 					"create-bar": "legacy-bar",
 					"foo":        "legacy-foo",
 					"bop":        "legacy-bop",
 				},
-				AutoCreateMissingGroups: true,
+				AutoCreateMissing: true,
 			},
 			Groups: map[uuid.UUID]bool{
 				ids.ID("lg-foo"): true,

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -659,7 +658,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Name:         normName,
 		DebugContext: OauthDebugContext{},
 		GroupSync: idpsync.GroupParams{
-			SyncEnabled:    false,
+			SyncEnabled: false,
 		},
 		OrganizationSync: idpsync.OrganizationParams{
 			SyncEnabled:    false,
@@ -743,27 +742,6 @@ type OIDCConfig struct {
 	// support the userinfo endpoint, or if the userinfo endpoint causes
 	// undesirable behavior.
 	IgnoreUserInfo bool
-
-	// TODO: Move all idp fields into the IDPSync struct
-	// GroupField selects the claim field to be used as the created user's
-	// groups. If the group field is the empty string, then no group updates
-	// will ever come from the OIDC provider.
-	GroupField string
-	// CreateMissingGroups controls whether groups returned by the OIDC provider
-	// are automatically created in Coder if they are missing.
-	CreateMissingGroups bool
-	// GroupFilter is a regular expression that filters the groups returned by
-	// the OIDC provider. Any group not matched by this regex will be ignored.
-	// If the group filter is nil, then no group filtering will occur.
-	GroupFilter *regexp.Regexp
-	// GroupAllowList is a list of groups that are allowed to log in.
-	// If the list length is 0, then the allow list will not be applied and
-	// this feature is disabled.
-	GroupAllowList map[string]bool
-	// GroupMapping controls how groups returned by the OIDC provider get mapped
-	// to groups within Coder.
-	// map[oidcGroupName]coderGroupName
-	GroupMapping map[string]string
 	// UserRoleField selects the claim field to be used as the created user's
 	// roles. If the field is the empty string, then no role updates
 	// will ever come from the OIDC provider.
