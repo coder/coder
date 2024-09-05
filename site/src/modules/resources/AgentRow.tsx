@@ -75,7 +75,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	);
 
 	// Apps visibility
-	const visibleApps = agent.apps.filter(app => !app.hidden);
+	const visibleApps = agent.apps.filter((app) => !app.hidden);
 	const hasAppsToDisplay = !hideVSCodeDesktopButton || visibleApps.length > 0;
 	const shouldDisplayApps =
 		showApps &&
