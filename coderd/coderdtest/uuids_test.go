@@ -26,7 +26,7 @@ func ExampleNewDeterministicUUIDGenerator() {
 
 	for _, tc := range testCases {
 		tc := tc
-		var _ = tc
+		_ = tc
 		// Do the test with CreateUsers as the setup, and the expected IDs
 		// will match.
 	}

@@ -3109,7 +3109,11 @@ func (q *querier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID)
 }
 
 func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
-	panic("not implemented")
+	// This is a system function to clear user groups in group sync.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.RemoveUserFromGroups(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

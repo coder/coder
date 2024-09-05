@@ -7015,7 +7015,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
-func (q *FakeQuerier) InsertUserGroupsByID(ctx context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+func (q *FakeQuerier) InsertUserGroupsByID(_ context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -7637,7 +7637,7 @@ func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUI
 	return nil
 }
 
-func (q *FakeQuerier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
+func (q *FakeQuerier) RemoveUserFromGroups(_ context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err

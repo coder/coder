@@ -100,7 +100,6 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 			CreateMissingGroups: dv.OIDC.GroupAutoCreate.Value(),
 		},
 	}
-
 }
 
 type SyncSettings struct {

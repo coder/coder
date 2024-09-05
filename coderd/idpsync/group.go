@@ -54,7 +54,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 	// nolint:gocritic // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
-	db.InTx(func(tx database.Store) error {
+	err := db.InTx(func(tx database.Store) error {
 		userGroups, err := tx.GetGroups(ctx, database.GetGroupsParams{
 			HasMemberID: user.ID,
 		})
@@ -188,6 +188,10 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		return nil
 	}, nil)
 
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -208,6 +212,7 @@ type GroupSyncSettings struct {
 func (s *GroupSyncSettings) Set(v string) error {
 	return json.Unmarshal([]byte(v), s)
 }
+
 func (s *GroupSyncSettings) String() string {
 	v, err := json.Marshal(s)
 	if err != nil {
@@ -215,6 +220,7 @@ func (s *GroupSyncSettings) String() string {
 	}
 	return string(v)
 }
+
 func (s *GroupSyncSettings) Type() string {
 	return "GroupSyncSettings"
 }
