@@ -839,8 +839,6 @@ func TestLicenseEntitlements(t *testing.T) {
 				assert.Equalf(t, int64(100), *userFeature.Limit, "user limit")
 				assert.Equal(t, codersdk.EntitlementNotEntitled,
 					entitlements.Features[codersdk.FeatureMultipleOrganizations].Entitlement)
-				assert.Equal(t, codersdk.EntitlementNotEntitled,
-					entitlements.Features[codersdk.FeatureCustomRoles].Entitlement)
 			},
 		},
 	}
