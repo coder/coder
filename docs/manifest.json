@@ -306,6 +306,11 @@
 									"title": "Docker in Workspaces",
 									"description": "Use Docker in your workspaces",
 									"path": "./admin/templates/extending-templates/docker-in-workspaces.md"
+								},
+								{
+									"title": "Workspace Tags",
+									"description": "Control provisioning using Workspace Tags and Parameters",
+									"path": "./admin/templates/extending-templates/workspace-tags.md"
 								}
 							]
 						},
@@ -373,11 +378,6 @@
 					"description": "Learn how to manage \u0026 audit workspaces",
 					"path": "./admin/workspaces/README.md",
 					"children": [
-						{
-							"title": "Workspace Tags",
-							"description": "Control provisioning using Workspace Tags and Parameters",
-							"path": "./admin/workspaces/workspace-tags.md"
-						},
 						{
 							"title": "Workspace Lifecycle",
 							"description": "Understand the lifecycle of a workspace",
