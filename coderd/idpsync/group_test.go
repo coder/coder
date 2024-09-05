@@ -28,7 +28,7 @@ func TestParseGroupClaims(t *testing.T) {
 		t.Parallel()
 
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewNoopManager(),
+			runtimeconfig.NewStoreManager(),
 			idpsync.DeploymentSyncSettings{})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -44,7 +44,7 @@ func TestParseGroupClaims(t *testing.T) {
 		t.Parallel()
 
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewNoopManager(),
+			runtimeconfig.NewStoreManager(),
 			idpsync.DeploymentSyncSettings{
 				GroupField: "groups",
 				GroupAllowList: map[string]struct{}{
@@ -209,7 +209,7 @@ func TestGroupSyncTable(t *testing.T) {
 			}
 
 			db, _ := dbtestutil.NewDB(t)
-			manager := runtimeconfig.NewStoreManager(db)
+			manager := runtimeconfig.NewStoreManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
 				manager,
 				idpsync.DeploymentSyncSettings{
@@ -240,8 +240,8 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 	_, err := db.InsertAllUsersGroup(context.Background(), org.ID)
 	require.NoError(t, err, "Everyone group for an org")
 
-	manager := runtimeconfig.NewStoreManager(db)
-	orgResolver := manager.Scoped(org.ID.String())
+	manager := runtimeconfig.NewStoreManager()
+	orgResolver := manager.OrganizationResolver(db, org.ID)
 	err = s.Group.SetRuntimeValue(context.Background(), orgResolver, def.Settings)
 	require.NoError(t, err)
 

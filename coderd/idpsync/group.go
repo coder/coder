@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
@@ -44,8 +43,6 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	db.InTx(func(tx database.Store) error {
-		manager := runtimeconfig.NewStoreManager(tx)
-
 		userGroups, err := tx.GetGroups(ctx, database.GetGroupsParams{
 			HasMemberID: user.ID,
 		})
@@ -63,7 +60,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		// For each org, we need to fetch the sync settings
 		orgSettings := make(map[uuid.UUID]GroupSyncSettings)
 		for orgID := range userOrgs {
-			orgResolver := manager.Scoped(orgID.String())
+			orgResolver := s.Manager.OrganizationResolver(tx, orgID)
 			settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
 			if err != nil {
 				return xerrors.Errorf("resolve group sync settings: %w", err)

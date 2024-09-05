@@ -43,7 +43,8 @@ type IDPSync interface {
 // AGPLIDPSync is the configuration for syncing user information from an external
 // IDP. All related code to syncing user information should be in this package.
 type AGPLIDPSync struct {
-	Logger slog.Logger
+	Logger  slog.Logger
+	Manager runtimeconfig.Manager
 
 	SyncSettings
 }
@@ -88,7 +89,7 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 type SyncSettings struct {
 	DeploymentSyncSettings
 
-	Group runtimeconfig.Entry[*GroupSyncSettings]
+	Group runtimeconfig.RuntimeEntry[*GroupSyncSettings]
 
 	//// Group options here are set by the deployment config and only apply to
 	//// the default organization.
@@ -100,13 +101,11 @@ type SyncSettings struct {
 
 func NewAGPLSync(logger slog.Logger, manager runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
-		Logger: logger.Named("idp-sync"),
+		Logger:  logger.Named("idp-sync"),
+		Manager: manager,
 		SyncSettings: SyncSettings{
 			DeploymentSyncSettings: settings,
-			// Default to '{}' if the group sync settings are not set.
-			// TODO: Feels strange to have to define the type as a string. I should be
-			// able to pass in an empty struct.
-			Group: runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings", "{}"),
+			Group:                  runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings"),
 		},
 	}
 }
