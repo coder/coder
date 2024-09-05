@@ -174,3 +174,4 @@ via the web terminal and [web IDEs](../../user-guides/workspace-access/web-ides.
 ## Up next
 
 - Learn about [Port Forwarding](./port-forwarding.md)
+- Troubleshoot [Networking Issues](./troubleshooting.md)
