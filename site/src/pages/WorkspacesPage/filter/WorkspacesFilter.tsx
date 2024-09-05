@@ -1,5 +1,5 @@
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
-import { type useFilter, Filter, MenuSkeleton } from "components/Filter/filter";
+import { type useFilter, Filter, MenuSkeleton } from "components/Filter/Filter";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { docs } from "utils/docs";

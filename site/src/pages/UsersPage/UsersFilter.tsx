@@ -7,7 +7,7 @@ import {
 	MenuSkeleton,
 	SearchFieldSkeleton,
 	type useFilter,
-} from "components/Filter/filter";
+} from "components/Filter/Filter";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,

@@ -1,7 +1,7 @@
 import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useFilter } from "components/Filter/filter";
+import { useFilter } from "components/Filter/Filter";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";

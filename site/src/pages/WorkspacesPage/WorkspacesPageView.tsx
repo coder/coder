@@ -28,7 +28,7 @@ import type { UseQueryResult } from "react-query";
 import { mustUpdateWorkspace } from "utils/workspace";
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesButton } from "./WorkspacesButton";
-import { WorkspacesFilter } from "./filter/filter";
+import { WorkspacesFilter } from "./filter/WorkspacesFilter";
 
 export const Language = {
 	pageTitle: "Workspaces",

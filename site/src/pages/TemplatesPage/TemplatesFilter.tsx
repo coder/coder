@@ -9,7 +9,7 @@ import {
 	MenuSkeleton,
 	SearchFieldSkeleton,
 	type useFilter,
-} from "components/Filter/filter";
+} from "components/Filter/Filter";
 import { useFilterMenu } from "components/Filter/menu";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import type { FC } from "react";

@@ -1,6 +1,6 @@
 import { paginatedAudits } from "api/queries/audits";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useFilter } from "components/Filter/filter";
+import { useFilter } from "components/Filter/Filter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
