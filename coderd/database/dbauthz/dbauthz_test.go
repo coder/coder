@@ -2700,10 +2700,17 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("GetRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		_ = db.UpsertRuntimeConfig(context.Background(), database.UpsertRuntimeConfigParams{
+			Key:   "test",
+			Value: "value",
+		})
 		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("UpsertRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("test", "value").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		check.Args(database.UpsertRuntimeConfigParams{
+			Key:   "test",
+			Value: "value",
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 }
 
