@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
@@ -71,6 +72,7 @@ func TestGroupSyncTable(t *testing.T) {
 		"groups": []string{
 			"foo", "bar", "baz",
 			"create-bar", "create-baz",
+			"legacy-bar",
 		},
 	}
 
@@ -229,10 +231,6 @@ func TestGroupSyncTable(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 
-			if tc.OrgID == uuid.Nil {
-				tc.OrgID = uuid.New()
-			}
-
 			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewStoreManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
@@ -242,9 +240,10 @@ func TestGroupSyncTable(t *testing.T) {
 				},
 			)
 
-			ctx := testutil.Context(t, testutil.WaitMedium)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			user := dbgen.User(t, db, database.User{})
-			SetupOrganization(t, s, db, user, tc)
+			orgID := uuid.New()
+			SetupOrganization(t, s, db, user, orgID, tc)
 
 			// Do the group sync!
 			err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
@@ -253,17 +252,106 @@ func TestGroupSyncTable(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			tc.Assert(t, tc.OrgID, db, user)
+			tc.Assert(t, orgID, db, user)
 		})
 	}
+
+	// AllTogether runs the entire tabled test as a singular user and
+	// deployment. This tests all organizations being synced together.
+	// The reason we do them individually, is that it is much easier to
+	// debug a single test case.
+	t.Run("AllTogether", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		manager := runtimeconfig.NewStoreManager()
+		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+			manager,
+			// Also sync the default org!
+			idpsync.DeploymentSyncSettings{
+				GroupField: "groups",
+				Legacy: idpsync.DefaultOrgLegacySettings{
+					GroupField: "groups",
+					GroupMapping: map[string]string{
+						"foo": "legacy-foo",
+						"baz": "legacy-baz",
+					},
+					GroupFilter:         regexp.MustCompile("^legacy"),
+					CreateMissingGroups: true,
+				},
+			},
+		)
+
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		user := dbgen.User(t, db, database.User{})
+
+		var asserts []func(t *testing.T)
+		// The default org is also going to do something
+		def := orgSetupDefinition{
+			Name: "DefaultOrg",
+			GroupNames: map[string]bool{
+				"legacy-foo": false,
+				"legacy-baz": true,
+				"random":     true,
+			},
+			// No settings, because they come from the deployment values
+			Settings:           nil,
+			ExpectedGroups:     nil,
+			ExpectedGroupNames: []string{"legacy-foo", "legacy-baz", "legacy-bar"},
+		}
+
+		//nolint:gocritic // testing
+		defOrg, err := db.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		SetupOrganization(t, s, db, user, defOrg.ID, def)
+		asserts = append(asserts, func(t *testing.T) {
+			t.Run(def.Name, func(t *testing.T) {
+				t.Parallel()
+				def.Assert(t, defOrg.ID, db, user)
+			})
+		})
+
+		for _, tc := range testCases {
+			tc := tc
+
+			orgID := uuid.New()
+			SetupOrganization(t, s, db, user, orgID, tc)
+			asserts = append(asserts, func(t *testing.T) {
+				t.Run(tc.Name, func(t *testing.T) {
+					t.Parallel()
+					tc.Assert(t, orgID, db, user)
+				})
+			})
+		}
+
+		asserts = append(asserts, func(t *testing.T) {
+			t.Helper()
+			def.Assert(t, defOrg.ID, db, user)
+		})
+
+		// Do the group sync!
+		err = s.SyncGroups(ctx, db, user, idpsync.GroupParams{
+			SyncEnabled:  true,
+			MergedClaims: userClaims,
+		})
+		require.NoError(t, err)
+
+		for _, assert := range asserts {
+			assert(t)
+		}
+	})
 }
 
-func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, user database.User, def orgSetupDefinition) {
+func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, user database.User, orgID uuid.UUID, def orgSetupDefinition) {
+	t.Helper()
+
 	org := dbgen.Organization(t, db, database.Organization{
-		ID: def.OrgID,
+		ID: orgID,
 	})
 	_, err := db.InsertAllUsersGroup(context.Background(), org.ID)
-	require.NoError(t, err, "Everyone group for an org")
+	if !database.IsUniqueViolation(err) {
+		require.NoError(t, err, "Everyone group for an org")
+	}
 
 	manager := runtimeconfig.NewStoreManager()
 	orgResolver := manager.OrganizationResolver(db, org.ID)
@@ -303,8 +391,7 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 }
 
 type orgSetupDefinition struct {
-	Name  string
-	OrgID uuid.UUID
+	Name string
 	// True if the user is a member of the group
 	Groups     map[uuid.UUID]bool
 	GroupNames map[string]bool
@@ -353,11 +440,13 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 			return g.Group.Name
 		})
 		require.ElementsMatch(t, o.ExpectedGroupNames, found, "user groups by name")
+		require.Len(t, o.ExpectedGroups, 0, "ExpectedGroups should be empty")
 	} else {
 		// Check by ID, recommended
 		found := db2sdk.List(userGroups, func(g database.GetGroupsRow) uuid.UUID {
 			return g.Group.ID
 		})
 		require.ElementsMatch(t, o.ExpectedGroups, found, "user groups")
+		require.Len(t, o.ExpectedGroupNames, 0, "ExpectedGroupNames should be empty")
 	}
 }

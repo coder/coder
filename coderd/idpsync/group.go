@@ -78,7 +78,6 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			if err != nil {
 				return xerrors.Errorf("resolve group sync settings: %w", err)
 			}
-			orgSettings[orgID] = *settings
 
 			// Legacy deployment settings will override empty settings.
 			if orgID == defaultOrgID && settings.GroupField == "" {
@@ -89,6 +88,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 					AutoCreateMissingGroups: s.Legacy.CreateMissingGroups,
 				}
 			}
+			orgSettings[orgID] = *settings
 		}
 
 		// collect all diffs to do 1 sql update for all orgs
@@ -280,6 +280,8 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 
 	groups := make([]ExpectedGroup, 0)
 	for _, group := range parsedGroups {
+		group := group
+
 		// Legacy group mappings happen before the regex filter.
 		mappedGroupName, ok := s.LegacyGroupNameMapping[group]
 		if ok {
@@ -302,7 +304,6 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 			continue
 		}
 
-		group := group
 		groups = append(groups, ExpectedGroup{OrganizationID: orgID, GroupName: &group})
 	}
 
