@@ -135,7 +135,7 @@ export const MenuSkeleton: FC = () => {
 
 type FilterProps = {
 	filter: ReturnType<typeof useFilter>;
-	skeleton: ReactNode;
+	optionsSkeleton: ReactNode;
 	isLoading: boolean;
 	learnMoreLink?: string;
 	learnMoreLabel2?: string;
@@ -150,7 +150,7 @@ export const Filter: FC<FilterProps> = ({
 	filter,
 	isLoading,
 	error,
-	skeleton,
+	optionsSkeleton,
 	options,
 	learnMoreLink,
 	learnMoreLabel2,
@@ -195,7 +195,10 @@ export const Filter: FC<FilterProps> = ({
 			}}
 		>
 			{isLoading ? (
-				skeleton
+				<>
+					<SearchFieldSkeleton />
+					{optionsSkeleton}
+				</>
 			) : (
 				<>
 					<InputGroup css={{ width: "100%" }}>

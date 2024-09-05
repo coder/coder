@@ -64,12 +64,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 					/>
 				</>
 			}
-			skeleton={
-				<>
-					<SearchFieldSkeleton />
-					<MenuSkeleton />
-				</>
-			}
+			optionsSkeleton={<MenuSkeleton />}
 		/>
 	);
 };

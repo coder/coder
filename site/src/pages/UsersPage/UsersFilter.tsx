@@ -78,12 +78,7 @@ export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
 			filter={filter}
 			error={error}
 			options={<StatusMenu {...menus.status} />}
-			skeleton={
-				<>
-					<SearchFieldSkeleton />
-					<MenuSkeleton />
-				</>
-			}
+			optionsSkeleton={<MenuSkeleton />}
 		/>
 	);
 };

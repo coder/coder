@@ -51,8 +51,8 @@ interface AuditFilterProps {
 }
 
 export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
-	// Use a smaller width if including the organization filter.
-	const width = menus.organization && 175;
+	const width = menus.organization ? 175 : undefined;
+
 	return (
 		<Filter
 			learnMoreLink={docs("/admin/audit-logs#filtering-logs")}
@@ -71,9 +71,9 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 					)}
 				</>
 			}
-			skeleton={
+			optionsSkeleton={
 				<>
-					<SearchFieldSkeleton />
+					<MenuSkeleton />
 					<MenuSkeleton />
 					<MenuSkeleton />
 					<MenuSkeleton />
