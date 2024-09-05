@@ -39,6 +39,18 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		return nil
 	}
 
+	// Only care about the default org for deployment settings if the
+	// legacy deployment settings exist.
+	defaultOrgID := uuid.Nil
+	// Default organization is configured via legacy deployment values
+	if s.DeploymentSyncSettings.Legacy.GroupField != "" {
+		defaultOrganization, err := db.GetDefaultOrganization(ctx)
+		if err != nil {
+			return xerrors.Errorf("get default organization: %w", err)
+		}
+		defaultOrgID = defaultOrganization.ID
+	}
+
 	// nolint:gocritic // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
@@ -66,6 +78,16 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 				return xerrors.Errorf("resolve group sync settings: %w", err)
 			}
 			orgSettings[orgID] = *settings
+
+			// Legacy deployment settings will override empty settings.
+			if orgID == defaultOrgID && settings.GroupField == "" {
+				settings = &GroupSyncSettings{
+					GroupField:              s.Legacy.GroupField,
+					LegacyGroupNameMapping:  s.Legacy.GroupMapping,
+					RegexFilter:             s.Legacy.GroupFilter,
+					AutoCreateMissingGroups: s.Legacy.CreateMissingGroups,
+				}
+			}
 		}
 
 		// collect all diffs to do 1 sql update for all orgs
@@ -175,6 +197,12 @@ type GroupSyncSettings struct {
 	GroupMapping            map[string][]uuid.UUID `json:"mapping"`
 	RegexFilter             *regexp.Regexp         `json:"regex_filter"`
 	AutoCreateMissingGroups bool                   `json:"auto_create_missing_groups"`
+	// LegacyGroupNameMapping is deprecated. It remaps an IDP group name to
+	// a Coder group name. Since configuration is now done at runtime,
+	// group IDs are used to account for group renames.
+	// For legacy configurations, this config option has to remain.
+	// Deprecated: Use GroupMapping instead.
+	LegacyGroupNameMapping map[string]string
 }
 
 func (s *GroupSyncSettings) Set(v string) error {
@@ -230,6 +258,12 @@ func (s GroupSyncSettings) ParseClaims(mergedClaims jwt.MapClaims) ([]ExpectedGr
 				gid := gid
 				groups = append(groups, ExpectedGroup{GroupID: &gid})
 			}
+			continue
+		}
+
+		mappedGroupName, ok := s.LegacyGroupNameMapping[group]
+		if ok {
+			groups = append(groups, ExpectedGroup{GroupName: &mappedGroupName})
 			continue
 		}
 		group := group

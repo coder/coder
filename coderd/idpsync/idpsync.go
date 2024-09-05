@@ -3,6 +3,7 @@ package idpsync
 import (
 	"context"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -69,6 +70,15 @@ type DeploymentSyncSettings struct {
 	// have at least one group in this list.
 	// A map representation is used for easier lookup.
 	GroupAllowList map[string]struct{}
+	// Legacy deployment settings that only apply to the default org.
+	Legacy DefaultOrgLegacySettings
+}
+
+type DefaultOrgLegacySettings struct {
+	GroupField          string
+	GroupMapping        map[string]string
+	GroupFilter         *regexp.Regexp
+	CreateMissingGroups bool
 }
 
 func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings {
@@ -80,8 +90,15 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 		OrganizationMapping:       dv.OIDC.OrganizationMapping.Value,
 		OrganizationAssignDefault: dv.OIDC.OrganizationAssignDefault.Value(),
 
+		// TODO: Separate group field for allow list from default org
 		GroupField:     dv.OIDC.GroupField.Value(),
 		GroupAllowList: ConvertAllowList(dv.OIDC.GroupAllowList.Value()),
+		Legacy: DefaultOrgLegacySettings{
+			GroupField:          dv.OIDC.GroupField.Value(),
+			GroupMapping:        dv.OIDC.GroupMapping.Value,
+			GroupFilter:         dv.OIDC.GroupRegexFilter.Value(),
+			CreateMissingGroups: dv.OIDC.GroupAutoCreate.Value(),
+		},
 	}
 
 }
@@ -90,13 +107,6 @@ type SyncSettings struct {
 	DeploymentSyncSettings
 
 	Group runtimeconfig.RuntimeEntry[*GroupSyncSettings]
-
-	//// Group options here are set by the deployment config and only apply to
-	//// the default organization.
-	//GroupField          string
-	//CreateMissingGroups bool
-	//GroupMapping        map[string]string
-	//GroupFilter         *regexp.Regexp
 }
 
 func NewAGPLSync(logger slog.Logger, manager runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
