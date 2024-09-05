@@ -1184,7 +1184,9 @@ func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt tim
 }
 
 func (q *querier) DeleteRuntimeConfig(ctx context.Context, key string) error {
-	// TODO: auth
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
 	return q.db.DeleteRuntimeConfig(ctx, key)
 }
 
@@ -1862,7 +1864,9 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
-	// TODO: auth
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
 	return q.db.GetRuntimeConfig(ctx, key)
 }
 
@@ -3917,7 +3921,9 @@ func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.Upse
 }
 
 func (q *querier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
-	// TODO: auth
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
 	return q.db.UpsertRuntimeConfig(ctx, arg)
 }
 
