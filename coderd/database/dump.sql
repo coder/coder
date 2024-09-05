@@ -1352,7 +1352,8 @@ CREATE TABLE workspace_agent_stats (
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL
+    session_count_ssh bigint DEFAULT 0 NOT NULL,
+    usage boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspace_agents (

@@ -1418,6 +1418,10 @@ func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdA
 	return q.db.GetDeploymentWorkspaceAgentStats(ctx, createdAfter)
 }
 
+func (q *querier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
@@ -2358,6 +2362,14 @@ func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.
 
 func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
 	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+}
+
+func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+	panic("not implemented")
 }
 
 // GetWorkspaceAgentsByResourceIDs

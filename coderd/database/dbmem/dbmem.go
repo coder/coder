@@ -2432,6 +2432,10 @@ func (q *FakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, create
 	return stat, nil
 }
 
+func (q *FakeQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -5632,6 +5636,14 @@ func (q *FakeQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, creat
 		stats = append(stats, agent)
 	}
 	return stats, nil
+}
+
+func (q *FakeQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
+	panic("not implemented")
+}
+
+func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {

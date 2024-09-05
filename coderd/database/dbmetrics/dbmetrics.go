@@ -585,6 +585,13 @@ func (m metricsStore) GetDeploymentWorkspaceAgentStats(ctx context.Context, crea
 	return row, err
 }
 
+func (m metricsStore) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDeploymentWorkspaceAgentUsageStats(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetDeploymentWorkspaceAgentUsageStats").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	start := time.Now()
 	row, err := m.s.GetDeploymentWorkspaceStats(ctx)
@@ -1346,6 +1353,20 @@ func (m metricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, creat
 	stats, err := m.s.GetWorkspaceAgentStatsAndLabels(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStatsAndLabels").Observe(time.Since(start).Seconds())
 	return stats, err
+}
+
+func (m metricsStore) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentUsageStats(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStats").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStatsAndLabels").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
