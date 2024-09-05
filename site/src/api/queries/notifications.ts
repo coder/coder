@@ -149,28 +149,7 @@ export const disableNotification = (
 					[templateId]: true,
 				},
 			});
-
-			// Invalidate the user notification preferences query
-			queryClient.invalidateQueries(userNotificationPreferencesKey(userId));
-
 			return result;
-		},
-		onSuccess: (_, templateId) => {
-			const allTemplates = queryClient.getQueryData<NotificationTemplate[]>(
-				systemNotificationTemplatesKey,
-			);
-			const template = allTemplates?.find((t) => t.id === templateId);
-
-			if (template) {
-				displaySuccess(`${template.name} notification has been disabled`);
-			} else {
-				displaySuccess("Notification has been disabled");
-			}
-		},
-		onError: () => {
-			displayError(
-				"An error occurred when attempting to disable the requested notification",
-			);
 		},
 	} satisfies UseMutationOptions<NotificationPreference[], unknown, string>;
 };

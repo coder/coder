@@ -71,13 +71,38 @@ export const NotificationsPage: FC = () => {
 
 	useEffect(() => {
 		if (disabledId && templatesByGroup.isSuccess && templatesByGroup.data) {
-			disableMutation.mutate(disabledId);
+			searchParams.delete("disabled");
+			disableMutation
+				.mutateAsync(disabledId)
+				.then(() => {
+					const allTemplates = Object.values(
+						templatesByGroup.data ?? {},
+					).flat();
+					const template = allTemplates.find((t) => t.id === disabledId);
+
+					if (template) {
+						displaySuccess(`${template.name} notification has been disabled`);
+					} else {
+						displaySuccess("Notification has been disabled");
+					}
+					queryClient.invalidateQueries(
+						userNotificationPreferences(user.id).queryKey,
+					);
+				})
+				.catch(() => {
+					displayError(
+						"An error occurred when attempting to disable the requested notification",
+					);
+				});
 		}
 	}, [
 		disabledId,
 		templatesByGroup.isSuccess,
 		templatesByGroup.data,
 		disableMutation,
+		queryClient,
+		user.id,
+		searchParams,
 	]);
 
 	const ready =
