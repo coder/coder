@@ -289,3 +289,8 @@ Coder's LoadBalancer (`kubectl get svc -n coder`).
 
 See [troubleshooting templates](../admin//templates/troubleshooting.md) for more
 steps.
+
+## Next steps
+
+- [Create your first template](../start/first-template.md)
+- [Control plane configuration](../admin/configure.md)

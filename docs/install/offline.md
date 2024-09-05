@@ -261,3 +261,9 @@ local machine has outbound HTTPS (port 443) connectivity to:
 - update.code.visualstudio.com
 - vscode.blob.core.windows.net
 - \*.vo.msecnd.net
+
+
+## Next steps
+
+- [Create your first template](../start/first-template.md)
+- [Control plane configuration](../admin/configuration.md)

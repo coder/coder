@@ -107,12 +107,10 @@ Users will likely need to pull source code and other artifacts from a git
 provider. The Coder control plane and workspaces will need network connectivity
 to the git provider.
 
-- [GitHub](#TODO)
-- [GitHub Enterprise](#TODO)
-- [GitLab](#TODO)
-- [BitBucket](#TODO)
-- [BitBucket](#TODO)
-- [Other Providers](#TODO)
+- [GitHub Enterprise](../configure.md#github-enterprise)
+- [GitLab](../configure.md#gitlab-self-managed)
+- [BitBucket](../configure.md#bitbucket-server)
+- [Other Providers](../configure.md#external-authentication)
 
 ### Artifact Manager (Optional)
 
