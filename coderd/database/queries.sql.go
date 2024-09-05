@@ -1540,19 +1540,30 @@ func (q *sqlQuerier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UU
 const removeUserFromGroups = `-- name: RemoveUserFromGroups :many
 DELETE FROM
 	group_members
+	USING groups
 WHERE
+	group_members.group_id = groups.id AND
 	user_id = $1 AND
-	group_id = ANY($2 :: uuid [])
+	(
+		CASE WHEN array_length($2 :: name_organization_pair[], 1) > 0  THEN
+			 -- Using 'coalesce' to avoid troubles with null literals being an empty string.
+			 (groups.name, coalesce(groups.organization_id, '00000000-0000-0000-0000-000000000000' ::uuid)) = ANY ($2::name_organization_pair[])
+		 ELSE false
+		END
+		OR
+		group_id = ANY ($3 :: uuid[])
+	)
 RETURNING group_id
 `
 
 type RemoveUserFromGroupsParams struct {
-	UserID   uuid.UUID   `db:"user_id" json:"user_id"`
-	GroupIds []uuid.UUID `db:"group_ids" json:"group_ids"`
+	UserID     uuid.UUID              `db:"user_id" json:"user_id"`
+	GroupNames []NameOrganizationPair `db:"group_names" json:"group_names"`
+	GroupIds   []uuid.UUID            `db:"group_ids" json:"group_ids"`
 }
 
 func (q *sqlQuerier) RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, removeUserFromGroups, arg.UserID, pq.Array(arg.GroupIds))
+	rows, err := q.db.QueryContext(ctx, removeUserFromGroups, arg.UserID, pq.Array(arg.GroupNames), pq.Array(arg.GroupIds))
 	if err != nil {
 		return nil, err
 	}

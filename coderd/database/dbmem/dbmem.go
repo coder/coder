@@ -682,6 +682,17 @@ func (q *FakeQuerier) getWorkspaceResourcesByJobIDNoLock(_ context.Context, jobI
 	return resources, nil
 }
 
+func (q *FakeQuerier) getGroupByNameNoLock(arg database.NameOrganizationPair) (database.Group, error) {
+	for _, group := range q.groups {
+		if group.OrganizationID == arg.OrganizationID &&
+			group.Name == arg.Name {
+			return group, nil
+		}
+	}
+
+	return database.Group{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) getGroupByIDNoLock(_ context.Context, id uuid.UUID) (database.Group, error) {
 	for _, group := range q.groups {
 		if group.ID == id {
@@ -2613,14 +2624,10 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, group := range q.groups {
-		if group.OrganizationID == arg.OrganizationID &&
-			group.Name == arg.Name {
-			return group, nil
-		}
-	}
-
-	return database.Group{}, sql.ErrNoRows
+	return q.getGroupByNameNoLock(database.NameOrganizationPair{
+		Name:           arg.Name,
+		OrganizationID: arg.OrganizationID,
+	})
 }
 
 func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
@@ -7648,14 +7655,24 @@ func (q *FakeQuerier) RemoveUserFromGroups(_ context.Context, arg database.Remov
 
 	removed := make([]uuid.UUID, 0)
 	q.data.groupMembers = slices.DeleteFunc(q.data.groupMembers, func(groupMember database.GroupMemberTable) bool {
+		// Delete all group members that match the arguments.
 		if groupMember.UserID != arg.UserID {
+			// Not the right user, ignore.
 			return false
 		}
-		if !slices.Contains(arg.GroupIds, groupMember.GroupID) {
-			return false
+
+		matchesByID := slices.Contains(arg.GroupIds, groupMember.GroupID)
+		matchesByName := slices.ContainsFunc(arg.GroupNames, func(name database.NameOrganizationPair) bool {
+			_, err := q.getGroupByNameNoLock(name)
+			return err == nil
+		})
+
+		if matchesByName || matchesByID {
+			removed = append(removed, groupMember.GroupID)
+			return true
 		}
-		removed = append(removed, groupMember.GroupID)
-		return true
+
+		return false
 	})
 
 	return removed, nil

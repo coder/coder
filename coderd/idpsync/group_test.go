@@ -208,9 +208,12 @@ func TestGroupSyncTable(t *testing.T) {
 				},
 				AutoCreateMissingGroups: true,
 			},
-			Groups: map[uuid.UUID]bool{},
+			Groups: map[uuid.UUID]bool{
+				ids.ID("lg-foo"): true,
+			},
 			GroupNames: map[string]bool{
 				"legacy-foo": false,
+				"extra":      true,
 			},
 			ExpectedGroupNames: []string{
 				"legacy-bar",
