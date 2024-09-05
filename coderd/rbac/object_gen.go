@@ -87,10 +87,10 @@ var (
 
 	// ResourceFrobulator
 	// Valid Actions
-	//  - "ActionCreate" ::
-	//  - "ActionDelete" ::
-	//  - "ActionRead" ::
-	//  - "ActionUpdate" ::
+	//  - "ActionCreate" :: create a frobulator
+	//  - "ActionDelete" :: delete a frobulator
+	//  - "ActionRead" :: read a frobulator
+	//  - "ActionUpdate" :: update a frobulator
 	ResourceFrobulator = Object{
 		Type: "frobulator",
 	}

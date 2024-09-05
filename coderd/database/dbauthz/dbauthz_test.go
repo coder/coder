@@ -2751,18 +2751,40 @@ func (s *MethodTestSuite) TestNotifications() {
 }
 
 func (s *MethodTestSuite) TestFrobulators() {
-	s.Run("GetAllFrobulators", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceFrobulator, policy.ActionRead)
-	}))
-	s.Run("GetUserFrobulators", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetFrobulators", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(user.ID).Asserts(rbac.ResourceFrobulator.WithOwner(user.ID.String()), policy.ActionRead)
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		check.Args(database.GetFrobulatorsParams{
+			UserID: user.ID,
+			OrgID:  org.ID,
+		}).Asserts(
+			rbac.ResourceFrobulator.
+				WithOwner(user.ID.String()).
+				InOrg(org.ID),
+			policy.ActionRead,
+		)
 	}))
 	s.Run("InsertFrobulator", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
+		org := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(database.InsertFrobulatorParams{
 			UserID: user.ID,
-		}).Asserts(rbac.ResourceFrobulator.WithOwner(user.ID.String()), policy.ActionCreate)
+			OrgID:  org.ID,
+		}).Asserts(rbac.ResourceFrobulator.WithOwner(user.ID.String()).InOrg(org.ID), policy.ActionCreate)
+	}))
+	s.Run("DeleteFrobulator", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		frob := dbgen.Frobulator(s.T(), db, database.Frobulator{
+			UserID:      user.ID,
+			OrgID:       org.ID,
+			ModelNumber: "warhead-1",
+		})
+		check.Args(database.DeleteFrobulatorParams{
+			ID:     frob.ID,
+			UserID: frob.UserID,
+			OrgID:  frob.OrgID,
+		}).Asserts(rbac.ResourceFrobulator.WithOwner(frob.UserID.String()).InOrg(frob.OrgID).WithID(frob.ID), policy.ActionDelete)
 	}))
 }
 

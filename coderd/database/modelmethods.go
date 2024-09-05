@@ -132,10 +132,6 @@ func (k APIKey) RBACObject() rbac.Object {
 		WithOwner(k.UserID.String())
 }
 
-func (f Frobulator) RBACObject() rbac.Object {
-	return rbac.ResourceFrobulator.WithID(f.ID).WithOwner(f.UserID.String())
-}
-
 func (t Template) RBACObject() rbac.Object {
 	return rbac.ResourceTemplate.WithID(t.ID).
 		InOrg(t.OrganizationID).
@@ -303,6 +299,13 @@ func (OAuth2ProviderApp) RBACObject() rbac.Object {
 
 func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
+}
+
+func (f Frobulator) RBACObject() rbac.Object {
+	return rbac.ResourceFrobulator.
+		WithID(f.ID).
+		WithOwner(f.UserID.String()).
+		InOrg(f.OrgID)
 }
 
 type WorkspaceAgentConnectionStatus struct {

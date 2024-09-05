@@ -596,6 +596,14 @@ export interface Feature {
 	readonly actual?: number
 }
 
+// From codersdk/frobulators.go
+export interface Frobulator {
+	readonly id: string
+	readonly user_id: string
+	readonly org_id: string
+	readonly model_number: string
+}
+
 // From codersdk/apikey.go
 export interface GenerateAPIKeyResponse {
 	readonly key: string
@@ -645,6 +653,11 @@ export interface Healthcheck {
 export interface HealthcheckConfig {
 	readonly refresh: number
 	readonly threshold_database: number
+}
+
+// From codersdk/frobulators.go
+export interface InsertFrobulatorRequest {
+	readonly model_number: string
 }
 
 // From codersdk/workspaceagents.go
@@ -2114,8 +2127,8 @@ export type RBACAction = "application_connect" | "assign" | "create" | "delete" 
 export const RBACActions: RBACAction[] = ["application_connect", "assign", "create", "delete", "read", "read_personal", "ssh", "start", "stop", "update", "update_personal", "use", "view_insights"]
 
 // From codersdk/rbacresources_gen.go
-export type RBACResource = "*" | "api_key" | "assign_org_role" | "assign_role" | "audit_log" | "debug_info" | "deployment_config" | "deployment_stats" | "file" | "group" | "group_member" | "license" | "notification_preference" | "notification_template" | "oauth2_app" | "oauth2_app_code_token" | "oauth2_app_secret" | "organization" | "organization_member" | "provisioner_daemon" | "provisioner_keys" | "replicas" | "system" | "tailnet_coordinator" | "template" | "user" | "workspace" | "workspace_dormant" | "workspace_proxy"
-export const RBACResources: RBACResource[] = ["*", "api_key", "assign_org_role", "assign_role", "audit_log", "debug_info", "deployment_config", "deployment_stats", "file", "group", "group_member", "license", "notification_preference", "notification_template", "oauth2_app", "oauth2_app_code_token", "oauth2_app_secret", "organization", "organization_member", "provisioner_daemon", "provisioner_keys", "replicas", "system", "tailnet_coordinator", "template", "user", "workspace", "workspace_dormant", "workspace_proxy"]
+export type RBACResource = "*" | "api_key" | "assign_org_role" | "assign_role" | "audit_log" | "debug_info" | "deployment_config" | "deployment_stats" | "file" | "frobulator" | "group" | "group_member" | "license" | "notification_preference" | "notification_template" | "oauth2_app" | "oauth2_app_code_token" | "oauth2_app_secret" | "organization" | "organization_member" | "provisioner_daemon" | "provisioner_keys" | "replicas" | "system" | "tailnet_coordinator" | "template" | "user" | "workspace" | "workspace_dormant" | "workspace_proxy"
+export const RBACResources: RBACResource[] = ["*", "api_key", "assign_org_role", "assign_role", "audit_log", "debug_info", "deployment_config", "deployment_stats", "file", "frobulator", "group", "group_member", "license", "notification_preference", "notification_template", "oauth2_app", "oauth2_app_code_token", "oauth2_app_secret", "organization", "organization_member", "provisioner_daemon", "provisioner_keys", "replicas", "system", "tailnet_coordinator", "template", "user", "workspace", "workspace_dormant", "workspace_proxy"]
 
 // From codersdk/audit.go
 export type ResourceType = "api_key" | "convert_login" | "custom_role" | "git_ssh_key" | "group" | "health_settings" | "license" | "notifications_settings" | "oauth2_provider_app" | "oauth2_provider_app_secret" | "organization" | "template" | "template_version" | "user" | "workspace" | "workspace_build" | "workspace_proxy"

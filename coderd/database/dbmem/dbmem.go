@@ -1485,6 +1485,20 @@ func (q *FakeQuerier) DeleteExternalAuthLink(_ context.Context, arg database.Del
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) DeleteFrobulator(_ context.Context, args database.DeleteFrobulatorParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, frob := range q.frobulators {
+		if frob.ID == args.ID && frob.UserID == args.UserID && frob.OrgID == args.OrgID {
+			q.frobulators = append(q.frobulators[:i], q.frobulators[i+1:]...)
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2130,13 +2144,6 @@ func (q *FakeQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, 
 	return filteredBuilds, nil
 }
 
-func (q *FakeQuerier) GetAllFrobulators(_ context.Context) ([]database.Frobulator, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	return q.frobulators, nil
-}
-
 func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAgent, error) {
 	return nil, ErrUnimplemented
 }
@@ -2506,6 +2513,27 @@ func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 	}
 
 	return rows, nil
+}
+
+func (q *FakeQuerier) GetFrobulators(_ context.Context, arg database.GetFrobulatorsParams) ([]database.Frobulator, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.Frobulator, 0, len(q.frobulators))
+	for _, frob := range q.frobulators {
+		if frob.UserID != arg.UserID || frob.OrgID != arg.OrgID {
+			continue
+		}
+
+		out = append(out, frob)
+	}
+
+	return out, nil
 }
 
 func (q *FakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -4865,22 +4893,6 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return existing, nil
 }
 
-func (q *FakeQuerier) GetUserFrobulators(_ context.Context, userID uuid.UUID) ([]database.Frobulator, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	out := make([]database.Frobulator, 0, len(q.frobulators))
-	for _, frob := range q.frobulators {
-		if frob.UserID != userID {
-			continue
-		}
-
-		out = append(out, frob)
-	}
-
-	return out, nil
-}
-
 func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -6307,23 +6319,25 @@ func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	return file, nil
 }
 
-func (q *FakeQuerier) InsertFrobulator(_ context.Context, arg database.InsertFrobulatorParams) error {
+func (q *FakeQuerier) InsertFrobulator(_ context.Context, arg database.InsertFrobulatorParams) (database.Frobulator, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return err
+		return database.Frobulator{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	// nolint:gosimple // This is fine as it is.
-	q.frobulators = append(q.frobulators, database.Frobulator{
-		ID:          arg.ID,
+	frob := database.Frobulator{
+		ID:          uuid.New(),
 		UserID:      arg.UserID,
+		OrgID:       arg.OrgID,
 		ModelNumber: arg.ModelNumber,
-	})
+	}
+	q.frobulators = append(q.frobulators, frob)
 
-	return nil
+	return frob, nil
 }
 
 func (q *FakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {

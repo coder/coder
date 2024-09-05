@@ -909,6 +909,17 @@ func New(options *Options) *API {
 						})
 					})
 				})
+				r.Route("/frobulators", func(r chi.Router) {
+					r.Use(apiKeyMiddleware)
+					r.Route("/{user}", func(r chi.Router) {
+						r.Use(
+							httpmw.ExtractUserParam(options.Database),
+						)
+						r.Get("/", api.listFrobulators)
+						r.Post("/", api.createFrobulator)
+						r.Delete("/{id}", api.deleteFrobulator)
+					})
+				})
 			})
 		})
 		r.Route("/templates", func(r chi.Router) {
@@ -1256,17 +1267,6 @@ func New(options *Options) *API {
 				r.Get("/system", api.systemNotificationTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
-		})
-		r.Route("/frobulators", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/", api.listAllFrobulators)
-			r.Route("/{user}", func(r chi.Router) {
-				r.Use(
-					httpmw.ExtractUserParam(options.Database),
-				)
-				r.Get("/", api.listUserFrobulators)
-				r.Post("/", api.createFrobulator)
-			})
 		})
 	})
 

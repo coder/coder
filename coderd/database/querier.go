@@ -71,6 +71,7 @@ type sqlcQuerier interface {
 	DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
+	DeleteFrobulator(ctx context.Context, arg DeleteFrobulatorParams) error
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
@@ -114,7 +115,6 @@ type sqlcQuerier interface {
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
-	GetAllFrobulators(ctx context.Context) ([]Frobulator, error)
 	GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
@@ -143,6 +143,7 @@ type sqlcQuerier interface {
 	GetFileByID(ctx context.Context, id uuid.UUID) (File, error)
 	// Get all templates that use a file.
 	GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error)
+	GetFrobulators(ctx context.Context, arg GetFrobulatorsParams) ([]Frobulator, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
@@ -261,7 +262,6 @@ type sqlcQuerier interface {
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserCount(ctx context.Context) (int64, error)
-	GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]Frobulator, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
 	// template_ids, meaning only user data from workspaces based on those templates
@@ -341,7 +341,7 @@ type sqlcQuerier interface {
 	InsertDeploymentID(ctx context.Context, value string) error
 	InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error)
 	InsertFile(ctx context.Context, arg InsertFileParams) (File, error)
-	InsertFrobulator(ctx context.Context, arg InsertFrobulatorParams) error
+	InsertFrobulator(ctx context.Context, arg InsertFrobulatorParams) (Frobulator, error)
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error

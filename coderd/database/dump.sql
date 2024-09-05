@@ -539,6 +539,7 @@ CREATE TABLE files (
 CREATE TABLE frobulators (
     id uuid NOT NULL,
     user_id uuid NOT NULL,
+    org_id uuid NOT NULL,
     model_number text NOT NULL
 );
 
@@ -1932,6 +1933,9 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY frobulators
+    ADD CONSTRAINT frobulators_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY frobulators
     ADD CONSTRAINT frobulators_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

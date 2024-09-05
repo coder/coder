@@ -1191,13 +1191,35 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	return i, err
 }
 
-const getAllFrobulators = `-- name: GetAllFrobulators :many
-SELECT id, user_id, model_number
-FROM frobulators
+const deleteFrobulator = `-- name: DeleteFrobulator :exec
+DELETE FROM frobulators
+WHERE id = $1 AND user_id = $2 AND org_id = $3
 `
 
-func (q *sqlQuerier) GetAllFrobulators(ctx context.Context) ([]Frobulator, error) {
-	rows, err := q.db.QueryContext(ctx, getAllFrobulators)
+type DeleteFrobulatorParams struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	OrgID  uuid.UUID `db:"org_id" json:"org_id"`
+}
+
+func (q *sqlQuerier) DeleteFrobulator(ctx context.Context, arg DeleteFrobulatorParams) error {
+	_, err := q.db.ExecContext(ctx, deleteFrobulator, arg.ID, arg.UserID, arg.OrgID)
+	return err
+}
+
+const getFrobulators = `-- name: GetFrobulators :many
+SELECT id, user_id, org_id, model_number
+FROM frobulators
+WHERE user_id = $1 AND org_id = $2
+`
+
+type GetFrobulatorsParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	OrgID  uuid.UUID `db:"org_id" json:"org_id"`
+}
+
+func (q *sqlQuerier) GetFrobulators(ctx context.Context, arg GetFrobulatorsParams) ([]Frobulator, error) {
+	rows, err := q.db.QueryContext(ctx, getFrobulators, arg.UserID, arg.OrgID)
 	if err != nil {
 		return nil, err
 	}
@@ -1205,7 +1227,12 @@ func (q *sqlQuerier) GetAllFrobulators(ctx context.Context) ([]Frobulator, error
 	var items []Frobulator
 	for rows.Next() {
 		var i Frobulator
-		if err := rows.Scan(&i.ID, &i.UserID, &i.ModelNumber); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.OrgID,
+			&i.ModelNumber,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1219,49 +1246,28 @@ func (q *sqlQuerier) GetAllFrobulators(ctx context.Context) ([]Frobulator, error
 	return items, nil
 }
 
-const getUserFrobulators = `-- name: GetUserFrobulators :many
-SELECT id, user_id, model_number
-FROM frobulators
-WHERE user_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]Frobulator, error) {
-	rows, err := q.db.QueryContext(ctx, getUserFrobulators, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Frobulator
-	for rows.Next() {
-		var i Frobulator
-		if err := rows.Scan(&i.ID, &i.UserID, &i.ModelNumber); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertFrobulator = `-- name: InsertFrobulator :exec
-INSERT INTO frobulators (id, user_id, model_number)
-VALUES ($1, $2, $3)
+const insertFrobulator = `-- name: InsertFrobulator :one
+INSERT INTO frobulators (id, user_id, org_id, model_number)
+VALUES (gen_random_uuid(), $1, $2, $3)
+RETURNING id, user_id, org_id, model_number
 `
 
 type InsertFrobulatorParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	OrgID       uuid.UUID `db:"org_id" json:"org_id"`
 	ModelNumber string    `db:"model_number" json:"model_number"`
 }
 
-func (q *sqlQuerier) InsertFrobulator(ctx context.Context, arg InsertFrobulatorParams) error {
-	_, err := q.db.ExecContext(ctx, insertFrobulator, arg.ID, arg.UserID, arg.ModelNumber)
-	return err
+func (q *sqlQuerier) InsertFrobulator(ctx context.Context, arg InsertFrobulatorParams) (Frobulator, error) {
+	row := q.db.QueryRowContext(ctx, insertFrobulator, arg.UserID, arg.OrgID, arg.ModelNumber)
+	var i Frobulator
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.OrgID,
+		&i.ModelNumber,
+	)
+	return i, err
 }
 
 const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec

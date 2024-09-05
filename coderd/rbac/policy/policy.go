@@ -276,10 +276,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"frobulator": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(""),
-			ActionRead:   actDef(""),
-			ActionUpdate: actDef(""),
-			ActionDelete: actDef(""),
+			ActionCreate: {Description: "create a frobulator"},
+			ActionRead:   {Description: "read a frobulator"},
+			ActionUpdate: {Description: "update a frobulator"},
+			ActionDelete: {Description: "delete a frobulator"},
 		},
 	},
 }

@@ -47,10 +47,10 @@ export const RBACResourceActions: Partial<
     read: "read files",
   },
   frobulator: {
-    create: "",
-    delete: "",
-    read: "",
-    update: "",
+    create: "create a frobulator",
+    delete: "delete a frobulator",
+    read: "read a frobulator",
+    update: "update a frobulator",
   },
   group: {
     create: "create a group",

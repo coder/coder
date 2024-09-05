@@ -2037,6 +2037,7 @@ type File struct {
 type Frobulator struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	OrgID       uuid.UUID `db:"org_id" json:"org_id"`
 	ModelNumber string    `db:"model_number" json:"model_number"`
 }
 

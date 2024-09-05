@@ -228,6 +228,13 @@ func (m metricsStore) DeleteExternalAuthLink(ctx context.Context, arg database.D
 	return r0
 }
 
+func (m metricsStore) DeleteFrobulator(ctx context.Context, id database.DeleteFrobulatorParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteFrobulator(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteFrobulator").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteGitSSHKey(ctx, userID)
@@ -466,13 +473,6 @@ func (m metricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, 
 	return r0, r1
 }
 
-func (m metricsStore) GetAllFrobulators(ctx context.Context) ([]database.Frobulator, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAllFrobulators(ctx)
-	m.queryLatencies.WithLabelValues("GetAllFrobulators").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetAgents(ctx)
@@ -625,6 +625,13 @@ func (m metricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([
 	rows, err := m.s.GetFileTemplates(ctx, fileID)
 	m.queryLatencies.WithLabelValues("GetFileTemplates").Observe(time.Since(start).Seconds())
 	return rows, err
+}
+
+func (m metricsStore) GetFrobulators(ctx context.Context, arg database.GetFrobulatorsParams) ([]database.Frobulator, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFrobulators(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFrobulators").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -1215,13 +1222,6 @@ func (m metricsStore) GetUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-func (m metricsStore) GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]database.Frobulator, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserFrobulators(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserFrobulators").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserLatencyInsights(ctx, arg)
@@ -1628,7 +1628,7 @@ func (m metricsStore) InsertFile(ctx context.Context, arg database.InsertFilePar
 	return file, err
 }
 
-func (m metricsStore) InsertFrobulator(ctx context.Context, arg database.InsertFrobulatorParams) error {
+func (m metricsStore) InsertFrobulator(ctx context.Context, arg database.InsertFrobulatorParams) (database.Frobulator, error) {
 	start := time.Now()
 	r0 := m.s.InsertFrobulator(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertFrobulator").Observe(time.Since(start).Seconds())

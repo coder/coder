@@ -892,6 +892,16 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 	return role
 }
 
+func Frobulator(t testing.TB, db database.Store, orig database.Frobulator) database.Frobulator {
+	frob, err := db.InsertFrobulator(genCtx, database.InsertFrobulatorParams{
+		UserID:      orig.UserID,
+		OrgID:       orig.OrgID,
+		ModelNumber: orig.ModelNumber,
+	})
+	require.NoError(t, err, "insert frobulator")
+	return frob
+}
+
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)
