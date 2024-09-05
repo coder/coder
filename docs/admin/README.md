@@ -3,6 +3,7 @@
 Guides for day 2+ operations with Coder, including preparing for production and scaling to thousands of daily active users.
 
 ## Prerequisites
+TODO: Add prerequisites
 
 ## Table of contents
 
