@@ -1479,7 +1479,7 @@ CREATE TABLE workspace_apps (
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
 
-COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is displayed in user interfaces.';
+COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
