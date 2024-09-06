@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -549,6 +550,151 @@ func TestApplyGroupDifference(t *testing.T) {
 
 			// Add everyone group
 			require.ElementsMatch(t, append(tc.Expect, org.ID), found)
+		})
+	}
+}
+
+func TestExpectedGroupEqual(t *testing.T) {
+	t.Parallel()
+
+	ids := coderdtest.NewDeterministicUUIDGenerator()
+	testCases := []struct {
+		Name  string
+		A     idpsync.ExpectedGroup
+		B     idpsync.ExpectedGroup
+		Equal bool
+	}{
+		{
+			Name:  "Empty",
+			A:     idpsync.ExpectedGroup{},
+			B:     idpsync.ExpectedGroup{},
+			Equal: true,
+		},
+		{
+			Name: "DifferentOrgs",
+			A: idpsync.ExpectedGroup{
+				OrganizationID: uuid.New(),
+				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupName:      nil,
+			},
+			B: idpsync.ExpectedGroup{
+				OrganizationID: uuid.New(),
+				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupName:      nil,
+			},
+			Equal: false,
+		},
+		{
+			Name: "SameID",
+			A: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupName:      nil,
+			},
+			B: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupName:      nil,
+			},
+			Equal: true,
+		},
+		{
+			Name: "DifferentIDs",
+			A: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        ptr.Ref(uuid.New()),
+				GroupName:      nil,
+			},
+			B: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        ptr.Ref(uuid.New()),
+				GroupName:      nil,
+			},
+			Equal: false,
+		},
+		{
+			Name: "SameName",
+			A: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        nil,
+				GroupName:      ptr.Ref("foo"),
+			},
+			B: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        nil,
+				GroupName:      ptr.Ref("foo"),
+			},
+			Equal: true,
+		},
+		{
+			Name: "DifferentName",
+			A: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        nil,
+				GroupName:      ptr.Ref("foo"),
+			},
+			B: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        nil,
+				GroupName:      ptr.Ref("bar"),
+			},
+			Equal: false,
+		},
+		// Edge cases
+		{
+			// A bit strange, but valid as ID takes priority.
+			// We assume 2 groups with the same ID are equal, even if
+			// their names are different. Names are mutable, IDs are not,
+			// so there is 0% chance they are different groups.
+			Name: "DifferentIDSameName",
+			A: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupName:      ptr.Ref("foo"),
+			},
+			B: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupName:      ptr.Ref("bar"),
+			},
+			Equal: true,
+		},
+		{
+			Name: "MixedNils",
+			A: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupName:      nil,
+			},
+			B: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        nil,
+				GroupName:      ptr.Ref("bar"),
+			},
+			Equal: false,
+		},
+		{
+			Name: "NoComparable",
+			A: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        ptr.Ref(ids.ID("g1")),
+				GroupName:      nil,
+			},
+			B: idpsync.ExpectedGroup{
+				OrganizationID: ids.ID("org"),
+				GroupID:        nil,
+				GroupName:      nil,
+			},
+			Equal: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.Equal, tc.A.Equal(tc.B))
 		})
 	}
 }

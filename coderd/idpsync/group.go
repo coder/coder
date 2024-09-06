@@ -146,18 +146,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			})
 
 			add, remove := slice.SymmetricDifferenceFunc(existingGroupsTyped, expectedGroups, func(a, b ExpectedGroup) bool {
-				// Must match
-				if a.OrganizationID != b.OrganizationID {
-					return false
-				}
-				// Only the name or the name needs to be checked, priority is given to the ID.
-				if a.GroupID != nil && b.GroupID != nil {
-					return *a.GroupID == *b.GroupID
-				}
-				if a.GroupName != nil && b.GroupName != nil {
-					return *a.GroupName == *b.GroupName
-				}
-				return false
+				return a.Equal(b)
 			})
 
 			for _, r := range remove {
@@ -281,6 +270,31 @@ type ExpectedGroup struct {
 	OrganizationID uuid.UUID
 	GroupID        *uuid.UUID
 	GroupName      *string
+}
+
+// Equal compares two ExpectedGroups. The org id must be the same.
+// If the group ID is set, it will be compared and take priorty, ignoring the
+// name value. So 2 groups with the same ID but different names will be
+// considered equal.
+func (a ExpectedGroup) Equal(b ExpectedGroup) bool {
+	// Must match
+	if a.OrganizationID != b.OrganizationID {
+		return false
+	}
+	// Only the name or the name needs to be checked, priority is given to the ID.
+	if a.GroupID != nil && b.GroupID != nil {
+		return *a.GroupID == *b.GroupID
+	}
+	if a.GroupName != nil && b.GroupName != nil {
+		return *a.GroupName == *b.GroupName
+	}
+
+	// If everything is nil, it is equal. Although a bit pointless
+	if a.GroupID == nil && b.GroupID == nil &&
+		a.GroupName == nil && b.GroupName == nil {
+		return true
+	}
+	return false
 }
 
 // ParseClaims will take the merged claims from the IDP and return the groups
