@@ -42,7 +42,7 @@ winget install Coder.Coder
 
 To start the Coder server:
 
-````sh
+```sh
 coder server
 ```
 
@@ -52,7 +52,7 @@ To log in to an existing Coder deployment:
 
 ```sh
 coder login https://coder.example.com
-````
+```
 
 ## Next up
 
