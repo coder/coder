@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
-import MonetizationOnOutlined from "@mui/icons-material/MonetizationOnOutlined";
+import QuotaIcon from "@mui/icons-material/MonetizationOnOutlined";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";
@@ -112,7 +112,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		allowAdvancedScheduling,
 	);
 
-	const matchedOrganization = organizations.find(
+	const activeOrg = organizations.find(
 		(org) => org.id === workspace.organization_id,
 	);
 
@@ -185,11 +185,11 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 										cursor: "default",
 									}}
 								>
-									{matchedOrganization && (
+									{activeOrg && (
 										<UserAvatar
 											size="xs"
-											username={matchedOrganization.display_name}
-											avatarURL={matchedOrganization.icon}
+											username={activeOrg.display_name}
+											avatarURL={activeOrg.icon}
 										/>
 									)}
 
@@ -256,6 +256,37 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					</Popover>
 				</TopbarData>
 
+				{quota && quota.budget > 0 && (
+					<Link
+						component={RouterLink}
+						css={{ color: "inherit" }}
+						to={
+							showOrganizations
+								? `/workspaces?filter=organization:${encodeURIComponent(workspace.organization_name)}`
+								: "/workspaces"
+						}
+						title={
+							showOrganizations
+								? `See affected workspaces for ${workspace.organization_name}`
+								: "See affected workspaces"
+						}
+					>
+						<TopbarData>
+							<TopbarIcon>
+								<QuotaIcon aria-label="Daily usage" />
+							</TopbarIcon>
+
+							<span>
+								{workspace.latest_build.daily_cost}{" "}
+								<span css={{ color: theme.palette.text.secondary }}>
+									credits of
+								</span>{" "}
+								{quota.budget}
+							</span>
+						</TopbarData>
+					</Link>
+				)}
+
 				{shouldDisplayDormantData && (
 					<TopbarData>
 						<TopbarIcon>
@@ -272,26 +303,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 									Deletion on {new Date(workspace.deleting_at).toLocaleString()}
 								</>
 							) : (
-								"Deleting soon"
+								"Deletion soon"
 							)}
 						</Link>
-					</TopbarData>
-				)}
-
-				{quota && quota.budget > 0 && (
-					<TopbarData>
-						<TopbarIcon>
-							<Tooltip title="Daily usage">
-								<MonetizationOnOutlined aria-label="Daily usage" />
-							</Tooltip>
-						</TopbarIcon>
-						<span>
-							{workspace.latest_build.daily_cost}{" "}
-							<span css={{ color: theme.palette.text.secondary }}>
-								credits of
-							</span>{" "}
-							{quota.budget}
-						</span>
 					</TopbarData>
 				)}
 			</div>
