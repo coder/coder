@@ -845,8 +845,8 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceBuildSummary",
-			id:   notifications.TemplateWorkspaceBuildSummary,
+			name: "TemplateWorkspaceBuildsFailedReport",
+			id:   notifications.TemplateWorkspaceBuildsFailedReport,
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{

@@ -30,5 +30,5 @@ var (
 var (
 	TemplateTemplateDeleted = uuid.MustParse("29a09665-2a4c-403f-9648-54301670e7be")
 
-	TemplateWorkspaceBuildSummary = uuid.MustParse("34a20db2-e9cc-4a93-b0e4-8569699d7a00")
+	TemplateWorkspaceBuildsFailedReport = uuid.MustParse("34a20db2-e9cc-4a93-b0e4-8569699d7a00")
 )

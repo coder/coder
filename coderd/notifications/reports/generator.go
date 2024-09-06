@@ -43,13 +43,12 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 
 			// TODO:
 			//
-			// 1. for every user:
-			//   1. for every template they administrate:
-			//     1. for every enabled report:
-			//       1. check last run `report_generator_log`
-			//       2. generate report
-			//       3. send notification
-			//       4. upsert into `report_generator_log`
+			// 1. select(workspace_builds_failed): templates + (template admins + users with "write" permissions) + matching entry for `report_generator_log`:
+			//   1. check last run `report_generator_log`
+			//   2. generate report
+			//   3. send notification
+			//   4. upsert into `report_generator_log`
+			//
 			// 2. clean stale `report_generator_log` entries
 
 			logger.Info(ctx, "report generator finished", slog.F("duration", clk.Since(start)))
