@@ -1033,112 +1033,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/frobulators": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Frobulator"
-                ],
-                "summary": "Get all frobulators",
-                "operationId": "get-all-frobulators",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Frobulator"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/frobulators/{user}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Frobulator"
-                ],
-                "summary": "Get user frobulators",
-                "operationId": "get-user-frobulators",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User ID, name, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.Frobulator"
-                            }
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Frobulator"
-                ],
-                "summary": "Post frobulator",
-                "operationId": "post-frobulator",
-                "parameters": [
-                    {
-                        "description": "Insert Frobulator request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.InsertFrobulatorRequest"
-                        }
-                    },
-                    {
-                        "type": "string",
-                        "description": "User ID, name, or me",
-                        "name": "user",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "New frobulator ID"
-                    }
-                }
-            }
-        },
         "/groups": {
             "get": {
                 "security": [
@@ -2855,6 +2749,140 @@ const docTemplate = `{
                         "type": "string",
                         "description": "User ID, name, or me",
                         "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/members/{user}/frobulators": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Frobulator"
+                ],
+                "summary": "Get frobulators",
+                "operationId": "get-frobulators",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Frobulator"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Frobulator"
+                ],
+                "summary": "Post frobulator",
+                "operationId": "post-frobulator",
+                "parameters": [
+                    {
+                        "description": "Insert Frobulator request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.InsertFrobulatorRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "New frobulator ID"
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/members/{user}/frobulators/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Frobulator"
+                ],
+                "summary": "Delete frobulator",
+                "operationId": "delete-frobulator",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Frobulator ID",
+                        "name": "id",
                         "in": "path",
                         "required": true
                     }
@@ -10394,6 +10422,10 @@ const docTemplate = `{
                 },
                 "model_number": {
                     "type": "string"
+                },
+                "org_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "user_id": {
                     "type": "string",

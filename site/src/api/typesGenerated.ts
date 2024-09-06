@@ -595,10 +595,10 @@ export interface Feature {
 
 // From codersdk/frobulators.go
 export interface Frobulator {
-	readonly id: string
-	readonly user_id: string
-	readonly org_id: string
-	readonly model_number: string
+	readonly id: string;
+	readonly user_id: string;
+	readonly org_id: string;
+	readonly model_number: string;
 }
 
 // From codersdk/apikey.go
@@ -656,7 +656,7 @@ export interface HealthcheckConfig {
 
 // From codersdk/frobulators.go
 export interface InsertFrobulatorRequest {
-	readonly model_number: string
+	readonly model_number: string;
 }
 
 // From codersdk/workspaceagents.go

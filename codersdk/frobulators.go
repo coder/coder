@@ -25,7 +25,7 @@ func (c *Client) CreateFrobulator(ctx context.Context, userID, orgID uuid.UUID, 
 		ModelNumber: modelNumber,
 	}
 
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/frobulators/%s", orgID.String(), userID.String()), req)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s/frobulators", orgID.String(), userID.String()), req)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -40,7 +40,7 @@ func (c *Client) CreateFrobulator(ctx context.Context, userID, orgID uuid.UUID, 
 }
 
 func (c *Client) GetFrobulators(ctx context.Context, userID, orgID uuid.UUID) ([]Frobulator, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/frobulators/%s", orgID.String(), userID.String()), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/%s/frobulators", orgID.String(), userID.String()), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -55,13 +55,13 @@ func (c *Client) GetFrobulators(ctx context.Context, userID, orgID uuid.UUID) ([
 }
 
 func (c *Client) DeleteFrobulator(ctx context.Context, id, userID, orgID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/frobulators/%s/%s", orgID.String(), userID.String(), id.String()), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/members/%s/frobulators/%s", orgID.String(), userID.String(), id.String()), nil)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 

@@ -84,12 +84,11 @@ func TestFrobulators(t *testing.T) {
 				// Then: validate that no frobulators were returned
 				require.Nil(t, frobs)
 
-				// Then: validate that access was denied
+				// Then: validate that access was denied by receiving a 404
 				var sdkError *codersdk.Error
 				require.Error(t, err)
 				require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
-				// Unfortunately, the ExtractUserParam middleware returns a 400 Bad Request not a 403 Forbidden for unauthorized requests.
-				require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
+				require.Equal(t, http.StatusNotFound, sdkError.StatusCode())
 			})
 		}
 	})

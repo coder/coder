@@ -2766,6 +2766,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"model_number": "string",
+	"org_id": "a40f5d1f-d889-42e9-94ea-b9b33585fc6b",
 	"user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
@@ -2776,6 +2777,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | -------------- | ------ | -------- | ------------ | ----------- |
 | `id`           | string | false    |              |             |
 | `model_number` | string | false    |              |             |
+| `org_id`       | string | false    |              |             |
 | `user_id`      | string | false    |              |             |
 
 ## codersdk.GenerateAPIKeyResponse

@@ -1637,9 +1637,9 @@ func (m metricsStore) InsertFile(ctx context.Context, arg database.InsertFilePar
 
 func (m metricsStore) InsertFrobulator(ctx context.Context, arg database.InsertFrobulatorParams) (database.Frobulator, error) {
 	start := time.Now()
-	r0 := m.s.InsertFrobulator(ctx, arg)
+	r0, r1 := m.s.InsertFrobulator(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertFrobulator").Observe(time.Since(start).Seconds())
-	return r0
+	return r0, r1
 }
 
 func (m metricsStore) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {

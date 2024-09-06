@@ -13,54 +13,22 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Post frobulator
-// @ID post-frobulator
-// @Security CoderSessionToken
-// @Param request body codersdk.InsertFrobulatorRequest true "Insert Frobulator request"
-// @Param user path string true "User ID, name, or me"
-// @Accept json
-// @Produce json
-// @Tags Frobulator
-// @Success 200 "New frobulator ID"
-// @Router /organizations/{organization}/frobulators/{user} [post]
-func (api *API) createFrobulator(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
-	org := httpmw.OrganizationParam(r)
-
-	var req codersdk.InsertFrobulatorRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	frob, err := api.Database.InsertFrobulator(ctx, database.InsertFrobulatorParams{
-		UserID:      user.ID,
-		OrgID:       org.ID,
-		ModelNumber: req.ModelNumber,
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	httpapi.Write(r.Context(), rw, http.StatusOK, frob.ID.String())
-}
-
 // @Summary Get frobulators
 // @ID get-frobulators
 // @Security CoderSessionToken
+// @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
 // @Produce json
 // @Tags Frobulator
 // @Success 200 {array} codersdk.Frobulator
-// @Router /organizations/{organization}/frobulators/{user} [get]
+// @Router /organizations/{organization}/members/{user}/frobulators [get]
 func (api *API) listFrobulators(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	user := httpmw.UserParam(r)
+	member := httpmw.OrganizationMemberParam(r)
 	org := httpmw.OrganizationParam(r)
 
 	frobs, err := api.Database.GetFrobulators(ctx, database.GetFrobulatorsParams{
-		UserID: user.ID,
+		UserID: member.UserID,
 		OrgID:  org.ID,
 	})
 	if err != nil {
@@ -81,13 +49,49 @@ func (api *API) listFrobulators(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
 
+// @Summary Post frobulator
+// @ID post-frobulator
+// @Security CoderSessionToken
+// @Param request body codersdk.InsertFrobulatorRequest true "Insert Frobulator request"
+// @Param organization path string true "Organization ID"
+// @Param user path string true "User ID, name, or me"
+// @Accept json
+// @Produce json
+// @Tags Frobulator
+// @Success 200 "New frobulator ID"
+// @Router /organizations/{organization}/members/{user}/frobulators [post]
+func (api *API) createFrobulator(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	member := httpmw.OrganizationMemberParam(r)
+	org := httpmw.OrganizationParam(r)
+
+	var req codersdk.InsertFrobulatorRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	frob, err := api.Database.InsertFrobulator(ctx, database.InsertFrobulatorParams{
+		UserID:      member.UserID,
+		OrgID:       org.ID,
+		ModelNumber: req.ModelNumber,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(r.Context(), rw, http.StatusOK, frob.ID.String())
+}
+
 // @Summary Delete frobulator
 // @ID delete-frobulator
 // @Security CoderSessionToken
-// @Produce json
+// @Param organization path string true "Organization ID"
+// @Param user path string true "User ID, name, or me"
+// @Param id path string true "Frobulator ID"
 // @Tags Frobulator
-// @Success 200
-// @Router /organizations/{organization}/frobulators/{user}/{id} [get]
+// @Success 204
+// @Router /organizations/{organization}/members/{user}/frobulators/{id} [delete]
 func (api *API) deleteFrobulator(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -101,12 +105,12 @@ func (api *API) deleteFrobulator(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user := httpmw.UserParam(r)
+	member := httpmw.OrganizationMemberParam(r)
 	org := httpmw.OrganizationParam(r)
 
 	err = api.Database.DeleteFrobulator(ctx, database.DeleteFrobulatorParams{
 		ID:     id,
-		UserID: user.ID,
+		UserID: member.UserID,
 		OrgID:  org.ID,
 	})
 	if err != nil {
@@ -114,5 +118,5 @@ func (api *API) deleteFrobulator(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, nil)
+	rw.WriteHeader(http.StatusNoContent)
 }

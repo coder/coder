@@ -37,10 +37,11 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/entitlements"
-	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
+
+	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/idpsync"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -936,18 +937,12 @@ func New(options *Options) *API {
 							r.Delete("/", api.deleteOrganizationMember)
 							r.Put("/roles", api.putMemberRoles)
 							r.Post("/workspaces", api.postWorkspacesByOrganization)
+							r.Route("/frobulators", func(r chi.Router) {
+								r.Get("/", api.listFrobulators)
+								r.Post("/", api.createFrobulator)
+								r.Delete("/{id}", api.deleteFrobulator)
+							})
 						})
-					})
-				})
-				r.Route("/frobulators", func(r chi.Router) {
-					r.Use(apiKeyMiddleware)
-					r.Route("/{user}", func(r chi.Router) {
-						r.Use(
-							httpmw.ExtractUserParam(options.Database),
-						)
-						r.Get("/", api.listFrobulators)
-						r.Post("/", api.createFrobulator)
-						r.Delete("/{id}", api.deleteFrobulator)
 					})
 				})
 			})
