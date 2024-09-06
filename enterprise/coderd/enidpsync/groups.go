@@ -61,7 +61,6 @@ func (e EnterpriseIDPSync) ParseGroupClaims(ctx context.Context, mergedClaims jw
 				RenderStaticPage: true,
 			}
 		}
-
 	}
 
 	return idpsync.GroupParams{
