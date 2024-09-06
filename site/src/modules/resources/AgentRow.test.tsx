@@ -118,19 +118,12 @@ describe.each<{
 				apps: [
 					{
 						...MockWorkspaceApp,
+						display_name: `${MockWorkspaceApp.display_name} Not Hidden`,
 						hidden: false,
 					},
-				],
-			},
-		},
-	},
-	{
-		props: {
-			agent: {
-				...MockWorkspaceAgent,
-				apps: [
 					{
 						...MockWorkspaceApp,
+						display_name: `${MockWorkspaceApp.display_name} Is Hidden`,
 						hidden: true,
 					},
 				],
