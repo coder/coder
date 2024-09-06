@@ -1,4 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { spyOn, userEvent, within } from "@storybook/test";
+import { API } from "api/api";
+import { deploymentConfigQueryKey } from "api/queries/deployment";
+import { groupsQueryKey } from "api/queries/groups";
+import { rolesQueryKey } from "api/queries/roles";
+import { authMethodsQueryKey, usersKey } from "api/queries/users";
+import type { User } from "api/typesGenerated";
+import { MockGroups } from "pages/UsersPage/storybookData/groups";
+import { MockRoles } from "pages/UsersPage/storybookData/roles";
+import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { MockAuthMethodsAll, MockUser } from "testHelpers/entities";
 import {
 	withAuthProvider,
@@ -6,16 +16,6 @@ import {
 	withGlobalSnackbar,
 } from "testHelpers/storybook";
 import UsersPage from "./UsersPage";
-import { groupsQueryKey } from "api/queries/groups";
-import { MockGroups } from "pages/UsersPage/storybookData/groups";
-import { authMethodsQueryKey, usersKey } from "api/queries/users";
-import { rolesQueryKey } from "api/queries/roles";
-import { MockRoles } from "pages/UsersPage/storybookData/roles";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { deploymentConfigQueryKey } from "api/queries/deployment";
-import { spyOn, userEvent, within } from "@storybook/test";
-import { API } from "api/api";
-import type { User } from "api/typesGenerated";
 
 const parameters = {
 	queries: [
