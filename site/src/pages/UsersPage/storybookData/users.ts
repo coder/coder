@@ -183,7 +183,6 @@ export const MockUsers: User[] = [
 	},
 	{
 		id: "27c64335-5e08-44ac-b93f-e454b82a9a06",
-		email: "austin@coder.com",
 		created_at: "2024-06-10T18:10:33.595496Z",
 		updated_at: "2024-07-25T22:39:21.144268Z",
 		last_seen_at: "2024-07-25T22:39:21.144268Z",
@@ -217,7 +216,6 @@ export const MockUsers: User[] = [
 	},
 	{
 		id: "9e3e4c5a-5949-417f-9380-d0a393c78bdd",
-		email: "ben.peinhardt@coder.com",
 		created_at: "2024-07-15T02:00:51.816307Z",
 		updated_at: "2024-09-05T04:32:12.923203Z",
 		last_seen_at: "2024-09-05T04:32:12.923203Z",
@@ -324,7 +322,6 @@ export const MockUsers: User[] = [
 	},
 	{
 		id: "9bc756d1-5e95-4c6f-8e1b-a1bd20547151",
-		email: "christin@coder.com",
 		created_at: "2024-09-04T11:29:24.168944Z",
 		updated_at: "2024-09-04T11:29:24.658926Z",
 		last_seen_at: "2024-09-04T11:29:24.658926Z",
@@ -341,7 +338,6 @@ export const MockUsers: User[] = [
 	},
 	{
 		id: "59da0bfe-9c99-47fa-a563-f9fdb18449d0",
-		email: "cian@coder.com",
 		created_at: "2022-08-15T08:30:10.343828Z",
 		updated_at: "2024-09-05T12:27:22.098297Z",
 		last_seen_at: "2024-09-05T12:27:22.098297Z",
@@ -422,7 +418,6 @@ export const MockUsers: User[] = [
 	},
 	{
 		id: "c323e5c3-57cb-45e7-81c4-56d6cacb2f8c",
-		email: "danny@coder.com",
 		created_at: "2024-03-04T11:12:41.201352Z",
 		updated_at: "2024-09-05T07:24:39.32465Z",
 		last_seen_at: "2024-09-05T07:24:39.324649Z",
@@ -439,7 +434,6 @@ export const MockUsers: User[] = [
 	},
 	{
 		id: "9e7815af-bc48-435a-91c7-72dcbf26f036",
-		email: "davidkramer@coder.com",
 		created_at: "2024-05-24T14:53:53.996555Z",
 		updated_at: "2024-07-22T16:43:16.494533Z",
 		last_seen_at: "2024-07-22T16:43:16.494533Z",
@@ -530,7 +524,6 @@ export const MockUsers: User[] = [
 	},
 	{
 		id: "806e35bb-37fd-4810-b5f2-88aa47c30c84",
-		email: "ethan@coder.com",
 		created_at: "2024-06-03T03:09:52.16976Z",
 		updated_at: "2024-09-05T12:51:39.933117Z",
 		last_seen_at: "2024-09-05T12:51:39.933117Z",

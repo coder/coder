@@ -388,7 +388,7 @@ export const UpdateUserRoleError: Story = {
 		await user.click(
 			within(userRow).getByLabelText("Auditor", { exact: false }),
 		);
-		await within(document.body).findByText("Error updating the user roles.");
+		await within(document.body).findByText("Error on updating the user roles.");
 	},
 };
 

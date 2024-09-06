@@ -131,8 +131,7 @@ export const MockGroups: Group[] = [
 			findMockedUserById("0bac0dfd-b086-4b6d-b8ba-789e0eca7451"),
 		],
 		total_member_count: 5,
-		avatar_url:
-			"https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.svg",
+		avatar_url: "",
 		quota_allowance: 0,
 		source: "user",
 		organization_name: "coder",
@@ -197,8 +196,7 @@ export const MockGroups: Group[] = [
 		organization_id: "703f72a1-76f6-4f89-9de6-8a3989693fe5",
 		members: [findMockedUserById("c5eb8310-cf4f-444c-b223-0e991f828b40")],
 		total_member_count: 1,
-		avatar_url:
-			"https://missionfitlife.com/wp-content/uploads/2019/04/winners.jpg",
+		avatar_url: "",
 		quota_allowance: 1000,
 		source: "user",
 		organization_name: "coder",
