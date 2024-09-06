@@ -203,6 +203,8 @@ export const baseMeta = {
 				},
 				email: {
 					smarthost: "smtp.example.com",
+					from: "localhost",
+					hello: "localhost",
 				},
 			},
 		} as DeploymentValues,

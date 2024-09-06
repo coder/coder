@@ -8,13 +8,14 @@ import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
+import { getErrorMessage } from "api/errors";
 import {
 	type selectTemplatesByGroup,
 	updateNotificationTemplateMethod,
 } from "api/queries/notifications";
 import type { DeploymentValues } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import {
 	type NotificationMethod,
@@ -39,58 +40,67 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	templatesByGroup,
 	deploymentValues,
 }) => {
+	// Webhook
 	const hasWebhookNotifications = Object.values(templatesByGroup)
 		.flat()
 		.some((t) => t.method === "webhook");
-	const hasEmailNotifications = Object.values(templatesByGroup)
+	const webhookValues = deploymentValues.notifications?.webhook ?? {};
+	const isWebhookConfigured = requiredFieldsArePresent(webhookValues, [
+		"endpoint",
+	]);
+
+	// SMTP
+	const hasSMTPNotifications = Object.values(templatesByGroup)
 		.flat()
 		.some((t) => t.method === "smtp");
+	const smtpValues = deploymentValues.notifications?.email ?? {};
+	const isSMTPConfigured = requiredFieldsArePresent(smtpValues, [
+		"smarthost",
+		"from",
+		"hello",
+	]);
 
 	return (
 		<Stack spacing={4}>
-			{hasWebhookNotifications &&
-				deploymentValues.notifications?.webhook.endpoint === "" && (
-					<Alert
-						severity="warning"
-						actions={
-							<Button
-								variant="text"
-								size="small"
-								component="a"
-								target="_blank"
-								rel="noreferrer"
-								href={docs("/cli/server#--notifications-webhook-endpoint")}
-							>
-								Read the docs
-							</Button>
-						}
-					>
-						Webhook notifications are enabled, but no endpoint has been
-						configured.
-					</Alert>
-				)}
+			{hasWebhookNotifications && !isWebhookConfigured && (
+				<Alert
+					severity="warning"
+					actions={
+						<Button
+							variant="text"
+							size="small"
+							component="a"
+							target="_blank"
+							rel="noreferrer"
+							href={docs("/admin/notifications#webhook")}
+						>
+							Read the docs
+						</Button>
+					}
+				>
+					Webhook notifications are enabled, but not properly configured.
+				</Alert>
+			)}
 
-			{hasEmailNotifications &&
-				deploymentValues.notifications?.email.smarthost === "" && (
-					<Alert
-						severity="warning"
-						actions={
-							<Button
-								variant="text"
-								size="small"
-								component="a"
-								target="_blank"
-								rel="noreferrer"
-								href={docs("/cli/server#--notifications-email-smarthost")}
-							>
-								Read the docs
-							</Button>
-						}
-					>
-						SMTP notifications are enabled, but no smarthost has been
-						configured.
-					</Alert>
-				)}
+			{hasSMTPNotifications && !isSMTPConfigured && (
+				<Alert
+					severity="warning"
+					actions={
+						<Button
+							variant="text"
+							size="small"
+							component="a"
+							target="_blank"
+							rel="noreferrer"
+							href={docs("/admin/notifications#smtp-email")}
+						>
+							Read the docs
+						</Button>
+					}
+				>
+					SMTP notifications are enabled but not properly configured.
+				</Alert>
+			)}
 
 			{Object.entries(templatesByGroup).map(([group, templates]) => (
 				<Card
@@ -131,6 +141,13 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	);
 };
 
+function requiredFieldsArePresent(
+	obj: Record<string, string | undefined>,
+	fields: string[],
+): boolean {
+	return fields.every((field) => Boolean(obj[field]));
+}
+
 type MethodToggleGroupProps = {
 	templateId: string;
 	options: NotificationMethod[];
@@ -155,10 +172,16 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 			aria-label="Notification method"
 			css={styles.toggleGroup}
 			onChange={async (_, method) => {
-				await updateMethodMutation.mutateAsync({
-					method,
-				});
-				displaySuccess("Notification method updated");
+				try {
+					await updateMethodMutation.mutateAsync({
+						method,
+					});
+					displaySuccess("Notification method updated");
+				} catch (error) {
+					displayError(
+						getErrorMessage(error, "Failed to update notification method"),
+					);
+				}
 			}}
 		>
 			{options.map((method) => {

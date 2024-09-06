@@ -23,7 +23,7 @@ export default meta;
 
 type Story = StoryObj<typeof NotificationEvents>;
 
-export const NoEmailSmarthost: Story = {
+export const SMTPNotConfigured: Story = {
 	args: {
 		deploymentValues: {
 			notifications: {
@@ -38,7 +38,7 @@ export const NoEmailSmarthost: Story = {
 	},
 };
 
-export const NoWebhookEndpoint: Story = {
+export const WebhookNotConfigured: Story = {
 	args: {
 		deploymentValues: {
 			notifications: {
@@ -47,6 +47,8 @@ export const NoWebhookEndpoint: Story = {
 				},
 				email: {
 					smarthost: "smtp.example.com",
+					from: "localhost",
+					hello: "localhost",
 				},
 			},
 		} as DeploymentValues,
@@ -58,7 +60,8 @@ export const Toggle: Story = {
 		spyOn(API, "updateNotificationTemplateMethod").mockResolvedValue();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		const option = await canvas.findByText("Workspace Marked as Dormant");
+		const tmpl = MockNotificationTemplates[4];
+		const option = await canvas.findByText(tmpl.name);
 		const li = option.closest("li");
 		if (!li) {
 			throw new Error("Could not find li");
@@ -67,5 +70,27 @@ export const Toggle: Story = {
 			name: "Webhook",
 		});
 		await user.click(toggleButton);
+		await within(document.body).findByText("Notification method updated");
+	},
+};
+
+export const ToggleError: Story = {
+	play: async ({ canvasElement }) => {
+		spyOn(API, "updateNotificationTemplateMethod").mockRejectedValue({});
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const tmpl = MockNotificationTemplates[4];
+		const option = await canvas.findByText(tmpl.name);
+		const li = option.closest("li");
+		if (!li) {
+			throw new Error("Could not find li");
+		}
+		const toggleButton = within(li).getByRole("button", {
+			name: "Webhook",
+		});
+		await user.click(toggleButton);
+		await within(document.body).findByText(
+			"Failed to update notification method",
+		);
 	},
 };
