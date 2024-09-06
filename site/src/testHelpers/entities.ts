@@ -451,6 +451,38 @@ export const MockAssignableSiteRoles = [
 	assignableRole(MockAuditorRole, true),
 ];
 
+export const MockOIDCConfig: TypesGen.OIDCConfig = {
+	allow_signups: true,
+	client_id: "test",
+	client_secret: "test",
+	client_key_file: "test",
+	client_cert_file: "test",
+	email_domain: [],
+	issuer_url: "test",
+	scopes: [],
+	ignore_email_verified: true,
+	username_field: "",
+	name_field: "",
+	email_field: "",
+	auth_url_params: {},
+	ignore_user_info: true,
+	organization_field: "",
+	organization_mapping: {},
+	organization_assign_default: true,
+	group_auto_create: false,
+	group_regex_filter: "^Coder-.*$",
+	group_allow_list: [],
+	groups_field: "groups",
+	group_mapping: { group1: "developers", group2: "admin", group3: "auditors" },
+	user_role_field: "roles",
+	user_role_mapping: { role1: ["role1", "role2"] },
+	user_roles_default: [],
+	sign_in_text: "",
+	icon_url: "",
+	signups_disabled_text: "string",
+	skip_issuer_checks: true,
+};
+
 export const MockMemberPermissions = {
 	viewAuditLog: false,
 };
