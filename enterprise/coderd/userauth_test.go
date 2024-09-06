@@ -438,7 +438,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 				DeploymentValues: func(dv *codersdk.DeploymentValues) {
 					dv.OIDC.GroupField = groupClaim
-					dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{map[string]string{oidcGroupName: coderGroupName}}
+					dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{oidcGroupName: coderGroupName}}
 				},
 			})
 
@@ -750,7 +750,7 @@ func TestGroupSync(t *testing.T) {
 			// From a,c,b -> b,c,d
 			name: "ChangeUserGroups",
 			modDV: func(dv *codersdk.DeploymentValues) {
-				dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{map[string]string{"D": "d"}}
+				dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{"D": "d"}}
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -796,7 +796,7 @@ func TestGroupSync(t *testing.T) {
 				dv.OIDC.GroupAutoCreate = true
 				// Only single letter groups
 				dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile("^[a-z]$"))
-				dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{map[string]string{"zebra": "z"}}
+				dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{"zebra": "z"}}
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},

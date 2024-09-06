@@ -498,6 +498,8 @@ func TestApplyGroupDifference(t *testing.T) {
 	for _, tc := range testCase {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
 			mgr := runtimeconfig.NewManager()
 			db, _ := dbtestutil.NewDB(t)
 
