@@ -1,6 +1,6 @@
 export interface Branding {
 	paywall: {
-		// Colors for enterprise are temporary and will be removed when the enterprise license is removed
+		/** Colors for enterprise are temporary and will be removed when the enterprise license is removed */
 		enterprise: {
 			background: string;
 			border: string;
@@ -11,7 +11,7 @@ export interface Branding {
 		};
 	};
 	badge: {
-		// Colors for enterprise are temporary and will be removed when the enterprise license is removed
+		/** Colors for enterprise are temporary and will be removed when the enterprise license is removed */
 		enterprise: {
 			background: string;
 			border: string;

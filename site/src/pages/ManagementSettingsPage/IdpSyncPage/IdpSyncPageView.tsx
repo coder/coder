@@ -39,6 +39,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 			<ChooseOne>
 				<Cond condition={false}>
 					<Paywall
+						type="premium"
 						message="IdP Sync"
 						description="Configure group and role mappings to manage permissions outside of Coder."
 						documentationLink={docs("/admin/groups")}
