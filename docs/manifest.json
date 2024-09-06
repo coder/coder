@@ -153,7 +153,7 @@
 					"title": "Control Plane",
 					"description": "Configure user access to your control plane.",
 					"path": "./admin/configure.md",
-					"icon_path": "./images/icons/control-plane.svg"
+					"icon_path": "./images/icons/toggle_on.svg"
 				},
 				{
 					"title": "Infrastructure",
@@ -424,7 +424,7 @@
 					"title": "Monitoring",
 					"description": "Configure security policy and audit your deployment",
 					"path": "./admin/monitoring/README.md",
-					"icon_path": "./images/icons/health.svg",
+					"icon_path": "./images/icons/speed.svg",
 					"children": [
 						{
 							"title": "Logs",
@@ -465,13 +465,13 @@
 					"title": "Automation",
 					"description": "DIfferent ways to automate Coder actions and workflows",
 					"path": "./admin/automation.md",
-					"icon_path": "./images/icons/automation.svg"
+					"icon_path": "./images/icons/plug.svg"
 				},
 				{
 					"title": "Notifications",
 					"description": "Configure notifications for your deployment",
 					"path": "./admin/notifications.md",
-					"icon_path": "./images/icons/notifications.svg"
+					"icon_path": "./images/icons/info.svg"
 				}
 			]
 		},
