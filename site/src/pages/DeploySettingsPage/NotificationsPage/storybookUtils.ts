@@ -203,7 +203,7 @@ export const baseMeta = {
 				},
 				email: {
 					smarthost: "smtp.example.com",
-					from: "localhost",
+					from: "bob@localhost",
 					hello: "localhost",
 				},
 			},
