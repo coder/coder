@@ -181,7 +181,6 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 
 		return nil
 	}, nil)
-
 	if err != nil {
 		return err
 	}

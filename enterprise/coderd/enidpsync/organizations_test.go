@@ -237,7 +237,7 @@ func TestOrganizationSync(t *testing.T) {
 			}
 
 			// Create a new sync object
-			sync := enidpsync.NewSync(logger, runtimeconfig.NewStoreManager(rdb), caseData.Entitlements, caseData.Settings)
+			sync := enidpsync.NewSync(logger, runtimeconfig.NewStoreManager(), caseData.Entitlements, caseData.Settings)
 			for _, exp := range caseData.Exps {
 				t.Run(exp.Name, func(t *testing.T) {
 					params, httpErr := sync.ParseOrganizationClaims(ctx, exp.Claims)
