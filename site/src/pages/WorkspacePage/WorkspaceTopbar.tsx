@@ -162,6 +162,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						rootTemplateUrl={templateLink}
 						templateVersionName={workspace.template_name}
 						templateVersionDisplayName={workspace.template_display_name}
+						latestBuildVersionName={
+							workspace.latest_build.template_version_name
+						}
 					/>
 				</TopbarData>
 
@@ -362,6 +365,7 @@ type WorkspaceBreadcrumbProps = Readonly<{
 	templateIconUrl: string;
 	rootTemplateUrl: string;
 	templateVersionName: string;
+	latestBuildVersionName: string;
 	templateVersionDisplayName?: string;
 }>;
 
@@ -370,6 +374,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	templateIconUrl,
 	rootTemplateUrl,
 	templateVersionName,
+	latestBuildVersionName,
 	templateVersionDisplayName = templateVersionName,
 }) => {
 	return (
@@ -409,7 +414,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
 							css={{ color: "inherit" }}
 						>
-							Version: {templateVersionDisplayName}
+							Version: {latestBuildVersionName}
 						</Link>
 					}
 					avatar={
