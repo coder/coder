@@ -1,3 +1,4 @@
+import { buildInfo } from "api/queries/buildInfo";
 import {
 	organizationsPermissions,
 	provisionerDaemons,
@@ -6,18 +7,16 @@ import type { Organization, ProvisionerDaemon } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import NotFoundPage from "pages/404Page/404Page";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
-import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
-
-export interface ProvisionersByGroup {
-	builtin: ProvisionerDaemon[];
-	psk: ProvisionerDaemon[];
-	keys: Map<string, ProvisionerDaemon[]>;
-}
+import {
+	OrganizationProvisionersPageView,
+	type ProvisionersByGroup,
+} from "./OrganizationProvisionersPageView";
 
 function groupProvisioners(
 	provisioners: readonly ProvisionerDaemon[],
@@ -51,6 +50,9 @@ const OrganizationProvisionersPage: FC = () => {
 		organization: string;
 	};
 	const { organizations } = useOrganizationSettings();
+
+	const { metadata } = useEmbeddedMetadata();
+	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 
 	const organization = organizations
 		? getOrganizationByName(organizations, organizationName)
@@ -89,6 +91,7 @@ const OrganizationProvisionersPage: FC = () => {
 
 	return (
 		<OrganizationProvisionersPageView
+			buildInfo={buildInfoQuery.data}
 			provisioners={groupProvisioners(provisioners)}
 		/>
 	);

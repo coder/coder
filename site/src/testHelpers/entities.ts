@@ -544,6 +544,13 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: { scope: "organization" },
 	version: MockBuildInfo.version,
 	api_version: MockBuildInfo.provisioner_api_version,
+	last_seen_at: new Date().toISOString(),
+};
+
+export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-provisioner-2",
+	name: "Test Provisioner 2",
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
@@ -551,6 +558,18 @@ export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
 	id: "test-user-provisioner",
 	name: "Test User Provisioner",
 	tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
+};
+
+export const MockProvisionerWithTags: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-provisioner-tags",
+	name: "Test Provisioner with tags",
+	tags: {
+		...MockProvisioner.tags,
+		都市: "ユタ",
+		きっぷ: "yes",
+		ちいさい: "no",
+	},
 };
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
