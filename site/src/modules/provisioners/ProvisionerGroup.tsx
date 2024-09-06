@@ -2,21 +2,21 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Business from "@mui/icons-material/Business";
 import Person from "@mui/icons-material/Person";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { BuildInfoResponse } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import type { ProvisionerDaemonWithWarnings } from "pages/ManagementSettingsPage/OrganizationProvisionersPageView";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
-import { ProvisionerTag } from "./ProvisionerTag";
-import {
-	Popover,
-	PopoverTrigger,
-	PopoverContent,
-} from "components/Popover/Popover";
-import { Link } from "@mui/material";
 import { docs } from "utils/docs";
+import { ProvisionerTag } from "./ProvisionerTag";
 
 type ProvisionerGroupType = "builtin" | "psk" | "key";
 
