@@ -273,7 +273,7 @@ type ExpectedGroup struct {
 }
 
 // Equal compares two ExpectedGroups. The org id must be the same.
-// If the group ID is set, it will be compared and take priorty, ignoring the
+// If the group ID is set, it will be compared and take priority, ignoring the
 // name value. So 2 groups with the same ID but different names will be
 // considered equal.
 func (a ExpectedGroup) Equal(b ExpectedGroup) bool {
