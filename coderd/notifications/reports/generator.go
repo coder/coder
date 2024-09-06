@@ -18,7 +18,7 @@ const (
 	delay = 5 * time.Minute
 )
 
-func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, notificationsEnqueuer notifications.Enqueuer, clk quartz.Clock) io.Closer {
+func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, _ notifications.Enqueuer, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
