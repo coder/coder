@@ -172,30 +172,63 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						<>
 							<TopbarDivider />
 
-							<Tooltip title={`Organization: ${workspace.organization_name}`}>
-								<span
-									css={{
-										display: "flex",
-										flexFlow: "row nowrap",
-										gap: "8px",
-										maxWidth: "160px",
-										textOverflow: "ellipsis",
-										overflowX: "hidden",
-										whiteSpace: "nowrap",
-										cursor: "default",
-									}}
-								>
-									{activeOrg && (
-										<UserAvatar
-											size="xs"
-											username={activeOrg.display_name}
-											avatarURL={activeOrg.icon}
-										/>
-									)}
+							<Popover mode="hover">
+								<PopoverTrigger>
+									<span
+										css={{
+											display: "flex",
+											flexFlow: "row nowrap",
+											gap: "8px",
+											maxWidth: "160px",
+											textOverflow: "ellipsis",
+											overflowX: "hidden",
+											whiteSpace: "nowrap",
+											cursor: "default",
+										}}
+									>
+										{activeOrg && (
+											<UserAvatar
+												size="xs"
+												username={activeOrg.display_name}
+												avatarURL={activeOrg.icon}
+											/>
+										)}
 
-									{workspace.organization_name}
-								</span>
-							</Tooltip>
+										{workspace.organization_name}
+									</span>
+								</PopoverTrigger>
+
+								<HelpTooltipContent
+									anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+									transformOrigin={{ vertical: "top", horizontal: "center" }}
+								>
+									<AvatarData
+										title={
+											showOrganizations ? (
+												<Link
+													component={RouterLink}
+													to={`/organizations/${encodeURIComponent(workspace.organization_name)}`}
+													css={{ color: "inherit" }}
+												>
+													{workspace.organization_name}
+												</Link>
+											) : (
+												workspace.organization_name
+											)
+										}
+										subtitle="Organization"
+										avatar={
+											activeOrg !== undefined && (
+												<ExternalAvatar
+													src={activeOrg.icon}
+													variant="square"
+													fitImage
+												/>
+											)
+										}
+									/>
+								</HelpTooltipContent>
+							</Popover>
 						</>
 					)}
 
