@@ -51,16 +51,28 @@ export const Paywall: FC<PaywallProps> = ({
 			<Stack direction="column" alignItems="center" spacing={3}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
-						<FeatureIcon type={type} /> Template access control
+						<FeatureIcon type={type} />
+						{type === "premium"
+							? "High availability & workspace proxies"
+							: "Template access control"}
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={type} /> User groups
+						<FeatureIcon type={type} />
+						{type === "premium"
+							? "Multi-org & role-based access control"
+							: "User groups"}
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={type} /> 24 hour support
+						<FeatureIcon type={type} />
+						{type === "premium"
+							? "24x7 global support with SLA"
+							: "24 hour support"}
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={type} /> Audit logs
+						<FeatureIcon type={type} />
+						{type === "premium"
+							? "Unlimited Git & external auth integrations"
+							: "Audit logs"}
 					</li>
 				</ul>
 				<Button
@@ -71,7 +83,7 @@ export const Paywall: FC<PaywallProps> = ({
 					variant="outlined"
 					color="neutral"
 				>
-					Learn about Enterprise
+					Learn about {type === "enterprise" ? "Enterprise" : "Premium"}
 				</Button>
 			</Stack>
 		</div>
@@ -100,9 +112,8 @@ const styles = {
 		flexDirection: "row",
 		justifyContent: "center",
 		alignItems: "center",
-		minHeight: 300,
-		maxWidth: 920,
-		margin: "auto",
+		minHeight: 280,
+		marginBottom: 32,
 		padding: 24,
 		borderRadius: 8,
 		gap: 32,
@@ -114,12 +125,9 @@ const styles = {
 		margin: 0,
 	},
 	description: (theme) => ({
-		marginTop: 16,
 		fontFamily: "inherit",
-		maxWidth: 420,
-		lineHeight: "160%",
-		color: theme.palette.text.secondary,
-		fontSize: 16,
+		maxWidth: 460,
+		fontSize: 14,
 	}),
 	separator: (theme) => ({
 		width: 1,
@@ -131,7 +139,7 @@ const styles = {
 		listStyle: "none",
 		margin: 0,
 		marginRight: 8,
-		padding: "0 12px",
+		padding: "0 24px",
 		fontSize: 14,
 		fontWeight: 500,
 	},
