@@ -1,6 +1,10 @@
+import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
-import { type useFilter, Filter, MenuSkeleton } from "components/Filter/Filter";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import {
+	type OrganizationsFilterMenu,
+	OrganizationsMenu,
+} from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
@@ -9,10 +13,6 @@ import {
 	type TemplateFilterMenu,
 	TemplateMenu,
 } from "./menus";
-import {
-	type OrganizationsFilterMenu,
-	OrganizationsMenu,
-} from "pages/AuditPage/AuditFilter";
 
 export const workspaceFilterQuery = {
 	me: "owner:me",
