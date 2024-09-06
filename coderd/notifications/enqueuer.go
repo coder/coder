@@ -54,7 +54,8 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 
 // Enqueue queues a notification message for later delivery, assumes no structured input data.
 func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	return s.EnqueueData(ctx, userID, templateID, labels, map[string]any{}, createdBy, targets...)
+	// "nil" data will be omitted while building the JSON payload.
+	return s.EnqueueData(ctx, userID, templateID, labels, nil, createdBy, targets...)
 }
 
 // Enqueue queues a notification message for later delivery.
