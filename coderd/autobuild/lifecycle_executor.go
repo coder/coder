@@ -303,8 +303,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							"reason":                   nextBuildReason,
 							"template_version_name":    activeTemplateVersion.Name,
 							"template_version_message": activeTemplateVersion.Message,
-						},
-						"autobuild",
+						}, "autobuild",
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
 					); err != nil {
