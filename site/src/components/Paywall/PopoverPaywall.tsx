@@ -21,7 +21,15 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 	licenseType = "enterprise",
 }) => {
 	return (
-		<div css={styles.root}>
+		<div
+			css={[
+				styles.root,
+				(theme) => ({
+					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.paywall[licenseType].background})`,
+					border: `1px solid ${theme.branding.paywall[licenseType].border}`,
+				}),
+			]}
+		>
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 18 }}>
 					<h5 css={styles.title}>{message}</h5>
@@ -42,20 +50,20 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			<Stack direction="column" alignItems="center" spacing={2}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
-						<FeatureIcon /> Template access control
+						<FeatureIcon type={licenseType} /> Template access control
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> User groups
+						<FeatureIcon type={licenseType} /> User groups
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> 24 hour support
+						<FeatureIcon type={licenseType} /> 24 hour support
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> Audit logs
+						<FeatureIcon type={licenseType} /> Audit logs
 					</li>
 					{licenseType === "premium" && (
 						<li css={styles.feature}>
-							<FeatureIcon /> Organizations
+							<FeatureIcon type={licenseType} /> Organizations
 						</li>
 					)}
 				</ul>
@@ -74,8 +82,20 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 	);
 };
 
-const FeatureIcon: FC = () => {
-	return <TaskAltIcon css={styles.featureIcon} />;
+export interface FeatureIconProps {
+	type: "enterprise" | "premium";
+}
+
+const FeatureIcon: FC<FeatureIconProps> = ({ type }) => {
+	return (
+		<TaskAltIcon
+			css={[
+				(theme) => ({
+					color: theme.branding.paywall[type].border,
+				}),
+			]}
+		/>
+	);
 };
 
 const styles = {
@@ -85,8 +105,6 @@ const styles = {
 		alignItems: "center",
 		maxWidth: 600,
 		padding: "24px 36px",
-		backgroundImage: `linear-gradient(160deg, transparent, ${theme.roles.active.background})`,
-		border: `1px solid ${theme.roles.active.fill.outline}`,
 		borderRadius: 8,
 		gap: 18,
 	}),
@@ -118,10 +136,6 @@ const styles = {
 		fontSize: 13,
 		fontWeight: 500,
 	},
-	featureIcon: (theme) => ({
-		color: theme.roles.active.fill.outline,
-		fontSize: "1.5em",
-	}),
 	feature: {
 		display: "flex",
 		alignItems: "center",
