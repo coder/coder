@@ -30,7 +30,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 		t.Parallel()
 
 		s := enidpsync.NewSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewStoreManager(),
+			runtimeconfig.NewManager(),
 			entitlements.New(),
 			idpsync.DeploymentSyncSettings{})
 
@@ -46,7 +46,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 		t.Parallel()
 
 		s := enidpsync.NewSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewStoreManager(),
+			runtimeconfig.NewManager(),
 			entitled,
 			idpsync.DeploymentSyncSettings{
 				GroupField: "groups",
@@ -74,7 +74,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 		t.Parallel()
 
 		s := enidpsync.NewSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewStoreManager(),
+			runtimeconfig.NewManager(),
 			entitled,
 			idpsync.DeploymentSyncSettings{
 				GroupField: "groups",

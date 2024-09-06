@@ -81,12 +81,11 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			orgResolver := s.Manager.OrganizationResolver(tx, orgID)
 			settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
 			if err != nil {
-				if xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
-					// Default to not being configured
-					settings = &GroupSyncSettings{}
-				} else {
+				if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
 					return xerrors.Errorf("resolve group sync settings: %w", err)
 				}
+				// Default to not being configured
+				settings = &GroupSyncSettings{}
 			}
 
 			// Legacy deployment settings will override empty settings.
@@ -273,15 +272,7 @@ func (s *GroupSyncSettings) Set(v string) error {
 }
 
 func (s *GroupSyncSettings) String() string {
-	v, err := json.Marshal(s)
-	if err != nil {
-		return "decode failed: " + err.Error()
-	}
-	return string(v)
-}
-
-func (s *GroupSyncSettings) Type() string {
-	return "GroupSyncSettings"
+	return runtimeconfig.JSONString(s)
 }
 
 type ExpectedGroup struct {

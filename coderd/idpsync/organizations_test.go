@@ -20,7 +20,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 		t.Parallel()
 
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewStoreManager(),
+			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
 				OrganizationField:         "",
 				OrganizationMapping:       nil,
@@ -42,7 +42,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 
 		// AGPL has limited behavior
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewStoreManager(),
+			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
 				OrganizationField: "orgs",
 				OrganizationMapping: map[string][]uuid.UUID{

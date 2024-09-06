@@ -342,6 +342,60 @@ func TestGroupSyncTable(t *testing.T) {
 	})
 }
 
+func TestSyncDisabled(t *testing.T) {
+	t.Parallel()
+
+	if dbtestutil.WillUsePostgres() {
+		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	manager := runtimeconfig.NewManager()
+	s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+		manager,
+		idpsync.DeploymentSyncSettings{},
+	)
+
+	ids := coderdtest.NewDeterministicUUIDGenerator()
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	user := dbgen.User(t, db, database.User{})
+	orgID := uuid.New()
+
+	def := orgSetupDefinition{
+		Name: "SyncDisabled",
+		Groups: map[uuid.UUID]bool{
+			ids.ID("foo"): true,
+			ids.ID("bar"): true,
+			ids.ID("baz"): false,
+			ids.ID("bop"): false,
+		},
+		Settings: &idpsync.GroupSyncSettings{
+			Field: "groups",
+			Mapping: map[string][]uuid.UUID{
+				"foo": {ids.ID("foo")},
+				"baz": {ids.ID("baz")},
+			},
+		},
+		ExpectedGroups: []uuid.UUID{
+			ids.ID("foo"),
+			ids.ID("bar"),
+		},
+	}
+
+	SetupOrganization(t, s, db, user, orgID, def)
+
+	// Do the group sync!
+	err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
+		SyncEnabled: false,
+		MergedClaims: jwt.MapClaims{
+			"groups": []string{"baz", "bop"},
+		},
+	})
+	require.NoError(t, err)
+
+	def.Assert(t, orgID, db, user)
+}
+
 // TestApplyGroupDifference is mainly testing the database functions
 func TestApplyGroupDifference(t *testing.T) {
 	t.Parallel()
