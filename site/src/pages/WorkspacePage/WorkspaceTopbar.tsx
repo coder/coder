@@ -87,18 +87,22 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 }) => {
+	const { entitlements, organizations, showOrganizations } = useDashboard();
 	const getLink = useLinks();
 	const theme = useTheme();
 
 	// Quota
 	const hasDailyCost = workspace.latest_build.daily_cost > 0;
 	const { data: quota } = useQuery({
-		...workspaceQuota(workspace.owner_name),
+		...workspaceQuota(workspace.organization_name, workspace.owner_name),
+
+		// Don't need to tie the enabled condition to showOrganizations because
+		// even if the customer hasn't enabled the orgs enterprise feature, all
+		// workspaces have an associated organization under the hood
 		enabled: hasDailyCost,
 	});
 
 	// Dormant
-	const { entitlements } = useDashboard();
 	const allowAdvancedScheduling =
 		entitlements.features.advanced_template_scheduling.enabled;
 	// This check can be removed when https://github.com/coder/coder/milestone/19
@@ -108,18 +112,16 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		allowAdvancedScheduling,
 	);
 
+	const matchedOrganization = organizations.find(
+		(org) => org.id === workspace.organization_id,
+	);
+
 	const isImmutable =
 		workspace.latest_build.status === "deleted" ||
 		workspace.latest_build.status === "deleting";
 
 	const templateLink = getLink(
 		linkToTemplate(workspace.organization_name, workspace.template_name),
-	);
-
-	// Organization logic
-	const { organizations, showOrganizations } = useDashboard();
-	const matchedOrganization = organizations.find(
-		(o) => o.id === workspace.organization_id,
 	);
 
 	return (

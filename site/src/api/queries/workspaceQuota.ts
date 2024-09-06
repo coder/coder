@@ -1,14 +1,16 @@
 import { API } from "api/api";
 
-export const getWorkspaceQuotaQueryKey = (username: string) => [
-	username,
-	"workspaceQuota",
-];
+export const getWorkspaceQuotaQueryKey = (
+	organizationName: string,
+	username: string,
+) => {
+	return [organizationName, username, "workspaceQuota"];
+};
 
-export const workspaceQuota = (username: string) => {
+export const workspaceQuota = (organizationName: string, username: string) => {
 	return {
-		queryKey: getWorkspaceQuotaQueryKey(username),
-		queryFn: () => API.getWorkspaceQuota(username),
+		queryKey: getWorkspaceQuotaQueryKey(organizationName, username),
+		queryFn: () => API.getWorkspaceQuota(organizationName, username),
 	};
 };
 
