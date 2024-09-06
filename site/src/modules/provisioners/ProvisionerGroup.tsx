@@ -1,16 +1,15 @@
 import { useTheme } from "@emotion/react";
-import ArrowDownward from "@mui/icons-material/ArrowDownward";
 import Business from "@mui/icons-material/Business";
 import Person from "@mui/icons-material/Person";
 import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
 import type { BuildInfoResponse } from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import type { ProvisionerDaemonWithWarnings } from "pages/ManagementSettingsPage/OrganizationProvisionersPageView";
 import { type FC, useState } from "react";
-import { ProvisionerTag } from "./ProvisionerTag";
 import { createDayString } from "utils/createDayString";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { ProvisionerTag } from "./ProvisionerTag";
 
 type ProvisionerGroupType = "builtin" | "psk" | "key";
 
