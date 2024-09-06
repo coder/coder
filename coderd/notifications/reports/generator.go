@@ -18,7 +18,7 @@ const (
 	delay = 5 * time.Minute
 )
 
-func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, _ notifications.Enqueuer, clk quartz.Clock) io.Closer {
+func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, notificationsEnqueuer notifications.Enqueuer, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -41,7 +41,16 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 				return nil
 			}
 
-			// TODO
+			// TODO:
+			//
+			// 1. for every user:
+			//   1. for every template they administrate:
+			//     1. for every enabled report:
+			//       1. check last run `report_generator_log`
+			//       2. generate report
+			//       3. send notification
+			//       4. upsert into `report_generator_log`
+			// 2. clean stale `report_generator_log` entries
 
 			logger.Info(ctx, "report generator finished", slog.F("duration", clk.Since(start)))
 
