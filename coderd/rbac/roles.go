@@ -445,6 +445,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
 						ResourceAuditLog.Type: {policy.ActionRead},
+						// The org-wide auditor is allowed to read *all* frobulators in their own org, regardless of who owns them.
+						ResourceFrobulator.Type: {policy.ActionRead},
 					}),
 				},
 				User: []Permission{},

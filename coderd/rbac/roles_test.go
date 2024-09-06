@@ -691,13 +691,14 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Owner should be able to CRUD any other user's frobulators
-			Name:     "FrobulatorsAnyUser",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceFrobulator.WithOwner(uuid.New().String()), // read frobulators of any user
+			// Owner should be able to modify any other user's frobulators in their own org
+			// Org admin should be able to modify any other user's frobulators in their own org
+			Name:     "FrobulatorsModifyAnyUser",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceFrobulator.WithOwner(uuid.New().String()).InOrg(orgID), // read frobulators of any user
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner},
-				false: {memberMe, orgMemberMe, orgAdmin, setOtherOrg, templateAdmin, userAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
+				true:  {owner, orgAdmin},
+				false: {memberMe, orgMemberMe, setOtherOrg, templateAdmin, userAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -706,7 +707,7 @@ func TestRolePermissions(t *testing.T) {
 			// Owner should be able to read any other user's frobulators
 			Name:     "FrobulatorsReadAnyUserInOrg",
 			Actions:  []policy.Action{policy.ActionRead},
-			Resource: rbac.ResourceFrobulator.InOrg(orgID).WithOwner(uuid.New().String()), // read frobulators of any user
+			Resource: rbac.ResourceFrobulator.WithOwner(uuid.New().String()).InOrg(orgID), // read frobulators of any user
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAuditor},
 				false: {memberMe, orgMemberMe, setOtherOrg, templateAdmin, userAdmin, orgTemplateAdmin, orgUserAdmin},
