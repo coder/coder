@@ -77,7 +77,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			orgResolver := s.Manager.OrganizationResolver(tx, orgID)
 			settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
 			if err != nil {
-				if xerrors.Is(err, runtimeconfig.EntryNotFound) {
+				if xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
 					// Default to not being configured
 					settings = &GroupSyncSettings{}
 				} else {
