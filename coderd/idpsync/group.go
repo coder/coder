@@ -65,6 +65,8 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		}
 
 		// Figure out which organizations the user is a member of.
+		// The "Everyone" group is always included, so we can infer organization
+		// membership via the groups the user is in.
 		userOrgs := make(map[uuid.UUID][]database.GetGroupsRow)
 		for _, g := range userGroups {
 			g := g
@@ -72,6 +74,8 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		}
 
 		// For each org, we need to fetch the sync settings
+		// This loop also handles any legacy settings for the default
+		// organization.
 		orgSettings := make(map[uuid.UUID]GroupSyncSettings)
 		for orgID := range userOrgs {
 			orgResolver := s.Manager.OrganizationResolver(tx, orgID)
@@ -97,16 +101,23 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			orgSettings[orgID] = *settings
 		}
 
-		// collect all diffs to do 1 sql update for all orgs
+		// groupIDsToAdd & groupIDsToRemove are the final group differences
+		// needed to be applied to user. The loop below will iterate over all
+		// organizations the user is in, and determine the diffs.
+		// The diffs are applied as a batch sql query, rather than each
+		// organization having to execute a query.
 		groupIDsToAdd := make([]uuid.UUID, 0)
 		groupIDsToRemove := make([]uuid.UUID, 0)
 		// For each org, determine which groups the user should land in
 		for orgID, settings := range orgSettings {
 			if settings.Field == "" {
 				// No group sync enabled for this org, so do nothing.
+				// The user can remain in their groups for this org.
 				continue
 			}
 
+			// expectedGroups is the set of groups the IDP expects the
+			// user to be a member of.
 			expectedGroups, err := settings.ParseClaims(orgID, params.MergedClaims)
 			if err != nil {
 				s.Logger.Debug(ctx, "failed to parse claims for groups",
@@ -117,7 +128,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 				// Unsure where to raise this error on the UI or database.
 				continue
 			}
-			// Everyone group is always implied.
+			// Everyone group is always implied, so include it.
 			expectedGroups = append(expectedGroups, ExpectedGroup{
 				OrganizationID: orgID,
 				GroupID:        &orgID,
@@ -134,6 +145,7 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 					GroupName:      &f.Group.Name,
 				}
 			})
+
 			add, remove := slice.SymmetricDifferenceFunc(existingGroupsTyped, expectedGroups, func(a, b ExpectedGroup) bool {
 				// Must match
 				if a.OrganizationID != b.OrganizationID {
@@ -150,10 +162,10 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			})
 
 			for _, r := range remove {
-				// This should never happen. All group removals come from the
-				// existing set, which come from the db. All groups from the
-				// database have IDs. This code is purely defensive.
 				if r.GroupID == nil {
+					// This should never happen. All group removals come from the
+					// existing set, which come from the db. All groups from the
+					// database have IDs. This code is purely defensive.
 					detail := "user:" + user.Username
 					if r.GroupName != nil {
 						detail += fmt.Sprintf(" from group %s", *r.GroupName)
@@ -166,6 +178,11 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			// HandleMissingGroups will add the new groups to the org if
 			// the settings specify. It will convert all group names into uuids
 			// for easier assignment.
+			// TODO: This code should be batched at the end of the for loop.
+			// Optimizing this is being pushed because if AutoCreate is disabled,
+			// this code will only add cost on the first login for each user.
+			// AutoCreate is usually disabled for large deployments.
+			// For small deployments, this is less of a problem.
 			assignGroups, err := settings.HandleMissingGroups(ctx, tx, orgID, add)
 			if err != nil {
 				return xerrors.Errorf("handle missing groups: %w", err)
@@ -174,6 +191,8 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 			groupIDsToAdd = append(groupIDsToAdd, assignGroups...)
 		}
 
+		// ApplyGroupDifference will take the total adds and removes, and apply
+		// them.
 		err = s.ApplyGroupDifference(ctx, tx, user, groupIDsToAdd, groupIDsToRemove)
 		if err != nil {
 			return xerrors.Errorf("apply group difference: %w", err)
@@ -190,8 +209,6 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 
 // ApplyGroupDifference will add and remove the user from the specified groups.
 func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store, user database.User, add []uuid.UUID, removeIDs []uuid.UUID) error {
-	// Always do group removal before group add. This way if there is an error,
-	// we error on the underprivileged side.
 	if len(removeIDs) > 0 {
 		removedGroupIDs, err := tx.RemoveUserFromGroups(ctx, database.RemoveUserFromGroupsParams{
 			UserID:   user.ID,

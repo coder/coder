@@ -17,7 +17,8 @@ func (e EnterpriseIDPSync) GroupSyncEnabled() bool {
 // ParseGroupClaims parses the user claims and handles deployment wide group behavior.
 // Almost all behavior is deferred since each organization configures it's own
 // group sync settings.
-// TODO: Implement group allow_list behavior here since that is deployment wide.
+// GroupAllowList is implemented here to prevent login by unauthorized users.
+// TODO: GroupAllowList overlaps with the default organization group sync settings.
 func (e EnterpriseIDPSync) ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.GroupParams, *idpsync.HTTPError) {
 	if !e.GroupSyncEnabled() {
 		return e.AGPLIDPSync.ParseGroupClaims(ctx, mergedClaims)
