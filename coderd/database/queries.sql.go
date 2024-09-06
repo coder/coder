@@ -1462,6 +1462,7 @@ SELECT
 	groups.id
 FROM
 	groups
+ON CONFLICT DO NOTHING
 RETURNING group_id
 `
 
@@ -1471,6 +1472,7 @@ type InsertUserGroupsByIDParams struct {
 }
 
 // InsertUserGroupsByID adds a user to all provided groups, if they exist.
+// If there is a conflict, the user is already a member
 func (q *sqlQuerier) InsertUserGroupsByID(ctx context.Context, arg InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, insertUserGroupsByID, arg.UserID, pq.Array(arg.GroupIds))
 	if err != nil {

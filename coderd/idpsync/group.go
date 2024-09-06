@@ -226,6 +226,8 @@ func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store
 	}
 
 	if len(add) > 0 {
+		add = slice.Unique(add)
+		// Defensive programming to only insert uniques.
 		assignedGroupIDs, err := tx.InsertUserGroupsByID(ctx, database.InsertUserGroupsByIDParams{
 			UserID:   user.ID,
 			GroupIds: add,

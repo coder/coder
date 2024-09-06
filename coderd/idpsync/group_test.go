@@ -2,6 +2,7 @@ package idpsync_test
 
 import (
 	"context"
+	"database/sql"
 	"regexp"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -64,6 +66,7 @@ func TestParseGroupClaims(t *testing.T) {
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
 
+	// Last checked, takes 30s with postgres on a fast machine.
 	if dbtestutil.WillUsePostgres() {
 		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
 	}
@@ -553,10 +556,15 @@ func TestApplyGroupDifference(t *testing.T) {
 func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, user database.User, orgID uuid.UUID, def orgSetupDefinition) {
 	t.Helper()
 
-	org := dbgen.Organization(t, db, database.Organization{
-		ID: orgID,
-	})
-	_, err := db.InsertAllUsersGroup(context.Background(), org.ID)
+	// Account that the org might be the default organization
+	org, err := db.GetOrganizationByID(context.Background(), orgID)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		org = dbgen.Organization(t, db, database.Organization{
+			ID: orgID,
+		})
+	}
+
+	_, err = db.InsertAllUsersGroup(context.Background(), org.ID)
 	if !database.IsUniqueViolation(err) {
 		require.NoError(t, err, "Everyone group for an org")
 	}

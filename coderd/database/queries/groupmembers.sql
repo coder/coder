@@ -46,6 +46,8 @@ SELECT
 	groups.id
 FROM
 	groups
+-- If there is a conflict, the user is already a member
+ON CONFLICT DO NOTHING
 RETURNING group_id;
 
 -- name: RemoveUserFromAllGroups :exec
