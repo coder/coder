@@ -7,6 +7,7 @@ import type { NewTheme } from "./experimental";
 import type { ExternalImageModeStyles } from "./externalImages";
 import light from "./light";
 import type { Roles } from "./roles";
+import type { Branding } from "./branding";
 
 export interface Theme extends Omit<MuiTheme, "palette"> {
 	/** @deprecated prefer `theme.roles` when possible */
@@ -20,6 +21,10 @@ export interface Theme extends Omit<MuiTheme, "palette"> {
 
 	/** Theme properties that we're testing out but haven't committed to. */
 	experimental: NewTheme;
+
+	//** Theme colors related to marketing */
+	branding: Branding;
+
 	monaco: monaco.editor.IStandaloneThemeData;
 	externalImages: ExternalImageModeStyles;
 }

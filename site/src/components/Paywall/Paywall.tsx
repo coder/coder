@@ -2,28 +2,39 @@ import type { Interpolation, Theme } from "@emotion/react";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { EnterpriseBadge } from "components/Badges/Badges";
+import { EnterpriseBadge, PremiumBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
+import theme from "theme";
 import { docs } from "utils/docs";
 
 export interface PaywallProps {
+	type: "enterprise" | "premium";
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;
 }
 
 export const Paywall: FC<PaywallProps> = ({
+	type,
 	message,
 	description,
 	documentationLink,
 }) => {
 	return (
-		<div css={styles.root}>
+		<div
+			css={[
+				styles.root,
+				(theme) => ({
+					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.paywall[type].background})`,
+					border: `1px solid ${theme.branding.paywall[type].border}`,
+				}),
+			]}
+		>
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 24 }}>
 					<h5 css={styles.title}>{message}</h5>
-					<EnterpriseBadge />
+					{type === "enterprise" ? <EnterpriseBadge /> : <PremiumBadge />}
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
@@ -36,20 +47,20 @@ export const Paywall: FC<PaywallProps> = ({
 					Read the documentation
 				</Link>
 			</div>
-			<div css={styles.separator}></div>
+			<div css={styles.separator} />
 			<Stack direction="column" alignItems="center" spacing={3}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
-						<FeatureIcon /> Template access control
+						<FeatureIcon type={type} /> Template access control
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> User groups
+						<FeatureIcon type={type} /> User groups
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> 24 hour support
+						<FeatureIcon type={type} /> 24 hour support
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> Audit logs
+						<FeatureIcon type={type} /> Audit logs
 					</li>
 				</ul>
 				<Button
@@ -67,8 +78,20 @@ export const Paywall: FC<PaywallProps> = ({
 	);
 };
 
-const FeatureIcon: FC = () => {
-	return <TaskAltIcon css={styles.featureIcon} />;
+export interface FeatureIconProps {
+	type: "enterprise" | "premium";
+}
+
+const FeatureIcon: FC<FeatureIconProps> = ({ type }) => {
+	return (
+		<TaskAltIcon
+			css={[
+				(theme) => ({
+					color: theme.branding.paywall[type].border,
+				}),
+			]}
+		/>
+	);
 };
 
 const styles = {
@@ -81,8 +104,6 @@ const styles = {
 		maxWidth: 920,
 		margin: "auto",
 		padding: 24,
-		backgroundImage: `linear-gradient(160deg, transparent, ${theme.roles.active.background})`,
-		border: `1px solid ${theme.roles.active.fill.outline}`,
 		borderRadius: 8,
 		gap: 32,
 	}),

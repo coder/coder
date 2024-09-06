@@ -137,6 +137,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
 				<Cond>
 					<Paywall
+						type="enterprise"
 						message="Audit logs"
 						description="Audit logs allow you to monitor user operations on your deployment. You need an Enterprise license to use this feature."
 						documentationLink={docs("/admin/audit-logs")}

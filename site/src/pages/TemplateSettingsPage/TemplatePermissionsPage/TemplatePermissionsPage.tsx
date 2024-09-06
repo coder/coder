@@ -31,6 +31,7 @@ export const TemplatePermissionsPage: FC = () => {
 			</Helmet>
 			{!isTemplateRBACEnabled ? (
 				<Paywall
+					type="enterprise"
 					message="Template permissions"
 					description="Control access of templates for users and groups to templates. You need an Enterprise license to use this feature."
 					documentationLink={docs("/admin/rbac")}

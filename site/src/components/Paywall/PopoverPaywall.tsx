@@ -38,7 +38,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 					Read the documentation
 				</Link>
 			</div>
-			<div css={styles.separator}></div>
+			<div css={styles.separator} />
 			<Stack direction="column" alignItems="center" spacing={2}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>

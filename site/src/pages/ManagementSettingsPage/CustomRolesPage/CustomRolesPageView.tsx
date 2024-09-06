@@ -48,6 +48,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 			<ChooseOne>
 				<Cond condition={!isCustomRolesEnabled}>
 					<Paywall
+						type="premium"
 						message="Custom Roles"
 						description="Create custom roles to assign a specific set of permissions to a user. You need an Enterprise license to use this feature."
 						documentationLink={docs("/admin/groups")}
