@@ -1,8 +1,8 @@
+import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import { type useFilter, Filter, MenuSkeleton } from "components/Filter/Filter";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,

@@ -1,11 +1,12 @@
 import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
-import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useFilter } from "components/Filter/Filter";
+import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -17,7 +18,6 @@ import { WorkspacesPageView } from "./WorkspacesPageView";
 import { useBatchActions } from "./batchActions";
 import { useWorkspaceUpdate, useWorkspacesData } from "./data";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
-import { useOrganizationsFilterMenu } from "pages/AuditPage/AuditFilter";
 
 function useSafeSearchParams() {
 	// Have to wrap setSearchParams because React Router doesn't make sure that

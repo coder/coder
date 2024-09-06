@@ -1,19 +1,16 @@
 import { paginatedAudits } from "api/queries/audits";
-import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useFilter } from "components/Filter/Filter";
+import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import {
-	useActionFilterMenu,
-	useOrganizationsFilterMenu,
-	useResourceTypeFilterMenu,
-} from "./AuditFilter";
+import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: FC = () => {

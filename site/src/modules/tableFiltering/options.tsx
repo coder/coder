@@ -9,14 +9,14 @@
  */
 import { API } from "api/api";
 import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "components/Filter/menu";
-import {
 	SelectFilter,
 	type SelectFilterOption,
 	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
+import {
+	type UseFilterMenuOptions,
+	useFilterMenu,
+} from "components/Filter/menu";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import type { FC } from "react";
 

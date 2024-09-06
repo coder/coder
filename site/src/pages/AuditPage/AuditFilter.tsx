@@ -1,14 +1,14 @@
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "components/Filter/menu";
-import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import {
+	type UseFilterMenuOptions,
+	useFilterMenu,
+} from "components/Filter/menu";
 import capitalize from "lodash/capitalize";
 import {
 	type OrganizationsFilterMenu,
