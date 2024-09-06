@@ -17,6 +17,7 @@ import { WorkspacesPageView } from "./WorkspacesPageView";
 import { useBatchActions } from "./batchActions";
 import { useWorkspaceUpdate, useWorkspacesData } from "./data";
 import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
+import { useOrganizationsFilterMenu } from "pages/AuditPage/AuditFilter";
 
 function useSafeSearchParams() {
 	// Have to wrap setSearchParams because React Router doesn't make sure that
@@ -175,12 +176,24 @@ const useWorkspacesFilter = ({
 			filter.update({ ...filter.values, status: option?.value }),
 	});
 
+	const { showOrganizations } = useDashboard();
+	const organizationsMenu = useOrganizationsFilterMenu({
+		value: filter.values.organization,
+		onChange: (option) => {
+			filter.update({
+				...filter.values,
+				organization: option?.value,
+			});
+		},
+	});
+
 	return {
 		filter,
 		menus: {
 			user: canFilterByUser ? userMenu : undefined,
 			template: templateMenu,
 			status: statusMenu,
+			organizations: showOrganizations ? organizationsMenu : undefined,
 		},
 	};
 };

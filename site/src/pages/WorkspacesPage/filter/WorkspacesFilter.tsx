@@ -9,6 +9,10 @@ import {
 	type TemplateFilterMenu,
 	TemplateMenu,
 } from "./menus";
+import {
+	type OrganizationsFilterMenu,
+	OrganizationsMenu,
+} from "pages/AuditPage/AuditFilter";
 
 export const workspaceFilterQuery = {
 	me: "owner:me",
@@ -65,6 +69,7 @@ type WorkspaceFilterProps = {
 		user?: UserFilterMenu;
 		template: TemplateFilterMenu;
 		status: StatusFilterMenu;
+		organizations?: OrganizationsFilterMenu;
 	};
 };
 
@@ -73,7 +78,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	error,
 	menus,
 }) => {
-	const { entitlements } = useDashboard();
+	const { entitlements, showOrganizations } = useDashboard();
+	const width = showOrganizations ? 175 : undefined;
 	const presets = entitlements.features.advanced_template_scheduling.enabled
 		? PRESETS_WITH_DORMANT
 		: PRESET_FILTERS;
@@ -87,9 +93,12 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			learnMoreLink={docs("/workspaces#workspace-filtering")}
 			options={
 				<>
-					{menus.user && <UserMenu menu={menus.user} />}
-					<TemplateMenu {...menus.template} />
-					<StatusMenu {...menus.status} />
+					{menus.user && <UserMenu width={width} menu={menus.user} />}
+					<TemplateMenu width={width} menu={menus.template} />
+					<StatusMenu width={width} menu={menus.status} />
+					{showOrganizations && menus.organizations !== undefined && (
+						<OrganizationsMenu width={width} menu={menus.organizations} />
+					)}
 				</>
 			}
 			optionsSkeleton={
