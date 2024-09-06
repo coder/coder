@@ -79,16 +79,16 @@ func TestEntry(t *testing.T) {
 		// Validate that it returns that value.
 		require.Equal(t, base.String(), field.String())
 		// Validate that there is no org-level override right now.
-		_, err := field.Resolve(ctx, mgr.DeploymentResolver(db))
-		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
+		_, err := field.Resolve(ctx, mgr.Resolver(db))
+		require.ErrorIs(t, err, runtimeconfig.ErrEntryNotFound)
 		// Coalesce returns the deployment-wide value.
-		val, err := field.Coalesce(ctx, mgr.DeploymentResolver(db))
+		val, err := field.Coalesce(ctx, mgr.Resolver(db))
 		require.NoError(t, err)
 		require.Equal(t, base.String(), val.String())
 		// Set an org-level override.
-		require.NoError(t, field.SetRuntimeValue(ctx, mgr.DeploymentResolver(db), &override))
+		require.NoError(t, field.SetRuntimeValue(ctx, mgr.Resolver(db), &override))
 		// Coalesce now returns the org-level value.
-		val, err = field.Coalesce(ctx, mgr.DeploymentResolver(db))
+		val, err = field.Coalesce(ctx, mgr.Resolver(db))
 		require.NoError(t, err)
 		require.Equal(t, override.String(), val.String())
 	})
@@ -119,16 +119,16 @@ func TestEntry(t *testing.T) {
 		// Check that default has been set.
 		require.Equal(t, base.String(), field.StartupValue().String())
 		// Validate that there is no org-level override right now.
-		_, err := field.Resolve(ctx, mgr.DeploymentResolver(db))
-		require.ErrorIs(t, err, runtimeconfig.EntryNotFound)
+		_, err := field.Resolve(ctx, mgr.Resolver(db))
+		require.ErrorIs(t, err, runtimeconfig.ErrEntryNotFound)
 		// Coalesce returns the deployment-wide value.
-		val, err := field.Coalesce(ctx, mgr.DeploymentResolver(db))
+		val, err := field.Coalesce(ctx, mgr.Resolver(db))
 		require.NoError(t, err)
 		require.Equal(t, base.Value, val.Value)
 		// Set an org-level override.
-		require.NoError(t, field.SetRuntimeValue(ctx, mgr.DeploymentResolver(db), &override))
+		require.NoError(t, field.SetRuntimeValue(ctx, mgr.Resolver(db), &override))
 		// Coalesce now returns the org-level value.
-		structVal, err := field.Resolve(ctx, mgr.DeploymentResolver(db))
+		structVal, err := field.Resolve(ctx, mgr.Resolver(db))
 		require.NoError(t, err)
 		require.Equal(t, override.Value, structVal.Value)
 	})

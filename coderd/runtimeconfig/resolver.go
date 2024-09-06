@@ -5,15 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/syncmap"
 )
 
+// NoopResolver is a useful test device.
 type NoopResolver struct{}
 
 func NewNoopResolver() *NoopResolver {
@@ -21,15 +20,15 @@ func NewNoopResolver() *NoopResolver {
 }
 
 func (NoopResolver) GetRuntimeSetting(context.Context, string) (string, error) {
-	return "", EntryNotFound
+	return "", ErrEntryNotFound
 }
 
 func (NoopResolver) UpsertRuntimeSetting(context.Context, string, string) error {
-	return EntryNotFound
+	return ErrEntryNotFound
 }
 
 func (NoopResolver) DeleteRuntimeSetting(context.Context, string) error {
-	return EntryNotFound
+	return ErrEntryNotFound
 }
 
 // StoreResolver uses the database as the underlying store for runtime settings.
@@ -45,7 +44,7 @@ func (m StoreResolver) GetRuntimeSetting(ctx context.Context, key string) (strin
 	val, err := m.db.GetRuntimeConfig(ctx, key)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", xerrors.Errorf("%q: %w", key, EntryNotFound)
+			return "", xerrors.Errorf("%q: %w", key, ErrEntryNotFound)
 		}
 		return "", xerrors.Errorf("fetch %q: %w", key, err)
 	}
@@ -65,6 +64,8 @@ func (m StoreResolver) DeleteRuntimeSetting(ctx context.Context, key string) err
 	return m.db.DeleteRuntimeConfig(ctx, key)
 }
 
+// NamespacedResolver prefixes all keys with a namespace.
+// Then defers to the underlying resolver for the actual operations.
 type NamespacedResolver struct {
 	ns      string
 	wrapped Resolver
@@ -88,52 +89,4 @@ func (m NamespacedResolver) DeleteRuntimeSetting(ctx context.Context, key string
 
 func (m NamespacedResolver) namespacedKey(k string) string {
 	return fmt.Sprintf("%s:%s", m.ns, k)
-}
-
-// MemoryCachedResolver is a super basic implementation of a cache for runtime
-// settings. Essentially, it reuses the shared "cache" that all resolvers should
-// use.
-type MemoryCachedResolver struct {
-	cache *syncmap.Map[string, cacheEntry]
-
-	wrapped Resolver
-}
-
-func NewMemoryCachedResolver(cache *syncmap.Map[string, cacheEntry], wrapped Resolver) *MemoryCachedResolver {
-	return &MemoryCachedResolver{
-		cache:   cache,
-		wrapped: wrapped,
-	}
-}
-
-func (m *MemoryCachedResolver) GetRuntimeSetting(ctx context.Context, key string) (string, error) {
-	cv, ok := m.cache.Load(key)
-	if ok {
-		return cv.value, nil
-	}
-
-	v, err := m.wrapped.GetRuntimeSetting(ctx, key)
-	if err != nil {
-		return "", err
-	}
-	m.cache.Store(key, cacheEntry{value: v, lastUpdated: time.Now()})
-	return v, nil
-}
-
-func (m *MemoryCachedResolver) UpsertRuntimeSetting(ctx context.Context, key, val string) error {
-	err := m.wrapped.UpsertRuntimeSetting(ctx, key, val)
-	if err != nil {
-		return err
-	}
-	m.cache.Store(key, cacheEntry{value: val, lastUpdated: time.Now()})
-	return nil
-}
-
-func (m *MemoryCachedResolver) DeleteRuntimeSetting(ctx context.Context, key string) error {
-	err := m.wrapped.DeleteRuntimeSetting(ctx, key)
-	if err != nil {
-		return err
-	}
-	m.cache.Delete(key)
-	return nil
 }

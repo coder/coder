@@ -21,6 +21,7 @@ type SerpentEntry interface {
 
 // DeploymentEntry extends a runtime entry with a startup value.
 // This allows for a single entry to source its value from startup or runtime.
+// DeploymentEntry will never return ErrEntryNotFound, as it will always return a value.
 type DeploymentEntry[T SerpentEntry] struct {
 	RuntimeEntry[T]
 	startupValue T
@@ -52,7 +53,7 @@ func (e *DeploymentEntry[T]) Coalesce(ctx context.Context, r Resolver) (T, error
 
 	resolved, err := e.Resolve(ctx, r)
 	if err != nil {
-		if errors.Is(err, EntryNotFound) {
+		if errors.Is(err, ErrEntryNotFound) {
 			return e.StartupValue(), nil
 		}
 		return zero, err

@@ -22,7 +22,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/coder/coder/v2/coderd/runtimeconfig"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -3522,7 +3521,7 @@ func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, e
 
 	val, ok := q.runtimeConfig[key]
 	if !ok {
-		return "", runtimeconfig.EntryNotFound
+		return "", sql.ErrNoRows
 	}
 
 	return val, nil

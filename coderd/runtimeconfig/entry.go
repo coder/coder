@@ -7,8 +7,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
-var ErrNameNotSet = xerrors.New("name is not set")
-
+// EntryMarshaller requires all entries to marshal to and from a string.
+// The final store value is a database `text` column.
+// This also is compatible with serpent values.
 type EntryMarshaller interface {
 	fmt.Stringer
 }
