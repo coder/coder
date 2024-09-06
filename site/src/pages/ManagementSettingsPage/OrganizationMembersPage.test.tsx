@@ -64,7 +64,7 @@ const updateUserRole = async (role: SlimRole) => {
 	}
 
 	// Click on the "edit icon" to display the role options
-	const editButton = within(userRow).getByTitle("Edit user roles");
+	const editButton = within(userRow).getByLabelText("Edit user roles");
 	fireEvent.click(editButton);
 
 	// Click on the role option
