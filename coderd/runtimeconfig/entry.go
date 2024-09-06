@@ -48,20 +48,20 @@ func MustNew[T EntryValue](name string) RuntimeEntry[T] {
 func (e *RuntimeEntry[T]) SetRuntimeValue(ctx context.Context, m Resolver, val T) error {
 	name, err := e.name()
 	if err != nil {
-		return err
+		return xerrors.Errorf("set runtime: %w", err)
 	}
 
-	return m.UpsertRuntimeSetting(ctx, name, val.String())
+	return m.UpsertRuntimeConfig(ctx, name, val.String())
 }
 
 // UnsetRuntimeValue removes the runtime value from the store.
 func (e *RuntimeEntry[T]) UnsetRuntimeValue(ctx context.Context, m Resolver) error {
 	name, err := e.name()
 	if err != nil {
-		return err
+		return xerrors.Errorf("unset runtime: %w", err)
 	}
 
-	return m.DeleteRuntimeSetting(ctx, name)
+	return m.DeleteRuntimeConfig(ctx, name)
 }
 
 // Resolve attempts to resolve the runtime value of this field from the store via the given Resolver.
@@ -70,12 +70,12 @@ func (e *RuntimeEntry[T]) Resolve(ctx context.Context, r Resolver) (T, error) {
 
 	name, err := e.name()
 	if err != nil {
-		return zero, err
+		return zero, xerrors.Errorf("resolve, name issue: %w", err)
 	}
 
-	val, err := r.GetRuntimeSetting(ctx, name)
+	val, err := r.GetRuntimeConfig(ctx, name)
 	if err != nil {
-		return zero, err
+		return zero, xerrors.Errorf("resolve runtime: %w", err)
 	}
 
 	inst := create[T]()

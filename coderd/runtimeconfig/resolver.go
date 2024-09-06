@@ -19,15 +19,15 @@ func NewNoopResolver() *NoopResolver {
 	return &NoopResolver{}
 }
 
-func (NoopResolver) GetRuntimeSetting(context.Context, string) (string, error) {
+func (NoopResolver) GetRuntimeConfig(context.Context, string) (string, error) {
 	return "", ErrEntryNotFound
 }
 
-func (NoopResolver) UpsertRuntimeSetting(context.Context, string, string) error {
+func (NoopResolver) UpsertRuntimeConfig(context.Context, string, string) error {
 	return ErrEntryNotFound
 }
 
-func (NoopResolver) DeleteRuntimeSetting(context.Context, string) error {
+func (NoopResolver) DeleteRuntimeConfig(context.Context, string) error {
 	return ErrEntryNotFound
 }
 
@@ -40,7 +40,7 @@ func NewStoreResolver(db Store) *StoreResolver {
 	return &StoreResolver{db: db}
 }
 
-func (m StoreResolver) GetRuntimeSetting(ctx context.Context, key string) (string, error) {
+func (m StoreResolver) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
 	val, err := m.db.GetRuntimeConfig(ctx, key)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -52,7 +52,7 @@ func (m StoreResolver) GetRuntimeSetting(ctx context.Context, key string) (strin
 	return val, nil
 }
 
-func (m StoreResolver) UpsertRuntimeSetting(ctx context.Context, key, val string) error {
+func (m StoreResolver) UpsertRuntimeConfig(ctx context.Context, key, val string) error {
 	err := m.db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{Key: key, Value: val})
 	if err != nil {
 		return xerrors.Errorf("update %q: %w", key, err)
@@ -60,7 +60,7 @@ func (m StoreResolver) UpsertRuntimeSetting(ctx context.Context, key, val string
 	return nil
 }
 
-func (m StoreResolver) DeleteRuntimeSetting(ctx context.Context, key string) error {
+func (m StoreResolver) DeleteRuntimeConfig(ctx context.Context, key string) error {
 	return m.db.DeleteRuntimeConfig(ctx, key)
 }
 
@@ -75,16 +75,16 @@ func OrganizationResolver(orgID uuid.UUID, wrapped Resolver) NamespacedResolver 
 	return NamespacedResolver{ns: orgID.String(), wrapped: wrapped}
 }
 
-func (m NamespacedResolver) GetRuntimeSetting(ctx context.Context, key string) (string, error) {
-	return m.wrapped.GetRuntimeSetting(ctx, m.namespacedKey(key))
+func (m NamespacedResolver) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
+	return m.wrapped.GetRuntimeConfig(ctx, m.namespacedKey(key))
 }
 
-func (m NamespacedResolver) UpsertRuntimeSetting(ctx context.Context, key, val string) error {
-	return m.wrapped.UpsertRuntimeSetting(ctx, m.namespacedKey(key), val)
+func (m NamespacedResolver) UpsertRuntimeConfig(ctx context.Context, key, val string) error {
+	return m.wrapped.UpsertRuntimeConfig(ctx, m.namespacedKey(key), val)
 }
 
-func (m NamespacedResolver) DeleteRuntimeSetting(ctx context.Context, key string) error {
-	return m.wrapped.DeleteRuntimeSetting(ctx, m.namespacedKey(key))
+func (m NamespacedResolver) DeleteRuntimeConfig(ctx context.Context, key string) error {
+	return m.wrapped.DeleteRuntimeConfig(ctx, m.namespacedKey(key))
 }
 
 func (m NamespacedResolver) namespacedKey(k string) string {

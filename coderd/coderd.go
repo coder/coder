@@ -136,7 +136,7 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    runtimeconfig.Manager
+	RuntimeConfig    *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
