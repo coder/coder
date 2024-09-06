@@ -23,12 +23,15 @@ import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidg
 import { Stack } from "components/Stack/Stack";
 import { TableToolbar } from "components/TableToolbar/TableToolbar";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
-import type { ComponentProps, FC } from "react";
+import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import { mustUpdateWorkspace } from "utils/workspace";
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesButton } from "./WorkspacesButton";
-import { WorkspacesFilter } from "./filter/WorkspacesFilter";
+import {
+	type WorkspaceFilterProps,
+	WorkspacesFilter,
+} from "./filter/WorkspacesFilter";
 
 export const Language = {
 	pageTitle: "Workspaces",
@@ -47,7 +50,7 @@ export interface WorkspacesPageViewProps {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	count?: number;
-	filterProps: ComponentProps<typeof WorkspacesFilter>;
+	filterProps: WorkspaceFilterProps;
 	page: number;
 	limit: number;
 	onPageChange: (page: number) => void;
@@ -116,7 +119,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
-				<WorkspacesFilter error={error} {...filterProps} />
+				<WorkspacesFilter
+					filter={filterProps.filter}
+					menus={filterProps.menus}
+					error={error}
+				/>
 			</Stack>
 
 			<TableToolbar>

@@ -62,7 +62,7 @@ const PRESETS_WITH_DORMANT: FilterPreset[] = [
 	},
 ];
 
-type WorkspaceFilterProps = {
+export type WorkspaceFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
