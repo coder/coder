@@ -2653,14 +2653,14 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID
 
 	var groupMembers []database.GroupMember
 	for _, member := range q.groupMembers {
-		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
-		if errors.Is(err, errUserDeleted) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
 		if member.GroupID == id {
+			groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
+			if errors.Is(err, errUserDeleted) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
 			groupMembers = append(groupMembers, groupMember)
 		}
 	}
