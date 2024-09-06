@@ -8,7 +8,7 @@ import (
 // TODO: Implement caching layer.
 type Manager struct{}
 
-func NewStoreManager() *Manager {
+func NewManager() *Manager {
 	return &Manager{}
 }
 

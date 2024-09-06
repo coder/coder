@@ -23,7 +23,7 @@ import (
 func ExampleDeploymentValues() {
 	ctx := context.Background()
 	db := dbmem.New()
-	st := runtimeconfig.NewStoreManager()
+	st := runtimeconfig.NewManager()
 
 	// Define the field, this will usually live on Deployment Values.
 	var stringField runtimeconfig.DeploymentEntry[*serpent.String]
@@ -75,7 +75,7 @@ func TestResolveDBError(t *testing.T) {
 		Times(1).
 		Return(dbErr)
 
-	st := runtimeconfig.NewStoreManager()
+	st := runtimeconfig.NewManager()
 	var stringField runtimeconfig.DeploymentEntry[*serpent.String]
 	stringField.Initialize("string-field")
 	stringField.SetStartupValue("default")
@@ -100,7 +100,7 @@ func TestSerpentDeploymentEntry(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	db, _ := dbtestutil.NewDB(t)
-	st := runtimeconfig.NewStoreManager()
+	st := runtimeconfig.NewManager()
 
 	// TestEntries is how entries are defined in deployment values.
 	type TestEntries struct {

@@ -821,7 +821,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return err
 			}
 
-			options.RuntimeConfig = runtimeconfig.NewStoreManager()
+			options.RuntimeConfig = runtimeconfig.NewManager()
 
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")

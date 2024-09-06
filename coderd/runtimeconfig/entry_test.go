@@ -68,7 +68,7 @@ func TestEntry(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		mgr := runtimeconfig.NewStoreManager()
+		mgr := runtimeconfig.NewManager()
 		db := dbmem.New()
 
 		var (
@@ -102,7 +102,7 @@ func TestEntry(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		mgr := runtimeconfig.NewStoreManager()
+		mgr := runtimeconfig.NewManager()
 		db := dbmem.New()
 
 		var (

@@ -255,7 +255,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
 	accessControlStore.Store(&acs)
 
-	runtimeManager := runtimeconfig.NewStoreManager()
+	runtimeManager := runtimeconfig.NewManager()
 	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore)
 
 	// Some routes expect a deployment ID, so just make sure one exists.
