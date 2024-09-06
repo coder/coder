@@ -51,10 +51,15 @@ func TestEntry(t *testing.T) {
 		// Setting a value will not produce an error.
 		require.NoError(t, field.SetStartupValue("true"))
 
-		// But attempting to resolve will produce an error.
+		// Attempting to resolve will produce an error.
 		_, err := field.Resolve(context.Background(), rlv)
 		require.ErrorIs(t, err, runtimeconfig.ErrNameNotSet)
-		// But attempting to set the runtime value will produce an error.
+
+		// Attempting to unset
+		err = field.UnsetRuntimeValue(context.Background(), rlv)
+		require.ErrorIs(t, err, runtimeconfig.ErrNameNotSet)
+
+		// Attempting to set
 		val := serpent.BoolOf(ptr.Ref(true))
 		require.ErrorIs(t, field.SetRuntimeValue(context.Background(), rlv, val), runtimeconfig.ErrNameNotSet)
 	})
