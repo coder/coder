@@ -44,7 +44,7 @@ func ExampleDeploymentValues() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(val)
+	_, _ = fmt.Println(val)
 	// Output: hello world
 }
 
