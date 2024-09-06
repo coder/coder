@@ -145,28 +145,41 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				}}
 			>
 				<TopbarData>
-					<Tooltip title={`Owner: ${workspace.owner_name}`}>
-						<span
-							css={{
-								display: "flex",
-								flexFlow: "row nowrap",
-								gap: "8px",
-								maxWidth: "160px",
-								textOverflow: "ellipsis",
-								overflowX: "hidden",
-								whiteSpace: "nowrap",
-								cursor: "default",
-							}}
-						>
-							<UserAvatar
-								size="xs"
-								username={workspace.owner_name}
-								avatarURL={workspace.owner_avatar_url}
-							/>
+					<Popover mode="hover">
+						<PopoverTrigger>
+							<span
+								css={{
+									display: "flex",
+									flexFlow: "row nowrap",
+									gap: "8px",
+									maxWidth: "160px",
+									textOverflow: "ellipsis",
+									overflowX: "hidden",
+									whiteSpace: "nowrap",
+									cursor: "default",
+								}}
+							>
+								<UserAvatar
+									size="xs"
+									username={workspace.owner_name}
+									avatarURL={workspace.owner_avatar_url}
+								/>
 
-							{workspace.owner_name}
-						</span>
-					</Tooltip>
+								{workspace.owner_name}
+							</span>
+						</PopoverTrigger>
+
+						<HelpTooltipContent
+							anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+							transformOrigin={{ vertical: "top", horizontal: "center" }}
+						>
+							<AvatarData
+								title={workspace.owner_name}
+								subtitle="Owner"
+								avatar={workspace.owner_avatar_url}
+							/>
+						</HelpTooltipContent>
+					</Popover>
 
 					{showOrganizations && (
 						<>
@@ -272,7 +285,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 										to={`${templateLink}/versions/${workspace.latest_build.template_version_name}`}
 										css={{ color: "inherit" }}
 									>
-										{workspace.latest_build.template_version_name}
+										Version: {workspace.latest_build.template_version_name}
 									</Link>
 								}
 								avatar={
