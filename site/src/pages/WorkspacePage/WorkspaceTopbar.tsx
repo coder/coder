@@ -1,4 +1,4 @@
-import { useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import QuotaIcon from "@mui/icons-material/MonetizationOnOutlined";
@@ -132,174 +132,37 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				</TopbarIconButton>
 			</Tooltip>
 
-			<div
-				css={{
-					display: "flex",
-					alignItems: "center",
-					columnGap: 24,
-					rowGap: 8,
-					flexWrap: "wrap",
-					// 12px - It is needed to keep vertical spacing when the content is wrapped
-					padding: "12px",
-					marginRight: "auto",
-				}}
-			>
+			<div css={styles.topbarLeft}>
 				<TopbarData>
-					<Popover mode="hover">
-						<PopoverTrigger>
-							<span
-								css={{
-									display: "flex",
-									flexFlow: "row nowrap",
-									gap: "8px",
-									maxWidth: "160px",
-									textOverflow: "ellipsis",
-									overflowX: "hidden",
-									whiteSpace: "nowrap",
-									cursor: "default",
-								}}
-							>
-								<UserAvatar
-									size="xs"
-									username={workspace.owner_name}
-									avatarURL={workspace.owner_avatar_url}
-								/>
-
-								{workspace.owner_name}
-							</span>
-						</PopoverTrigger>
-
-						<HelpTooltipContent
-							anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-							transformOrigin={{ vertical: "top", horizontal: "center" }}
-						>
-							<AvatarData
-								title={workspace.owner_name}
-								subtitle="Owner"
-								avatar={workspace.owner_avatar_url}
-							/>
-						</HelpTooltipContent>
-					</Popover>
+					<OwnerBreadcrumb
+						ownerName={workspace.owner_name}
+						ownerAvatarUrl={workspace.owner_avatar_url}
+					/>
 
 					{showOrganizations && (
 						<>
 							<TopbarDivider />
-
-							<Popover mode="hover">
-								<PopoverTrigger>
-									<span
-										css={{
-											display: "flex",
-											flexFlow: "row nowrap",
-											gap: "8px",
-											maxWidth: "160px",
-											textOverflow: "ellipsis",
-											overflowX: "hidden",
-											whiteSpace: "nowrap",
-											cursor: "default",
-										}}
-									>
-										{activeOrg && (
-											<UserAvatar
-												size="xs"
-												username={activeOrg.display_name}
-												avatarURL={activeOrg.icon}
-											/>
-										)}
-
-										{workspace.organization_name}
-									</span>
-								</PopoverTrigger>
-
-								<HelpTooltipContent
-									anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-									transformOrigin={{ vertical: "top", horizontal: "center" }}
-								>
-									<AvatarData
-										title={
-											showOrganizations ? (
-												<Link
-													component={RouterLink}
-													to={`/organizations/${encodeURIComponent(workspace.organization_name)}`}
-													css={{ color: "inherit" }}
-												>
-													{workspace.organization_name}
-												</Link>
-											) : (
-												workspace.organization_name
-											)
-										}
-										subtitle="Organization"
-										avatar={
-											activeOrg !== undefined && (
-												<ExternalAvatar
-													src={activeOrg.icon}
-													variant="square"
-													fitImage
-												/>
-											)
-										}
-									/>
-								</HelpTooltipContent>
-							</Popover>
+							<OrganizationBreadcrumb
+								orgName={workspace.organization_name}
+								orgIconUrl={activeOrg?.icon}
+								orgPageUrl={
+									showOrganizations
+										? `/organizations/${encodeURIComponent(workspace.organization_name)}`
+										: undefined
+								}
+							/>
 						</>
 					)}
 
 					<TopbarDivider />
 
-					<Popover mode="hover">
-						<PopoverTrigger>
-							<span
-								css={{
-									display: "flex",
-									alignItems: "center",
-									gap: 8,
-									cursor: "default",
-									padding: "4px 0",
-								}}
-							>
-								<TopbarAvatar src={workspace.template_icon} />
-								<span css={{ fontWeight: 500 }}>{workspace.name}</span>
-							</span>
-						</PopoverTrigger>
-
-						<HelpTooltipContent
-							anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-							transformOrigin={{ vertical: "top", horizontal: "center" }}
-						>
-							<AvatarData
-								title={
-									<Link
-										component={RouterLink}
-										to={templateLink}
-										css={{ color: "inherit" }}
-									>
-										{workspace.template_display_name.length > 0
-											? workspace.template_display_name
-											: workspace.template_name}
-									</Link>
-								}
-								subtitle={
-									<Link
-										component={RouterLink}
-										to={`${templateLink}/versions/${workspace.latest_build.template_version_name}`}
-										css={{ color: "inherit" }}
-									>
-										Version: {workspace.latest_build.template_version_name}
-									</Link>
-								}
-								avatar={
-									workspace.template_icon !== "" && (
-										<ExternalAvatar
-											src={workspace.template_icon}
-											variant="square"
-											fitImage
-										/>
-									)
-								}
-							/>
-						</HelpTooltipContent>
-					</Popover>
+					<WorkspaceBreadcrumb
+						workspaceName={workspace.name}
+						templateIconUrl={workspace.template_icon}
+						rootTemplateUrl={templateLink}
+						templateVersionName={workspace.template_name}
+						templateVersionDisplayName={workspace.template_display_name}
+					/>
 				</TopbarData>
 
 				{quota && quota.budget > 0 && (
@@ -406,3 +269,178 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		</Topbar>
 	);
 };
+
+type OwnerBreadcrumbProps = Readonly<{
+	ownerName: string;
+	ownerAvatarUrl: string;
+}>;
+
+const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
+	ownerName,
+	ownerAvatarUrl,
+}) => {
+	return (
+		<Popover mode="hover">
+			<PopoverTrigger>
+				<span css={styles.breadcrumbSegment}>
+					<UserAvatar
+						size="xs"
+						username={ownerName}
+						avatarURL={ownerAvatarUrl}
+					/>
+
+					{ownerName}
+				</span>
+			</PopoverTrigger>
+
+			<HelpTooltipContent
+				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+				transformOrigin={{ vertical: "top", horizontal: "center" }}
+			>
+				<AvatarData
+					title={ownerName}
+					subtitle="Owner"
+					avatar={ownerAvatarUrl}
+				/>
+			</HelpTooltipContent>
+		</Popover>
+	);
+};
+
+type OrganizationBreadcrumbProps = Readonly<{
+	orgName: string;
+	orgPageUrl?: string;
+	orgIconUrl?: string;
+}>;
+
+const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
+	orgName,
+	orgPageUrl,
+	orgIconUrl,
+}) => {
+	return (
+		<Popover mode="hover">
+			<PopoverTrigger>
+				<span css={styles.breadcrumbSegment}>
+					<UserAvatar size="xs" src={orgIconUrl ?? ""} username={orgName} />
+					{orgName}
+				</span>
+			</PopoverTrigger>
+
+			<HelpTooltipContent
+				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+				transformOrigin={{ vertical: "top", horizontal: "center" }}
+			>
+				<AvatarData
+					title={
+						orgPageUrl ? (
+							<Link
+								component={RouterLink}
+								to={orgPageUrl}
+								css={{ color: "inherit" }}
+							>
+								{orgName}
+							</Link>
+						) : (
+							orgName
+						)
+					}
+					subtitle="Organization"
+					avatar={
+						orgIconUrl && (
+							<ExternalAvatar src={orgIconUrl} variant="square" fitImage />
+						)
+					}
+				/>
+			</HelpTooltipContent>
+		</Popover>
+	);
+};
+
+type WorkspaceBreadcrumbProps = Readonly<{
+	workspaceName: string;
+	templateIconUrl: string;
+	rootTemplateUrl: string;
+	templateVersionName: string;
+	templateVersionDisplayName?: string;
+}>;
+
+const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
+	workspaceName,
+	templateIconUrl,
+	rootTemplateUrl,
+	templateVersionName,
+	templateVersionDisplayName = templateVersionName,
+}) => {
+	return (
+		<Popover mode="hover">
+			<PopoverTrigger>
+				<span
+					css={{
+						display: "flex",
+						alignItems: "center",
+						gap: 8,
+						cursor: "default",
+						padding: "4px 0",
+					}}
+				>
+					<TopbarAvatar src={templateIconUrl} />
+					<span css={{ fontWeight: 500 }}>{workspaceName}</span>
+				</span>
+			</PopoverTrigger>
+
+			<HelpTooltipContent
+				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+				transformOrigin={{ vertical: "top", horizontal: "center" }}
+			>
+				<AvatarData
+					title={
+						<Link
+							component={RouterLink}
+							to={rootTemplateUrl}
+							css={{ color: "inherit" }}
+						>
+							{templateVersionDisplayName}
+						</Link>
+					}
+					subtitle={
+						<Link
+							component={RouterLink}
+							to={`${rootTemplateUrl}/versions/${encodeURIComponent(templateVersionName)}`}
+							css={{ color: "inherit" }}
+						>
+							Version: {templateVersionDisplayName}
+						</Link>
+					}
+					avatar={
+						<ExternalAvatar src={templateIconUrl} variant="square" fitImage />
+					}
+				/>
+			</HelpTooltipContent>
+		</Popover>
+	);
+};
+
+const styles = {
+	topbarLeft: {
+		display: "flex",
+		alignItems: "center",
+		columnGap: 24,
+		rowGap: 8,
+		flexWrap: "wrap",
+		// 12px - It is needed to keep vertical spacing when the content is wrapped
+		padding: "12px",
+		marginRight: "auto",
+	},
+
+	breadcrumbSegment: {
+		display: "flex",
+		flexFlow: "row nowrap",
+		gap: "8px",
+		maxWidth: "160px",
+		textOverflow: "ellipsis",
+		overflowX: "hidden",
+		whiteSpace: "nowrap",
+		cursor: "default",
+	},
+} satisfies Record<string, Interpolation<Theme>>;
