@@ -217,7 +217,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
 	provisioner_api_version: "1.1",
 	external_url: "file:///mock-url",
-	version: "v99.999.9999+c9cdf14",
+	version: "v2.99.99",
 	dashboard_url: "https:///mock-url",
 	workspace_proxy: false,
 	upgrade_message: "My custom upgrade message",

@@ -26,6 +26,19 @@ export const Provisioners: Story = {
 			psk: [MockProvisioner, MockUserProvisioner, MockProvisionerWithTags],
 			keys: new Map([
 				[
+					"ベン",
+					[
+						MockProvisioner,
+						{
+							...MockProvisioner2,
+							version: "2.0.0",
+							api_version: "1.0",
+							warnings: [{ code: "EUNKNOWN", message: "私は時代遅れです" }],
+						},
+					],
+				],
+				["じぇいダレン", [MockProvisioner, MockProvisioner2]],
+				[
 					"ケイラ",
 					[
 						{
