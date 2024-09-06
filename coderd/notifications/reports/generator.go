@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/quartz"
 )
 
@@ -17,7 +18,7 @@ const (
 	delay = 5 * time.Minute
 )
 
-func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.Clock) io.Closer {
+func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, notificationsEnqueuer notifications.Enqueuer, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)

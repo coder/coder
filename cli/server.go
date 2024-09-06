@@ -56,6 +56,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
@@ -1023,6 +1024,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				// nolint:gocritic // TODO: create own role.
 				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
+
+				// Run report generator to distribute periodic reports.
+				reportGenerator := reports.NewReportGenerator(ctx, logger, options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+				defer reportGenerator.Close()
 			}
 
 			// Wrap the server in middleware that redirects to the access URL if
