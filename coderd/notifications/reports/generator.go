@@ -3,8 +3,9 @@ package reports
 import (
 	"context"
 	"io"
-	"log/slog"
 	"time"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -27,6 +28,27 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 	ticker := clk.NewTicker(delay)
 	doTick := func(start time.Time) {
 		defer ticker.Reset(delay)
+		// Start a transaction to grab advisory lock, we don't want to run generator jobs at the same time (multiple replicas).
+		if err := db.InTx(func(tx database.Store) error {
+			// Acquire a lock to ensure that only one instance of the generator is running at a time.
+			ok, err := tx.TryAcquireLock(ctx, database.LockIDReportGenerator)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				logger.Debug(ctx, "unable to acquire lock for generating periodic reports, skipping")
+				return nil
+			}
+
+			// TODO
+
+			logger.Info(ctx, "report generator finished", slog.F("duration", clk.Since(start)))
+
+			return nil
+		}, nil); err != nil {
+			logger.Error(ctx, "failed to generate reports", slog.Error(err))
+			return
+		}
 	}
 
 	go func() {

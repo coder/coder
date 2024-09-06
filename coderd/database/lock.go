@@ -10,6 +10,7 @@ const (
 	LockIDEnterpriseDeploymentSetup
 	LockIDDBRollup
 	LockIDDBPurge
+	LockIDReportGenerator
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.
