@@ -2,7 +2,6 @@ package httpmw_test
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -81,7 +80,6 @@ func TestOAuth2(t *testing.T) {
 			Fragment: "my_section",
 		}
 		expectedValue := uri.Path + "?" + uri.RawQuery + "#" + uri.Fragment
-		fmt.Println("uri: ", uri.String())
 		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape(uri.String()), nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
