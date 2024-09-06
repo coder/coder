@@ -3,6 +3,7 @@ import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
 import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
 import { addHours, addMinutes } from "date-fns";
 import {
+	MockOrganization,
 	MockTemplate,
 	MockTemplateVersion,
 	MockUser,
@@ -266,7 +267,10 @@ export const WithQuota: Story = {
 	parameters: {
 		queries: [
 			{
-				key: getWorkspaceQuotaQueryKey(MockUser.username),
+				key: getWorkspaceQuotaQueryKey(
+					MockOrganization.name,
+					MockUser.username,
+				),
 				data: {
 					credits_consumed: 2,
 					budget: 40,

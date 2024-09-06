@@ -145,29 +145,56 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 				}}
 			>
 				<TopbarData>
-					<UserAvatar
-						size="xs"
-						username={workspace.owner_name}
-						avatarURL={workspace.owner_avatar_url}
-					/>
-					<Tooltip title="Owner">
-						<span>{workspace.owner_name}</span>
+					<Tooltip title={`Owner: ${workspace.owner_name}`}>
+						<span
+							css={{
+								display: "flex",
+								flexFlow: "row nowrap",
+								gap: "8px",
+								maxWidth: "160px",
+								textOverflow: "ellipsis",
+								overflowX: "hidden",
+								whiteSpace: "nowrap",
+								cursor: "default",
+							}}
+						>
+							<UserAvatar
+								size="xs"
+								username={workspace.owner_name}
+								avatarURL={workspace.owner_avatar_url}
+							/>
+
+							{workspace.owner_name}
+						</span>
 					</Tooltip>
 
 					{showOrganizations && (
 						<>
 							<TopbarDivider />
 
-							{matchedOrganization && (
-								<UserAvatar
-									size="xs"
-									username={matchedOrganization.display_name}
-									avatarURL={matchedOrganization.icon}
-								/>
-							)}
+							<Tooltip title={`Organization: ${workspace.organization_name}`}>
+								<span
+									css={{
+										display: "flex",
+										flexFlow: "row nowrap",
+										gap: "8px",
+										maxWidth: "160px",
+										textOverflow: "ellipsis",
+										overflowX: "hidden",
+										whiteSpace: "nowrap",
+										cursor: "default",
+									}}
+								>
+									{matchedOrganization && (
+										<UserAvatar
+											size="xs"
+											username={matchedOrganization.display_name}
+											avatarURL={matchedOrganization.icon}
+										/>
+									)}
 
-							<Tooltip title="Organization">
-								<span>{workspace.organization_name}</span>
+									{workspace.organization_name}
+								</span>
 							</Tooltip>
 						</>
 					)}
