@@ -20,8 +20,11 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -530,7 +533,7 @@ func TestPeerDiagnostics(t *testing.T) {
 				LastWireguardHandshake: time.Time{},
 			},
 			want: []*regexp.Regexp{
-				regexp.MustCompile(`^✔ sent local data to Coder networking coodinator$`),
+				regexp.MustCompile(`^✔ sent local data to Coder networking coordinator$`),
 			},
 		},
 		{
@@ -668,6 +671,226 @@ func TestPeerDiagnostics(t *testing.T) {
 			if i < len(tc.want) {
 				t.Logf("failed to match regexp: %s\ngot:\n%s", tc.want[i].String(), strings.Join(got, "\n"))
 				t.FailNow()
+			}
+		})
+	}
+}
+
+func TestConnDiagnostics(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name  string
+		diags cliui.ConnDiags
+		want  []string
+	}{
+		{
+			name: "Direct",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				PingP2P:      true,
+				LocalNetInfo: &tailcfg.NetInfo{},
+			},
+			want: []string{
+				`✔ You are connected directly (p2p)`,
+			},
+		},
+		{
+			name: "DirectBlocked",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap:                  &tailcfg.DERPMap{},
+					DisableDirectConnections: true,
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`❗ Your Coder administrator has blocked direct connections`,
+			},
+		},
+		{
+			name: "NoStun",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				LocalNetInfo: &tailcfg.NetInfo{},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`The DERP map is not configured to use STUN`,
+			},
+		},
+		{
+			name: "ClientHasStunNoUDP",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{
+						Regions: map[int]*tailcfg.DERPRegion{
+							999: {
+								Nodes: []*tailcfg.DERPNode{
+									{
+										STUNPort: 1337,
+									},
+								},
+							},
+						},
+					},
+				},
+				LocalNetInfo: &tailcfg.NetInfo{
+					UDP: false,
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`Client could not connect to STUN over UDP`,
+			},
+		},
+		{
+			name: "AgentHasStunNoUDP",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{
+						Regions: map[int]*tailcfg.DERPRegion{
+							999: {
+								Nodes: []*tailcfg.DERPNode{
+									{
+										STUNPort: 1337,
+									},
+								},
+							},
+						},
+					},
+				},
+				AgentNetcheck: &healthsdk.AgentNetcheckReport{
+					NetInfo: &tailcfg.NetInfo{
+						UDP: false,
+					},
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`Agent could not connect to STUN over UDP`,
+			},
+		},
+		{
+			name: "ClientHardNat",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				LocalNetInfo: &tailcfg.NetInfo{
+					MappingVariesByDestIP: "true",
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers`,
+			},
+		},
+		{
+			name: "AgentHardNat",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				PingP2P:      false,
+				LocalNetInfo: &tailcfg.NetInfo{},
+				AgentNetcheck: &healthsdk.AgentNetcheckReport{
+					NetInfo: &tailcfg.NetInfo{MappingVariesByDestIP: "true"},
+				},
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers`,
+			},
+		},
+		{
+			name: "AgentInterfaceWarnings",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				PingP2P: true,
+				AgentNetcheck: &healthsdk.AgentNetcheckReport{
+					Interfaces: healthsdk.InterfacesReport{
+						BaseReport: healthsdk.BaseReport{
+							Warnings: []health.Message{
+								health.Messagef(health.CodeInterfaceSmallMTU, "Network interface eth0 has MTU 1280, (less than 1378), which may degrade the quality of direct connections"),
+							},
+						},
+					},
+				},
+			},
+			want: []string{
+				`✔ You are connected directly (p2p)`,
+				`Network interface eth0 has MTU 1280, (less than 1378), which may degrade the quality of direct connections`,
+			},
+		},
+		{
+			name: "LocalInterfaceWarnings",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				PingP2P: true,
+				LocalInterfaces: &healthsdk.InterfacesReport{
+					BaseReport: healthsdk.BaseReport{
+						Warnings: []health.Message{
+							health.Messagef(health.CodeInterfaceSmallMTU, "Network interface eth1 has MTU 1310, (less than 1378), which may degrade the quality of direct connections"),
+						},
+					},
+				},
+			},
+			want: []string{
+				`✔ You are connected directly (p2p)`,
+				`Network interface eth1 has MTU 1310, (less than 1378), which may degrade the quality of direct connections`,
+			},
+		},
+		{
+			name: "ClientAWSIP",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				ClientIPIsAWS: true,
+				AgentIPIsAWS:  false,
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`Client IP address is within an AWS range (AWS uses hard NAT)`,
+			},
+		},
+		{
+			name: "AgentAWSIP",
+			diags: cliui.ConnDiags{
+				ConnInfo: workspacesdk.AgentConnectionInfo{
+					DERPMap: &tailcfg.DERPMap{},
+				},
+				ClientIPIsAWS: false,
+				AgentIPIsAWS:  true,
+			},
+			want: []string{
+				`❗ You are connected via a DERP relay, not directly (p2p)`,
+				`Agent IP address is within an AWS range (AWS uses hard NAT)`,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			r, w := io.Pipe()
+			go func() {
+				defer w.Close()
+				tc.diags.Write(w)
+			}()
+			bytes, err := io.ReadAll(r)
+			require.NoError(t, err)
+			output := string(bytes)
+			for _, want := range tc.want {
+				require.Contains(t, output, want)
 			}
 		})
 	}

@@ -7,6 +7,9 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0.0"
     }
+    envbuilder = {
+      source = "coder/envbuilder"
+    }
   }
 }
 
@@ -336,33 +339,49 @@ resource "docker_image" "envbuilder" {
   keep_locally  = true
 }
 
+locals {
+  cache_repo = "us-central1-docker.pkg.dev/coder-dogfood-v2/envbuilder-cache/coder-dogfood"
+  envbuilder_env = {
+    "CODER_AGENT_TOKEN" : coder_agent.dev.token,
+    "CODER_AGENT_URL" : data.coder_workspace.me.access_url,
+    "ENVBUILDER_GIT_USERNAME" : data.coder_external_auth.github.access_token,
+    # "ENVBUILDER_GIT_URL" : data.coder_parameter.devcontainer_repo.value, # The provider sets this via the `git_url` property.
+    "ENVBUILDER_DEVCONTAINER_DIR" : data.coder_parameter.devcontainer_dir.value,
+    "ENVBUILDER_INIT_SCRIPT" : coder_agent.dev.init_script,
+    "ENVBUILDER_FALLBACK_IMAGE" : "codercom/oss-dogfood:latest", # This image runs if builds fail
+    "ENVBUILDER_PUSH_IMAGE" : "true",                            # Push the image to the remote cache
+    # "ENVBUILDER_CACHE_REPO" : local.cache_repo, # The provider sets this via the `cache_repo` property.
+    "ENVBUILDER_DOCKER_CONFIG_BASE64" : data.local_sensitive_file.envbuilder_cache_dockerconfigjson.content_base64,
+    "USE_CAP_NET_ADMIN" : "true",
+    # Set git commit details correctly
+    "GIT_AUTHOR_NAME" : coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name),
+    "GIT_AUTHOR_EMAIL" : data.coder_workspace_owner.me.email,
+    "GIT_COMMITTER_NAME" : coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name),
+    "GIT_COMMITTER_EMAIL" : data.coder_workspace_owner.me.email,
+  }
+}
+
+# Check for the presence of a prebuilt image in the cache repo
+# that we can use instead.
+resource "envbuilder_cached_image" "cached" {
+  count         = data.coder_workspace.me.start_count
+  builder_image = docker_image.envbuilder.name
+  git_url       = data.coder_parameter.devcontainer_repo.value
+  cache_repo    = local.cache_repo
+  extra_env     = local.envbuilder_env
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = docker_image.envbuilder.name
+  image = envbuilder_cached_image.cached.0.image
   name  = local.container_name
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = 32768
   runtime = "sysbox-runc"
-  env = [
-    "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
-    "CODER_AGENT_URL=${data.coder_workspace.me.access_url}",
-    "ENVBUILDER_GIT_USERNAME=${data.coder_external_auth.github.access_token}",
-    "ENVBUILDER_GIT_URL=${data.coder_parameter.devcontainer_repo.value}",
-    "ENVBUILDER_DEVCONTAINER_DIR=${data.coder_parameter.devcontainer_dir.value}",
-    "ENVBUILDER_INIT_SCRIPT=${coder_agent.dev.init_script}",
-    "ENVBUILDER_FALLBACK_IMAGE=codercom/oss-dogfood:latest", # This image runs if builds fail
-    # "ENVBUILDER_PUSH_IMAGE=1", # Push the image to the remote cache
-    "ENVBUILDER_CACHE_REPO=us-central1-docker.pkg.dev/coder-dogfood-v2/envbuilder-cache/coder-dogfood",
-    "ENVBUILDER_DOCKER_CONFIG_BASE64=${data.local_sensitive_file.envbuilder_cache_dockerconfigjson.content_base64}",
-    "USE_CAP_NET_ADMIN=true",
-    # Set git commit details correctly
-    "GIT_AUTHOR_NAME=${coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)}",
-    "GIT_AUTHOR_EMAIL=${data.coder_workspace_owner.me.email}",
-    "GIT_COMMITTER_NAME=${coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)}",
-    "GIT_COMMITTER_EMAIL=${data.coder_workspace_owner.me.email}",
-  ]
+  # Use environment computed from the provider
+  env = envbuilder_cached_image.cached.0.env
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
@@ -401,7 +420,7 @@ resource "docker_container" "workspace" {
 
 resource "coder_metadata" "container_info" {
   count       = data.coder_workspace.me.start_count
-  resource_id = docker_container.workspace[0].id
+  resource_id = coder_agent.dev.id
   item {
     key   = "memory"
     value = docker_container.workspace[0].memory

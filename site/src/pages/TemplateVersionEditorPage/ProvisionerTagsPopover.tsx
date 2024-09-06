@@ -13,7 +13,7 @@ import {
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
-import { ProvisionerTag } from "pages/HealthPage/ProvisionerDaemonsPage";
+import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import { type FC, Fragment } from "react";
 import { docs } from "utils/docs";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
@@ -104,17 +104,19 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 								}
 							/>
 							<Stack direction="row" spacing={1} wrap="wrap">
-								{Object.keys(tags)
-									.filter((key) => {
-										// filter out owner since you cannot override it
-										return key !== "owner";
-									})
-									.map((k) => (
-										<Fragment key={k}>
-											{k === "scope" ? (
-												<ProvisionerTag k={k} v={tags[k]} />
+								{Object.entries(tags)
+									// filter out owner since you cannot override it
+									.filter(([key]) => key !== "owner")
+									.map(([key, value]) => (
+										<Fragment key={key}>
+											{key === "scope" ? (
+												<ProvisionerTag tagName={key} tagValue={value} />
 											) : (
-												<ProvisionerTag k={k} v={tags[k]} onDelete={onDelete} />
+												<ProvisionerTag
+													tagName={key}
+													tagValue={value}
+													onDelete={onDelete}
+												/>
 											)}
 										</Fragment>
 									))}

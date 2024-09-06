@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import type { Group } from "api/typesGenerated";
 import {
 	MockGroup as MockGroup1,
 	MockUser,
 	mockApiError,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { AccountUserGroups } from "./AccountUserGroups";
 
-const MockGroup2: Group = {
+const MockGroup2 = {
 	...MockGroup1,
 	avatar_url: "",
 	display_name: "Goofy Goobers",
@@ -25,12 +25,19 @@ const meta: Meta<typeof AccountUserGroups> = {
 		groups: [MockGroup1, MockGroup2],
 		loading: false,
 	},
+	decorators: [withDashboardProvider],
 };
 
 export default meta;
 type Story = StoryObj<typeof AccountUserGroups>;
 
 export const Example: Story = {};
+
+export const ExampleWithOrganizations: Story = {
+	parameters: {
+		showOrganizations: true,
+	},
+};
 
 export const NoGroups: Story = {
 	args: {

@@ -607,7 +607,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(database.GetGroupsParams{
 			OrganizationID: o.ID,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).
-			Returns([]database.Group{a, b}).
+			Returns([]database.GetGroupsRow{
+				{Group: a, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+				{Group: b, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+			}).
 			// Fail the system check shortcut
 			FailSystemObjectChecks()
 	}))
@@ -635,7 +638,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		def, _ := db.GetDefaultOrganization(context.Background())
 		a := dbgen.Organization(s.T(), db, database.Organization{})
 		b := dbgen.Organization(s.T(), db, database.Organization{})
-		check.Args().Asserts(def, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(def, a, b))
+		check.Args(database.GetOrganizationsParams{}).Asserts(def, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(def, a, b))
 	}))
 	s.Run("GetOrganizationsByUserID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -1075,11 +1078,17 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("GetQuotaAllowanceForUser", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(u.ID).Asserts(u, policy.ActionRead).Returns(int64(0))
+		check.Args(database.GetQuotaAllowanceForUserParams{
+			UserID:         u.ID,
+			OrganizationID: uuid.New(),
+		}).Asserts(u, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetQuotaConsumedForUser", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(u.ID).Asserts(u, policy.ActionRead).Returns(int64(0))
+		check.Args(database.GetQuotaConsumedForUserParams{
+			OwnerID:        u.ID,
+			OrganizationID: uuid.New(),
+		}).Asserts(u, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetUserByEmailOrUsername", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -2470,6 +2479,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			JobID: j.ID,
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
 	}))
+	s.Run("InsertProvisionerJobTimings", s.Subtest(func(db database.Store, check *expects) {
+		// TODO: we need to create a ProvisionerJob resource
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.InsertProvisionerJobTimingsParams{
+			JobID: j.ID,
+		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
+	}))
 	s.Run("UpsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pd := rbac.ResourceProvisionerDaemon.InOrg(org.ID)
@@ -2501,7 +2517,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("DeleteOldWorkspaceAgentLogs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+		check.Args(time.Time{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentStatsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).Errors(errMatchAny)
@@ -2531,10 +2547,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(int32(0)).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("UpsertAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
-		check.Args("").Asserts()
+		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("GetApplicationName", s.Subtest(func(db database.Store, check *expects) {
 		db.UpsertApplicationName(context.Background(), "foo")
@@ -2573,6 +2589,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetOAuthSigningKey", s.Subtest(func(db database.Store, check *expects) {
 		db.UpsertOAuthSigningKey(context.Background(), "foo")
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("UpsertCoordinatorResumeTokenSigningKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("GetCoordinatorResumeTokenSigningKey", s.Subtest(func(db database.Store, check *expects) {
+		db.UpsertCoordinatorResumeTokenSigningKey(context.Background(), "foo")
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("InsertMissingGroups", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertMissingGroupsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).Errors(errMatchAny)

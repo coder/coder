@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/briandowns/spinner"
 	"github.com/google/uuid"
@@ -57,8 +56,16 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				return err
 			}
 
-			if utf8.RuneCountInString(name) > 32 {
-				return xerrors.Errorf("Template name must be no more than 32 characters")
+			err = codersdk.NameValid(name)
+			if err != nil {
+				return xerrors.Errorf("template name %q is invalid: %w", name, err)
+			}
+
+			if versionName != "" {
+				err = codersdk.TemplateVersionNameValid(versionName)
+				if err != nil {
+					return xerrors.Errorf("template version name %q is invalid: %w", versionName, err)
+				}
 			}
 
 			var createTemplate bool

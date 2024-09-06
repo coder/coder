@@ -239,6 +239,7 @@ func (c *configMaps) setTunnelDestination(id uuid.UUID) {
 		lc = &peerLifecycle{
 			peerID: id,
 		}
+		c.logger.Debug(context.Background(), "setting peer tunnel destination", slog.F("peer_id", id))
 		c.peers[id] = lc
 	}
 	lc.isDestination = true
@@ -606,6 +607,16 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 		return
 	}
 	d.LastWireguardHandshake = ps.LastHandshake
+}
+
+func (c *configMaps) knownPeerIDs() []uuid.UUID {
+	c.L.Lock()
+	defer c.L.Unlock()
+	out := make([]uuid.UUID, 0, len(c.peers))
+	for id := range c.peers {
+		out = append(out, id)
+	}
+	return out
 }
 
 func (c *configMaps) peerReadyForHandshakeTimeout(peerID uuid.UUID) {

@@ -39,8 +39,7 @@ type TelemetryStore struct {
 	application   string
 
 	// nil if not connected
-	connSetupTime *durationpb.Duration
-	connectedIP   *netip.Addr
+	connectedIP *netip.Addr
 	// 0 if not connected
 	nodeIDRemote uint64
 	p2p          bool
@@ -66,15 +65,14 @@ func (b *TelemetryStore) newEvent() *proto.TelemetryEvent {
 	defer b.mu.Unlock()
 
 	out := &proto.TelemetryEvent{
-		Time:            timestamppb.Now(),
-		ClientVersion:   buildinfo.Version(),
-		DerpMap:         DERPMapToProto(b.cleanDerpMap),
-		LatestNetcheck:  b.cleanNetCheck,
-		NodeIdSelf:      b.nodeIDSelf,
-		NodeIdRemote:    b.nodeIDRemote,
-		HomeDerp:        b.homeDerp,
-		ConnectionSetup: b.connSetupTime,
-		Application:     b.application,
+		Time:           timestamppb.Now(),
+		ClientVersion:  buildinfo.Version(),
+		DerpMap:        DERPMapToProto(b.cleanDerpMap),
+		LatestNetcheck: b.cleanNetCheck,
+		NodeIdSelf:     b.nodeIDSelf,
+		NodeIdRemote:   b.nodeIDRemote,
+		HomeDerp:       b.homeDerp,
+		Application:    b.application,
 	}
 	if b.p2pSetupTime > 0 {
 		out.P2PSetup = durationpb.New(b.p2pSetupTime)

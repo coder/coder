@@ -72,7 +72,7 @@ func generateInterfacesReport(st *interfaces.State) (report InterfacesReport) {
 			report.Severity = health.SeverityWarning
 			report.Warnings = append(report.Warnings,
 				health.Messagef(health.CodeInterfaceSmallMTU,
-					"network interface %s has MTU %d (less than %d), which may cause problems with direct connections", iface.Name, iface.MTU, safeMTU),
+					"Network interface %s has MTU %d (less than %d), which may degrade the quality of direct connections", iface.Name, iface.MTU, safeMTU),
 			)
 		}
 	}

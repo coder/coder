@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
@@ -34,6 +35,12 @@ const (
 	EntitlementGracePeriod Entitlement = "grace_period"
 	EntitlementNotEntitled Entitlement = "not_entitled"
 )
+
+// Entitled returns if the entitlement can be used. So this is true if it
+// is entitled or still in it's grace period.
+func (e Entitlement) Entitled() bool {
+	return e == EntitlementEntitled || e == EntitlementGracePeriod
+}
 
 // Weight converts the enum types to a numerical value for easier
 // comparisons. Easier than sets of if statements.
@@ -128,6 +135,17 @@ func (n FeatureName) AlwaysEnable() bool {
 	}[n]
 }
 
+// Enterprise returns true if the feature is an enterprise feature.
+func (n FeatureName) Enterprise() bool {
+	switch n {
+	// Add all features that should be excluded in the Enterprise feature set.
+	case FeatureMultipleOrganizations, FeatureCustomRoles:
+		return false
+	default:
+		return true
+	}
+}
+
 // FeatureSet represents a grouping of features. Rather than manually
 // assigning features al-la-carte when making a license, a set can be specified.
 // Sets are dynamic in the sense a feature can be added to a set, granting the
@@ -152,13 +170,7 @@ func (set FeatureSet) Features() []FeatureName {
 		copy(enterpriseFeatures, FeatureNames)
 		// Remove the selection
 		enterpriseFeatures = slices.DeleteFunc(enterpriseFeatures, func(f FeatureName) bool {
-			switch f {
-			// Add all features that should be excluded in the Enterprise feature set.
-			case FeatureMultipleOrganizations, FeatureCustomRoles:
-				return true
-			default:
-				return false
-			}
+			return !f.Enterprise()
 		})
 
 		return enterpriseFeatures
@@ -501,29 +513,32 @@ type OIDCConfig struct {
 	ClientID     serpent.String `json:"client_id" typescript:",notnull"`
 	ClientSecret serpent.String `json:"client_secret" typescript:",notnull"`
 	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
-	ClientKeyFile       serpent.String                      `json:"client_key_file" typescript:",notnull"`
-	ClientCertFile      serpent.String                      `json:"client_cert_file" typescript:",notnull"`
-	EmailDomain         serpent.StringArray                 `json:"email_domain" typescript:",notnull"`
-	IssuerURL           serpent.String                      `json:"issuer_url" typescript:",notnull"`
-	Scopes              serpent.StringArray                 `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified serpent.Bool                        `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       serpent.String                      `json:"username_field" typescript:",notnull"`
-	NameField           serpent.String                      `json:"name_field" typescript:",notnull"`
-	EmailField          serpent.String                      `json:"email_field" typescript:",notnull"`
-	AuthURLParams       serpent.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
-	IgnoreUserInfo      serpent.Bool                        `json:"ignore_user_info" typescript:",notnull"`
-	GroupAutoCreate     serpent.Bool                        `json:"group_auto_create" typescript:",notnull"`
-	GroupRegexFilter    serpent.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
-	GroupAllowList      serpent.StringArray                 `json:"group_allow_list" typescript:",notnull"`
-	GroupField          serpent.String                      `json:"groups_field" typescript:",notnull"`
-	GroupMapping        serpent.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
-	UserRoleField       serpent.String                      `json:"user_role_field" typescript:",notnull"`
-	UserRoleMapping     serpent.Struct[map[string][]string] `json:"user_role_mapping" typescript:",notnull"`
-	UserRolesDefault    serpent.StringArray                 `json:"user_roles_default" typescript:",notnull"`
-	SignInText          serpent.String                      `json:"sign_in_text" typescript:",notnull"`
-	IconURL             serpent.URL                         `json:"icon_url" typescript:",notnull"`
-	SignupsDisabledText serpent.String                      `json:"signups_disabled_text" typescript:",notnull"`
-	SkipIssuerChecks    serpent.Bool                        `json:"skip_issuer_checks" typescript:",notnull"`
+	ClientKeyFile             serpent.String                         `json:"client_key_file" typescript:",notnull"`
+	ClientCertFile            serpent.String                         `json:"client_cert_file" typescript:",notnull"`
+	EmailDomain               serpent.StringArray                    `json:"email_domain" typescript:",notnull"`
+	IssuerURL                 serpent.String                         `json:"issuer_url" typescript:",notnull"`
+	Scopes                    serpent.StringArray                    `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified       serpent.Bool                           `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField             serpent.String                         `json:"username_field" typescript:",notnull"`
+	NameField                 serpent.String                         `json:"name_field" typescript:",notnull"`
+	EmailField                serpent.String                         `json:"email_field" typescript:",notnull"`
+	AuthURLParams             serpent.Struct[map[string]string]      `json:"auth_url_params" typescript:",notnull"`
+	IgnoreUserInfo            serpent.Bool                           `json:"ignore_user_info" typescript:",notnull"`
+	OrganizationField         serpent.String                         `json:"organization_field" typescript:",notnull"`
+	OrganizationMapping       serpent.Struct[map[string][]uuid.UUID] `json:"organization_mapping" typescript:",notnull"`
+	OrganizationAssignDefault serpent.Bool                           `json:"organization_assign_default" typescript:",notnull"`
+	GroupAutoCreate           serpent.Bool                           `json:"group_auto_create" typescript:",notnull"`
+	GroupRegexFilter          serpent.Regexp                         `json:"group_regex_filter" typescript:",notnull"`
+	GroupAllowList            serpent.StringArray                    `json:"group_allow_list" typescript:",notnull"`
+	GroupField                serpent.String                         `json:"groups_field" typescript:",notnull"`
+	GroupMapping              serpent.Struct[map[string]string]      `json:"group_mapping" typescript:",notnull"`
+	UserRoleField             serpent.String                         `json:"user_role_field" typescript:",notnull"`
+	UserRoleMapping           serpent.Struct[map[string][]string]    `json:"user_role_mapping" typescript:",notnull"`
+	UserRolesDefault          serpent.StringArray                    `json:"user_roles_default" typescript:",notnull"`
+	SignInText                serpent.String                         `json:"sign_in_text" typescript:",notnull"`
+	IconURL                   serpent.URL                            `json:"icon_url" typescript:",notnull"`
+	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
+	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1531,6 +1546,42 @@ when required by your organization's security policy.`,
 			YAML:        "ignoreUserInfo",
 		},
 		{
+			Name: "OIDC Organization Field",
+			Description: "This field must be set if using the organization sync feature." +
+				" Set to the claim to be used for organizations.",
+			Flag: "oidc-organization-field",
+			Env:  "CODER_OIDC_ORGANIZATION_FIELD",
+			// Empty value means sync is disabled
+			Default: "",
+			Value:   &c.OIDC.OrganizationField,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "organizationField",
+		},
+		{
+			Name: "OIDC Assign Default Organization",
+			Description: "If set to true, users will always be added to the default organization. " +
+				"If organization sync is enabled, then the default org is always added to the user's set of expected" +
+				"organizations.",
+			Flag: "oidc-organization-assign-default",
+			Env:  "CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT",
+			// Single org deployments should always have this enabled.
+			Default: "true",
+			Value:   &c.OIDC.OrganizationAssignDefault,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "organizationAssignDefault",
+		},
+		{
+			Name: "OIDC Organization Sync Mapping",
+			Description: "A map of OIDC claims and the organizations in Coder it should map to. " +
+				"This is required because organization IDs must be used within Coder.",
+			Flag:    "oidc-organization-mapping",
+			Env:     "CODER_OIDC_ORGANIZATION_MAPPING",
+			Default: "{}",
+			Value:   &c.OIDC.OrganizationMapping,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "organizationMapping",
+		},
+		{
 			Name:        "OIDC Group Field",
 			Description: "This field must be set if using the group sync feature and the scope name is not 'groups'. Set to the claim to be used for groups.",
 			Flag:        "oidc-group-field",
@@ -2408,9 +2459,9 @@ Write out the current server config as YAML to stdout.`,
 			Description: "Password to use with PLAIN/LOGIN authentication.",
 			Flag:        "notifications-email-auth-password",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.Notifications.SMTP.Auth.Password,
 			Group:       &deploymentGroupNotificationsEmailAuth,
-			YAML:        "password",
 		},
 		{
 			Name:        "Notifications: Email Auth: Password File",
@@ -2743,6 +2794,8 @@ type BuildInfoResponse struct {
 	// AgentAPIVersion is the current version of the Agent API (back versions
 	// MAY still be supported).
 	AgentAPIVersion string `json:"agent_api_version"`
+	// ProvisionerAPIVersion is the current version of the Provisioner API
+	ProvisionerAPIVersion string `json:"provisioner_api_version"`
 
 	// UpgradeMessage is the message displayed to users when an outdated client
 	// is detected.

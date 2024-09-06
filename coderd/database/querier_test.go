@@ -516,7 +516,7 @@ func TestDefaultOrg(t *testing.T) {
 	ctx := context.Background()
 
 	// Should start with the default org
-	all, err := db.GetOrganizations(ctx)
+	all, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
 	require.NoError(t, err)
 	require.Len(t, all, 1)
 	require.True(t, all[0].IsDefault, "first org should always be default")
@@ -604,7 +604,10 @@ func TestWorkspaceQuotas(t *testing.T) {
 			db2sdk.List([]database.OrganizationMember{memOne, memTwo}, orgMemberIDs))
 
 		// Check the quota is correct.
-		allowance, err := db.GetQuotaAllowanceForUser(ctx, one.ID)
+		allowance, err := db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
+			UserID:         one.ID,
+			OrganizationID: org.ID,
+		})
 		require.NoError(t, err)
 		require.Equal(t, int64(50), allowance)
 
@@ -617,7 +620,10 @@ func TestWorkspaceQuotas(t *testing.T) {
 		require.NoError(t, err)
 
 		// Ensure allowance remains the same
-		allowance, err = db.GetQuotaAllowanceForUser(ctx, one.ID)
+		allowance, err = db.GetQuotaAllowanceForUser(ctx, database.GetQuotaAllowanceForUserParams{
+			UserID:         one.ID,
+			OrganizationID: org.ID,
+		})
 		require.NoError(t, err)
 		require.Equal(t, int64(50), allowance)
 	})
@@ -1205,7 +1211,7 @@ func TestExpectOne(t *testing.T) {
 		dbgen.Organization(t, db, database.Organization{})
 
 		// Organizations is an easy table without foreign key dependencies
-		_, err = database.ExpectOne(db.GetOrganizations(ctx))
+		_, err = database.ExpectOne(db.GetOrganizations(ctx, database.GetOrganizationsParams{}))
 		require.ErrorContains(t, err, "too many rows returned")
 	})
 }

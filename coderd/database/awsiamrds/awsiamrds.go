@@ -10,7 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
+	"github.com/lib/pq"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 type awsIamRdsDriver struct {
@@ -18,7 +21,10 @@ type awsIamRdsDriver struct {
 	cfg    aws.Config
 }
 
-var _ driver.Driver = &awsIamRdsDriver{}
+var (
+	_ driver.Driver             = &awsIamRdsDriver{}
+	_ database.ConnectorCreator = &awsIamRdsDriver{}
+)
 
 // Register initializes and registers our aws iam rds wrapped database driver.
 func Register(ctx context.Context, parentName string) (string, error) {
@@ -65,6 +71,16 @@ func (d *awsIamRdsDriver) Open(name string) (driver.Conn, error) {
 	return conn, nil
 }
 
+// Connector returns a driver.Connector that fetches a new authentication token for each connection.
+func (d *awsIamRdsDriver) Connector(name string) (driver.Connector, error) {
+	connector := &connector{
+		url: name,
+		cfg: d.cfg,
+	}
+
+	return connector, nil
+}
+
 func getAuthenticatedURL(cfg aws.Config, dbURL string) (string, error) {
 	nURL, err := url.Parse(dbURL)
 	if err != nil {
@@ -81,4 +97,38 @@ func getAuthenticatedURL(cfg aws.Config, dbURL string) (string, error) {
 	nURL.User = url.UserPassword(nURL.User.Username(), token)
 
 	return nURL.String(), nil
+}
+
+type connector struct {
+	url    string
+	cfg    aws.Config
+	dialer pq.Dialer
+}
+
+var _ database.DialerConnector = &connector{}
+
+func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
+	nURL, err := getAuthenticatedURL(c.cfg, c.url)
+	if err != nil {
+		return nil, xerrors.Errorf("assigning authentication token to url: %w", err)
+	}
+
+	nc, err := pq.NewConnector(nURL)
+	if err != nil {
+		return nil, xerrors.Errorf("creating new connector: %w", err)
+	}
+
+	if c.dialer != nil {
+		nc.Dialer(c.dialer)
+	}
+
+	return nc.Connect(ctx)
+}
+
+func (*connector) Driver() driver.Driver {
+	return &pq.Driver{}
+}
+
+func (c *connector) Dialer(dialer pq.Dialer) {
+	c.dialer = dialer
 }

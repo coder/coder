@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
@@ -20,6 +21,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -34,6 +37,8 @@ type executor struct {
 	// cachePath and workdir must not be used by multiple processes at once.
 	cachePath string
 	workdir   string
+	// used to capture execution times at various stages
+	timings *timingAggregator
 }
 
 func (e *executor) basicEnv() []string {
@@ -252,7 +257,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		args = append(args, "-var", variable)
 	}
 
-	outWriter, doneOut := provisionLogWriter(logr)
+	outWriter, doneOut := e.provisionLogWriter(logr)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -265,14 +270,24 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
+
+	// Capture the duration of the call to `terraform graph`.
+	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
+	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
+
 	state, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
+		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
 		return nil, err
 	}
+
+	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
+
 	return &proto.PlanComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
+		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 	}, nil
 }
 
@@ -399,7 +414,7 @@ func (e *executor) apply(
 		getPlanFilePath(e.workdir),
 	}
 
-	outWriter, doneOut := provisionLogWriter(logr)
+	outWriter, doneOut := e.provisionLogWriter(logr)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -421,11 +436,13 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
+
 	return &proto.ApplyComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
+		Timings:               e.timings.aggregate(),
 	}, nil
 }
 
@@ -539,45 +556,41 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
 // closed by the caller to end logging, after which the returned channel will be closed to indicate that logging of the
 // written data has finished.  Failure to close the WriteCloser will leak a goroutine.
-func provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
+func (e *executor) provisionLogWriter(sink logSink) (io.WriteCloser, <-chan any) {
 	r, w := io.Pipe()
 	done := make(chan any)
-	go provisionReadAndLog(sink, r, done)
+
+	go e.provisionReadAndLog(sink, r, done)
 	return w, done
 }
 
-func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
+func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 	defer close(done)
+
+	errCount := 0
+
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		var log terraformProvisionLog
-		err := json.Unmarshal(scanner.Bytes(), &log)
-		if err != nil {
-			// Sometimes terraform doesn't log JSON, even though we asked it to.
-			// The terraform maintainers have said on the issue tracker that
-			// they don't guarantee that non-JSON lines won't get printed.
-			// https://github.com/hashicorp/terraform/issues/29252#issuecomment-887710001
-			//
-			// > I think as a practical matter it isn't possible for us to
-			// > promise that the output will always be entirely JSON, because
-			// > there's plenty of code that runs before command line arguments
-			// > are parsed and thus before we even know we're in JSON mode.
-			// > Given that, I'd suggest writing code that consumes streaming
-			// > JSON output from Terraform in such a way that it can tolerate
-			// > the output not having JSON in it at all.
-			//
-			// Log lines such as:
-			// - Acquiring state lock. This may take a few moments...
-			// - Releasing state lock. This may take a few moments...
-			if strings.TrimSpace(scanner.Text()) == "" {
-				continue
-			}
-			log.Level = "info"
-			log.Message = scanner.Text()
+		log := parseTerraformLogLine(scanner.Bytes())
+		if log == nil {
+			continue
 		}
 
 		logLevel := convertTerraformLogLevel(log.Level, sink)
 		sink.ProvisionLog(logLevel, log.Message)
+
+		ts, span, err := extractTimingSpan(log)
+		if err != nil {
+			// It's too noisy to log all of these as timings are not an essential feature, but we do need to log *some*.
+			if errCount%10 == 0 {
+				e.logger.Warn(context.Background(), "(sampled) failed to extract timings entry from log line",
+					slog.F("line", log.Message), slog.Error(err))
+			}
+			errCount++
+		} else {
+			// Only ingest valid timings.
+			e.timings.ingest(ts, span)
+		}
 
 		// If the diagnostic is provided, let's provide a bit more info!
 		if log.Diagnostic == nil {
@@ -588,6 +601,60 @@ func provisionReadAndLog(sink logSink, r io.Reader, done chan<- any) {
 			sink.ProvisionLog(logLevel, diagLine)
 		}
 	}
+}
+
+func parseTerraformLogLine(line []byte) *terraformProvisionLog {
+	var log terraformProvisionLog
+	err := json.Unmarshal(line, &log)
+	if err != nil {
+		// Sometimes terraform doesn't log JSON, even though we asked it to.
+		// The terraform maintainers have said on the issue tracker that
+		// they don't guarantee that non-JSON lines won't get printed.
+		// https://github.com/hashicorp/terraform/issues/29252#issuecomment-887710001
+		//
+		// > I think as a practical matter it isn't possible for us to
+		// > promise that the output will always be entirely JSON, because
+		// > there's plenty of code that runs before command line arguments
+		// > are parsed and thus before we even know we're in JSON mode.
+		// > Given that, I'd suggest writing code that consumes streaming
+		// > JSON output from Terraform in such a way that it can tolerate
+		// > the output not having JSON in it at all.
+		//
+		// Log lines such as:
+		// - Acquiring state lock. This may take a few moments...
+		// - Releasing state lock. This may take a few moments...
+		if len(bytes.TrimSpace(line)) == 0 {
+			return nil
+		}
+		log.Level = "info"
+		log.Message = string(line)
+	}
+	return &log
+}
+
+func extractTimingSpan(log *terraformProvisionLog) (time.Time, *timingSpan, error) {
+	// Input is not well-formed, bail out.
+	if log.Type == "" {
+		return time.Time{}, nil, xerrors.Errorf("invalid timing kind: %q", log.Type)
+	}
+
+	typ := timingKind(log.Type)
+	if !typ.Valid() {
+		return time.Time{}, nil, xerrors.Errorf("unexpected timing kind: %q", log.Type)
+	}
+
+	ts, err := time.Parse("2006-01-02T15:04:05.000000Z07:00", log.Timestamp)
+	if err != nil {
+		// TODO: log
+		ts = time.Now()
+	}
+
+	return ts, &timingSpan{
+		kind:     typ,
+		action:   log.Hook.Action,
+		provider: log.Hook.Resource.Provider,
+		resource: log.Hook.Resource.Addr,
+	}, nil
 }
 
 func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
@@ -609,10 +676,23 @@ func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
 }
 
 type terraformProvisionLog struct {
-	Level   string `json:"@level"`
-	Message string `json:"@message"`
+	Level     string                    `json:"@level"`
+	Message   string                    `json:"@message"`
+	Timestamp string                    `json:"@timestamp"`
+	Type      string                    `json:"type"`
+	Hook      terraformProvisionLogHook `json:"hook"`
 
 	Diagnostic *tfjson.Diagnostic `json:"diagnostic,omitempty"`
+}
+
+type terraformProvisionLogHook struct {
+	Action   string                            `json:"action"`
+	Resource terraformProvisionLogHookResource `json:"resource"`
+}
+
+type terraformProvisionLogHookResource struct {
+	Addr     string `json:"addr"`
+	Provider string `json:"implied_provider"`
 }
 
 // syncWriter wraps an io.Writer in a sync.Mutex.

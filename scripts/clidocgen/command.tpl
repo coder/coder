@@ -43,7 +43,7 @@ Aliases:
 ### {{ with $opt.FlagShorthand}}-{{ . }}, {{end}}--{{ $opt.Flag }}
 {{" "}}
 {{ tableHeader }}
-| Type | {{ $opt.Value.Type | wrapCode }} |
+| Type | {{ typeHelper $opt | wrapCode }} |
 {{- with $opt.Env }}
 | Environment | {{ (print "$" .) | wrapCode }} |
 {{- end }}

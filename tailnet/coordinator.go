@@ -162,12 +162,14 @@ func (c *remoteCoordination) respLoop() {
 	for {
 		resp, err := c.protocol.Recv()
 		if err != nil {
+			c.logger.Debug(context.Background(), "failed to read from protocol", slog.Error(err))
 			c.sendErr(xerrors.Errorf("read: %w", err))
 			return
 		}
 
 		err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
+			c.logger.Debug(context.Background(), "failed to update peers", slog.Error(err))
 			c.sendErr(xerrors.Errorf("update peers: %w", err))
 			return
 		}
@@ -191,6 +193,7 @@ func (c *remoteCoordination) respLoop() {
 					ReadyForHandshake: rfh,
 				})
 				if err != nil {
+					c.logger.Debug(context.Background(), "failed to send ready for handshake", slog.Error(err))
 					c.sendErr(xerrors.Errorf("send: %w", err))
 					return
 				}

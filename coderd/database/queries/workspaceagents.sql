@@ -188,11 +188,49 @@ INSERT INTO
 SELECT * FROM workspace_agent_log_sources WHERE workspace_agent_id = ANY(@ids :: uuid [ ]);
 
 -- If an agent hasn't connected in the last 7 days, we purge it's logs.
+-- Exception: if the logs are related to the latest build, we keep those around.
 -- Logs can take up a lot of space, so it's important we clean up frequently.
 -- name: DeleteOldWorkspaceAgentLogs :exec
-DELETE FROM workspace_agent_logs WHERE agent_id IN
-	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
-		AND last_connected_at < NOW() - INTERVAL '7 day');
+WITH
+	latest_builds AS (
+		SELECT
+			workspace_id, max(build_number) AS max_build_number
+		FROM
+			workspace_builds
+		GROUP BY
+			workspace_id
+	),
+	old_agents AS (
+		SELECT
+			wa.id
+		FROM
+			workspace_agents AS wa
+		JOIN
+			workspace_resources AS wr
+		ON
+			wa.resource_id = wr.id
+		JOIN
+			workspace_builds AS wb
+		ON
+			wb.job_id = wr.job_id
+		LEFT JOIN
+			latest_builds
+		ON
+			latest_builds.workspace_id = wb.workspace_id
+		AND
+			latest_builds.max_build_number = wb.build_number
+		WHERE
+			-- Filter out the latest builds for each workspace.
+			latest_builds.workspace_id IS NULL
+		AND CASE
+			-- If the last time the agent connected was before @threshold
+			WHEN wa.last_connected_at IS NOT NULL THEN
+				 wa.last_connected_at < @threshold :: timestamptz
+			-- The agent never connected, and was created before @threshold
+			ELSE wa.created_at < @threshold :: timestamptz
+		END
+	)
+DELETE FROM workspace_agent_logs WHERE agent_id IN (SELECT id FROM old_agents);
 
 -- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
 SELECT

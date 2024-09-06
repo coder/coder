@@ -132,7 +132,10 @@ func TestTemplates(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.MaxPortShareLevel = ptr.Ref(codersdk.WorkspaceAgentPortShareLevelPublic)
+		})
+		require.Equal(t, template.MaxPortShareLevel, codersdk.WorkspaceAgentPortShareLevelPublic)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
@@ -1020,6 +1023,46 @@ func TestTemplateACL(t *testing.T) {
 		acl, err = anotherClient.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
 		require.Len(t, acl.Users, 0, "deleted users should be filtered")
+	})
+
+	// Test that we do not filter dormant users.
+	t.Run("IncludeDormantUsers", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// nolint:gocritic // Must use owner to create user.
+		user1, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "coder@coder.com",
+			Username:        "coder",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{user.OrganizationID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.UserStatusDormant, user1.Status)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		err = anotherClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: map[string]codersdk.TemplateRole{
+				user1.ID.String(): codersdk.TemplateRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		acl, err := anotherClient.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		require.Contains(t, acl.Users, codersdk.TemplateUser{
+			User: user1,
+			Role: codersdk.TemplateRoleUse,
+		})
 	})
 
 	// Test that we do not return suspended users.

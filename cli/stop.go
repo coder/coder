@@ -10,6 +10,7 @@ import (
 )
 
 func (r *RootCmd) stop() *serpent.Command {
+	var bflags buildFlags
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -35,9 +36,13 @@ func (r *RootCmd) stop() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			wbr := codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
-			})
+			}
+			if bflags.provisionerLogDebug {
+				wbr.LogLevel = codersdk.ProvisionerLogLevelDebug
+			}
+			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, wbr)
 			if err != nil {
 				return err
 			}
@@ -56,5 +61,7 @@ func (r *RootCmd) stop() *serpent.Command {
 			return nil
 		},
 	}
+	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
+
 	return cmd
 }

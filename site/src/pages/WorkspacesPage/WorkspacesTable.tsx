@@ -9,6 +9,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import { visuallyHidden } from "@mui/utils";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
@@ -20,6 +21,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
@@ -52,6 +54,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	canCreateTemplate,
 }) => {
 	const theme = useTheme();
+	const dashboard = useDashboard();
 
 	return (
 		<TableContainer>
@@ -172,7 +175,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													)}
 												</Stack>
 											}
-											subtitle={workspace.owner_name}
+											subtitle={
+												<div>
+													<span css={{ ...visuallyHidden }}>User: </span>
+													{workspace.owner_name}
+												</div>
+											}
 											avatar={
 												<ExternalAvatar
 													src={workspace.template_icon}
@@ -189,7 +197,20 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								</TableCell>
 
 								<TableCell>
-									{getDisplayWorkspaceTemplateName(workspace)}
+									<div>{getDisplayWorkspaceTemplateName(workspace)}</div>
+
+									{dashboard.showOrganizations && (
+										<div
+											css={{
+												fontSize: 13,
+												color: theme.palette.text.secondary,
+												lineHeight: 1.5,
+											}}
+										>
+											<span css={{ ...visuallyHidden }}>Organization: </span>
+											{workspace.organization_name}
+										</div>
+									)}
 								</TableCell>
 
 								<TableCell>
@@ -202,7 +223,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										{workspace.latest_build.status === "running" &&
 											!workspace.health.healthy && (
 												<InfoTooltip
-													type="notice"
+													type="warning"
 													title="Workspace is unhealthy"
 													message="Your workspace is running but some agents are unhealthy."
 												/>

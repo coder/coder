@@ -198,20 +198,21 @@ type data struct {
 	frobulators                   []database.Frobulator
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
-	locks                   map[int64]struct{}
-	deploymentID            string
-	derpMeshKey             string
-	lastUpdateCheck         []byte
-	announcementBanners     []byte
-	healthSettings          []byte
-	notificationsSettings   []byte
-	applicationName         string
-	logoURL                 string
-	appSecurityKey          string
-	oauthSigningKey         string
-	lastLicenseID           int32
-	defaultProxyDisplayName string
-	defaultProxyIconURL     string
+	locks                            map[int64]struct{}
+	deploymentID                     string
+	derpMeshKey                      string
+	lastUpdateCheck                  []byte
+	announcementBanners              []byte
+	healthSettings                   []byte
+	notificationsSettings            []byte
+	applicationName                  string
+	logoURL                          string
+	appSecurityKey                   string
+	oauthSigningKey                  string
+	coordinatorResumeTokenSigningKey string
+	lastLicenseID                    int32
+	defaultProxyDisplayName          string
+	defaultProxyIconURL              string
 }
 
 func validateDatabaseTypeWithValid(v reflect.Value) (handled bool, err error) {
@@ -1721,27 +1722,94 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context) error {
+func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context, threshold time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	now := dbtime.Now()
-	weekInterval := 7 * 24 * time.Hour
-	weekAgo := now.Add(-weekInterval)
+	/*
+		WITH
+			latest_builds AS (
+				SELECT
+					workspace_id, max(build_number) AS max_build_number
+				FROM
+					workspace_builds
+				GROUP BY
+					workspace_id
+			),
+	*/
+	latestBuilds := make(map[uuid.UUID]int32)
+	for _, wb := range q.workspaceBuilds {
+		if lastBuildNumber, found := latestBuilds[wb.WorkspaceID]; found && lastBuildNumber > wb.BuildNumber {
+			continue
+		}
+		// not found or newer build number
+		latestBuilds[wb.WorkspaceID] = wb.BuildNumber
+	}
 
-	var validLogs []database.WorkspaceAgentLog
-	for _, log := range q.workspaceAgentLogs {
-		var toBeDeleted bool
-		for _, agent := range q.workspaceAgents {
-			if agent.ID == log.AgentID && agent.LastConnectedAt.Valid && agent.LastConnectedAt.Time.Before(weekAgo) {
-				toBeDeleted = true
-				break
+	/*
+		old_agents AS (
+			SELECT
+				wa.id
+			FROM
+				workspace_agents AS wa
+			JOIN
+				workspace_resources AS wr
+			ON
+				wa.resource_id = wr.id
+			JOIN
+				workspace_builds AS wb
+			ON
+				wb.job_id = wr.job_id
+			LEFT JOIN
+				latest_builds
+			ON
+				latest_builds.workspace_id = wb.workspace_id
+			AND
+				latest_builds.max_build_number = wb.build_number
+			WHERE
+				-- Filter out the latest builds for each workspace.
+				latest_builds.workspace_id IS NULL
+			AND CASE
+				-- If the last time the agent connected was before @threshold
+				WHEN wa.last_connected_at IS NOT NULL THEN
+					wa.last_connected_at < @threshold :: timestamptz
+				-- The agent never connected, and was created before @threshold
+				ELSE wa.created_at < @threshold :: timestamptz
+			END
+		)
+	*/
+	oldAgents := make(map[uuid.UUID]struct{})
+	for _, wa := range q.workspaceAgents {
+		for _, wr := range q.workspaceResources {
+			if wr.ID != wa.ResourceID {
+				continue
+			}
+			for _, wb := range q.workspaceBuilds {
+				if wb.JobID != wr.JobID {
+					continue
+				}
+				latestBuildNumber, found := latestBuilds[wb.WorkspaceID]
+				if !found {
+					panic("workspaceBuilds got modified somehow while q was locked! This is a bug in dbmem!")
+				}
+				if latestBuildNumber == wb.BuildNumber {
+					continue
+				}
+				if wa.LastConnectedAt.Valid && wa.LastConnectedAt.Time.Before(threshold) || wa.CreatedAt.Before(threshold) {
+					oldAgents[wa.ID] = struct{}{}
+				}
 			}
 		}
-
-		if !toBeDeleted {
-			validLogs = append(validLogs, log)
+	}
+	/*
+		DELETE FROM workspace_agent_logs WHERE agent_id IN (SELECT id FROM old_agents);
+	*/
+	var validLogs []database.WorkspaceAgentLog
+	for _, log := range q.workspaceAgentLogs {
+		if _, found := oldAgents[log.AgentID]; found {
+			continue
 		}
+		validLogs = append(validLogs, log)
 	}
 	q.workspaceAgentLogs = validLogs
 	return nil
@@ -1764,10 +1832,10 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 						-- use between 15 mins and 1 hour of data. We keep a
 						-- little bit more (1 day) just in case.
 						MAX(start_time) - '1 days'::interval,
-						-- Fall back to 6 months ago if there are no template
+						-- Fall back to ~6 months ago if there are no template
 						-- usage stats so that we don't delete the data before
 						-- it's rolled up.
-						NOW() - '6 months'::interval
+						NOW() - '180 days'::interval
 					)
 				FROM
 					template_usage_stats
@@ -1793,7 +1861,7 @@ func (q *FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	}
 	// COALESCE
 	if limit.IsZero() {
-		limit = now.AddDate(0, -6, 0)
+		limit = now.AddDate(0, 0, -180)
 	}
 
 	var validStats []database.WorkspaceAgentStat
@@ -2238,6 +2306,15 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
+func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	if q.coordinatorResumeTokenSigningKey == "" {
+		return "", sql.ErrNoRows
+	}
+	return q.coordinatorResumeTokenSigningKey, nil
+}
+
 func (q *FakeQuerier) GetDBCryptKeys(_ context.Context) ([]database.DBCryptKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2636,7 +2713,7 @@ func (q *FakeQuerier) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return int64(len(users)), nil
 }
 
-func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2661,7 +2738,8 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 		}
 	}
 
-	filtered := make([]database.Group, 0)
+	orgDetailsCache := make(map[uuid.UUID]struct{ name, displayName string })
+	filtered := make([]database.GetGroupsRow, 0)
 	for _, group := range q.groups {
 		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
 			continue
@@ -2672,7 +2750,24 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 			continue
 		}
 
-		filtered = append(filtered, group)
+		orgDetails, ok := orgDetailsCache[group.ID]
+		if !ok {
+			for _, org := range q.organizations {
+				if group.OrganizationID == org.ID {
+					orgDetails = struct{ name, displayName string }{
+						name: org.Name, displayName: org.DisplayName,
+					}
+					break
+				}
+			}
+			orgDetailsCache[group.ID] = orgDetails
+		}
+
+		filtered = append(filtered, database.GetGroupsRow{
+			Group:                   group,
+			OrganizationName:        orgDetails.name,
+			OrganizationDisplayName: orgDetails.displayName,
+		})
 	}
 
 	return filtered, nil
@@ -3061,14 +3156,24 @@ func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
-func (q *FakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
+func (q *FakeQuerier) GetOrganizations(_ context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if len(q.organizations) == 0 {
-		return nil, sql.ErrNoRows
+	tmp := make([]database.Organization, 0)
+	for _, org := range q.organizations {
+		if len(args.IDs) > 0 {
+			if !slices.Contains(args.IDs, org.ID) {
+				continue
+			}
+		}
+		if args.Name != "" && !strings.EqualFold(org.Name, args.Name) {
+			continue
+		}
+		tmp = append(tmp, org)
 	}
-	return q.organizations, nil
+
+	return tmp, nil
 }
 
 func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UUID) ([]database.Organization, error) {
@@ -3087,9 +3192,7 @@ func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 			organizations = append(organizations, organization)
 		}
 	}
-	if len(organizations) == 0 {
-		return nil, sql.ErrNoRows
-	}
+
 	return organizations, nil
 }
 
@@ -3341,13 +3444,13 @@ func (q *FakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.
 	return logs, nil
 }
 
-func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, params database.GetQuotaAllowanceForUserParams) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var sum int64
 	for _, member := range q.groupMembers {
-		if member.UserID != userID {
+		if member.UserID != params.UserID {
 			continue
 		}
 		if _, err := q.getOrganizationByIDNoLock(member.GroupID); err == nil {
@@ -3367,7 +3470,7 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 	// Grab the quota for the Everyone group iff the user is a member of
 	// said organization.
 	for _, mem := range q.organizationMembers {
-		if mem.UserID != userID {
+		if mem.UserID != params.UserID {
 			continue
 		}
 
@@ -3375,19 +3478,25 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		if err != nil {
 			return -1, xerrors.Errorf("failed to get everyone group for org %q", mem.OrganizationID.String())
 		}
+		if group.OrganizationID != params.OrganizationID {
+			continue
+		}
 		sum += int64(group.QuotaAllowance)
 	}
 
 	return sum, nil
 }
 
-func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, params database.GetQuotaConsumedForUserParams) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var sum int64
 	for _, workspace := range q.workspaces {
-		if workspace.OwnerID != userID {
+		if workspace.OwnerID != params.OwnerID {
+			continue
+		}
+		if workspace.OrganizationID != params.OrganizationID {
 			continue
 		}
 		if workspace.Deleted {
@@ -6700,6 +6809,15 @@ func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
+func (*FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
 func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -9000,6 +9118,14 @@ func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) erro
 	return nil
 }
 
+func (q *FakeQuerier) UpsertCoordinatorResumeTokenSigningKey(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.coordinatorResumeTokenSigningKey = value
+	return nil
+}
+
 func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
 	q.defaultProxyDisplayName = arg.DisplayName
 	q.defaultProxyIconURL = arg.IconUrl
@@ -9989,6 +10115,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		if arg.OrganizationID != uuid.Nil {
+			if workspace.OrganizationID != arg.OrganizationID {
+				continue
+			}
+		}
+
 		if arg.OwnerUsername != "" {
 			owner, err := q.getUserByIDNoLock(workspace.OwnerID)
 			if err == nil && !strings.EqualFold(arg.OwnerUsername, owner.Username) {
@@ -10228,7 +10360,7 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 	if arg.Offset > 0 {
 		if int(arg.Offset) > len(workspaces) {
-			return []database.GetWorkspacesRow{}, nil
+			return q.convertToWorkspaceRowsNoLock(ctx, []database.Workspace{}, int64(beforePageCount), arg.WithSummary), nil
 		}
 		workspaces = workspaces[arg.Offset:]
 	}

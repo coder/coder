@@ -106,28 +106,12 @@ func TestUserLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
-	// Password auth should fail if the user is made without password login.
-	t.Run("DisableLoginDeprecatedField", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-			r.Password = ""
-			r.DisableLogin = true
-		})
-
-		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
-			Password: "SomeSecurePassword!",
-		})
-		require.Error(t, err)
-	})
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = ""
 			r.UserLoginType = codersdk.LoginTypeNone
 		})
@@ -382,6 +366,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, "Kylium Carbonate", user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
@@ -435,6 +420,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, strings.Repeat("a", 128), user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
@@ -490,6 +476,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, "Kylium Carbonate", user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -552,6 +539,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "mathias@coder.com", user.Email)
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -614,6 +602,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "mathias@coder.com", user.Email)
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -1286,6 +1275,7 @@ func TestUserOIDC(t *testing.T) {
 				require.Len(t, auditor.AuditLogs(), numLogs)
 				require.NotEqual(t, uuid.Nil, auditor.AuditLogs()[numLogs-1].UserID)
 				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
+				require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 			}
 		})
 	}
@@ -1470,11 +1460,11 @@ func TestUserLogout(t *testing.T) {
 		//nolint:gosec
 		password = "SomeSecurePassword123!"
 	)
-	newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-		Email:          email,
-		Username:       username,
-		Password:       password,
-		OrganizationID: firstUser.OrganizationID,
+	newUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		Email:           email,
+		Username:        username,
+		Password:        password,
+		OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
 	})
 	require.NoError(t, err)
 

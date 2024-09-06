@@ -4,12 +4,9 @@ terraform {
       source = "coder/coderd"
     }
   }
-}
-
-// Alternative to committing a state file
-import {
-  to = coderd_template.dogfood
-  id = "0d286645-29aa-4eaf-9b52-cc5d2740c90b"
+  backend "gcs" {
+    bucket = "coder-dogfood-tf-state"
+  }
 }
 
 data "coderd_organization" "default" {

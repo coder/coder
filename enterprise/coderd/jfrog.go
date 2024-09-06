@@ -104,14 +104,10 @@ func (api *API) jFrogXrayScan(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) jfrogEnabledMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		api.entitlementsMu.RLock()
 		// This doesn't actually use the external auth feature but we want
 		// to lock this behind an enterprise license and it's somewhat
 		// related to external auth (in that it is JFrog integration).
-		enabled := api.entitlements.Features[codersdk.FeatureMultipleExternalAuth].Enabled
-		api.entitlementsMu.RUnlock()
-
-		if !enabled {
+		if !api.Entitlements.Enabled(codersdk.FeatureMultipleExternalAuth) {
 			httpapi.RouteNotFound(rw)
 			return
 		}

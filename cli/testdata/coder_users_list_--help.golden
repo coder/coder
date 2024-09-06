@@ -6,12 +6,11 @@ USAGE:
   Aliases: ls
 
 OPTIONS:
-  -c, --column string-array (default: username,email,created_at,status)
-          Columns to display in table output. Available columns: id, username,
-          email, created at, updated at, status.
+  -c, --column [id|username|email|created at|updated at|status] (default: username,email,created at,status)
+          Columns to display in table output.
 
-  -o, --output string (default: table)
-          Output format. Available formats: table, json.
+  -o, --output table|json (default: table)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

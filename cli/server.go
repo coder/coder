@@ -55,7 +55,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/pretty"
+	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
@@ -604,6 +606,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					SSHConfigOptions: configSSHOptions,
 				},
 				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
+				Entitlements:          entitlements.New(),
 				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
@@ -791,17 +794,25 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 				}
 
-				keyBytes, err := hex.DecodeString(oauthSigningKeyStr)
+				oauthKeyBytes, err := hex.DecodeString(oauthSigningKeyStr)
 				if err != nil {
 					return xerrors.Errorf("decode oauth signing key from database: %w", err)
 				}
-				if len(keyBytes) != len(options.OAuthSigningKey) {
-					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(keyBytes))
+				if len(oauthKeyBytes) != len(options.OAuthSigningKey) {
+					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(oauthKeyBytes))
 				}
-				copy(options.OAuthSigningKey[:], keyBytes)
+				copy(options.OAuthSigningKey[:], oauthKeyBytes)
 				if options.OAuthSigningKey == [32]byte{} {
 					return xerrors.Errorf("oauth signing key in database is empty")
 				}
+
+				// Read the coordinator resume token signing key from the
+				// database.
+				resumeTokenKey, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, tx)
+				if err != nil {
+					return xerrors.Errorf("get coordinator resume token key from database: %w", err)
+				}
+				options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(resumeTokenKey, quartz.NewReal(), tailnet.DefaultResumeTokenExpiry)
 
 				return nil
 			}, nil)
@@ -976,7 +987,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database)
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, quartz.NewReal())
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -996,7 +1007,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				helpers := templateHelpers(options)
 
 				// The enqueuer is responsible for enqueueing notifications to the given store.
-				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"))
+				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
 				}

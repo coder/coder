@@ -433,6 +433,11 @@ OIDC OPTIONS:
           groups. This filter is applied after the group mapping and before the
           regex filter.
 
+      --oidc-organization-assign-default bool, $CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT (default: true)
+          If set to true, users will always be added to the default
+          organization. If organization sync is enabled, then the default org is
+          always added to the user's set of expectedorganizations.
+
       --oidc-auth-url-params struct[map[string]string], $CODER_OIDC_AUTH_URL_PARAMS (default: {"access_type": "offline"})
           OIDC auth URL parameters to pass to the upstream provider.
 
@@ -478,6 +483,14 @@ OIDC OPTIONS:
 
       --oidc-name-field string, $CODER_OIDC_NAME_FIELD (default: name)
           OIDC claim field to use as the name.
+
+      --oidc-organization-field string, $CODER_OIDC_ORGANIZATION_FIELD
+          This field must be set if using the organization sync feature. Set to
+          the claim to be used for organizations.
+
+      --oidc-organization-mapping struct[map[string][]uuid.UUID], $CODER_OIDC_ORGANIZATION_MAPPING (default: {})
+          A map of OIDC claims and the organizations in Coder it should map to.
+          This is required because organization IDs must be used within Coder.
 
       --oidc-group-regex-filter regexp, $CODER_OIDC_GROUP_REGEX_FILTER (default: .*)
           If provided any group name not matching the regex is ignored. This

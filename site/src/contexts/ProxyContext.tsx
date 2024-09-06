@@ -233,21 +233,9 @@ const selectByLatency = (
 		return undefined;
 	}
 
-	const proxyMap = proxies.reduce(
-		(acc, proxy) => {
-			acc[proxy.id] = proxy;
-			return acc;
-		},
-		{} as Record<string, Region>,
-	);
-
-	const best = Object.keys(latencies)
-		.map((proxyId) => {
-			return {
-				id: proxyId,
-				...latencies[proxyId],
-			};
-		})
+	const proxyMap = Object.fromEntries(proxies.map((it) => [it.id, it]));
+	const best = Object.entries(latencies)
+		.map(([proxyId, latency]) => ({ id: proxyId, ...latency }))
 		// If the proxy is not in our list, or it is unhealthy, ignore it.
 		.filter((latency) => proxyMap[latency.id]?.healthy)
 		.sort((a, b) => a.latencyMS - b.latencyMS)

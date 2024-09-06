@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -79,6 +80,7 @@ type Options struct {
 	DocsURL           string
 	BuildInfo         codersdk.BuildInfoResponse
 	AppearanceFetcher *atomic.Pointer[appearance.Fetcher]
+	Entitlements      *entitlements.Set
 }
 
 func New(opts *Options) *Handler {
@@ -91,6 +93,7 @@ func New(opts *Options) *Handler {
 	handler := &Handler{
 		opts:          opts,
 		secureHeaders: secureHeaders(),
+		Entitlements:  opts.Entitlements,
 	}
 
 	// html files are handled by a text/template. Non-html files
@@ -173,7 +176,7 @@ type Handler struct {
 	// regions if the user does not have the correct permissions.
 	RegionsFetcher func(ctx context.Context) (any, error)
 
-	Entitlements atomic.Pointer[codersdk.Entitlements]
+	Entitlements *entitlements.Set
 	Experiments  atomic.Pointer[codersdk.Experiments]
 }
 
@@ -200,6 +203,18 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	switch {
 	// If requesting binaries, serve straight up.
 	case reqFile == "bin" || strings.HasPrefix(reqFile, "bin/"):
+		h.handler.ServeHTTP(rw, r)
+		return
+	// If requesting assets, serve straight up with caching.
+	case reqFile == "assets" || strings.HasPrefix(reqFile, "assets/"):
+		// It could make sense to cache 404s, but the problem is that during an
+		// upgrade a load balancer may route partially to the old server, and that
+		// would make new asset paths get cached as 404s and not load even once the
+		// new server was in place.  To combat that, only cache if we have the file.
+		if h.exists(reqFile) && ShouldCacheFile(reqFile) {
+			rw.Header().Add("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		// If the asset does not exist, this will return a 404.
 		h.handler.ServeHTTP(rw, r)
 		return
 	// If the original file path exists we serve it.
@@ -379,15 +394,12 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				state.User = html.EscapeString(string(user))
 			}
 		}()
-		entitlements := h.Entitlements.Load()
-		if entitlements != nil {
+
+		if h.Entitlements != nil {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				entitlements, err := json.Marshal(entitlements)
-				if err == nil {
-					state.Entitlements = html.EscapeString(string(entitlements))
-				}
+				state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))
 			}()
 		}
 

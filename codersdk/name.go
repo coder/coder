@@ -1,4 +1,4 @@
-package httpapi
+package codersdk
 
 import (
 	"regexp"
@@ -92,6 +92,23 @@ func UserRealNameValid(str string) error {
 
 	if strings.TrimSpace(str) != str {
 		return xerrors.New("must not have leading or trailing whitespace")
+	}
+	return nil
+}
+
+// GroupNameValid returns whether the input string is a valid group name.
+func GroupNameValid(str string) error {
+	// 36 is to support using UUIDs as the group name.
+	if len(str) > 36 {
+		return xerrors.New("must be <= 36 characters")
+	}
+	// Avoid conflicts with routes like /groups/new and /groups/create.
+	if str == "new" || str == "create" {
+		return xerrors.Errorf("cannot use %q as a name", str)
+	}
+	matched := UsernameValidRegex.MatchString(str)
+	if !matched {
+		return xerrors.New("must be alphanumeric with hyphens")
 	}
 	return nil
 }

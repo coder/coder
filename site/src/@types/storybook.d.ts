@@ -16,6 +16,7 @@ declare module "@storybook/react" {
 	interface Parameters {
 		features?: FeatureName[];
 		experiments?: Experiments;
+		showOrganizations?: boolean;
 		queries?: { key: QueryKey; data: unknown }[];
 		webSocket?: WebSocketEvent[];
 		user?: User;

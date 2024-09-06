@@ -89,8 +89,9 @@ type sqlcQuerier interface {
 	// connectivity issues (no provisioner daemon activity since registration).
 	DeleteOldProvisionerDaemons(ctx context.Context) error
 	// If an agent hasn't connected in the last 7 days, we purge it's logs.
+	// Exception: if the logs are related to the latest build, we keep those around.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
-	DeleteOldWorkspaceAgentLogs(ctx context.Context) error
+	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
 	DeleteOrganization(ctx context.Context, id uuid.UUID) error
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
@@ -129,6 +130,7 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error)
 	GetDBCryptKeys(ctx context.Context) ([]DBCryptKey, error)
 	GetDERPMeshKey(ctx context.Context) (string, error)
 	GetDefaultOrganization(ctx context.Context) (Organization, error)
@@ -153,7 +155,7 @@ type sqlcQuerier interface {
 	// count even if the caller does not have read access to ResourceGroupMember.
 	// They only need ResourceGroup read access.
 	GetGroupMembersCountByGroupID(ctx context.Context, groupID uuid.UUID) (int64, error)
-	GetGroups(ctx context.Context, arg GetGroupsParams) ([]Group, error)
+	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
@@ -181,7 +183,7 @@ type sqlcQuerier interface {
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
-	GetOrganizations(ctx context.Context) ([]Organization, error)
+	GetOrganizations(ctx context.Context, arg GetOrganizationsParams) ([]Organization, error)
 	GetOrganizationsByUserID(ctx context.Context, userID uuid.UUID) ([]Organization, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPreviousTemplateVersion(ctx context.Context, arg GetPreviousTemplateVersionParams) (TemplateVersion, error)
@@ -195,8 +197,8 @@ type sqlcQuerier interface {
 	GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (ProvisionerKey, error)
 	GetProvisionerKeyByName(ctx context.Context, arg GetProvisionerKeyByNameParams) (ProvisionerKey, error)
 	GetProvisionerLogsAfterID(ctx context.Context, arg GetProvisionerLogsAfterIDParams) ([]ProvisionerJobLog, error)
-	GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error)
-	GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error)
+	GetQuotaAllowanceForUser(ctx context.Context, arg GetQuotaAllowanceForUserParams) (int64, error)
+	GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error)
 	GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error)
@@ -359,6 +361,7 @@ type sqlcQuerier interface {
 	InsertOrganizationMember(ctx context.Context, arg InsertOrganizationMemberParams) (OrganizationMember, error)
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
 	InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error)
+	InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error)
 	InsertProvisionerKey(ctx context.Context, arg InsertProvisionerKeyParams) (ProvisionerKey, error)
 	InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error)
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) error
@@ -466,6 +469,7 @@ type sqlcQuerier interface {
 	UpsertAnnouncementBanners(ctx context.Context, value string) error
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
+	UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.

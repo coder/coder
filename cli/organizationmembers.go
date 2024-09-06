@@ -137,7 +137,7 @@ func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serp
 
 func (r *RootCmd) listOrganizationMembers(orgContext *OrganizationContext) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.OrganizationMemberWithUserData{}, []string{"username", "organization_roles"}),
+		cliui.TableFormat([]codersdk.OrganizationMemberWithUserData{}, []string{"username", "organization roles"}),
 		cliui.JSONFormat(),
 	)
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -184,7 +183,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				}
 			}
 
-			script := findScript(installScriptSet, files)
+			script := findScript(installScriptSet, dotfilesDir)
 			if script != "" {
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      fmt.Sprintf("Running install script %s.\n\n  Continue?", script),
@@ -361,15 +360,12 @@ func dirExists(name string) (bool, error) {
 }
 
 // findScript will find the first file that matches the script set.
-func findScript(scriptSet []string, files []fs.DirEntry) string {
+func findScript(scriptSet []string, directory string) string {
 	for _, i := range scriptSet {
-		for _, f := range files {
-			if f.Name() == i {
-				return f.Name()
-			}
+		if _, err := os.Stat(filepath.Join(directory, i)); err == nil {
+			return i
 		}
 	}
-
 	return ""
 }
 

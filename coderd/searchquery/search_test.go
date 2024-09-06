@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
@@ -25,6 +26,7 @@ func TestSearchWorkspace(t *testing.T) {
 		Query                 string
 		Expected              database.GetWorkspacesParams
 		ExpectedErrorContains string
+		Setup                 func(t *testing.T, db database.Store)
 	}{
 		{
 			Name:     "Empty",
@@ -195,6 +197,31 @@ func TestSearchWorkspace(t *testing.T) {
 				ParamValues: []string{"bar"},
 			},
 		},
+		{
+			Name:  "Organization",
+			Query: `organization:4fe722f0-49bc-4a90-a3eb-4ac439bfce20`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.Organization(t, db, database.Organization{
+					ID: uuid.MustParse("4fe722f0-49bc-4a90-a3eb-4ac439bfce20"),
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				OrganizationID: uuid.MustParse("4fe722f0-49bc-4a90-a3eb-4ac439bfce20"),
+			},
+		},
+		{
+			Name:  "OrganizationByName",
+			Query: `organization:foobar`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.Organization(t, db, database.Organization{
+					ID:   uuid.MustParse("08eb6715-02f8-45c5-b86d-03786fcfbb4e"),
+					Name: "foobar",
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				OrganizationID: uuid.MustParse("08eb6715-02f8-45c5-b86d-03786fcfbb4e"),
+			},
+		},
 
 		// Failures
 		{
@@ -243,7 +270,12 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, errs := searchquery.Workspaces(c.Query, codersdk.Pagination{}, 0)
+			// TODO: Replace this with the mock database.
+			db := dbmem.New()
+			if c.Setup != nil {
+				c.Setup(t, db)
+			}
+			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0)
 			if c.ExpectedErrorContains != "" {
 				assert.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -270,7 +302,7 @@ func TestSearchWorkspace(t *testing.T) {
 
 		query := ``
 		timeout := 1337 * time.Second
-		values, errs := searchquery.Workspaces(query, codersdk.Pagination{}, timeout)
+		values, errs := searchquery.Workspaces(context.Background(), dbmem.New(), query, codersdk.Pagination{}, timeout)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})

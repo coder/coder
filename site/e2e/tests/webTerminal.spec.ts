@@ -62,7 +62,6 @@ test("web terminal", async ({ context, page }) => {
 		);
 	} catch (error) {
 		const pageContent = await terminal.content();
-		// eslint-disable-next-line no-console -- Let's see what is inside of xterm-rows
 		console.error("Unable to find echoed text:", pageContent);
 		throw error;
 	}

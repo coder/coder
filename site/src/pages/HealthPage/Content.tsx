@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/heading-has-content -- infer from props */
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
@@ -196,7 +195,7 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 	...divProps
 }) => {
 	const theme = useTheme();
-	const color = value ? theme.palette.success.light : theme.palette.error.light;
+	const color = value ? theme.roles.success.outline : theme.roles.error.outline;
 
 	return (
 		<Pill

@@ -51,7 +51,6 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 }) => {
 	const theme = useTheme();
 	const groupedLogsByStage = groupLogsByStage(logs);
-	const stages = Object.keys(groupedLogsByStage);
 
 	return (
 		<div
@@ -62,8 +61,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 			}}
 			{...attrs}
 		>
-			{stages.map((stage) => {
-				const logs = groupedLogsByStage[stage];
+			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {
 				const isEmpty = logs.every((log) => log.output === "");
 				const lines = logs.map((log) => ({
 					time: log.created_at,

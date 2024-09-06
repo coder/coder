@@ -3,7 +3,9 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,7 +17,9 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
 
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -46,7 +50,7 @@ func TestEntitlements(t *testing.T) {
 	t.Parallel()
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
-		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, _, api, adminUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			DontAddLicense: true,
 		})
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
@@ -54,6 +58,9 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, res.HasLicense)
 		require.Empty(t, res.Warnings)
+
+		// Ensure the entitlements are the same reference
+		require.Equal(t, fmt.Sprintf("%p", api.Entitlements), fmt.Sprintf("%p", api.AGPL.Entitlements))
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		// PGCoordinator requires a real postgres
@@ -452,13 +459,19 @@ func TestMultiReplica_EmptyRelayAddress(t *testing.T) {
 func TestMultiReplica_EmptyRelayAddress_DisabledDERP(t *testing.T) {
 	t.Parallel()
 
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpapi.Write(context.Background(), w, http.StatusOK, derpMap)
+	}))
+	t.Cleanup(srv.Close)
+
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil)
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.DERP.Server.Enable = serpent.Bool(false)
-	dv.DERP.Config.URL = serpent.String("https://controlplane.tailscale.com/derpmap/default")
+	dv.DERP.Config.URL = serpent.String(srv.URL)
 
 	_, _ = coderdenttest.New(t, &coderdenttest.Options{
 		EntitlementsUpdateInterval: 25 * time.Millisecond,

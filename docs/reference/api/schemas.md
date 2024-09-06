@@ -244,7 +244,9 @@
 				}
 			],
 			"name": "string",
+			"organization_display_name": "string",
 			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+			"organization_name": "string",
 			"quota_allowance": 0,
 			"source": "user",
 			"total_member_count": 0
@@ -888,6 +890,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 	"dashboard_url": "string",
 	"deployment_id": "string",
 	"external_url": "string",
+	"provisioner_api_version": "string",
 	"telemetry": true,
 	"upgrade_message": "string",
 	"version": "string",
@@ -897,16 +900,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description                                                                                                                                                         |
-| ------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_api_version` | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
-| `dashboard_url`     | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
-| `deployment_id`     | string  | false    |              | Deployment ID is the unique identifier for this deployment.                                                                                                         |
-| `external_url`      | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
-| `telemetry`         | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
-| `upgrade_message`   | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
-| `version`           | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
-| `workspace_proxy`   | boolean | false    |              |                                                                                                                                                                     |
+| Name                      | Type    | Required | Restrictions | Description                                                                                                                                                         |
+| ------------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_api_version`       | string  | false    |              | Agent api version is the current version of the Agent API (back versions MAY still be supported).                                                                   |
+| `dashboard_url`           | string  | false    |              | Dashboard URL is the URL to hit the deployment's dashboard. For external workspace proxies, this is the coderd they are connected to.                               |
+| `deployment_id`           | string  | false    |              | Deployment ID is the unique identifier for this deployment.                                                                                                         |
+| `external_url`            | string  | false    |              | External URL references the current Coder version. For production builds, this will link directly to a release. For development builds, this will link to a commit. |
+| `provisioner_api_version` | string  | false    |              | Provisioner api version is the current version of the Provisioner API                                                                                               |
+| `telemetry`               | boolean | false    |              | Telemetry is a boolean that indicates whether telemetry is enabled.                                                                                                 |
+| `upgrade_message`         | string  | false    |              | Upgrade message is the message displayed to users when an outdated client is detected.                                                                              |
+| `version`                 | string  | false    |              | Version returns the semantic version of the build.                                                                                                                  |
+| `workspace_proxy`         | boolean | false    |              |                                                                                                                                                                     |
 
 ## codersdk.BuildReason
 
@@ -1107,6 +1111,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 	"dormant_ttl_ms": 0,
 	"failure_ttl_ms": 0,
 	"icon": "string",
+	"max_port_share_level": "owner",
 	"name": "string",
 	"require_active_version": true,
 	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
@@ -1131,6 +1136,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `dormant_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
 | `failure_ttl_ms`                                                                                                                                                                          | integer                                                                        | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
 | `icon`                                                                                                                                                                                    | string                                                                         | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
+| `max_port_share_level`                                                                                                                                                                    | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              | Max port share level allows optionally specifying the maximum port share level for workspaces created from the template.                                                                                                                                                                                            |
 | `name`                                                                                                                                                                                    | string                                                                         | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
 | `require_active_version`                                                                                                                                                                  | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                                                                                                                                         |
 | `template_version_id`                                                                                                                                                                     | string                                                                         | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
@@ -1282,15 +1288,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `scope`  | `all`                 |
 | `scope`  | `application_connect` |
 
-## codersdk.CreateUserRequest
+## codersdk.CreateUserRequestWithOrgs
 
 ```json
 {
-	"disable_login": true,
 	"email": "user@example.com",
 	"login_type": "",
 	"name": "string",
-	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 	"password": "string",
 	"username": "string"
 }
@@ -1298,15 +1303,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                     | Required | Restrictions | Description                                                                                                                                                                                                        |
-| ----------------- | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `disable_login`   | boolean                                  | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. Deprecated: Set UserLoginType=LoginTypeDisabled instead. |
-| `email`           | string                                   | true     |              |                                                                                                                                                                                                                    |
-| `login_type`      | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                                                                                                                                                          |
-| `name`            | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `organization_id` | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `password`        | string                                   | false    |              |                                                                                                                                                                                                                    |
-| `username`        | string                                   | true     |              |                                                                                                                                                                                                                    |
+| Name               | Type                                     | Required | Restrictions | Description                                                                         |
+| ------------------ | ---------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `email`            | string                                   | true     |              |                                                                                     |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                           |
+| `name`             | string                                   | false    |              |                                                                                     |
+| `organization_ids` | array of string                          | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
+| `password`         | string                                   | false    |              |                                                                                     |
+| `username`         | string                                   | true     |              |                                                                                     |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -1847,6 +1851,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"ignore_user_info": true,
 			"issuer_url": "string",
 			"name_field": "string",
+			"organization_assign_default": true,
+			"organization_field": "string",
+			"organization_mapping": {},
 			"scopes": ["string"],
 			"sign_in_text": "string",
 			"signups_disabled_text": "string",
@@ -2270,6 +2277,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"ignore_user_info": true,
 		"issuer_url": "string",
 		"name_field": "string",
+		"organization_assign_default": true,
+		"organization_field": "string",
+		"organization_mapping": {},
 		"scopes": ["string"],
 		"sign_in_text": "string",
 		"signups_disabled_text": "string",
@@ -2863,7 +2873,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		}
 	],
 	"name": "string",
+	"organization_display_name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_name": "string",
 	"quota_allowance": 0,
 	"source": "user",
 	"total_member_count": 0
@@ -2872,17 +2884,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                 | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
-| -------------------- | ----------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `avatar_url`         | string                                                | false    |              |                                                                                                                                                                       |
-| `display_name`       | string                                                | false    |              |                                                                                                                                                                       |
-| `id`                 | string                                                | false    |              |                                                                                                                                                                       |
-| `members`            | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
-| `name`               | string                                                | false    |              |                                                                                                                                                                       |
-| `organization_id`    | string                                                | false    |              |                                                                                                                                                                       |
-| `quota_allowance`    | integer                                               | false    |              |                                                                                                                                                                       |
-| `source`             | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
-| `total_member_count` | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+| --------------------------- | ----------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
 
 ## codersdk.GroupSource
 
@@ -3669,6 +3683,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"ignore_user_info": true,
 	"issuer_url": "string",
 	"name_field": "string",
+	"organization_assign_default": true,
+	"organization_field": "string",
+	"organization_mapping": {},
 	"scopes": ["string"],
 	"sign_in_text": "string",
 	"signups_disabled_text": "string",
@@ -3682,34 +3699,37 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                    | Type                             | Required | Restrictions | Description                                                                      |
-| ----------------------- | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
-| `allow_signups`         | boolean                          | false    |              |                                                                                  |
-| `auth_url_params`       | object                           | false    |              |                                                                                  |
-| `client_cert_file`      | string                           | false    |              |                                                                                  |
-| `client_id`             | string                           | false    |              |                                                                                  |
-| `client_key_file`       | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
-| `client_secret`         | string                           | false    |              |                                                                                  |
-| `email_domain`          | array of string                  | false    |              |                                                                                  |
-| `email_field`           | string                           | false    |              |                                                                                  |
-| `group_allow_list`      | array of string                  | false    |              |                                                                                  |
-| `group_auto_create`     | boolean                          | false    |              |                                                                                  |
-| `group_mapping`         | object                           | false    |              |                                                                                  |
-| `group_regex_filter`    | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
-| `groups_field`          | string                           | false    |              |                                                                                  |
-| `icon_url`              | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
-| `ignore_email_verified` | boolean                          | false    |              |                                                                                  |
-| `ignore_user_info`      | boolean                          | false    |              |                                                                                  |
-| `issuer_url`            | string                           | false    |              |                                                                                  |
-| `name_field`            | string                           | false    |              |                                                                                  |
-| `scopes`                | array of string                  | false    |              |                                                                                  |
-| `sign_in_text`          | string                           | false    |              |                                                                                  |
-| `signups_disabled_text` | string                           | false    |              |                                                                                  |
-| `skip_issuer_checks`    | boolean                          | false    |              |                                                                                  |
-| `user_role_field`       | string                           | false    |              |                                                                                  |
-| `user_role_mapping`     | object                           | false    |              |                                                                                  |
-| `user_roles_default`    | array of string                  | false    |              |                                                                                  |
-| `username_field`        | string                           | false    |              |                                                                                  |
+| Name                          | Type                             | Required | Restrictions | Description                                                                      |
+| ----------------------------- | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
+| `allow_signups`               | boolean                          | false    |              |                                                                                  |
+| `auth_url_params`             | object                           | false    |              |                                                                                  |
+| `client_cert_file`            | string                           | false    |              |                                                                                  |
+| `client_id`                   | string                           | false    |              |                                                                                  |
+| `client_key_file`             | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
+| `client_secret`               | string                           | false    |              |                                                                                  |
+| `email_domain`                | array of string                  | false    |              |                                                                                  |
+| `email_field`                 | string                           | false    |              |                                                                                  |
+| `group_allow_list`            | array of string                  | false    |              |                                                                                  |
+| `group_auto_create`           | boolean                          | false    |              |                                                                                  |
+| `group_mapping`               | object                           | false    |              |                                                                                  |
+| `group_regex_filter`          | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
+| `groups_field`                | string                           | false    |              |                                                                                  |
+| `icon_url`                    | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
+| `ignore_email_verified`       | boolean                          | false    |              |                                                                                  |
+| `ignore_user_info`            | boolean                          | false    |              |                                                                                  |
+| `issuer_url`                  | string                           | false    |              |                                                                                  |
+| `name_field`                  | string                           | false    |              |                                                                                  |
+| `organization_assign_default` | boolean                          | false    |              |                                                                                  |
+| `organization_field`          | string                           | false    |              |                                                                                  |
+| `organization_mapping`        | object                           | false    |              |                                                                                  |
+| `scopes`                      | array of string                  | false    |              |                                                                                  |
+| `sign_in_text`                | string                           | false    |              |                                                                                  |
+| `signups_disabled_text`       | string                           | false    |              |                                                                                  |
+| `skip_issuer_checks`          | boolean                          | false    |              |                                                                                  |
+| `user_role_field`             | string                           | false    |              |                                                                                  |
+| `user_role_mapping`           | object                           | false    |              |                                                                                  |
+| `user_roles_default`          | array of string                  | false    |              |                                                                                  |
+| `username_field`              | string                           | false    |              |                                                                                  |
 
 ## codersdk.Organization
 

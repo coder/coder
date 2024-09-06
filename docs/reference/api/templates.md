@@ -175,6 +175,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 	"dormant_ttl_ms": 0,
 	"failure_ttl_ms": 0,
 	"icon": "string",
+	"max_port_share_level": "owner",
 	"name": "string",
 	"require_active_version": true,
 	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"

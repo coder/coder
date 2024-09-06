@@ -7,7 +7,7 @@ import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import { withRouter } from "storybook-addon-remix-react-router";
 import { StrictMode } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { parseQueryArgs, QueryClient, QueryClientProvider } from "react-query";
 import { HelmetProvider } from "react-helmet-async";
 import themes from "theme";
 import "theme/globalFonts";
@@ -93,7 +93,18 @@ function withQuery(Story, { parameters }) {
 
   if (parameters.queries) {
     parameters.queries.forEach((query) => {
-      queryClient.setQueryData(query.key, query.data);
+      if (query.data instanceof Error) {
+        // This is copied from setQueryData() but sets the error.
+        const cache = queryClient.getQueryCache();
+        const parsedOptions = parseQueryArgs(query.key)
+        const defaultedOptions = queryClient.defaultQueryOptions(parsedOptions)
+        const cachedQuery = cache.build(queryClient, defaultedOptions);
+        // Set manual data so react-query will not try to refetch.
+        cachedQuery.setData(undefined, { manual: true });
+        cachedQuery.setState({ error: query.data });
+      } else {
+        queryClient.setQueryData(query.key, query.data);
+      }
     });
   }
 

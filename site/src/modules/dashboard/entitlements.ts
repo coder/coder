@@ -13,12 +13,13 @@ export const getFeatureVisibility = (
 		return {};
 	}
 
-	const permissionPairs = Object.keys(features).map((feature) => {
-		const { entitlement, limit, actual, enabled } = features[feature];
-		const entitled = ["entitled", "grace_period"].includes(entitlement);
-		const limitCompliant = limit && actual ? limit >= actual : true;
-		return [feature, entitled && limitCompliant && enabled];
-	});
+	const permissionPairs = Object.entries(features).map(
+		([feature, { entitlement, limit, actual, enabled }]) => {
+			const entitled = ["entitled", "grace_period"].includes(entitlement);
+			const limitCompliant = limit && actual ? limit >= actual : true;
+			return [feature, entitled && limitCompliant && enabled];
+		},
+	);
 	return Object.fromEntries(permissionPairs);
 };
 

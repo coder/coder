@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -149,7 +150,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -374,13 +375,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 	defer commitAudit()
 
-	// Do this upfront to save work.
-	if !api.Authorize(r, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(member.UserID.String())) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var req codersdk.CreateWorkspaceRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -518,6 +512,22 @@ func createWorkspace(
 	if template.Deleted {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Template %q has been deleted!", template.Name),
+		})
+		return
+	}
+
+	// This is a premature auth check to avoid doing unnecessary work if the user
+	// doesn't have permission to create a workspace.
+	if !api.Authorize(r, policy.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
+		// If this check fails, return a proper unauthorized error to the user to indicate
+		// what is going on.
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Unauthorized to create workspace.",
+			Detail: "You are unable to create a workspace in this organization. " +
+				"It is possible to have access to the template, but not be able to create a workspace. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+			Validations: nil,
 		})
 		return
 	}
@@ -1055,6 +1065,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if initiatorErr == nil && tmplErr == nil {
+			dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				ctx,
 				workspace.OwnerID,
@@ -1062,7 +1073,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 				map[string]string{
 					"name":           workspace.Name,
 					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": time.Duration(tmpl.TimeTilDormant).String(),
+					"timeTilDormant": humanize.Time(dormantTime),
 				},
 				"api",
 				workspace.ID,
