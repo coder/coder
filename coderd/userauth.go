@@ -1389,6 +1389,8 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			return xerrors.Errorf("sync organizations: %w", err)
 		}
 
+		// Group sync needs to occur after org sync, since a user can join an org,
+		// then have their groups sync to said org.
 		err = api.IDPSync.SyncGroups(ctx, tx, user, params.GroupSync)
 		if err != nil {
 			return xerrors.Errorf("sync groups: %w", err)

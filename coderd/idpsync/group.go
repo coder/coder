@@ -206,7 +206,7 @@ func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store
 			return xerrors.Errorf("remove user from %d groups: %w", len(removeIDs), err)
 		}
 		if len(removedGroupIDs) != len(removeIDs) {
-			s.Logger.Debug(ctx, "failed to remove user from all groups",
+			s.Logger.Debug(ctx, "user not removed from expected number of groups",
 				slog.F("user_id", user.ID),
 				slog.F("groups_removed_count", len(removedGroupIDs)),
 				slog.F("expected_count", len(removeIDs)),
@@ -225,7 +225,7 @@ func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store
 			return xerrors.Errorf("insert user into %d groups: %w", len(add), err)
 		}
 		if len(assignedGroupIDs) != len(add) {
-			s.Logger.Debug(ctx, "failed to assign all groups to user",
+			s.Logger.Debug(ctx, "user not assigned to expected number of groups",
 				slog.F("user_id", user.ID),
 				slog.F("groups_assigned_count", len(assignedGroupIDs)),
 				slog.F("expected_count", len(add)),
@@ -355,8 +355,7 @@ func (s GroupSyncSettings) ParseClaims(orgID uuid.UUID, mergedClaims jwt.MapClai
 // TODO: Batching this would be better, as this is 1 or 2 db calls per organization.
 func (s GroupSyncSettings) HandleMissingGroups(ctx context.Context, tx database.Store, orgID uuid.UUID, add []ExpectedGroup) ([]uuid.UUID, error) {
 	// All expected that are missing IDs means the group does not exist
-	// in the database. Either remove them, or create them if auto create is
-	// turned on.
+	// in the database, or it is a legacy mapping, and we need to do a lookup.
 	var missingGroups []string
 	addIDs := make([]uuid.UUID, 0)
 

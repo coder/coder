@@ -90,7 +90,9 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 		OrganizationMapping:       dv.OIDC.OrganizationMapping.Value,
 		OrganizationAssignDefault: dv.OIDC.OrganizationAssignDefault.Value(),
 
-		// TODO: Separate group field for allow list from default org
+		// TODO: Separate group field for allow list from default org.
+		// Right now you cannot disable group sync from the default org and
+		// configure an allow list.
 		GroupField:     dv.OIDC.GroupField.Value(),
 		GroupAllowList: ConvertAllowList(dv.OIDC.GroupAllowList.Value()),
 		Legacy: DefaultOrgLegacySettings{
