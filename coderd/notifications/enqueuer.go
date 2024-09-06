@@ -169,3 +169,8 @@ func (*NoopEnqueuer) Enqueue(context.Context, uuid.UUID, uuid.UUID, map[string]s
 	// nolint:nilnil // irrelevant.
 	return nil, nil
 }
+
+func (*NoopEnqueuer) EnqueueData(context.Context, uuid.UUID, uuid.UUID, map[string]string, map[string]any, string, ...uuid.UUID) (*uuid.UUID, error) {
+	// nolint:nilnil // irrelevant.
+	return nil, nil
+}
