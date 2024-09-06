@@ -15,11 +15,16 @@ type FakeNotificationsEnqueuer struct {
 type Notification struct {
 	UserID, TemplateID uuid.UUID
 	Labels             map[string]string
+	Data               map[string]any
 	CreatedBy          string
 	Targets            []uuid.UUID
 }
 
-func (f *FakeNotificationsEnqueuer) Enqueue(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (f *FakeNotificationsEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+	return f.EnqueueData(ctx, userID, templateID, labels, map[string]any{}, createdBy, targets...)
+}
+
+func (f *FakeNotificationsEnqueuer) EnqueueData(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -27,6 +32,7 @@ func (f *FakeNotificationsEnqueuer) Enqueue(_ context.Context, userID, templateI
 		UserID:     userID,
 		TemplateID: templateID,
 		Labels:     labels,
+		Data:       data,
 		CreatedBy:  createdBy,
 		Targets:    targets,
 	})
