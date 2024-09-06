@@ -45,7 +45,7 @@ type IDPSync interface {
 // IDP. All related code to syncing user information should be in this package.
 type AGPLIDPSync struct {
 	Logger  slog.Logger
-	Manager runtimeconfig.Manager
+	Manager *runtimeconfig.Manager
 
 	SyncSettings
 }
@@ -108,7 +108,7 @@ type SyncSettings struct {
 	Group runtimeconfig.RuntimeEntry[*GroupSyncSettings]
 }
 
-func NewAGPLSync(logger slog.Logger, manager runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
+func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
 		Logger:  logger.Named("idp-sync"),
 		Manager: manager,

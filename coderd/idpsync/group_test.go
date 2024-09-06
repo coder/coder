@@ -29,7 +29,7 @@ func TestParseGroupClaims(t *testing.T) {
 		t.Parallel()
 
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewStoreManager(),
+			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -45,7 +45,7 @@ func TestParseGroupClaims(t *testing.T) {
 		t.Parallel()
 
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewStoreManager(),
+			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
 				GroupField: "groups",
 				GroupAllowList: map[string]struct{}{
@@ -232,7 +232,7 @@ func TestGroupSyncTable(t *testing.T) {
 			t.Parallel()
 
 			db, _ := dbtestutil.NewDB(t)
-			manager := runtimeconfig.NewStoreManager()
+			manager := runtimeconfig.NewManager()
 			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
 				manager,
 				idpsync.DeploymentSyncSettings{
@@ -264,7 +264,7 @@ func TestGroupSyncTable(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
-		manager := runtimeconfig.NewStoreManager()
+		manager := runtimeconfig.NewManager()
 		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
 			manager,
 			// Also sync the default org!
@@ -444,7 +444,7 @@ func TestApplyGroupDifference(t *testing.T) {
 	for _, tc := range testCase {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
-			mgr := runtimeconfig.NewStoreManager()
+			mgr := runtimeconfig.NewManager()
 			db, _ := dbtestutil.NewDB(t)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
@@ -505,7 +505,7 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 		require.NoError(t, err, "Everyone group for an org")
 	}
 
-	manager := runtimeconfig.NewStoreManager()
+	manager := runtimeconfig.NewManager()
 	orgResolver := manager.OrganizationResolver(db, org.ID)
 	err = s.Group.SetRuntimeValue(context.Background(), orgResolver, def.Settings)
 	require.NoError(t, err)
