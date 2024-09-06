@@ -1119,9 +1119,6 @@ func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
 		return []netip.Prefix{
 			// This is the IP that should be used primarily.
 			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
-			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
-			// allows for a transition away from wsconncache.
-			netip.PrefixFrom(workspacesdk.AgentIP, 128),
 		}
 	}
 

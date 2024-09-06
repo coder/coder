@@ -22,7 +22,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -121,41 +120,6 @@ func TestCoordinator(t *testing.T) {
 		sendNode(&tailnet.Node{
 			Addresses: []netip.Prefix{
 				netip.PrefixFrom(tailnet.IPFromUUID(id), 128),
-			},
-			PreferredDERP: 10,
-		})
-		require.Eventually(t, func() bool {
-			return coordinator.Node(id) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
-		err := client.Close()
-		require.NoError(t, err)
-		_ = testutil.RequireRecvCtx(ctx, t, errChan)
-		_ = testutil.RequireRecvCtx(ctx, t, closeChan)
-	})
-
-	t.Run("AgentWithoutClients_ValidIPLegacy", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		coordinator := tailnet.NewCoordinator(logger)
-		defer func() {
-			err := coordinator.Close()
-			require.NoError(t, err)
-		}()
-		client, server := net.Pipe()
-		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
-			return nil
-		})
-		id := uuid.New()
-		closeChan := make(chan struct{})
-		go func() {
-			err := coordinator.ServeAgent(server, id, "")
-			assert.NoError(t, err)
-			close(closeChan)
-		}()
-		sendNode(&tailnet.Node{
-			Addresses: []netip.Prefix{
-				netip.PrefixFrom(workspacesdk.AgentIP, 128),
 			},
 			PreferredDERP: 10,
 		})

@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -186,48 +185,6 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 	agent.sendNode(&agpl.Node{
 		Addresses: []netip.Prefix{
 			netip.PrefixFrom(agpl.IPFromUUID(agent.id), 128),
-		},
-		PreferredDERP: 10,
-	})
-	require.Eventually(t, func() bool {
-		agents, err := store.GetTailnetPeers(ctx, agent.id)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			t.Fatalf("database error: %v", err)
-		}
-		if len(agents) == 0 {
-			return false
-		}
-		node := new(proto.Node)
-		err = gProto.Unmarshal(agents[0].Node, node)
-		assert.NoError(t, err)
-		assert.EqualValues(t, 10, node.PreferredDerp)
-		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
-	err = agent.close()
-	require.NoError(t, err)
-	<-agent.errChan
-	<-agent.closeChan
-	assertEventuallyLost(ctx, t, store, agent.id)
-}
-
-func TestPGCoordinatorSingle_AgentValidIPLegacy(t *testing.T) {
-	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
-	store, ps := dbtestutil.NewDB(t)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
-	require.NoError(t, err)
-	defer coordinator.Close()
-
-	agent := newTestAgent(t, coordinator, "agent")
-	defer agent.close()
-	agent.sendNode(&agpl.Node{
-		Addresses: []netip.Prefix{
-			netip.PrefixFrom(workspacesdk.AgentIP, 128),
 		},
 		PreferredDERP: 10,
 	})
