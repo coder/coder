@@ -143,7 +143,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						<>
 							<TopbarDivider />
 							<OrganizationBreadcrumb
-								orgName={workspace.organization_name}
+								orgName={activeOrg?.display_name ?? workspace.organization_name}
 								orgIconUrl={activeOrg?.icon}
 								orgPageUrl={
 									showOrganizations
