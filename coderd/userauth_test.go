@@ -1496,7 +1496,6 @@ func TestUserOIDC(t *testing.T) {
 		user, err := loginClient.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "user@example.com", user.Email)
-
 	})
 }
 
