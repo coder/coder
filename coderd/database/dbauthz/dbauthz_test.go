@@ -2775,16 +2775,20 @@ func (s *MethodTestSuite) TestNotifications() {
 
 func (s *MethodTestSuite) TestFrobulators() {
 	s.Run("GetFrobulators", s.Subtest(func(db database.Store, check *expects) {
-		user := dbgen.User(s.T(), db, database.User{})
+		// Pre-requisite: create two users and an organization.
+		u1 := dbgen.User(s.T(), db, database.User{})
+		u2 := dbgen.User(s.T(), db, database.User{})
 		org := dbgen.Organization(s.T(), db, database.Organization{})
-		// Create a frobulator resource.
-		fr := dbgen.Frobulator(s.T(), db, database.Frobulator{UserID: user.ID, OrgID: org.ID})
-		// Assert that calling GetFrobulators with the user and org ID records a
-		// read action on the above resource.
+		// Create a few frobulator resources: two owned by u1, one owned by u2.
+		fr1 := dbgen.Frobulator(s.T(), db, database.Frobulator{UserID: u1.ID, OrgID: org.ID})
+		fr2 := dbgen.Frobulator(s.T(), db, database.Frobulator{UserID: u1.ID, OrgID: org.ID})
+		_ = dbgen.Frobulator(s.T(), db, database.Frobulator{UserID: u2.ID, OrgID: org.ID})
+		// Assert that calling GetFrobulators with a given user and org ID records a
+		// read action on each of the resources owned by that user.
 		check.Args(database.GetFrobulatorsParams{
-			UserID: user.ID,
+			UserID: u1.ID,
 			OrgID:  org.ID,
-		}).Asserts(fr, policy.ActionRead)
+		}).Asserts(fr1, policy.ActionRead, fr2, policy.ActionRead)
 	}))
 	s.Run("InsertFrobulator", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
