@@ -8,24 +8,25 @@ you.
 
 ## Running the UI
 
-You can run the UI and access the dashboard in two ways:
+You can run the UI and access the Coder dashboard in two ways:
 
 - Build the UI pointing to an external Coder server:
   `CODER_HOST=https://mycoder.com pnpm dev` inside of the `site` folder. This is
   helpful when you are building something in the UI and already have the data on
   your deployed server.
 - Build the entire Coder server + UI locally: `./scripts/develop.sh` in the root
-  folder. It is useful when you have to contribute with features that are not
-  deployed yet or when you have to work on both, frontend and backend.
+  folder. This is useful for contributing to features that are not deployed yet
+  or that involve both the frontend and backend.
 
 In both cases, you can access the dashboard on `http://localhost:8080`. If you
-are running the `./scripts/develop.sh` you can log in using the default
-credentials: `admin@coder.com` and `SomeSecurePassword!`.
+are running `./scripts/develop.sh` you can log in using the default credentials.
+
+### Default Credentials: `admin@coder.com` and `SomeSecurePassword!`.
 
 ## Tech Stack
 
-All our dependencies are described in `site/package.json` but here are the most
-important ones:
+All our dependencies are described in `site/package.json` but the following are
+the most important:
 
 - [React](https://reactjs.org/) as framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity
@@ -43,8 +44,7 @@ important ones:
 
 ## Structure
 
-All the code related to the UI is inside the `site` folder and we defined a few
-conventions to help people to navigate through it.
+All the code related to the UI resides in the `site` folder.
 
 - **e2e** - End-to-end (E2E) tests
 - **src** - Source code
@@ -53,49 +53,51 @@ conventions to help people to navigate through it.
     (largely code that has no server-side equivalent)
   - **api** - API code as function calls and types
     - **queries** - react-query queries and mutations
-  - **components** - UI components
-  - **hooks** - Hooks that can be used across the application
+  - **components** - Generic UI components without Coder specific business logic
+  - **hooks** - React hooks that can be used across the application
+  - **modules** - Coder specific UI components
   - **pages** - Page components
   - **testHelpers** - Helper functions to help with integration tests
+  - **theme** - configuration and color definitions for the color themes
   - **util** - Helper functions that can be used across the application
 - **static** - Static UI assets like images, fonts, icons, etc
 
 ## Routing
 
-We use [react-router](https://reactrouter.com/en/main) as our routing engine and
-adding a new route is very easy. If the new route needs to be authenticated, put
-it under the `<RequireAuth>` route and if it needs to live inside of the
-dashboard, put it under the `<DashboardLayout>` route.
+We use [react-router](https://reactrouter.com/en/main) as our routing engine.
 
-The `RequireAuth` component handles all the authentication logic for the routes
-and the `DashboardLayout` wraps the route adding a navbar and passing down
-common dashboard data.
+- Authenticated routes - routes needing authentication should be placed inside
+  the `<RequireAuth>` route. The `RequireAuth` component handles all the
+  authentication logic for the routes.
+- Dashboard routes - routes that live in the dashboard should be placed under
+  the `<DashboardLayout>` route. The `DashboardLayout` adds a navbar and passes
+  down common dashboard data.
 
 ## Pages
 
 Pages are the top-level components of the app. The page component lives under
-the `src/pages` folder and each page should have its own folder so we can better
-group the views, tests, utility functions and so on. We use a structure where
-the page component is responsible for fetching all the data and passing it down
-to the view. We explain this decision a bit better in the next section.
+the `src/pages` folder and each page should have its own folder to better group
+the views, tests, utility functions and so on. The code is structured so that a
+page component is responsible for fetching all the data and passing it down to
+the view. We explain this decision a bit better in the next section.
 
 > ℹ️ Code that is only related to the page should live inside of the page folder
 > but if at some point it is used in other pages or components, you should
-> consider moving it to the `src` level in the `utils`, `hooks` or `components`
-> folder.
+> consider moving it to the `src` level in the `utils`, `hooks`, `components`,
+> or `modules` folder.
 
 ### States
 
 A page usually has at least three states: **loading**, **ready**/**success**,
 and **error**, so always remember to handle these scenarios while you are coding
-a page. We also encourage you to add visual testing for these three states using
-a `*.stories.ts` file.
+a page. Visual testing is expected for these three states using a `*.stories.ts`
+file.
 
 ## Fetching data
 
 We use [TanStack Query v4](https://tanstack.com/query/v4/docs/react/quick-start)
 to fetch data from the API. The queries and mutation should be placed inside of
-the api/queries folder when it is possible.
+the api/queries folder.
 
 ### Where to fetch data
 
@@ -141,12 +143,14 @@ export const WithQuota: Story = {
 
 ### API
 
-We are using [axios](https://github.com/axios/axios) as our fetching library and
-writing the API functions in the `site/src/api/api.ts` files. We also have
-auto-generated types from our Go server on `site/src/api/typesGenerated.ts`.
-Usually, every endpoint has its own ` Request` and `Response` types, but
-sometimes you need to pass extra parameters to make the call, like in the
-example below:
+Our project utilizes [axios](https://github.com/axios/axios) as the HTTP client
+for making API requests. The API functions are centralized in
+`site/src/api/api.ts`. We leverage auto-generated TypeScript types derived from
+our Go server, which are located in `site/src/api/typesGenerated.ts`.
+
+Typically, each API endpoint corresponds to its own `Request` and `Response`
+types. However, some endpoints require additional parameters for successful
+execution. Here's an illustrative example:"
 
 ```ts
 export const getAgentListeningPorts = async (
@@ -159,8 +163,8 @@ export const getAgentListeningPorts = async (
 };
 ```
 
-Sometimes, a frontend operation can have multiple API calls, so it is okay to
-wrap it as a single function.
+Sometimes, a frontend operation can have multiple API calls which can be wrapped
+as a single function.
 
 ```ts
 export const updateWorkspaceVersion = async (
@@ -171,10 +175,13 @@ export const updateWorkspaceVersion = async (
 };
 ```
 
-If you need more granular errors or control, you may should consider keep them
-separated and use XState for that.
+## Components and Modules
 
-## Components
+Components should be atomic, generic and should not describe any specific
+business logic. Modules are similar to components except that they can be more
+complex and they do contain business logic specific to the product.
+
+### MUI
 
 The codebase is currently using MUI v5. Please see the
 [official documentation](https://mui.com/material-ui/getting-started/). In
@@ -184,8 +191,9 @@ out of the box.
 
 ### Structure
 
-Each component gets its own folder. Make sure you add a test and Storybook
-stories for the component as well. By keeping these tidy, the codebase will
+Each component and module gets its own folder. Module folders may group multiple
+files in a hierarchical structure. Storybook stories and component tests using
+Storybook interactions are required. By keeping these tidy, the codebase will
 remain easy to navigate, healthy and maintainable for all contributors.
 
 ### Accessibility
@@ -221,13 +229,30 @@ import { visuallyHidden } from "@mui/utils";
 </Button>;
 ```
 
-### Should I create a new component?
+### Should I create a new component or module?
 
-As with most things in the world, it depends. If you are creating a new
-component to encapsulate some UI abstraction like `UsersTable` it is ok but you
-should always try to use the base components that are provided by the library or
-from the codebase. It's recommended that you always do a quick search before
-creating a custom primitive component like dialogs, popovers, buttons, etc.
+Components could technically be used in any codebase and still feel at home. A
+module would only make sense in the Coder codebase.
+
+- Component
+  - Simple
+  - Atomic, used in multiple places
+  - Good Examples: `Badge`, `Form`, `Timeline`
+- Module
+  - Simple or Complex
+  - Used in multiple places
+  - Good Examples: `Provisioner`, `DashboardLayout`, `DeploymentBanner`
+
+Do not assume existing components and modules have been categorized correctly.
+
+## Styling
+
+We use [Emotion](https://emotion.sh/) to handle css styles.
+
+## Forms
+
+We use [Formik](https://formik.org/docs) for forms along with
+[Yup](https://github.com/jquense/yup) for schema definition and validation.
 
 ## Testing
 
@@ -293,10 +318,9 @@ that:
 
 ### Tests getting too slow
 
-A few times you can notice tests can take a very long time to get done.
-Sometimes it is because the test itself is complex and runs a lot of stuff, and
-sometimes it is because of how we are querying things. In the next section, we
-are going to talk more about them.
+You may have observed that certain tests in our suite can be notably
+time-consuming. Sometimes it is because the test itself is complex and sometimes
+it is because of how the test is querying elements.
 
 #### Using `ByRole` queries
 
@@ -325,12 +349,6 @@ user.click(screen.getByRole("button"));
 const form = screen.getByTestId("form");
 user.click(within(form).getByRole("button"));
 ```
-
-#### `jest.spyOn` with the API is not working
-
-For some unknown reason, we figured out the `jest.spyOn` is not able to mock the
-API function when they are passed directly into the services XState machine
-configuration.
 
 ❌ Does not work
 
