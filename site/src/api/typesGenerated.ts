@@ -1016,6 +1016,7 @@ export interface ProvisionerConfig {
 export interface ProvisionerDaemon {
 	readonly id: string;
 	readonly organization_id: string;
+	readonly key_id: string;
 	readonly created_at: string;
 	readonly last_seen_at?: string;
 	readonly name: string;

@@ -3988,6 +3988,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"api_version": "string",
 	"created_at": "2019-08-24T14:15:22Z",
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 	"last_seen_at": "2019-08-24T14:15:22Z",
 	"name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -4007,6 +4008,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `api_version`      | string          | false    |              |             |
 | `created_at`       | string          | false    |              |             |
 | `id`               | string          | false    |              |             |
+| `key_id`           | string          | false    |              |             |
 | `last_seen_at`     | string          | false    |              |             |
 | `name`             | string          | false    |              |             |
 | `organization_id`  | string          | false    |              |             |
@@ -8585,6 +8587,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 					"api_version": "string",
 					"created_at": "2019-08-24T14:15:22Z",
 					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 					"last_seen_at": "2019-08-24T14:15:22Z",
 					"name": "string",
 					"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -8704,6 +8707,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"api_version": "string",
 				"created_at": "2019-08-24T14:15:22Z",
 				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 				"last_seen_at": "2019-08-24T14:15:22Z",
 				"name": "string",
 				"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -8758,6 +8762,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"api_version": "string",
 		"created_at": "2019-08-24T14:15:22Z",
 		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 		"last_seen_at": "2019-08-24T14:15:22Z",
 		"name": "string",
 		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
