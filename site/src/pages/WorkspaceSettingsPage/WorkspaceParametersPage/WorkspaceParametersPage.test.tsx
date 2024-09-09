@@ -101,7 +101,9 @@ test("Submit button is only enabled when changes are made", async () => {
 	});
 	await waitForLoaderToBeRemoved();
 
-	const submitButton: HTMLButtonElement = screen.getByRole("button", { name: "Submit" });
+	const submitButton: HTMLButtonElement = screen.getByRole("button", {
+		name: "Submit",
+	});
 
 	const form = screen.getByTestId("form");
 	const parameter1 = within(form).getByLabelText(
