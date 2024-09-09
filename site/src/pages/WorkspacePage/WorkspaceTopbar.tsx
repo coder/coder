@@ -291,8 +291,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 						username={ownerName}
 						avatarURL={ownerAvatarUrl}
 					/>
-
-					{ownerName}
+					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
 			</PopoverTrigger>
 
@@ -326,7 +325,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
 					<UserAvatar size="xs" src={orgIconUrl ?? ""} username={orgName} />
-					{orgName}
+					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
 			</PopoverTrigger>
 
@@ -380,17 +379,11 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	return (
 		<Popover mode="hover">
 			<PopoverTrigger>
-				<span
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: 8,
-						cursor: "default",
-						padding: "4px 0",
-					}}
-				>
+				<span css={styles.breadcrumbSegment}>
 					<TopbarAvatar src={templateIconUrl} />
-					<span css={{ fontWeight: 500 }}>{workspaceName}</span>
+					<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
+						{workspaceName}
+					</span>
 				</span>
 			</PopoverTrigger>
 
@@ -443,9 +436,12 @@ const styles = {
 		flexFlow: "row nowrap",
 		gap: "8px",
 		maxWidth: "160px",
-		textOverflow: "ellipsis",
-		overflowX: "hidden",
 		whiteSpace: "nowrap",
 		cursor: "default",
+	},
+
+	breadcrumbText: {
+		overflowX: "hidden",
+		textOverflow: "ellipsis",
 	},
 } satisfies Record<string, Interpolation<Theme>>;
