@@ -28,6 +28,9 @@ func (AGPLIDPSync) GroupSyncEnabled() bool {
 	// AGPL does not support syncing groups.
 	return false
 }
+func (s AGPLIDPSync) GroupSyncSettings() runtimeconfig.RuntimeEntry[*GroupSyncSettings] {
+	return s.Group
+}
 
 func (s AGPLIDPSync) ParseGroupClaims(_ context.Context, _ jwt.MapClaims) (GroupParams, *HTTPError) {
 	return GroupParams{

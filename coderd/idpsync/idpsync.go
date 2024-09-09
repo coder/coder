@@ -36,9 +36,12 @@ type IDPSync interface {
 	// ParseGroupClaims takes claims from an OIDC provider, and returns the params
 	// for group syncing. Most of the logic happens in SyncGroups.
 	ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (GroupParams, *HTTPError)
-
 	// SyncGroups assigns and removes users from groups based on the provided params.
 	SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error
+	// GroupSyncSettings is exposed for the API to implement CRUD operations
+	// on the settings used by IDPSync. This entry is thread safe and can be
+	// accessed concurrently. The settings are stored in the database.
+	GroupSyncSettings() runtimeconfig.RuntimeEntry[*GroupSyncSettings]
 }
 
 // AGPLIDPSync is the configuration for syncing user information from an external
