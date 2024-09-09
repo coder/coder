@@ -894,9 +894,9 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 
 func Frobulator(t testing.TB, db database.Store, orig database.Frobulator) database.Frobulator {
 	frob, err := db.InsertFrobulator(genCtx, database.InsertFrobulatorParams{
-		UserID:      orig.UserID,
-		OrgID:       orig.OrgID,
-		ModelNumber: orig.ModelNumber,
+		UserID:      takeFirst(orig.UserID, uuid.New()),
+		OrgID:       takeFirst(orig.OrgID, uuid.New()),
+		ModelNumber: takeFirst(orig.ModelNumber, testutil.GetRandomName(t)),
 	})
 	require.NoError(t, err, "insert frobulator")
 	return frob
