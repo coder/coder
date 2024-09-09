@@ -28,10 +28,10 @@ import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
-import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
@@ -41,7 +41,7 @@ interface OrganizationMembersPageViewProps {
 	isUpdatingMemberRoles: boolean;
 	me: User;
 	members: OrganizationMemberWithUserData[] | undefined;
-	groupsByUserId: GroupsByUserId | undefined,
+	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
 	updateMemberRoles: (
@@ -120,7 +120,9 @@ export const OrganizationMembersPageView: FC<
 											}
 										}}
 									/>
-									<UserGroupsCell userGroups={props.groupsByUserId?.get(member.user_id)} />
+									<UserGroupsCell
+										userGroups={props.groupsByUserId?.get(member.user_id)}
+									/>
 									<TableCell>
 										{member.user_id !== props.me.id && props.canEditMembers && (
 											<MoreMenu>
