@@ -24,6 +24,7 @@ export const withDashboardProvider = (
 		features = [],
 		experiments = [],
 		showOrganizations = false,
+		organizations = [MockDefaultOrganization],
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -44,9 +45,9 @@ export const withDashboardProvider = (
 			value={{
 				entitlements,
 				experiments,
-				appearance: MockAppearanceConfig,
-				organizations: [MockDefaultOrganization],
+				organizations,
 				showOrganizations,
+				appearance: MockAppearanceConfig,
 			}}
 		>
 			<Story />
