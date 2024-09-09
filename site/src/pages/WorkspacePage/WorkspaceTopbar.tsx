@@ -116,6 +116,8 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		(org) => org.id === workspace.organization_id,
 	);
 
+	const orgDisplayName = activeOrg?.display_name ?? workspace.organization_name;
+
 	const isImmutable =
 		workspace.latest_build.status === "deleted" ||
 		workspace.latest_build.status === "deleting";
@@ -143,7 +145,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						<>
 							<TopbarDivider />
 							<OrganizationBreadcrumb
-								orgName={activeOrg?.display_name ?? workspace.organization_name}
+								orgName={orgDisplayName}
 								orgIconUrl={activeOrg?.icon}
 								orgPageUrl={
 									showOrganizations
@@ -179,7 +181,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						}
 						title={
 							showOrganizations
-								? `See affected workspaces for ${workspace.organization_name}`
+								? `See affected workspaces for ${orgDisplayName}`
 								: "See affected workspaces"
 						}
 					>
