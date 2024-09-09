@@ -12,6 +12,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
+import { Stack } from "components/Stack/Stack";
 import type { ProvisionerDaemonWithWarnings } from "pages/ManagementSettingsPage/OrganizationProvisionersPageView";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
@@ -45,11 +46,6 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	const allProvisionersAreSameVersion = provisioners.every(
 		(provisioner) => provisioner.version === provisionerVersion,
 	);
-	const upToDate =
-		allProvisionersAreSameVersion && buildInfo?.version === provisioner.version;
-	const protocolUpToDate =
-		allProvisionersAreSameVersion &&
-		buildInfo?.provisioner_api_version === provisioner.api_version;
 	const provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
@@ -150,7 +146,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						<Pill size="lg" icon={iconScope}>
 							<span
 								css={{
-									":first-letter": { textTransform: "uppercase" },
+									textTransform: "capitalize",
 								}}
 							>
 								{daemonScope}
@@ -181,8 +177,8 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 									borderRadius: 8,
 									border: `1px solid ${theme.palette.divider}`,
 									fontSize: 14,
-									padding: "12px 18px",
-									width: 310,
+									padding: "14px 18px",
+									width: 375,
 								},
 								provisioner.warnings &&
 									provisioner.warnings.length > 0 && {
@@ -190,60 +186,41 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 									},
 							]}
 						>
-							<div css={{ lineHeight: 1.6 }}>
-								<h4 css={{ fontWeight: 500, margin: 0 }}>{provisioner.name}</h4>
-								<span
-									css={{ color: theme.palette.text.secondary, fontSize: 13 }}
-								>
-									{type === "builtin" ? (
-										<span>Built-in</span>
-									) : (
-										<>
-											<Popover mode="hover">
-												<PopoverTrigger>
-													<span>
-														{buildInfo
-															? provisioner.version === buildInfo.version
-																? "Up to date"
-																: "Out of date"
-															: provisioner.version}
+							<Stack
+								direction="row"
+								justifyContent="space-between"
+								alignItems="center"
+							>
+								<div css={{ lineHeight: 1.5 }}>
+									<h4 css={{ fontWeight: 500, margin: 0 }}>
+										{provisioner.name}
+									</h4>
+									<span
+										css={{ color: theme.palette.text.secondary, fontSize: 12 }}
+									>
+										{type === "builtin" ? (
+											<span>Built-in</span>
+										) : (
+											<>
+												<ProvisionerVersionPopover
+													buildInfo={buildInfo}
+													provisioner={provisioner}
+												/>{" "}
+												&mdash;{" "}
+												{provisioner.last_seen_at && (
+													<span data-chromatic="ignore">
+														Last seen{" "}
+														{createDayString(provisioner.last_seen_at)}
 													</span>
-												</PopoverTrigger>
-												<PopoverContent
-													transformOrigin={{ vertical: -8, horizontal: 0 }}
-													css={{
-														"& .MuiPaper-root": {
-															padding: "20px 20px 8px",
-															maxWidth: 340,
-														},
-													}}
-												>
-													<h4 css={styles.title}>Release version</h4>
-													<p css={styles.text}>{provisioner.version}</p>
-													<h4 css={styles.title}>Protocol version</h4>
-													<p css={styles.text}>{provisioner.api_version}</p>
-													{provisioner.api_version !==
-														buildInfo?.provisioner_api_version && (
-														<p css={[styles.text, { fontSize: 13 }]}>
-															This provisioner is out of date. You may
-															experience issues when using a provisioner version
-															that doesn’t match your Coder deployment. Please
-															upgrade to a newer version.{" "}
-															<Link href={docs("/")}>Learn more…</Link>
-														</p>
-													)}
-												</PopoverContent>
-											</Popover>{" "}
-											&mdash;{" "}
-											{provisioner.last_seen_at && (
-												<span data-chromatic="ignore">
-													Last seen {createDayString(provisioner.last_seen_at)}
-												</span>
-											)}
-										</>
-									)}
-								</span>
-							</div>
+												)}
+											</>
+										)}
+									</span>
+								</div>
+								{type === "psk" && (
+									<PskProvisionerTags tags={provisioner.tags} />
+								)}
+							</Stack>
 						</div>
 					))}
 				</div>
@@ -286,6 +263,107 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 				</Button>
 			</div>
 		</div>
+	);
+};
+
+interface ProvisionerVersionPopoverProps {
+	buildInfo?: BuildInfoResponse;
+	provisioner: ProvisionerDaemonWithWarnings;
+}
+
+const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
+	buildInfo,
+	provisioner,
+}) => {
+	return (
+		<Popover mode="hover">
+			<PopoverTrigger>
+				<span>
+					{buildInfo
+						? provisioner.version === buildInfo.version
+							? "Up to date"
+							: "Out of date"
+						: provisioner.version}
+				</span>
+			</PopoverTrigger>
+			<PopoverContent
+				transformOrigin={{ vertical: -8, horizontal: 0 }}
+				css={{
+					"& .MuiPaper-root": {
+						padding: "20px 20px 8px",
+						maxWidth: 340,
+					},
+				}}
+			>
+				<h4 css={styles.title}>Release version</h4>
+				<p css={styles.text}>{provisioner.version}</p>
+				<h4 css={styles.title}>Protocol version</h4>
+				<p css={styles.text}>{provisioner.api_version}</p>
+				{provisioner.api_version !== buildInfo?.provisioner_api_version && (
+					<p css={[styles.text, { fontSize: 13 }]}>
+						This provisioner is out of date. You may experience issues when
+						using a provisioner version that doesn’t match your Coder
+						deployment. Please upgrade to a newer version.{" "}
+						<Link href={docs("/")}>Learn more…</Link>
+					</p>
+				)}
+			</PopoverContent>
+		</Popover>
+	);
+};
+
+interface PskProvisionerTagsProps {
+	tags: Record<string, string>;
+}
+
+const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
+	const daemonScope = tags.scope || "organization";
+	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
+
+	const extraTags = Object.entries(tags).filter(
+		([tag]) => tag !== "scope" && tag !== "owner",
+	);
+
+	if (extraTags.length === 0) {
+		return (
+			<Pill icon={iconScope}>
+				<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
+			</Pill>
+		);
+	}
+
+	return (
+		<Popover mode="hover">
+			<PopoverTrigger>
+				<Pill icon={iconScope}>
+					{extraTags.length === 1 ? "+ 1 tag" : `+ ${extraTags.length} tags`}
+				</Pill>
+			</PopoverTrigger>
+			<PopoverContent
+				transformOrigin={{ vertical: -8, horizontal: 0 }}
+				css={{
+					"& .MuiPaper-root": {
+						padding: 20,
+						maxWidth: 340,
+						width: "fit-content",
+					},
+				}}
+			>
+				<div
+					css={{
+						marginLeft: "auto",
+						display: "flex",
+						flexWrap: "wrap",
+						gap: 12,
+						justifyContent: "right",
+					}}
+				>
+					{extraTags.map(([key, value]) => (
+						<ProvisionerTag key={key} tagName={key} tagValue={value} />
+					))}
+				</div>
+			</PopoverContent>
+		</Popover>
 	);
 };
 
