@@ -488,14 +488,16 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 	f.SetRedirect(t, coderOauthURL.String())
 
 	cli := f.HTTPClient(client.HTTPClient)
+	redirectFn := cli.CheckRedirect
 	checkRedirect := func(req *http.Request, via []*http.Request) error {
 		// Store the idTokenClaims to the specific state request. This ties
 		// the claims 1:1 with a given authentication flow.
-		state := req.URL.Query().Get("state")
-		f.stateToIDTokenClaims.Store(state, idTokenClaims)
-
-		if cli.CheckRedirect != nil {
-			return cli.CheckRedirect(req, via)
+		if state := req.URL.Query().Get("state"); state != "" {
+			f.stateToIDTokenClaims.Store(state, idTokenClaims)
+			return nil
+		}
+		if redirectFn != nil {
+			return redirectFn(req, via)
 		}
 		return nil
 	}
@@ -1213,6 +1215,7 @@ func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
 		if rest == nil || rest.Transport == nil {
 			return &http.Client{}
 		}
+		fmt.Println("MY CLIENT")
 		return rest
 	}
 

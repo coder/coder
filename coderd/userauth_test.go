@@ -1474,7 +1474,9 @@ func TestUserOIDC(t *testing.T) {
 			OIDCConfig: cfg,
 		})
 
-		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		client.HTTPClient.Transport = http.DefaultTransport
+
+		client.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 
