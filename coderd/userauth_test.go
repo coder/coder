@@ -1474,6 +1474,10 @@ func TestUserOIDC(t *testing.T) {
 			OIDCConfig: cfg,
 		})
 
+		client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
 		claims := jwt.MapClaims{
 			"email":          "user@example.com",
 			"email_verified": true,
