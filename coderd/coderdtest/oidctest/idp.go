@@ -1215,7 +1215,6 @@ func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
 		if rest == nil || rest.Transport == nil {
 			return &http.Client{}
 		}
-		fmt.Println("MY CLIENT")
 		return rest
 	}
 
