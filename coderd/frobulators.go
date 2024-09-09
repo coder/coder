@@ -71,6 +71,7 @@ func (api *API) createFrobulator(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	frob, err := api.Database.InsertFrobulator(ctx, database.InsertFrobulatorParams{
+		ID:          uuid.New(),
 		UserID:      member.UserID,
 		OrgID:       org.ID,
 		ModelNumber: req.ModelNumber,
