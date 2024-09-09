@@ -1477,7 +1477,7 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 }
 
 func (q *querier) GetFrobulators(ctx context.Context, arg database.GetFrobulatorsParams) ([]database.Frobulator, error) {
-return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFrobulators)(ctx, arg)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFrobulators)(ctx, arg)
 }
 
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
