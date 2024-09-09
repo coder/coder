@@ -116,6 +116,8 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		(org) => org.id === workspace.organization_id,
 	);
 
+	const orgDisplayName = activeOrg?.display_name ?? workspace.organization_name;
+
 	const isImmutable =
 		workspace.latest_build.status === "deleted" ||
 		workspace.latest_build.status === "deleting";
@@ -143,7 +145,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						<>
 							<TopbarDivider />
 							<OrganizationBreadcrumb
-								orgName={workspace.organization_name}
+								orgName={orgDisplayName}
 								orgIconUrl={activeOrg?.icon}
 								orgPageUrl={
 									showOrganizations
@@ -179,7 +181,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						}
 						title={
 							showOrganizations
-								? `See affected workspaces for ${workspace.organization_name}`
+								? `See affected workspaces for ${orgDisplayName}`
 								: "See affected workspaces"
 						}
 					>
@@ -291,8 +293,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 						username={ownerName}
 						avatarURL={ownerAvatarUrl}
 					/>
-
-					{ownerName}
+					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
 			</PopoverTrigger>
 
@@ -326,7 +327,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
 					<UserAvatar size="xs" src={orgIconUrl ?? ""} username={orgName} />
-					{orgName}
+					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
 			</PopoverTrigger>
 
@@ -380,17 +381,11 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	return (
 		<Popover mode="hover">
 			<PopoverTrigger>
-				<span
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: 8,
-						cursor: "default",
-						padding: "4px 0",
-					}}
-				>
+				<span css={styles.breadcrumbSegment}>
 					<TopbarAvatar src={templateIconUrl} />
-					<span css={{ fontWeight: 500 }}>{workspaceName}</span>
+					<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
+						{workspaceName}
+					</span>
 				</span>
 			</PopoverTrigger>
 
@@ -443,9 +438,12 @@ const styles = {
 		flexFlow: "row nowrap",
 		gap: "8px",
 		maxWidth: "160px",
-		textOverflow: "ellipsis",
-		overflowX: "hidden",
 		whiteSpace: "nowrap",
 		cursor: "default",
+	},
+
+	breadcrumbText: {
+		overflowX: "hidden",
+		textOverflow: "ellipsis",
 	},
 } satisfies Record<string, Interpolation<Theme>>;
