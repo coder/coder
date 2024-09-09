@@ -15,6 +15,7 @@ import uniqueId from "lodash/uniqueId";
 import type { ComponentProps } from "react";
 import {
 	MockBuildInfo,
+	MockOrganization,
 	MockPendingProvisionerJob,
 	MockTemplate,
 	MockUser,
@@ -269,25 +270,27 @@ export const InvalidPageNumber: Story = {
 
 export const ShowOrganizations: Story = {
 	args: {
-		workspaces: [
-			{
-				...MockWorkspace,
-				organization_name: "Limbus Co.",
-			},
-		],
+		workspaces: [{ ...MockWorkspace, organization_name: "limbus-co" }],
 	},
 
 	parameters: {
 		showOrganizations: true,
+		organizations: [
+			{
+				...MockOrganization,
+				name: "limbus-co",
+				display_name: "Limbus Company, LLC",
+			},
+		],
 	},
 
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const accessibleTableCell = await canvas.findByRole("cell", {
-			// Need whitespace classes because different parts of the element
-			// are going in different spans, and Storybook doesn't consolidate
-			// these
-			name: /org\s?(?:anization)?\s?:\s?Limbus Co\./i,
+			// The organization label is always visually hidden, but the test
+			// makes sure that there's a screen reader hook to give the table
+			// cell more structured output
+			name: /organization: Limbus Co\., LLC/i,
 		});
 
 		expect(accessibleTableCell).toBeDefined();
