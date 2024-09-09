@@ -112,14 +112,14 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	for _, template := range templates {
 		//    1. Fetch failed builds.
 		//    2. If failed builds == 0, continue.
-		//    3. Render the report.
-		//    4. Fetch template RW users.
-		//    5. For user := range template admins + RW users:
+		//    3. Fetch template RW users.
+		//    4. For user := range template admins + RW users:
 		//       1. Check if report is enabled for the person.
 		//       2. Check `report_generator_log`.
 		//       3. If sent recently, continue
-		//       4. Send notification
-		//       5. Upsert into `report_generator_log`.
+		//       4. Lazy-render the report.
+		//       5. Send notification
+		//       6. Upsert into `report_generator_log`.
 	}
 
 	err = db.DeleteOldReportGeneratorLogs(ctx, frequencyDays)
