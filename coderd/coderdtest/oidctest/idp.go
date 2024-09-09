@@ -496,6 +496,9 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 			f.stateToIDTokenClaims.Store(state, idTokenClaims)
 			return nil
 		}
+		// This is mainly intended to prevent the _last_ redirect
+		// The one involving the state param is a core part of the
+		// OIDC flow and shouldn't be redirected.
 		if redirectFn != nil {
 			return redirectFn(req, via)
 		}
