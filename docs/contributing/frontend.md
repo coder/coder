@@ -23,7 +23,7 @@ You can run the UI and access the Coder dashboard in two ways:
 In both cases, you can access the dashboard on `http://localhost:8080`. If using
 `./scripts/develop.sh` you can log in with the default credentials.
 
-### Default Credentials: `admin@coder.com` and `SomeSecurePassword!`.
+> **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
 
 ## Tech Stack Overview
 
@@ -82,7 +82,7 @@ Page components are the top-level components of the app and reside in the
 `src/pages` folder. Each page should have its own folder to group relevant
 views, tests, and utility functions. The page component fetches necessary data
 and passes to the view. We explain this decision a bit better in the next
-section.
+section which talks about where to fetch data.
 
 > ℹ️ If code within a page becomes reusable across other parts of the app,
 > consider moving it to `src/utils`, `hooks`, `components`, or `modules`.
@@ -243,7 +243,8 @@ module would only make sense in the Coder codebase.
   - Used in multiple places
   - Good Examples: `Provisioner`, `DashboardLayout`, `DeploymentBanner`
 
-Do not assume existing components and modules have been categorized correctly.
+Our codebase has some legacy components that are being updated to follow these
+new conventions, but all new components should follow these guidelines.
 
 ## Styling
 
