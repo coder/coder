@@ -500,6 +500,20 @@ func (mr *MockStoreMockRecorder) DeleteOldProvisionerDaemons(arg0 any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldProvisionerDaemons", reflect.TypeOf((*MockStore)(nil).DeleteOldProvisionerDaemons), arg0)
 }
 
+// DeleteOldReportGeneratorLogs mocks base method.
+func (m *MockStore) DeleteOldReportGeneratorLogs(arg0 context.Context, arg1 int32) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldReportGeneratorLogs", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOldReportGeneratorLogs indicates an expected call of DeleteOldReportGeneratorLogs.
+func (mr *MockStoreMockRecorder) DeleteOldReportGeneratorLogs(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldReportGeneratorLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldReportGeneratorLogs), arg0, arg1)
+}
+
 // DeleteOldWorkspaceAgentLogs mocks base method.
 func (m *MockStore) DeleteOldWorkspaceAgentLogs(arg0 context.Context, arg1 time.Time) error {
 	m.ctrl.T.Helper()
@@ -5149,6 +5163,20 @@ func (m *MockStore) UpsertProvisionerDaemon(arg0 context.Context, arg1 database.
 func (mr *MockStoreMockRecorder) UpsertProvisionerDaemon(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProvisionerDaemon", reflect.TypeOf((*MockStore)(nil).UpsertProvisionerDaemon), arg0, arg1)
+}
+
+// UpsertReportGeneratorLog mocks base method.
+func (m *MockStore) UpsertReportGeneratorLog(arg0 context.Context, arg1 database.UpsertReportGeneratorLogParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertReportGeneratorLog", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertReportGeneratorLog indicates an expected call of UpsertReportGeneratorLog.
+func (mr *MockStoreMockRecorder) UpsertReportGeneratorLog(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertReportGeneratorLog", reflect.TypeOf((*MockStore)(nil).UpsertReportGeneratorLog), arg0, arg1)
 }
 
 // UpsertTailnetAgent mocks base method.
