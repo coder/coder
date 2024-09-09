@@ -305,6 +305,13 @@ func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return r0
 }
 
+func (m metricsStore) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldReportGeneratorLogs(ctx, frequencyDays)
+	m.queryLatencies.WithLabelValues("DeleteOldReportGeneratorLogs").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, arg time.Time) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx, arg)
@@ -2452,6 +2459,13 @@ func (m metricsStore) UpsertProvisionerDaemon(ctx context.Context, arg database.
 	r0, r1 := m.s.UpsertProvisionerDaemon(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertProvisionerDaemon").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertReportGeneratorLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertReportGeneratorLog").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

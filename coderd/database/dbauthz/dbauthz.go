@@ -1144,6 +1144,10 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return q.db.DeleteOldProvisionerDaemons(ctx)
 }
 
+func (q *querier) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error {
+	panic("not implemented")
+}
+
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
@@ -3904,6 +3908,10 @@ func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.Upse
 		return database.ProvisionerDaemon{}, err
 	}
 	return q.db.UpsertProvisionerDaemon(ctx, arg)
+}
+
+func (q *querier) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

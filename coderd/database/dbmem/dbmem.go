@@ -1706,6 +1706,10 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	return nil
 }
 
+func (q *FakeQuerier) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context, threshold time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -9184,6 +9188,15 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil
+}
+
+func (q *FakeQuerier) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
 }
 
 func (*FakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

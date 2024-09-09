@@ -18,3 +18,15 @@ We recommend reviewing these issues to ensure future builds are successful.',
             "url": "{{ base_url }}/workspaces?filter=template%3A{{.Labels.template_name}}"
         }
     ]'::jsonb);
+
+CREATE TABLE report_generator_logs
+(
+    user_id uuid NOT NULL,
+    notification_template_id uuid NOT NULL,
+    last_generated_at timestamp with time zone,
+
+    PRIMARY KEY (user_id, notification_template_id),
+    UNIQUE (user_id, notification_template_id)
+);
+
+COMMENT ON TABLE report_generator_logs IS 'Logs with generated reports for users.';

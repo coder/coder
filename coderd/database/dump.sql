@@ -946,6 +946,14 @@ CREATE TABLE replicas (
     "primary" boolean DEFAULT true NOT NULL
 );
 
+CREATE TABLE report_generator_logs (
+    user_id uuid NOT NULL,
+    notification_template_id uuid NOT NULL,
+    last_generated_at timestamp with time zone
+);
+
+COMMENT ON TABLE report_generator_logs IS 'Logs with generated reports for users.';
+
 CREATE TABLE site_configs (
     key character varying(256) NOT NULL,
     value text NOT NULL
@@ -1747,6 +1755,9 @@ ALTER TABLE ONLY provisioner_jobs
 
 ALTER TABLE ONLY provisioner_keys
     ADD CONSTRAINT provisioner_keys_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY report_generator_logs
+    ADD CONSTRAINT report_generator_logs_pkey PRIMARY KEY (user_id, notification_template_id);
 
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);

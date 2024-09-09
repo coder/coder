@@ -41,15 +41,22 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 				return nil
 			}
 
-			// TODO:
+			// TODO Report - workspace_builds_failed:
 			//
-			// 1. select(workspace_builds_failed): templates + (template admins + users with "write" permissions) + matching entry for `report_generator_log`:
-			//   1. check last run `report_generator_log`
-			//   2. generate report
-			//   3. send notification
-			//   4. upsert into `report_generator_log`
-			//
-			// 2. clean stale `report_generator_log` entries
+			// 1. Fetch template admins.
+			// 2. Fetch templates.
+			// 3. For every template:
+			//    1. Fetch failed builds.
+			//    2. If failed builds == 0, continue.
+			//    3. Render the report.
+			//    4. Fetch template RW users.
+			//    5. For user := range template admins + RW users:
+			//       1. Check if report is enabled for the person.
+			//       2. Check `report_generator_log`.
+			//       3. If sent recently, continue
+			//       4. Send notification
+			//       5. Upsert into `report_generator_log`.
+			// 4. clean stale `report_generator_log` entries
 
 			logger.Info(ctx, "report generator finished", slog.F("duration", clk.Since(start)))
 
