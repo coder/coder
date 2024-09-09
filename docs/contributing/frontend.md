@@ -1,34 +1,36 @@
 # Frontend
 
-This is a guide to help the Coder community and also Coder members contribute to
-our UI. It is ongoing work but we hope it provides some useful information to
-get started. If you have any questions or need help, please send us a message on
-our [Discord server](https://discord.com/invite/coder). We'll be happy to help
+Welcome to the guide for contributing to the Coder frontend. Whether you’re part
+of the community or a Coder team member, this documentation will help you get
+started.
+
+If you have any questions, feel free to reach out on our
+[Discord server](https://discord.com/invite/coder), and we’ll be happy to assist
 you.
 
 ## Running the UI
 
 You can run the UI and access the Coder dashboard in two ways:
 
-- Build the UI pointing to an external Coder server:
-  `CODER_HOST=https://mycoder.com pnpm dev` inside of the `site` folder. This is
-  helpful when you are building something in the UI and already have the data on
-  your deployed server.
-- Build the entire Coder server + UI locally: `./scripts/develop.sh` in the root
-  folder. This is useful for contributing to features that are not deployed yet
-  or that involve both the frontend and backend.
+1. Build the UI pointing to an external Coder server:
+   `CODER_HOST=https://mycoder.com pnpm dev` inside of the `site` folder. This
+   is helpful when you are building something in the UI and already have the
+   data on your deployed server.
+2. Build the entire Coder server + UI locally: `./scripts/develop.sh` in the
+   root folder. This is useful for contributing to features that are not
+   deployed yet or that involve both the frontend and backend.
 
-In both cases, you can access the dashboard on `http://localhost:8080`. If you
-are running `./scripts/develop.sh` you can log in using the default credentials.
+In both cases, you can access the dashboard on `http://localhost:8080`. If using
+`./scripts/develop.sh` you can log in with the default credentials.
 
 ### Default Credentials: `admin@coder.com` and `SomeSecurePassword!`.
 
-## Tech Stack
+## Tech Stack Overview
 
 All our dependencies are described in `site/package.json` but the following are
 the most important:
 
-- [React](https://reactjs.org/) as framework
+- [React](https://reactjs.org/) for the UI framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity
 - [Vite](https://vitejs.dev/) to build the project
 - [Material V5](https://mui.com/material-ui/getting-started/) for UI components
@@ -40,34 +42,35 @@ the most important:
 - [Jest](https://jestjs.io/) for integration testing
 - [Storybook](https://storybook.js.org/) and
   [Chromatic](https://www.chromatic.com/) for visual testing
-- [PNPM](https://pnpm.io/) as package manager
+- [PNPM](https://pnpm.io/) as the package manager
 
 ## Structure
 
-All the code related to the UI resides in the `site` folder.
+All UI-related code is in the `site` folder. Key directories include:
 
 - **e2e** - End-to-end (E2E) tests
 - **src** - Source code
   - **mocks** - [Manual mocks](https://jestjs.io/docs/manual-mocks) used by Jest
   - **@types** - Custom types for dependencies that don't have defined types
     (largely code that has no server-side equivalent)
-  - **api** - API code as function calls and types
+  - **api** - API function calls and types
     - **queries** - react-query queries and mutations
-  - **components** - Generic UI components without Coder specific business logic
-  - **hooks** - React hooks that can be used across the application
-  - **modules** - Coder specific UI components
-  - **pages** - Page components
-  - **testHelpers** - Helper functions to help with integration tests
-  - **theme** - configuration and color definitions for the color themes
+  - **components** - Reusable UI components without Coder specific business
+    logic
+  - **hooks** - Custom React hooks
+  - **modules** - Coder-specific UI components
+  - **pages** - Page-level components
+  - **testHelpers** - Helper functions for integration testing
+  - **theme** - theme configuration and color definitions
   - **util** - Helper functions that can be used across the application
-- **static** - Static UI assets like images, fonts, icons, etc
+- **static** - Static assets like images, fonts, icons, etc
 
 ## Routing
 
 We use [react-router](https://reactrouter.com/en/main) as our routing engine.
 
-- Authenticated routes - routes needing authentication should be placed inside
-  the `<RequireAuth>` route. The `RequireAuth` component handles all the
+- Authenticated routes - Place routes requiring authentication inside the
+  `<RequireAuth>` route. The `RequireAuth` component handles all the
   authentication logic for the routes.
 - Dashboard routes - routes that live in the dashboard should be placed under
   the `<DashboardLayout>` route. The `DashboardLayout` adds a navbar and passes
@@ -75,29 +78,26 @@ We use [react-router](https://reactrouter.com/en/main) as our routing engine.
 
 ## Pages
 
-Pages are the top-level components of the app. The page component lives under
-the `src/pages` folder and each page should have its own folder to better group
-the views, tests, utility functions and so on. The code is structured so that a
-page component is responsible for fetching all the data and passing it down to
-the view. We explain this decision a bit better in the next section.
+Page components are the top-level components of the app and reside in the
+`src/pages` folder. Each page should have its own folder to group relevant
+views, tests, and utility functions. The page component fetches necessary data
+and passes to the view. We explain this decision a bit better in the next
+section.
 
-> ℹ️ Code that is only related to the page should live inside of the page folder
-> but if at some point it is used in other pages or components, you should
-> consider moving it to the `src` level in the `utils`, `hooks`, `components`,
-> or `modules` folder.
+> ℹ️ If code within a page becomes reusable across other parts of the app,
+> consider moving it to `src/utils`, `hooks`, `components`, or `modules`.
 
-### States
+### Handling States
 
-A page usually has at least three states: **loading**, **ready**/**success**,
-and **error**, so always remember to handle these scenarios while you are coding
-a page. Visual testing is expected for these three states using a `*.stories.ts`
-file.
+A page typically has three states: **loading**, **ready**/**success**, and
+**error**. Ensure you manage these states when developing pages. Use visual
+tests for these states with `*.stories.ts` files.
 
-## Fetching data
+## Data Fetching
 
 We use [TanStack Query v4](https://tanstack.com/query/v4/docs/react/quick-start)
-to fetch data from the API. The queries and mutation should be placed inside of
-the api/queries folder.
+to fetch data from the API. Queries and mutation should be placed in the
+`api/queries` folder.
 
 ### Where to fetch data
 
@@ -143,10 +143,10 @@ export const WithQuota: Story = {
 
 ### API
 
-Our project utilizes [axios](https://github.com/axios/axios) as the HTTP client
-for making API requests. The API functions are centralized in
-`site/src/api/api.ts`. We leverage auto-generated TypeScript types derived from
-our Go server, which are located in `site/src/api/typesGenerated.ts`.
+Our project uses [axios](https://github.com/axios/axios) as the HTTP client for
+making API requests. The API functions are centralized in `site/src/api/api.ts`.
+Auto-generated TypeScript types derived from our Go server are located in
+`site/src/api/typesGenerated.ts`.
 
 Typically, each API endpoint corresponds to its own `Request` and `Response`
 types. However, some endpoints require additional parameters for successful
@@ -177,9 +177,9 @@ export const updateWorkspaceVersion = async (
 
 ## Components and Modules
 
-Components should be atomic, generic and should not describe any specific
-business logic. Modules are similar to components except that they can be more
-complex and they do contain business logic specific to the product.
+Components should be atomic, reusable and free of business logic. Modules are
+similar to components except that they can be more complex and can contain
+business logic specific to the product.
 
 ### MUI
 
