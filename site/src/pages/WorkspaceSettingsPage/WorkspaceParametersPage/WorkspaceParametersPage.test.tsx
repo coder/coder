@@ -73,3 +73,56 @@ test("Submit the workspace settings page successfully", async () => {
 		});
 	});
 });
+
+test("Submit button is only enabled when changes are made", async () => {
+	// Mock the API calls that loads data
+	jest
+		.spyOn(API, "getWorkspaceByOwnerAndName")
+		.mockResolvedValueOnce(MockWorkspace);
+	jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+		MockTemplateVersionParameter1,
+		MockTemplateVersionParameter2,
+		// Immutable parameters
+		MockTemplateVersionParameter4,
+	]);
+	jest.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+		MockWorkspaceBuildParameter1,
+		MockWorkspaceBuildParameter2,
+		// Immutable value
+		MockWorkspaceBuildParameter4,
+	]);
+	// Setup event and rendering
+	const user = userEvent.setup();
+	renderWithWorkspaceSettingsLayout(<WorkspaceParametersPage />, {
+		route: "/@test-user/test-workspace/settings",
+		path: "/:username/:workspace/settings",
+		// Need this because after submit the user is redirected
+		extraRoutes: [{ path: "/:username/:workspace", element: <div /> }],
+	});
+	await waitForLoaderToBeRemoved();
+
+	const submitButton: HTMLButtonElement = screen.getByRole("button", { name: "Submit" });
+
+	const form = screen.getByTestId("form");
+	const parameter1 = within(form).getByLabelText(
+		MockWorkspaceBuildParameter1.name,
+		{ exact: false },
+	);
+
+	// There are no changes, the button should be disabled.
+	expect(submitButton.disabled).toBeTruthy();
+
+	// Make changes to the form
+	await user.clear(parameter1);
+	await user.type(parameter1, "new-value");
+
+	// There are now changes, the button should be enabled.
+	expect(submitButton.disabled).toBeFalsy();
+
+	// Change form value back to default
+	await user.clear(parameter1);
+	await user.type(parameter1, MockWorkspaceBuildParameter1.value);
+
+	// There are now no changes, the button should be disabled.
+	expect(submitButton.disabled).toBeTruthy();
+});
