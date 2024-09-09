@@ -229,5 +229,6 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 			Threshold: dbApp.HealthcheckThreshold,
 		},
 		Health: agentproto.WorkspaceApp_Health(healthRaw),
+		Hidden: dbApp.Hidden,
 	}, nil
 }
