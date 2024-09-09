@@ -2777,15 +2777,14 @@ func (s *MethodTestSuite) TestFrobulators() {
 	s.Run("GetFrobulators", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
 		org := dbgen.Organization(s.T(), db, database.Organization{})
+		// Create a frobulator resource.
+		fr := dbgen.Frobulator(s.T(), db, database.Frobulator{UserID: user.ID, OrgID: org.ID})
+		// Assert that calling GetFrobulators with the user and org ID records a
+		// read action on the above resource.
 		check.Args(database.GetFrobulatorsParams{
 			UserID: user.ID,
 			OrgID:  org.ID,
-		}).Asserts(
-			rbac.ResourceFrobulator.
-				WithOwner(user.ID.String()).
-				InOrg(org.ID),
-			policy.ActionRead,
-		)
+		}).Asserts(fr, policy.ActionRead)
 	}))
 	s.Run("InsertFrobulator", s.Subtest(func(db database.Store, check *expects) {
 		user := dbgen.User(s.T(), db, database.User{})
