@@ -115,6 +115,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						const checked = checkedWorkspaces.some(
 							(w) => w.id === workspace.id,
 						);
+						const activeOrg = dashboard.organizations.find(
+							(o) => o.id === workspace.organization_id,
+						);
+
 						return (
 							<WorkspacesRow
 								workspace={workspace}
@@ -208,7 +212,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											}}
 										>
 											<span css={{ ...visuallyHidden }}>Organization: </span>
-											{workspace.organization_name}
+											{activeOrg?.display_name || workspace.organization_name}
 										</div>
 									)}
 								</TableCell>
