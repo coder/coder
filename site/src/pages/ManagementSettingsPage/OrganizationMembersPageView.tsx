@@ -8,6 +8,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
+import type { GroupsByUserId } from "api/queries/groups";
 import type {
 	OrganizationMemberWithUserData,
 	SlimRole,
@@ -30,6 +31,7 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
+import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
@@ -39,6 +41,7 @@ interface OrganizationMembersPageViewProps {
 	isUpdatingMemberRoles: boolean;
 	me: User;
 	members: OrganizationMemberWithUserData[] | undefined;
+	groupsByUserId: GroupsByUserId | undefined,
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
 	updateMemberRoles: (
@@ -68,11 +71,17 @@ export const OrganizationMembersPageView: FC<
 					<Table>
 						<TableHead>
 							<TableRow>
-								<TableCell width="50%">User</TableCell>
-								<TableCell width="49%">
+								<TableCell width="33%">User</TableCell>
+								<TableCell width="33%">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Roles</span>
 										<TableColumnHelpTooltip variant="roles" />
+									</Stack>
+								</TableCell>
+								<TableCell width="33%">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Groups</span>
+										<TableColumnHelpTooltip variant="groups" />
 									</Stack>
 								</TableCell>
 								<TableCell width="1%"></TableCell>
@@ -111,6 +120,7 @@ export const OrganizationMembersPageView: FC<
 											}
 										}}
 									/>
+									<UserGroupsCell userGroups={props.groupsByUserId?.get(member.user_id)} />
 									<TableCell>
 										{member.user_id !== props.me.id && props.canEditMembers && (
 											<MoreMenu>

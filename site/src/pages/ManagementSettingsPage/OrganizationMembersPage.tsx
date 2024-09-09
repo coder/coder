@@ -1,3 +1,4 @@
+import { groupsByUserId } from "api/queries/groups";
 import {
 	addOrganizationMember,
 	organizationMembers,
@@ -21,6 +22,8 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { user: me } = useAuthenticated();
+
+	const groupsByUserIdQuery = useQuery(groupsByUserId());
 
 	const membersQuery = useQuery(organizationMembers(organizationName));
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
@@ -58,6 +61,7 @@ const OrganizationMembersPage: FC = () => {
 			isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
 			me={me}
 			members={membersQuery.data}
+			groupsByUserId={groupsByUserIdQuery.data}
 			addMember={async (user: User) => {
 				await addMemberMutation.mutateAsync(user.id);
 				void membersQuery.refetch();
