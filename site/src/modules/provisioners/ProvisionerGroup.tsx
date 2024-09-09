@@ -17,6 +17,14 @@ import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import { ProvisionerTag } from "./ProvisionerTag";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipText,
+	HelpTooltipTitle,
+	HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
+import { Stack } from "components/Stack/Stack";
 
 type ProvisionerGroupType = "builtin" | "psk" | "key";
 
@@ -100,9 +108,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 				>
 					{type === "builtin" && (
 						<div css={{ lineHeight: "160%" }}>
-							<h4 css={{ fontWeight: 500, margin: 0 }}>
-								Built-in provisioners
-							</h4>
+							<BuiltinProvisionerTitle />
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash; Built-in
 							</span>
@@ -110,7 +116,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					)}
 					{type === "psk" && (
 						<div css={{ lineHeight: "160%" }}>
-							<h4 css={{ fontWeight: 500, margin: 0 }}>PSK provisioners</h4>
+							<PskProvisionerTitle />
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
 								{allProvisionersAreSameVersion ? (
@@ -123,9 +129,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					)}
 					{type === "key" && (
 						<div css={{ lineHeight: "160%" }}>
-							<h4 css={{ fontWeight: 500, margin: 0 }}>
-								Key group &ndash; {keyName}
-							</h4>
+							<h4 css={styles.groupTitle}>Key group &ndash; {keyName}</h4>
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
 								{allProvisionersAreSameVersion ? (
@@ -191,7 +195,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 							]}
 						>
 							<div css={{ lineHeight: 1.6 }}>
-								<h4 css={{ fontWeight: 500, margin: 0 }}>{provisioner.name}</h4>
+								<h4 css={styles.groupTitle}>{provisioner.name}</h4>
 								<span
 									css={{ color: theme.palette.text.secondary, fontSize: 13 }}
 								>
@@ -218,18 +222,21 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 														},
 													}}
 												>
-													<h4 css={styles.title}>Release version</h4>
+													<h4 css={styles.versionPopoverTitle}>
+														Release version
+													</h4>
 													<p css={styles.text}>{provisioner.version}</p>
-													<h4 css={styles.title}>Protocol version</h4>
+													<h4 css={styles.versionPopoverTitle}>
+														Protocol version
+													</h4>
 													<p css={styles.text}>{provisioner.api_version}</p>
-													{provisioner.api_version !==
-														buildInfo?.provisioner_api_version && (
+													{provisioner.version !== buildInfo?.version && (
 														<p css={[styles.text, { fontSize: 13 }]}>
 															This provisioner is out of date. You may
 															experience issues when using a provisioner version
-															that doesn’t match your Coder deployment. Please
-															upgrade to a newer version.{" "}
-															<Link href={docs("/")}>Learn more…</Link>
+															that doesn&apos;t match your Coder deployment.
+															Please upgrade to a newer version.{" "}
+															<Link href={docs("/")}>Learn more&hellip;</Link>
 														</p>
 													)}
 												</PopoverContent>
@@ -289,8 +296,54 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	);
 };
 
+const BuiltinProvisionerTitle: FC = () => {
+	return (
+		<h4 css={styles.groupTitle}>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>Built-in provisioners</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>Built-in provisioners</HelpTooltipTitle>
+						<HelpTooltipText>
+							These provisioners are running as part of a coderd instance.
+							Built-in provisioners are only available for the default
+							organization. <Link href={docs("/")}>Learn more&hellip;</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+const PskProvisionerTitle: FC = () => {
+	return (
+		<h4 css={styles.groupTitle}>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>PSK provisioners</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>PSK provisioners</HelpTooltipTitle>
+						<HelpTooltipText>
+							These provisioners all use pre-shared key authentication. PSK
+							provisioners are only available for the default organization.{" "}
+							<Link href={docs("/")}>Learn more&hellip;</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
 const styles = {
-	title: (theme) => ({
+	groupTitle: {
+		fontWeight: 500,
+		margin: 0,
+	},
+
+	versionPopoverTitle: (theme) => ({
 		marginTop: 0,
 		marginBottom: 0,
 		color: theme.palette.text.primary,
