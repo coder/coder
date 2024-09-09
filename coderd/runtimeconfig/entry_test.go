@@ -34,7 +34,7 @@ func TestEntry(t *testing.T) {
 		mgr := runtimeconfig.NewManager()
 		db := dbmem.New()
 
-		var override = serpent.String("dogfood@dev.coder.com")
+		override := serpent.String("dogfood@dev.coder.com")
 
 		field := runtimeconfig.MustNew[*serpent.String]("string-field")
 
@@ -56,7 +56,7 @@ func TestEntry(t *testing.T) {
 		mgr := runtimeconfig.NewManager()
 		db := dbmem.New()
 
-		var override = serpent.Struct[map[string]string]{
+		override := serpent.Struct[map[string]string]{
 			Value: map[string]string{
 				"a": "b",
 				"c": "d",
