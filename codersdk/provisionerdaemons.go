@@ -38,6 +38,7 @@ const (
 type ProvisionerDaemon struct {
 	ID             uuid.UUID         `json:"id" format:"uuid"`
 	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
+	KeyID          uuid.UUID         `json:"key_id" format:"uuid"`
 	CreatedAt      time.Time         `json:"created_at" format:"date-time"`
 	LastSeenAt     NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
 	Name           string            `json:"name"`
