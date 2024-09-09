@@ -119,37 +119,37 @@ func TestFrobulators(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name         string
-			member       codersdk.User
-			memberOrg    database.Organization
-			adminOrg     database.Organization
-			role         rbac.RoleIdentifier
-			expectedFrob uuid.UUID
-			expectedErr  string
+			name            string
+			member          codersdk.User
+			memberOrg       database.Organization
+			adminOrg        database.Organization
+			role            rbac.RoleIdentifier
+			expectedFrobIDs []uuid.UUID
+			expectedErr     string
 		}{
 			{
-				name:         "owner, same org",
-				member:       member1,
-				memberOrg:    org1,
-				adminOrg:     org1,
-				role:         rbac.RoleOwner(),
-				expectedFrob: frobulatorID,
+				name:            "owner, same org",
+				member:          member1,
+				memberOrg:       org1,
+				adminOrg:        org1,
+				role:            rbac.RoleOwner(),
+				expectedFrobIDs: []uuid.UUID{frobulatorID},
 			},
 			{
-				name:         "owner, different org",
-				member:       member2,
-				memberOrg:    org2,
-				adminOrg:     org1,
-				role:         rbac.RoleOwner(),
-				expectedFrob: frobulator2ID,
+				name:            "owner, different org",
+				member:          member2,
+				memberOrg:       org2,
+				adminOrg:        org1,
+				role:            rbac.RoleOwner(),
+				expectedFrobIDs: []uuid.UUID{frobulator2ID},
 			},
 			{
-				name:         "org admin, same org",
-				member:       member2,
-				memberOrg:    org2,
-				adminOrg:     org2,
-				role:         rbac.ScopedRoleOrgAdmin(org2.ID),
-				expectedFrob: frobulator2ID,
+				name:            "org admin, same org",
+				member:          member2,
+				memberOrg:       org2,
+				adminOrg:        org2,
+				role:            rbac.ScopedRoleOrgAdmin(org2.ID),
+				expectedFrobIDs: []uuid.UUID{frobulator2ID},
 			},
 			{
 				// Org admins do not have permission outside of their own org.
@@ -162,12 +162,13 @@ func TestFrobulators(t *testing.T) {
 			},
 			{
 				// User admins do not have permissions even inside their own org.
-				name:        "user admin, same org",
-				member:      member2,
-				memberOrg:   org2,
-				adminOrg:    org2,
-				role:        rbac.ScopedRoleOrgUserAdmin(org2.ID),
-				expectedErr: "500: An internal server error occurred",
+				// They will simply not see any frobulators to which they do not have access.
+				name:            "user admin, same org",
+				member:          member2,
+				memberOrg:       org2,
+				adminOrg:        org2,
+				role:            rbac.ScopedRoleOrgUserAdmin(org2.ID),
+				expectedFrobIDs: []uuid.UUID{},
 			},
 		}
 
@@ -187,17 +188,13 @@ func TestFrobulators(t *testing.T) {
 					return
 				}
 
-				// Then: the expected frobulator should be returned
+				// Otherwise: the expected frobulator(s) should be returned
 				require.NoError(t, err)
-				require.Len(t, frobs, 1)
-
-				var found bool
+				actualFrobIDs := make([]uuid.UUID, 0, len(frobs))
 				for _, f := range frobs {
-					if f.ID == tc.expectedFrob {
-						found = true
-					}
+					actualFrobIDs = append(actualFrobIDs, f.ID)
 				}
-				require.True(t, found, "reference frobulator not found")
+				require.ElementsMatch(t, tc.expectedFrobIDs, actualFrobIDs, "expected frobulator IDs not found")
 			})
 		}
 	})
