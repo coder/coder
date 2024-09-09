@@ -290,7 +290,7 @@ export const ShowOrganizations: Story = {
 			// The organization label is always visually hidden, but the test
 			// makes sure that there's a screen reader hook to give the table
 			// cell more structured output
-			name: /organization: Limbus Co\., LLC/i,
+			name: /organization: Limbus Company, LLC/i,
 		});
 
 		expect(accessibleTableCell).toBeDefined();
