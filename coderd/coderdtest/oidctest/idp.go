@@ -479,7 +479,6 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 // This is a niche case, but it is needed for testing ConvertLoginType.
 func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
-
 	path := "/api/v2/users/oidc/callback"
 	if f.callbackPath != "" {
 		path = f.callbackPath
@@ -489,12 +488,16 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 	f.SetRedirect(t, coderOauthURL.String())
 
 	cli := f.HTTPClient(client.HTTPClient)
-	cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		// Store the idTokenClaims to the specific state request. This ties
-		// the claims 1:1 with a given authentication flow.
-		state := req.URL.Query().Get("state")
-		f.stateToIDTokenClaims.Store(state, idTokenClaims)
-		return nil
+	if cli.CheckRedirect == nil {
+		cli.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
+			// Store the idTokenClaims to the specific state request. This ties
+			// the claims 1:1 with a given authentication flow.
+			if state := req.URL.Query().Get("state"); state != "" {
+				f.stateToIDTokenClaims.Store(state, idTokenClaims)
+				return nil
+			}
+			return http.ErrUseLastResponse
+		}
 	}
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", coderOauthURL.String(), nil)

@@ -134,7 +134,7 @@ func TestOAuth2(t *testing.T) {
 		})
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractOAuth2(tp, nil, nil)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			state := httpmw.OAuth2(r)
 			require.Equal(t, "/dashboard", state.Redirect)
 		})).ServeHTTP(res, req)

@@ -93,7 +93,7 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, authURLOp
 				// the host of the AccessURL but ultimately as long as our redirect
 				// url omits a host we're ensuring that we're routing to a path
 				// local to the application.
-				redirect = getURI(redirect)
+				redirect = uriFromURL(redirect)
 			}
 
 			if code == "" {
@@ -312,19 +312,11 @@ func ExtractOAuth2ProviderAppSecret(db database.Store) func(http.Handler) http.H
 	}
 }
 
-// getURI returns the URI portion of a URL (everything after the host).
-func getURI(u string) string {
+func uriFromURL(u string) string {
 	uri, err := url.Parse(u)
 	if err != nil {
 		return "/"
 	}
 
-	result := uri.Path
-	if uri.RawQuery != "" {
-		result += "?" + uri.RawQuery
-	}
-	if uri.Fragment != "" {
-		result += "#" + uri.Fragment
-	}
-	return result
+	return uri.RequestURI()
 }
