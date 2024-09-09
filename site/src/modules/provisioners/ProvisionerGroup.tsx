@@ -6,17 +6,6 @@ import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { BuildInfoResponse } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { Pill } from "components/Pill/Pill";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import type { ProvisionerDaemonWithWarnings } from "pages/ManagementSettingsPage/OrganizationProvisionersPageView";
-import { type FC, useState } from "react";
-import { createDayString } from "utils/createDayString";
-import { docs } from "utils/docs";
-import { ProvisionerTag } from "./ProvisionerTag";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -24,7 +13,18 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import { Pill } from "components/Pill/Pill";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import type { ProvisionerDaemonWithWarnings } from "pages/ManagementSettingsPage/OrganizationProvisionersPageView";
+import { type FC, useState } from "react";
+import { createDayString } from "utils/createDayString";
+import { docs } from "utils/docs";
+import { ProvisionerTag } from "./ProvisionerTag";
 
 type ProvisionerGroupType = "builtin" | "psk" | "key";
 
