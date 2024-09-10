@@ -1,4 +1,7 @@
-import { groupsByUserId, groupsByUserIdInOrganization } from "api/queries/groups";
+import {
+	groupsByUserId,
+	groupsByUserIdInOrganization,
+} from "api/queries/groups";
 import {
 	addOrganizationMember,
 	organizationMembers,
@@ -23,15 +26,17 @@ const OrganizationMembersPage: FC = () => {
 	};
 	const { user: me } = useAuthenticated();
 
-	const groupsByUserIdQuery = useQuery(groupsByUserIdInOrganization(organizationName));
+	const groupsByUserIdQuery = useQuery(
+		groupsByUserIdInOrganization(organizationName),
+	);
 
 	const membersQuery = useQuery(organizationMembers(organizationName));
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 
 	const members = membersQuery.data?.map((member) => {
 		const groups = groupsByUserIdQuery.data?.get(member.user_id) ?? [];
-		return {...member, groups};
-	})
+		return { ...member, groups };
+	});
 
 	const addMemberMutation = useMutation(
 		addOrganizationMember(queryClient, organizationName),

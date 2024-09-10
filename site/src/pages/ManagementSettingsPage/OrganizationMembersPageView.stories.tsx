@@ -16,8 +16,8 @@ const meta: Meta<typeof OrganizationMembersPageView> = {
 		isUpdatingMemberRoles: false,
 		me: MockUser,
 		members: [
-			{...MockOrganizationMember, groups: []},
-			{...MockOrganizationMember2, groups: []},
+			{ ...MockOrganizationMember, groups: [] },
+			{ ...MockOrganizationMember2, groups: [] },
 		],
 		addMember: () => Promise.resolve(),
 		removeMember: () => Promise.resolve(),

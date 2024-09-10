@@ -41,7 +41,7 @@ interface OrganizationMembersPageViewProps {
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
 	me: User;
-	members: Array<OrganizationMemberTableEntry> | undefined,
+	members: Array<OrganizationMemberTableEntry> | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
@@ -52,8 +52,8 @@ interface OrganizationMembersPageViewProps {
 }
 
 interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
-	groups: readonly Group[] | undefined,
-};
+	groups: readonly Group[] | undefined;
+}
 
 export const OrganizationMembersPageView: FC<
 	OrganizationMembersPageViewProps
