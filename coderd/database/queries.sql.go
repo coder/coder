@@ -12523,11 +12523,11 @@ WHERE
 
 type GetFailedWorkspaceBuildsByTemplateIDParams struct {
 	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	Since      time.Time `db:"since" json:"since"`
 }
 
 func (q *sqlQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]WorkspaceBuild, error) {
-	rows, err := q.db.QueryContext(ctx, getFailedWorkspaceBuildsByTemplateID, arg.TemplateID, arg.CreatedAt)
+	rows, err := q.db.QueryContext(ctx, getFailedWorkspaceBuildsByTemplateID, arg.TemplateID, arg.Since)
 	if err != nil {
 		return nil, err
 	}

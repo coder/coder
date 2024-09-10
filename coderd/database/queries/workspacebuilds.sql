@@ -195,6 +195,6 @@ ON
 	wb.job_id = pj.id
 WHERE
 	w.template_id = $1
-	AND wb.created_at > $2
+	AND wb.created_at > @since
 	AND pj.completed_at IS NOT NULL
 	AND pj.job_status = 'failed';
