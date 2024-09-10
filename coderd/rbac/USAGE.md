@@ -270,7 +270,7 @@ ok  	github.com/coder/coder/v2/coderd/rbac	1.313s
 ```
 
 When a case is not covered, you'll see an error like this (I moved the
-`orgAuditor` option from `true` to `false):
+`orgAuditor` option from `true` to `false`):
 
 ```bash
 --- FAIL: TestRolePermissions (0.79s)
