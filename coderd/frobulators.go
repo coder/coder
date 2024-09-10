@@ -71,10 +71,15 @@ func (api *API) createFrobulator(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	frob, err := api.Database.InsertFrobulator(ctx, database.InsertFrobulatorParams{
+		ID:          uuid.New(),
 		UserID:      member.UserID,
 		OrgID:       org.ID,
 		ModelNumber: req.ModelNumber,
 	})
+	if httpapi.Is404Error(err) { // Catches forbidden errors as well
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -113,6 +118,10 @@ func (api *API) deleteFrobulator(rw http.ResponseWriter, r *http.Request) {
 		UserID: member.UserID,
 		OrgID:  org.ID,
 	})
+	if httpapi.Is404Error(err) { // Catches forbidden errors as well
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

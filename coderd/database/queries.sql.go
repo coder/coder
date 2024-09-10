@@ -1248,18 +1248,24 @@ func (q *sqlQuerier) GetFrobulators(ctx context.Context, arg GetFrobulatorsParam
 
 const insertFrobulator = `-- name: InsertFrobulator :one
 INSERT INTO frobulators (id, user_id, org_id, model_number)
-VALUES (gen_random_uuid(), $1, $2, $3)
+VALUES ($1, $2, $3, $4)
 RETURNING id, user_id, org_id, model_number
 `
 
 type InsertFrobulatorParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`
 	OrgID       uuid.UUID `db:"org_id" json:"org_id"`
 	ModelNumber string    `db:"model_number" json:"model_number"`
 }
 
 func (q *sqlQuerier) InsertFrobulator(ctx context.Context, arg InsertFrobulatorParams) (Frobulator, error) {
-	row := q.db.QueryRowContext(ctx, insertFrobulator, arg.UserID, arg.OrgID, arg.ModelNumber)
+	row := q.db.QueryRowContext(ctx, insertFrobulator,
+		arg.ID,
+		arg.UserID,
+		arg.OrgID,
+		arg.ModelNumber,
+	)
 	var i Frobulator
 	err := row.Scan(
 		&i.ID,
