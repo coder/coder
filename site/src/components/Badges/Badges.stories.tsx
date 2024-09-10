@@ -4,12 +4,12 @@ import {
 	Badges,
 	DisabledBadge,
 	EnabledBadge,
-	PremiumBadge,
 	EntitledBadge,
 	HealthyBadge,
 	NotHealthyBadge,
 	NotReachableBadge,
 	NotRegisteredBadge,
+	PremiumBadge,
 	PreviewBadge,
 } from "./Badges";
 
