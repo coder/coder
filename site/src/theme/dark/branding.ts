@@ -9,6 +9,7 @@ export default {
 		},
 		premium: {
 			background: colors.violet[950],
+			divider: colors.violet[900],
 			border: colors.violet[400],
 		},
 	},

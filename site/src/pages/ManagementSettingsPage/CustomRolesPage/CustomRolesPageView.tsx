@@ -19,6 +19,7 @@ import {
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { Paywall } from "components/Paywall/Paywall";
+import { Stack } from "components/Stack/Stack";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -44,7 +45,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	const isLoading = roles === undefined;
 	const isEmpty = Boolean(roles && roles.length === 0);
 	return (
-		<>
+		<Stack spacing={4}>
 			{!isCustomRolesEnabled && (
 				<Paywall
 					type="premium"
@@ -112,7 +113,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					</TableBody>
 				</Table>
 			</TableContainer>
-		</>
+		</Stack>
 	);
 };
 

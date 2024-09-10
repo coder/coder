@@ -7,6 +7,7 @@ export interface Branding {
 		};
 		premium: {
 			background: string;
+			divider: string;
 			border: string;
 		};
 	};

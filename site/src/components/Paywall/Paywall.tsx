@@ -113,7 +113,6 @@ const styles = {
 		justifyContent: "center",
 		alignItems: "center",
 		minHeight: 280,
-		marginBottom: 32,
 		padding: 24,
 		borderRadius: 8,
 		gap: 32,
@@ -132,7 +131,7 @@ const styles = {
 	separator: (theme) => ({
 		width: 1,
 		height: 220,
-		backgroundColor: theme.palette.divider,
+		backgroundColor: theme.branding.paywall.premium.divider,
 		marginLeft: 8,
 	}),
 	featureList: {
