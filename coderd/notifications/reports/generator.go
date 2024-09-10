@@ -4,10 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"io"
+	"slices"
+	"sort"
 	"time"
 
-	"cdr.dev/slog"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -91,15 +96,8 @@ func (i *reportGenerator) Close() error {
 	return nil
 }
 
-func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, _ notifications.Enqueuer, clk quartz.Clock) error {
+func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
 	const frequencyDays = 7
-
-	templateAdmins, err := db.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleTemplateAdmin},
-	})
-	if err != nil {
-		return xerrors.Errorf("unable to fetch template admins: %w", err)
-	}
 
 	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
 		Deleted:    false,
@@ -110,16 +108,69 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	}
 
 	for _, template := range templates {
-		//    1. Fetch failed builds.
-		//    2. If failed builds == 0, continue.
-		//    3. Fetch template RW users.
-		//    4. For user := range template admins + RW users:
-		//       1. Check if report is enabled for the person.
-		//       2. Check `report_generator_log`.
-		//       3. If sent recently, continue
-		//       4. Lazy-render the report.
-		//       5. Send notification
-		//       6. Upsert into `report_generator_log`.
+		failedBuilds, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
+			TemplateID: template.ID,
+			Since:      dbtime.Time(clk.Now()).UTC(),
+		})
+		if err != nil {
+			logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", template.ID), slog.Error(err))
+			continue
+		}
+
+		templateAdmins, err := findTemplateAdmins(ctx, db, template)
+		if err != nil {
+			logger.Error(ctx, "unable to find template admins", slog.F("template_id", template.ID), slog.Error(err))
+			continue
+		}
+
+		for _, templateAdmin := range templateAdmins {
+			// TODO Check if report is enabled for the person.
+			// TODO Check `report_generator_log`.
+			// TODO If sent recently, continue
+
+			if len(failedBuilds) == 0 {
+				err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
+					UserID:                 templateAdmin.ID,
+					NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+					LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
+				})
+				if err != nil {
+					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", template.ID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
+					continue
+				}
+			}
+
+			// TODO Lazy-render the report.
+			reportData := map[string]any{}
+
+			templateDisplayName := template.DisplayName
+			if templateDisplayName == "" {
+				templateDisplayName = template.Name
+			}
+
+			if _, err := enqueuer.EnqueueData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceBuildsFailedReport,
+				map[string]string{
+					"template_name":         template.Name,
+					"template_display_name": templateDisplayName,
+				},
+				reportData,
+				"report_generator",
+				template.ID, template.OrganizationID,
+			); err != nil {
+				logger.Warn(ctx, "failed to send a report with failed workspace builds", slog.Error(err))
+			}
+
+			err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
+				UserID:                 templateAdmin.ID,
+				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+				LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
+			})
+			if err != nil {
+				logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", template.ID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
+				continue
+			}
+		}
+
 	}
 
 	err = db.DeleteOldReportGeneratorLogs(ctx, frequencyDays)
@@ -127,4 +178,39 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		return xerrors.Errorf("unable to delete old report generator logs: %w", err)
 	}
 	return nil
+}
+
+func findTemplateAdmins(ctx context.Context, db database.Store, template database.Template) ([]database.GetUsersRow, error) {
+	users, err := db.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("unable to fetch template admins: %w", err)
+	}
+
+	usersByIDs := map[uuid.UUID]database.GetUsersRow{}
+	var userIDs []uuid.UUID
+	for _, user := range users {
+		usersByIDs[user.ID] = user
+		userIDs = append(userIDs, user.ID)
+	}
+
+	var templateAdmins []database.GetUsersRow
+	if len(userIDs) > 0 {
+		orgIDsByMemberIDs, err := db.GetOrganizationIDsByMemberIDs(ctx, userIDs)
+		if err != nil {
+			return nil, xerrors.Errorf("unable to fetch organization IDs by member IDs: %w", err)
+		}
+
+		for _, entry := range orgIDsByMemberIDs {
+			if slices.Contains(entry.OrganizationIDs, template.OrganizationID) {
+				templateAdmins = append(templateAdmins, usersByIDs[entry.UserID])
+			}
+		}
+	}
+	sort.Slice(templateAdmins, func(i, j int) bool {
+		return templateAdmins[i].Username < templateAdmins[j].Username
+	})
+
+	return templateAdmins, nil
 }

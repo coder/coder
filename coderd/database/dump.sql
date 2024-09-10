@@ -949,7 +949,7 @@ CREATE TABLE replicas (
 CREATE TABLE report_generator_logs (
     user_id uuid NOT NULL,
     notification_template_id uuid NOT NULL,
-    last_generated_at timestamp with time zone
+    last_generated_at timestamp with time zone NOT NULL
 );
 
 COMMENT ON TABLE report_generator_logs IS 'Logs with generated reports for users.';

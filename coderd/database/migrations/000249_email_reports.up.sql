@@ -23,7 +23,7 @@ CREATE TABLE report_generator_logs
 (
     user_id uuid NOT NULL,
     notification_template_id uuid NOT NULL,
-    last_generated_at timestamp with time zone,
+    last_generated_at timestamp with time zone NOT NULL,
 
     PRIMARY KEY (user_id, notification_template_id),
     UNIQUE (user_id, notification_template_id)
