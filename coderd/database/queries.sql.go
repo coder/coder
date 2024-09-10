@@ -3461,10 +3461,10 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 }
 
 const deleteOldReportGeneratorLogs = `-- name: DeleteOldReportGeneratorLogs :exec
-DELETE FROM report_generator_logs WHERE last_generated_at < (NOW() - CONCAT($1::int, ' days')::interval - INTERVAL '5 min')
+DELETE FROM report_generator_logs WHERE last_generated_at < (NOW() - CONCAT($1::int, ' days')::interval - INTERVAL '1 hour')
 `
 
-// Delete report generator logs that have been created at least a <frequency_days> +5m ago.
+// Delete report generator logs that have been created at least a <frequency_days> +1h ago.
 func (q *sqlQuerier) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error {
 	_, err := q.db.ExecContext(ctx, deleteOldReportGeneratorLogs, frequencyDays)
 	return err

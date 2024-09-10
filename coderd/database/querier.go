@@ -87,7 +87,7 @@ type sqlcQuerier interface {
 	// A provisioner daemon with "zeroed" last_seen_at column indicates possible
 	// connectivity issues (no provisioner daemon activity since registration).
 	DeleteOldProvisionerDaemons(ctx context.Context) error
-	// Delete report generator logs that have been created at least a <frequency_days> +5m ago.
+	// Delete report generator logs that have been created at least a <frequency_days> +1h ago.
 	DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error
 	// If an agent hasn't connected in the last 7 days, we purge it's logs.
 	// Exception: if the logs are related to the latest build, we keep those around.
