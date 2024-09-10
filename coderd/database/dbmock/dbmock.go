@@ -2067,6 +2067,14 @@ func (m *MockStore) GetReportGeneratorLogByUserAndTemplate(arg0 context.Context,
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetReportGeneratorLogByUserAndTemplate", arg0, arg1)
 	ret0, _ := ret[0].(database.ReportGeneratorLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReportGeneratorLogByUserAndTemplate indicates an expected call of GetReportGeneratorLogByUserAndTemplate.
+func (mr *MockStoreMockRecorder) GetReportGeneratorLogByUserAndTemplate(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReportGeneratorLogByUserAndTemplate", reflect.TypeOf((*MockStore)(nil).GetReportGeneratorLogByUserAndTemplate), arg0, arg1)
 }
 
 // GetRuntimeConfig mocks base method.
@@ -2076,11 +2084,6 @@ func (m *MockStore) GetRuntimeConfig(arg0 context.Context, arg1 string) (string,
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
-}
-
-func (mr *MockStoreMockRecorder) GetReportGeneratorLogByUserAndTemplate(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReportGeneratorLogByUserAndTemplate", reflect.TypeOf((*MockStore)(nil).GetReportGeneratorLogByUserAndTemplate), arg0, arg1)
 }
 
 // GetRuntimeConfig indicates an expected call of GetRuntimeConfig.
@@ -5240,12 +5243,6 @@ func (mr *MockStoreMockRecorder) UpsertProvisionerDaemon(arg0, arg1 any) *gomock
 func (m *MockStore) UpsertReportGeneratorLog(arg0 context.Context, arg1 database.UpsertReportGeneratorLogParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertReportGeneratorLog", arg0, arg1)
-}
-
-// UpsertRuntimeConfig mocks base method.
-func (m *MockStore) UpsertRuntimeConfig(arg0 context.Context, arg1 database.UpsertRuntimeConfigParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertRuntimeConfig", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -5254,6 +5251,14 @@ func (m *MockStore) UpsertRuntimeConfig(arg0 context.Context, arg1 database.Upse
 func (mr *MockStoreMockRecorder) UpsertReportGeneratorLog(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertReportGeneratorLog", reflect.TypeOf((*MockStore)(nil).UpsertReportGeneratorLog), arg0, arg1)
+}
+
+// UpsertRuntimeConfig mocks base method.
+func (m *MockStore) UpsertRuntimeConfig(arg0 context.Context, arg1 database.UpsertRuntimeConfigParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertRuntimeConfig", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpsertRuntimeConfig indicates an expected call of UpsertRuntimeConfig.
