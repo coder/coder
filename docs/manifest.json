@@ -151,7 +151,7 @@
 				{
 					"title": "Setup",
 					"description": "Configure user access to your control plane.",
-					"path": "./admin/configure.md",
+					"path": "./admin/setup.md",
 					"icon_path": "./images/icons/toggle_on.svg"
 				},
 				{
