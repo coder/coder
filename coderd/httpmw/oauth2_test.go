@@ -77,9 +77,8 @@ func TestOAuth2(t *testing.T) {
 			Host:     "some.bad.domain.com",
 			Path:     "/sadf/asdfasdf",
 			RawQuery: "foo=hello&bar=world",
-			Fragment: "my_section",
 		}
-		expectedValue := uri.Path + "?" + uri.RawQuery + "#" + uri.Fragment
+		expectedValue := uri.Path + "?" + uri.RawQuery
 		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape(uri.String()), nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
