@@ -1491,7 +1491,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		dbTypes = append(dbTypes, database.ProvisionerType(tp))
 	}
 
-	keyID, err := uuid.Parse(codersdk.ProvisionerKeyIDBuiltIn)
+	keyID, err := uuid.Parse(string(codersdk.ProvisionerKeyIDBuiltIn))
 	if err != nil {
 		return nil, xerrors.Errorf("failed to parse built-in provisioner key ID: %w", err)
 	}
