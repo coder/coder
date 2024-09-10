@@ -23,6 +23,8 @@ You can run the UI and access the Coder dashboard in two ways:
 In both cases, you can access the dashboard on `http://localhost:8080`. If using
 `./scripts/develop.sh` you can log in with the default credentials.
 
+> [!TIP]
+>
 > **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
 
 ## Tech Stack Overview
@@ -97,7 +99,7 @@ tests for these states with `*.stories.ts` files.
 
 We use [TanStack Query v4](https://tanstack.com/query/v4/docs/react/quick-start)
 to fetch data from the API. Queries and mutation should be placed in the
-`api/queries` folder.
+api/queries folder.
 
 ### Where to fetch data
 
@@ -237,6 +239,7 @@ module would only make sense in the Coder codebase.
 - Component
   - Simple
   - Atomic, used in multiple places
+  - Generic, would be useful as a component outside of the Coder product
   - Good Examples: `Badge`, `Form`, `Timeline`
 - Module
   - Simple or Complex
