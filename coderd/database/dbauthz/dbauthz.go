@@ -1434,7 +1434,7 @@ func (q *querier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLinksByUserID)(ctx, userID)
 }
 
-func (q *querier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.WorkspaceBuild, error) {
+func (q *querier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
 	panic("not implemented")
 }
 

@@ -2511,7 +2511,7 @@ func (q *FakeQuerier) GetExternalAuthLinksByUserID(_ context.Context, userID uui
 	return gals, nil
 }
 
-func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err

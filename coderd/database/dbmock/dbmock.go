@@ -1209,10 +1209,10 @@ func (mr *MockStoreMockRecorder) GetExternalAuthLinksByUserID(arg0, arg1 any) *g
 }
 
 // GetFailedWorkspaceBuildsByTemplateID mocks base method.
-func (m *MockStore) GetFailedWorkspaceBuildsByTemplateID(arg0 context.Context, arg1 database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.WorkspaceBuild, error) {
+func (m *MockStore) GetFailedWorkspaceBuildsByTemplateID(arg0 context.Context, arg1 database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetFailedWorkspaceBuildsByTemplateID", arg0, arg1)
-	ret0, _ := ret[0].([]database.WorkspaceBuild)
+	ret0, _ := ret[0].([]database.GetFailedWorkspaceBuildsByTemplateIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

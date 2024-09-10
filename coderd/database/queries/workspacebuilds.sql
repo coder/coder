@@ -207,7 +207,10 @@ GROUP BY
 
 -- name: GetFailedWorkspaceBuildsByTemplateID :many
 SELECT
-	wb.*
+	tv.name AS template_version_name,
+	u.username AS workspace_owner_username,
+	w.name AS workspace_name,
+	wb.build_number AS workspace_build_number,
 FROM
 	workspace_build_with_user AS wb
 JOIN
@@ -215,9 +218,21 @@ JOIN
 ON
 	wb.workspace_id = w.id
 JOIN
+    users AS u
+ON
+    workspaces.owner_id = u.id
+JOIN
 	provisioner_jobs AS pj
 ON
 	wb.job_id = pj.id
+JOIN
+	templates AS t
+ON
+	w.template_id = t.id
+JOIN
+	template_versions AS tv
+ON
+	wb.template_version_id = tv.id
 WHERE
 	w.template_id = $1
 	AND wb.created_at > @since

@@ -613,7 +613,7 @@ func (m metricsStore) GetExternalAuthLinksByUserID(ctx context.Context, userID u
 	return r0, r1
 }
 
-func (m metricsStore) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.WorkspaceBuild, error) {
+func (m metricsStore) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetFailedWorkspaceBuildsByTemplateID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetFailedWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())

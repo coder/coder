@@ -107,7 +107,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	}
 
 	for _, stats := range statsRows {
-		var failedBuilds []database.WorkspaceBuild
+		var failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
 		reportData := map[string]any{}
 
 		if stats.FailedBuilds > 0 {
@@ -201,7 +201,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	return nil
 }
 
-func buildDataForReportFailedWorkspaceBuilds(frequencyDays int, stats database.GetWorkspaceBuildStatsByTemplatesRow, failedBuilds []database.WorkspaceBuild) map[string]any {
+func buildDataForReportFailedWorkspaceBuilds(frequencyDays int, stats database.GetWorkspaceBuildStatsByTemplatesRow, failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow) map[string]any {
 	// Format frequency label
 	var frequencyLabel string
 	if frequencyDays == 7 {
@@ -214,15 +214,48 @@ func buildDataForReportFailedWorkspaceBuilds(frequencyDays int, stats database.G
 		frequencyLabel = fmt.Sprintf("%d day%s", frequencyDays, plural)
 	}
 
-	reportData := map[string]any{
-		"failed_builds":    stats.FailedBuilds,
-		"total_builds":     stats.TotalBuilds,
-		"report_frequency": frequencyLabel,
-		"template_version": map[string]any{
-			// TODO
-		},
+	// Sorting order: template_version_name ASC, workspace build number DESC
+	sort.Slice(failedBuilds, func(i, j int) bool {
+		if failedBuilds[i].TemplateVersionName != failedBuilds[j].TemplateVersionName {
+			return failedBuilds[i].TemplateVersionName < failedBuilds[j].TemplateVersionName
+		}
+		return failedBuilds[i].WorkspaceBuildNumber > failedBuilds[j].WorkspaceBuildNumber
+	})
+
+	// Build notification model for template versions and failed workspace builds
+	templateVersions := []map[string]any{}
+	for _, failedBuild := range failedBuilds {
+		c := len(templateVersions)
+
+		if len(templateVersions) == 0 || templateVersions[c-1]["template_version_name"] != failedBuild.TemplateVersionName {
+			templateVersions = append(templateVersions, map[string]any{
+				"template_version_name": failedBuild.TemplateVersionName,
+				"failed_count":          1,
+				"failed_builds": map[string]any{
+					"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
+					"workspace_name":           failedBuild.WorkspaceName,
+					"build_number":             failedBuild.WorkspaceBuildNumber,
+				},
+			})
+			continue
+		}
+
+		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
+		builds := templateVersions[c-1]["failed_builds"].([]map[string]any)
+		builds = append(builds, map[string]any{
+			"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
+			"workspace_name":           failedBuild.WorkspaceName,
+			"build_number":             failedBuild.WorkspaceBuildNumber,
+		})
+		templateVersions[c-1]["failed_builds"] = builds
 	}
-	return reportData
+
+	return map[string]any{
+		"failed_builds":     stats.FailedBuilds,
+		"total_builds":      stats.TotalBuilds,
+		"report_frequency":  frequencyLabel,
+		"template_versions": templateVersions,
+	}
 }
 
 func findTemplateAdmins(ctx context.Context, db database.Store, stats database.GetWorkspaceBuildStatsByTemplatesRow) ([]database.GetUsersRow, error) {
