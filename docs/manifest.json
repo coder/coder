@@ -465,12 +465,6 @@
 							"path": "./admin/security/secrets.md"
 						}
 					]
-				},
-				{
-					"title": "Automation",
-					"description": "DIfferent ways to automate Coder actions and workflows",
-					"path": "./admin/automation.md",
-					"icon_path": "./images/icons/plug.svg"
 				}
 			]
 		},
