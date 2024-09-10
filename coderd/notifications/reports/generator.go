@@ -117,6 +117,9 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			continue
 		}
 
+		// TODO Lazy-render the report.
+		reportData := map[string]any{}
+
 		templateAdmins, err := findTemplateAdmins(ctx, db, template)
 		if err != nil {
 			logger.Error(ctx, "unable to find template admins", slog.F("template_id", template.ID), slog.Error(err))
@@ -160,9 +163,6 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				}
 			}
 
-			// TODO Lazy-render the report.
-			reportData := map[string]any{}
-
 			templateDisplayName := template.DisplayName
 			if templateDisplayName == "" {
 				templateDisplayName = template.Name
@@ -190,7 +190,6 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				continue
 			}
 		}
-
 	}
 
 	err = db.DeleteOldReportGeneratorLogs(ctx, frequencyDays)
@@ -198,6 +197,13 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		return xerrors.Errorf("unable to delete old report generator logs: %w", err)
 	}
 	return nil
+}
+
+func buildDataForReportFailedWorkspaceBuilds() map[string]any {
+	// TODO Lazy-render the report.
+	reportData := map[string]any{}
+
+	return reportData
 }
 
 func findTemplateAdmins(ctx context.Context, db database.Store, template database.Template) ([]database.GetUsersRow, error) {
