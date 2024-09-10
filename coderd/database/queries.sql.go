@@ -12847,6 +12847,71 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 	return i, err
 }
 
+const getWorkspaceBuildStatsByTemplates = `-- name: GetWorkspaceBuildStatsByTemplates :many
+SELECT
+    w.template_id,
+	t.name AS template_name,
+	t.display_name AS template_display_name,
+	t.organization_id AS template_organization_id,
+    COUNT(*) AS total_builds,
+    COUNT(CASE WHEN pj.job_status = 'failed' THEN 1 END) AS failed_builds
+FROM
+    workspace_build_with_user AS wb
+JOIN
+    workspaces AS w ON
+    wb.workspace_id = w.id
+JOIN
+    provisioner_jobs AS pj ON
+    wb.job_id = pj.id
+JOIN
+    templates AS t ON
+	w.template_id = t.id
+WHERE
+    wb.created_at > $1
+    AND pj.completed_at IS NOT NULL
+GROUP BY
+    w.template_id, template_name, template_display_name, template_organization_id
+`
+
+type GetWorkspaceBuildStatsByTemplatesRow struct {
+	TemplateID             uuid.UUID `db:"template_id" json:"template_id"`
+	TemplateName           string    `db:"template_name" json:"template_name"`
+	TemplateDisplayName    string    `db:"template_display_name" json:"template_display_name"`
+	TemplateOrganizationID uuid.UUID `db:"template_organization_id" json:"template_organization_id"`
+	TotalBuilds            int64     `db:"total_builds" json:"total_builds"`
+	FailedBuilds           int64     `db:"failed_builds" json:"failed_builds"`
+}
+
+func (q *sqlQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]GetWorkspaceBuildStatsByTemplatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildStatsByTemplates, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceBuildStatsByTemplatesRow
+	for rows.Next() {
+		var i GetWorkspaceBuildStatsByTemplatesRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.TemplateName,
+			&i.TemplateDisplayName,
+			&i.TemplateOrganizationID,
+			&i.TotalBuilds,
+			&i.FailedBuilds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
 	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, initiator_by_avatar_url, initiator_by_username

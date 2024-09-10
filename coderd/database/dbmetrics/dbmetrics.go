@@ -81,10 +81,10 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	return err
 }
 
-func (m metricsStore) GetReportGeneratorLogByUserAndKind(ctx context.Context, arg database.GetReportGeneratorLogByUserAndKindParams) (database.ReportGeneratorLog, error) {
+func (m metricsStore) GetWorkspaceBuildStats(ctx context.Context, arg database.GetWorkspaceBuildStatsParams) ([]database.GetWorkspaceBuildStatsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetReportGeneratorLogByUserAndKind(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetReportGeneratorLogByUserAndKind").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetWorkspaceBuildStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildStats").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1451,6 +1451,13 @@ func (m metricsStore) GetWorkspaceBuildParameters(ctx context.Context, workspace
 	params, err := m.s.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParameters").Observe(time.Since(start).Seconds())
 	return params, err
+}
+
+func (m metricsStore) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildStatsByTemplates(ctx, since)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildStatsByTemplates").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {

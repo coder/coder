@@ -898,7 +898,7 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
-func (q *querier) GetReportGeneratorLogByUserAndKind(ctx context.Context, arg database.GetReportGeneratorLogByUserAndKindParams) (database.ReportGeneratorLog, error) {
+func (q *querier) GetWorkspaceBuildStats(ctx context.Context, arg database.GetWorkspaceBuildStatsParams) ([]database.GetWorkspaceBuildStatsRow, error) {
 	panic("not implemented")
 }
 
@@ -2473,6 +2473,10 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 	}
 
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
+}
+
+func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {

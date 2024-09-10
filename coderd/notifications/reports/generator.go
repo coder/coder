@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/quartz"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -19,11 +20,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/quartz"
 )
 
 const (
-	delay = 5 * time.Minute
+	delay = 15 * time.Minute
 )
 
 func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, enqueur notifications.Enqueuer, clk quartz.Clock) io.Closer {
@@ -99,30 +99,32 @@ func (i *reportGenerator) Close() error {
 func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
 	const frequencyDays = 7
 
-	templates, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-		Deleted:    false,
-		Deprecated: sql.NullBool{Bool: false, Valid: true},
-	})
+	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(clk.Now()).UTC())
 	if err != nil {
-		return xerrors.Errorf("unable to fetch active templates: %w", err)
+		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
 	}
 
-	for _, template := range templates {
-		failedBuilds, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
-			TemplateID: template.ID,
-			Since:      dbtime.Time(clk.Now()).UTC(),
-		})
-		if err != nil {
-			logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", template.ID), slog.Error(err))
-			continue
-		}
-
-		// TODO Lazy-render the report.
+	for _, stats := range statsRows {
+		var failedBuilds []database.WorkspaceBuild
 		reportData := map[string]any{}
 
-		templateAdmins, err := findTemplateAdmins(ctx, db, template)
+		if stats.FailedBuilds > 0 {
+			failedBuilds, err = db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
+				TemplateID: stats.TemplateID,
+				Since:      dbtime.Time(clk.Now()).UTC(),
+			})
+			if err != nil {
+				logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", template.ID), slog.Error(err))
+				continue
+			}
+
+			// TODO Lazy-render the report.
+			reportData = map[string]any{}
+		}
+
+		templateAdmins, err := findTemplateAdmins(ctx, db, stats)
 		if err != nil {
-			logger.Error(ctx, "unable to find template admins", slog.F("template_id", template.ID), slog.Error(err))
+			logger.Error(ctx, "unable to find template admins", slog.F("template_id", stats.TemplateID), slog.Error(err))
 			continue
 		}
 
@@ -145,7 +147,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 					LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
 				})
 				if err != nil {
-					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", template.ID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
+					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
 					continue
 				}
 			}
@@ -158,24 +160,24 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 					LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
 				})
 				if err != nil {
-					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", template.ID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
+					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
 					continue
 				}
 			}
 
-			templateDisplayName := template.DisplayName
+			templateDisplayName := stats.TemplateDisplayName
 			if templateDisplayName == "" {
-				templateDisplayName = template.Name
+				templateDisplayName = stats.TemplateName
 			}
 
 			if _, err := enqueuer.EnqueueData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceBuildsFailedReport,
 				map[string]string{
-					"template_name":         template.Name,
+					"template_name":         stats.TemplateName,
 					"template_display_name": templateDisplayName,
 				},
 				reportData,
 				"report_generator",
-				template.ID, template.OrganizationID,
+				stats.TemplateID, stats.TemplateOrganizationID,
 			); err != nil {
 				logger.Warn(ctx, "failed to send a report with failed workspace builds", slog.Error(err))
 			}
@@ -186,7 +188,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
 			})
 			if err != nil {
-				logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", template.ID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
+				logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
 				continue
 			}
 		}
@@ -206,7 +208,7 @@ func buildDataForReportFailedWorkspaceBuilds() map[string]any {
 	return reportData
 }
 
-func findTemplateAdmins(ctx context.Context, db database.Store, template database.Template) ([]database.GetUsersRow, error) {
+func findTemplateAdmins(ctx context.Context, db database.Store, stats database.GetWorkspaceBuildStatsByTemplatesRow) ([]database.GetUsersRow, error) {
 	users, err := db.GetUsers(ctx, database.GetUsersParams{
 		RbacRole: []string{codersdk.RoleTemplateAdmin},
 	})
@@ -229,7 +231,7 @@ func findTemplateAdmins(ctx context.Context, db database.Store, template databas
 		}
 
 		for _, entry := range orgIDsByMemberIDs {
-			if slices.Contains(entry.OrganizationIDs, template.OrganizationID) {
+			if slices.Contains(entry.OrganizationIDs, stats.TemplateOrganizationID) {
 				templateAdmins = append(templateAdmins, usersByIDs[entry.UserID])
 			}
 		}

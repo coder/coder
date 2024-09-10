@@ -190,5 +190,5 @@ INSERT INTO report_generator_logs (user_id, notification_template_id, last_gener
 ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = $3 WHERE (user_id = $1 AND notification_template_id = $2);
 
 -- name: DeleteOldReportGeneratorLogs :exec
--- Delete report generator logs that have been created at least a <frequency_days> +5m ago.
-DELETE FROM report_generator_logs WHERE last_generated_at < (NOW() - CONCAT(@frequency_days::int, ' days')::interval - INTERVAL '5 min');
+-- Delete report generator logs that have been created at least a <frequency_days> +1h ago.
+DELETE FROM report_generator_logs WHERE last_generated_at < (NOW() - CONCAT(@frequency_days::int, ' days')::interval - INTERVAL '1 hour');

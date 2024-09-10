@@ -991,10 +991,10 @@ func (q *FakeQuerier) getOrganizationByIDNoLock(id uuid.UUID) (database.Organiza
 	return database.Organization{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetReportGeneratorLogByUserAndKind(ctx context.Context, arg database.GetReportGeneratorLogByUserAndKindParams) (database.ReportGeneratorLog, error) {
+func (q *FakeQuerier) GetWorkspaceBuildStats(ctx context.Context, arg database.GetWorkspaceBuildStatsParams) ([]database.GetWorkspaceBuildStatsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.ReportGeneratorLog{}, err
+		return nil, err
 	}
 
 	panic("not implemented")
@@ -5821,6 +5821,10 @@ func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 		params = append(params, param)
 	}
 	return params, nil
+}
+
+func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
