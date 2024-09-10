@@ -103,7 +103,7 @@ Let's now add our frobulator noun to `coderd/rbac/policy/policy.go`:
     ...
 ```
 
-Entries in the `frobulators` table be created/read/updated/deleted, so we define
+We need to create/read/update/delete rows in the `frobulators` table, so we define
 those actions.
 
 `policy.go` is used to generate code in `coderd/rbac/object_gen.go`, and we can
@@ -288,7 +288,7 @@ FAIL
 This shows you that the `org_auditor` role has `read` permissions on the
 frobulator, but no test case covered it.
 
-**NOTE: don't just add cases which make the tests pass; consider all the way in
+**NOTE: don't just add cases which make the tests pass; consider all the ways in
 which your resource must be used, and test all of those scenarios!**
 
 # Database authorization

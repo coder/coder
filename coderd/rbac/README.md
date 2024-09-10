@@ -49,7 +49,7 @@ This can be represented by the following truth table, where Y represents _positi
 - `object` is any valid resource type.
 - `id` is any valid UUID v4.
 - `id` is included in the permission syntax, however only scopes may use `id` to specify a specific object.
-- `action` is `create`, `read`, `modify`, `delete`, or another verb.
+- `action` is typically `create`, `read`, `modify`, `delete`, but you can define other verbs as needed.
 
 ## Example Permissions
 
