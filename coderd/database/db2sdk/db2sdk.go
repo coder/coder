@@ -540,6 +540,30 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 	return result
 }
 
+func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemons []database.ProvisionerDaemon) []codersdk.ProvisionerDaemon {
+	results := []codersdk.ProvisionerDaemon{}
+
+	// Ensure stable order for display and for tests
+	sort.Slice(daemons, func(i, j int) bool {
+		return daemons[i].Name < daemons[j].Name
+	})
+
+	for _, daemon := range daemons {
+		// Daemon never connected, skip.
+		if !daemon.LastSeenAt.Valid {
+			continue
+		}
+		// Daemon has gone away, skip.
+		if now.Sub(daemon.LastSeenAt.Time) > staleInterval {
+			continue
+		}
+
+		results = append(results, ProvisionerDaemon(daemon))
+	}
+
+	return results
+}
+
 func SlimRole(role rbac.Role) codersdk.SlimRole {
 	orgID := ""
 	if role.Identifier.OrganizationID != uuid.Nil {
