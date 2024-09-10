@@ -10,6 +10,7 @@ import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
 import type { GroupsByUserId } from "api/queries/groups";
 import type {
+	Group,
 	OrganizationMemberWithUserData,
 	SlimRole,
 	User,
@@ -40,7 +41,7 @@ interface OrganizationMembersPageViewProps {
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
 	me: User;
-	members: OrganizationMemberWithUserData[] | undefined;
+	members: Array<OrganizationMemberTableEntry> | undefined,
 	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
@@ -49,6 +50,10 @@ interface OrganizationMembersPageViewProps {
 		newRoles: string[],
 	) => Promise<void>;
 }
+
+interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
+	groups: readonly Group[] | undefined,
+};
 
 export const OrganizationMembersPageView: FC<
 	OrganizationMembersPageViewProps
@@ -120,9 +125,7 @@ export const OrganizationMembersPageView: FC<
 											}
 										}}
 									/>
-									<UserGroupsCell
-										userGroups={props.groupsByUserId?.get(member.user_id)}
-									/>
+									<UserGroupsCell userGroups={member.groups} />
 									<TableCell>
 										{member.user_id !== props.me.id && props.canEditMembers && (
 											<MoreMenu>

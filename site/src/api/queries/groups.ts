@@ -53,6 +53,13 @@ export function groupsByUserId() {
 	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
 
+export function groupsByUserIdInOrganization(organization: string) {
+	return {
+		...groupsByOrganization(organization),
+		select: selectGroupsByUserId,
+	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
+}
+
 export function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
 	// Sorting here means that nothing has to be sorted for the individual
 	// user arrays later
