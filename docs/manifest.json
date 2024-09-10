@@ -342,6 +342,12 @@
 					"icon_path": "./images/icons/key.svg"
 				},
 				{
+					"title": "External Authentication",
+					"description": "Learn how to configure external authentication",
+					"path": "./admin/external-auth.md",
+					"icon_path": "./images/icons/plug.svg"
+				},
+				{
 					"title": "Integrations",
 					"description": "Use integrations to extend Coder",
 					"path": "./admin/integrations/README.md",
