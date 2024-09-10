@@ -440,6 +440,12 @@
 							"title": "Health Check",
 							"description": "Learn about Coder's automated health checks",
 							"path": "./admin/monitoring/health-check.md"
+						},
+						{
+							"title": "Notifications",
+							"description": "Configure notifications for your deployment",
+							"path": "./admin/monitoring/notifications.md",
+							"icon_path": "./images/icons/info.svg"
 						}
 					]
 				},
@@ -466,12 +472,6 @@
 					"description": "DIfferent ways to automate Coder actions and workflows",
 					"path": "./admin/automation.md",
 					"icon_path": "./images/icons/plug.svg"
-				},
-				{
-					"title": "Notifications",
-					"description": "Configure notifications for your deployment",
-					"path": "./admin/notifications.md",
-					"icon_path": "./images/icons/info.svg"
 				}
 			]
 		},
