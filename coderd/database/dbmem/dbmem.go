@@ -991,15 +991,6 @@ func (q *FakeQuerier) getOrganizationByIDNoLock(id uuid.UUID) (database.Organiza
 	return database.Organization{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetWorkspaceBuildStats(ctx context.Context, arg database.GetWorkspaceBuildStatsParams) ([]database.GetWorkspaceBuildStatsRow, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
-	}
-
-	panic("not implemented")
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }

@@ -898,10 +898,6 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
-func (q *querier) GetWorkspaceBuildStats(ctx context.Context, arg database.GetWorkspaceBuildStatsParams) ([]database.GetWorkspaceBuildStatsRow, error) {
-	panic("not implemented")
-}
-
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }

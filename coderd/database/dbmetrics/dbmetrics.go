@@ -81,13 +81,6 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	return err
 }
 
-func (m metricsStore) GetWorkspaceBuildStats(ctx context.Context, arg database.GetWorkspaceBuildStatsParams) ([]database.GetWorkspaceBuildStatsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceBuildStats(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceBuildStats").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
