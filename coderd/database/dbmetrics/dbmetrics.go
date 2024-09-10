@@ -613,6 +613,13 @@ func (m metricsStore) GetExternalAuthLinksByUserID(ctx context.Context, userID u
 	return r0, r1
 }
 
+func (m metricsStore) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.WorkspaceBuild, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFailedWorkspaceBuildsByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFailedWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	start := time.Now()
 	file, err := m.s.GetFileByHashAndCreator(ctx, arg)

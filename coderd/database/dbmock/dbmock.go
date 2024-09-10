@@ -1208,6 +1208,21 @@ func (mr *MockStoreMockRecorder) GetExternalAuthLinksByUserID(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAuthLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetExternalAuthLinksByUserID), arg0, arg1)
 }
 
+// GetFailedWorkspaceBuildsByTemplateID mocks base method.
+func (m *MockStore) GetFailedWorkspaceBuildsByTemplateID(arg0 context.Context, arg1 database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.WorkspaceBuild, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFailedWorkspaceBuildsByTemplateID", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceBuild)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFailedWorkspaceBuildsByTemplateID indicates an expected call of GetFailedWorkspaceBuildsByTemplateID.
+func (mr *MockStoreMockRecorder) GetFailedWorkspaceBuildsByTemplateID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFailedWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetFailedWorkspaceBuildsByTemplateID), arg0, arg1)
+}
+
 // GetFileByHashAndCreator mocks base method.
 func (m *MockStore) GetFileByHashAndCreator(arg0 context.Context, arg1 database.GetFileByHashAndCreatorParams) (database.File, error) {
 	m.ctrl.T.Helper()

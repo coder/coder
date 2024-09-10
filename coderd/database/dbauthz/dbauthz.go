@@ -1434,6 +1434,10 @@ func (q *querier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLinksByUserID)(ctx, userID)
 }
 
+func (q *querier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.WorkspaceBuild, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	file, err := q.db.GetFileByHashAndCreator(ctx, arg)
 	if err != nil {

@@ -179,3 +179,22 @@ WHERE
 	wb.transition = 'start'::workspace_transition
 AND
 	pj.completed_at IS NOT NULL;
+
+-- name: GetFailedWorkspaceBuildsByTemplateID :many
+SELECT
+	wb.*
+FROM
+	workspace_build_with_user AS wb
+JOIN
+	workspaces AS w
+ON
+	wb.workspace_id = w.id
+JOIN
+	provisioner_jobs AS pj
+ON
+	wb.job_id = pj.id
+WHERE
+	w.template_id = $1
+	AND wb.created_at > $2
+	AND pj.completed_at IS NOT NULL
+	AND pj.job_status = 'failed';
