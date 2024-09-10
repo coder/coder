@@ -210,7 +210,7 @@ SELECT
 	tv.name AS template_version_name,
 	u.username AS workspace_owner_username,
 	w.name AS workspace_name,
-	wb.build_number AS workspace_build_number,
+	wb.build_number AS workspace_build_number
 FROM
 	workspace_build_with_user AS wb
 JOIN
