@@ -8,9 +8,9 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title":"About",
-					"description": "Learn about Coder",
-					"path": "./README.md"
+					"title":"Getting Started",
+					"description": "Start here to learn about Coder",
+					"path": "./install/README.md"
 				},
 				{
 					"title": "Tour Coder",
