@@ -898,6 +898,10 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
+func (q *querier) GetReportGeneratorLogByUserAndKind(ctx context.Context, arg database.GetReportGeneratorLogByUserAndKindParams) (database.ReportGeneratorLog, error) {
+	panic("not implemented")
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -1862,6 +1866,10 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 		return nil, err
 	}
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
+}
+
+func (q *querier) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {

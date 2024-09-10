@@ -125,10 +125,30 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 		for _, templateAdmin := range templateAdmins {
 			// TODO Check if report is enabled for the person.
-			// TODO Check `report_generator_log`.
-			// TODO If sent recently, continue
+
+			reportLog, err := db.GetReportGeneratorLogByUserAndTemplate(ctx, database.GetReportGeneratorLogByUserAndTemplateParams{
+				UserID:                 templateAdmin.ID,
+				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+			})
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) { // sql.ErrNoRows: report not generated yet
+				return xerrors.Errorf("unable to get recent report generator log for user: %w", err)
+			}
+
+			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(frequencyDays*24*time.Hour).After(clk.Now()) {
+				// report generated recently, no need to send it now
+				err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
+					UserID:                 templateAdmin.ID,
+					NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+					LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
+				})
+				if err != nil {
+					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", template.ID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
+					continue
+				}
+			}
 
 			if len(failedBuilds) == 0 {
+				// no failed workspace builds, no need to send the report
 				err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
 					UserID:                 templateAdmin.ID,
 					NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,

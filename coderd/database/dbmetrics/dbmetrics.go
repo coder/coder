@@ -81,6 +81,13 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	return err
 }
 
+func (m metricsStore) GetReportGeneratorLogByUserAndKind(ctx context.Context, arg database.GetReportGeneratorLogByUserAndKindParams) (database.ReportGeneratorLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetReportGeneratorLogByUserAndKind(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetReportGeneratorLogByUserAndKind").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -1003,6 +1010,13 @@ func (m metricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedAt tim
 	replicas, err := m.s.GetReplicasUpdatedAfter(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("GetReplicasUpdatedAfter").Observe(time.Since(start).Seconds())
 	return replicas, err
+}
+
+func (m metricsStore) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetReportGeneratorLogByUserAndTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetReportGeneratorLogByUserAndTemplate").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {

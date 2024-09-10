@@ -991,6 +991,15 @@ func (q *FakeQuerier) getOrganizationByIDNoLock(id uuid.UUID) (database.Organiza
 	return database.Organization{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetReportGeneratorLogByUserAndKind(ctx context.Context, arg database.GetReportGeneratorLogByUserAndKindParams) (database.ReportGeneratorLog, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ReportGeneratorLog{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -3516,6 +3525,15 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *FakeQuerier) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ReportGeneratorLog{}, err
+	}
+
+	panic("not implemented")
 }
 
 func (*FakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {

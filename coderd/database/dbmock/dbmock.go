@@ -2048,6 +2048,21 @@ func (mr *MockStoreMockRecorder) GetReplicasUpdatedAfter(arg0, arg1 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicasUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetReplicasUpdatedAfter), arg0, arg1)
 }
 
+// GetReportGeneratorLogByUserAndTemplate mocks base method.
+func (m *MockStore) GetReportGeneratorLogByUserAndTemplate(arg0 context.Context, arg1 database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReportGeneratorLogByUserAndTemplate", arg0, arg1)
+	ret0, _ := ret[0].(database.ReportGeneratorLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReportGeneratorLogByUserAndTemplate indicates an expected call of GetReportGeneratorLogByUserAndTemplate.
+func (mr *MockStoreMockRecorder) GetReportGeneratorLogByUserAndTemplate(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReportGeneratorLogByUserAndTemplate", reflect.TypeOf((*MockStore)(nil).GetReportGeneratorLogByUserAndTemplate), arg0, arg1)
+}
+
 // GetTailnetAgents mocks base method.
 func (m *MockStore) GetTailnetAgents(arg0 context.Context, arg1 uuid.UUID) ([]database.TailnetAgent, error) {
 	m.ctrl.T.Helper()

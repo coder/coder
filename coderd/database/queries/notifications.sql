@@ -174,6 +174,16 @@ FROM notification_templates
 WHERE kind = @kind::notification_template_kind
 ORDER BY name ASC;
 
+-- name: GetReportGeneratorLogByUserAndTemplate :one
+-- Fetch the report generator log indicating recent activity.
+SELECT
+	*
+FROM
+	report_generator_logs
+WHERE
+	user_id = $1
+	AND notification_template_id = $2;
+
 -- name: UpsertReportGeneratorLog :exec
 -- Insert or update report generator logs with recent activity.
 INSERT INTO report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES ($1, $2, $3)

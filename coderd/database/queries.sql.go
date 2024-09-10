@@ -3665,6 +3665,29 @@ func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind No
 	return items, nil
 }
 
+const getReportGeneratorLogByUserAndTemplate = `-- name: GetReportGeneratorLogByUserAndTemplate :one
+SELECT
+	user_id, notification_template_id, last_generated_at
+FROM
+	report_generator_logs
+WHERE
+	user_id = $1
+	AND notification_template_id = $2
+`
+
+type GetReportGeneratorLogByUserAndTemplateParams struct {
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+}
+
+// Fetch the report generator log indicating recent activity.
+func (q *sqlQuerier) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg GetReportGeneratorLogByUserAndTemplateParams) (ReportGeneratorLog, error) {
+	row := q.db.QueryRowContext(ctx, getReportGeneratorLogByUserAndTemplate, arg.UserID, arg.NotificationTemplateID)
+	var i ReportGeneratorLog
+	err := row.Scan(&i.UserID, &i.NotificationTemplateID, &i.LastGeneratedAt)
+	return i, err
+}
+
 const getUserNotificationPreferences = `-- name: GetUserNotificationPreferences :many
 SELECT user_id, notification_template_id, disabled, created_at, updated_at
 FROM notification_preferences
