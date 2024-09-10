@@ -145,7 +145,7 @@ Coder supports external authentication via OAuth2.0. This allows enabling integr
 
 External authentication can also be used to integrate with external services like JFrog Artifactory and others.
 
-Please refer to the [external authentication](./external-auth.md) section for more information.
+Please refer to the [external authentication](../admin/external-auth.md) section for more information.
 
 ## Up Next
 
