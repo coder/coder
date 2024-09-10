@@ -112,8 +112,8 @@ export const PremiumBadge: FC = () => {
 			css={[
 				styles.badge,
 				(theme) => ({
-					backgroundColor: theme.branding.badge.premium.background,
-					border: `1px solid ${theme.branding.badge.premium.border}`,
+					backgroundColor: theme.branding.background,
+					border: `1px solid ${theme.branding.border}`,
 					color: theme.roles.notice.text,
 				}),
 			]}

@@ -23,8 +23,8 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			css={[
 				styles.root,
 				(theme) => ({
-					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.paywall.premium.background})`,
-					border: `1px solid ${theme.branding.paywall.premium.border}`,
+					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.background})`,
+					border: `1px solid ${theme.branding.border}`,
 				}),
 			]}
 		>
@@ -80,7 +80,7 @@ const FeatureIcon: FC = () => {
 		<TaskAltIcon
 			css={[
 				(theme) => ({
-					color: theme.branding.paywall.premium.border,
+					color: theme.branding.border,
 				}),
 			]}
 		/>

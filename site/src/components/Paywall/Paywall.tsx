@@ -23,8 +23,8 @@ export const Paywall: FC<PaywallProps> = ({
 			css={[
 				styles.root,
 				(theme) => ({
-					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.paywall.premium.background})`,
-					border: `1px solid ${theme.branding.paywall.premium.border}`,
+					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.background})`,
+					border: `1px solid ${theme.branding.border}`,
 				}),
 			]}
 		>
@@ -84,7 +84,7 @@ const FeatureIcon: FC = () => {
 		<TaskAltIcon
 			css={[
 				(theme) => ({
-					color: theme.branding.paywall.premium.border,
+					color: theme.branding.border,
 				}),
 			]}
 		/>
@@ -116,7 +116,7 @@ const styles = {
 	separator: (theme) => ({
 		width: 1,
 		height: 220,
-		backgroundColor: theme.branding.paywall.premium.divider,
+		backgroundColor: theme.branding.divider,
 		marginLeft: 8,
 	}),
 	featureList: {
