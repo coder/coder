@@ -1016,6 +1016,7 @@ func (m metricsStore) GetReportGeneratorLogByUserAndTemplate(ctx context.Context
 	start := time.Now()
 	r0, r1 := m.s.GetReportGeneratorLogByUserAndTemplate(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetReportGeneratorLogByUserAndTemplate").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
