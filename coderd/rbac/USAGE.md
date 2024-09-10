@@ -103,8 +103,8 @@ Let's now add our frobulator noun to `coderd/rbac/policy/policy.go`:
     ...
 ```
 
-We need to create/read/update/delete rows in the `frobulators` table, so we define
-those actions.
+We need to create/read/update/delete rows in the `frobulators` table, so we
+define those actions.
 
 `policy.go` is used to generate code in `coderd/rbac/object_gen.go`, and we can
 execute this by running `make gen`.
