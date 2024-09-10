@@ -72,13 +72,13 @@ activity.
   curl -X PATCH https://coder.example.com/api/v2/workspaceagents/me/logs \
   -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
   -d "{
-	\"logs\": [
-	  {
-		\"created_at\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
-		\"level\": \"info\",
-		\"output\": \"Restoring workspace from snapshot: 05%...\"
-	  }
-	]
+  \"logs\": [
+    {
+  	\"created_at\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
+  	\"level\": \"info\",
+  	\"output\": \"Restoring workspace from snapshot: 05%...\"
+    }
+  ]
   }"
   ```
 
@@ -92,19 +92,19 @@ activity.
 
   while true
   do
-	if pgrep -f "my_training_script.py" > /dev/null
-	then
-	  curl -X POST "https://coder.example.com/api/v2/workspaceagents/me/report-stats" \
-	  -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
-	  -d '{
-		"connection_count": 1
-	  }'
+  if pgrep -f "my_training_script.py" > /dev/null
+  then
+    curl -X POST "https://coder.example.com/api/v2/workspaceagents/me/report-stats" \
+    -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
+    -d '{
+  	"connection_count": 1
+    }'
 
-	  # Sleep for 30 minutes (1800 seconds) if the job is running
-	  sleep 1800
-	else
-	  # Sleep for 1 minute (60 seconds) if the job is not running
-	  sleep 60
-	fi
+    # Sleep for 30 minutes (1800 seconds) if the job is running
+    sleep 1800
+  else
+    # Sleep for 1 minute (60 seconds) if the job is not running
+    sleep 60
+  fi
   done
   ```
