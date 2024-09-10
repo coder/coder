@@ -141,11 +141,18 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 					validExpected = append(validExpected, role.Name)
 				}
 			}
-			// Always add the member role to the user.
-			validExpected = append(validExpected, rbac.RoleOrgMember())
+			// Ignore the implied member role
+			validExpected = slices.DeleteFunc(validExpected, func(s string) bool {
+				return s == rbac.RoleOrgMember()
+			})
+
+			existingFound := existingRoles[orgID]
+			existingFound = slices.DeleteFunc(existingFound, func(s string) bool {
+				return s == rbac.RoleOrgMember()
+			})
 
 			// Is there a difference between the expected roles and the existing roles?
-			if !slices.Equal(existingRoles[orgID], validExpected) {
+			if !slices.Equal(existingFound, validExpected) {
 				_, err = tx.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
 					GrantedRoles: validExpected,
 					UserID:       user.ID,

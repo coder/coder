@@ -102,11 +102,13 @@ func TestGroupSyncTable(t *testing.T) {
 				ids.ID("sg-bar"):   false,
 				ids.ID("sg-baz"):   false,
 			},
-			ExpectedGroups: []uuid.UUID{
-				ids.ID("sg-foo"),
-				ids.ID("sg-foo-2"),
-				ids.ID("sg-bar"),
-				ids.ID("sg-baz"),
+			assertGroups: &orgGroupAssert{
+				ExpectedGroups: []uuid.UUID{
+					ids.ID("sg-foo"),
+					ids.ID("sg-foo-2"),
+					ids.ID("sg-bar"),
+					ids.ID("sg-baz"),
+				},
 			},
 		},
 		{
@@ -125,8 +127,10 @@ func TestGroupSyncTable(t *testing.T) {
 				ids.ID("gg-foo"): true,
 				ids.ID("gg-bar"): false,
 			},
-			ExpectedGroups: []uuid.UUID{
-				ids.ID("gg-foo"),
+			assertGroups: &orgGroupAssert{
+				ExpectedGroups: []uuid.UUID{
+					ids.ID("gg-foo"),
+				},
 			},
 		},
 		{
@@ -145,11 +149,13 @@ func TestGroupSyncTable(t *testing.T) {
 				ids.ID("ng-bar-2"): false,
 				ids.ID("ng-baz"):   false,
 			},
-			ExpectedGroups: []uuid.UUID{
-				ids.ID("ng-foo"),
-				ids.ID("ng-bar"),
-				ids.ID("ng-bar-2"),
-				ids.ID("ng-baz"),
+			assertGroups: &orgGroupAssert{
+				ExpectedGroups: []uuid.UUID{
+					ids.ID("ng-foo"),
+					ids.ID("ng-bar"),
+					ids.ID("ng-bar-2"),
+					ids.ID("ng-baz"),
+				},
 			},
 		},
 		{
@@ -160,9 +166,11 @@ func TestGroupSyncTable(t *testing.T) {
 				AutoCreateMissing: true,
 			},
 			Groups: map[uuid.UUID]bool{},
-			ExpectedGroupNames: []string{
-				"create-bar",
-				"create-baz",
+			assertGroups: &orgGroupAssert{
+				ExpectedGroupNames: []string{
+					"create-bar",
+					"create-baz",
+				},
 			},
 		},
 		{
@@ -177,9 +185,11 @@ func TestGroupSyncTable(t *testing.T) {
 				"bar":  false,
 				"goob": true,
 			},
-			ExpectedGroupNames: []string{
-				"foo",
-				"bar",
+			assertGroups: &orgGroupAssert{
+				ExpectedGroupNames: []string{
+					"foo",
+					"bar",
+				},
 			},
 		},
 		{
@@ -200,9 +210,9 @@ func TestGroupSyncTable(t *testing.T) {
 			},
 		},
 		{
-			Name:     "NoSettingsNoUser",
-			Settings: nil,
-			Groups:   map[uuid.UUID]bool{},
+			Name:          "NoSettingsNoUser",
+			GroupSettings: nil,
+			Groups:        map[uuid.UUID]bool{},
 		},
 		{
 			Name: "LegacyMapping",
@@ -224,9 +234,11 @@ func TestGroupSyncTable(t *testing.T) {
 				"extra":      true,
 				"legacy-bop": true,
 			},
-			ExpectedGroupNames: []string{
-				"legacy-bar",
-				"legacy-foo",
+			assertGroups: &orgGroupAssert{
+				ExpectedGroupNames: []string{
+					"legacy-bar",
+					"legacy-foo",
+				},
 			},
 		},
 	}
@@ -311,9 +323,10 @@ func TestGroupSyncTable(t *testing.T) {
 				"random":     true,
 			},
 			// No settings, because they come from the deployment values
-			Settings:           nil,
-			ExpectedGroups:     nil,
-			ExpectedGroupNames: []string{"legacy-foo", "legacy-baz", "legacy-bar"},
+			GroupSettings: nil,
+			assertGroups: &orgGroupAssert{
+				ExpectedGroupNames: []string{"legacy-foo", "legacy-baz", "legacy-bar"},
+			},
 		}
 
 		//nolint:gocritic // testing
@@ -392,9 +405,11 @@ func TestSyncDisabled(t *testing.T) {
 				"baz": {ids.ID("baz")},
 			},
 		},
-		ExpectedGroups: []uuid.UUID{
-			ids.ID("foo"),
-			ids.ID("bar"),
+		assertGroups: &orgGroupAssert{
+			ExpectedGroups: []uuid.UUID{
+				ids.ID("foo"),
+				ids.ID("bar"),
+			},
 		},
 	}
 
@@ -728,17 +743,26 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 	}
 
 	manager := runtimeconfig.NewManager()
-	if def.Settings != nil {
-		orgResolver := manager.OrganizationResolver(db, org.ID)
-		err = s.Group.SetRuntimeValue(context.Background(), orgResolver, (*idpsync.GroupSyncSettings)(def.Settings))
-		require.NoError(t, err)
-	}
+	orgResolver := manager.OrganizationResolver(db, org.ID)
+	err = s.Group.SetRuntimeValue(context.Background(), orgResolver, def.GroupSettings)
+	require.NoError(t, err)
+
+	err = s.Role.SetRuntimeValue(context.Background(), orgResolver, def.RoleSettings)
+	require.NoError(t, err)
 
 	if !def.NotMember {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
+	}
+	if len(def.OrganizationRoles) > 0 {
+		_, err := db.UpdateMemberRoles(context.Background(), database.UpdateMemberRolesParams{
+			GrantedRoles: def.OrganizationRoles,
+			UserID:       user.ID,
+			OrgID:        org.ID,
+		})
+		require.NoError(t, err)
 	}
 	for groupID, in := range def.Groups {
 		dbgen.Group(t, db, database.Group{
@@ -771,9 +795,23 @@ type orgSetupDefinition struct {
 	// True if the user is a member of the group
 	Groups     map[uuid.UUID]bool
 	GroupNames map[string]bool
-	NotMember  bool
 
-	Settings           *codersdk.GroupSyncSettings
+	OrganizationRoles []string
+	// NotMember if true will ensure the user is not a member of the organization.
+	NotMember bool
+
+	GroupSettings *idpsync.GroupSyncSettings
+	RoleSettings  *idpsync.RoleSyncSettings
+
+	assertGroups *orgGroupAssert
+	assertRoles  *orgRoleAssert
+}
+
+type orgRoleAssert struct {
+	ExpectedOrgRoles []string
+}
+
+type orgGroupAssert struct {
 	ExpectedGroups     []uuid.UUID
 	ExpectedGroupNames []string
 }
@@ -793,6 +831,24 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 	} else {
 		require.Len(t, members, 1, "should be a member")
 	}
+
+	if o.assertGroups != nil {
+		o.assertGroups.Assert(t, orgID, db, user)
+	}
+	if o.assertRoles != nil {
+		o.assertRoles.Assert(t, orgID, db, o.NotMember, user)
+	}
+
+	if o.assertGroups == nil && o.assertRoles == nil {
+		t.Errorf("no group or role asserts present, must have at least one")
+		t.FailNow()
+	}
+}
+
+func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
+	t.Helper()
+
+	ctx := context.Background()
 
 	userGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
 		OrganizationID: orgID,
@@ -825,4 +881,23 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 		require.ElementsMatch(t, o.ExpectedGroups, found, "user groups")
 		require.Len(t, o.ExpectedGroupNames, 0, "ExpectedGroupNames should be empty")
 	}
+}
+
+func (o orgRoleAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, notMember bool, user database.User) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: orgID,
+		UserID:         user.ID,
+	})
+	if notMember {
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		return
+	}
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	member := members[0]
+	require.ElementsMatch(t, member.OrganizationMember.Roles, o.ExpectedOrgRoles)
 }
