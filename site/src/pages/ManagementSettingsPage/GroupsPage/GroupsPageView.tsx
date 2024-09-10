@@ -46,9 +46,8 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 			<ChooseOne>
 				<Cond condition={!isTemplateRBACEnabled}>
 					<Paywall
-						type="enterprise"
 						message="Groups"
-						description="Organize users into groups with restricted access to templates. You need an Enterprise license to use this feature."
+						description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
 						documentationLink={docs("/admin/groups")}
 					/>
 				</Cond>

@@ -2,21 +2,18 @@ import type { Interpolation, Theme } from "@emotion/react";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { EnterpriseBadge, PremiumBadge } from "components/Badges/Badges";
+import { PremiumBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
-import theme from "theme";
 import { docs } from "utils/docs";
 
 export interface PaywallProps {
-	type: "enterprise" | "premium";
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;
 }
 
 export const Paywall: FC<PaywallProps> = ({
-	type,
 	message,
 	description,
 	documentationLink,
@@ -26,15 +23,15 @@ export const Paywall: FC<PaywallProps> = ({
 			css={[
 				styles.root,
 				(theme) => ({
-					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.paywall[type].background})`,
-					border: `1px solid ${theme.branding.paywall[type].border}`,
+					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.paywall.premium.background})`,
+					border: `1px solid ${theme.branding.paywall.premium.border}`,
 				}),
 			]}
 		>
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 24 }}>
 					<h5 css={styles.title}>{message}</h5>
-					{type === "enterprise" ? <EnterpriseBadge /> : <PremiumBadge />}
+					<PremiumBadge />
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
@@ -51,28 +48,20 @@ export const Paywall: FC<PaywallProps> = ({
 			<Stack direction="column" alignItems="center" spacing={3}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
-						<FeatureIcon type={type} />
-						{type === "premium"
-							? "High availability & workspace proxies"
-							: "Template access control"}
+						<FeatureIcon />
+						High availability & workspace proxies
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={type} />
-						{type === "premium"
-							? "Multi-org & role-based access control"
-							: "User groups"}
+						<FeatureIcon />
+						Multi-org & role-based access control
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={type} />
-						{type === "premium"
-							? "24x7 global support with SLA"
-							: "24 hour support"}
+						<FeatureIcon />
+						24x7 global support with SLA
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={type} />
-						{type === "premium"
-							? "Unlimited Git & external auth integrations"
-							: "Audit logs"}
+						<FeatureIcon />
+						Unlimited Git & external auth integrations
 					</li>
 				</ul>
 				<Button
@@ -83,23 +72,19 @@ export const Paywall: FC<PaywallProps> = ({
 					variant="outlined"
 					color="neutral"
 				>
-					Learn about {type === "enterprise" ? "Enterprise" : "Premium"}
+					Learn about Premium
 				</Button>
 			</Stack>
 		</div>
 	);
 };
 
-export interface FeatureIconProps {
-	type: "enterprise" | "premium";
-}
-
-const FeatureIcon: FC<FeatureIconProps> = ({ type }) => {
+const FeatureIcon: FC = () => {
 	return (
 		<TaskAltIcon
 			css={[
 				(theme) => ({
-					color: theme.branding.paywall[type].border,
+					color: theme.branding.paywall.premium.border,
 				}),
 			]}
 		/>
@@ -107,7 +92,7 @@ const FeatureIcon: FC<FeatureIconProps> = ({ type }) => {
 };
 
 const styles = {
-	root: (theme) => ({
+	root: () => ({
 		display: "flex",
 		flexDirection: "row",
 		justifyContent: "center",
@@ -123,7 +108,7 @@ const styles = {
 		fontSize: 22,
 		margin: 0,
 	},
-	description: (theme) => ({
+	description: () => ({
 		fontFamily: "inherit",
 		maxWidth: 460,
 		fontSize: 14,
@@ -137,7 +122,6 @@ const styles = {
 	featureList: {
 		listStyle: "none",
 		margin: 0,
-		marginRight: 8,
 		padding: "0 24px",
 		fontSize: 14,
 		fontWeight: 500,

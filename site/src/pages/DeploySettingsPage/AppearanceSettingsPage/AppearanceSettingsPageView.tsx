@@ -5,8 +5,8 @@ import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import {
 	Badges,
 	DisabledBadge,
-	EnterpriseBadge,
 	EntitledBadge,
+	PremiumBadge,
 } from "components/Badges/Badges";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import {
@@ -64,14 +64,15 @@ export const AppearanceSettingsPageView: FC<
 				<Popover mode="hover">
 					<PopoverTrigger>
 						<span>
-							<EnterpriseBadge />
+							<PremiumBadge />
 						</span>
 					</PopoverTrigger>
 					<PopoverContent css={{ transform: "translateY(-28px)" }}>
 						<PopoverPaywall
 							message="Appearance"
-							description="With an Enterprise license, you can customize the appearance of your deployment."
+							description="With a Premium license, you can customize the appearance of your deployment."
 							documentationLink="https://coder.com/docs/admin/appearance"
+							licenseType="premium"
 						/>
 					</PopoverContent>
 				</Popover>
