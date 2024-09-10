@@ -3,10 +3,6 @@ import colors from "../tailwindColors";
 
 export default {
 	paywall: {
-		enterprise: {
-			background: colors.sky[100],
-			border: colors.sky[600],
-		},
 		premium: {
 			background: colors.violet[100],
 			divider: colors.violet[300],
@@ -14,11 +10,6 @@ export default {
 		},
 	},
 	badge: {
-		enterprise: {
-			background: colors.blue[50],
-			border: colors.blue[400],
-			text: colors.blue[950],
-		},
 		premium: {
 			background: colors.violet[50],
 			border: colors.violet[400],

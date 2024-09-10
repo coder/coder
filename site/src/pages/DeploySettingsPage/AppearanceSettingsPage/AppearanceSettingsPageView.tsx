@@ -72,7 +72,6 @@ export const AppearanceSettingsPageView: FC<
 							message="Appearance"
 							description="With a Premium license, you can customize the appearance of your deployment."
 							documentationLink="https://coder.com/docs/admin/appearance"
-							licenseType="premium"
 						/>
 					</PopoverContent>
 				</Popover>

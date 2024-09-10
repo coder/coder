@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { EnterpriseBadge, PremiumBadge } from "components/Badges/Badges";
+import { PremiumBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
 import { docs } from "utils/docs";
@@ -11,29 +11,27 @@ export interface PopoverPaywallProps {
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;
-	licenseType?: "enterprise" | "premium";
 }
 
 export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 	message,
 	description,
 	documentationLink,
-	licenseType = "enterprise",
 }) => {
 	return (
 		<div
 			css={[
 				styles.root,
 				(theme) => ({
-					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.paywall[licenseType].background})`,
-					border: `1px solid ${theme.branding.paywall[licenseType].border}`,
+					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.paywall.premium.background})`,
+					border: `1px solid ${theme.branding.paywall.premium.border}`,
 				}),
 			]}
 		>
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 18 }}>
 					<h5 css={styles.title}>{message}</h5>
-					{licenseType === "premium" ? <PremiumBadge /> : <EnterpriseBadge />}
+					<PremiumBadge />
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
@@ -50,22 +48,17 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			<Stack direction="column" alignItems="center" spacing={2}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
-						<FeatureIcon type={licenseType} /> Template access control
+						<FeatureIcon /> High availability & workspace proxies
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={licenseType} /> User groups
+						<FeatureIcon /> Multi-org & role-based access control
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={licenseType} /> 24 hour support
+						<FeatureIcon /> 24x7 global support with SLA
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon type={licenseType} /> Audit logs
+						<FeatureIcon /> Unlimited Git & external auth integrations
 					</li>
-					{licenseType === "premium" && (
-						<li css={styles.feature}>
-							<FeatureIcon type={licenseType} /> Organizations
-						</li>
-					)}
 				</ul>
 				<Button
 					href={docs("/enterprise")}
@@ -75,23 +68,19 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 					variant="outlined"
 					color="neutral"
 				>
-					Learn about {licenseType === "premium" ? "Premium" : "Enterprise"}
+					Learn about Premium
 				</Button>
 			</Stack>
 		</div>
 	);
 };
 
-export interface FeatureIconProps {
-	type: "enterprise" | "premium";
-}
-
-const FeatureIcon: FC<FeatureIconProps> = ({ type }) => {
+const FeatureIcon: FC = () => {
 	return (
 		<TaskAltIcon
 			css={[
 				(theme) => ({
-					color: theme.branding.paywall[type].border,
+					color: theme.branding.paywall.premium.border,
 				}),
 			]}
 		/>

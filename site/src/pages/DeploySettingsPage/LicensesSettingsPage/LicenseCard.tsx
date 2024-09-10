@@ -58,7 +58,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				title="Confirm License Removal"
 				confirmLoading={isRemoving}
 				confirmText="Remove"
-				description="Removing this license will disable all Enterprise features. You add a new license at any time."
+				description="Removing this license will disable all Premium features. You add a new license at any time."
 			/>
 			<Stack
 				direction="row"
