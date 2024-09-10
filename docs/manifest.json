@@ -96,6 +96,7 @@
 					"title": "Access Workspaces",
 					"description": "Connect to your Coder workspaces",
 					"path": "./user-guides/workspace-access/README.md",
+					"icon_path": "./images/icons/access.svg",
 					"children": [
 						{
 							"title": "Visual Studio Code",
@@ -132,7 +133,8 @@
 				{
 					"title": "Workspace Scheduling",
 					"description": "Cost control with workspace schedules",
-					"path": "./user-guides/workspace-scheduling.md"
+					"path": "./user-guides/workspace-scheduling.md",
+					"icon_path": "./images/icons/stopwatch.svg"
 				},
 				{
 					"title": "Dotfiles",
