@@ -2500,6 +2500,7 @@ func (m metricsStore) UpsertReportGeneratorLog(ctx context.Context, arg database
 	start := time.Now()
 	r0 := m.s.UpsertReportGeneratorLog(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertReportGeneratorLog").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
