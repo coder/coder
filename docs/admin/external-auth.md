@@ -35,10 +35,10 @@ GitHub provider).
 1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
 
    - Set the callback URL to
-	 `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
+     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
    - Deactivate Webhooks.
    - Enable fine-grained access to specific repositories or a subset of
-	 permissions for security.
+     permissions for security.
 
    ![Register GitHub App](../images/admin/github-app-register.png)
 
@@ -210,4 +210,3 @@ add this to the
 ```shell
 git config --global credential.useHttpPath true
 ```
-

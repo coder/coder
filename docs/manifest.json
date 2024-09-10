@@ -8,7 +8,7 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title":"Getting Started",
+					"title": "Getting Started",
 					"description": "Start here to learn about Coder",
 					"path": "./install/README.md"
 				},
@@ -41,7 +41,6 @@
 					"description": "Install Coder using Docker",
 					"path": "./install/docker.md",
 					"icon_path": "./images/icons/docker.svg"
-
 				},
 				{
 					"title": "Kubernetes",

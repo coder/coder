@@ -40,9 +40,9 @@ coder server
 ## Wildcard access URL
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for
-[port forwarding](../admin/networking/port-forwarding.md#dashboard) via the dashboard
-or running [coder_apps](../admin/templates/README.md) on an absolute path.
-Set this to a wildcard subdomain that resolves to Coder (e.g.
+[port forwarding](../admin/networking/port-forwarding.md#dashboard) via the
+dashboard or running [coder_apps](../admin/templates/README.md) on an absolute
+path. Set this to a wildcard subdomain that resolves to Coder (e.g.
 `*.coder.example.com`).
 
 If you are providing TLS certificates directly to the Coder server, either
@@ -141,11 +141,14 @@ To configure Coder behind a corporate proxy, set the environment variables
 
 ## External Authentication
 
-Coder supports external authentication via OAuth2.0. This allows enabling integrations with git providers, such as GitHub, GitLab, and Bitbucket etc.
+Coder supports external authentication via OAuth2.0. This allows enabling
+integrations with git providers, such as GitHub, GitLab, and Bitbucket etc.
 
-External authentication can also be used to integrate with external services like JFrog Artifactory and others.
+External authentication can also be used to integrate with external services
+like JFrog Artifactory and others.
 
-Please refer to the [external authentication](../admin/external-auth.md) section for more information.
+Please refer to the [external authentication](../admin/external-auth.md) section
+for more information.
 
 ## Up Next
 
