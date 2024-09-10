@@ -454,8 +454,10 @@ type SessionLifetime struct {
 	// creation is the lifetime of the api key.
 	DisableExpiryRefresh serpent.Bool `json:"disable_expiry_refresh,omitempty" typescript:",notnull"`
 
-	// DefaultDuration is for api keys, not tokens.
+	// DefaultDuration is only for browser, workspace app and oauth sessions.
 	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
+
+	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 }
@@ -1996,6 +1998,16 @@ when required by your organization's security policy.`,
 			Value:       &c.Sessions.MaximumTokenDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "maxTokenLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Default Token Lifetime",
+			Description: "The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.",
+			Flag:        "default-token-lifetime",
+			Env:         "CODER_DEFAULT_TOKEN_LIFETIME",
+			Default:     (7 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.DefaultTokenDuration,
+			YAML:        "defaultTokenLifetime",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{

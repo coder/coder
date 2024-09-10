@@ -23,7 +23,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// Creates a new token API key that effectively doesn't expire.
+// Creates a new token API key with the given scope and lifetime.
 //
 // @Summary Create token API key
 // @ID create-token-api-key
@@ -60,36 +60,34 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		scope = database.APIKeyScope(createToken.Scope)
 	}
 
-	// default lifetime is 30 days
-	lifeTime := 30 * 24 * time.Hour
-	if createToken.Lifetime != 0 {
-		lifeTime = createToken.Lifetime
-	}
-
 	tokenName := namesgenerator.GetRandomName(1)
 
 	if len(createToken.TokenName) != 0 {
 		tokenName = createToken.TokenName
 	}
 
-	err := api.validateAPIKeyLifetime(lifeTime)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to validate create API key request.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
+	params := apikey.CreateParams{
 		UserID:          user.ID,
 		LoginType:       database.LoginTypeToken,
-		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
-		ExpiresAt:       dbtime.Now().Add(lifeTime),
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		Scope:           scope,
-		LifetimeSeconds: int64(lifeTime.Seconds()),
 		TokenName:       tokenName,
-	})
+	}
+
+	if createToken.Lifetime != 0 {
+		err := api.validateAPIKeyLifetime(createToken.Lifetime)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to validate create API key request.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		params.ExpiresAt = dbtime.Now().Add(createToken.Lifetime)
+		params.LifetimeSeconds = int64(createToken.Lifetime.Seconds())
+	}
+
+	cookie, key, err := api.createAPIKey(ctx, params)
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueIndexAPIKeyName) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -125,16 +123,11 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	lifeTime := time.Hour * 24 * 7
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
 		UserID:          user.ID,
-		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LoginType:       database.LoginTypePassword,
 		RemoteAddr:      r.RemoteAddr,
-		// All api generated keys will last 1 week. Browser login tokens have
-		// a shorter life.
-		ExpiresAt:       dbtime.Now().Add(lifeTime),
-		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

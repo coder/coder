@@ -1173,6 +1173,7 @@ export interface SessionCountDeploymentStats {
 export interface SessionLifetime {
 	readonly disable_expiry_refresh?: boolean;
 	readonly default_duration: number;
+	readonly default_token_lifetime?: number;
 	readonly max_token_lifetime?: number;
 }
 

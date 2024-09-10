@@ -910,6 +910,17 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 
 The maximum lifetime duration users can specify when creating an API token.
 
+### --default-token-lifetime
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>duration</code>                      |
+| Environment | <code>$CODER_DEFAULT_TOKEN_LIFETIME</code> |
+| YAML        | <code>defaultTokenLifetime</code>          |
+| Default     | <code>168h0m0s</code>                      |
+
+The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.
+
 ### --swagger-enable
 
 |             |                                    |
