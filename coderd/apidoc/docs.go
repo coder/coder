@@ -14170,6 +14170,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "hidden": {
+                    "type": "boolean"
+                },
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"

@@ -1480,10 +1480,13 @@ CREATE TABLE workspace_apps (
     sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
     slug text NOT NULL,
     external boolean DEFAULT false NOT NULL,
-    display_order integer DEFAULT 0 NOT NULL
+    display_order integer DEFAULT 0 NOT NULL,
+    hidden boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,

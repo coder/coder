@@ -598,6 +598,20 @@ func (mr *MockStoreMockRecorder) DeleteReplicasUpdatedBefore(arg0, arg1 any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicasUpdatedBefore", reflect.TypeOf((*MockStore)(nil).DeleteReplicasUpdatedBefore), arg0, arg1)
 }
 
+// DeleteRuntimeConfig mocks base method.
+func (m *MockStore) DeleteRuntimeConfig(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteRuntimeConfig", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteRuntimeConfig indicates an expected call of DeleteRuntimeConfig.
+func (mr *MockStoreMockRecorder) DeleteRuntimeConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRuntimeConfig", reflect.TypeOf((*MockStore)(nil).DeleteRuntimeConfig), arg0, arg1)
+}
+
 // DeleteTailnetAgent mocks base method.
 func (m *MockStore) DeleteTailnetAgent(arg0 context.Context, arg1 database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	m.ctrl.T.Helper()
@@ -2046,6 +2060,21 @@ func (m *MockStore) GetReplicasUpdatedAfter(arg0 context.Context, arg1 time.Time
 func (mr *MockStoreMockRecorder) GetReplicasUpdatedAfter(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicasUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetReplicasUpdatedAfter), arg0, arg1)
+}
+
+// GetRuntimeConfig mocks base method.
+func (m *MockStore) GetRuntimeConfig(arg0 context.Context, arg1 string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRuntimeConfig", arg0, arg1)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRuntimeConfig indicates an expected call of GetRuntimeConfig.
+func (mr *MockStoreMockRecorder) GetRuntimeConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRuntimeConfig", reflect.TypeOf((*MockStore)(nil).GetRuntimeConfig), arg0, arg1)
 }
 
 // GetTailnetAgents mocks base method.
@@ -5193,6 +5222,20 @@ func (m *MockStore) UpsertProvisionerDaemon(arg0 context.Context, arg1 database.
 func (mr *MockStoreMockRecorder) UpsertProvisionerDaemon(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProvisionerDaemon", reflect.TypeOf((*MockStore)(nil).UpsertProvisionerDaemon), arg0, arg1)
+}
+
+// UpsertRuntimeConfig mocks base method.
+func (m *MockStore) UpsertRuntimeConfig(arg0 context.Context, arg1 database.UpsertRuntimeConfigParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertRuntimeConfig", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertRuntimeConfig indicates an expected call of UpsertRuntimeConfig.
+func (mr *MockStoreMockRecorder) UpsertRuntimeConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRuntimeConfig", reflect.TypeOf((*MockStore)(nil).UpsertRuntimeConfig), arg0, arg1)
 }
 
 // UpsertTailnetAgent mocks base method.

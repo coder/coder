@@ -44,6 +44,7 @@ func TestManifest(t *testing.T) {
 					Threshold: 55555666,
 				},
 				Health: codersdk.WorkspaceAppHealthHealthy,
+				Hidden: false,
 			},
 			{
 				ID:            uuid.New(),
@@ -62,6 +63,7 @@ func TestManifest(t *testing.T) {
 					Threshold: 22555666,
 				},
 				Health: codersdk.WorkspaceAppHealthInitializing,
+				Hidden: true,
 			},
 		},
 		DERPMap: &tailcfg.DERPMap{

@@ -354,6 +354,13 @@ func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt
 	return err
 }
 
+func (m metricsStore) DeleteRuntimeConfig(ctx context.Context, key string) error {
+	start := time.Now()
+	r0 := m.s.DeleteRuntimeConfig(ctx, key)
+	m.queryLatencies.WithLabelValues("DeleteRuntimeConfig").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteTailnetAgent(ctx, arg)
@@ -1003,6 +1010,13 @@ func (m metricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedAt tim
 	replicas, err := m.s.GetReplicasUpdatedAfter(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("GetReplicasUpdatedAfter").Observe(time.Since(start).Seconds())
 	return replicas, err
+}
+
+func (m metricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetRuntimeConfig(ctx, key)
+	m.queryLatencies.WithLabelValues("GetRuntimeConfig").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
@@ -2473,6 +2487,13 @@ func (m metricsStore) UpsertProvisionerDaemon(ctx context.Context, arg database.
 	r0, r1 := m.s.UpsertProvisionerDaemon(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertProvisionerDaemon").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertRuntimeConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertRuntimeConfig").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

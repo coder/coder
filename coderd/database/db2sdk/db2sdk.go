@@ -517,6 +517,7 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 				Threshold: dbApp.HealthcheckThreshold,
 			},
 			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
+			Hidden: dbApp.Hidden,
 		})
 	}
 	return apps

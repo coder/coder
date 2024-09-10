@@ -1887,6 +1887,7 @@ export interface WorkspaceApp {
 	readonly sharing_level: WorkspaceAppSharingLevel;
 	readonly healthcheck: Healthcheck;
 	readonly health: WorkspaceAppHealth;
+	readonly hidden: boolean;
 }
 
 // From codersdk/workspacebuilds.go

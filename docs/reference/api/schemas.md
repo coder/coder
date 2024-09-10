@@ -6304,6 +6304,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -6482,6 +6483,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"threshold": 0,
 				"url": "string"
 			},
+			"hidden": true,
 			"icon": "string",
 			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 			"sharing_level": "owner",
@@ -6875,6 +6877,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"threshold": 0,
 		"url": "string"
 	},
+	"hidden": true,
 	"icon": "string",
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"sharing_level": "owner",
@@ -6894,6 +6897,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `external`       | boolean                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
 | `health`         | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
 | `healthcheck`    | [codersdk.Healthcheck](#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
+| `hidden`         | boolean                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `icon`           | string                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `id`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `sharing_level`  | [codersdk.WorkspaceAppSharingLevel](#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
@@ -6990,6 +6994,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 								"threshold": 0,
 								"url": "string"
 							},
+							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"sharing_level": "owner",
@@ -7324,6 +7329,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"threshold": 0,
 						"url": "string"
 					},
+					"hidden": true,
 					"icon": "string",
 					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 					"sharing_level": "owner",
@@ -7559,6 +7565,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 										"external": true,
 										"health": "disabled",
 										"healthcheck": {},
+										"hidden": true,
 										"icon": "string",
 										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 										"sharing_level": "owner",
