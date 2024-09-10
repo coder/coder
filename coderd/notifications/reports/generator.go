@@ -3,6 +3,7 @@ package reports
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"io"
 	"slices"
 	"sort"
@@ -12,8 +13,9 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/quartz"
 	"github.com/google/uuid"
+
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -114,12 +116,12 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				Since:      dbtime.Time(clk.Now()).UTC(),
 			})
 			if err != nil {
-				logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", template.ID), slog.Error(err))
+				logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", stats.TemplateID), slog.Error(err))
 				continue
 			}
 
-			// TODO Lazy-render the report.
-			reportData = map[string]any{}
+			// There are some failed builds, so we have to prepare input data for the report.
+			reportData = buildDataForReportFailedWorkspaceBuilds(frequencyDays, stats, failedBuilds)
 		}
 
 		templateAdmins, err := findTemplateAdmins(ctx, db, stats)
@@ -129,8 +131,6 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 
 		for _, templateAdmin := range templateAdmins {
-			// TODO Check if report is enabled for the person.
-
 			reportLog, err := db.GetReportGeneratorLogByUserAndTemplate(ctx, database.GetReportGeneratorLogByUserAndTemplateParams{
 				UserID:                 templateAdmin.ID,
 				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
@@ -201,10 +201,27 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	return nil
 }
 
-func buildDataForReportFailedWorkspaceBuilds() map[string]any {
-	// TODO Lazy-render the report.
-	reportData := map[string]any{}
+func buildDataForReportFailedWorkspaceBuilds(frequencyDays int, stats database.GetWorkspaceBuildStatsByTemplatesRow, failedBuilds []database.WorkspaceBuild) map[string]any {
+	// Format frequency label
+	var frequencyLabel string
+	if frequencyDays == 7 {
+		frequencyLabel = "week"
+	} else {
+		var plural string
+		if frequencyDays > 1 {
+			plural = "s"
+		}
+		frequencyLabel = fmt.Sprintf("%d day%s", frequencyDays, plural)
+	}
 
+	reportData := map[string]any{
+		"failed_builds":    stats.FailedBuilds,
+		"total_builds":     stats.TotalBuilds,
+		"report_frequency": frequencyLabel,
+		"template_version": map[string]any{
+			// TODO
+		},
+	}
 	return reportData
 }
 
