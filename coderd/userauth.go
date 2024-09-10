@@ -707,9 +707,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		http.SetCookie(rw, cookie)
 	}
 
-	if redirect == "" {
-		redirect = "/"
-	}
+	redirect = uriFromURL(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 }
 
@@ -1085,9 +1083,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	redirect := state.Redirect
-	if redirect == "" {
-		redirect = "/"
-	}
+	// Strip the host if it exists on the URL to prevent
+	// any nefarious redirects.
+	redirect = uriFromURL(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 }
 
@@ -1687,7 +1685,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 	var claims OAuthConvertStateClaims
-	token, err := jwt.ParseWithClaims(jwtCookie.Value, &claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(jwtCookie.Value, &claims, func(_ *jwt.Token) (interface{}, error) {
 		return api.OAuthSigningKey[:], nil
 	})
 	if xerrors.Is(err, jwt.ErrSignatureInvalid) || !token.Valid {

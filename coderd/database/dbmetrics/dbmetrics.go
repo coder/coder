@@ -354,6 +354,13 @@ func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt
 	return err
 }
 
+func (m metricsStore) DeleteRuntimeConfig(ctx context.Context, key string) error {
+	start := time.Now()
+	r0 := m.s.DeleteRuntimeConfig(ctx, key)
+	m.queryLatencies.WithLabelValues("DeleteRuntimeConfig").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteTailnetAgent(ctx, arg)
@@ -1005,10 +1012,17 @@ func (m metricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedAt tim
 	return replicas, err
 }
 
+<<<<<<< HEAD
 func (m metricsStore) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetReportGeneratorLogByUserAndTemplate(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetReportGeneratorLogByUserAndTemplate").Observe(time.Since(start).Seconds())
+=======
+func (m metricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetRuntimeConfig(ctx, key)
+	m.queryLatencies.WithLabelValues("GetRuntimeConfig").Observe(time.Since(start).Seconds())
+>>>>>>> main
 	return r0, r1
 }
 
@@ -2482,10 +2496,17 @@ func (m metricsStore) UpsertProvisionerDaemon(ctx context.Context, arg database.
 	return r0, r1
 }
 
+<<<<<<< HEAD
 func (m metricsStore) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertReportGeneratorLog(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertReportGeneratorLog").Observe(time.Since(start).Seconds())
+=======
+func (m metricsStore) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertRuntimeConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertRuntimeConfig").Observe(time.Since(start).Seconds())
+>>>>>>> main
 	return r0
 }
 

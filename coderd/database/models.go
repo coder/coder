@@ -2850,6 +2850,8 @@ type WorkspaceApp struct {
 	External             bool               `db:"external" json:"external"`
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	// Determines if the app is not shown in user interfaces.
+	Hidden bool `db:"hidden" json:"hidden"`
 }
 
 // A record of workspace app usage statistics

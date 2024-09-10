@@ -1282,7 +1282,7 @@ class ApiMethods {
 	updateUserPassword = async (
 		userId: TypesGen.User["id"],
 		updatePassword: TypesGen.UpdateUserPasswordRequest,
-	): Promise<undefined> => {
+	): Promise<void> => {
 		await this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 	};
 

@@ -91,6 +91,8 @@ func RunIDP() func(t *testing.T) {
 				"email":              "oidc_member@coder.com",
 				"preferred_username": "oidc_member",
 				"email_verified":     true,
+				"groups":             []string{"testidp", "qa", "engineering"},
+				"roles":              []string{"testidp", "admin", "higher_power"},
 			}),
 			oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
 			oidctest.WithDefaultExpire(*expiry),

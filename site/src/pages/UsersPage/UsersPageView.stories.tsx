@@ -28,7 +28,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 });
 
 const meta: Meta<typeof UsersPageView> = {
-	title: "pages/UsersPage",
+	title: "pages/UsersPageView",
 	component: UsersPageView,
 	args: {
 		isNonInitialPage: false,

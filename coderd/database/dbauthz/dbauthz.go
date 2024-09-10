@@ -1187,6 +1187,13 @@ func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt tim
 	return q.db.DeleteReplicasUpdatedBefore(ctx, updatedAt)
 }
 
+func (q *querier) DeleteRuntimeConfig(ctx context.Context, key string) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteRuntimeConfig(ctx, key)
+}
+
 func (q *querier) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
 		return database.DeleteTailnetAgentRow{}, err
@@ -1864,8 +1871,16 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
+<<<<<<< HEAD
 func (q *querier) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
 	panic("not implemented")
+=======
+func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetRuntimeConfig(ctx, key)
+>>>>>>> main
 }
 
 func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
@@ -3922,8 +3937,16 @@ func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.Upse
 	return q.db.UpsertProvisionerDaemon(ctx, arg)
 }
 
+<<<<<<< HEAD
 func (q *querier) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
 	panic("not implemented")
+=======
+func (q *querier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertRuntimeConfig(ctx, arg)
+>>>>>>> main
 }
 
 func (q *querier) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
