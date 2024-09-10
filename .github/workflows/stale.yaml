@@ -17,7 +17,10 @@ jobs:
         with:
           stale-issue-label: "stale"
           stale-pr-label: "stale"
-          days-before-stale: 180
+          # days-before-stale: 180
+          # essentially disabled for now while we work through polish issues
+          days-before-stale: 3650
+
           # Pull Requests become stale more quickly due to merge conflicts.
           # Also, we promote minimizing WIP.
           days-before-pr-stale: 7
