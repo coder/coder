@@ -19,7 +19,7 @@ $ CODER_EXPERIMENTS=notifications coder server
 ```
 
 More information on experiments can be found
-[here](https://coder.com/docs/contributing/feature-stages#experimental-features).
+[here](../../contributing/feature-stages#experimental-features).
 
 ## Event Types
 
