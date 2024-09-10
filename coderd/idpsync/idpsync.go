@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
+	"github.com/coder/serpent"
 )
 
 // IDPSync is an interface, so we can implement this as AGPL and as enterprise,
@@ -76,6 +77,11 @@ type DeploymentSyncSettings struct {
 	GroupAllowList map[string]struct{}
 	// Legacy deployment settings that only apply to the default org.
 	Legacy DefaultOrgLegacySettings
+
+	// SiteRoleField syncs a user's site wide roles from an IDP.
+	SiteRoleField    string
+	SiteRoleMapping  serpent.Struct[map[string][]string]
+	SiteDefaultRoles []string
 }
 
 type DefaultOrgLegacySettings struct {
@@ -112,6 +118,7 @@ type SyncSettings struct {
 	DeploymentSyncSettings
 
 	Group runtimeconfig.RuntimeEntry[*GroupSyncSettings]
+	Role  runtimeconfig.RuntimeEntry[*RoleSyncSettings]
 }
 
 func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
