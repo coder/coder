@@ -5,14 +5,13 @@
 			"title": "About",
 			"description": "Landing Page",
 			"path": "./README.md",
-			"icon_path": "./images/icons/home.svg"
-		},
-		{
-			"title": "Getting Started",
-			"description": "Tour Coder by setting up your first deployment",
-			"path": "./start/README.md",
-			"icon_path": "./images/icons/star.svg",
+			"icon_path": "./images/icons/home.svg",
 			"children": [
+				{
+					"title":"About",
+					"description": "Learn about Coder",
+					"path": "./README.md"
+				},
 				{
 					"title": "Tour Coder",
 					"description": "Tour Coder by creating a deployment with Docker",
