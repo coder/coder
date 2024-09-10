@@ -68,8 +68,8 @@ implementation._
 
 ## Creating a new entity
 
-If you're creating a new resource which has to be owned by users of differing
-roles, you need to create a new RBAC resource.
+If you're creating a new resource which has to be acted upon by users of
+differing roles, you need to create a new RBAC resource.
 
 Let's say we're adding a new table called `frobulators` (we'll use this table
 later):
@@ -79,10 +79,12 @@ CREATE TABLE frobulators
 (
   id           uuid NOT NULL,
   user_id      uuid NOT NULL,
+  org_id       uuid NOT NULL,
   model_number TEXT NOT NULL,
   PRIMARY KEY (id),
   UNIQUE (model_number),
-  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE
 );
 ```
 
@@ -92,10 +94,10 @@ Let's now add our frobulator noun to `coderd/rbac/policy/policy.go`:
     ...
 	"frobulator": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("create a frobulator"),
-			ActionRead:   actDef("read a frobulator"),
-			ActionUpdate: actDef("update a frobulator"),
-			ActionDelete: actDef("delete a frobulator"),
+			ActionCreate: {Description: "create a frobulator"},
+			ActionRead:   {Description: "read a frobulator"},
+			ActionUpdate: {Description: "update a frobulator"},
+			ActionDelete: {Description: "delete a frobulator"},
 		},
 	},
     ...
@@ -144,6 +146,16 @@ all organization's frobulators; we need to add it to `coderd/rbac/roles.go`:
 ```go
 func ReloadBuiltinRoles(opts *RoleOptions) {
 	...
+		auditorRole := Role{
+		Identifier:  RoleAuditor(),
+		DisplayName: "Auditor",
+		Site: Permissions(map[string][]policy.Action{
+			...
+			// The site-wide auditor is allowed to read *all* frobulators, regardless of who owns them.
+			ResourceFrobulator.Type: {policy.ActionRead},
+        ...
+
+	    //
 		orgAuditor: func(organizationID uuid.UUID) Role {
 			...
 			return Role{
@@ -151,12 +163,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
 						...
+						// The org-wide auditor is allowed to read *all* frobulators in their own org, regardless of who owns them.
 						ResourceFrobulator.Type: {policy.ActionRead},
 					})
 				...
 	...
 }
 ```
+
+Note how we added the permission to both the **site-wide** auditor role and the
+**org-level** auditor role.
 
 ## Testing
 
@@ -222,16 +238,15 @@ func TestRolePermissions(t *testing.T) {
         },
     },
     {
-        // Users should be able to read their own frobulators
         // Admins from the current organization should be able to read any other members' frobulators
         // Auditors should be able to read any other members' frobulators
         // Owner should be able to read any other user's frobulators
-        Name:     "FrobulatorsReadOnly",
+        Name:     "FrobulatorsReadAnyUserInOrg",
         Actions:  []policy.Action{policy.ActionRead},
-        Resource: rbac.ResourceFrobulator.WithOwner(currentUser.String()).InOrg(orgID),
+        Resource: rbac.ResourceFrobulator.WithOwner(uuid.New().String()).InOrg(orgID), // read frobulators of any user
         AuthorizeMap: map[bool][]hasAuthSubjects{
-            true:  {orgMemberMe, orgAdmin, owner, orgAuditor},
-            false: {setOtherOrg, memberMe, templateAdmin, userAdmin, orgTemplateAdmin, orgUserAdmin},
+            true:  {owner, orgAdmin, orgAuditor},
+            false: {memberMe, orgMemberMe, setOtherOrg, templateAdmin, userAdmin, orgTemplateAdmin, orgUserAdmin},
         },
     },
 ```
@@ -240,11 +255,14 @@ Note how the `FrobulatorsModify` test case is just validating the
 `policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete` actions, and
 only the **orgMember**, **orgAdmin**, and **owner** can access it.
 
-Similarly, the `FrobulatorsReadOnly` test case is only validating
-`policy.ActionRead`, which is allowed on all of the above plus the
-**orgAuditor** role.
+The `FrobulatorsReadAnyUserInOrg` test case is validating that owners, org
+admins & auditors have the `policy.ActionRead` policy which enables them to read
+frobulators belonging to any user in a given organization.
 
-Now the tests pass, because we have covered all the possible scenarios:
+The above tests are illustrative not exhaustive, see
+[the reference PR](https://github.com/coder/coder/pull/14055) for the rest.
+
+Once we have covered all the possible scenarios, the tests will pass:
 
 ```bash
 $ go test github.com/coder/coder/v2/coderd/rbac -count=1
@@ -280,10 +298,10 @@ Now that we have the RBAC system fully configured, we need to make use of it.
 Let's add a SQL query to `coderd/database/queries/frobulators.sql`:
 
 ```sql
--- name: GetUserFrobulators :many
+-- name: GetFrobulators :many
 SELECT *
 FROM frobulators
-WHERE user_id = @user_id::uuid;
+WHERE user_id = $1 AND org_id = $2;
 ```
 
 Once we run `make gen`, we'll find some stubbed code in
@@ -291,7 +309,7 @@ Once we run `make gen`, we'll find some stubbed code in
 
 ```go
 ...
-func (q *querier) GetUserFrobulators(ctx context.Context) ([]database.Frobulator, error) {
+func (q *querier) GetFrobulators(ctx context.Context, arg database.GetFrobulatorsParams) ([]database.Frobulator, error) {
     panic("not implemented")
 }
 ...
@@ -301,15 +319,33 @@ Let's modify this function:
 
 ```go
 ...
-func (q *querier) GetUserFrobulators(ctx context.Context, userID uuid.UUID) ([]database.Frobulator, error) {
-  return fetch(q.log, q.auth, q.db.GetUserFrobulators)(ctx, id)
+func (q *querier) GetFrobulators(ctx context.Context, arg database.GetFrobulatorsParams) ([]database.Frobulator, error) {
+    return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFrobulators)(ctx, arg)
 }
 ...
 ```
 
-This states that the `policy.ActionRead` permission is required in this query on
-the `ResourceFrobulator` resources, and `WithOwner(userID.String())` specifies
-that this user must own the resource.
+This states that the `policy.ActionRead` permission is enforced on all entries
+returned from the database, ensuring that each requested frobulator is readable
+by the given actor.
+
+In order for this to work, we need to implement the `rbac.Objector` interface.
+
+`coderd/database/modelmethods.go` is where we implement this interface for all
+RBAC objects:
+
+```go
+func (f Frobulator) RBACObject() rbac.Object {
+	return rbac.ResourceFrobulator.
+		WithID(f.ID).                   // Each frobulator has a unique identity.
+		WithOwner(f.UserID.String()).   // It is owned by one and only one user.
+		InOrg(f.OrgID)                  // It belongs to an organization.
+}
+```
+
+These values obviously have to be set on the `Frobulator` instance before this
+function can work, hence why we have to fetch the object from the store first
+before we validate (this explains the `fetchWithPostFilter` naming).
 
 All queries are executed through `dbauthz`, and now our little frobulators are
 protected!
@@ -326,19 +362,50 @@ possible when the requester is unprivileged.
 
 ```go
 ...
-func (api *API) listUserFrobulators(rw http.ResponseWriter, r *http.Request) {
+func (api *API) createFrobulator(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	key := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceFrobulator.WithOwner(key.UserID.String())) {
-		httpapi.Forbidden(rw)
+	member := httpmw.OrganizationMemberParam(r)
+	org := httpmw.OrganizationParam(r)
+
+	var req codersdk.InsertFrobulatorRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	frob, err := api.Database.InsertFrobulator(ctx, database.InsertFrobulatorParams{
+		ID:          uuid.New(),
+		UserID:      member.UserID,
+		OrgID:       org.ID,
+		ModelNumber: req.ModelNumber,
+	})
+
+	// This will catch forbidden errors as well.
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	...
+```
+
+If we look at the implementation of `httpapi.Is404Error`:
+
+```go
+// Is404Error returns true if the given error should return a 404 status code.
+// Both actual 404s and unauthorized errors should return 404s to not leak
+// information about the existence of resources.
+func Is404Error(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// This tests for dbauthz.IsNotAuthorizedError and rbac.IsUnauthorizedError.
+	if IsUnauthorizedError(err) {
+		return true
+	}
+	return xerrors.Is(err, sql.ErrNoRows)
 }
 ```
 
-`api.Authorize(r, policy.ActionRead, rbac.ResourceFrobulator.WithOwner(key.UserID.String()))`
-is specifying that we only want to permit a user to read their own frobulators.
-If the requester does not have this permission, we forbid the request. We're
-checking the user associated to the API key here because this could also be an
-**owner** or **orgAdmin**, and we want to permit those users.
+With this, we're able to handle unauthorized access to the resource but return a
+`404 Not Found` to not leak the fact that the resources exist but are not
+accessible by the given actor.
