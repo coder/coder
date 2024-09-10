@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
-	"github.com/coder/serpent"
 )
 
 // IDPSync is an interface, so we can implement this as AGPL and as enterprise,
@@ -80,7 +79,7 @@ type DeploymentSyncSettings struct {
 
 	// SiteRoleField syncs a user's site wide roles from an IDP.
 	SiteRoleField    string
-	SiteRoleMapping  serpent.Struct[map[string][]string]
+	SiteRoleMapping  map[string][]string
 	SiteDefaultRoles []string
 }
 
@@ -128,6 +127,7 @@ func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings De
 		SyncSettings: SyncSettings{
 			DeploymentSyncSettings: settings,
 			Group:                  runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings"),
+			Role:                   runtimeconfig.MustNew[*RoleSyncSettings]("role-sync-settings"),
 		},
 	}
 }
