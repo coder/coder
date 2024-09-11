@@ -3595,18 +3595,18 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 	return replicas, nil
 }
 
-func (q *FakeQuerier) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+func (q *FakeQuerier) GetReportGeneratorLogByUserAndTemplate(_ context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.ReportGeneratorLog{}, err
 	}
 
 	q.mutex.RLock()
-	q.mutex.RUnlock()
+	defer q.mutex.RUnlock()
 
 	for _, record := range q.reportGeneratorLogs {
 		if record.UserID == arg.UserID && record.NotificationTemplateID == arg.NotificationTemplateID {
-			return database.ReportGeneratorLog(record), nil
+			return record, nil
 		}
 	}
 	return database.ReportGeneratorLog{}, sql.ErrNoRows
