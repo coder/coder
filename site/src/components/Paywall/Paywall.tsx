@@ -19,15 +19,7 @@ export const Paywall: FC<PaywallProps> = ({
 	documentationLink,
 }) => {
 	return (
-		<div
-			css={[
-				styles.root,
-				(theme) => ({
-					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.background})`,
-					border: `1px solid ${theme.branding.border}`,
-				}),
-			]}
-		>
+		<div css={[styles.root]}>
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 24 }}>
 					<h5 css={styles.title}>{message}</h5>
@@ -45,7 +37,7 @@ export const Paywall: FC<PaywallProps> = ({
 				</Link>
 			</div>
 			<div css={styles.separator} />
-			<Stack direction="column" alignItems="center" spacing={3}>
+			<Stack direction="column" alignItems="left" spacing={3}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
 						<FeatureIcon />
@@ -64,16 +56,18 @@ export const Paywall: FC<PaywallProps> = ({
 						Unlimited Git & external auth integrations
 					</li>
 				</ul>
-				<Button
-					href={docs("/enterprise")}
-					target="_blank"
-					rel="noreferrer"
-					startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
-					variant="outlined"
-					color="neutral"
-				>
-					Learn about Premium
-				</Button>
+				<div css={styles.learnButton}>
+					<Button
+						href={docs("/enterprise")}
+						target="_blank"
+						rel="noreferrer"
+						startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
+						variant="outlined"
+						color="neutral"
+					>
+						Learn about Premium
+					</Button>
+				</div>
 			</Stack>
 		</div>
 	);
@@ -92,7 +86,7 @@ const FeatureIcon: FC = () => {
 };
 
 const styles = {
-	root: () => ({
+	root: (theme) => ({
 		display: "flex",
 		flexDirection: "row",
 		justifyContent: "center",
@@ -101,6 +95,8 @@ const styles = {
 		padding: 24,
 		borderRadius: 8,
 		gap: 32,
+		backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.background})`,
+		border: `1px solid ${theme.branding.border}`,
 	}),
 	title: {
 		fontWeight: 600,
@@ -119,6 +115,9 @@ const styles = {
 		backgroundColor: theme.branding.divider,
 		marginLeft: 8,
 	}),
+	learnButton: {
+		padding: "0 28px",
+	},
 	featureList: {
 		listStyle: "none",
 		margin: 0,
