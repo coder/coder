@@ -322,7 +322,7 @@ func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 	agent1.UpdateDERP(5)
 
 	agent2 := agpltest.NewAgent(ctx, t, coord2, "agent2")
-	defer agent1.Close(ctx)
+	defer agent2.Close(ctx)
 	agent2.UpdateDERP(6)
 
 	ma1 := tailnettest.NewTestMultiAgent(t, coord3)

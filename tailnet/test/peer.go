@@ -233,6 +233,7 @@ func (p *Peer) AssertEventuallyResponsesClosed() {
 
 func (p *Peer) AssertNotClosed(d time.Duration) {
 	p.t.Helper()
+	// nolint: gocritic // erroneously thinks we're hardcoding non testutil constants here
 	ctx, cancel := context.WithTimeout(context.Background(), d)
 	defer cancel()
 	for {
