@@ -28,6 +28,7 @@ func (AGPLIDPSync) GroupSyncEnabled() bool {
 	// AGPL does not support syncing groups.
 	return false
 }
+
 func (s AGPLIDPSync) GroupSyncSettings() runtimeconfig.RuntimeEntry[*GroupSyncSettings] {
 	return s.Group
 }
