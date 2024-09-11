@@ -213,7 +213,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 											css={{ marginTop: 16 }}
 										>
 											<PremiumBadge />
-											<span>Premium license required to enabled.</span>
+											<span>Premium license required to be enabled.</span>
 										</Stack>
 									)}
 								</StackLabelHelperText>
