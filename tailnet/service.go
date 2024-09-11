@@ -119,6 +119,8 @@ func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID 
 		return xerrors.Errorf("yamux init failed: %w", err)
 	}
 	ctx = WithStreamID(ctx, streamID)
+	s.Logger.Debug(ctx, "serving dRPC tailnet v2 API session",
+		slog.F("peer_id", streamID.ID.String()))
 	return s.drpc.Serve(ctx, session)
 }
 
