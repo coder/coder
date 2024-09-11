@@ -1,33 +1,38 @@
 # Frontend
 
-This is a guide to help the Coder community and also Coder members contribute to
-our UI. It is ongoing work but we hope it provides some useful information to
-get started. If you have any questions or need help, please send us a message on
-our [Discord server](https://discord.com/invite/coder). We'll be happy to help
+Welcome to the guide for contributing to the Coder frontend. Whether you’re part
+of the community or a Coder team member, this documentation will help you get
+started.
+
+If you have any questions, feel free to reach out on our
+[Discord server](https://discord.com/invite/coder), and we’ll be happy to assist
 you.
 
 ## Running the UI
 
-You can run the UI and access the dashboard in two ways:
+You can run the UI and access the Coder dashboard in two ways:
 
-- Build the UI pointing to an external Coder server:
-  `CODER_HOST=https://mycoder.com pnpm dev` inside of the `site` folder. This is
-  helpful when you are building something in the UI and already have the data on
-  your deployed server.
-- Build the entire Coder server + UI locally: `./scripts/develop.sh` in the root
-  folder. It is useful when you have to contribute with features that are not
-  deployed yet or when you have to work on both, frontend and backend.
+1. Build the UI pointing to an external Coder server:
+   `CODER_HOST=https://mycoder.com pnpm dev` inside of the `site` folder. This
+   is helpful when you are building something in the UI and already have the
+   data on your deployed server.
+2. Build the entire Coder server + UI locally: `./scripts/develop.sh` in the
+   root folder. This is useful for contributing to features that are not
+   deployed yet or that involve both the frontend and backend.
 
-In both cases, you can access the dashboard on `http://localhost:8080`. If you
-are running the `./scripts/develop.sh` you can log in using the default
-credentials: `admin@coder.com` and `SomeSecurePassword!`.
+In both cases, you can access the dashboard on `http://localhost:8080`. If using
+`./scripts/develop.sh` you can log in with the default credentials.
 
-## Tech Stack
+> [!TIP]
+>
+> **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
 
-All our dependencies are described in `site/package.json` but here are the most
-important ones:
+## Tech Stack Overview
 
-- [React](https://reactjs.org/) as framework
+All our dependencies are described in `site/package.json` but the following are
+the most important:
+
+- [React](https://reactjs.org/) for the UI framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity
 - [Vite](https://vitejs.dev/) to build the project
 - [Material V5](https://mui.com/material-ui/getting-started/) for UI components
@@ -39,63 +44,62 @@ important ones:
 - [Jest](https://jestjs.io/) for integration testing
 - [Storybook](https://storybook.js.org/) and
   [Chromatic](https://www.chromatic.com/) for visual testing
-- [PNPM](https://pnpm.io/) as package manager
+- [PNPM](https://pnpm.io/) as the package manager
 
 ## Structure
 
-All the code related to the UI is inside the `site` folder and we defined a few
-conventions to help people to navigate through it.
+All UI-related code is in the `site` folder. Key directories include:
 
 - **e2e** - End-to-end (E2E) tests
 - **src** - Source code
   - **mocks** - [Manual mocks](https://jestjs.io/docs/manual-mocks) used by Jest
   - **@types** - Custom types for dependencies that don't have defined types
     (largely code that has no server-side equivalent)
-  - **api** - API code as function calls and types
+  - **api** - API function calls and types
     - **queries** - react-query queries and mutations
-  - **components** - UI components
-  - **hooks** - Hooks that can be used across the application
-  - **pages** - Page components
-  - **testHelpers** - Helper functions to help with integration tests
+  - **components** - Reusable UI components without Coder specific business
+    logic
+  - **hooks** - Custom React hooks
+  - **modules** - Coder-specific UI components
+  - **pages** - Page-level components
+  - **testHelpers** - Helper functions for integration testing
+  - **theme** - theme configuration and color definitions
   - **util** - Helper functions that can be used across the application
-- **static** - Static UI assets like images, fonts, icons, etc
+- **static** - Static assets like images, fonts, icons, etc
 
 ## Routing
 
-We use [react-router](https://reactrouter.com/en/main) as our routing engine and
-adding a new route is very easy. If the new route needs to be authenticated, put
-it under the `<RequireAuth>` route and if it needs to live inside of the
-dashboard, put it under the `<DashboardLayout>` route.
+We use [react-router](https://reactrouter.com/en/main) as our routing engine.
 
-The `RequireAuth` component handles all the authentication logic for the routes
-and the `DashboardLayout` wraps the route adding a navbar and passing down
-common dashboard data.
+- Authenticated routes - Place routes requiring authentication inside the
+  `<RequireAuth>` route. The `RequireAuth` component handles all the
+  authentication logic for the routes.
+- Dashboard routes - routes that live in the dashboard should be placed under
+  the `<DashboardLayout>` route. The `DashboardLayout` adds a navbar and passes
+  down common dashboard data.
 
 ## Pages
 
-Pages are the top-level components of the app. The page component lives under
-the `src/pages` folder and each page should have its own folder so we can better
-group the views, tests, utility functions and so on. We use a structure where
-the page component is responsible for fetching all the data and passing it down
-to the view. We explain this decision a bit better in the next section.
+Page components are the top-level components of the app and reside in the
+`src/pages` folder. Each page should have its own folder to group relevant
+views, tests, and utility functions. The page component fetches necessary data
+and passes to the view. We explain this decision a bit better in the next
+section which talks about where to fetch data.
 
-> ℹ️ Code that is only related to the page should live inside of the page folder
-> but if at some point it is used in other pages or components, you should
-> consider moving it to the `src` level in the `utils`, `hooks` or `components`
-> folder.
+> ℹ️ If code within a page becomes reusable across other parts of the app,
+> consider moving it to `src/utils`, `hooks`, `components`, or `modules`.
 
-### States
+### Handling States
 
-A page usually has at least three states: **loading**, **ready**/**success**,
-and **error**, so always remember to handle these scenarios while you are coding
-a page. We also encourage you to add visual testing for these three states using
-a `*.stories.ts` file.
+A page typically has three states: **loading**, **ready**/**success**, and
+**error**. Ensure you manage these states when developing pages. Use visual
+tests for these states with `*.stories.ts` files.
 
-## Fetching data
+## Data Fetching
 
 We use [TanStack Query v4](https://tanstack.com/query/v4/docs/react/quick-start)
-to fetch data from the API. The queries and mutation should be placed inside of
-the api/queries folder when it is possible.
+to fetch data from the API. Queries and mutation should be placed in the
+api/queries folder.
 
 ### Where to fetch data
 
@@ -141,12 +145,14 @@ export const WithQuota: Story = {
 
 ### API
 
-We are using [axios](https://github.com/axios/axios) as our fetching library and
-writing the API functions in the `site/src/api/api.ts` files. We also have
-auto-generated types from our Go server on `site/src/api/typesGenerated.ts`.
-Usually, every endpoint has its own ` Request` and `Response` types, but
-sometimes you need to pass extra parameters to make the call, like in the
-example below:
+Our project uses [axios](https://github.com/axios/axios) as the HTTP client for
+making API requests. The API functions are centralized in `site/src/api/api.ts`.
+Auto-generated TypeScript types derived from our Go server are located in
+`site/src/api/typesGenerated.ts`.
+
+Typically, each API endpoint corresponds to its own `Request` and `Response`
+types. However, some endpoints require additional parameters for successful
+execution. Here's an illustrative example:"
 
 ```ts
 export const getAgentListeningPorts = async (
@@ -159,8 +165,8 @@ export const getAgentListeningPorts = async (
 };
 ```
 
-Sometimes, a frontend operation can have multiple API calls, so it is okay to
-wrap it as a single function.
+Sometimes, a frontend operation can have multiple API calls which can be wrapped
+as a single function.
 
 ```ts
 export const updateWorkspaceVersion = async (
@@ -171,10 +177,13 @@ export const updateWorkspaceVersion = async (
 };
 ```
 
-If you need more granular errors or control, you may should consider keep them
-separated and use XState for that.
+## Components and Modules
 
-## Components
+Components should be atomic, reusable and free of business logic. Modules are
+similar to components except that they can be more complex and can contain
+business logic specific to the product.
+
+### MUI
 
 The codebase is currently using MUI v5. Please see the
 [official documentation](https://mui.com/material-ui/getting-started/). In
@@ -184,8 +193,9 @@ out of the box.
 
 ### Structure
 
-Each component gets its own folder. Make sure you add a test and Storybook
-stories for the component as well. By keeping these tidy, the codebase will
+Each component and module gets its own folder. Module folders may group multiple
+files in a hierarchical structure. Storybook stories and component tests using
+Storybook interactions are required. By keeping these tidy, the codebase will
 remain easy to navigate, healthy and maintainable for all contributors.
 
 ### Accessibility
@@ -221,13 +231,32 @@ import { visuallyHidden } from "@mui/utils";
 </Button>;
 ```
 
-### Should I create a new component?
+### Should I create a new component or module?
 
-As with most things in the world, it depends. If you are creating a new
-component to encapsulate some UI abstraction like `UsersTable` it is ok but you
-should always try to use the base components that are provided by the library or
-from the codebase. It's recommended that you always do a quick search before
-creating a custom primitive component like dialogs, popovers, buttons, etc.
+Components could technically be used in any codebase and still feel at home. A
+module would only make sense in the Coder codebase.
+
+- Component
+  - Simple
+  - Atomic, used in multiple places
+  - Generic, would be useful as a component outside of the Coder product
+  - Good Examples: `Badge`, `Form`, `Timeline`
+- Module
+  - Simple or Complex
+  - Used in multiple places
+  - Good Examples: `Provisioner`, `DashboardLayout`, `DeploymentBanner`
+
+Our codebase has some legacy components that are being updated to follow these
+new conventions, but all new components should follow these guidelines.
+
+## Styling
+
+We use [Emotion](https://emotion.sh/) to handle css styles.
+
+## Forms
+
+We use [Formik](https://formik.org/docs) for forms along with
+[Yup](https://github.com/jquense/yup) for schema definition and validation.
 
 ## Testing
 
@@ -293,10 +322,9 @@ that:
 
 ### Tests getting too slow
 
-A few times you can notice tests can take a very long time to get done.
-Sometimes it is because the test itself is complex and runs a lot of stuff, and
-sometimes it is because of how we are querying things. In the next section, we
-are going to talk more about them.
+You may have observed that certain tests in our suite can be notably
+time-consuming. Sometimes it is because the test itself is complex and sometimes
+it is because of how the test is querying elements.
 
 #### Using `ByRole` queries
 
@@ -325,12 +353,6 @@ user.click(screen.getByRole("button"));
 const form = screen.getByTestId("form");
 user.click(within(form).getByRole("button"));
 ```
-
-#### `jest.spyOn` with the API is not working
-
-For some unknown reason, we figured out the `jest.spyOn` is not able to mock the
-API function when they are passed directly into the services XState machine
-configuration.
 
 ❌ Does not work
 

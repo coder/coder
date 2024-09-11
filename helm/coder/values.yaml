@@ -237,7 +237,7 @@ coder:
   # coder.tolerations -- Tolerations for tainted nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   tolerations:
-    {}
+    []
     # - key: "key"
     #   operator: "Equal"
     #   value: "value"

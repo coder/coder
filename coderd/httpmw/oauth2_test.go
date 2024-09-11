@@ -67,6 +67,31 @@ func TestOAuth2(t *testing.T) {
 		cookie := res.Result().Cookies()[1]
 		require.Equal(t, "/dashboard", cookie.Value)
 	})
+	t.Run("OnlyPathBaseRedirect", func(t *testing.T) {
+		t.Parallel()
+		// Construct a URI to a potentially malicious
+		// site and assert that we omit the host
+		// when redirecting the request.
+		uri := &url.URL{
+			Scheme:   "https",
+			Host:     "some.bad.domain.com",
+			Path:     "/sadf/asdfasdf",
+			RawQuery: "foo=hello&bar=world",
+		}
+		expectedValue := uri.Path + "?" + uri.RawQuery
+		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape(uri.String()), nil)
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
+		location := res.Header().Get("Location")
+		if !assert.NotEmpty(t, location) {
+			return
+		}
+		require.Len(t, res.Result().Cookies(), 2)
+		cookie := res.Result().Cookies()[1]
+		require.Equal(t, expectedValue, cookie.Value)
+	})
+
 	t.Run("NoState", func(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=something", nil)
@@ -108,7 +133,7 @@ func TestOAuth2(t *testing.T) {
 		})
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractOAuth2(tp, nil, nil)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			state := httpmw.OAuth2(r)
 			require.Equal(t, "/dashboard", state.Redirect)
 		})).ServeHTTP(res, req)

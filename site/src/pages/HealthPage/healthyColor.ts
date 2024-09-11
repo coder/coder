@@ -4,10 +4,10 @@ import type { HealthSeverity } from "api/typesGenerated";
 export const healthyColor = (theme: Theme, severity: HealthSeverity) => {
 	switch (severity) {
 		case "ok":
-			return theme.palette.success.light;
+			return theme.roles.success.fill.solid;
 		case "warning":
-			return theme.palette.warning.light;
+			return theme.roles.warning.fill.solid;
 		case "error":
-			return theme.palette.error.light;
+			return theme.roles.error.fill.solid;
 	}
 };

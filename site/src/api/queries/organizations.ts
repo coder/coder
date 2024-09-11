@@ -223,6 +223,13 @@ export const organizationsPermissions = (
 					},
 					action: "create",
 				},
+				viewProvisioners: {
+					object: {
+						resource_type: "provisioner_daemon",
+						organization_id: organizationId,
+					},
+					action: "read",
+				},
 			});
 
 			// The endpoint takes a flat array, so to avoid collisions prepend each

@@ -328,6 +328,11 @@
 					"title": "Remote Desktops",
 					"description": "Learn how to use Remote Desktops with Coder",
 					"path": "./ides/remote-desktops.md"
+				},
+				{
+					"title": "VSCode Extensions",
+					"description": "Learn how to use extensions in VSCode with Coder",
+					"path": "./ides/vscode-extensions.md"
 				}
 			]
 		},
@@ -346,6 +351,11 @@
 					"title": "STUN and NAT",
 					"description": "Learn how Coder establishes direct connections",
 					"path": "./networking/stun.md"
+				},
+				{
+					"title": "Troubleshooting",
+					"description": "Troubleshoot networking issues in Coder",
+					"path": "./networking/troubleshooting.md"
 				}
 			]
 		},
@@ -501,6 +511,12 @@
 					"description": "Learn how to monitor the health of your Coder deployment",
 					"path": "./admin/healthcheck.md",
 					"icon_path": "./images/icons/health.svg"
+				},
+				{
+					"title": "Notifications",
+					"description": "Learn how to configure notifications",
+					"path": "./admin/notifications.md",
+					"icon_path": "./images/icons/info.svg"
 				}
 			]
 		},

@@ -10343,9 +10343,15 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "organization_display_name": {
+                    "type": "string"
+                },
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
                 },
                 "quota_allowance": {
                     "type": "integer"
@@ -11076,6 +11082,15 @@ const docTemplate = `{
                 },
                 "name_field": {
                     "type": "string"
+                },
+                "organization_assign_default": {
+                    "type": "boolean"
+                },
+                "organization_field": {
+                    "type": "string"
+                },
+                "organization_mapping": {
+                    "type": "object"
                 },
                 "scopes": {
                     "type": "array",
@@ -13990,6 +14005,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Healthcheck"
                         }
                     ]
+                },
+                "hidden": {
+                    "type": "boolean"
                 },
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",

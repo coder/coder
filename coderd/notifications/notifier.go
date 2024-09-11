@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -15,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 
 	"cdr.dev/slog"
 
@@ -29,26 +29,33 @@ type notifier struct {
 	log   slog.Logger
 	store Store
 
-	tick     *time.Ticker
+	tick     *quartz.Ticker
 	stopOnce sync.Once
 	quit     chan any
 	done     chan any
 
 	handlers map[database.NotificationMethod]Handler
 	metrics  *Metrics
+
+	// clock is for testing
+	clock quartz.Clock
 }
 
-func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store, hr map[database.NotificationMethod]Handler, metrics *Metrics) *notifier {
+func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store,
+	hr map[database.NotificationMethod]Handler, metrics *Metrics, clock quartz.Clock,
+) *notifier {
+	tick := clock.NewTicker(cfg.FetchInterval.Value(), "notifier", "fetchInterval")
 	return &notifier{
 		id:       id,
 		cfg:      cfg,
 		log:      log.Named("notifier").With(slog.F("notifier_id", id)),
 		quit:     make(chan any),
 		done:     make(chan any),
-		tick:     time.NewTicker(cfg.FetchInterval.Value()),
+		tick:     tick,
 		store:    db,
 		handlers: hr,
 		metrics:  metrics,
+		clock:    clock,
 	}
 }
 
@@ -245,10 +252,10 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 	n.metrics.InflightDispatches.WithLabelValues(string(msg.Method), msg.TemplateID.String()).Inc()
 	n.metrics.QueuedSeconds.WithLabelValues(string(msg.Method)).Observe(msg.QueuedSeconds)
 
-	start := time.Now()
+	start := n.clock.Now()
 	retryable, err := deliver(ctx, msg.ID)
 
-	n.metrics.DispatcherSendSeconds.WithLabelValues(string(msg.Method)).Observe(time.Since(start).Seconds())
+	n.metrics.DispatcherSendSeconds.WithLabelValues(string(msg.Method)).Observe(n.clock.Since(start).Seconds())
 	n.metrics.InflightDispatches.WithLabelValues(string(msg.Method), msg.TemplateID.String()).Dec()
 
 	if err != nil {
@@ -291,7 +298,7 @@ func (n *notifier) newSuccessfulDispatch(msg database.AcquireNotificationMessage
 	return dispatchResult{
 		notifier: n.id,
 		msg:      msg.ID,
-		ts:       dbtime.Now(),
+		ts:       dbtime.Time(n.clock.Now().UTC()),
 	}
 }
 
@@ -311,7 +318,7 @@ func (n *notifier) newFailedDispatch(msg database.AcquireNotificationMessagesRow
 	return dispatchResult{
 		notifier:  n.id,
 		msg:       msg.ID,
-		ts:        dbtime.Now(),
+		ts:        dbtime.Time(n.clock.Now().UTC()),
 		err:       err,
 		retryable: retryable,
 	}
@@ -321,7 +328,7 @@ func (n *notifier) newInhibitedDispatch(msg database.AcquireNotificationMessages
 	return dispatchResult{
 		notifier:  n.id,
 		msg:       msg.ID,
-		ts:        dbtime.Now(),
+		ts:        dbtime.Time(n.clock.Now().UTC()),
 		retryable: false,
 		inhibited: true,
 	}

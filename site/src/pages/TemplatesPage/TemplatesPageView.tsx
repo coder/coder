@@ -9,6 +9,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ExternalAvatar } from "components/Avatar/Avatar";
@@ -228,45 +229,45 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 				</PageHeaderSubtitle>
 			</PageHeader>
 
-			<TemplatesFilter filter={filter} />
-
-			{error ? (
+			<TemplatesFilter filter={filter} error={error} />
+			{/* Validation errors are shown on the filter, other errors are an alert box. */}
+			{hasError(error) && !isApiValidationError(error) && (
 				<ErrorAlert error={error} />
-			) : (
-				<TableContainer>
-					<Table>
-						<TableHead>
-							<TableRow>
-								<TableCell width="35%">{Language.nameLabel}</TableCell>
-								<TableCell width="15%">
-									{showOrganizations ? "Organization" : Language.usedByLabel}
-								</TableCell>
-								<TableCell width="10%">{Language.buildTimeLabel}</TableCell>
-								<TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-								<TableCell width="1%" />
-							</TableRow>
-						</TableHead>
-						<TableBody>
-							{isLoading && <TableLoader />}
-
-							{isEmpty ? (
-								<EmptyTemplates
-									canCreateTemplates={canCreateTemplates}
-									examples={examples ?? []}
-								/>
-							) : (
-								templates?.map((template) => (
-									<TemplateRow
-										key={template.id}
-										showOrganizations={showOrganizations}
-										template={template}
-									/>
-								))
-							)}
-						</TableBody>
-					</Table>
-				</TableContainer>
 			)}
+
+			<TableContainer>
+				<Table>
+					<TableHead>
+						<TableRow>
+							<TableCell width="35%">{Language.nameLabel}</TableCell>
+							<TableCell width="15%">
+								{showOrganizations ? "Organization" : Language.usedByLabel}
+							</TableCell>
+							<TableCell width="10%">{Language.buildTimeLabel}</TableCell>
+							<TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
+							<TableCell width="1%" />
+						</TableRow>
+					</TableHead>
+					<TableBody>
+						{isLoading && <TableLoader />}
+
+						{isEmpty ? (
+							<EmptyTemplates
+								canCreateTemplates={canCreateTemplates}
+								examples={examples ?? []}
+							/>
+						) : (
+							templates?.map((template) => (
+								<TemplateRow
+									key={template.id}
+									showOrganizations={showOrganizations}
+									template={template}
+								/>
+							))
+						)}
+					</TableBody>
+				</Table>
+			</TableContainer>
 		</Margins>
 	);
 };
@@ -331,9 +332,6 @@ const styles = {
 	}),
 	actionButton: (theme) => ({
 		transition: "none",
-		color: theme.palette.text.secondary,
-		"&:hover": {
-			borderColor: theme.palette.text.primary,
-		},
+		color: theme.palette.text.primary,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

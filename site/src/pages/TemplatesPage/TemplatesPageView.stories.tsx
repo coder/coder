@@ -112,3 +112,22 @@ export const WithError: Story = {
 		canCreateTemplates: false,
 	},
 };
+
+export const WithValidationError: Story = {
+	args: {
+		error: mockApiError({
+			message: "Something went wrong fetching templates.",
+			detail:
+				"This is a more detailed error message that should help you understand what went wrong.",
+			validations: [
+				{
+					field: "search",
+					detail: "That search query was invalid, why did you do that?",
+				},
+			],
+		}),
+		templates: undefined,
+		examples: undefined,
+		canCreateTemplates: false,
+	},
+};

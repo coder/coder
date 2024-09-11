@@ -244,7 +244,9 @@
 				}
 			],
 			"name": "string",
+			"organization_display_name": "string",
 			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+			"organization_name": "string",
 			"quota_allowance": 0,
 			"source": "user",
 			"total_member_count": 0
@@ -1849,6 +1851,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"ignore_user_info": true,
 			"issuer_url": "string",
 			"name_field": "string",
+			"organization_assign_default": true,
+			"organization_field": "string",
+			"organization_mapping": {},
 			"scopes": ["string"],
 			"sign_in_text": "string",
 			"signups_disabled_text": "string",
@@ -2272,6 +2277,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"ignore_user_info": true,
 		"issuer_url": "string",
 		"name_field": "string",
+		"organization_assign_default": true,
+		"organization_field": "string",
+		"organization_mapping": {},
 		"scopes": ["string"],
 		"sign_in_text": "string",
 		"signups_disabled_text": "string",
@@ -2847,7 +2855,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		}
 	],
 	"name": "string",
+	"organization_display_name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"organization_name": "string",
 	"quota_allowance": 0,
 	"source": "user",
 	"total_member_count": 0
@@ -2856,17 +2866,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                 | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
-| -------------------- | ----------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `avatar_url`         | string                                                | false    |              |                                                                                                                                                                       |
-| `display_name`       | string                                                | false    |              |                                                                                                                                                                       |
-| `id`                 | string                                                | false    |              |                                                                                                                                                                       |
-| `members`            | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
-| `name`               | string                                                | false    |              |                                                                                                                                                                       |
-| `organization_id`    | string                                                | false    |              |                                                                                                                                                                       |
-| `quota_allowance`    | integer                                               | false    |              |                                                                                                                                                                       |
-| `source`             | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
-| `total_member_count` | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+| --------------------------- | ----------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
 
 ## codersdk.GroupSource
 
@@ -3639,6 +3651,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"ignore_user_info": true,
 	"issuer_url": "string",
 	"name_field": "string",
+	"organization_assign_default": true,
+	"organization_field": "string",
+	"organization_mapping": {},
 	"scopes": ["string"],
 	"sign_in_text": "string",
 	"signups_disabled_text": "string",
@@ -3652,34 +3667,37 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                    | Type                             | Required | Restrictions | Description                                                                      |
-| ----------------------- | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
-| `allow_signups`         | boolean                          | false    |              |                                                                                  |
-| `auth_url_params`       | object                           | false    |              |                                                                                  |
-| `client_cert_file`      | string                           | false    |              |                                                                                  |
-| `client_id`             | string                           | false    |              |                                                                                  |
-| `client_key_file`       | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
-| `client_secret`         | string                           | false    |              |                                                                                  |
-| `email_domain`          | array of string                  | false    |              |                                                                                  |
-| `email_field`           | string                           | false    |              |                                                                                  |
-| `group_allow_list`      | array of string                  | false    |              |                                                                                  |
-| `group_auto_create`     | boolean                          | false    |              |                                                                                  |
-| `group_mapping`         | object                           | false    |              |                                                                                  |
-| `group_regex_filter`    | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
-| `groups_field`          | string                           | false    |              |                                                                                  |
-| `icon_url`              | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
-| `ignore_email_verified` | boolean                          | false    |              |                                                                                  |
-| `ignore_user_info`      | boolean                          | false    |              |                                                                                  |
-| `issuer_url`            | string                           | false    |              |                                                                                  |
-| `name_field`            | string                           | false    |              |                                                                                  |
-| `scopes`                | array of string                  | false    |              |                                                                                  |
-| `sign_in_text`          | string                           | false    |              |                                                                                  |
-| `signups_disabled_text` | string                           | false    |              |                                                                                  |
-| `skip_issuer_checks`    | boolean                          | false    |              |                                                                                  |
-| `user_role_field`       | string                           | false    |              |                                                                                  |
-| `user_role_mapping`     | object                           | false    |              |                                                                                  |
-| `user_roles_default`    | array of string                  | false    |              |                                                                                  |
-| `username_field`        | string                           | false    |              |                                                                                  |
+| Name                          | Type                             | Required | Restrictions | Description                                                                      |
+| ----------------------------- | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
+| `allow_signups`               | boolean                          | false    |              |                                                                                  |
+| `auth_url_params`             | object                           | false    |              |                                                                                  |
+| `client_cert_file`            | string                           | false    |              |                                                                                  |
+| `client_id`                   | string                           | false    |              |                                                                                  |
+| `client_key_file`             | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
+| `client_secret`               | string                           | false    |              |                                                                                  |
+| `email_domain`                | array of string                  | false    |              |                                                                                  |
+| `email_field`                 | string                           | false    |              |                                                                                  |
+| `group_allow_list`            | array of string                  | false    |              |                                                                                  |
+| `group_auto_create`           | boolean                          | false    |              |                                                                                  |
+| `group_mapping`               | object                           | false    |              |                                                                                  |
+| `group_regex_filter`          | [serpent.Regexp](#serpentregexp) | false    |              |                                                                                  |
+| `groups_field`                | string                           | false    |              |                                                                                  |
+| `icon_url`                    | [serpent.URL](#serpenturl)       | false    |              |                                                                                  |
+| `ignore_email_verified`       | boolean                          | false    |              |                                                                                  |
+| `ignore_user_info`            | boolean                          | false    |              |                                                                                  |
+| `issuer_url`                  | string                           | false    |              |                                                                                  |
+| `name_field`                  | string                           | false    |              |                                                                                  |
+| `organization_assign_default` | boolean                          | false    |              |                                                                                  |
+| `organization_field`          | string                           | false    |              |                                                                                  |
+| `organization_mapping`        | object                           | false    |              |                                                                                  |
+| `scopes`                      | array of string                  | false    |              |                                                                                  |
+| `sign_in_text`                | string                           | false    |              |                                                                                  |
+| `signups_disabled_text`       | string                           | false    |              |                                                                                  |
+| `skip_issuer_checks`          | boolean                          | false    |              |                                                                                  |
+| `user_role_field`             | string                           | false    |              |                                                                                  |
+| `user_role_mapping`           | object                           | false    |              |                                                                                  |
+| `user_roles_default`          | array of string                  | false    |              |                                                                                  |
+| `username_field`              | string                           | false    |              |                                                                                  |
 
 ## codersdk.Organization
 
@@ -6251,6 +6269,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -6429,6 +6448,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"threshold": 0,
 				"url": "string"
 			},
+			"hidden": true,
 			"icon": "string",
 			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 			"sharing_level": "owner",
@@ -6822,6 +6842,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"threshold": 0,
 		"url": "string"
 	},
+	"hidden": true,
 	"icon": "string",
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"sharing_level": "owner",
@@ -6841,6 +6862,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `external`       | boolean                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
 | `health`         | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
 | `healthcheck`    | [codersdk.Healthcheck](#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
+| `hidden`         | boolean                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `icon`           | string                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `id`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `sharing_level`  | [codersdk.WorkspaceAppSharingLevel](#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
@@ -6937,6 +6959,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 								"threshold": 0,
 								"url": "string"
 							},
+							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"sharing_level": "owner",
@@ -7271,6 +7294,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"threshold": 0,
 						"url": "string"
 					},
+					"hidden": true,
 					"icon": "string",
 					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 					"sharing_level": "owner",
@@ -7506,6 +7530,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 										"external": true,
 										"health": "disabled",
 										"healthcheck": {},
+										"hidden": true,
 										"icon": "string",
 										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 										"sharing_level": "owner",

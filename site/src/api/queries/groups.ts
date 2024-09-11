@@ -8,16 +8,25 @@ import type { QueryClient, UseQueryOptions } from "react-query";
 
 type GroupSortOrder = "asc" | "desc";
 
-const getGroupsQueryKey = (organization: string) => [
+export const groupsQueryKey = ["groups"];
+
+export const groups = () => {
+	return {
+		queryKey: groupsQueryKey,
+		queryFn: () => API.getGroups(),
+	} satisfies UseQueryOptions<Group[]>;
+};
+
+const getGroupsByOrganizationQueryKey = (organization: string) => [
 	"organization",
 	organization,
 	"groups",
 ];
 
-export const groups = (organization: string) => {
+export const groupsByOrganization = (organization: string) => {
 	return {
-		queryKey: getGroupsQueryKey(organization),
-		queryFn: () => API.getGroups(organization),
+		queryKey: getGroupsByOrganizationQueryKey(organization),
+		queryFn: () => API.getGroupsByOrganization(organization),
 	} satisfies UseQueryOptions<Group[]>;
 };
 
@@ -37,44 +46,46 @@ export const group = (organization: string, groupName: string) => {
 
 export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
 
-export function groupsByUserId(organization: string) {
+export function groupsByUserId() {
 	return {
-		...groups(organization),
-		select: (allGroups) => {
-			// Sorting here means that nothing has to be sorted for the individual
-			// user arrays later
-			const sorted = sortGroupsByName(allGroups, "asc");
-			const userIdMapper = new Map<string, Group[]>();
-
-			for (const group of sorted) {
-				for (const user of group.members) {
-					let groupsForUser = userIdMapper.get(user.id);
-					if (groupsForUser === undefined) {
-						groupsForUser = [];
-						userIdMapper.set(user.id, groupsForUser);
-					}
-
-					groupsForUser.push(group);
-				}
-			}
-
-			return userIdMapper as GroupsByUserId;
-		},
+		...groups(),
+		select: selectGroupsByUserId,
 	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
 
-export function groupsForUser(organization: string, userId: string) {
+export function groupsByUserIdInOrganization(organization: string) {
 	return {
-		...groups(organization),
-		select: (allGroups) => {
-			const groupsForUser = allGroups.filter((group) => {
-				const groupMemberIds = group.members.map((member) => member.id);
-				return groupMemberIds.includes(userId);
-			});
+		...groupsByOrganization(organization),
+		select: selectGroupsByUserId,
+	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
+}
 
-			return sortGroupsByName(groupsForUser, "asc");
-		},
-	} as const satisfies UseQueryOptions<Group[], unknown, readonly Group[]>;
+export function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
+	// Sorting here means that nothing has to be sorted for the individual
+	// user arrays later
+	const sorted = sortGroupsByName(groups, "asc");
+	const userIdMapper = new Map<string, Group[]>();
+
+	for (const group of sorted) {
+		for (const user of group.members) {
+			let groupsForUser = userIdMapper.get(user.id);
+			if (groupsForUser === undefined) {
+				groupsForUser = [];
+				userIdMapper.set(user.id, groupsForUser);
+			}
+
+			groupsForUser.push(group);
+		}
+	}
+
+	return userIdMapper as GroupsByUserId;
+}
+
+export function groupsForUser(userId: string) {
+	return {
+		queryKey: groupsQueryKey,
+		queryFn: () => API.getGroups({ userId }),
+	} as const satisfies UseQueryOptions<Group[]>;
 }
 
 export const groupPermissionsKey = (groupId: string) => [
@@ -106,7 +117,10 @@ export const createGroup = (queryClient: QueryClient, organization: string) => {
 		mutationFn: (request: CreateGroupRequest) =>
 			API.createGroup(organization, request),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries(getGroupsQueryKey(organization));
+			await queryClient.invalidateQueries(groupsQueryKey);
+			await queryClient.invalidateQueries(
+				getGroupsByOrganizationQueryKey(organization),
+			);
 		},
 	};
 };
@@ -155,12 +169,15 @@ export const invalidateGroup = (
 	groupId: string,
 ) =>
 	Promise.all([
-		queryClient.invalidateQueries(getGroupsQueryKey(organization)),
+		queryClient.invalidateQueries(groupsQueryKey),
+		queryClient.invalidateQueries(
+			getGroupsByOrganizationQueryKey(organization),
+		),
 		queryClient.invalidateQueries(getGroupQueryKey(organization, groupId)),
 	]);
 
-export function sortGroupsByName(
-	groups: readonly Group[],
+export function sortGroupsByName<T extends Group>(
+	groups: readonly T[],
 	order: GroupSortOrder,
 ) {
 	return [...groups].sort((g1, g2) => {

@@ -607,7 +607,10 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(database.GetGroupsParams{
 			OrganizationID: o.ID,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead, a, policy.ActionRead, b, policy.ActionRead).
-			Returns([]database.Group{a, b}).
+			Returns([]database.GetGroupsRow{
+				{Group: a, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+				{Group: b, OrganizationName: o.Name, OrganizationDisplayName: o.DisplayName},
+			}).
 			// Fail the system check shortcut
 			FailSystemObjectChecks()
 	}))
@@ -2514,7 +2517,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("DeleteOldWorkspaceAgentLogs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+		check.Args(time.Time{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentStatsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).Errors(errMatchAny)
@@ -2692,6 +2695,22 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			WorkspaceID: ws.ID,
 			AgentID:     uuid.New(),
 		}).Asserts(tpl, policy.ActionCreate)
+	}))
+	s.Run("DeleteRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("GetRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		_ = db.UpsertRuntimeConfig(context.Background(), database.UpsertRuntimeConfigParams{
+			Key:   "test",
+			Value: "value",
+		})
+		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpsertRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertRuntimeConfigParams{
+			Key:   "test",
+			Value: "value",
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 }
 

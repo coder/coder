@@ -96,9 +96,8 @@ export const traverse = (
 	) => void,
 	parent?: string,
 ) => {
-	for (const filename of Object.keys(fileTree)) {
+	for (const [filename, content] of Object.entries(fileTree)) {
 		const fullPath = parent ? `${parent}/${filename}` : filename;
-		const content = fileTree[filename];
 		callback(content, filename, fullPath);
 		if (typeof content === "object") {
 			traverse(content, callback, fullPath);

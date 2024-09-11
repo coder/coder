@@ -17,8 +17,7 @@ export const AccountPage: FC = () => {
 
 	const hasGroupsFeature = entitlements.features.user_role_management.enabled;
 	const groupsQuery = useQuery({
-		// TODO: This should probably list all groups, not just default org groups
-		...groupsForUser("default", me.id),
+		...groupsForUser(me.id),
 		enabled: hasGroupsFeature,
 	});
 

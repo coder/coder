@@ -26,6 +26,7 @@ import {
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
+import { PermissionPillsList } from "./PermissionPillsList";
 
 export type CustomRolesPageViewProps = {
 	roles: Role[] | undefined;
@@ -42,7 +43,6 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 }) => {
 	const isLoading = roles === undefined;
 	const isEmpty = Boolean(roles && roles.length === 0);
-
 	return (
 		<>
 			<ChooseOne>
@@ -58,8 +58,8 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 						<Table>
 							<TableHead>
 								<TableRow>
-									<TableCell width="50%">Name</TableCell>
-									<TableCell width="49%">Permissions</TableCell>
+									<TableCell width="40%">Name</TableCell>
+									<TableCell width="59%">Permissions</TableCell>
 									<TableCell width="1%" />
 								</TableRow>
 							</TableHead>
@@ -129,8 +129,8 @@ const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
 		<TableRow data-testid={`role-${role.name}`}>
 			<TableCell>{role.display_name || role.name}</TableCell>
 
-			<TableCell css={styles.secondary}>
-				{role.organization_permissions.length}
+			<TableCell>
+				<PermissionPillsList permissions={role.organization_permissions} />
 			</TableCell>
 
 			<TableCell>

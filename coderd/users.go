@@ -1287,23 +1287,19 @@ type CreateUserRequest struct {
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
 	// Ensure the username is valid. It's the caller's responsibility to ensure
 	// the username is valid and unique.
-	if usernameValid := httpapi.NameValid(req.Username); usernameValid != nil {
+	if usernameValid := codersdk.NameValid(req.Username); usernameValid != nil {
 		return database.User{}, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
 	}
 
 	var user database.User
 	err := store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
-		// Organization is required to know where to allocate the user.
-		if len(req.OrganizationIDs) == 0 {
-			return xerrors.Errorf("organization ID must be provided")
-		}
 
 		params := database.InsertUserParams{
 			ID:             uuid.New(),
 			Email:          req.Email,
 			Username:       req.Username,
-			Name:           httpapi.NormalizeRealUsername(req.Name),
+			Name:           codersdk.NormalizeRealUsername(req.Name),
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			HashedPassword: []byte{},

@@ -78,7 +78,11 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	var emptyMembers []database.GroupMember
 	aReq.New = group.Auditable(emptyMembers)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Group(group, nil, 0))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.Group(database.GetGroupsRow{
+		Group:                   group,
+		OrganizationName:        org.Name,
+		OrganizationDisplayName: org.DisplayName,
+	}, nil, 0))
 }
 
 // @Summary Update group by name
@@ -275,6 +279,11 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+	}
+
 	patchedMembers, err := api.Database.GetGroupMembersByGroupID(ctx, group.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -289,7 +298,11 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, patchedMembers, int(memberCount)))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(database.GetGroupsRow{
+		Group:                   group,
+		OrganizationName:        org.Name,
+		OrganizationDisplayName: org.DisplayName,
+	}, patchedMembers, int(memberCount)))
 }
 
 // @Summary Delete group by name
@@ -368,6 +381,11 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
+	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+	}
+
 	users, err := api.Database.GetGroupMembersByGroupID(ctx, group.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
@@ -380,7 +398,11 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(group, users, int(memberCount)))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(database.GetGroupsRow{
+		Group:                   group,
+		OrganizationName:        org.Name,
+		OrganizationDisplayName: org.DisplayName,
+	}, users, int(memberCount)))
 }
 
 // @Summary Get groups by organization
@@ -456,12 +478,12 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 
 	resp := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		members, err := api.Database.GetGroupMembersByGroupID(ctx, group.ID)
+		members, err := api.Database.GetGroupMembersByGroupID(ctx, group.Group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.ID)
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.Group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return

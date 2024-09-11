@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, within } from "@storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -14,6 +15,7 @@ import uniqueId from "lodash/uniqueId";
 import type { ComponentProps } from "react";
 import {
 	MockBuildInfo,
+	MockOrganization,
 	MockPendingProvisionerJob,
 	MockTemplate,
 	MockUser,
@@ -263,5 +265,34 @@ export const InvalidPageNumber: Story = {
 		count: 200,
 		limit: 25,
 		page: 1000,
+	},
+};
+
+export const ShowOrganizations: Story = {
+	args: {
+		workspaces: [{ ...MockWorkspace, organization_name: "limbus-co" }],
+	},
+
+	parameters: {
+		showOrganizations: true,
+		organizations: [
+			{
+				...MockOrganization,
+				name: "limbus-co",
+				display_name: "Limbus Company, LLC",
+			},
+		],
+	},
+
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const accessibleTableCell = await canvas.findByRole("cell", {
+			// The organization label is always visually hidden, but the test
+			// makes sure that there's a screen reader hook to give the table
+			// cell more structured output
+			name: /organization: Limbus Company, LLC/i,
+		});
+
+		expect(accessibleTableCell).toBeDefined();
 	},
 };

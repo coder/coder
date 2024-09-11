@@ -14,10 +14,10 @@
 	},
 	"dependencies": {
 		"@chakra-ui/react": "2.8.2",
-		"@emotion/react": "11.11.4",
-		"@emotion/styled": "11.11.5",
+		"@emotion/react": "11.13.3",
+		"@emotion/styled": "11.13.0",
 		"archiver": "6.0.2",
-		"framer-motion": "^10.17.6",
+		"framer-motion": "^10.18.0",
 		"front-matter": "4.0.2",
 		"lodash": "4.17.21",
 		"next": "14.2.7",
@@ -34,7 +34,7 @@
 		"@types/react": "18.3.3",
 		"@types/react-dom": "18.3.0",
 		"eslint": "8.57.0",
-		"eslint-config-next": "14.2.6",
+		"eslint-config-next": "14.2.7",
 		"prettier": "3.3.3",
 		"typescript": "5.5.4"
 	},

@@ -623,6 +623,8 @@ export interface Group {
 	readonly avatar_url: string;
 	readonly quota_allowance: number;
 	readonly source: GroupSource;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
 }
 
 // From codersdk/groups.go
@@ -879,6 +881,9 @@ export interface OIDCConfig {
 	readonly email_field: string;
 	readonly auth_url_params: Record<string, string>;
 	readonly ignore_user_info: boolean;
+	readonly organization_field: string;
+	readonly organization_mapping: Record<string, Readonly<Array<string>>>;
+	readonly organization_assign_default: boolean;
 	readonly group_auto_create: boolean;
 	readonly group_regex_filter: string;
 	readonly group_allow_list: string[];
@@ -1869,6 +1874,7 @@ export interface WorkspaceApp {
 	readonly sharing_level: WorkspaceAppSharingLevel;
 	readonly healthcheck: Healthcheck;
 	readonly health: WorkspaceAppHealth;
+	readonly hidden: boolean;
 }
 
 // From codersdk/workspacebuilds.go

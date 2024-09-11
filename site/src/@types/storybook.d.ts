@@ -3,6 +3,7 @@ import type {
 	DeploymentValues,
 	Experiments,
 	FeatureName,
+	Organization,
 	SerpentOption,
 	User,
 } from "api/typesGenerated";
@@ -16,6 +17,8 @@ declare module "@storybook/react" {
 	interface Parameters {
 		features?: FeatureName[];
 		experiments?: Experiments;
+		showOrganizations?: boolean;
+		organizations?: Organization[];
 		queries?: { key: QueryKey; data: unknown }[];
 		webSocket?: WebSocketEvent[];
 		user?: User;

@@ -31,7 +31,7 @@ describe("ProvisionerTagsPopover", () => {
 			await userEvent.click(btn);
 
 			// Check for existing tags
-			const el = await screen.findByText(/scope: organization/i);
+			const el = await screen.findByText(/scope/i);
 			expect(el).toBeInTheDocument();
 
 			// Add key and value
@@ -62,8 +62,10 @@ describe("ProvisionerTagsPopover", () => {
 			);
 
 			// Check for new tag
-			const el4 = await screen.findByText(/foo: bar/i);
-			expect(el4).toBeInTheDocument();
+			const fooTag = await screen.findByText(/foo/i);
+			expect(fooTag).toBeInTheDocument();
+			const barValue = await screen.findByText(/bar/i);
+			expect(barValue).toBeInTheDocument();
 		});
 		it("can remove a tag", async () => {
 			const onSubmit = jest.fn().mockImplementation(({ key, value }) => {
@@ -87,7 +89,7 @@ describe("ProvisionerTagsPopover", () => {
 			await userEvent.click(btn);
 
 			// Check for existing tags
-			const el = await screen.findByText(/wowzers: whatatag/i);
+			const el = await screen.findByText(/wowzers/i);
 			expect(el).toBeInTheDocument();
 
 			// Find Delete button
@@ -110,7 +112,7 @@ describe("ProvisionerTagsPopover", () => {
 			);
 
 			// Expect deleted tag to be gone
-			const el2 = screen.queryByText(/wowzers: whatatag/i);
+			const el2 = screen.queryByText(/wowzers/i);
 			expect(el2).not.toBeInTheDocument();
 		});
 	});

@@ -116,7 +116,19 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer mux.Close()
 
-	logger.Debug(ctx, "accepting agent RPC connection", slog.F("agent", workspaceAgent))
+	logger.Debug(ctx, "accepting agent RPC connection",
+		slog.F("agent_id", workspaceAgent.ID),
+		slog.F("agent_created_at", workspaceAgent.CreatedAt),
+		slog.F("agent_updated_at", workspaceAgent.UpdatedAt),
+		slog.F("agent_name", workspaceAgent.Name),
+		slog.F("agent_first_connected_at", workspaceAgent.FirstConnectedAt.Time),
+		slog.F("agent_last_connected_at", workspaceAgent.LastConnectedAt.Time),
+		slog.F("agent_disconnected_at", workspaceAgent.DisconnectedAt.Time),
+		slog.F("agent_version", workspaceAgent.Version),
+		slog.F("agent_last_connected_replica_id", workspaceAgent.LastConnectedReplicaID),
+		slog.F("agent_connection_timeout_seconds", workspaceAgent.ConnectionTimeoutSeconds),
+		slog.F("agent_api_version", workspaceAgent.APIVersion),
+		slog.F("agent_resource_id", workspaceAgent.ResourceID))
 
 	closeCtx, closeCtxCancel := context.WithCancel(ctx)
 	defer closeCtxCancel()

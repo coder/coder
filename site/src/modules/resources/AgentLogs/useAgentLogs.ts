@@ -17,16 +17,13 @@ export type UseAgentLogsOptions = Readonly<{
 
 /**
  * Defines a custom hook that gives you all workspace agent logs for a given
- * workspace.
- *
- * Depending on the status of the workspace, all logs may or may not be
- * available.
+ * workspace.Depending on the status of the workspace, all logs may or may not
+ * be available.
  */
 export function useAgentLogs(
 	options: UseAgentLogsOptions,
 ): readonly WorkspaceAgentLog[] | undefined {
 	const { workspaceId, agentId, agentLifeCycleState, enabled = true } = options;
-
 	const queryClient = useQueryClient();
 	const queryOptions = agentLogs(workspaceId, agentId);
 	const { data: logs, isFetched } = useQuery({ ...queryOptions, enabled });
@@ -55,7 +52,17 @@ export function useAgentLogs(
 	});
 
 	useEffect(() => {
-		if (agentLifeCycleState !== "starting" || !isFetched) {
+		// Stream data only for new logs. Old logs should be loaded beforehand
+		// using a regular fetch to avoid overloading the websocket with all
+		// logs at once.
+		if (!isFetched) {
+			return;
+		}
+
+		// If the agent is off, we don't need to stream logs. This is the only state
+		// where the Coder API can't receive logs for the agent from third-party
+		// apps like envbuilder.
+		if (agentLifeCycleState === "off") {
 			return;
 		}
 

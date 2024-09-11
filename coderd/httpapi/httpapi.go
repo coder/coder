@@ -43,7 +43,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		valid := NameValid(str)
+		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
 	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
@@ -59,7 +59,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		valid := DisplayNameValid(str)
+		valid := codersdk.DisplayNameValid(str)
 		return valid == nil
 	}
 	for _, displayNameTag := range []string{"organization_display_name", "template_display_name", "group_display_name"} {
@@ -75,7 +75,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		valid := TemplateVersionNameValid(str)
+		valid := codersdk.TemplateVersionNameValid(str)
 		return valid == nil
 	}
 	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
@@ -89,7 +89,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		valid := UserRealNameValid(str)
+		valid := codersdk.UserRealNameValid(str)
 		return valid == nil
 	}
 	err = Validate.RegisterValidation("user_real_name", userRealNameValidator)
@@ -103,7 +103,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		valid := GroupNameValid(str)
+		valid := codersdk.GroupNameValid(str)
 		return valid == nil
 	}
 	err = Validate.RegisterValidation("group_name", groupNameValidator)
