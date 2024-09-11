@@ -1680,7 +1680,7 @@ WHERE
 				ELSE true
 		END
 		AND CASE WHEN array_length($3 :: text[], 1) > 0  THEN
-					 groups.name = ANY($3)
+				groups.name = ANY($3)
 			ELSE true
 		END
 `

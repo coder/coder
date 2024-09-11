@@ -128,6 +128,9 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 					slog.Error(err),
 				)
 				// Unsure where to raise this error on the UI or database.
+				// TODO: This error prevents group sync, but we have no way
+				// to raise this to an org admin. Come up with a solution to
+				// notify the admin and user of this issue.
 				continue
 			}
 			// Everyone group is always implied, so include it.
