@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, waitFor, within, expect } from "@storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "@storybook/test";
 import { API } from "api/api";
 import {
 	notificationDispatchMethodsKey,
@@ -7,6 +7,7 @@ import {
 	userNotificationPreferencesKey,
 } from "api/queries/notifications";
 import { http, HttpResponse } from "msw";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
@@ -19,7 +20,6 @@ import {
 	withGlobalSnackbar,
 } from "testHelpers/storybook";
 import { NotificationsPage } from "./NotificationsPage";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
 
 const meta = {
 	title: "pages/UserSettingsPage/NotificationsPage",
