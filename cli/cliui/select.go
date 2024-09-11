@@ -254,10 +254,7 @@ func (m selectModel) View() string {
 		// Is this the currently selected option?
 		style := pretty.Wrap("  ", "")
 		if m.cursor == start+i {
-			style = pretty.Style{
-				pretty.Wrap("> ", ""),
-				pretty.FgColor(Green),
-			}
+			style = append(DefaultStyles.Keyword, pretty.Wrap("> ", ""))
 		}
 
 		_, _ = s.WriteString(pretty.Sprint(style, option))
@@ -481,13 +478,13 @@ func (m multiSelectModel) View() string {
 		o := option.option
 
 		if m.cursor == i {
-			cursor = pretty.Sprint(pretty.FgColor(Green), "> ")
-			chosen = pretty.Sprint(pretty.FgColor(Green), "[ ]")
-			o = pretty.Sprint(pretty.FgColor(Green), o)
+			cursor = pretty.Sprint(DefaultStyles.Keyword, "> ")
+			chosen = pretty.Sprint(DefaultStyles.Keyword, "[ ]")
+			o = pretty.Sprint(DefaultStyles.Keyword, o)
 		}
 
 		if option.chosen {
-			chosen = pretty.Sprint(pretty.FgColor(Green), "[x]")
+			chosen = pretty.Sprint(DefaultStyles.Keyword, "[x]")
 		}
 
 		_, _ = s.WriteString(fmt.Sprintf(

@@ -3,12 +3,16 @@ package cliui
 import (
 	"flag"
 	"os"
+	"path"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/muesli/termenv"
+	"github.com/pelletier/go-toml/v2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/pretty"
 )
 
@@ -159,6 +163,111 @@ func init() {
 		DefaultStyles.Prompt,
 		pretty.FgColor(Blue),
 	)
+
+	configDir := config.DefaultDir()
+	if dir := os.Getenv("CODER_CONFIG_DIR"); dir != "" {
+		configDir = dir
+	}
+
+	if theme, err := os.ReadFile(path.Join(configDir, "theme.toml")); err == nil {
+		_ = LoadUserTheme(theme)
+	}
+}
+
+type userThemeStyle struct {
+	BgColor string `toml:"background"`
+	FgColor string `toml:"foreground"`
+	XPad    *struct {
+		Left  int `toml:"left"`
+		Right int `toml:"right"`
+	} `toml:"xpad"`
+	Wrap *struct {
+		Prefix string `toml:"prefix"`
+		Suffix string `toml:"suffix"`
+	}
+}
+
+type userThemeStyles struct {
+	Code          *userThemeStyle `toml:"code"`
+	DateTimeStamp *userThemeStyle `toml:"datetimestamp"`
+	Error         *userThemeStyle `toml:"error"`
+	Field         *userThemeStyle `toml:"field"`
+	FocusedPrompt *userThemeStyle `toml:"focusedprompt"`
+	Keyword       *userThemeStyle `toml:"keyword"`
+	Placeholder   *userThemeStyle `toml:"placeholder"`
+	Prompt        *userThemeStyle `toml:"prompt"`
+	Warn          *userThemeStyle `toml:"warn"`
+}
+
+type userThemeConfig struct {
+	Colors map[string]string `toml:"colors"`
+	Styles userThemeStyles   `toml:"styles"`
+}
+
+func LoadUserTheme(t []byte) error {
+	var theme userThemeConfig
+	if err := toml.Unmarshal(t, &theme); err != nil {
+		return err
+	}
+
+	if theme.Styles.Code != nil {
+		DefaultStyles.Code = theme.Styles.Code.toPrettyStyle(theme)
+	}
+	if theme.Styles.DateTimeStamp != nil {
+		DefaultStyles.DateTimeStamp = theme.Styles.DateTimeStamp.toPrettyStyle(theme)
+	}
+	if theme.Styles.Error != nil {
+		DefaultStyles.Error = theme.Styles.Error.toPrettyStyle(theme)
+	}
+	if theme.Styles.Field != nil {
+		DefaultStyles.Field = theme.Styles.Field.toPrettyStyle(theme)
+	}
+	if theme.Styles.FocusedPrompt != nil {
+		DefaultStyles.FocusedPrompt = theme.Styles.FocusedPrompt.toPrettyStyle(theme)
+	}
+	if theme.Styles.Keyword != nil {
+		DefaultStyles.Keyword = theme.Styles.Keyword.toPrettyStyle(theme)
+	}
+	if theme.Styles.Prompt != nil {
+		DefaultStyles.Prompt = theme.Styles.Prompt.toPrettyStyle(theme)
+	}
+	if theme.Styles.Warn != nil {
+		DefaultStyles.Warn = theme.Styles.Warn.toPrettyStyle(theme)
+	}
+	if theme.Styles.Placeholder != nil {
+		DefaultStyles.Placeholder = theme.Styles.Placeholder.toPrettyStyle(theme)
+	}
+	return nil
+}
+
+func (t userThemeConfig) getColor(color string) string {
+	if strings.HasPrefix(color, "$") {
+		if c, ok := t.Colors[color[1:]]; ok {
+			return c
+		}
+	}
+	return color
+}
+
+func (s *userThemeStyle) toPrettyStyle(theme userThemeConfig) pretty.Style {
+	style := pretty.Style{}
+	if s.XPad != nil {
+		style = append(style, pretty.XPad(s.XPad.Left, s.XPad.Right))
+	}
+	if s.FgColor != "" {
+		if color := Color(theme.getColor(s.FgColor)); color != nil {
+			style = append(style, pretty.FgColor(color))
+		}
+	}
+	if s.BgColor != "" {
+		if color := Color(theme.getColor(s.BgColor)); color != nil {
+			style = append(style, pretty.BgColor(color))
+		}
+	}
+	if s.Wrap != nil {
+		style = append(style, pretty.Wrap(s.Wrap.Prefix, s.Wrap.Suffix))
+	}
+	return style
 }
 
 // ValidateNotEmpty is a helper function to disallow empty inputs!
