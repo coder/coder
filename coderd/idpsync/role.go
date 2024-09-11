@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 type RoleParams struct {
@@ -159,8 +160,15 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 				return s == rbac.RoleOrgMember()
 			})
 
+			// Only care about unique roles. So remove all duplicates
+			existingFound = slice.Unique(existingFound)
+			validExpected = slice.Unique(validExpected)
+			// A sort is required for the equality check
+			slices.Sort(existingFound)
+			slices.Sort(validExpected)
 			// Is there a difference between the expected roles and the existing roles?
 			if !slices.Equal(existingFound, validExpected) {
+				// TODO: Write a unit test to verify we do no db call on no diff
 				_, err = tx.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
 					GrantedRoles: validExpected,
 					UserID:       user.ID,
@@ -189,6 +197,8 @@ func (s AGPLIDPSync) syncSiteWideRoles(ctx context.Context, tx database.Store, u
 	for _, role := range params.SiteWideRoles {
 		// Because we are only syncing site wide roles, we intentionally will always
 		// omit 'OrganizationID' from the RoleIdentifier.
+		// TODO: If custom site wide roles are introduced, this needs to use the
+		// database to verify the role exists.
 		if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: role}); err == nil {
 			filtered = append(filtered, role)
 		} else {
