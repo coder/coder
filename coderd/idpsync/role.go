@@ -19,32 +19,42 @@ import (
 )
 
 type RoleParams struct {
-	// SyncEnabled if false will skip syncing the user's roles
-	SyncEnabled   bool
+	// SyncEntitled if false will skip syncing the user's roles at
+	// all levels.
+	SyncEntitled  bool
 	SyncSiteWide  bool
 	SiteWideRoles []string
 	// MergedClaims are passed to the organization level for syncing
 	MergedClaims jwt.MapClaims
 }
 
-func (AGPLIDPSync) RoleSyncEnabled() bool {
+func (AGPLIDPSync) RoleSyncEntitled() bool {
 	// AGPL does not support syncing groups.
 	return false
 }
+
+func (AGPLIDPSync) OrganizationRoleSyncEnabled(_ context.Context, _ database.Store, _ uuid.UUID) (bool, error) {
+	return false, nil
+}
+
+func (AGPLIDPSync) SiteRoleSyncEnabled() bool {
+	return false
+}
+
 func (s AGPLIDPSync) RoleSyncSettings() runtimeconfig.RuntimeEntry[*RoleSyncSettings] {
 	return s.Role
 }
 
 func (s AGPLIDPSync) ParseRoleClaims(_ context.Context, _ jwt.MapClaims) (RoleParams, *HTTPError) {
 	return RoleParams{
-		SyncEnabled:  s.RoleSyncEnabled(),
-		SyncSiteWide: false,
+		SyncEntitled: s.RoleSyncEntitled(),
+		SyncSiteWide: s.SiteRoleSyncEnabled(),
 	}, nil
 }
 
 func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user database.User, params RoleParams) error {
 	// Nothing happens if sync is not enabled
-	if !params.SyncEnabled {
+	if !params.SyncEntitled {
 		return nil
 	}
 

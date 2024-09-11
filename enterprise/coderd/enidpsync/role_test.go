@@ -35,7 +35,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 
 		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{})
 		require.Nil(t, err)
-		require.False(t, params.SyncEnabled)
+		require.False(t, params.SyncEntitled)
 		require.False(t, params.SyncSiteWide)
 	})
 
@@ -50,7 +50,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 
 		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{})
 		require.Nil(t, err)
-		require.False(t, params.SyncEnabled)
+		require.False(t, params.SyncEntitled)
 		require.False(t, params.SyncSiteWide)
 	})
 
@@ -62,7 +62,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 
 		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{})
 		require.Nil(t, err)
-		require.True(t, params.SyncEnabled)
+		require.True(t, params.SyncEntitled)
 		require.False(t, params.SyncSiteWide)
 	})
 
@@ -80,7 +80,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 			"roles": []string{rbac.RoleAuditor().Name},
 		})
 		require.Nil(t, err)
-		require.True(t, params.SyncEnabled)
+		require.True(t, params.SyncEntitled)
 		require.True(t, params.SyncSiteWide)
 		require.ElementsMatch(t, []string{
 			rbac.RoleTemplateAdmin().Name,
@@ -105,7 +105,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 			"roles": []string{"foo", "bar", "random"},
 		})
 		require.Nil(t, err)
-		require.True(t, params.SyncEnabled)
+		require.True(t, params.SyncEntitled)
 		require.True(t, params.SyncSiteWide)
 		require.ElementsMatch(t, []string{
 			rbac.RoleTemplateAdmin().Name,
@@ -134,7 +134,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 			"roles": []string{"foo", "bar", rbac.RoleAuditor().Name, rbac.RoleOwner().Name},
 		})
 		require.Nil(t, err)
-		require.True(t, params.SyncEnabled)
+		require.True(t, params.SyncEntitled)
 		require.True(t, params.SyncSiteWide)
 		require.ElementsMatch(t, []string{
 			rbac.RoleAuditor().Name,

@@ -212,7 +212,7 @@ func TestRoleSyncTable(t *testing.T) {
 
 			// Do the role sync!
 			err := s.SyncRoles(ctx, db, user, idpsync.RoleParams{
-				SyncEnabled:  true,
+				SyncEntitled: true,
 				SyncSiteWide: false,
 				MergedClaims: userClaims,
 			})
@@ -264,7 +264,7 @@ func TestRoleSyncTable(t *testing.T) {
 		}
 
 		err := s.SyncRoles(ctx, db, user, idpsync.RoleParams{
-			SyncEnabled:  true,
+			SyncEntitled: true,
 			SyncSiteWide: true,
 			SiteWideRoles: []string{
 				rbac.RoleTemplateAdmin().Name, // Duplicate this value to test deduplication
@@ -353,7 +353,7 @@ func TestNoopNoDiff(t *testing.T) {
 		RBACRoles: siteRoles,
 		LoginType: database.LoginTypePassword,
 	}, idpsync.RoleParams{
-		SyncEnabled:   true,
+		SyncEntitled:  true,
 		SyncSiteWide:  true,
 		SiteWideRoles: siteRoles,
 		MergedClaims: jwt.MapClaims{

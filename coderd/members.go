@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -214,6 +215,33 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
+
+	// Keep this block scoping to prevent accidental use of the user variable.
+	{
+		// nolint:gocritic // The caller could be an org admin without this perm.
+		// We need to disable manual role assignment if role sync is enabled for
+		// the given organization.
+		user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.UserID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		if user.LoginType == database.LoginTypeOIDC {
+			// nolint:gocritic // fetching settings
+			orgSync, err := api.IDPSync.OrganizationRoleSyncEnabled(dbauthz.AsSystemRestricted(ctx), api.Database, organization.ID)
+			if err != nil {
+				httpapi.InternalServerError(rw, err)
+				return
+			}
+			if orgSync {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Cannot modify roles for OIDC users when role sync is enabled. This organization member's roles are managed by the identity provider.",
+					Detail:  "'User Role Field' is set in the organization settings. Ask an administrator to adjust or disable these settings.",
+				})
+				return
+			}
+		}
+	}
 
 	if apiKey.UserID == member.OrganizationMember.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

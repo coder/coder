@@ -6,19 +6,44 @@ import (
 	"net/http"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (e EnterpriseIDPSync) RoleSyncEnabled() bool {
+func (e EnterpriseIDPSync) RoleSyncEntitled() bool {
 	return e.entitlements.Enabled(codersdk.FeatureUserRoleManagement)
 }
 
+func (e EnterpriseIDPSync) OrganizationRoleSyncEnabled(ctx context.Context, db database.Store, orgID uuid.UUID) (bool, error) {
+	if !e.RoleSyncEntitled() {
+		return false, nil
+	}
+	roleSyncSettings, err := e.Role.Resolve(ctx, e.Manager.OrganizationResolver(db, orgID))
+	if err != nil {
+		if xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return roleSyncSettings.Field != "", nil
+}
+
+func (e EnterpriseIDPSync) SiteRoleSyncEnabled() bool {
+	if !e.RoleSyncEntitled() {
+		return false
+	}
+	return e.AGPLIDPSync.SiteRoleField != ""
+}
+
 func (e EnterpriseIDPSync) ParseRoleClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.RoleParams, *idpsync.HTTPError) {
-	if !e.RoleSyncEnabled() {
+	if !e.RoleSyncEntitled() {
 		return e.AGPLIDPSync.ParseRoleClaims(ctx, mergedClaims)
 	}
 
@@ -60,8 +85,8 @@ func (e EnterpriseIDPSync) ParseRoleClaims(ctx context.Context, mergedClaims jwt
 	}
 
 	return idpsync.RoleParams{
-		SyncEnabled:   e.RoleSyncEnabled(),
-		SyncSiteWide:  e.AGPLIDPSync.SiteRoleField != "",
+		SyncEntitled:  e.RoleSyncEntitled(),
+		SyncSiteWide:  e.SiteRoleSyncEnabled(),
 		SiteWideRoles: slice.Unique(siteRoles),
 		MergedClaims:  mergedClaims,
 	}, nil
