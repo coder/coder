@@ -60,7 +60,7 @@ func (e EnterpriseIDPSync) ParseRoleClaims(ctx context.Context, mergedClaims jwt
 				slog.F("raw_value", rawType),
 				slog.Error(err),
 			)
-			// TODO: Deterine a static page or not
+			// TODO: Determine a static page or not
 			return idpsync.RoleParams{}, &idpsync.HTTPError{
 				Code:             http.StatusInternalServerError,
 				Msg:              "Login disabled until site wide OIDC config is fixed",

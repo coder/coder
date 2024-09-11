@@ -210,9 +210,12 @@ func TestGroupSyncTable(t *testing.T) {
 			},
 		},
 		{
-			Name:          "NoSettingsNoUser",
+			Name:          "NoSettings",
 			GroupSettings: nil,
 			Groups:        map[uuid.UUID]bool{},
+			assertGroups: &orgGroupAssert{
+				ExpectedGroups: []uuid.UUID{},
+			},
 		},
 		{
 			Name: "LegacyMapping",
