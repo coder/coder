@@ -533,6 +533,7 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 		Tags:           dbDaemon.Tags,
 		Version:        dbDaemon.Version,
 		APIVersion:     dbDaemon.APIVersion,
+		KeyID:          dbDaemon.KeyID,
 	}
 	for _, provisionerType := range dbDaemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))

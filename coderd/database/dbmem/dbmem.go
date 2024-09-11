@@ -68,6 +68,7 @@ func New() database.Store {
 			notificationPreferences:   make([]database.NotificationPreference, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
+			provisionerKeys:           make([]database.ProvisionerKey, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
 			workspaceResources:        make([]database.WorkspaceResource, 0),
@@ -108,6 +109,41 @@ func New() database.Store {
 
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
+
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           "built-in",
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create built-in provisioner key: %w", err))
+	}
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDUserAuth),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           "user-auth",
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create user-auth provisioner key: %w", err))
+	}
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDPSK),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           "psk",
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create psk provisioner key: %w", err))
+	}
+
 	return q
 }
 
@@ -7574,6 +7610,11 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organ
 
 	keys := make([]database.ProvisionerKey, 0)
 	for _, key := range q.provisionerKeys {
+		if key.ID.String() == codersdk.ProvisionerKeyIDBuiltIn ||
+			key.ID.String() == codersdk.ProvisionerKeyIDUserAuth ||
+			key.ID.String() == codersdk.ProvisionerKeyIDPSK {
+			continue
+		}
 		if key.OrganizationID == organizationID {
 			keys = append(keys, key)
 		}
@@ -9311,6 +9352,7 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		Version:        arg.Version,
 		APIVersion:     arg.APIVersion,
 		OrganizationID: arg.OrganizationID,
+		KeyID:          arg.KeyID,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil

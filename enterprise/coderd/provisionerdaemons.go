@@ -136,16 +136,24 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags
 			// This is to preserve backwards compatibility with existing user provisioner daemons.
 			// If using PSK auth, the daemon is, by definition, scoped to the organization.
 			tags = provisionersdk.MutateTags(uuid.Nil, tags)
-			return userKey, tags, nil
+
+			pskKey, err := uuid.Parse(codersdk.ProvisionerKeyIDPSK)
+			if err != nil {
+				return uuid.Nil, nil, xerrors.Errorf("parse psk provisioner key id: %w", err)
+			}
+
+			return pskKey, tags, nil
 		}
+
+		return userKey, tags, nil
 	}
 
+	// PSK Auth
 	pskKey, err := uuid.Parse(codersdk.ProvisionerKeyIDPSK)
 	if err != nil {
 		return uuid.Nil, nil, xerrors.Errorf("parse psk provisioner key id: %w", err)
 	}
 
-	// PSK Auth
 	return pskKey, tags, nil
 }
 

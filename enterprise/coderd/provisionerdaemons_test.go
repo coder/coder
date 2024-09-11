@@ -773,6 +773,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 			assert.Equal(t, daemonName, daemons[0].Name)
 			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
 			assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+			assert.Equal(t, codersdk.ProvisionerKeyIDUserAuth, daemons[0].KeyID.String())
 		}
 	})
 }
