@@ -692,8 +692,8 @@ func (r *RootCmd) createConfig() config.Root {
 	return config.Root(r.globalConfig)
 }
 
-// isTTY returns whether the passed reader is a TTY or not.
-func isTTY(inv *serpent.Invocation) bool {
+// isTTYIn returns whether the passed invocation is having stdin read from a TTY
+func isTTYIn(inv *serpent.Invocation) bool {
 	// If the `--force-tty` command is available, and set,
 	// assume we're in a tty. This is primarily for cases on Windows
 	// where we may not be able to reliably detect this automatically (ie, tests)
@@ -708,12 +708,12 @@ func isTTY(inv *serpent.Invocation) bool {
 	return isatty.IsTerminal(file.Fd())
 }
 
-// isTTYOut returns whether the passed reader is a TTY or not.
+// isTTYOut returns whether the passed invocation is having stdout written to a TTY
 func isTTYOut(inv *serpent.Invocation) bool {
 	return isTTYWriter(inv, inv.Stdout)
 }
 
-// isTTYErr returns whether the passed reader is a TTY or not.
+// isTTYErr returns whether the passed invocation is having stderr written to a TTY
 func isTTYErr(inv *serpent.Invocation) bool {
 	return isTTYWriter(inv, inv.Stderr)
 }
