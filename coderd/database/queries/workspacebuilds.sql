@@ -220,7 +220,7 @@ ON
 JOIN
     users AS u
 ON
-    workspaces.owner_id = u.id
+    w.owner_id = u.id
 JOIN
 	provisioner_jobs AS pj
 ON
