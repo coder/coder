@@ -301,6 +301,8 @@ func TestRoleSyncTable(t *testing.T) {
 // per organization. This limits the number of db calls to O(1) if there
 // are no changes. Which is the usual case, as user's roles do not change often.
 func TestNoopNoDiff(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)

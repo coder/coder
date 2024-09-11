@@ -70,7 +70,8 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 
 		// sync roles per organization
 		orgMemberships, err := tx.OrganizationMembers(ctx, database.OrganizationMembersParams{
-			UserID: user.ID,
+			OrganizationID: uuid.Nil,
+			UserID:         user.ID,
 		})
 		if err != nil {
 			return xerrors.Errorf("get organizations by user id: %w", err)
@@ -241,7 +242,7 @@ func (s AGPLIDPSync) syncSiteWideRoles(ctx context.Context, tx database.Store, u
 	return nil
 }
 
-func (s AGPLIDPSync) RolesFromClaim(field string, claims jwt.MapClaims) ([]string, error) {
+func (AGPLIDPSync) RolesFromClaim(field string, claims jwt.MapClaims) ([]string, error) {
 	rolesRow, ok := claims[field]
 	if !ok {
 		// If no claim is provided than we can assume the user is just

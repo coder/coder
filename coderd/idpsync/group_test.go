@@ -906,6 +906,7 @@ func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store,
 	}
 }
 
+//nolint:revive
 func (o orgRoleAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, notMember bool, user database.User) {
 	t.Helper()
 
