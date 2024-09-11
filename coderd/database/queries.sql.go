@@ -3778,7 +3778,7 @@ func (q *sqlQuerier) UpdateUserNotificationPreferences(ctx context.Context, arg 
 
 const upsertReportGeneratorLog = `-- name: UpsertReportGeneratorLog :exec
 INSERT INTO report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES ($1, $2, $3)
-ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = $3 WHERE (user_id = $1 AND notification_template_id = $2)
+ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at WHERE (user_id = EXCLUDED.user_id AND notification_template_id = EXCLUDED.notification_template_id)
 `
 
 type UpsertReportGeneratorLogParams struct {
