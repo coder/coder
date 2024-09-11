@@ -151,5 +151,10 @@ export const disableNotification = (
 			});
 			return result;
 		},
+		onSuccess: () => {
+			queryClient.invalidateQueries(
+				userNotificationPreferences(userId).queryKey,
+			);
+		},
 	} satisfies UseMutationOptions<NotificationPreference[], unknown, string>;
 };

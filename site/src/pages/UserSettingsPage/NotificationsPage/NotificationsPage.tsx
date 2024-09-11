@@ -63,47 +63,31 @@ export const NotificationsPage: FC = () => {
 	const updatePreferences = useMutation(
 		updateUserNotificationPreferences(user.id, queryClient),
 	);
+
+	// Notification emails contain a link to disable a specific notification
+	// template. This functionality is achieved using the query string parameter
+	// "disabled".
 	const disableMutation = useMutation(
 		disableNotification(user.id, queryClient),
 	);
 	const [searchParams] = useSearchParams();
 	const disabledId = searchParams.get("disabled");
-
 	useEffect(() => {
-		if (disabledId && templatesByGroup.isSuccess && templatesByGroup.data) {
-			searchParams.delete("disabled");
-			disableMutation
-				.mutateAsync(disabledId)
-				.then(() => {
-					const allTemplates = Object.values(
-						templatesByGroup.data ?? {},
-					).flat();
-					const template = allTemplates.find((t) => t.id === disabledId);
-
-					if (template) {
-						displaySuccess(`${template.name} notification has been disabled`);
-					} else {
-						displaySuccess("Notification has been disabled");
-					}
-					queryClient.invalidateQueries(
-						userNotificationPreferences(user.id).queryKey,
-					);
-				})
-				.catch(() => {
-					displayError(
-						"An error occurred when attempting to disable the requested notification",
-					);
-				});
+		if (!disabledId) {
+			return;
 		}
-	}, [
-		disabledId,
-		templatesByGroup.isSuccess,
-		templatesByGroup.data,
-		disableMutation,
-		queryClient,
-		user.id,
-		searchParams,
-	]);
+		searchParams.delete("disabled");
+		disableMutation
+			.mutateAsync(disabledId)
+			.then(() => {
+				displaySuccess("Notification has been disabled");
+			})
+			.catch(() => {
+				displayError(
+					"An error occurred when attempting to disable the requested notification",
+				);
+			});
+	}, [searchParams.delete, disabledId, disableMutation]);
 
 	const ready =
 		disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;
