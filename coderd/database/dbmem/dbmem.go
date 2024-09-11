@@ -682,17 +682,6 @@ func (q *FakeQuerier) getWorkspaceResourcesByJobIDNoLock(_ context.Context, jobI
 	return resources, nil
 }
 
-func (q *FakeQuerier) getGroupByNameNoLock(arg database.NameOrganizationPair) (database.Group, error) {
-	for _, group := range q.groups {
-		if group.OrganizationID == arg.OrganizationID &&
-			group.Name == arg.Name {
-			return group, nil
-		}
-	}
-
-	return database.Group{}, sql.ErrNoRows
-}
-
 func (q *FakeQuerier) getGroupByIDNoLock(_ context.Context, id uuid.UUID) (database.Group, error) {
 	for _, group := range q.groups {
 		if group.ID == id {
@@ -2624,10 +2613,14 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.getGroupByNameNoLock(database.NameOrganizationPair{
-		Name:           arg.Name,
-		OrganizationID: arg.OrganizationID,
-	})
+	for _, group := range q.groups {
+		if group.OrganizationID == arg.OrganizationID &&
+			group.Name == arg.Name {
+			return group, nil
+		}
+	}
+
+	return database.Group{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetGroupMembers(ctx context.Context) ([]database.GroupMember, error) {
