@@ -187,7 +187,7 @@ WHERE
 -- name: UpsertReportGeneratorLog :exec
 -- Insert or update report generator logs with recent activity.
 INSERT INTO report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES (@user_id, @notification_template_id, @last_generated_at)
-ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = @last_generated_at WHERE (user_id = @user_id AND notification_template_id = @notification_template_id);
+ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at WHERE (user_id = EXCLUDED.user_id AND notification_template_id = EXCLUDED.notification_template_id);
 
 -- name: DeleteOldReportGeneratorLogs :exec
 -- Delete report generator logs that have been created at least a <frequency_days> +1h ago.
