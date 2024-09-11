@@ -1,17 +1,22 @@
 package idpsync_test
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -281,6 +286,7 @@ func TestRoleSyncTable(t *testing.T) {
 		allRoleIDs, err := allRoles.RoleNames()
 		require.NoError(t, err)
 
+		// Remove the org roles
 		siteRoles := slices.DeleteFunc(allRoleIDs, func(r rbac.RoleIdentifier) bool {
 			return r.IsOrgRole()
 		})
@@ -289,4 +295,77 @@ func TestRoleSyncTable(t *testing.T) {
 			rbac.RoleTemplateAdmin(), rbac.RoleAuditor(), rbac.RoleMember(),
 		}, siteRoles)
 	})
+}
+
+// TestNoopNoDiff verifies if no role change occurs, no database call is taken
+// per organization. This limits the number of db calls to O(1) if there
+// are no changes. Which is the usual case, as user's roles do not change often.
+func TestNoopNoDiff(t *testing.T) {
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	mDB := dbmock.NewMockStore(ctrl)
+
+	mgr := runtimeconfig.NewManager()
+	s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), mgr, idpsync.DeploymentSyncSettings{
+		SiteRoleField:    "",
+		SiteRoleMapping:  nil,
+		SiteDefaultRoles: nil,
+	})
+
+	userID := uuid.New()
+	orgID := uuid.New()
+	siteRoles := []string{rbac.RoleTemplateAdmin().Name, rbac.RoleAuditor().Name}
+	orgRoles := []string{rbac.RoleOrgAuditor(), rbac.RoleOrgAdmin()}
+	// The DB mock expects.
+	// If this test fails, feel free to add more expectations.
+	// The primary expectations to avoid is 'UpdateUserRoles'
+	// and 'UpdateMemberRoles'.
+	mDB.EXPECT().InTx(
+		gomock.Any(), gomock.Any(),
+	).DoAndReturn(func(f func(database.Store) error, _ *sql.TxOptions) error {
+		err := f(mDB)
+		return err
+	})
+
+	mDB.EXPECT().OrganizationMembers(gomock.Any(), database.OrganizationMembersParams{
+		UserID: userID,
+	}).Return([]database.OrganizationMembersRow{
+		{
+			OrganizationMember: database.OrganizationMember{
+				UserID:         userID,
+				OrganizationID: orgID,
+				Roles:          orgRoles,
+			},
+		},
+	}, nil)
+
+	mDB.EXPECT().GetRuntimeConfig(gomock.Any(), gomock.Any()).Return(
+		string(must(json.Marshal(idpsync.RoleSyncSettings{
+			Field:   "roles",
+			Mapping: nil,
+		}))), nil)
+
+	err := s.SyncRoles(ctx, mDB, database.User{
+		ID:        userID,
+		Email:     "alice@email.com",
+		Username:  "alice",
+		Status:    database.UserStatusActive,
+		RBACRoles: siteRoles,
+		LoginType: database.LoginTypePassword,
+	}, idpsync.RoleParams{
+		SyncEnabled:   true,
+		SyncSiteWide:  true,
+		SiteWideRoles: siteRoles,
+		MergedClaims: jwt.MapClaims{
+			"roles": orgRoles,
+		},
+	})
+	require.NoError(t, err)
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }

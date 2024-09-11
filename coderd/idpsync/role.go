@@ -214,12 +214,19 @@ func (s AGPLIDPSync) syncSiteWideRoles(ctx context.Context, tx database.Store, u
 		)
 	}
 
-	_, err := tx.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
-		GrantedRoles: filtered,
-		ID:           user.ID,
-	})
-	if err != nil {
-		return xerrors.Errorf("set site wide roles: %w", err)
+	filtered = slice.Unique(filtered)
+	slices.Sort(filtered)
+
+	existing := slice.Unique(user.RBACRoles)
+	slices.Sort(existing)
+	if !slices.Equal(existing, filtered) {
+		_, err := tx.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+			GrantedRoles: filtered,
+			ID:           user.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("set site wide roles: %w", err)
+		}
 	}
 	return nil
 }

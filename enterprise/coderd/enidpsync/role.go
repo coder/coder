@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -61,7 +62,7 @@ func (e EnterpriseIDPSync) ParseRoleClaims(ctx context.Context, mergedClaims jwt
 	return idpsync.RoleParams{
 		SyncEnabled:   e.RoleSyncEnabled(),
 		SyncSiteWide:  e.AGPLIDPSync.SiteRoleField != "",
-		SiteWideRoles: siteRoles,
+		SiteWideRoles: slice.Unique(siteRoles),
 		MergedClaims:  mergedClaims,
 	}, nil
 }
