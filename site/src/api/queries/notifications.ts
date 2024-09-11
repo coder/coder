@@ -5,7 +5,6 @@ import type {
 	UpdateNotificationTemplateMethod,
 	UpdateUserNotificationPreferences,
 } from "api/typesGenerated";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { QueryClient, UseMutationOptions } from "react-query";
 
 export const userNotificationPreferencesKey = (userId: string) => [
@@ -151,10 +150,8 @@ export const disableNotification = (
 			});
 			return result;
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries(
-				userNotificationPreferences(userId).queryKey,
-			);
+		onSuccess: (data) => {
+			queryClient.setQueryData(userNotificationPreferencesKey(userId), data);
 		},
 	} satisfies UseMutationOptions<NotificationPreference[], unknown, string>;
 };

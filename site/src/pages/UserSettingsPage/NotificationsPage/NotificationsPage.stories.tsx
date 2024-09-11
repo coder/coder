@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { spyOn, userEvent, waitFor, within } from "@storybook/test";
+import { spyOn, userEvent, waitFor, within, expect } from "@storybook/test";
 import { API } from "api/api";
 import {
 	notificationDispatchMethodsKey,
@@ -19,8 +19,9 @@ import {
 	withGlobalSnackbar,
 } from "testHelpers/storybook";
 import { NotificationsPage } from "./NotificationsPage";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 
-const meta: Meta<typeof NotificationsPage> = {
+const meta = {
 	title: "pages/UserSettingsPage/NotificationsPage",
 	component: NotificationsPage,
 	parameters: {
@@ -43,7 +44,7 @@ const meta: Meta<typeof NotificationsPage> = {
 		permissions: { viewDeploymentValues: true },
 	},
 	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
-};
+} satisfies Meta<typeof NotificationsPage>;
 
 export default meta;
 type Story = StoryObj<typeof NotificationsPage>;
@@ -78,72 +79,77 @@ export const NonAdmin: Story = {
 	},
 };
 
+// Ensure the selected notification template is enabled before attempting to
+// disable it.
+const enabledPreference = MockNotificationPreferences.find(
+	(pref) => pref.disabled === false,
+);
+if (!enabledPreference) {
+	throw new Error(
+		"No enabled notification preference available to test the disabling action.",
+	);
+}
+const templateToDisable = MockNotificationTemplates.find(
+	(tpl) => tpl.id === enabledPreference.id,
+);
+if (!templateToDisable) {
+	throw new Error("	No notification template matches the enabled preference.");
+}
+
 export const DisableValidTemplate: Story = {
 	parameters: {
-		msw: {
-			handlers: [
-				http.put("/api/v2/users/:userId/notifications/preferences", () => {
-					return HttpResponse.json([
-						{ id: "valid-template-id", disabled: true },
-					]);
-				}),
-			],
-		},
+		reactRouter: reactRouterParameters({
+			location: {
+				searchParams: { disabled: templateToDisable.id },
+			},
+		}),
 	},
+	decorators: [
+		(Story) => {
+			// Since the action occurs during the initial render, we need to spy on
+			// the API call before the story is rendered. This is done using a
+			// decorator to ensure the spy is set up in time.
+			spyOn(API, "putUserNotificationPreferences").mockResolvedValue(
+				MockNotificationPreferences.map((pref) => {
+					if (pref.id === templateToDisable.id) {
+						return {
+							...pref,
+							disabled: true,
+						};
+					}
+					return pref;
+				}),
+			);
+			return <Story />;
+		},
+	],
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		const validTemplateId = "valid-template-id";
-		const validTemplateName = "Valid Template Name";
-
-		window.history.pushState({}, "", `?disabled=${validTemplateId}`);
-
-		await waitFor(
-			async () => {
-				const successMessage = await canvas.findByText(
-					`${validTemplateName} notification has been disabled`,
-				);
-				expect(successMessage).toBeInTheDocument();
-			},
-			{ timeout: 10000 },
+		await within(document.body).findByText("Notification has been disabled");
+		const switchEl = await within(canvasElement).findByLabelText(
+			templateToDisable.name,
 		);
-
-		await waitFor(
-			async () => {
-				const templateSwitch = await canvas.findByLabelText(validTemplateName);
-				expect(templateSwitch).not.toBeChecked();
-			},
-			{ timeout: 10000 },
-		);
+		expect(switchEl).not.toBeChecked();
 	},
 };
 
 export const DisableInvalidTemplate: Story = {
 	parameters: {
-		msw: {
-			handlers: [
-				http.put("/api/v2/users/:userId/notifications/preferences", () => {
-					// Mock failed API response
-					return new HttpResponse(null, { status: 400 });
-				}),
-			],
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		const invalidTemplateId = "invalid-template-id";
-
-		window.history.pushState({}, "", `?disabled=${invalidTemplateId}`);
-
-		await waitFor(
-			async () => {
-				const errorMessage = await canvas.findByText(
-					"An error occurred when attempting to disable the requested notification",
-				);
-				expect(errorMessage).toBeInTheDocument();
+		reactRouter: reactRouterParameters({
+			location: {
+				searchParams: { disabled: "invalid-template-id" },
 			},
-			{ timeout: 10000 },
-		);
+		}),
+	},
+	decorators: [
+		(Story) => {
+			// Since the action occurs during the initial render, we need to spy on
+			// the API call before the story is rendered. This is done using a
+			// decorator to ensure the spy is set up in time.
+			spyOn(API, "putUserNotificationPreferences").mockRejectedValue({});
+			return <Story />;
+		},
+	],
+	play: async () => {
+		await within(document.body).findByText("Error disabling notification");
 	},
 };

@@ -83,9 +83,7 @@ export const NotificationsPage: FC = () => {
 				displaySuccess("Notification has been disabled");
 			})
 			.catch(() => {
-				displayError(
-					"An error occurred when attempting to disable the requested notification",
-				);
+				displayError("Error disabling notification");
 			});
 	}, [searchParams.delete, disabledId, disableMutation]);
 
