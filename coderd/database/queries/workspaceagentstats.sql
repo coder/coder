@@ -17,7 +17,8 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
-		connection_median_latency_ms
+		connection_median_latency_ms,
+		usage
 	)
 SELECT
 	unnest(@id :: uuid[]) AS id,
@@ -36,7 +37,8 @@ SELECT
 	unnest(@session_count_jetbrains :: bigint[]) AS session_count_jetbrains,
 	unnest(@session_count_reconnecting_pty :: bigint[]) AS session_count_reconnecting_pty,
 	unnest(@session_count_ssh :: bigint[]) AS session_count_ssh,
-	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms;
+	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms,
+	unnest(@usage :: boolean[]) AS usage;
 
 -- name: GetTemplateDAUs :many
 SELECT
@@ -135,14 +137,15 @@ minute_buckets AS (
 		agent_id,
 		date_trunc('minute', created_at) AS minute_bucket,
 		SUM(session_count_vscode) AS session_count_vscode,
+		SUM(session_count_ssh) AS session_count_ssh,
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty,
-		SUM(session_count_ssh) AS session_count_ssh
+		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
 		workspace_agent_stats
 	WHERE
 		created_at >= $1
 		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
+		AND usage = true
 	GROUP BY
 		agent_id,
 		minute_bucket
@@ -164,9 +167,9 @@ latest_buckets AS (
 latest_agent_stats AS (
 	SELECT
 		SUM(session_count_vscode) AS session_count_vscode,
+		SUM(session_count_ssh) AS session_count_ssh,
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty,
-		SUM(session_count_ssh) AS session_count_ssh
+		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
 		latest_buckets
 )
@@ -223,14 +226,15 @@ minute_buckets AS (
 		agent_id,
 		date_trunc('minute', created_at) AS minute_bucket,
 		SUM(session_count_vscode) AS session_count_vscode,
+		SUM(session_count_ssh) AS session_count_ssh,		
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty,
-		SUM(session_count_ssh) AS session_count_ssh
+		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
 		workspace_agent_stats
 	WHERE
 		created_at >= $1
 		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
+		AND usage = true
 	GROUP BY
 		agent_id,
 		minute_bucket,
@@ -256,9 +260,9 @@ latest_buckets AS (
 	SELECT
 		agent_id,
 		SUM(session_count_vscode) AS session_count_vscode,
+		SUM(session_count_ssh) AS session_count_ssh,
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty,
-		SUM(session_count_ssh) AS session_count_ssh
+		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
 		latest_buckets
 )
@@ -336,6 +340,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
 	FROM workspace_agent_stats
+	WHERE usage = true
 	GROUP BY user_id, agent_id, workspace_id
 ), latest_agent_latencies AS (
 	SELECT

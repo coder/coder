@@ -421,6 +421,8 @@ func New(options *Options) *API {
 		panic(xerrors.Errorf("read site bin failed: %w", err))
 	}
 
+	experiments.Enabled(codersdk.ExperimentWorkspaceUsage)
+
 	metricsCache := metricscache.New(
 		options.Database,
 		options.Logger.Named("metrics_cache"),
@@ -428,6 +430,7 @@ func New(options *Options) *API {
 			TemplateBuildTimes: options.MetricsCacheRefreshInterval,
 			DeploymentStats:    options.AgentStatsRefreshInterval,
 		},
+		experiments.Enabled(codersdk.ExperimentWorkspaceUsage),
 	)
 
 	oauthConfigs := &httpmw.OAuth2Configs{

@@ -11652,14 +11652,15 @@ minute_buckets AS (
 		agent_id,
 		date_trunc('minute', created_at) AS minute_bucket,
 		SUM(session_count_vscode) AS session_count_vscode,
+		SUM(session_count_ssh) AS session_count_ssh,
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty,
-		SUM(session_count_ssh) AS session_count_ssh
+		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
 		workspace_agent_stats
 	WHERE
 		created_at >= $1
 		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
+		AND usage = true
 	GROUP BY
 		agent_id,
 		minute_bucket
@@ -11681,13 +11682,13 @@ latest_buckets AS (
 latest_agent_stats AS (
 	SELECT
 		SUM(session_count_vscode) AS session_count_vscode,
+		SUM(session_count_ssh) AS session_count_ssh,
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty,
-		SUM(session_count_ssh) AS session_count_ssh
+		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
 		latest_buckets
 )
-SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh FROM agent_stats, latest_agent_stats
+SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
 `
 
 type GetDeploymentWorkspaceAgentUsageStatsRow struct {
@@ -11696,9 +11697,9 @@ type GetDeploymentWorkspaceAgentUsageStatsRow struct {
 	WorkspaceConnectionLatency50 float64 `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
 	WorkspaceConnectionLatency95 float64 `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
 	SessionCountVSCode           int64   `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH              int64   `db:"session_count_ssh" json:"session_count_ssh"`
 	SessionCountJetBrains        int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY  int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	SessionCountSSH              int64   `db:"session_count_ssh" json:"session_count_ssh"`
 }
 
 func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error) {
@@ -11710,9 +11711,9 @@ func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, 
 		&i.WorkspaceConnectionLatency50,
 		&i.WorkspaceConnectionLatency95,
 		&i.SessionCountVSCode,
+		&i.SessionCountSSH,
 		&i.SessionCountJetBrains,
 		&i.SessionCountReconnectingPTY,
-		&i.SessionCountSSH,
 	)
 	return i, err
 }
@@ -11974,14 +11975,15 @@ minute_buckets AS (
 		agent_id,
 		date_trunc('minute', created_at) AS minute_bucket,
 		SUM(session_count_vscode) AS session_count_vscode,
+		SUM(session_count_ssh) AS session_count_ssh,		
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty,
-		SUM(session_count_ssh) AS session_count_ssh
+		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
 		workspace_agent_stats
 	WHERE
 		created_at >= $1
 		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
+		AND usage = true
 	GROUP BY
 		agent_id,
 		minute_bucket,
@@ -12007,13 +12009,13 @@ latest_buckets AS (
 	SELECT
 		agent_id,
 		SUM(session_count_vscode) AS session_count_vscode,
+		SUM(session_count_ssh) AS session_count_ssh,
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty,
-		SUM(session_count_ssh) AS session_count_ssh
+		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
 		latest_buckets
 )
-SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
+SELECT user_id, agent_stats.agent_id, workspace_id, template_id, aggregated_from, workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, latest_agent_stats.agent_id, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id
 `
 
 type GetWorkspaceAgentUsageStatsRow struct {
@@ -12028,9 +12030,9 @@ type GetWorkspaceAgentUsageStatsRow struct {
 	WorkspaceConnectionLatency95 float64   `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
 	AgentID_2                    uuid.UUID `db:"agent_id_2" json:"agent_id_2"`
 	SessionCountVSCode           int64     `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
 	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
 }
 
 func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error) {
@@ -12054,9 +12056,9 @@ func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt 
 			&i.WorkspaceConnectionLatency95,
 			&i.AgentID_2,
 			&i.SessionCountVSCode,
+			&i.SessionCountSSH,
 			&i.SessionCountJetBrains,
 			&i.SessionCountReconnectingPTY,
-			&i.SessionCountSSH,
 		); err != nil {
 			return nil, err
 		}
@@ -12091,6 +12093,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
 	FROM workspace_agent_stats
+	WHERE usage = true
 	GROUP BY user_id, agent_id, workspace_id
 ), latest_agent_latencies AS (
 	SELECT
@@ -12195,7 +12198,8 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
-		connection_median_latency_ms
+		connection_median_latency_ms,
+		usage
 	)
 SELECT
 	unnest($1 :: uuid[]) AS id,
@@ -12214,7 +12218,8 @@ SELECT
 	unnest($14 :: bigint[]) AS session_count_jetbrains,
 	unnest($15 :: bigint[]) AS session_count_reconnecting_pty,
 	unnest($16 :: bigint[]) AS session_count_ssh,
-	unnest($17 :: double precision[]) AS connection_median_latency_ms
+	unnest($17 :: double precision[]) AS connection_median_latency_ms,
+	unnest($18 :: boolean[]) AS usage
 `
 
 type InsertWorkspaceAgentStatsParams struct {
@@ -12235,6 +12240,7 @@ type InsertWorkspaceAgentStatsParams struct {
 	SessionCountReconnectingPTY []int64         `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             []int64         `db:"session_count_ssh" json:"session_count_ssh"`
 	ConnectionMedianLatencyMS   []float64       `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	Usage                       []bool          `db:"usage" json:"usage"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error {
@@ -12256,6 +12262,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 		pq.Array(arg.SessionCountReconnectingPTY),
 		pq.Array(arg.SessionCountSSH),
 		pq.Array(arg.ConnectionMedianLatencyMS),
+		pq.Array(arg.Usage),
 	)
 	return err
 }

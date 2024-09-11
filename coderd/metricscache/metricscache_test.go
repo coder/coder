@@ -32,7 +32,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		db    = dbmem.New()
 		cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 			TemplateBuildTimes: testutil.IntervalFast,
-		})
+		}, false)
 	)
 
 	defer cache.Close()
@@ -183,7 +183,7 @@ func TestCache_BuildTime(t *testing.T) {
 				db    = dbmem.New()
 				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 					TemplateBuildTimes: testutil.IntervalFast,
-				})
+				}, false)
 			)
 
 			defer cache.Close()
@@ -278,7 +278,7 @@ func TestCache_DeploymentStats(t *testing.T) {
 	db := dbmem.New()
 	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 		DeploymentStats: testutil.IntervalFast,
-	})
+	}, false)
 	defer cache.Close()
 
 	err := db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
