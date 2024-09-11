@@ -27,7 +27,7 @@ export const Language = {
 	defaultCheckboxLabel: "Promote to active version",
 	activeVersionHelpTitle: "Active versions",
 	activeVersionHelpText:
-		"Templates can enforce that a version be used for all workspaces (enterprise-only)",
+		"Templates can enforce that the active version be used for all workspaces (enterprise-only)",
 	activeVersionHelpBody: "Review the documentation",
 };
 
