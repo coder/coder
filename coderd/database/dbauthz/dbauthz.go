@@ -1144,7 +1144,7 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return q.db.DeleteOldProvisionerDaemons(ctx)
 }
 
-func (q *querier) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error {
+func (q *querier) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays database.DeleteOldReportGeneratorLogsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
 	}

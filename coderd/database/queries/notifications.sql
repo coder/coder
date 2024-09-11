@@ -192,4 +192,4 @@ WHERE report_generator_logs.user_id = EXCLUDED.user_id AND report_generator_logs
 
 -- name: DeleteOldReportGeneratorLogs :exec
 -- Delete report generator logs that have been created at least a <frequency_days> +1h ago.
-DELETE FROM report_generator_logs WHERE last_generated_at < (NOW() - CONCAT(@frequency_days::int, ' days')::interval - INTERVAL '1 hour');
+DELETE FROM report_generator_logs WHERE last_generated_at < (NOW() - CONCAT(@frequency_days::int, ' days')::interval - INTERVAL '1 hour') AND notification_template_id = @notification_template_id;

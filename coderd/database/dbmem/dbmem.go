@@ -156,6 +156,7 @@ type data struct {
 	dbcryptKeys                   []database.DBCryptKey
 	files                         []database.File
 	externalAuthLinks             []database.ExternalAuthLink
+	reportGeneratorLogs           []database.ReportGeneratorLog
 	gitSSHKey                     []database.GitSSHKey
 	groupMembers                  []database.GroupMemberTable
 	groups                        []database.Group
@@ -1708,8 +1709,20 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error {
-	panic("not implemented")
+func (q *FakeQuerier) DeleteOldReportGeneratorLogs(_ context.Context, params database.DeleteOldReportGeneratorLogsParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	now := dbtime.Now()
+
+	var validLogs []database.ReportGeneratorLog
+	for _, record := range q.reportGeneratorLogs {
+		if record.NotificationTemplateID != params.NotificationTemplateID || record.LastGeneratedAt.Before(now.Add(-time.Duration(params.FrequencyDays)*24*time.Hour)) {
+			validLogs = append(validLogs, record)
+		}
+	}
+	q.reportGeneratorLogs = validLogs
+	return nil
 }
 
 func (q *FakeQuerier) DeleteOldWorkspaceAgentLogs(_ context.Context, threshold time.Time) error {
@@ -9235,8 +9248,24 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 	return d, nil
 }
 
-func (q *FakeQuerier) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
-	panic("not implemented")
+func (q *FakeQuerier) UpsertReportGeneratorLog(_ context.Context, arg database.UpsertReportGeneratorLogParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, record := range q.reportGeneratorLogs {
+		if arg.NotificationTemplateID == record.NotificationTemplateID && arg.UserID == record.UserID {
+			q.reportGeneratorLogs[i].LastGeneratedAt = arg.LastGeneratedAt
+			return nil
+		}
+	}
+
+	q.reportGeneratorLogs = append(q.reportGeneratorLogs, database.ReportGeneratorLog(arg))
+	return nil
 }
 
 func (q *FakeQuerier) UpsertRuntimeConfig(_ context.Context, arg database.UpsertRuntimeConfigParams) error {

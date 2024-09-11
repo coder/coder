@@ -501,7 +501,7 @@ func (mr *MockStoreMockRecorder) DeleteOldProvisionerDaemons(arg0 any) *gomock.C
 }
 
 // DeleteOldReportGeneratorLogs mocks base method.
-func (m *MockStore) DeleteOldReportGeneratorLogs(arg0 context.Context, arg1 int32) error {
+func (m *MockStore) DeleteOldReportGeneratorLogs(arg0 context.Context, arg1 database.DeleteOldReportGeneratorLogsParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOldReportGeneratorLogs", arg0, arg1)
 	ret0, _ := ret[0].(error)

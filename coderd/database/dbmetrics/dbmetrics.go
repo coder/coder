@@ -305,7 +305,7 @@ func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return r0
 }
 
-func (m metricsStore) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error {
+func (m metricsStore) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays database.DeleteOldReportGeneratorLogsParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldReportGeneratorLogs(ctx, frequencyDays)
 	m.queryLatencies.WithLabelValues("DeleteOldReportGeneratorLogs").Observe(time.Since(start).Seconds())
