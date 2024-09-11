@@ -756,6 +756,7 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 			OrganizationID: org.ID,
 		})
 	}
+
 	if len(def.OrganizationRoles) > 0 {
 		_, err := db.UpdateMemberRoles(context.Background(), database.UpdateMemberRolesParams{
 			GrantedRoles: def.OrganizationRoles,
@@ -764,6 +765,24 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 		})
 		require.NoError(t, err)
 	}
+
+	if len(def.CustomRoles) > 0 {
+		for _, cr := range def.CustomRoles {
+			_, err := db.InsertCustomRole(context.Background(), database.InsertCustomRoleParams{
+				Name:        cr,
+				DisplayName: cr,
+				OrganizationID: uuid.NullUUID{
+					UUID:  org.ID,
+					Valid: true,
+				},
+				SitePermissions: nil,
+				OrgPermissions:  nil,
+				UserPermissions: nil,
+			})
+			require.NoError(t, err)
+		}
+	}
+
 	for groupID, in := range def.Groups {
 		dbgen.Group(t, db, database.Group{
 			ID:             groupID,
@@ -793,10 +812,10 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 type orgSetupDefinition struct {
 	Name string
 	// True if the user is a member of the group
-	Groups     map[uuid.UUID]bool
-	GroupNames map[string]bool
-
+	Groups            map[uuid.UUID]bool
+	GroupNames        map[string]bool
 	OrganizationRoles []string
+	CustomRoles       []string
 	// NotMember if true will ensure the user is not a member of the organization.
 	NotMember bool
 
@@ -839,7 +858,8 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 		o.assertRoles.Assert(t, orgID, db, o.NotMember, user)
 	}
 
-	if o.assertGroups == nil && o.assertRoles == nil {
+	// If the user is not a member, there is nothing to really assert in the org
+	if o.assertGroups == nil && o.assertRoles == nil && !o.NotMember {
 		t.Errorf("no group or role asserts present, must have at least one")
 		t.FailNow()
 	}

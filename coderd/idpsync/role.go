@@ -98,8 +98,16 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 					slog.Error(err),
 				)
 
-				// Failing role sync should reset a user's roles.
-				expectedRoles[orgID] = []rbac.RoleIdentifier{}
+				// TODO: If rolesync fails, we might want to reset a user's
+				// roles to prevent stale roles from existing.
+				// Eg: `expectedRoles[orgID] = []rbac.RoleIdentifier{}`
+				// However, implementing this could lock an org admin out
+				// of fixing their configuration.
+				// There is also no current method to notify an org admin of
+				// a configuration issue.
+				// So until org admins can be notified of configuration issues,
+				// and they will not be locked out, this code will do nothing to
+				// the user's roles.
 
 				// Do not return an error, because that would prevent a user
 				// from logging in. A misconfigured organization should not
@@ -169,28 +177,6 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 		return xerrors.Errorf("sync user roles(%s): %w", user.ID.String(), err)
 	}
 
-	return nil
-}
-
-// resetUserOrgRoles will reset the user's roles for a specific organization.
-// It does not remove them as a member from the organization.
-func (s AGPLIDPSync) resetUserOrgRoles(ctx context.Context, tx database.Store, member database.OrganizationMembersRow, orgID uuid.UUID) error {
-	withoutMember := slices.DeleteFunc(member.OrganizationMember.Roles, func(s string) bool {
-		return s == rbac.RoleOrgMember()
-	})
-	// If the user has no roles, then skip doing any database request.
-	if len(withoutMember) == 0 {
-		return nil
-	}
-
-	_, err := tx.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
-		GrantedRoles: []string{},
-		UserID:       member.OrganizationMember.UserID,
-		OrgID:        orgID,
-	})
-	if err != nil {
-		return xerrors.Errorf("zero out member roles(%s): %w", member.OrganizationMember.UserID.String(), err)
-	}
 	return nil
 }
 

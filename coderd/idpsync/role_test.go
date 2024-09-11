@@ -31,6 +31,8 @@ func TestRoleSyncTable(t *testing.T) {
 			"create-bar", "create-baz",
 			"legacy-bar", rbac.RoleOrgAuditor(),
 		},
+		// bad-claim is a number, and will fail any role sync
+		"bad-claim": 100,
 	}
 
 	//ids := coderdtest.NewDeterministicUUIDGenerator()
@@ -43,18 +45,7 @@ func TestRoleSyncTable(t *testing.T) {
 			},
 		},
 		{
-			Name: "NoSyncNoChange",
-			OrganizationRoles: []string{
-				rbac.RoleOrgAdmin(),
-			},
-			assertRoles: &orgRoleAssert{
-				ExpectedOrgRoles: []string{
-					rbac.RoleOrgAdmin(),
-				},
-			},
-		},
-		{
-			Name: "NoChange",
+			Name: "SyncDisabled",
 			OrganizationRoles: []string{
 				rbac.RoleOrgAdmin(),
 			},
@@ -81,6 +72,59 @@ func TestRoleSyncTable(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name: "CustomRole",
+			OrganizationRoles: []string{
+				rbac.RoleOrgAdmin(),
+			},
+			CustomRoles: []string{"foo"},
+			RoleSettings: &idpsync.RoleSyncSettings{
+				Field:   "roles",
+				Mapping: map[string][]string{},
+			},
+			assertRoles: &orgRoleAssert{
+				ExpectedOrgRoles: []string{
+					rbac.RoleOrgAuditor(),
+					"foo",
+				},
+			},
+		},
+		{
+			Name: "RoleMapping",
+			OrganizationRoles: []string{
+				rbac.RoleOrgAdmin(),
+				"invalid", // Throw in an extra invalid role that will be removed
+			},
+			CustomRoles: []string{"custom"},
+			RoleSettings: &idpsync.RoleSyncSettings{
+				Field: "roles",
+				Mapping: map[string][]string{
+					"foo": {"custom", rbac.RoleOrgTemplateAdmin()},
+				},
+			},
+			assertRoles: &orgRoleAssert{
+				ExpectedOrgRoles: []string{
+					rbac.RoleOrgAuditor(),
+					rbac.RoleOrgTemplateAdmin(),
+					"custom",
+				},
+			},
+		},
+		{
+			// InvalidClaims will log an error, but do not block authentication.
+			// This is to prevent a misconfigured organization from blocking
+			// a user from authenticating.
+			Name:              "InvalidClaim",
+			OrganizationRoles: []string{rbac.RoleOrgAdmin()},
+			RoleSettings: &idpsync.RoleSyncSettings{
+				Field: "bad-claim",
+			},
+			assertRoles: &orgRoleAssert{
+				ExpectedOrgRoles: []string{
+					rbac.RoleOrgAdmin(),
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -90,7 +134,9 @@ func TestRoleSyncTable(t *testing.T) {
 
 			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
-			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{
+				IgnoreErrors: true,
+			}),
 				manager,
 				idpsync.DeploymentSyncSettings{
 					SiteRoleField: "roles",
@@ -105,6 +151,7 @@ func TestRoleSyncTable(t *testing.T) {
 			// Do the group sync!
 			err := s.SyncRoles(ctx, db, user, idpsync.RoleParams{
 				SyncEnabled:  true,
+				SyncSiteWide: false,
 				MergedClaims: userClaims,
 			})
 			require.NoError(t, err)
