@@ -1,33 +1,17 @@
 package coderdtest_test
 
 import (
-	"github.com/google/uuid"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 )
 
-func ExampleNewDeterministicUUIDGenerator() {
-	det := coderdtest.NewDeterministicUUIDGenerator()
-	testCases := []struct {
-		CreateUsers []uuid.UUID
-		ExpectedIDs []uuid.UUID
-	}{
-		{
-			CreateUsers: []uuid.UUID{
-				det.ID("player1"),
-				det.ID("player2"),
-			},
-			ExpectedIDs: []uuid.UUID{
-				det.ID("player1"),
-				det.ID("player2"),
-			},
-		},
-	}
+func TestDeterministicUUIDGenerator(t *testing.T) {
+	t.Parallel()
 
-	for _, tc := range testCases {
-		tc := tc
-		_ = tc
-		// Do the test with CreateUsers as the setup, and the expected IDs
-		// will match.
-	}
+	ids := coderdtest.NewDeterministicUUIDGenerator()
+	require.Equal(t, ids.ID("g1"), ids.ID("g1"))
+	require.NotEqual(t, ids.ID("g1"), ids.ID("g2"))
 }
