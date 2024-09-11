@@ -2725,9 +2725,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetReportGeneratorLogByUserAndTemplate", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		_ = db.UpsertReportGeneratorLog(context.Background(), database.UpsertReportGeneratorLogParams{
+			UserID:                 u.ID,
+			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+			LastGeneratedAt:        dbtime.Now(),
+		})
 		check.Args(database.GetReportGeneratorLogByUserAndTemplateParams{
 			UserID:                 uuid.New(),
-			NotificationTemplateID: uuid.New(),
+			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceBuildStatsByTemplates", s.Subtest(func(db database.Store, check *expects) {
