@@ -154,6 +154,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags
 		return uuid.Nil, nil, xerrors.Errorf("parse psk provisioner key id: %w", err)
 	}
 
+	tags = provisionersdk.MutateTags(uuid.Nil, tags)
 	return pskKey, tags, nil
 }
 
