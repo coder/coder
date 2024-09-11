@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -15,7 +14,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type GroupParams struct {
@@ -94,12 +95,12 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 
 			// Legacy deployment settings will override empty settings.
 			if orgID == defaultOrgID && settings.Field == "" {
-				settings = &GroupSyncSettings{
+				settings = ptr.Ref(GroupSyncSettings(codersdk.GroupSyncSettings{
 					Field:             s.Legacy.GroupField,
 					LegacyNameMapping: s.Legacy.GroupMapping,
 					RegexFilter:       s.Legacy.GroupFilter,
 					AutoCreateMissing: s.Legacy.CreateMissingGroups,
-				}
+				}))
 			}
 			orgSettings[orgID] = *settings
 		}
@@ -243,27 +244,7 @@ func (s AGPLIDPSync) ApplyGroupDifference(ctx context.Context, tx database.Store
 	return nil
 }
 
-type GroupSyncSettings struct {
-	// Field selects the claim field to be used as the created user's
-	// groups. If the group field is the empty string, then no group updates
-	// will ever come from the OIDC provider.
-	Field string `json:"field"`
-	// Mapping maps from an OIDC group --> Coder group ID
-	Mapping map[string][]uuid.UUID `json:"mapping"`
-	// RegexFilter is a regular expression that filters the groups returned by
-	// the OIDC provider. Any group not matched by this regex will be ignored.
-	// If the group filter is nil, then no group filtering will occur.
-	RegexFilter *regexp.Regexp `json:"regex_filter"`
-	// AutoCreateMissing controls whether groups returned by the OIDC provider
-	// are automatically created in Coder if they are missing.
-	AutoCreateMissing bool `json:"auto_create_missing_groups"`
-	// LegacyNameMapping is deprecated. It remaps an IDP group name to
-	// a Coder group name. Since configuration is now done at runtime,
-	// group IDs are used to account for group renames.
-	// For legacy configurations, this config option has to remain.
-	// Deprecated: Use Mapping instead.
-	LegacyNameMapping map[string]string `json:"legacy_group_name_mapping,omitempty"`
-}
+type GroupSyncSettings codersdk.GroupSyncSettings
 
 func (s *GroupSyncSettings) Set(v string) error {
 	return json.Unmarshal([]byte(v), s)
