@@ -2732,7 +2732,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LastGeneratedAt:        dbtime.Now(),
 		})
 		check.Args(database.GetReportGeneratorLogByUserAndTemplateParams{
-			UserID:                 uuid.New(),
+			UserID:                 u.ID,
 			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
