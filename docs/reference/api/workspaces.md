@@ -1598,6 +1598,67 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Return workspace timings by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaces/{workspace}/timings`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+| ----------- | ---- | ------------ | -------- | ------------ |
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+	{
+		"ended_at": "2019-08-24T14:15:22Z",
+		"label": "string",
+		"metadata": [
+			{
+				"name": "string",
+				"value": "string"
+			}
+		],
+		"started_at": "2019-08-24T14:15:22Z"
+	}
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceTiming](schemas.md#codersdkworkspacetiming) |
+
+<h3 id="return-workspace-timings-by-id-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type              | Required | Restrictions | Description |
+| -------------- | ----------------- | -------- | ------------ | ----------- |
+| `[array item]` | array             | false    |              |             |
+| `» ended_at`   | string(date-time) | false    |              |             |
+| `» label`      | string            | false    |              |             |
+| `» metadata`   | array             | false    |              |             |
+| `»» name`      | string            | false    |              |             |
+| `»» value`     | string            | false    |              |             |
+| `» started_at` | string(date-time) | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update workspace TTL by ID
 
 ### Code samples

@@ -8213,6 +8213,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/timings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Return workspace timings by ID",
+                "operationId": "workspace-timings-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceTiming"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/ttl": {
             "put": {
                 "security": [
@@ -14439,6 +14477,39 @@ const docTemplate = `{
                 "WorkspaceStatusDeleting",
                 "WorkspaceStatusDeleted"
             ]
+        },
+        "codersdk.WorkspaceTiming": {
+            "type": "object",
+            "properties": {
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceTimingMetadata"
+                    }
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.WorkspaceTimingMetadata": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.WorkspaceTransition": {
             "type": "string",

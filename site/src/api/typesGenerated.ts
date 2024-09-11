@@ -1999,6 +1999,20 @@ export interface WorkspaceResourceMetadata {
 }
 
 // From codersdk/workspaces.go
+export interface WorkspaceTiming {
+	readonly label: string;
+	readonly metadata: Readonly<Array<WorkspaceTimingMetadata>>;
+	readonly started_at: string;
+	readonly ended_at: string;
+}
+
+// From codersdk/workspaces.go
+export interface WorkspaceTimingMetadata {
+	readonly name: string;
+	readonly value: string;
+}
+
+// From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
 	readonly q?: string;
 }

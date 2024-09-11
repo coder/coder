@@ -3556,3 +3556,181 @@ func TestWorkspaceNotifications(t *testing.T) {
 		})
 	})
 }
+
+func TestWorkspaceTimings(t *testing.T) {
+	t.Parallel()
+
+	// Setup a base template for the workspaces
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	file := dbgen.File(t, db, database.File{
+		CreatedBy: owner.UserID,
+	})
+	versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: owner.OrganizationID,
+		InitiatorID:    owner.UserID,
+		WorkerID:       uuid.NullUUID{},
+		FileID:         file.ID,
+		Tags: database.StringMap{
+			"custom": "true",
+		},
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		JobID:          versionJob.ID,
+		CreatedBy:      owner.UserID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  owner.OrganizationID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       owner.UserID,
+	})
+
+	// Since the tests run in parallel, we need to create a new workspace for
+	// each test to avoid fetching the wrong latest build.
+	type workspaceWithBuild struct {
+		database.Workspace
+		build database.WorkspaceBuild
+	}
+	makeWorkspace := func() workspaceWithBuild {
+		ws := dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     template.ID,
+			Name:           "test-workspace",
+		})
+		jobID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			ID:             jobID,
+			OrganizationID: owner.OrganizationID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Tags:           database.StringMap{jobID.String(): "true"},
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: version.ID,
+			BuildNumber:       1,
+			Transition:        database.WorkspaceTransitionStart,
+			InitiatorID:       owner.UserID,
+			JobID:             job.ID,
+		})
+		return workspaceWithBuild{
+			Workspace: ws,
+			build:     build,
+		}
+	}
+
+	makeTimings := func(jobID uuid.UUID, count int) []database.ProvisionerJobTiming {
+		// Use the database.ProvisionerJobTiming struct to mock timings data instead
+		// of directly creating database.InsertProvisionerJobTimingsParams. This
+		// approach makes the mock data easier to understand, as
+		// database.InsertProvisionerJobTimingsParams requires slices of each field
+		// for batch inserts.
+		timings := make([]database.ProvisionerJobTiming, count)
+		now := time.Now()
+		for i := range count {
+			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
+			endedAt := startedAt.Add(time.Minute)
+			timings[i] = database.ProvisionerJobTiming{
+				StartedAt: startedAt,
+				EndedAt:   endedAt,
+				Stage:     database.ProvisionerJobTimingStageInit,
+				Action:    string(database.AuditActionCreate),
+				Source:    "source",
+				Resource:  fmt.Sprintf("resource[%d]", i),
+			}
+		}
+		insertParams := database.InsertProvisionerJobTimingsParams{
+			JobID: jobID,
+		}
+		for _, timing := range timings {
+			insertParams.StartedAt = append(insertParams.StartedAt, timing.StartedAt)
+			insertParams.EndedAt = append(insertParams.EndedAt, timing.EndedAt)
+			insertParams.Stage = append(insertParams.Stage, timing.Stage)
+			insertParams.Action = append(insertParams.Action, timing.Action)
+			insertParams.Source = append(insertParams.Source, timing.Source)
+			insertParams.Resource = append(insertParams.Resource, timing.Resource)
+		}
+		return dbgen.ProvisionerJobTimings(t, db, insertParams)
+	}
+
+	// Given
+	tests := []struct {
+		name            string
+		numberOfTimings int
+		workspace       workspaceWithBuild
+		error           bool
+	}{
+		{
+			name:            "workspace with 5 provisioner timings",
+			numberOfTimings: 5,
+			workspace:       makeWorkspace(),
+		},
+		{
+			name:            "workspace with 2 provisioner timings",
+			numberOfTimings: 2,
+			workspace:       makeWorkspace(),
+		},
+		{
+			name:            "workspace with 0 provisioner timings",
+			numberOfTimings: 0,
+			workspace:       makeWorkspace(),
+		},
+		{
+			name:            "workspace not found",
+			numberOfTimings: 0,
+			workspace:       workspaceWithBuild{},
+			error:           true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			generatedTimings := make([]database.ProvisionerJobTiming, tt.numberOfTimings)
+			if tt.numberOfTimings > 0 {
+				generatedTimings = makeTimings(tt.workspace.build.JobID, tt.numberOfTimings)
+			}
+			res, err := client.WorkspaceTimings(context.Background(), tt.workspace.ID)
+
+			// When error is expected
+			if tt.error {
+				require.Error(t, err)
+				return
+			}
+
+			// When success is expected
+			require.NoError(t, err)
+			require.Len(t, res, tt.numberOfTimings)
+
+			// Verify fields
+			for i := range res {
+				require.Equal(t, generatedTimings[i].Resource, res[i].Label)
+				require.Equal(t, generatedTimings[i].StartedAt.UnixMilli(), res[i].StartedAt.UnixMilli(), "diff start times")
+				require.Equal(t, generatedTimings[i].EndedAt.UnixMilli(), res[i].EndedAt.UnixMilli(), "diff end times")
+
+				// Verify metadata
+				metaTests := []struct {
+					name  string
+					value string
+				}{
+					{name: "source", value: generatedTimings[i].Source},
+				}
+				for _, mt := range metaTests {
+					t.Run(fmt.Sprintf("verify metadata %s", mt.name), func(t *testing.T) {
+						contains := codersdk.WorkspaceTimingMetadata{
+							Name:  mt.name,
+							Value: mt.value,
+						}
+						require.Containsf(t, res[i].Metadata, contains, fmt.Sprintf("metadata %s not found", mt.name))
+					})
+				}
+			}
+		})
+	}
+}

@@ -626,6 +626,35 @@ func (c *Client) UnfavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID)
 	return nil
 }
 
+// A timing can originate from either a provisioner job or an agent. Each source
+// may have different associated data, some of which is useful for users and
+// should be displayed.
+type WorkspaceTimingMetadata struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type WorkspaceTiming struct {
+	Label     string                    `json:"label"`
+	Metadata  []WorkspaceTimingMetadata `json:"metadata"`
+	StartedAt time.Time                 `json:"started_at" format:"date-time"`
+	EndedAt   time.Time                 `json:"ended_at" format:"date-time"`
+}
+
+func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) ([]WorkspaceTiming, error) {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/timings", id.String())
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return []WorkspaceTiming{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return []WorkspaceTiming{}, ReadBodyAsError(res)
+	}
+	var timings []WorkspaceTiming
+	return timings, json.NewDecoder(res.Body).Decode(&timings)
+}
+
 // WorkspaceNotifyChannel is the PostgreSQL NOTIFY
 // channel to listen for updates on. The payload is empty,
 // because the size of a workspace payload can be very large.

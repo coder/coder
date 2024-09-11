@@ -7448,6 +7448,47 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `deleting`  |
 | `deleted`   |
 
+## codersdk.WorkspaceTiming
+
+```json
+{
+	"ended_at": "2019-08-24T14:15:22Z",
+	"label": "string",
+	"metadata": [
+		{
+			"name": "string",
+			"value": "string"
+		}
+	],
+	"started_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type                                                                          | Required | Restrictions | Description |
+| ------------ | ----------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `ended_at`   | string                                                                        | false    |              |             |
+| `label`      | string                                                                        | false    |              |             |
+| `metadata`   | array of [codersdk.WorkspaceTimingMetadata](#codersdkworkspacetimingmetadata) | false    |              |             |
+| `started_at` | string                                                                        | false    |              |             |
+
+## codersdk.WorkspaceTimingMetadata
+
+```json
+{
+	"name": "string",
+	"value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
+
 ## codersdk.WorkspaceTransition
 
 ```json

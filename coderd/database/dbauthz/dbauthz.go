@@ -1784,6 +1784,10 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 	return job, nil
 }
 
+func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
+	return q.db.GetProvisionerJobTimingsByJobID(ctx, jobID)
+}
+
 // TODO: we need to add a provisioner job resource
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {

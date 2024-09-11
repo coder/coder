@@ -5317,6 +5317,43 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 	return i, err
 }
 
+const getProvisionerJobTimingsByJobID = `-- name: GetProvisionerJobTimingsByJobID :many
+SELECT job_id, started_at, ended_at, stage, source, action, resource FROM provisioner_job_timings
+WHERE job_id = $1
+ORDER BY started_at ASC
+`
+
+func (q *sqlQuerier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]ProvisionerJobTiming, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobTimingsByJobID, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJobTiming
+	for rows.Next() {
+		var i ProvisionerJobTiming
+		if err := rows.Scan(
+			&i.JobID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.Stage,
+			&i.Source,
+			&i.Action,
+			&i.Resource,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
 	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status

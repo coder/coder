@@ -194,6 +194,7 @@ type data struct {
 	workspaces                    []database.Workspace
 	workspaceProxies              []database.WorkspaceProxy
 	customRoles                   []database.CustomRole
+	provisionerJobTimings         []database.ProvisionerJobTiming
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                            map[int64]struct{}
@@ -3268,6 +3269,23 @@ func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	defer q.mutex.RUnlock()
 
 	return q.getProvisionerJobByIDNoLock(ctx, id)
+}
+
+func (q *FakeQuerier) GetProvisionerJobTimingsByJobID(_ context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	timings := make([]database.ProvisionerJobTiming, 0)
+	for _, timing := range q.provisionerJobTimings {
+		if timing.JobID == jobID {
+			timings = append(timings, timing)
+		}
+	}
+	if len(timings) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	return timings, nil
 }
 
 func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
@@ -6751,13 +6769,28 @@ func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
-func (*FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+func (q *FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, nil
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i := range arg.StartedAt {
+		q.provisionerJobTimings = append(q.provisionerJobTimings, database.ProvisionerJobTiming{
+			JobID:     arg.JobID,
+			StartedAt: arg.StartedAt[i],
+			EndedAt:   arg.EndedAt[i],
+			Stage:     arg.Stage[i],
+			Source:    arg.Source[i],
+			Action:    arg.Action[i],
+			Resource:  arg.Resource[i],
+		})
+	}
+
+	return q.provisionerJobTimings, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
