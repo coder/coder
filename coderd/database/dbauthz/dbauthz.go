@@ -1145,7 +1145,10 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 }
 
 func (q *querier) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays int32) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldReportGeneratorLogs(ctx, frequencyDays)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
@@ -1442,7 +1445,10 @@ func (q *querier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.
 }
 
 func (q *querier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFailedWorkspaceBuildsByTemplateID(ctx, arg)
 }
 
 func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
@@ -1872,7 +1878,10 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 }
 
 func (q *querier) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.ReportGeneratorLog{}, err
+	}
+	return q.db.GetReportGeneratorLogByUserAndTemplate(ctx, arg)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
@@ -2486,7 +2495,10 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 }
 
 func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceBuildStatsByTemplates(ctx, since)
 }
 
 func (q *querier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
@@ -3937,7 +3949,10 @@ func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.Upse
 }
 
 func (q *querier) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertReportGeneratorLog(ctx, arg)
 }
 
 func (q *querier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
