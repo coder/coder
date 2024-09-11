@@ -388,6 +388,17 @@ func (s *MethodTestSuite) TestGroup() {
 			GroupNames:     slice.New(g1.Name, g2.Name),
 		}).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionUpdate).Returns()
 	}))
+	s.Run("InsertUserGroupsByID", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u1 := dbgen.User(s.T(), db, database.User{})
+		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+		check.Args(database.InsertUserGroupsByIDParams{
+			UserID:   u1.ID,
+			GroupIds: slice.New(g1.ID, g2.ID),
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
+	}))
 	s.Run("RemoveUserFromAllGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u1 := dbgen.User(s.T(), db, database.User{})
@@ -396,6 +407,18 @@ func (s *MethodTestSuite) TestGroup() {
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
 		check.Args(u1.ID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
+	}))
+	s.Run("RemoveUserFromGroups", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u1 := dbgen.User(s.T(), db, database.User{})
+		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
+		check.Args(database.RemoveUserFromGroupsParams{
+			UserID:   u1.ID,
+			GroupIds: []uuid.UUID{g1.ID, g2.ID},
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
 	}))
 	s.Run("UpdateGroupByID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})

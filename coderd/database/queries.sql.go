@@ -1446,6 +1446,56 @@ func (q *sqlQuerier) InsertGroupMember(ctx context.Context, arg InsertGroupMembe
 	return err
 }
 
+const insertUserGroupsByID = `-- name: InsertUserGroupsByID :many
+WITH groups AS (
+	SELECT
+		id
+	FROM
+		groups
+	WHERE
+		groups.id = ANY($2 :: uuid [])
+)
+INSERT INTO
+	group_members (user_id, group_id)
+SELECT
+	$1,
+	groups.id
+FROM
+	groups
+ON CONFLICT DO NOTHING
+RETURNING group_id
+`
+
+type InsertUserGroupsByIDParams struct {
+	UserID   uuid.UUID   `db:"user_id" json:"user_id"`
+	GroupIds []uuid.UUID `db:"group_ids" json:"group_ids"`
+}
+
+// InsertUserGroupsByID adds a user to all provided groups, if they exist.
+// If there is a conflict, the user is already a member
+func (q *sqlQuerier) InsertUserGroupsByID(ctx context.Context, arg InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, insertUserGroupsByID, arg.UserID, pq.Array(arg.GroupIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var group_id uuid.UUID
+		if err := rows.Scan(&group_id); err != nil {
+			return nil, err
+		}
+		items = append(items, group_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertUserGroupsByName = `-- name: InsertUserGroupsByName :exec
 WITH groups AS (
     SELECT
@@ -1487,6 +1537,43 @@ WHERE
 func (q *sqlQuerier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, removeUserFromAllGroups, userID)
 	return err
+}
+
+const removeUserFromGroups = `-- name: RemoveUserFromGroups :many
+DELETE FROM
+	group_members
+WHERE
+	user_id = $1 AND
+	group_id = ANY($2 :: uuid [])
+RETURNING group_id
+`
+
+type RemoveUserFromGroupsParams struct {
+	UserID   uuid.UUID   `db:"user_id" json:"user_id"`
+	GroupIds []uuid.UUID `db:"group_ids" json:"group_ids"`
+}
+
+func (q *sqlQuerier) RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, removeUserFromGroups, arg.UserID, pq.Array(arg.GroupIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var group_id uuid.UUID
+		if err := rows.Scan(&group_id); err != nil {
+			return nil, err
+		}
+		items = append(items, group_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteGroupByID = `-- name: DeleteGroupByID :exec
@@ -1592,11 +1679,16 @@ WHERE
 						)
 				ELSE true
 		END
+		AND CASE WHEN array_length($3 :: text[], 1) > 0  THEN
+				groups.name = ANY($3)
+			ELSE true
+		END
 `
 
 type GetGroupsParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	HasMemberID    uuid.UUID `db:"has_member_id" json:"has_member_id"`
+	GroupNames     []string  `db:"group_names" json:"group_names"`
 }
 
 type GetGroupsRow struct {
@@ -1606,7 +1698,7 @@ type GetGroupsRow struct {
 }
 
 func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getGroups, arg.OrganizationID, arg.HasMemberID)
+	rows, err := q.db.QueryContext(ctx, getGroups, arg.OrganizationID, arg.HasMemberID, pq.Array(arg.GroupNames))
 	if err != nil {
 		return nil, err
 	}

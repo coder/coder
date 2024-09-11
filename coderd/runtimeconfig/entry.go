@@ -2,6 +2,7 @@ package runtimeconfig
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"golang.org/x/xerrors"
@@ -92,4 +93,12 @@ func (e *RuntimeEntry[T]) name() (string, error) {
 	}
 
 	return e.n, nil
+}
+
+func JSONString(v any) string {
+	s, err := json.Marshal(v)
+	if err != nil {
+		return "decode failed: " + err.Error()
+	}
+	return string(s)
 }
