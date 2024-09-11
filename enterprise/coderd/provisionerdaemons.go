@@ -132,15 +132,15 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, orgID uuid.UUID, tags
 				return uuid.Nil, nil, xerrors.New("user unauthorized")
 			}
 
-			// Allow fallback to PSK auth if the user is not allowed to create provisioner daemons.
-			// This is to preserve backwards compatibility with existing user provisioner daemons.
-			// If using PSK auth, the daemon is, by definition, scoped to the organization.
-			tags = provisionersdk.MutateTags(uuid.Nil, tags)
-
 			pskKey, err := uuid.Parse(codersdk.ProvisionerKeyIDPSK)
 			if err != nil {
 				return uuid.Nil, nil, xerrors.Errorf("parse psk provisioner key id: %w", err)
 			}
+
+			// Allow fallback to PSK auth if the user is not allowed to create provisioner daemons.
+			// This is to preserve backwards compatibility with existing user provisioner daemons.
+			// If using PSK auth, the daemon is, by definition, scoped to the organization.
+			tags = provisionersdk.MutateTags(uuid.Nil, tags)
 
 			return pskKey, tags, nil
 		}
