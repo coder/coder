@@ -1144,11 +1144,11 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return q.db.DeleteOldProvisionerDaemons(ctx)
 }
 
-func (q *querier) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays database.DeleteOldReportGeneratorLogsParams) error {
+func (q *querier) DeleteOldReportGeneratorLogs(ctx context.Context, arg database.DeleteOldReportGeneratorLogsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteOldReportGeneratorLogs(ctx, frequencyDays)
+	return q.db.DeleteOldReportGeneratorLogs(ctx, arg)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {

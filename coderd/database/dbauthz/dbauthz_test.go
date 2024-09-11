@@ -2712,6 +2712,34 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Value: "value",
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("DeleteOldReportGeneratorLogs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteOldReportGeneratorLogsParams{
+			FrequencyDays:          1,
+			NotificationTemplateID: uuid.New(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("GetFailedWorkspaceBuildsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetFailedWorkspaceBuildsByTemplateIDParams{
+			TemplateID: uuid.New(),
+			Since:      dbtime.Now(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetReportGeneratorLogByUserAndTemplate", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetReportGeneratorLogByUserAndTemplateParams{
+			UserID:                 uuid.New(),
+			NotificationTemplateID: uuid.New(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceBuildStatsByTemplates", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(1).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpsertReportGeneratorLog", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertReportGeneratorLogParams{
+			UserID:                 uuid.New(),
+			NotificationTemplateID: uuid.New(),
+			LastGeneratedAt:        dbtime.Now(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
