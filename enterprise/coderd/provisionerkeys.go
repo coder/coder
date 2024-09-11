@@ -3,6 +3,7 @@ package coderd
 import (
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -48,6 +49,20 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 				{
 					Field:  "name",
 					Detail: "Name must be at most 64 characters",
+				},
+			},
+		})
+		return
+	}
+
+	reserved := []string{"built-in", "psk", "user-auth"}
+	if slices.Contains(reserved, req.Name) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Name cannot be reserved name '%s'", req.Name),
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "name",
+					Detail: fmt.Sprintf("Name cannot be reserved name '%s'", req.Name),
 				},
 			},
 		})
@@ -108,24 +123,16 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 // @Router /organizations/{organization}/provisionerkeys/{provisionerkey} [delete]
 func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
 	provisionerKey := httpmw.ProvisionerKeyParam(r)
 
-	pk, err := api.Database.GetProvisionerKeyByName(ctx, database.GetProvisionerKeyByNameParams{
-		OrganizationID: organization.ID,
-		Name:           provisionerKey.Name,
-	})
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-
-		httpapi.InternalServerError(rw, err)
+	if provisionerKey.ID.String() == codersdk.ProvisionerKeyIDBuiltIn || provisionerKey.ID.String() == codersdk.ProvisionerKeyIDPSK || provisionerKey.ID.String() == codersdk.ProvisionerKeyIDUserAuth {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Cannot delete '%s' provisioner key", provisionerKey.Name),
+		})
 		return
 	}
 
-	err = api.Database.DeleteProvisionerKey(ctx, pk.ID)
+	err := api.Database.DeleteProvisionerKey(ctx, provisionerKey.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
