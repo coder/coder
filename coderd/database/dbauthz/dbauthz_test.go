@@ -2737,7 +2737,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceBuildStatsByTemplates", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(1).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("UpsertReportGeneratorLog", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpsertReportGeneratorLogParams{
