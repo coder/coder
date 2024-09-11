@@ -2540,7 +2540,61 @@ func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, 
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceBuildStats := []database.GetFailedWorkspaceBuildsByTemplateIDRow{}
+	for _, wb := range q.workspaceBuilds {
+		job, err := q.getProvisionerJobByIDNoLock(ctx, wb.JobID)
+		if err != nil {
+			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
+		}
+
+		if job.JobStatus != database.ProvisionerJobStatusFailed {
+			continue
+		}
+
+		if !job.CompletedAt.Valid {
+			continue
+		}
+
+		if wb.CreatedAt.Before(arg.Since) {
+			continue
+		}
+
+		w, err := q.getWorkspaceByIDNoLock(ctx, wb.WorkspaceID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by ID: %w", err)
+		}
+
+		t, err := q.getTemplateByIDNoLock(ctx, w.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template by ID: %w", err)
+		}
+
+		if t.ID != arg.TemplateID {
+			continue
+		}
+
+		workspaceOwner, err := q.getUserByIDNoLock(w.OwnerID)
+		if err != nil {
+			return nil, xerrors.Errorf("get user by ID: %w", err)
+		}
+
+		templateVersion, err := q.getTemplateVersionByIDNoLock(ctx, wb.TemplateVersionID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template version by ID: %w", err)
+		}
+
+		workspaceBuildStats = append(workspaceBuildStats, database.GetFailedWorkspaceBuildsByTemplateIDRow{
+			WorkspaceName:          w.Name,
+			WorkspaceOwnerUsername: workspaceOwner.Username,
+			TemplateVersionName:    templateVersion.Name,
+			WorkspaceBuildNumber:   wb.BuildNumber,
+		})
+	}
+
+	return workspaceBuildStats, nil
 }
 
 func (q *FakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
@@ -3547,7 +3601,15 @@ func (q *FakeQuerier) GetReportGeneratorLogByUserAndTemplate(ctx context.Context
 		return database.ReportGeneratorLog{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	q.mutex.RUnlock()
+
+	for _, record := range q.reportGeneratorLogs {
+		if record.UserID == arg.UserID && record.NotificationTemplateID == arg.NotificationTemplateID {
+			return database.ReportGeneratorLog(record), nil
+		}
+	}
+	return database.ReportGeneratorLog{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -5850,7 +5912,56 @@ func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 }
 
 func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	templateStats := map[uuid.UUID]database.GetWorkspaceBuildStatsByTemplatesRow{}
+	for _, wb := range q.workspaceBuilds {
+		job, err := q.getProvisionerJobByIDNoLock(ctx, wb.JobID)
+		if err != nil {
+			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
+		}
+
+		if !job.CompletedAt.Valid {
+			continue
+		}
+
+		if wb.CreatedAt.Before(since) {
+			continue
+		}
+
+		w, err := q.getWorkspaceByIDNoLock(ctx, wb.WorkspaceID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by ID: %w", err)
+		}
+
+		if _, ok := templateStats[w.TemplateID]; !ok {
+			t, err := q.getTemplateByIDNoLock(ctx, w.TemplateID)
+			if err != nil {
+				return nil, xerrors.Errorf("get template by ID: %w", err)
+			}
+
+			templateStats[w.TemplateID] = database.GetWorkspaceBuildStatsByTemplatesRow{
+				TemplateID:             w.TemplateID,
+				TemplateName:           t.Name,
+				TemplateDisplayName:    t.DisplayName,
+				TemplateOrganizationID: w.OrganizationID,
+			}
+		}
+
+		s := templateStats[w.TemplateID]
+		s.TotalBuilds++
+		if job.JobStatus == database.ProvisionerJobStatusFailed {
+			s.FailedBuilds++
+		}
+		templateStats[w.TemplateID] = s
+	}
+
+	rows := make([]database.GetWorkspaceBuildStatsByTemplatesRow, 0, len(templateStats))
+	for _, ts := range templateStats {
+		rows = append(rows, ts)
+	}
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
