@@ -12,6 +12,12 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 cdroot
 
+if isdarwin; then
+	dependencies gsed gawk
+	sed() { gsed "$@"; }
+	awk() { gawk "$@"; }
+fi
+
 # From install.sh
 echo_latest_stable_version() {
 	# https://gist.github.com/lukechilds/a83e1d7127b78fef38c2914c4ececc3c#gistcomment-2758860

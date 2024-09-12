@@ -108,6 +108,13 @@ dependencies() {
 	for dep in "$@"; do
 		if ! dependency_check "$dep"; then
 			log "ERROR: The '$dep' dependency is required, but is not available."
+			if isdarwin; then
+				case "$dep" in
+				gsed|gawk)
+					log "- brew install $dep"
+					;;
+				esac
+			fi
 			fail=1
 		fi
 	done
