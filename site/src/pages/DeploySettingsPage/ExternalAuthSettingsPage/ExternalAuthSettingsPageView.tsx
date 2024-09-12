@@ -7,7 +7,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { EnterpriseBadge } from "components/Badges/Badges";
+import { PremiumBadge } from "components/Badges/Badges";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -45,9 +45,9 @@ export const ExternalAuthSettingsPageView: FC<
 					marginBottom: 24,
 				}}
 			>
-				<Alert severity="info" actions={<EnterpriseBadge key="enterprise" />}>
+				<Alert severity="info" actions={<PremiumBadge key="enterprise" />}>
 					Integrating with multiple External authentication providers is an
-					Enterprise feature.
+					Premium feature.
 				</Alert>
 			</div>
 

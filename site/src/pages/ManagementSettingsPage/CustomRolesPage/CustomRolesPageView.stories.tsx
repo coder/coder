@@ -21,6 +21,14 @@ export const NotEnabled: Story = {
 	},
 };
 
+export const NotEnabledEmptyTable: Story = {
+	args: {
+		roles: [],
+		canAssignOrgRole: true,
+		isCustomRolesEnabled: false,
+	},
+};
+
 export const Enabled: Story = {
 	args: {
 		roles: [MockRoleWithOrgPermissions],

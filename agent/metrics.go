@@ -19,6 +19,7 @@ type agentMetrics struct {
 	// startupScriptSeconds is the time in seconds that the start script(s)
 	// took to run. This is reported once per agent.
 	startupScriptSeconds *prometheus.GaugeVec
+	currentConnections   *prometheus.GaugeVec
 }
 
 func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
@@ -45,10 +46,19 @@ func newAgentMetrics(registerer prometheus.Registerer) *agentMetrics {
 	}, []string{"success"})
 	registerer.MustRegister(startupScriptSeconds)
 
+	currentConnections := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "agentstats",
+		Name:      "currently_reachable_peers",
+		Help:      "The number of peers (e.g. clients) that are currently reachable over the encrypted network.",
+	}, []string{"connection_type"})
+	registerer.MustRegister(currentConnections)
+
 	return &agentMetrics{
 		connectionsTotal:      connectionsTotal,
 		reconnectingPTYErrors: reconnectingPTYErrors,
 		startupScriptSeconds:  startupScriptSeconds,
+		currentConnections:    currentConnections,
 	}
 }
 

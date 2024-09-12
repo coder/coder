@@ -63,6 +63,9 @@ coderd_agentstats_connection_count{agent_name="main",username="admin",workspace_
 # HELP coderd_agentstats_connection_median_latency_seconds The median agent connection latency
 # TYPE coderd_agentstats_connection_median_latency_seconds gauge
 coderd_agentstats_connection_median_latency_seconds{agent_name="main",username="admin",workspace_name="workspace1"} 0.001784
+# HELP coderd_agentstats_currently_reachable_peers The number of peers (e.g. clients) that are currently reachable over the encrypted network.
+# TYPE coderd_agentstats_currently_reachable_peers gauge
+coderd_agentstats_currently_reachable_peers{agent_name="main",connection_type="derp",template_name="docker",username="admin",workspace_name="workspace1"} 0
 # HELP coderd_agentstats_rx_bytes Agent Rx bytes
 # TYPE coderd_agentstats_rx_bytes gauge
 coderd_agentstats_rx_bytes{agent_name="main",username="admin",workspace_name="workspace1"} 7731

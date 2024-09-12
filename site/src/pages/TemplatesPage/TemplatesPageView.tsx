@@ -332,9 +332,6 @@ const styles = {
 	}),
 	actionButton: (theme) => ({
 		transition: "none",
-		color: theme.palette.text.secondary,
-		"&:hover": {
-			borderColor: theme.palette.text.primary,
-		},
+		color: theme.palette.text.primary,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

@@ -1119,9 +1119,6 @@ func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
 		return []netip.Prefix{
 			// This is the IP that should be used primarily.
 			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
-			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
-			// allows for a transition away from wsconncache.
-			netip.PrefixFrom(workspacesdk.AgentIP, 128),
 		}
 	}
 
@@ -1510,6 +1507,8 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	var mu sync.Mutex
 	status := a.network.Status()
 	durations := []float64{}
+	p2pConns := 0
+	derpConns := 0
 	pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 	defer cancelFunc()
 	for nodeID, peer := range status.Peer {
@@ -1526,13 +1525,18 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			duration, _, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
+			duration, p2p, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
 			if err != nil {
 				return
 			}
 			mu.Lock()
 			defer mu.Unlock()
 			durations = append(durations, float64(duration.Microseconds()))
+			if p2p {
+				p2pConns++
+			} else {
+				derpConns++
+			}
 		}()
 	}
 	wg.Wait()
@@ -1552,6 +1556,9 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	// Agent metrics are changing all the time, so there is no need to perform
 	// reflect.DeepEqual to see if stats should be transferred.
 
+	// currentConnections behaves like a hypothetical `GaugeFuncVec` and is only set at collection time.
+	a.metrics.currentConnections.WithLabelValues("p2p").Set(float64(p2pConns))
+	a.metrics.currentConnections.WithLabelValues("derp").Set(float64(derpConns))
 	metricsCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 	defer cancelFunc()
 	a.logger.Debug(ctx, "collecting agent metrics for stats")

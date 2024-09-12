@@ -9,4 +9,4 @@ const (
 	CurrentMinor = 2
 )
 
-var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor).WithBackwardCompat(1)
+var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

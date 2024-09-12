@@ -4,12 +4,12 @@ import {
 	Badges,
 	DisabledBadge,
 	EnabledBadge,
-	EnterpriseBadge,
 	EntitledBadge,
 	HealthyBadge,
 	NotHealthyBadge,
 	NotReachableBadge,
 	NotRegisteredBadge,
+	PremiumBadge,
 	PreviewBadge,
 } from "./Badges";
 
@@ -50,9 +50,9 @@ export const Disabled: Story = {
 		children: <DisabledBadge />,
 	},
 };
-export const Enterprise: Story = {
+export const Premium: Story = {
 	args: {
-		children: <EnterpriseBadge />,
+		children: <PremiumBadge />,
 	},
 };
 export const Preview: Story = {
