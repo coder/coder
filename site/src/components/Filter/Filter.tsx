@@ -299,21 +299,21 @@ const PresetMenu: FC<PresetMenuProps> = ({
 					</MenuItem>
 				))}
 				{learnMoreLink && (
-					<>
-						<Divider css={{ borderColor: theme.palette.divider }} />
-						<MenuItem
-							component="a"
-							href={learnMoreLink}
-							target="_blank"
-							css={{ fontSize: 13, fontWeight: 500 }}
-							onClick={() => {
-								setIsOpen(false);
-							}}
-						>
-							<OpenInNewOutlined css={{ fontSize: "14px !important" }} />
-							View advanced filtering
-						</MenuItem>
-					</>
+					<Divider css={{ borderColor: theme.palette.divider }} />
+				)}
+				{learnMoreLink && (
+					<MenuItem
+						component="a"
+						href={learnMoreLink}
+						target="_blank"
+						css={{ fontSize: 13, fontWeight: 500 }}
+						onClick={() => {
+							setIsOpen(false);
+						}}
+					>
+						<OpenInNewOutlined css={{ fontSize: "14px !important" }} />
+						View advanced filtering
+					</MenuItem>
 				)}
 				{learnMoreLink2 && learnMoreLabel2 && (
 					<MenuItem

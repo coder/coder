@@ -106,6 +106,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 					{menus.user && <MenuSkeleton />}
 					<MenuSkeleton />
 					<MenuSkeleton />
+					{showOrganizations && <MenuSkeleton />}
 				</>
 			}
 		/>

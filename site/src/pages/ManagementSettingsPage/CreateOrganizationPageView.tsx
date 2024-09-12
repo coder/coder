@@ -86,7 +86,6 @@ export const CreateOrganizationPageView: FC<
 							message="Organizations"
 							description="Organizations allow you to run a Coder deployment with multiple platform teams, all with unique use cases, templates, and even underlying infrastructure."
 							documentationLink={docs("/guides/using-organizations")}
-							licenseType="premium"
 						/>
 					</PopoverContent>
 				</Popover>

@@ -172,8 +172,11 @@ const UsersPage: FC = () => {
 				entity="user"
 				onCancel={() => setUserToDelete(undefined)}
 				onConfirm={async () => {
+					if (!userToDelete) {
+						return;
+					}
 					try {
-						await deleteUserMutation.mutateAsync(userToDelete!.id);
+						await deleteUserMutation.mutateAsync(userToDelete.id);
 						setUserToDelete(undefined);
 						displaySuccess("Successfully deleted the user.");
 					} catch (e) {
@@ -191,8 +194,11 @@ const UsersPage: FC = () => {
 				confirmText="Suspend"
 				onClose={() => setUserToSuspend(undefined)}
 				onConfirm={async () => {
+					if (!userToSuspend) {
+						return;
+					}
 					try {
-						await suspendUserMutation.mutateAsync(userToSuspend!.id);
+						await suspendUserMutation.mutateAsync(userToSuspend.id);
 						setUserToSuspend(undefined);
 						displaySuccess("Successfully suspended the user.");
 					} catch (e) {
@@ -216,8 +222,11 @@ const UsersPage: FC = () => {
 				confirmText="Activate"
 				onClose={() => setUserToActivate(undefined)}
 				onConfirm={async () => {
+					if (!userToActivate) {
+						return;
+					}
 					try {
-						await activateUserMutation.mutateAsync(userToActivate!.id);
+						await activateUserMutation.mutateAsync(userToActivate.id);
 						setUserToActivate(undefined);
 						displaySuccess("Successfully activated the user.");
 					} catch (e) {
@@ -242,10 +251,13 @@ const UsersPage: FC = () => {
 					setConfirmResetPassword(undefined);
 				}}
 				onConfirm={async () => {
+					if (!confirmResetPassword) {
+						return;
+					}
 					try {
 						await updatePasswordMutation.mutateAsync({
-							userId: confirmResetPassword!.user.id,
-							password: confirmResetPassword!.newPassword,
+							userId: confirmResetPassword.user.id,
+							password: confirmResetPassword.newPassword,
 							old_password: "",
 						});
 						setConfirmResetPassword(undefined);

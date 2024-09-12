@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -109,9 +108,9 @@ func TestCreateUserRequestJSON(t *testing.T) {
 		t.Parallel()
 
 		req := codersdk.CreateUserRequestWithOrgs{
-			Email:           coderdtest.RandomName(t),
-			Username:        coderdtest.RandomName(t),
-			Name:            coderdtest.RandomName(t),
+			Email:           "alice@coder.com",
+			Username:        "alice",
+			Name:            "Alice User",
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypePassword,
 			OrganizationIDs: []uuid.UUID{uuid.New(), uuid.New()},
@@ -123,9 +122,9 @@ func TestCreateUserRequestJSON(t *testing.T) {
 		t.Parallel()
 
 		req := codersdk.CreateUserRequestWithOrgs{
-			Email:           coderdtest.RandomName(t),
-			Username:        coderdtest.RandomName(t),
-			Name:            coderdtest.RandomName(t),
+			Email:           "alice@coder.com",
+			Username:        "alice",
+			Name:            "Alice User",
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypePassword,
 			OrganizationIDs: []uuid.UUID{uuid.New()},
@@ -137,9 +136,9 @@ func TestCreateUserRequestJSON(t *testing.T) {
 		t.Parallel()
 
 		req := codersdk.CreateUserRequestWithOrgs{
-			Email:           coderdtest.RandomName(t),
-			Username:        coderdtest.RandomName(t),
-			Name:            coderdtest.RandomName(t),
+			Email:           "alice@coder.com",
+			Username:        "alice",
+			Name:            "Alice User",
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypePassword,
 			OrganizationIDs: []uuid.UUID{},

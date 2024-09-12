@@ -25,15 +25,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// AgentIP is a static IPv6 address with the Tailscale prefix that is used to route
-// connections from clients to this node. A dynamic address is not required because a Tailnet
-// client only dials a single agent at a time.
-//
-// Deprecated: use tailnet.IP() instead. This is kept for backwards
-// compatibility with outdated CLI clients and Workspace Proxies that dial it.
-// See: https://github.com/coder/coder/issues/11819
-var AgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
-
 var ErrSkipClose = xerrors.New("skip tailnet close")
 
 const (

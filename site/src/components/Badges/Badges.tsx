@@ -106,31 +106,14 @@ export const DisabledBadge: FC = forwardRef<
 	);
 });
 
-export const EnterpriseBadge: FC = () => {
-	return (
-		<span
-			css={[
-				styles.badge,
-				(theme) => ({
-					backgroundColor: theme.roles.notice.background,
-					border: `1px solid ${theme.roles.notice.outline}`,
-					color: theme.roles.notice.text,
-				}),
-			]}
-		>
-			Enterprise
-		</span>
-	);
-};
-
 export const PremiumBadge: FC = () => {
 	return (
 		<span
 			css={[
 				styles.badge,
 				(theme) => ({
-					backgroundColor: theme.roles.notice.background,
-					border: `1px solid ${theme.roles.notice.outline}`,
+					backgroundColor: theme.branding.background,
+					border: `1px solid ${theme.branding.border}`,
 					color: theme.roles.notice.text,
 				}),
 			]}

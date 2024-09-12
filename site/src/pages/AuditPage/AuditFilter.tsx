@@ -71,7 +71,7 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 					<MenuSkeleton />
 					<MenuSkeleton />
 					<MenuSkeleton />
-					<MenuSkeleton />
+					{menus.organization && <MenuSkeleton />}
 				</>
 			}
 		/>

@@ -3,7 +3,7 @@ import {
 	Badges,
 	DisabledBadge,
 	EnabledBadge,
-	EnterpriseBadge,
+	PremiumBadge,
 } from "components/Badges/Badges";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
@@ -56,7 +56,7 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 
 				<Badges>
 					{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-					<EnterpriseBadge />
+					<PremiumBadge />
 				</Badges>
 			</div>
 

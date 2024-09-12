@@ -429,6 +429,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 				"threshold": 0,
 				"url": "string"
 			},
+			"hidden": true,
 			"icon": "string",
 			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 			"sharing_level": "owner",

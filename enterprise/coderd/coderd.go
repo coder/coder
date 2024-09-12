@@ -80,13 +80,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
 	}
-	if options.IDPSync == nil {
-		options.IDPSync = enidpsync.NewSync(options.Logger, options.Entitlements, idpsync.SyncSettings{
-			OrganizationField:         options.DeploymentValues.OIDC.OrganizationField.Value(),
-			OrganizationMapping:       options.DeploymentValues.OIDC.OrganizationMapping.Value,
-			OrganizationAssignDefault: options.DeploymentValues.OIDC.OrganizationAssignDefault.Value(),
-		})
-	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
@@ -118,6 +111,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	options.Database = cryptDB
+
+	if options.IDPSync == nil {
+		options.IDPSync = enidpsync.NewSync(options.Logger, options.RuntimeConfig, options.Entitlements, idpsync.FromDeploymentValues(options.DeploymentValues))
+	}
+
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
@@ -147,7 +145,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 		return c.Subject, c.Trial, nil
 	}
-	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.Options.SetUserSiteRoles = api.setUserSiteRoles
 	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
 		// If the user can read the workspace proxy resource, return that.

@@ -2,9 +2,9 @@ package enidpsync
 
 import (
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 )
 
 // EnterpriseIDPSync enabled syncing user information from an external IDP.
@@ -17,9 +17,9 @@ type EnterpriseIDPSync struct {
 	*idpsync.AGPLIDPSync
 }
 
-func NewSync(logger slog.Logger, set *entitlements.Set, settings idpsync.SyncSettings) *EnterpriseIDPSync {
+func NewSync(logger slog.Logger, manager *runtimeconfig.Manager, set *entitlements.Set, settings idpsync.DeploymentSyncSettings) *EnterpriseIDPSync {
 	return &EnterpriseIDPSync{
 		entitlements: set,
-		AGPLIDPSync:  idpsync.NewAGPLSync(logger.With(slog.F("enterprise_capable", "true")), settings),
+		AGPLIDPSync:  idpsync.NewAGPLSync(logger.With(slog.F("enterprise_capable", "true")), manager, settings),
 	}
 }

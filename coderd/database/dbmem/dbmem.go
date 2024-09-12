@@ -84,6 +84,7 @@ func New() database.Store {
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 			customRoles:               make([]database.CustomRole, 0),
 			locks:                     map[int64]struct{}{},
+			runtimeConfig:             map[string]string{},
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -194,6 +195,7 @@ type data struct {
 	workspaces                    []database.Workspace
 	workspaceProxies              []database.WorkspaceProxy
 	customRoles                   []database.CustomRole
+	runtimeConfig                 map[string]string
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                            map[int64]struct{}
@@ -1928,6 +1930,14 @@ func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	return nil
 }
 
+func (q *FakeQuerier) DeleteRuntimeConfig(_ context.Context, key string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	delete(q.runtimeConfig, key)
+	return nil
+}
+
 func (*FakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
 }
@@ -2653,14 +2663,14 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID
 
 	var groupMembers []database.GroupMember
 	for _, member := range q.groupMembers {
-		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
-		if errors.Is(err, errUserDeleted) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
 		if member.GroupID == id {
+			groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
+			if errors.Is(err, errUserDeleted) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
 			groupMembers = append(groupMembers, groupMember)
 		}
 	}
@@ -2685,18 +2695,18 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	groupIDs := make(map[uuid.UUID]struct{})
+	userGroupIDs := make(map[uuid.UUID]struct{})
 	if arg.HasMemberID != uuid.Nil {
 		for _, member := range q.groupMembers {
 			if member.UserID == arg.HasMemberID {
-				groupIDs[member.GroupID] = struct{}{}
+				userGroupIDs[member.GroupID] = struct{}{}
 			}
 		}
 
 		// Handle the everyone group
 		for _, orgMember := range q.organizationMembers {
 			if orgMember.UserID == arg.HasMemberID {
-				groupIDs[orgMember.OrganizationID] = struct{}{}
+				userGroupIDs[orgMember.OrganizationID] = struct{}{}
 			}
 		}
 	}
@@ -2708,8 +2718,12 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 			continue
 		}
 
-		_, ok := groupIDs[group.ID]
+		_, ok := userGroupIDs[group.ID]
 		if arg.HasMemberID != uuid.Nil && !ok {
+			continue
+		}
+
+		if len(arg.GroupNames) > 0 && !slices.Contains(arg.GroupNames, group.Name) {
 			continue
 		}
 
@@ -3503,6 +3517,18 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	val, ok := q.runtimeConfig[key]
+	if !ok {
+		return "", sql.ErrNoRows
+	}
+
+	return val, nil
 }
 
 func (*FakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
@@ -6993,7 +7019,37 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
+func (q *FakeQuerier) InsertUserGroupsByID(_ context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var groupIDs []uuid.UUID
+	for _, group := range q.groups {
+		for _, groupID := range arg.GroupIds {
+			if group.ID == groupID {
+				q.groupMembers = append(q.groupMembers, database.GroupMemberTable{
+					UserID:  arg.UserID,
+					GroupID: groupID,
+				})
+				groupIDs = append(groupIDs, group.ID)
+			}
+		}
+	}
+
+	return groupIDs, nil
+}
+
 func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.InsertUserGroupsByNameParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -7291,6 +7347,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
 		Health:               arg.Health,
+		Hidden:               arg.Hidden,
 		DisplayOrder:         arg.DisplayOrder,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
@@ -7582,6 +7639,34 @@ func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUI
 	q.groupMembers = newMembers
 
 	return nil
+}
+
+func (q *FakeQuerier) RemoveUserFromGroups(_ context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	removed := make([]uuid.UUID, 0)
+	q.data.groupMembers = slices.DeleteFunc(q.data.groupMembers, func(groupMember database.GroupMemberTable) bool {
+		// Delete all group members that match the arguments.
+		if groupMember.UserID != arg.UserID {
+			// Not the right user, ignore.
+			return false
+		}
+
+		if !slices.Contains(arg.GroupIds, groupMember.GroupID) {
+			return false
+		}
+
+		removed = append(removed, groupMember.GroupID)
+		return true
+	})
+
+	return removed, nil
 }
 
 func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string) error {
@@ -9184,6 +9269,19 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil
+}
+
+func (q *FakeQuerier) UpsertRuntimeConfig(_ context.Context, arg database.UpsertRuntimeConfigParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.runtimeConfig[arg.Key] = arg.Value
+	return nil
 }
 
 func (*FakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

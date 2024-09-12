@@ -3,6 +3,7 @@ package idpsync
 import (
 	"context"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -12,6 +13,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
@@ -25,21 +27,34 @@ type IDPSync interface {
 	OrganizationSyncEnabled() bool
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
-	ParseOrganizationClaims(ctx context.Context, _ jwt.MapClaims) (OrganizationParams, *HTTPError)
+	ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (OrganizationParams, *HTTPError)
 	// SyncOrganizations assigns and removed users from organizations based on the
 	// provided params.
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
+
+	GroupSyncEnabled() bool
+	// ParseGroupClaims takes claims from an OIDC provider, and returns the params
+	// for group syncing. Most of the logic happens in SyncGroups.
+	ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (GroupParams, *HTTPError)
+	// SyncGroups assigns and removes users from groups based on the provided params.
+	SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error
+	// GroupSyncSettings is exposed for the API to implement CRUD operations
+	// on the settings used by IDPSync. This entry is thread safe and can be
+	// accessed concurrently. The settings are stored in the database.
+	GroupSyncSettings() runtimeconfig.RuntimeEntry[*GroupSyncSettings]
 }
 
 // AGPLIDPSync is the configuration for syncing user information from an external
 // IDP. All related code to syncing user information should be in this package.
 type AGPLIDPSync struct {
-	Logger slog.Logger
+	Logger  slog.Logger
+	Manager *runtimeconfig.Manager
 
 	SyncSettings
 }
 
-type SyncSettings struct {
+// DeploymentSyncSettings are static and are sourced from the deployment config.
+type DeploymentSyncSettings struct {
 	// OrganizationField selects the claim field to be used as the created user's
 	// organizations. If the field is the empty string, then no organization updates
 	// will ever come from the OIDC provider.
@@ -50,23 +65,62 @@ type SyncSettings struct {
 	// placed into the default organization. This is mostly a hack to support
 	// legacy deployments.
 	OrganizationAssignDefault bool
+
+	// GroupField at the deployment level is used for deployment level group claim
+	// settings.
+	GroupField string
+	// GroupAllowList (if set) will restrict authentication to only users who
+	// have at least one group in this list.
+	// A map representation is used for easier lookup.
+	GroupAllowList map[string]struct{}
+	// Legacy deployment settings that only apply to the default org.
+	Legacy DefaultOrgLegacySettings
 }
 
-type OrganizationParams struct {
-	// SyncEnabled if false will skip syncing the user's organizations.
-	SyncEnabled bool
-	// IncludeDefault is primarily for single org deployments. It will ensure
-	// a user is always inserted into the default org.
-	IncludeDefault bool
-	// Organizations is the list of organizations the user should be a member of
-	// assuming syncing is turned on.
-	Organizations []uuid.UUID
+type DefaultOrgLegacySettings struct {
+	GroupField          string
+	GroupMapping        map[string]string
+	GroupFilter         *regexp.Regexp
+	CreateMissingGroups bool
 }
 
-func NewAGPLSync(logger slog.Logger, settings SyncSettings) *AGPLIDPSync {
+func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings {
+	if dv == nil {
+		panic("Developer error: DeploymentValues should not be nil")
+	}
+	return DeploymentSyncSettings{
+		OrganizationField:         dv.OIDC.OrganizationField.Value(),
+		OrganizationMapping:       dv.OIDC.OrganizationMapping.Value,
+		OrganizationAssignDefault: dv.OIDC.OrganizationAssignDefault.Value(),
+
+		// TODO: Separate group field for allow list from default org.
+		// Right now you cannot disable group sync from the default org and
+		// configure an allow list.
+		GroupField:     dv.OIDC.GroupField.Value(),
+		GroupAllowList: ConvertAllowList(dv.OIDC.GroupAllowList.Value()),
+		Legacy: DefaultOrgLegacySettings{
+			GroupField:          dv.OIDC.GroupField.Value(),
+			GroupMapping:        dv.OIDC.GroupMapping.Value,
+			GroupFilter:         dv.OIDC.GroupRegexFilter.Value(),
+			CreateMissingGroups: dv.OIDC.GroupAutoCreate.Value(),
+		},
+	}
+}
+
+type SyncSettings struct {
+	DeploymentSyncSettings
+
+	Group runtimeconfig.RuntimeEntry[*GroupSyncSettings]
+}
+
+func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
 	return &AGPLIDPSync{
-		Logger:       logger.Named("idp-sync"),
-		SyncSettings: settings,
+		Logger:  logger.Named("idp-sync"),
+		Manager: manager,
+		SyncSettings: SyncSettings{
+			DeploymentSyncSettings: settings,
+			Group:                  runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings"),
+		},
 	}
 }
 
