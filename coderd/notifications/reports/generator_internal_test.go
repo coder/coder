@@ -5,17 +5,7 @@ import "testing"
 func TestReportFailedWorkspaceBuilds(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FailedBuilds_TemplateAdminOptIn_FirstRun_Report", func(t *testing.T) {
-		t.Parallel()
-		// TODO
-	})
-
-	t.Run("FailedBuilds_TemplateAdminOptIn_SecondRunTooEarly_NoReport", func(t *testing.T) {
-		t.Parallel()
-		// TODO
-	})
-
-	t.Run("FailedBuilds_TemplateAdminOptIn_SecondRun_Report", func(t *testing.T) {
+	t.Run("FailedBuilds_TemplateAdminOptIn_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
 		t.Parallel()
 		// TODO
 	})

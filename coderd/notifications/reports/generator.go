@@ -101,7 +101,6 @@ func (i *reportGenerator) Close() error {
 const failedWorkspaceBuildsReportFrequencyDays = 7
 
 func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
-
 	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(clk.Now()).UTC())
 	if err != nil {
 		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
