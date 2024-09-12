@@ -43,14 +43,14 @@ type FeatureBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 		type: keyof typeof featureBadgeTypes;
 		size?: "sm" | "md";
-		isHighlighted?: boolean;
+		highlighted?: boolean;
 	}
 >;
 
 export const FeatureBadge: FC<FeatureBadgeProps> = ({
 	type,
 	size = "sm",
-	isHighlighted = false,
+	highlighted = false,
 	...delegatedProps
 }) => {
 	return (
@@ -58,7 +58,7 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 			css={[
 				styles.badge,
 				size === "md" && styles.mediumText,
-				isHighlighted && styles.highlighted,
+				highlighted && styles.highlighted,
 			]}
 			{...delegatedProps}
 		>

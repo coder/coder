@@ -20,3 +20,17 @@ export const Medium: Story = {
 		size: "md",
 	},
 };
+
+export const HighlightedSmall: Story = {
+	args: {
+		size: "sm",
+		highlighted: true,
+	},
+};
+
+export const HighlightedMedium: Story = {
+	args: {
+		size: "md",
+		highlighted: true,
+	},
+};
