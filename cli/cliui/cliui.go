@@ -194,7 +194,7 @@ type userThemeConfig struct {
 
 func applyUserTheme(theme *userThemeConfig) {
 	if theme.Styles.Code != nil {
-		DefaultStyles.Code = pretty.Style{pretty.XPad(1, 1)}
+		DefaultStyles.Code = pretty.Style{ifTerm(pretty.XPad(1, 1))}
 		DefaultStyles.Code = append(DefaultStyles.Code, theme.Styles.Code.toPrettyStyle(theme)...)
 	}
 	if theme.Styles.DateTimeStamp != nil {
