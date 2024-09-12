@@ -4,6 +4,9 @@ import { FeatureBadge } from "./FeatureBadge";
 const meta: Meta<typeof FeatureBadge> = {
 	title: "components/FeatureBadge",
 	component: FeatureBadge,
+	args: {
+		type: "beta",
+	},
 };
 
 export default meta;

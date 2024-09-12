@@ -17,16 +17,19 @@ const styles = {
 		// more types of HTML elements without creating invalid markdown, but we
 		// still want the default display behavior to be div-like
 		display: "block",
+
+		// Base style assumes that small badges will be the default
+		fontSize: "0.75rem",
+
 		maxWidth: "fit-content",
 		flexShrink: 0,
-		padding: "8px 4px",
+		padding: "4px 8px",
+		lineHeight: 1,
+		whiteSpace: "nowrap",
 		border: `1px solid ${theme.palette.divider}`,
 		color: theme.palette.text.secondary,
 		backgroundColor: theme.palette.background.default,
 		borderRadius: "6px",
-
-		// Base style assumes that small badges will be the default
-		fontSize: "0.75rem",
 	}),
 
 	highlighted: (theme) => ({
