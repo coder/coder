@@ -5998,10 +5998,13 @@ FROM
 WHERE
     organization_id = $1
 AND
+    -- exclude reserved built-in key
     id != '11111111-1111-1111-1111-111111111111'::uuid
 AND 
+    -- exclude reserved user-auth key
     id != '22222222-2222-2222-2222-222222222222'::uuid
 AND 
+    -- exclude reserved psk key
     id != '33333333-3333-3333-3333-333333333333'::uuid
 `
 
