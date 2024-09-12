@@ -77,10 +77,10 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		t2 := dbgen.Template(t, db, database.Template{Name: "template-2", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID})
 
 		// Template versions
-		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
-		t1v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-2", OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
-		t2v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-2-version-1", OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true}, JobID: uuid.New()})
-		t2v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true}, JobID: uuid.New()})
+		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
+		t1v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-2", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
+		t2v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-2-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true}, JobID: uuid.New()})
+		t2v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true}, JobID: uuid.New()})
 
 		// Workspaces
 		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
