@@ -73,8 +73,8 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// user in some other org
 
 		// Templates
-		t1 := dbgen.Template(t, db, database.Template{Name: "template-1", DisplayName: "First Template", OrganizationID: org.ID})
-		t2 := dbgen.Template(t, db, database.Template{Name: "template-2", OrganizationID: org.ID})
+		t1 := dbgen.Template(t, db, database.Template{Name: "template-1", DisplayName: "First Template", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID})
+		t2 := dbgen.Template(t, db, database.Template{Name: "template-2", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID})
 
 		// Template versions
 		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
