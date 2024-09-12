@@ -7,13 +7,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 func TestReportFailedWorkspaceBuilds(t *testing.T) {
@@ -22,12 +26,8 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 	t.Run("FailedBuilds_TemplateAdminOptIn_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
 		t.Parallel()
 
-		// Prepare dependencies
-		logger := slogtest.Make(t, &slogtest.Options{})
-		rdb, _ := dbtestutil.NewDB(t)
-		db := dbauthz.New(rdb, rbac.NewAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
-		clk := quartz.NewMock(t)
+		// Setup
+		logger, db, notifEnq, clk := setup(t)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
@@ -35,7 +35,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Given
 
 		// When
-		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifyEnq, clk)
+		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
 		require.NoError(t, err)
 
 		// Then
@@ -57,4 +57,15 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		t.Parallel()
 		// TODO
 	})
+}
+
+func setup(t *testing.T) (slog.Logger, database.Store, notifications.Enqueuer, quartz.Clock) {
+	t.Helper()
+
+	logger := slogtest.Make(t, &slogtest.Options{})
+	rdb, _ := dbtestutil.NewDB(t)
+	db := dbauthz.New(rdb, rbac.NewAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+	notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+	clk := quartz.NewMock(t)
+	return logger, db, notifyEnq, clk
 }
