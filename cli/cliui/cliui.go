@@ -1,10 +1,11 @@
 package cliui
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/muesli/termenv"
@@ -114,41 +115,35 @@ func init() {
 	DefaultStyles = Styles{Wrap: pretty.Style{pretty.LineWrap(80)}}
 
 	defaultTheme := userThemeConfig{
-		Colors: map[string]string{
-			"green":  "#04B575",
-			"red":    "#ED567A",
-			"yellow": "#ECFD65",
-			"blue":   "#5000ff",
-		},
-		Styles: &userThemeStyles{
-			Code: &userThemeStyle{
-				FgColor: "$red",
+		Styles: userThemeStyles{
+			Code: userThemeStyle{
+				FgColor: "#ED567A",
 				BgColor: "#2C2C2C",
 			},
-			DateTimeStamp: &userThemeStyle{
+			DateTimeStamp: userThemeStyle{
 				FgColor: "#7571F9",
 			},
-			Error: &userThemeStyle{
-				FgColor: "$red",
+			Error: userThemeStyle{
+				FgColor: "#ED567A",
 			},
-			Field: &userThemeStyle{
+			Field: userThemeStyle{
 				FgColor: "#FFFFFF",
 				BgColor: "#2B2A2A",
 			},
-			FocusedPrompt: &userThemeStyle{
-				FgColor: "$blue",
+			FocusedPrompt: userThemeStyle{
+				FgColor: "#5000ff",
 			},
-			Keyword: &userThemeStyle{
-				FgColor: "$green",
+			Keyword: userThemeStyle{
+				FgColor: "#04B575",
 			},
-			Placeholder: &userThemeStyle{
+			Placeholder: userThemeStyle{
 				FgColor: "#4d46b3",
 			},
-			Prompt: &userThemeStyle{
+			Prompt: userThemeStyle{
 				FgColor: "#5C5C5C",
 			},
-			Warn: &userThemeStyle{
-				FgColor: "$yellow",
+			Warn: userThemeStyle{
+				FgColor: "#ECFD65",
 			},
 		},
 	}
@@ -159,7 +154,16 @@ func init() {
 	}
 
 	if theme, err := os.ReadFile(path.Join(configDir, "theme.toml")); err == nil {
-		_ = toml.Unmarshal(theme, &defaultTheme)
+		if err = toml.Unmarshal(theme, &defaultTheme); err != nil {
+			var decodeErr *toml.DecodeError
+			if errors.As(err, &decodeErr) {
+				_, _ = fmt.Fprintf(os.Stderr, "WARN: theme.toml has syntax error\n%s\n", decodeErr.String())
+				row, col := decodeErr.Position()
+				_, _ = fmt.Fprintf(os.Stderr, "error occurred at row %d column %d\n", row, col)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "WARN: %s", err)
+			}
+		}
 	}
 
 	applyUserTheme(defaultTheme)
@@ -171,76 +175,56 @@ type userThemeStyle struct {
 }
 
 type userThemeStyles struct {
-	Code          *userThemeStyle `toml:"code"`
-	DateTimeStamp *userThemeStyle `toml:"datetimestamp"`
-	Error         *userThemeStyle `toml:"error"`
-	Field         *userThemeStyle `toml:"field"`
-	FocusedPrompt *userThemeStyle `toml:"focusedprompt"`
-	Keyword       *userThemeStyle `toml:"keyword"`
-	Placeholder   *userThemeStyle `toml:"placeholder"`
-	Prompt        *userThemeStyle `toml:"prompt"`
-	Warn          *userThemeStyle `toml:"warn"`
+	Code          userThemeStyle `toml:"code"`
+	DateTimeStamp userThemeStyle `toml:"datetimestamp"`
+	Error         userThemeStyle `toml:"error"`
+	Field         userThemeStyle `toml:"field"`
+	FocusedPrompt userThemeStyle `toml:"focusedprompt"`
+	Keyword       userThemeStyle `toml:"keyword"`
+	Placeholder   userThemeStyle `toml:"placeholder"`
+	Prompt        userThemeStyle `toml:"prompt"`
+	Warn          userThemeStyle `toml:"warn"`
 }
 
 type userThemeConfig struct {
-	Colors map[string]string `toml:"colors"`
-	Styles *userThemeStyles  `toml:"styles"`
+	Styles userThemeStyles `toml:"styles"`
 }
 
 func applyUserTheme(theme userThemeConfig) {
-	if theme.Styles.Code != nil {
-		DefaultStyles.Code = pretty.Style{ifTerm(pretty.XPad(1, 1))}
-		DefaultStyles.Code = append(DefaultStyles.Code, theme.Styles.Code.toPrettyStyle(theme)...)
-	}
-	if theme.Styles.DateTimeStamp != nil {
-		DefaultStyles.DateTimeStamp = theme.Styles.DateTimeStamp.toPrettyStyle(theme)
-	}
-	if theme.Styles.Error != nil {
-		DefaultStyles.Error = theme.Styles.Error.toPrettyStyle(theme)
-	}
-	if theme.Styles.Field != nil {
-		DefaultStyles.Field = pretty.Style{pretty.XPad(1, 1)}
-		DefaultStyles.Field = append(DefaultStyles.Field, theme.Styles.Field.toPrettyStyle(theme)...)
-	}
-	if theme.Styles.Keyword != nil {
-		DefaultStyles.Keyword = theme.Styles.Keyword.toPrettyStyle(theme)
-	}
-	if theme.Styles.Warn != nil {
-		DefaultStyles.Warn = theme.Styles.Warn.toPrettyStyle(theme)
-	}
-	if theme.Styles.Placeholder != nil {
-		DefaultStyles.Placeholder = theme.Styles.Placeholder.toPrettyStyle(theme)
-	}
+	DefaultStyles.Code = pretty.Style{ifTerm(pretty.XPad(1, 1))}
+	DefaultStyles.Code = append(DefaultStyles.Code, theme.Styles.Code.toPrettyStyle()...)
+
+	DefaultStyles.DateTimeStamp = theme.Styles.DateTimeStamp.toPrettyStyle()
+
+	DefaultStyles.Error = theme.Styles.Error.toPrettyStyle()
+
+	DefaultStyles.Field = pretty.Style{pretty.XPad(1, 1)}
+	DefaultStyles.Field = append(DefaultStyles.Field, theme.Styles.Field.toPrettyStyle()...)
+
+	DefaultStyles.Keyword = theme.Styles.Keyword.toPrettyStyle()
+
+	DefaultStyles.Warn = theme.Styles.Warn.toPrettyStyle()
+
+	DefaultStyles.Placeholder = theme.Styles.Placeholder.toPrettyStyle()
+
 	// NOTE: Prompt should be styled first as FocusedPrompt depends on the styling
 	// of Prompt.
-	if theme.Styles.Prompt != nil {
-		DefaultStyles.Prompt = theme.Styles.Prompt.toPrettyStyle(theme)
-		DefaultStyles.Prompt = append(DefaultStyles.Prompt, pretty.Wrap("> ", ""))
-	}
-	if theme.Styles.FocusedPrompt != nil {
-		style := theme.Styles.FocusedPrompt.toPrettyStyle(theme)
-		DefaultStyles.FocusedPrompt = append(DefaultStyles.Prompt, style...)
-	}
+	DefaultStyles.Prompt = theme.Styles.Prompt.toPrettyStyle()
+	DefaultStyles.Prompt = append(DefaultStyles.Prompt, pretty.Wrap("> ", ""))
+
+	style := theme.Styles.FocusedPrompt.toPrettyStyle()
+	DefaultStyles.FocusedPrompt = append(DefaultStyles.Prompt, style...)
 }
 
-func (t userThemeConfig) getColor(color string) string {
-	if strings.HasPrefix(color, "$") {
-		if c, ok := t.Colors[color[1:]]; ok {
-			return c
-		}
-	}
-	return color
-}
-
-func (s *userThemeStyle) toPrettyStyle(theme userThemeConfig) pretty.Style {
+func (s *userThemeStyle) toPrettyStyle() pretty.Style {
 	style := pretty.Style{}
 	if s.FgColor != "" {
-		if color := Color(theme.getColor(s.FgColor)); color != nil {
+		if color := Color(s.FgColor); color != nil {
 			style = append(style, pretty.FgColor(color))
 		}
 	}
 	if s.BgColor != "" {
-		if color := Color(theme.getColor(s.BgColor)); color != nil {
+		if color := Color(s.BgColor); color != nil {
 			style = append(style, pretty.BgColor(color))
 		}
 	}
