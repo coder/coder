@@ -28,7 +28,7 @@ const (
 	delay = 15 * time.Minute
 )
 
-func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, enqueur notifications.Enqueuer, clk quartz.Clock) io.Closer {
+func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -51,7 +51,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 				return nil
 			}
 
-			err = reportFailedWorkspaceBuilds(ctx, logger, db, enqueur, clk)
+			err = reportFailedWorkspaceBuilds(ctx, logger, db, enqueuer, clk)
 			if err != nil {
 				logger.Debug(ctx, "unable to report failed workspace builds")
 				return err
@@ -98,8 +98,9 @@ func (i *reportGenerator) Close() error {
 	return nil
 }
 
+const failedWorkspaceBuildsReportFrequencyDays = 7
+
 func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
-	const frequencyDays = 7
 
 	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(clk.Now()).UTC())
 	if err != nil {
@@ -121,7 +122,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			}
 
 			// There are some failed builds, so we have to prepare input data for the report.
-			reportData = buildDataForReportFailedWorkspaceBuilds(frequencyDays, stats, failedBuilds)
+			reportData = buildDataForReportFailedWorkspaceBuilds(failedWorkspaceBuildsReportFrequencyDays, stats, failedBuilds)
 		}
 
 		templateAdmins, err := findTemplateAdmins(ctx, db, stats)
@@ -139,7 +140,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				return xerrors.Errorf("unable to get recent report generator log for user: %w", err)
 			}
 
-			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(frequencyDays*24*time.Hour).After(clk.Now()) {
+			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequencyDays*24*time.Hour).After(clk.Now()) {
 				// report generated recently, no need to send it now
 				err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
 					UserID:                 templateAdmin.ID,
@@ -196,7 +197,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 	err = db.DeleteOldReportGeneratorLogs(ctx, database.DeleteOldReportGeneratorLogsParams{
 		NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-		FrequencyDays:          frequencyDays,
+		FrequencyDays:          failedWorkspaceBuildsReportFrequencyDays,
 	})
 	if err != nil {
 		return xerrors.Errorf("unable to delete old report generator logs: %w", err)
