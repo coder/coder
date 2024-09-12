@@ -2714,7 +2714,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("DeleteOldReportGeneratorLogs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.DeleteOldReportGeneratorLogsParams{
-			FrequencyDays:          1,
+			Before:                 dbtime.Now(),
 			NotificationTemplateID: uuid.New(),
 		}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
