@@ -153,19 +153,7 @@ func init() {
 		configDir = dir
 	}
 
-	if theme, err := os.ReadFile(path.Join(configDir, "theme.toml")); err == nil {
-		if err = toml.Unmarshal(theme, &defaultTheme); err != nil {
-			var decodeErr *toml.DecodeError
-			if errors.As(err, &decodeErr) {
-				_, _ = fmt.Fprintf(os.Stderr, "WARN: theme.toml has syntax error\n%s\n", decodeErr.String())
-				row, col := decodeErr.Position()
-				_, _ = fmt.Fprintf(os.Stderr, "error occurred at row %d column %d\n", row, col)
-			} else {
-				_, _ = fmt.Fprintf(os.Stderr, "WARN: %s", err)
-			}
-		}
-	}
-
+	loadUserTheme(&defaultTheme, path.Join(configDir, "theme.toml"))
 	applyUserTheme(defaultTheme)
 }
 
@@ -188,6 +176,24 @@ type userThemeStyles struct {
 
 type userThemeConfig struct {
 	Styles userThemeStyles `toml:"styles"`
+}
+
+func loadUserTheme(theme *userThemeConfig, themePath string) {
+	userTheme, err := os.ReadFile(themePath)
+	if err != nil {
+		return
+	}
+
+	if err = toml.Unmarshal(userTheme, theme); err != nil {
+		var decodeErr *toml.DecodeError
+		if errors.As(err, &decodeErr) {
+			_, _ = fmt.Fprintf(os.Stderr, "WARN: theme.toml has syntax error\n%s\n", decodeErr.String())
+			row, col := decodeErr.Position()
+			_, _ = fmt.Fprintf(os.Stderr, "error occurred at row %d column %d\n", row, col)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "WARN: %s", err)
+		}
+	}
 }
 
 func applyUserTheme(theme userThemeConfig) {
