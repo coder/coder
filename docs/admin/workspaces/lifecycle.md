@@ -18,7 +18,7 @@ ephemeral resources are destroyed and recreated on restart. All resources are
 destroyed when a workspace is deleted.
 
 > Template administrators can learn more about resource configuration in the
-> [extending templates docs](../templates/concepts.md).
+> [extending templates docs](../templates/extending-templates/resource-persistence.md).
 
 ## Workspace States
 
@@ -121,9 +121,6 @@ workspace startup scripts.
 
 ## Next steps
 
-<!--
-TODO:
-- connecting to your workspace
-- writing templates
-- workspace scheduling
--->
+- [Connecting to your workspace](../../user-guides/workspace-access/README.md)
+- [Creating templates](../templates/README.md)
+- [Workspace scheduling](../../user-guides/workspace-scheduling.md)
