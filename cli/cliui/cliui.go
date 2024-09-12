@@ -34,9 +34,7 @@ type Styles struct {
 	Wrap pretty.Style
 }
 
-var (
-	color termenv.Profile
-)
+var color termenv.Profile
 
 // Color returns a color for the given string.
 func Color(s string) termenv.Color {
