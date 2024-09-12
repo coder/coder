@@ -21,6 +21,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+var ErrUnsupportedVersion = xerrors.New("unsupported version")
+
 type streamIDContextKey struct{}
 
 // StreamID identifies the caller of the CoordinateTailnet RPC.  We store this
@@ -47,7 +49,7 @@ type ClientServiceOptions struct {
 }
 
 // ClientService is a tailnet coordination service that accepts a connection and version from a
-// tailnet client, and support versions 1.0 and 2.x of the Tailnet API protocol.
+// tailnet client, and support versions 2.x of the Tailnet API protocol.
 type ClientService struct {
 	Logger   slog.Logger
 	CoordPtr *atomic.Pointer[Coordinator]
@@ -94,9 +96,6 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 		return err
 	}
 	switch major {
-	case 1:
-		coord := *(s.CoordPtr.Load())
-		return coord.ServeClient(conn, id, agent)
 	case 2:
 		auth := ClientCoordinateeAuth{AgentID: agent}
 		streamID := StreamID{
@@ -107,7 +106,7 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 		return s.ServeConnV2(ctx, conn, streamID)
 	default:
 		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
-		return xerrors.New("unsupported version")
+		return ErrUnsupportedVersion
 	}
 }
 

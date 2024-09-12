@@ -11,7 +11,6 @@ package tailnettest
 
 import (
 	context "context"
-	net "net"
 	http "net/http"
 	reflect "reflect"
 
@@ -85,34 +84,6 @@ func (m *MockCoordinator) Node(arg0 uuid.UUID) *tailnet.Node {
 func (mr *MockCoordinatorMockRecorder) Node(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Node", reflect.TypeOf((*MockCoordinator)(nil).Node), arg0)
-}
-
-// ServeAgent mocks base method.
-func (m *MockCoordinator) ServeAgent(arg0 net.Conn, arg1 uuid.UUID, arg2 string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ServeAgent", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ServeAgent indicates an expected call of ServeAgent.
-func (mr *MockCoordinatorMockRecorder) ServeAgent(arg0, arg1, arg2 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServeAgent", reflect.TypeOf((*MockCoordinator)(nil).ServeAgent), arg0, arg1, arg2)
-}
-
-// ServeClient mocks base method.
-func (m *MockCoordinator) ServeClient(arg0 net.Conn, arg1, arg2 uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ServeClient", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ServeClient indicates an expected call of ServeClient.
-func (mr *MockCoordinatorMockRecorder) ServeClient(arg0, arg1, arg2 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServeClient", reflect.TypeOf((*MockCoordinator)(nil).ServeClient), arg0, arg1, arg2)
 }
 
 // ServeHTTPDebug mocks base method.
