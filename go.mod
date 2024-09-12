@@ -164,7 +164,7 @@ require (
 	github.com/unrolled/secure v1.14.0
 	github.com/valyala/fasthttp v1.55.0
 	github.com/wagslane/go-password-validator v0.3.0
-	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
+	go.mozilla.org/pkcs7 v0.9.0
 	go.nhat.io/otelsql v0.13.0
 	go.opentelemetry.io/otel v1.29.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.28.0
