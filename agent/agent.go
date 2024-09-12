@@ -1669,16 +1669,12 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		}
 
 		score, niceErr := proc.Niceness(a.syscaller)
-		if niceErr != nil && !xerrors.Is(niceErr, os.ErrPermission) {
-			if !isNoSuchProcessErr(niceErr) {
-				debouncer.Warn(ctx, "unable to get proc niceness",
-					slog.F("cmd", proc.Cmd()),
-					slog.F("pid", proc.PID),
-					slog.Error(niceErr),
-				)
-			}
-
-			continue
+		if !isBenignProcessErr(niceErr) {
+			debouncer.Warn(ctx, "unable to get proc niceness",
+				slog.F("cmd", proc.Cmd()),
+				slog.F("pid", proc.PID),
+				slog.Error(niceErr),
+			)
 		}
 
 		// We only want processes that don't have a nice value set
@@ -1692,15 +1688,13 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 
 		if niceErr == nil {
 			err := proc.SetNiceness(a.syscaller, niceness)
-			if err != nil && !xerrors.Is(err, os.ErrPermission) {
-				if !isNoSuchProcessErr(err) {
-					debouncer.Warn(ctx, "unable to set proc niceness",
-						slog.F("cmd", proc.Cmd()),
-						slog.F("pid", proc.PID),
-						slog.F("niceness", niceness),
-						slog.Error(err),
-					)
-				}
+			if !isBenignProcessErr(err) {
+				debouncer.Warn(ctx, "unable to set proc niceness",
+					slog.F("cmd", proc.Cmd()),
+					slog.F("pid", proc.PID),
+					slog.F("niceness", niceness),
+					slog.Error(err),
+				)
 			}
 		}
 
@@ -1708,15 +1702,13 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		if oomScore != unsetOOMScore && oomScore != proc.OOMScoreAdj && !isCustomOOMScore(agentScore, proc) {
 			oomScoreStr := strconv.Itoa(oomScore)
 			err := afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte(oomScoreStr), 0o644)
-			if err != nil && !xerrors.Is(err, os.ErrPermission) {
-				if !isNoSuchProcessErr(err) {
-					debouncer.Warn(ctx, "unable to set oom_score_adj",
-						slog.F("cmd", proc.Cmd()),
-						slog.F("pid", proc.PID),
-						slog.F("score", oomScoreStr),
-						slog.Error(err),
-					)
-				}
+			if !isBenignProcessErr(err) {
+				debouncer.Warn(ctx, "unable to set oom_score_adj",
+					slog.F("cmd", proc.Cmd()),
+					slog.F("pid", proc.PID),
+					slog.F("score", oomScoreStr),
+					slog.Error(err),
+				)
 			}
 		}
 		modProcs = append(modProcs, proc)
@@ -2145,6 +2137,13 @@ func (l *logDebouncer) log(ctx context.Context, level slog.Level, msg string, fi
 		l.logger.Error(ctx, msg, fields...)
 	}
 	l.messages[msg] = time.Now()
+}
+
+func isBenignProcessErr(err error) bool {
+	return err != nil &&
+		(xerrors.Is(err, os.ErrNotExist) ||
+			xerrors.Is(err, os.ErrPermission) ||
+			isNoSuchProcessErr(err))
 }
 
 func isNoSuchProcessErr(err error) bool {
