@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/muesli/termenv"
@@ -36,20 +35,11 @@ type Styles struct {
 }
 
 var (
-	color     termenv.Profile
-	colorOnce sync.Once
+	color termenv.Profile
 )
 
 // Color returns a color for the given string.
 func Color(s string) termenv.Color {
-	colorOnce.Do(func() {
-		color = termenv.NewOutput(os.Stdout).ColorProfile()
-		if flag.Lookup("test.v") != nil {
-			// Use a consistent colorless profile in tests so that results
-			// are deterministic.
-			color = termenv.Ascii
-		}
-	})
 	return color.Color(s)
 }
 
@@ -113,6 +103,13 @@ func ifTerm(fmt pretty.Formatter) pretty.Formatter {
 }
 
 func init() {
+	color = termenv.NewOutput(os.Stdout).ColorProfile()
+	if flag.Lookup("test.v") != nil {
+		// Use a consistent colorless profile in tests so that results
+		// are deterministic.
+		color = termenv.Ascii
+	}
+
 	// We do not adapt the color based on whether the terminal is light or dark.
 	// Doing so would require a round-trip between the program and the terminal
 	// due to the OSC query and response.
