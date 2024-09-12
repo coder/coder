@@ -8,7 +8,6 @@ import type { FC, HTMLAttributes, ReactNode } from "react";
  */
 const featureBadgeTypes = {
 	beta: "beta",
-	earlyAccess: "early access",
 } as const satisfies Record<string, ReactNode>;
 
 const styles = {
