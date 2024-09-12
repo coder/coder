@@ -197,7 +197,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 	err = db.DeleteOldReportGeneratorLogs(ctx, database.DeleteOldReportGeneratorLogsParams{
 		NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-		FrequencyDays:          failedWorkspaceBuildsReportFrequencyDays,
+		Before:                 dbtime.Time(clk.Now().Add(-failedWorkspaceBuildsReportFrequencyDays*24*time.Hour - time.Hour)).UTC(),
 	})
 	if err != nil {
 		return xerrors.Errorf("unable to delete old report generator logs: %w", err)

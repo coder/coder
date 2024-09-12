@@ -1713,11 +1713,9 @@ func (q *FakeQuerier) DeleteOldReportGeneratorLogs(_ context.Context, params dat
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	now := dbtime.Now()
-
 	var validLogs []database.ReportGeneratorLog
 	for _, record := range q.reportGeneratorLogs {
-		if record.NotificationTemplateID != params.NotificationTemplateID || record.LastGeneratedAt.Before(now.Add(-time.Duration(params.FrequencyDays)*24*time.Hour)) {
+		if record.NotificationTemplateID != params.NotificationTemplateID || record.LastGeneratedAt.Before(params.Before) {
 			validLogs = append(validLogs, record)
 		}
 	}
