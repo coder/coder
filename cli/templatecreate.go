@@ -74,7 +74,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				return err
 			}
 
-			templateName, err := uploadFlags.templateName(inv.Args)
+			templateName, err := uploadFlags.templateName(inv)
 			if err != nil {
 				return err
 			}
@@ -96,7 +96,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			message := uploadFlags.templateMessage(inv)
 
 			var varsFiles []string
-			if !uploadFlags.stdin() {
+			if !uploadFlags.stdin(inv) {
 				varsFiles, err = codersdk.DiscoverVarsFiles(uploadFlags.directory)
 				if err != nil {
 					return err
@@ -139,7 +139,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				return err
 			}
 
-			if !uploadFlags.stdin() {
+			if !uploadFlags.stdin(inv) {
 				_, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text:      "Confirm create?",
 					IsConfirm: true,
