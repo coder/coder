@@ -163,8 +163,11 @@ func init() {
 		configDir = dir
 	}
 
-	theme, _ := os.ReadFile(path.Join(configDir, "theme.toml"))
-	_ = LoadUserTheme(&defaultTheme, theme)
+	if theme, err := os.ReadFile(path.Join(configDir, "theme.toml")); err != nil {
+		_ = toml.Unmarshal(theme, &defaultTheme)
+	}
+
+	applyUserTheme(&defaultTheme)
 }
 
 type userThemeStyle struct {
@@ -189,11 +192,7 @@ type userThemeConfig struct {
 	Styles *userThemeStyles  `toml:"styles"`
 }
 
-func LoadUserTheme(theme *userThemeConfig, t []byte) error {
-	if err := toml.Unmarshal(t, theme); err != nil {
-		return err
-	}
-
+func applyUserTheme(theme *userThemeConfig) {
 	if theme.Styles.Code != nil {
 		DefaultStyles.Code = pretty.Style{pretty.XPad(1, 1)}
 		DefaultStyles.Code = append(DefaultStyles.Code, theme.Styles.Code.toPrettyStyle(theme)...)
@@ -227,7 +226,6 @@ func LoadUserTheme(theme *userThemeConfig, t []byte) error {
 		style := theme.Styles.FocusedPrompt.toPrettyStyle(theme)
 		DefaultStyles.FocusedPrompt = append(DefaultStyles.Prompt, style...)
 	}
-	return nil
 }
 
 func (t userThemeConfig) getColor(color string) string {
