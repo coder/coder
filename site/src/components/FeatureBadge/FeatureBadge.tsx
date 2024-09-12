@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { visuallyHidden } from "@mui/utils";
 import type { FC, HTMLAttributes, ReactNode } from "react";
 
 /**
@@ -61,7 +62,9 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 			]}
 			{...delegatedProps}
 		>
+			<span style={visuallyHidden}> (This feature is</span>
 			{featureBadgeTypes[type]}
+			<span style={visuallyHidden}>)</span>
 		</span>
 	);
 };
