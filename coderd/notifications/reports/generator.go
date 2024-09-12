@@ -101,10 +101,13 @@ func (i *reportGenerator) Close() error {
 const failedWorkspaceBuildsReportFrequencyDays = 7
 
 func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
-	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(clk.Now()).UTC())
+	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(clk.Now().Add(-failedWorkspaceBuildsReportFrequencyDays*24*time.Hour)).UTC())
 	if err != nil {
 		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
 	}
+	sort.Slice(statsRows, func(i, j int) bool {
+		return statsRows[i].TemplateName < statsRows[j].TemplateName
+	})
 
 	for _, stats := range statsRows {
 		var failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
@@ -161,8 +164,8 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				})
 				if err != nil {
 					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
-					continue
 				}
+				continue
 			}
 
 			templateDisplayName := stats.TemplateDisplayName
@@ -234,10 +237,12 @@ func buildDataForReportFailedWorkspaceBuilds(frequencyDays int, stats database.G
 			templateVersions = append(templateVersions, map[string]any{
 				"template_version_name": failedBuild.TemplateVersionName,
 				"failed_count":          1,
-				"failed_builds": map[string]any{
-					"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
-					"workspace_name":           failedBuild.WorkspaceName,
-					"build_number":             failedBuild.WorkspaceBuildNumber,
+				"failed_builds": []map[string]any{
+					{
+						"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
+						"workspace_name":           failedBuild.WorkspaceName,
+						"build_number":             failedBuild.WorkspaceBuildNumber,
+					},
 				},
 			})
 			continue
