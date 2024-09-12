@@ -66,15 +66,15 @@ func TestProvisionerKeys(t *testing.T) {
 
 	// org admin cannot create reserved provisioner keys
 	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
-		Name: "built-in",
+		Name: codersdk.ProvisionerKeyNameBuiltIn,
 	})
 	require.ErrorContains(t, err, "reserved")
 	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
-		Name: "user-auth",
+		Name: codersdk.ProvisionerKeyNameUserAuth,
 	})
 	require.ErrorContains(t, err, "reserved")
 	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
-		Name: "psk",
+		Name: codersdk.ProvisionerKeyNamePSK,
 	})
 	require.ErrorContains(t, err, "reserved")
 
@@ -127,10 +127,10 @@ func TestProvisionerKeys(t *testing.T) {
 	require.ErrorContains(t, err, "Resource not found")
 
 	// org admin cannot delete reserved provisioner keys
-	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, "built-in")
+	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, codersdk.ProvisionerKeyNameBuiltIn)
 	require.ErrorContains(t, err, "reserved")
-	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, "user-auth")
+	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, codersdk.ProvisionerKeyNameUserAuth)
 	require.ErrorContains(t, err, "reserved")
-	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, "psk")
+	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, codersdk.ProvisionerKeyNamePSK)
 	require.ErrorContains(t, err, "reserved")
 }

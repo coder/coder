@@ -544,11 +544,6 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemons []database.ProvisionerDaemon) []codersdk.ProvisionerDaemon {
 	results := []codersdk.ProvisionerDaemon{}
 
-	// Ensure stable order for display and for tests
-	sort.Slice(daemons, func(i, j int) bool {
-		return daemons[i].Name < daemons[j].Name
-	})
-
 	for _, daemon := range daemons {
 		// Daemon never connected, skip.
 		if !daemon.LastSeenAt.Valid {
@@ -561,6 +556,11 @@ func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemon
 
 		results = append(results, ProvisionerDaemon(daemon))
 	}
+
+	// Ensure stable order for display and for tests
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Name < results[j].Name
+	})
 
 	return results
 }

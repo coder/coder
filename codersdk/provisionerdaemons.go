@@ -289,6 +289,20 @@ const (
 	ProvisionerKeyIDPSK      = "33333333-3333-3333-3333-333333333333"
 )
 
+const (
+	ProvisionerKeyNameBuiltIn  = "built-in"
+	ProvisionerKeyNameUserAuth = "user-auth"
+	ProvisionerKeyNamePSK      = "psk"
+)
+
+func ReservedProvisionerKeyNames() []string {
+	return []string{
+		ProvisionerKeyNameBuiltIn,
+		ProvisionerKeyNameUserAuth,
+		ProvisionerKeyNamePSK,
+	}
+}
+
 type CreateProvisionerKeyRequest struct {
 	Name string            `json:"name"`
 	Tags map[string]string `json:"tags"`

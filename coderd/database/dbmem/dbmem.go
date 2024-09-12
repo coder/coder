@@ -115,7 +115,7 @@ func New() database.Store {
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		HashedSecret:   []byte{},
-		Name:           "built-in",
+		Name:           codersdk.ProvisionerKeyNameBuiltIn,
 		Tags:           map[string]string{},
 	})
 	if err != nil {
@@ -126,7 +126,7 @@ func New() database.Store {
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		HashedSecret:   []byte{},
-		Name:           "user-auth",
+		Name:           codersdk.ProvisionerKeyNameUserAuth,
 		Tags:           map[string]string{},
 	})
 	if err != nil {
@@ -137,7 +137,7 @@ func New() database.Store {
 		OrganizationID: defaultOrg.ID,
 		CreatedAt:      dbtime.Now(),
 		HashedSecret:   []byte{},
-		Name:           "psk",
+		Name:           codersdk.ProvisionerKeyNamePSK,
 		Tags:           map[string]string{},
 	})
 	if err != nil {
