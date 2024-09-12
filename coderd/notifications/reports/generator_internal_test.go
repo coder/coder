@@ -23,23 +23,23 @@ import (
 func TestReportFailedWorkspaceBuilds(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FailedBuilds_TemplateAdminOptIn_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
+	t.Run("InitialState_NoBuilds_NoReport", func(t *testing.T) {
 		t.Parallel()
 
 		// Setup
 		logger, db, notifEnq, clk := setup(t)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-		defer cancel()
-
-		// Given
+		// nolint:gocritic // reportFailedWorkspaceBuilds is called by system.
+		ctx := dbauthz.AsSystemRestricted(context.Background())
 
 		// When
 		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
-		require.NoError(t, err)
 
 		// Then
+		require.NoError(t, err)
+	})
 
+	t.Run("FailedBuilds_TemplateAdminOptIn_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
+		t.Parallel()
 		// TODO
 	})
 
