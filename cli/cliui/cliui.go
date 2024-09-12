@@ -94,11 +94,11 @@ func Field(s string) string {
 	return pretty.Sprint(DefaultStyles.Field, s)
 }
 
-func ifTerm(fmt pretty.Formatter) pretty.Formatter {
+func ifTerm(f pretty.Formatter) pretty.Formatter {
 	if !isTerm() {
 		return pretty.Nop
 	}
-	return fmt
+	return f
 }
 
 func init() {
