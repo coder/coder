@@ -8,6 +8,7 @@ import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
 import {
+	disableNotification,
 	notificationDispatchMethods,
 	selectTemplatesByGroup,
 	systemNotificationTemplates,
@@ -18,7 +19,7 @@ import type {
 	NotificationPreference,
 	NotificationTemplate,
 } from "api/typesGenerated";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -28,8 +29,10 @@ import {
 	methodLabels,
 } from "modules/notifications/utils";
 import { type FC, Fragment } from "react";
+import { useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { Section } from "../Section";
 
@@ -60,6 +63,30 @@ export const NotificationsPage: FC = () => {
 	const updatePreferences = useMutation(
 		updateUserNotificationPreferences(user.id, queryClient),
 	);
+
+	// Notification emails contain a link to disable a specific notification
+	// template. This functionality is achieved using the query string parameter
+	// "disabled".
+	const disableMutation = useMutation(
+		disableNotification(user.id, queryClient),
+	);
+	const [searchParams] = useSearchParams();
+	const disabledId = searchParams.get("disabled");
+	useEffect(() => {
+		if (!disabledId) {
+			return;
+		}
+		searchParams.delete("disabled");
+		disableMutation
+			.mutateAsync(disabledId)
+			.then(() => {
+				displaySuccess("Notification has been disabled");
+			})
+			.catch(() => {
+				displayError("Error disabling notification");
+			});
+	}, [searchParams.delete, disabledId, disableMutation]);
+
 	const ready =
 		disabledPreferences.data && templatesByGroup.data && dispatchMethods.data;
 

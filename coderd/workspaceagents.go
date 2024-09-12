@@ -864,6 +864,8 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 			})
 			return
 		}
+		api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
+			slog.F("peer_id", peerID.String()))
 	}
 
 	api.WebsocketWaitMutex.Lock()

@@ -245,6 +245,7 @@ func AppFromProto(protoApp *proto.WorkspaceApp) (codersdk.WorkspaceApp, error) {
 			Threshold: protoApp.Healthcheck.Threshold,
 		},
 		Health: health,
+		Hidden: protoApp.Hidden,
 	}, nil
 }
 
@@ -274,6 +275,7 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 			Threshold: a.Healthcheck.Threshold,
 		},
 		Health: proto.WorkspaceApp_Health(health),
+		Hidden: a.Hidden,
 	}, nil
 }
 

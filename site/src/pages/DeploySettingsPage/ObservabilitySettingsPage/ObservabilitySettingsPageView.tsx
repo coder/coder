@@ -3,7 +3,7 @@ import {
 	Badges,
 	DisabledBadge,
 	EnabledBadge,
-	EnterpriseBadge,
+	PremiumBadge,
 } from "components/Badges/Badges";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
@@ -34,7 +34,7 @@ export const ObservabilitySettingsPageView: FC<
 
 					<Badges>
 						{featureAuditLogEnabled ? <EnabledBadge /> : <DisabledBadge />}
-						<EnterpriseBadge />
+						<PremiumBadge />
 					</Badges>
 				</div>
 

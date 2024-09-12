@@ -11,8 +11,8 @@ import {
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-// we no longer support versions prior to single tailnet: https://github.com/coder/coder/commit/d7cbdbd9c64ad26821e6b35834c59ecf85dcd9d4
-const clientVersion = "v0.27.0";
+// we no longer support versions prior to Tailnet v2 API support: https://github.com/coder/coder/commit/059e533544a0268acbc8831006b2858ead2f0d8e
+const clientVersion = "v2.8.0";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 

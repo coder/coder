@@ -9,19 +9,10 @@ const meta: Meta<typeof PopoverPaywall> = {
 export default meta;
 type Story = StoryObj<typeof PopoverPaywall>;
 
-export const Enterprise: Story = {
-	args: {
-		message: "Black Lotus",
-		description:
-			"Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
-	},
-};
-
 export const Premium: Story = {
 	args: {
 		message: "Black Lotus",
 		description:
 			"Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
-		licenseType: "premium",
 	},
 };
