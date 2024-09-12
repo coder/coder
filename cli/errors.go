@@ -8,9 +8,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -119,14 +117,6 @@ func (RootCmd) errorExample() *serpent.Command {
 				),
 				Handler: func(i *serpent.Invocation) error {
 					_, _ = fmt.Fprint(i.Stdout, "Try running this without an argument\n")
-					return nil
-				},
-			},
-			{
-				Use: "warning",
-				Handler: func(i *serpent.Invocation) error {
-					msg := pretty.Sprint(cliui.DefaultStyles.Warn, "This is an example warning message.")
-					_, _ = fmt.Fprintln(i.Stdout, msg)
 					return nil
 				},
 			},
