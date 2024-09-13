@@ -4,8 +4,7 @@ import TextField from "@mui/material/TextField";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import {
 	Badges,
-	DisabledBadge,
-	EntitledBadge,
+	EnterpriseBadge,
 	PremiumBadge,
 } from "components/Badges/Badges";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
@@ -24,6 +23,7 @@ import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 export type AppearanceSettingsPageViewProps = {
 	appearance: UpdateAppearanceConfig;
 	isEntitled: boolean;
+	isPremium: boolean;
 	onSaveAppearance: (
 		newConfig: Partial<UpdateAppearanceConfig>,
 	) => Promise<void>;
@@ -31,7 +31,7 @@ export type AppearanceSettingsPageViewProps = {
 
 export const AppearanceSettingsPageView: FC<
 	AppearanceSettingsPageViewProps
-> = ({ appearance, isEntitled, onSaveAppearance }) => {
+> = ({ appearance, isEntitled, isPremium, onSaveAppearance }) => {
 	const applicationNameForm = useFormik<{
 		application_name: string;
 	}>({
@@ -60,13 +60,17 @@ export const AppearanceSettingsPageView: FC<
 			/>
 
 			<Badges>
-				{isEntitled ? <EntitledBadge /> : <DisabledBadge />}
 				<Popover mode="hover">
-					<PopoverTrigger>
-						<span>
-							<PremiumBadge />
-						</span>
-					</PopoverTrigger>
+					{isEntitled && !isPremium ? (
+						<EnterpriseBadge />
+					) : (
+						<PopoverTrigger>
+							<span>
+								<PremiumBadge />
+							</span>
+						</PopoverTrigger>
+					)}
+
 					<PopoverContent css={{ transform: "translateY(-28px)" }}>
 						<PopoverPaywall
 							message="Appearance"

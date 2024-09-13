@@ -49,7 +49,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 			{!isCustomRolesEnabled && (
 				<Paywall
 					message="Custom Roles"
-					description="Custom Roles are available in the Premium plan and require an upgraded license. Please contact your Customer Success team for more information."
+					description="Create custom roles to grant users a tailored set of granular permissions."
 					documentationLink={docs("/admin/groups")}
 				/>
 			)}
