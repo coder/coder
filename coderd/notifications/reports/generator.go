@@ -42,7 +42,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 		// Start a transaction to grab advisory lock, we don't want to run generator jobs at the same time (multiple replicas).
 		if err := db.InTx(func(tx database.Store) error {
 			// Acquire a lock to ensure that only one instance of the generator is running at a time.
-			ok, err := tx.TryAcquireLock(ctx, database.LockIDReportGenerator)
+			ok, err := tx.TryAcquireLock(ctx, database.LockIDNotificationsReportGenerator)
 			if err != nil {
 				return err
 			}
