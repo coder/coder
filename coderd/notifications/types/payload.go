@@ -7,7 +7,8 @@ package types
 type MessagePayload struct {
 	Version string `json:"_version"`
 
-	NotificationName string `json:"notification_name"`
+	NotificationName       string `json:"notification_name"`
+	NotificationTemplateID string `json:"notification_template_id"`
 
 	UserID       string `json:"user_id"`
 	UserEmail    string `json:"user_email"`
