@@ -113,7 +113,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		return statsRows[i].TemplateName < statsRows[j].TemplateName
 	})
 
-	reportRecipients := map[uuid.UUID]bool{}
+	reportGeneratedNow := map[uuid.UUID]bool{}
 	for _, stats := range statsRows {
 		var failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
 		reportData := map[string]any{}
@@ -121,7 +121,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		if stats.FailedBuilds > 0 {
 			failedBuilds, err = db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
 				TemplateID: stats.TemplateID,
-				Since:      dbtime.Time(now).UTC(),
+				Since:      dbtime.Time(since).UTC(),
 			})
 			if err != nil {
 				logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", stats.TemplateID), slog.Error(err))
@@ -150,13 +150,13 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequencyDays*24*time.Hour).After(now) {
 				// report generated recently, no need to send it now
-				reportRecipients[templateAdmin.ID] = true
 				continue
 			}
 
+			reportGeneratedNow[templateAdmin.ID] = true
+
 			if len(failedBuilds) == 0 {
 				// no failed workspace builds, no need to send the report
-				reportRecipients[templateAdmin.ID] = true
 				continue
 			}
 
@@ -176,11 +176,10 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			); err != nil {
 				logger.Warn(ctx, "failed to send a report with failed workspace builds", slog.Error(err))
 			}
-			reportRecipients[templateAdmin.ID] = true
 		}
 	}
 
-	for recipient := range reportRecipients {
+	for recipient := range reportGeneratedNow {
 		err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
 			UserID:                 recipient,
 			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
