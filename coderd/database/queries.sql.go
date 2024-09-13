@@ -763,7 +763,7 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 
 const deleteCryptoKey = `-- name: DeleteCryptoKey :one
 UPDATE crypto_keys
-SET secret = NULL
+SET secret = NULL, secret_key_id = NULL
 WHERE feature = $1 AND sequence = $2 RETURNING feature, sequence, secret, secret_key_id, starts_at, deletes_at
 `
 

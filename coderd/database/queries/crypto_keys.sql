@@ -20,7 +20,7 @@ WHERE feature = $1
 
 -- name: DeleteCryptoKey :one
 UPDATE crypto_keys
-SET secret = NULL
+SET secret = NULL, secret_key_id = NULL
 WHERE feature = $1 AND sequence = $2 RETURNING *;
 
 -- name: InsertCryptoKey :one

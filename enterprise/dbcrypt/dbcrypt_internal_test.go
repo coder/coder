@@ -352,12 +352,13 @@ func TestExternalAuthLinks(t *testing.T) {
 func TestCryptoKeys(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	db, crypt, ciphers := setup(t)
 
 	// We don't write a GetCryptoKeyByFeatureAndSequence test
 	// because it's basically the same as InsertCryptoKey.
 	t.Run("InsertCryptoKey", func(t *testing.T) {
 		t.Parallel()
+
+		db, crypt, ciphers := setup(t)
 		key := dbgen.CryptoKey(t, crypt, database.CryptoKey{
 			Secret: sql.NullString{String: "test", Valid: true},
 		})
@@ -371,6 +372,66 @@ func TestCryptoKeys(t *testing.T) {
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
 		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
 	})
+
+	t.Run("GetCryptoKeys", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		keys, err := crypt.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, "test", keys[0].Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].SecretKeyID.String)
+
+		keys, err = db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		requireEncryptedEquals(t, ciphers[0], keys[0].Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].SecretKeyID.String)
+	})
+
+	t.Run("GetLatestCryptoKeyByFeature", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		key, err := crypt.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		require.NoError(t, err)
+		require.Equal(t, "test", key.Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+
+		key, err = db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+	})
+
+	t.Run("GetCryptoKeyByFeatureAndSequence", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		key := dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		key, err := crypt.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: key.Sequence,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "test", key.Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+
+		key, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: key.Sequence,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+	})
+
 	t.Run("DecryptErr", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
