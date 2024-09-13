@@ -43,7 +43,7 @@ const styles = {
 		backgroundColor: theme.roles.preview.background,
 		borderRadius: "6px",
 		transition:
-			"color 0.4s ease-in-out, border-color 0.4s ease-in-out, background-color 0.4s ease-in-out",
+			"color 0.2s ease-in-out, border-color 0.2s ease-in-out, background-color 0.2s ease-in-out",
 	}),
 
 	badgeHover: (theme) => ({
@@ -105,10 +105,15 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 	onPointerLeave,
 	...delegatedProps
 }) => {
+	// Not a big fan of having two hover variables, but we need to make sure the
+	// badge maintains its hover styling while the mouse is inside the tooltip
 	const [isBadgeHovering, setIsBadgeHovering] = useState(false);
+	const [isTooltipHovering, setIsTooltipHovering] = useState(false);
+
 	useEffect(() => {
 		const onWindowBlur = () => {
 			setIsBadgeHovering(false);
+			setIsTooltipHovering(false);
 		};
 
 		window.addEventListener("blur", onWindowBlur);
@@ -116,16 +121,19 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 	}, []);
 
 	const featureType = featureBadgeTypes[type];
-	const showHoverStyles =
-		variant === "staticHover" || (variant === "interactive" && isBadgeHovering);
+	const showBadgeHoverStyle =
+		variant === "staticHover" ||
+		(variant === "interactive" && (isBadgeHovering || isTooltipHovering));
 
 	const coreContent = (
 		<span
 			css={[
 				styles.badge,
 				size === "lg" && styles.badgeLargeText,
-				showHoverStyles && styles.badgeHover,
+				showBadgeHoverStyle && styles.badgeHover,
 			]}
+			onPointerEnter={variant === "interactive" ? undefined : onPointerEnter}
+			onPointerLeave={variant === "interactive" ? undefined : onPointerLeave}
 			{...delegatedProps}
 		>
 			<span style={visuallyHidden}> (This is a</span>
@@ -156,6 +164,8 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 			<HelpTooltipContent
 				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
 				transformOrigin={{ vertical: "top", horizontal: "center" }}
+				onPointerEnter={() => setIsTooltipHovering(true)}
+				onPointerLeave={() => setIsTooltipHovering(false)}
 			>
 				<h5 css={styles.tooltipTitle}>
 					{capitalizeFirstLetter(featureType)} Feature
@@ -163,7 +173,7 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 
 				<p css={styles.tooltipDescription}>
 					This is {getGrammaticalArticle(featureType)} {featureType} feature. It
-					has not yet been marked for general availability.
+					has not yet reached generally availability (GA).
 				</p>
 
 				<Link

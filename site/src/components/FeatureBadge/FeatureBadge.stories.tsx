@@ -27,3 +27,19 @@ export const SmallInteractiveExperimental: Story = {
 		variant: "interactive",
 	},
 };
+
+export const LargeInteractiveBeta: Story = {
+	args: {
+		type: "beta",
+		size: "lg",
+		variant: "interactive",
+	},
+};
+
+export const LargeStaticBeta: Story = {
+	args: {
+		type: "beta",
+		size: "lg",
+		variant: "static",
+	},
+};

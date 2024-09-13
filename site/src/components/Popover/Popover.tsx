@@ -5,6 +5,7 @@ import {
 	type FC,
 	type HTMLAttributes,
 	type PointerEvent,
+	type PointerEventHandler,
 	type ReactElement,
 	type ReactNode,
 	type RefObject,
@@ -133,6 +134,8 @@ export type PopoverContentProps = Omit<
 
 export const PopoverContent: FC<PopoverContentProps> = ({
 	horizontal = "left",
+	onPointerEnter,
+	onPointerLeave,
 	...popoverProps
 }) => {
 	const popover = usePopover();
@@ -155,7 +158,7 @@ export const PopoverContent: FC<PopoverContentProps> = ({
 				},
 			}}
 			{...horizontalProps(horizontal)}
-			{...modeProps(popover)}
+			{...modeProps(popover, onPointerEnter, onPointerLeave)}
 			{...popoverProps}
 			id={popover.id}
 			open={popover.open}
@@ -165,14 +168,20 @@ export const PopoverContent: FC<PopoverContentProps> = ({
 	);
 };
 
-const modeProps = (popover: PopoverContextValue) => {
+const modeProps = (
+	popover: PopoverContextValue,
+	externalOnPointerEnter: PointerEventHandler<HTMLDivElement> | undefined,
+	externalOnPointerLeave: PointerEventHandler<HTMLDivElement> | undefined,
+) => {
 	if (popover.mode === "hover") {
 		return {
-			onPointerEnter: () => {
+			onPointerEnter: (event: PointerEvent<HTMLDivElement>) => {
 				popover.setOpen(true);
+				externalOnPointerEnter?.(event);
 			},
-			onPointerLeave: () => {
+			onPointerLeave: (event: PointerEvent<HTMLDivElement>) => {
 				popover.setOpen(false);
+				externalOnPointerLeave?.(event);
 			},
 		};
 	}
