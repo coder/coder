@@ -3,3 +3,4 @@ INSERT INTO provisioner_keys (id, created_at, organization_id, name, hashed_secr
 INSERT INTO provisioner_keys (id, created_at, organization_id, name, hashed_secret, tags) VALUES ('33333333-3333-3333-3333-333333333333'::uuid, NOW(), (SELECT id FROM organizations WHERE is_default = true), 'psk', ''::bytea, '{}');
 
 ALTER TABLE provisioner_daemons ADD COLUMN key_id UUID REFERENCES provisioner_keys(id) ON DELETE CASCADE DEFAULT '11111111-1111-1111-1111-111111111111'::uuid NOT NULL;
+ALTER TABLE provisioner_daemons ALTER COLUMN key_id DROP DEFAULT;
