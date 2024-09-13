@@ -38,11 +38,13 @@ func main() {
 		},
 	}
 
+	var noColorDiscarded bool
+
 	root.Options = []serpent.Option{
 		{
 			Default: "false",
 			Flag:    cliui.NoColorFlag,
-			Value:   serpent.BoolOf(&cliui.NoColor),
+			Value:   serpent.BoolOf(&noColorDiscarded),
 		},
 	}
 

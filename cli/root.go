@@ -331,6 +331,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		r.clientURL = new(url.URL)
 	}
 
+	// NOTE(Danielle): It appears there is no way to have a 'global' middleware in
+	// 				   serpent so we manually handle the ENV/flag lookup and setup
+	//				   the option in the below OptionSet so it is documented.
+	//                 We use (and discard) this local variable to get the correct
+	//                 behavior from the CLI when the option is passed.
+	var noColorDiscarded bool
+
 	globalGroup := &serpent.Group{
 		Name:        "Global",
 		Description: `Global options are applied to all commands. They can be set using environment variables or flags.`,
@@ -464,9 +471,10 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        cliui.NoColorFlag,
 			Env:         "CODER_NO_COLOR",
+			Default:     "false",
 			Description: "Disable use of color in CLI output.",
-			Value:       serpent.BoolOf(&cliui.NoColor),
 			Group:       globalGroup,
+			Value:       serpent.BoolOf(&noColorDiscarded),
 		},
 		{
 			Flag: "version",

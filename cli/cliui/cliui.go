@@ -16,8 +16,6 @@ import (
 
 const NoColorFlag = "no-color"
 
-var NoColor = false
-
 var Canceled = xerrors.New("canceled")
 
 // DefaultStyles compose visual elements of the UI.
@@ -69,6 +67,7 @@ func Color(s string) termenv.Color {
 		// runs for every command. For now we just check if `os.Args`
 		// has the flag.
 		if slices.Contains(os.Args, fmt.Sprintf("--%s", NoColorFlag)) ||
+			slices.Contains(os.Args, fmt.Sprintf("--%s=true", NoColorFlag)) ||
 			os.Getenv("CODER_NO_COLOR") != "" ||
 			os.Getenv("NO_COLOR") != "" {
 			color = termenv.Ascii
