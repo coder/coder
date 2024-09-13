@@ -2,6 +2,7 @@ package tailnet_test
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/netip"
 	"sync"
@@ -284,7 +285,7 @@ func TestInMemoryCoordination(t *testing.T) {
 		Times(1).Return(reqs, resps)
 
 	uut := tailnet.NewInMemoryCoordination(ctx, logger, clientID, agentID, mCoord, fConn)
-	defer uut.Close()
+	defer uut.Close(ctx)
 
 	coordinationTest(ctx, t, uut, fConn, reqs, resps, agentID)
 
@@ -336,16 +337,13 @@ func TestRemoteCoordination(t *testing.T) {
 	require.NoError(t, err)
 
 	uut := tailnet.NewRemoteCoordination(logger.Named("coordination"), protocol, fConn, agentID)
-	defer uut.Close()
+	defer uut.Close(ctx)
 
 	coordinationTest(ctx, t, uut, fConn, reqs, resps, agentID)
 
-	select {
-	case err := <-uut.Error():
-		require.ErrorContains(t, err, "stream terminated by sending close")
-	default:
-		// OK!
-	}
+	// Recv loop should be terminated by the server hanging up after Disconnect
+	err = testutil.RequireRecvCtx(ctx, t, uut.Error())
+	require.ErrorIs(t, err, io.EOF)
 }
 
 func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
@@ -388,7 +386,7 @@ func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
 	require.NoError(t, err)
 
 	uut := tailnet.NewRemoteCoordination(logger.Named("coordination"), protocol, fConn, uuid.UUID{})
-	defer uut.Close()
+	defer uut.Close(ctx)
 
 	nk, err := key.NewNode().Public().MarshalBinary()
 	require.NoError(t, err)
@@ -411,14 +409,15 @@ func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
 	require.Len(t, rfh.ReadyForHandshake, 1)
 	require.Equal(t, clientID[:], rfh.ReadyForHandshake[0].Id)
 
-	require.NoError(t, uut.Close())
+	go uut.Close(ctx)
+	dis := testutil.RequireRecvCtx(ctx, t, reqs)
+	require.NotNil(t, dis)
+	require.NotNil(t, dis.Disconnect)
+	close(resps)
 
-	select {
-	case err := <-uut.Error():
-		require.ErrorContains(t, err, "stream terminated by sending close")
-	default:
-		// OK!
-	}
+	// Recv loop should be terminated by the server hanging up after Disconnect
+	err = testutil.RequireRecvCtx(ctx, t, uut.Error())
+	require.ErrorIs(t, err, io.EOF)
 }
 
 // coordinationTest tests that a coordination behaves correctly
@@ -464,13 +463,18 @@ func coordinationTest(
 	require.Len(t, fConn.updates[0], 1)
 	require.Equal(t, agentID[:], fConn.updates[0][0].Id)
 
-	err = uut.Close()
-	require.NoError(t, err)
-	uut.Error()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- uut.Close(ctx)
+	}()
 
 	// When we close, it should gracefully disconnect
 	req = testutil.RequireRecvCtx(ctx, t, reqs)
 	require.NotNil(t, req.Disconnect)
+	close(resps)
+
+	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	require.NoError(t, err)
 
 	// It should set all peers lost on the coordinatee
 	require.Equal(t, 1, fConn.setAllPeersLostCalls)
