@@ -142,34 +142,32 @@ func Init(opts InitOptions) {
 	// We do not adapt the color based on whether the terminal is light or dark.
 	// Doing so would require a round-trip between the program and the terminal
 	// due to the OSC query and response.
-	DefaultStyles = Styles{
-		DateTimeStamp: pretty.Style{
-			pretty.FgColor(brightBlue),
-		},
-		Error: pretty.Style{
-			pretty.FgColor(red),
-		},
-		Fuchsia: pretty.Style{
-			pretty.FgColor(brightMagenta),
-		},
-		FocusedPrompt: pretty.Style{
-			pretty.FgColor(white),
-			pretty.Wrap("> ", ""),
-			pretty.FgColor(brightBlue),
-		},
-		Keyword: pretty.Style{
-			pretty.FgColor(green),
-		},
-		Placeholder: pretty.Style{
-			pretty.FgColor(magenta),
-		},
-		Prompt: pretty.Style{
-			pretty.FgColor(white),
-			pretty.Wrap("  ", ""),
-		},
-		Warn: pretty.Style{
-			pretty.FgColor(yellow),
-		},
+	DefaultStyles.DateTimeStamp = pretty.Style{
+		pretty.FgColor(brightBlue),
+	}
+	DefaultStyles.Error = pretty.Style{
+		pretty.FgColor(red),
+	}
+	DefaultStyles.Fuchsia = pretty.Style{
+		pretty.FgColor(brightMagenta),
+	}
+	DefaultStyles.FocusedPrompt = pretty.Style{
+		pretty.FgColor(white),
+		pretty.Wrap("> ", ""),
+		pretty.FgColor(brightBlue),
+	}
+	DefaultStyles.Keyword = pretty.Style{
+		pretty.FgColor(green),
+	}
+	DefaultStyles.Placeholder = pretty.Style{
+		pretty.FgColor(magenta),
+	}
+	DefaultStyles.Prompt = pretty.Style{
+		pretty.FgColor(white),
+		pretty.Wrap("  ", ""),
+	}
+	DefaultStyles.Warn = pretty.Style{
+		pretty.FgColor(yellow),
 	}
 }
 
