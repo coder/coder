@@ -179,7 +179,6 @@ func init() {
 			pretty.LineWrap(80),
 		},
 	}
-
 }
 
 // ValidateNotEmpty is a helper function to disallow empty inputs!
