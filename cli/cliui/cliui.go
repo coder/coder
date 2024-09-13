@@ -37,11 +37,10 @@ var (
 )
 
 var (
-	Green   = Color("#04B575")
-	Red     = Color("#ED567A")
-	Fuchsia = Color("#EE6FF8")
-	Yellow  = Color("#ECFD65")
-	Blue    = Color("#5000ff")
+	Green  = Color("2")
+	Red    = Color("1")
+	Yellow = Color("3")
+	Blue   = Color("6")
 )
 
 // Color returns a color for the given string.
@@ -123,7 +122,7 @@ func init() {
 	DefaultStyles = Styles{
 		Code: pretty.Style{
 			ifTerm(pretty.XPad(1, 1)),
-			pretty.FgColor(Red),
+			pretty.FgColor(color.Color("#ED567A")),
 			pretty.BgColor(color.Color("#2c2c2c")),
 		},
 		DateTimeStamp: pretty.Style{
