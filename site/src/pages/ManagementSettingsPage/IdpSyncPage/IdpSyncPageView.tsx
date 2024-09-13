@@ -20,6 +20,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import type { FC } from "react";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
 
 export type IdpSyncPageViewProps = {
@@ -85,18 +86,16 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 									Object.entries(oidcConfig?.user_role_mapping).length === 0,
 							)}
 						>
-							<>
-								{oidcConfig?.user_role_mapping &&
-									Object.entries(oidcConfig.user_role_mapping)
-										.sort()
-										.map(([idpRole, roles]) => (
-											<RoleRow
-												key={idpRole}
-												idpRole={idpRole}
-												coderRoles={roles}
-											/>
-										))}
-							</>
+							{oidcConfig?.user_role_mapping &&
+								Object.entries(oidcConfig.user_role_mapping)
+									.sort()
+									.map(([idpRole, roles]) => (
+										<RoleRow
+											key={idpRole}
+											idpRole={idpRole}
+											coderRoles={roles}
+										/>
+									))}
 						</IdpMappingTable>
 						<IdpMappingTable
 							type="Group"
@@ -105,18 +104,16 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 									Object.entries(oidcConfig?.group_mapping).length === 0,
 							)}
 						>
-							<>
-								{oidcConfig?.user_role_mapping &&
-									Object.entries(oidcConfig.group_mapping)
-										.sort()
-										.map(([idpGroup, group]) => (
-											<GroupRow
-												key={idpGroup}
-												idpGroup={idpGroup}
-												coderGroup={group}
-											/>
-										))}
-							</>
+							{oidcConfig?.user_role_mapping &&
+								Object.entries(oidcConfig.group_mapping)
+									.sort()
+									.map(([idpGroup, group]) => (
+										<GroupRow
+											key={idpGroup}
+											idpGroup={idpGroup}
+											coderGroup={group}
+										/>
+									))}
 						</IdpMappingTable>
 					</Stack>
 				</Cond>
@@ -139,7 +136,7 @@ const IdpField: FC<IdpFieldProps> = ({
 	return (
 		<span css={{ display: "flex", alignItems: "center", gap: "16px" }}>
 			<h4>{name}</h4>
-			<p css={styles.secondary}>
+			<p css={styles.field}>
 				{fieldText ||
 					(showStatusIndicator && (
 						<div
@@ -225,7 +222,7 @@ const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
 	return (
 		<TableRow data-testid={`group-${idpGroup}`}>
 			<TableCell>{idpGroup}</TableCell>
-			<TableCell css={styles.secondary}>{coderGroup}</TableCell>
+			<TableCell>{coderGroup}</TableCell>
 		</TableRow>
 	);
 };
@@ -239,7 +236,7 @@ const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles }) => {
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
 			<TableCell>{idpRole}</TableCell>
-			<TableCell css={styles.secondary}>coderRoles Placeholder</TableCell>
+			<TableCell>coderRoles Placeholder</TableCell>
 		</TableRow>
 	);
 };
@@ -263,8 +260,9 @@ const TableLoader = () => {
 };
 
 const styles = {
-	secondary: (theme) => ({
+	field: (theme) => ({
 		color: theme.palette.text.secondary,
+		fontFamily: MONOSPACE_FONT_FAMILY,
 	}),
 	fields: () => ({
 		marginBottom: "60px",
