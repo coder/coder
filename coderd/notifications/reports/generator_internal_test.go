@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/quartz"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -39,11 +41,15 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Setup
 		ctx, logger, db, _, notifEnq, clk := setup(t)
 
+		// Database is ready, so we can clear notifications queue
+		notifEnq.Clear()
+
 		// When
 		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
 
 		// Then
 		require.NoError(t, err)
+		require.Empty(t, notifEnq.Sent)
 	})
 
 	t.Run("FailedBuilds_TemplateAdminOptIn_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
@@ -117,7 +123,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		notifEnq.Clear()
 
 		// When
-		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
+		err := reportFailedWorkspaceBuilds(ctx, logger, authedDB(db, logger), notifEnq, clk)
 
 		// Then
 		require.NoError(t, err)
@@ -158,6 +164,17 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		require.Equal(t, notifEnq.Sent[3].Data["total_builds"], int64(5))
 		require.Equal(t, notifEnq.Sent[3].Data["report_frequency"], "week")
 		// require.Contains(t, notifEnq.Sent[0].Data["template_versions"], "?")
+
+		// Given: 6 days later (less than report frequency)
+		clk.Advance(6 * dayDuration).MustWait(context.Background())
+		notifEnq.Clear()
+
+		// When
+		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(db, logger), notifEnq, clk)
+		require.NoError(t, err)
+
+		// Then
+		require.Empty(t, notifEnq.Sent) // no notifications as it is too early.
 	})
 
 	t.Run("NoFailedBuilds_TemplateAdminIn_NoReport", func(t *testing.T) {
@@ -176,16 +193,18 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 	})
 }
 
-func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.Pubsub, *testutil.FakeNotificationsEnqueuer, quartz.Clock) {
+func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.Pubsub, *testutil.FakeNotificationsEnqueuer, *quartz.Mock) {
 	t.Helper()
 
 	// nolint:gocritic // reportFailedWorkspaceBuilds is called by system.
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	logger := slogtest.Make(t, &slogtest.Options{})
 	db, ps := dbtestutil.NewDB(t)
-	// does not work with works
-	// db := dbauthz.New(rdb, rbac.NewAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
 	notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 	clk := quartz.NewMock(t)
 	return ctx, logger, db, ps, notifyEnq, clk
+}
+
+func authedDB(db database.Store, logger slog.Logger) database.Store {
+	return dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
 }

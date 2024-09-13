@@ -101,7 +101,11 @@ func (i *reportGenerator) Close() error {
 const failedWorkspaceBuildsReportFrequencyDays = 7
 
 func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
-	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(clk.Now().Add(-failedWorkspaceBuildsReportFrequencyDays*24*time.Hour)).UTC())
+	now := clk.Now()
+	since := now.Add(-failedWorkspaceBuildsReportFrequencyDays * 24 * time.Hour)
+
+	// TODO skip new templates
+	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(since).UTC())
 	if err != nil {
 		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
 	}
@@ -116,7 +120,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		if stats.FailedBuilds > 0 {
 			failedBuilds, err = db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
 				TemplateID: stats.TemplateID,
-				Since:      dbtime.Time(clk.Now()).UTC(),
+				Since:      dbtime.Time(now).UTC(),
 			})
 			if err != nil {
 				logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", stats.TemplateID), slog.Error(err))
@@ -142,17 +146,17 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				return xerrors.Errorf("unable to get recent report generator log for user: %w", err)
 			}
 
-			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequencyDays*24*time.Hour).After(clk.Now()) {
+			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequencyDays*24*time.Hour).After(now) {
 				// report generated recently, no need to send it now
 				err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
 					UserID:                 templateAdmin.ID,
 					NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-					LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
+					LastGeneratedAt:        dbtime.Time(now).UTC(),
 				})
 				if err != nil {
 					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
-					continue
 				}
+				continue
 			}
 
 			if len(failedBuilds) == 0 {
@@ -160,7 +164,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
 					UserID:                 templateAdmin.ID,
 					NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-					LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
+					LastGeneratedAt:        dbtime.Time(now).UTC(),
 				})
 				if err != nil {
 					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
@@ -188,7 +192,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
 				UserID:                 templateAdmin.ID,
 				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-				LastGeneratedAt:        dbtime.Time(clk.Now()).UTC(),
+				LastGeneratedAt:        dbtime.Time(now).UTC(),
 			})
 			if err != nil {
 				logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
@@ -199,7 +203,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 	err = db.DeleteOldReportGeneratorLogs(ctx, database.DeleteOldReportGeneratorLogsParams{
 		NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-		Before:                 dbtime.Time(clk.Now().Add(-failedWorkspaceBuildsReportFrequencyDays*24*time.Hour - time.Hour)).UTC(),
+		Before:                 dbtime.Time(now.Add(-failedWorkspaceBuildsReportFrequencyDays*24*time.Hour - time.Hour)).UTC(),
 	})
 	if err != nil {
 		return xerrors.Errorf("unable to delete old report generator logs: %w", err)
