@@ -46,9 +46,9 @@ var (
 	red           = Color("1")
 	green         = Color("2")
 	yellow        = Color("3")
-	blue          = Color("4")
 	magenta       = Color("5")
 	white         = Color("7")
+	brightBlue    = Color("12")
 	brightMagenta = Color("13")
 )
 
@@ -144,7 +144,7 @@ func init() {
 			pretty.BgColor(color.Color("#2C2C2C")),
 		},
 		DateTimeStamp: pretty.Style{
-			pretty.FgColor(blue),
+			pretty.FgColor(brightBlue),
 		},
 		Error: pretty.Style{
 			pretty.FgColor(red),
@@ -177,7 +177,7 @@ func init() {
 
 	DefaultStyles.FocusedPrompt = append(
 		DefaultStyles.Prompt,
-		pretty.FgColor(blue),
+		pretty.FgColor(brightBlue),
 	)
 }
 
