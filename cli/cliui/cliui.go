@@ -157,6 +157,11 @@ func init() {
 		Fuchsia: pretty.Style{
 			pretty.FgColor(brightMagenta),
 		},
+		FocusedPrompt: pretty.Style{
+			pretty.FgColor(white),
+			pretty.Wrap("> ", ""),
+			pretty.FgColor(brightBlue),
+		},
 		Keyword: pretty.Style{
 			pretty.FgColor(green),
 		},
@@ -165,7 +170,7 @@ func init() {
 		},
 		Prompt: pretty.Style{
 			pretty.FgColor(white),
-			pretty.Wrap("> ", ""),
+			pretty.Wrap("  ", ""),
 		},
 		Warn: pretty.Style{
 			pretty.FgColor(yellow),
@@ -175,10 +180,6 @@ func init() {
 		},
 	}
 
-	DefaultStyles.FocusedPrompt = append(
-		DefaultStyles.Prompt,
-		pretty.FgColor(brightBlue),
-	)
 }
 
 // ValidateNotEmpty is a helper function to disallow empty inputs!
