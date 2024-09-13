@@ -8944,6 +8944,7 @@ _None_
 ```json
 {
 	"access_token": "string",
+	"expires_in": 0,
 	"expiry": "string",
 	"refresh_token": "string",
 	"token_type": "string"
@@ -8952,13 +8953,14 @@ _None_
 
 ### Properties
 
-| Name                                                                                                                                                    | Type   | Required | Restrictions | Description                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `access_token`                                                                                                                                          | string | false    |              | Access token is the token that authorizes and authenticates the requests.                                                   |
-| `expiry`                                                                                                                                                | string | false    |              | Expiry is the optional expiration time of the access token.                                                                 |
+| Name                                                                                                                                                    | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_token`                                                                                                                                          | string  | false    |              | Access token is the token that authorizes and authenticates the requests.                                                                                                                                                                                                   |
+| `expires_in`                                                                                                                                            | integer | false    |              | Expires in is the OAuth2 wire format "expires_in" field, which specifies how many seconds later the token expires, relative to an unknown time base approximately around "now". It is the application's responsibility to populate `Expiry` from `ExpiresIn` when required. |
+| `expiry`                                                                                                                                                | string  | false    |              | Expiry is the optional expiration time of the access token.                                                                                                                                                                                                                 |
 | If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used. |
-| `refresh_token`                                                                                                                                         | string | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires. |
-| `token_type`                                                                                                                                            | string | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                              |
+| `refresh_token`                                                                                                                                         | string  | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires.                                                                                                                                                 |
+| `token_type`                                                                                                                                            | string  | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                                                                                                                                                                              |
 
 ## serpent.Annotations
 
