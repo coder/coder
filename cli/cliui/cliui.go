@@ -43,13 +43,13 @@ var (
 )
 
 var (
-	Red           = Color("1")
-	Green         = Color("2")
-	Yellow        = Color("3")
-	Blue          = Color("4")
-	Magenta       = Color("5")
-	White         = Color("7")
-	BrightMagenta = Color("13")
+	red           = Color("1")
+	green         = Color("2")
+	yellow        = Color("3")
+	blue          = Color("4")
+	magenta       = Color("5")
+	white         = Color("7")
+	brightMagenta = Color("13")
 )
 
 // Color returns a color for the given string.
@@ -126,11 +126,11 @@ func Field(s string) string {
 	return pretty.Sprint(DefaultStyles.Field, s)
 }
 
-func ifTerm(fmt pretty.Formatter) pretty.Formatter {
+func ifTerm(f pretty.Formatter) pretty.Formatter {
 	if !isTerm() {
 		return pretty.Nop
 	}
-	return fmt
+	return f
 }
 
 func init() {
@@ -144,10 +144,10 @@ func init() {
 			pretty.BgColor(color.Color("#2C2C2C")),
 		},
 		DateTimeStamp: pretty.Style{
-			pretty.FgColor(Blue),
+			pretty.FgColor(blue),
 		},
 		Error: pretty.Style{
-			pretty.FgColor(Red),
+			pretty.FgColor(red),
 		},
 		Field: pretty.Style{
 			pretty.XPad(1, 1),
@@ -155,20 +155,20 @@ func init() {
 			pretty.BgColor(color.Color("#2B2A2A")),
 		},
 		Fuchsia: pretty.Style{
-			pretty.FgColor(BrightMagenta),
+			pretty.FgColor(brightMagenta),
 		},
 		Keyword: pretty.Style{
-			pretty.FgColor(Green),
+			pretty.FgColor(green),
 		},
 		Placeholder: pretty.Style{
-			pretty.FgColor(Magenta),
+			pretty.FgColor(magenta),
 		},
 		Prompt: pretty.Style{
-			pretty.FgColor(White),
+			pretty.FgColor(white),
 			pretty.Wrap("> ", ""),
 		},
 		Warn: pretty.Style{
-			pretty.FgColor(Yellow),
+			pretty.FgColor(yellow),
 		},
 		Wrap: pretty.Style{
 			pretty.LineWrap(80),
@@ -177,7 +177,7 @@ func init() {
 
 	DefaultStyles.FocusedPrompt = append(
 		DefaultStyles.Prompt,
-		pretty.FgColor(Blue),
+		pretty.FgColor(blue),
 	)
 }
 

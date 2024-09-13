@@ -167,3 +167,11 @@ Disable network telemetry. Network telemetry is collected when connecting to wor
 | Default     | <code>~/.config/coderv2</code> |
 
 Path to the global `coder` config directory.
+
+### --no-color
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Disable use of color in CLI output.
