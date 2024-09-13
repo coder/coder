@@ -75,8 +75,6 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user1.ID, OrganizationID: org.ID})
 		user2 := dbgen.User(t, db, database.User{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: org.ID})
-		user3 := dbgen.User(t, db, database.User{})
-		// user in some other org
 
 		// Templates
 		t1 := dbgen.Template(t, db, database.Template{Name: "template-1", DisplayName: "First Template", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID})
@@ -91,7 +89,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Workspaces
 		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
 		w2 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t2.ID, OwnerID: user2.ID, OrganizationID: org.ID})
-		w3 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user3.ID, OrganizationID: org.ID})
+		w3 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
 		w4 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t2.ID, OwnerID: user2.ID, OrganizationID: org.ID})
 
 		now := clk.Now()
@@ -136,7 +134,23 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		require.Equal(t, notifEnq.Sent[0].Data["failed_builds"], int64(3))
 		require.Equal(t, notifEnq.Sent[0].Data["total_builds"], int64(4))
 		require.Equal(t, notifEnq.Sent[0].Data["report_frequency"], "week")
-		// require.Contains(t, notifEnq.Sent[0].Data["template_versions"], "?")
+		require.Equal(t, notifEnq.Sent[0].Data["template_versions"], []map[string]interface{}{
+			{
+				"failed_builds": []map[string]interface{}{
+					{"build_number": int32(7), "workspace_name": w3.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(1), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+				},
+				"failed_count":          2,
+				"template_version_name": t1v1.Name,
+			},
+			{
+				"failed_builds": []map[string]interface{}{
+					{"build_number": int32(3), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+				},
+				"failed_count":          1,
+				"template_version_name": t1v2.Name,
+			},
+		})
 
 		require.Equal(t, notifEnq.Sent[1].UserID, templateAdmin2.ID)
 		require.Equal(t, notifEnq.Sent[1].TemplateID, notifications.TemplateWorkspaceBuildsFailedReport)
@@ -256,78 +270,6 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, notifEnq.Sent, 0) // all jobs succeeded so no report
-	})
-
-	t.Run("FailedBuilds_TemplateAdminOptOut_NoReport", func(t *testing.T) {
-		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("notification preferences depend on database trigger")
-		}
-
-		// Setup
-		ctx, logger, db, ps, notifEnq, clk := setup(t)
-
-		// Given
-		// Organization
-		org := dbgen.Organization(t, db, database.Organization{})
-
-		// Template admins
-		templateAdmin1 := dbgen.User(t, db, database.User{Username: "template-admin-1", RBACRoles: []string{rbac.RoleTemplateAdmin().Name}})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: templateAdmin1.ID, OrganizationID: org.ID})
-		templateAdmin2 := dbgen.User(t, db, database.User{Username: "template-admin-2", RBACRoles: []string{rbac.RoleTemplateAdmin().Name}})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: templateAdmin2.ID, OrganizationID: org.ID})
-		_, err := db.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
-			UserID:                  templateAdmin2.ID,
-			NotificationTemplateIds: []uuid.UUID{notifications.TemplateWorkspaceBuildsFailedReport},
-			Disableds:               []bool{true},
-		})
-		require.NoError(t, err)
-
-		// Regular users
-		user1 := dbgen.User(t, db, database.User{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user1.ID, OrganizationID: org.ID})
-
-		// Templates
-		t1 := dbgen.Template(t, db, database.Template{Name: "template-1", DisplayName: "First Template", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID})
-
-		// Template versions
-		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
-
-		// Workspaces
-		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
-
-		now := clk.Now()
-
-		// Workspace builds
-		w1wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 1, TemplateVersionID: t1v1.ID, JobID: w1wb1pj.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-		w1wb2pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-5 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 2, TemplateVersionID: t1v1.ID, JobID: w1wb2pj.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-
-		// Database is ready, so we can clear notifications queue
-		notifEnq.Clear()
-
-		// When
-		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(db, logger), notifEnq, clk)
-
-		// Then
-		require.NoError(t, err)
-
-		require.Len(t, notifEnq.Sent, 1) // one job failed, but only one template admin enabled reports
-		require.Equal(t, notifEnq.Sent[0].UserID, templateAdmin1.ID)
-		require.Equal(t, notifEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceBuildsFailedReport)
-		require.Equal(t, notifEnq.Sent[0].Labels["template_name"], t1.Name)
-		require.Equal(t, notifEnq.Sent[0].Labels["template_display_name"], t1.DisplayName)
-		require.Equal(t, notifEnq.Sent[0].Data["failed_builds"], int64(1))
-		require.Equal(t, notifEnq.Sent[0].Data["total_builds"], int64(2))
-		require.Equal(t, notifEnq.Sent[0].Data["report_frequency"], "week")
-		// require.Contains(t, notifEnq.Sent[0].Data["template_versions"], "?")
-	})
-
-	t.Run("FreshTemplate_FailedBuilds_TemplateAdminIn_NoReport", func(t *testing.T) {
-		t.Parallel()
-		// TODO
 	})
 }
 

@@ -104,7 +104,6 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	now := clk.Now()
 	since := now.Add(-failedWorkspaceBuildsReportFrequencyDays * 24 * time.Hour)
 
-	// TODO skip new templates
 	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(since).UTC())
 	if err != nil {
 		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
@@ -249,6 +248,8 @@ func buildDataForReportFailedWorkspaceBuilds(frequencyDays int, stats database.G
 			"build_number":             failedBuild.WorkspaceBuildNumber,
 		})
 		templateVersions[c-1]["failed_builds"] = builds
+		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
+		templateVersions[c-1]["failed_count"] = templateVersions[c-1]["failed_count"].(int) + 1
 	}
 
 	return map[string]any{
