@@ -52,7 +52,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		require.Empty(t, notifEnq.Sent)
 	})
 
-	t.Run("FailedBuilds_TemplateAdminOptIn_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
+	t.Run("FailedBuilds_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
 		t.Parallel()
 
 		// Setup
@@ -68,7 +68,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		templateAdmin2 := dbgen.User(t, db, database.User{Username: "template-admin-2", RBACRoles: []string{rbac.RoleTemplateAdmin().Name}})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: templateAdmin2.ID, OrganizationID: org.ID})
 		_ = dbgen.User(t, db, database.User{Name: "template-admin-3", RBACRoles: []string{rbac.RoleTemplateAdmin().Name}})
-		// template admin in some other org
+		// template admin in some other org, they should not receive any notification
 
 		// Regular users
 		user1 := dbgen.User(t, db, database.User{})
@@ -84,7 +84,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
 		t1v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-2", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
 		t2v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-2-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true}, JobID: uuid.New()})
-		t2v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true}, JobID: uuid.New()})
+		t2v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-2-version-2", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true}, JobID: uuid.New()})
 
 		// Workspaces
 		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
@@ -121,63 +121,65 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		notifEnq.Clear()
 
 		// When
-		err := reportFailedWorkspaceBuilds(ctx, logger, authedDB(db, logger), notifEnq, clk)
+		err := reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
 
 		// Then
 		require.NoError(t, err)
 
 		require.Len(t, notifEnq.Sent, 4) // 2 templates, 2 template admins
-		require.Equal(t, notifEnq.Sent[0].UserID, templateAdmin1.ID)
-		require.Equal(t, notifEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceBuildsFailedReport)
-		require.Equal(t, notifEnq.Sent[0].Labels["template_name"], t1.Name)
-		require.Equal(t, notifEnq.Sent[0].Labels["template_display_name"], t1.DisplayName)
-		require.Equal(t, notifEnq.Sent[0].Data["failed_builds"], int64(3))
-		require.Equal(t, notifEnq.Sent[0].Data["total_builds"], int64(4))
-		require.Equal(t, notifEnq.Sent[0].Data["report_frequency"], "week")
-		require.Equal(t, notifEnq.Sent[0].Data["template_versions"], []map[string]interface{}{
-			{
-				"failed_builds": []map[string]interface{}{
-					{"build_number": int32(7), "workspace_name": w3.Name, "workspace_owner_username": user1.Username},
-					{"build_number": int32(1), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
+			require.Equal(t, templateAdmin.ID, notifEnq.Sent[i].UserID)
+			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notifEnq.Sent[i].TemplateID)
+			require.Equal(t, t1.Name, notifEnq.Sent[i].Labels["template_name"])
+			require.Equal(t, t1.DisplayName, notifEnq.Sent[i].Labels["template_display_name"])
+			require.Equal(t, int64(3), notifEnq.Sent[i].Data["failed_builds"])
+			require.Equal(t, int64(4), notifEnq.Sent[i].Data["total_builds"])
+			require.Equal(t, "week", notifEnq.Sent[i].Data["report_frequency"])
+			require.Equal(t, []map[string]interface{}{
+				{
+					"failed_builds": []map[string]interface{}{
+						{"build_number": int32(7), "workspace_name": w3.Name, "workspace_owner_username": user1.Username},
+						{"build_number": int32(1), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					},
+					"failed_count":          2,
+					"template_version_name": t1v1.Name,
 				},
-				"failed_count":          2,
-				"template_version_name": t1v1.Name,
-			},
-			{
-				"failed_builds": []map[string]interface{}{
-					{"build_number": int32(3), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+				{
+					"failed_builds": []map[string]interface{}{
+						{"build_number": int32(3), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					},
+					"failed_count":          1,
+					"template_version_name": t1v2.Name,
 				},
-				"failed_count":          1,
-				"template_version_name": t1v2.Name,
-			},
-		})
+			}, notifEnq.Sent[i].Data["template_versions"])
+		}
 
-		require.Equal(t, notifEnq.Sent[1].UserID, templateAdmin2.ID)
-		require.Equal(t, notifEnq.Sent[1].TemplateID, notifications.TemplateWorkspaceBuildsFailedReport)
-		require.Equal(t, notifEnq.Sent[1].Labels["template_name"], t1.Name)
-		require.Equal(t, notifEnq.Sent[1].Labels["template_display_name"], t1.DisplayName)
-		require.Equal(t, notifEnq.Sent[1].Data["failed_builds"], int64(3))
-		require.Equal(t, notifEnq.Sent[1].Data["total_builds"], int64(4))
-		require.Equal(t, notifEnq.Sent[1].Data["report_frequency"], "week")
-		// require.Contains(t, notifEnq.Sent[1].Data["template_versions"], "?")
-
-		require.Equal(t, notifEnq.Sent[2].UserID, templateAdmin1.ID)
-		require.Equal(t, notifEnq.Sent[2].TemplateID, notifications.TemplateWorkspaceBuildsFailedReport)
-		require.Equal(t, notifEnq.Sent[2].Labels["template_name"], t2.Name)
-		require.Equal(t, notifEnq.Sent[2].Labels["template_display_name"], t2.DisplayName)
-		require.Equal(t, notifEnq.Sent[2].Data["failed_builds"], int64(3))
-		require.Equal(t, notifEnq.Sent[2].Data["total_builds"], int64(5))
-		require.Equal(t, notifEnq.Sent[2].Data["report_frequency"], "week")
-		// require.Contains(t, notifEnq.Sent[0].Data["template_versions"], "?")
-
-		require.Equal(t, notifEnq.Sent[3].UserID, templateAdmin2.ID)
-		require.Equal(t, notifEnq.Sent[3].TemplateID, notifications.TemplateWorkspaceBuildsFailedReport)
-		require.Equal(t, notifEnq.Sent[3].Labels["template_name"], t2.Name)
-		require.Equal(t, notifEnq.Sent[3].Labels["template_display_name"], t2.DisplayName)
-		require.Equal(t, notifEnq.Sent[3].Data["failed_builds"], int64(3))
-		require.Equal(t, notifEnq.Sent[3].Data["total_builds"], int64(5))
-		require.Equal(t, notifEnq.Sent[3].Data["report_frequency"], "week")
-		// require.Contains(t, notifEnq.Sent[0].Data["template_versions"], "?")
+		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
+			require.Equal(t, templateAdmin.ID, notifEnq.Sent[i+2].UserID)
+			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notifEnq.Sent[i+2].TemplateID)
+			require.Equal(t, t2.Name, notifEnq.Sent[i+2].Labels["template_name"])
+			require.Equal(t, t2.DisplayName, notifEnq.Sent[i+2].Labels["template_display_name"])
+			require.Equal(t, int64(3), notifEnq.Sent[i+2].Data["failed_builds"])
+			require.Equal(t, int64(5), notifEnq.Sent[i+2].Data["total_builds"])
+			require.Equal(t, "week", notifEnq.Sent[i+2].Data["report_frequency"])
+			require.Equal(t, []map[string]interface{}{
+				{
+					"failed_builds": []map[string]interface{}{
+						{"build_number": int32(8), "workspace_name": w4.Name, "workspace_owner_username": user2.Username},
+					},
+					"failed_count":          1,
+					"template_version_name": t2v1.Name,
+				},
+				{
+					"failed_builds": []map[string]interface{}{
+						{"build_number": int32(6), "workspace_name": w2.Name, "workspace_owner_username": user2.Username},
+						{"build_number": int32(5), "workspace_name": w2.Name, "workspace_owner_username": user2.Username},
+					},
+					"failed_count":          2,
+					"template_version_name": t2v2.Name,
+				},
+			}, notifEnq.Sent[i+2].Data["template_versions"])
+		}
 
 		// Given: 6 days later (less than report frequency), and failed build
 		clk.Advance(6 * dayDuration).MustWait(context.Background())
@@ -185,12 +187,12 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		now = clk.Now()
 
 		w1wb4pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 4, TemplateVersionID: t1v2.ID, JobID: w1wb4pj.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 77, TemplateVersionID: t1v2.ID, JobID: w1wb4pj.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
 
 		notifEnq.Clear()
 
 		// When
-		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(db, logger), notifEnq, clk)
+		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
 		require.NoError(t, err)
 
 		// Then
@@ -201,31 +203,32 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		notifEnq.Clear()
 
 		// When
-		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(db, logger), notifEnq, clk)
+		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
 		require.NoError(t, err)
 
 		// Then
-		require.Len(t, notifEnq.Sent, 2) // this time a failed job should be reported
-		require.Equal(t, notifEnq.Sent[0].UserID, templateAdmin1.ID)
-		require.Equal(t, notifEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceBuildsFailedReport)
-		require.Equal(t, notifEnq.Sent[0].Labels["template_name"], t1.Name)
-		require.Equal(t, notifEnq.Sent[0].Labels["template_display_name"], t1.DisplayName)
-		require.Equal(t, notifEnq.Sent[0].Data["failed_builds"], int64(1))
-		require.Equal(t, notifEnq.Sent[0].Data["total_builds"], int64(1))
-		require.Equal(t, notifEnq.Sent[0].Data["report_frequency"], "week")
-		// require.Contains(t, notifEnq.Sent[0].Data["template_versions"], "?")
-
-		require.Equal(t, notifEnq.Sent[1].UserID, templateAdmin2.ID)
-		require.Equal(t, notifEnq.Sent[1].TemplateID, notifications.TemplateWorkspaceBuildsFailedReport)
-		require.Equal(t, notifEnq.Sent[1].Labels["template_name"], t1.Name)
-		require.Equal(t, notifEnq.Sent[1].Labels["template_display_name"], t1.DisplayName)
-		require.Equal(t, notifEnq.Sent[1].Data["failed_builds"], int64(1))
-		require.Equal(t, notifEnq.Sent[1].Data["total_builds"], int64(1))
-		require.Equal(t, notifEnq.Sent[1].Data["report_frequency"], "week")
-		// require.Contains(t, notifEnq.Sent[1].Data["template_versions"], "?")
+		require.Len(t, notifEnq.Sent, 2) // a new failed job should be reported
+		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
+			require.Equal(t, templateAdmin.ID, notifEnq.Sent[i].UserID)
+			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notifEnq.Sent[i].TemplateID)
+			require.Equal(t, t1.Name, notifEnq.Sent[i].Labels["template_name"])
+			require.Equal(t, t1.DisplayName, notifEnq.Sent[i].Labels["template_display_name"])
+			require.Equal(t, int64(1), notifEnq.Sent[i].Data["failed_builds"])
+			require.Equal(t, int64(1), notifEnq.Sent[i].Data["total_builds"])
+			require.Equal(t, "week", notifEnq.Sent[i].Data["report_frequency"])
+			require.Equal(t, []map[string]interface{}{
+				{
+					"failed_builds": []map[string]interface{}{
+						{"build_number": int32(77), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					},
+					"failed_count":          1,
+					"template_version_name": t1v2.Name,
+				},
+			}, notifEnq.Sent[i].Data["template_versions"])
+		}
 	})
 
-	t.Run("NoFailedBuilds_TemplateAdminIn_NoReport", func(t *testing.T) {
+	t.Run("NoFailedBuilds_NoReport", func(t *testing.T) {
 		t.Parallel()
 
 		// Setup
@@ -264,12 +267,12 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		notifEnq.Clear()
 
 		// When
-		err := reportFailedWorkspaceBuilds(ctx, logger, authedDB(db, logger), notifEnq, clk)
+		err := reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
 
 		// Then
 		require.NoError(t, err)
 
-		require.Len(t, notifEnq.Sent, 0) // all jobs succeeded so no report
+		require.Len(t, notifEnq.Sent, 0) // all jobs succeeded so nothing to report
 	})
 }
 
@@ -285,6 +288,8 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.P
 	return ctx, logger, db, ps, notifyEnq, clk
 }
 
-func authedDB(db database.Store, logger slog.Logger) database.Store {
+func authedDB(t *testing.T, db database.Store, logger slog.Logger) database.Store {
+	t.Helper()
+
 	return dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
 }
