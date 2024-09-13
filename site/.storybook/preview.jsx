@@ -1,5 +1,10 @@
 // @ts-check
 /**
+ * @file Defines the main configuration file for all of our Storybook tests.
+ * This file must be a JSX/JS file, but we can at least add some type safety via
+ * the ts-check directive.
+ * @see {@link https://storybook.js.org/docs/configure#configure-story-rendering}
+ *
  * @typedef {import("react").ReactElement} ReactElement
  * @typedef {import("react").PropsWithChildren} PropsWithChildren
  * @typedef {import("react").FC<PropsWithChildren>} FC
@@ -66,7 +71,7 @@ export const parameters = {
 };
 
 /**
- * There's a mismatch for the React Helmet types that causes issues when
+ * There's a mismatch on the React Helmet return type that causes issues when
  * mounting the component in JS files only. Have to do type assertion, which is
  * especially ugly in JSDoc
  */
