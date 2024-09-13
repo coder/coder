@@ -61,7 +61,9 @@ test("Submit the workspace settings page successfully", async () => {
 	);
 	await user.clear(parameter2);
 	await user.type(parameter2, "1");
-	await user.click(within(form).getByRole("button", { name: "Submit" }));
+	await user.click(
+		within(form).getByRole("button", { name: "Submit and restart" }),
+	);
 	// Assert that the API calls were made with the correct data
 	await waitFor(() => {
 		expect(postWorkspaceBuildSpy).toHaveBeenCalledWith(MockWorkspace.id, {
@@ -102,7 +104,7 @@ test("Submit button is only enabled when changes are made", async () => {
 	await waitForLoaderToBeRemoved();
 
 	const submitButton: HTMLButtonElement = screen.getByRole("button", {
-		name: "Submit",
+		name: "Submit and restart",
 	});
 
 	const form = screen.getByTestId("form");
