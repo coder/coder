@@ -1,10 +1,10 @@
 import MuiPopover, {
 	type PopoverProps as MuiPopoverProps,
-	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
 } from "@mui/material/Popover";
 import {
 	type FC,
 	type HTMLAttributes,
+	type PointerEvent,
 	type ReactElement,
 	type ReactNode,
 	type RefObject,
@@ -95,17 +95,20 @@ export const PopoverTrigger = (
 	const { children, ...elementProps } = props;
 
 	const clickProps = {
-		onClick: () => {
+		onClick: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(true);
+			elementProps.onClick?.(event);
 		},
 	};
 
 	const hoverProps = {
-		onPointerEnter: () => {
+		onPointerEnter: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(true);
+			elementProps.onPointerEnter?.(event);
 		},
-		onPointerLeave: () => {
+		onPointerLeave: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(false);
+			elementProps.onPointerLeave?.(event);
 		},
 	};
 
