@@ -12,28 +12,9 @@ const meta: Meta<typeof FeatureBadge> = {
 export default meta;
 type Story = StoryObj<typeof FeatureBadge>;
 
-export const Small: Story = {
+export const SmallInteractive: Story = {
 	args: {
 		size: "sm",
-	},
-};
-
-export const Medium: Story = {
-	args: {
-		size: "md",
-	},
-};
-
-export const HighlightedSmall: Story = {
-	args: {
-		size: "sm",
-		highlighted: true,
-	},
-};
-
-export const HighlightedMedium: Story = {
-	args: {
-		size: "md",
-		highlighted: true,
+		variant: "interactive",
 	},
 };
