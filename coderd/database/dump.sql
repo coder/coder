@@ -833,7 +833,7 @@ CREATE TABLE provisioner_daemons (
     version text DEFAULT ''::text NOT NULL,
     api_version text DEFAULT '1.0'::text NOT NULL,
     organization_id uuid NOT NULL,
-    key_id uuid DEFAULT '11111111-1111-1111-1111-111111111111'::uuid NOT NULL
+    key_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN provisioner_daemons.api_version IS 'The API version of the provisioner daemon';
