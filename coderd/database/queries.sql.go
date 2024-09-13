@@ -877,13 +877,13 @@ INSERT INTO crypto_keys (
     sequence,
     secret,
     starts_at,
-	secret_key_id
+    secret_key_id
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-	$5
+    $5
 ) RETURNING feature, sequence, secret, secret_key_id, starts_at, deletes_at
 `
 

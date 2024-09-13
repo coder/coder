@@ -1448,6 +1448,8 @@ func (q *FakeQuerier) DeleteCryptoKey(_ context.Context, arg database.DeleteCryp
 		if key.Feature == arg.Feature && key.Sequence == arg.Sequence {
 			q.cryptoKeys[i].Secret.String = ""
 			q.cryptoKeys[i].Secret.Valid = false
+			q.cryptoKeys[i].SecretKeyID.String = ""
+			q.cryptoKeys[i].SecretKeyID.Valid = false
 			return q.cryptoKeys[i], nil
 		}
 	}
@@ -2871,11 +2873,10 @@ func (q *FakeQuerier) GetLatestCryptoKeyByFeature(_ context.Context, feature dat
 			latestKey = key
 		}
 	}
-
-	if latestKey.Secret.Valid {
-		return latestKey, nil
+	if latestKey.StartsAt.IsZero() {
+		return database.CryptoKey{}, sql.ErrNoRows
 	}
-	return database.CryptoKey{}, sql.ErrNoRows
+	return latestKey, nil
 }
 
 func (q *FakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {

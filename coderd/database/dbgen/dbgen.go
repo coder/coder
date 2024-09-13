@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -897,18 +898,22 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) database.CryptoKey {
 	t.Helper()
 
-	b := make([]byte, 96)
-	_, err := rand.Read(b)
-	require.NoError(t, err, "generate secret")
+	seed.Feature = takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceApps)
+
+	if !seed.Secret.Valid {
+		secret, err := newCryptoKeySecret(seed.Feature)
+		require.NoError(t, err, "generate secret")
+		seed.Secret = sql.NullString{
+			String: secret,
+			Valid:  true,
+		}
+	}
 
 	key, err := db.InsertCryptoKey(genCtx, database.InsertCryptoKeyParams{
-		Sequence: takeFirst(seed.Sequence, 123),
-		Secret: takeFirst(seed.Secret, sql.NullString{
-			String: hex.EncodeToString(b),
-			Valid:  true,
-		}),
+		Sequence:    takeFirst(seed.Sequence, 123),
+		Secret:      seed.Secret,
 		SecretKeyID: takeFirst(seed.SecretKeyID, sql.NullString{}),
-		Feature:     takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceApps),
+		Feature:     seed.Feature,
 		StartsAt:    takeFirst(seed.StartsAt, time.Now()),
 	})
 	require.NoError(t, err, "insert crypto key")
@@ -966,4 +971,25 @@ func takeFirst[Value comparable](values ...Value) Value {
 	return takeFirstF(values, func(v Value) bool {
 		return v != empty
 	})
+}
+
+func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
+	switch feature {
+	case database.CryptoKeyFeatureWorkspaceApps:
+		return generateCryptoKey(96)
+	case database.CryptoKeyFeatureOidcConvert:
+		return generateCryptoKey(32)
+	case database.CryptoKeyFeatureTailnetResume:
+		return generateCryptoKey(64)
+	}
+	return "", xerrors.Errorf("unknown feature: %s", feature)
+}
+
+func generateCryptoKey(length int) (string, error) {
+	b := make([]byte, length)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", xerrors.Errorf("rand read: %w", err)
+	}
+	return hex.EncodeToString(b), nil
 }

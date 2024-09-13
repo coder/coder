@@ -39,7 +39,7 @@ CREATE TYPE build_reason AS ENUM (
 CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps',
     'oidc_convert',
-    'peer_reconnect'
+    'tailnet_resume'
 );
 
 CREATE TYPE display_app AS ENUM (

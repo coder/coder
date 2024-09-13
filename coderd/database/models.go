@@ -344,7 +344,7 @@ type CryptoKeyFeature string
 const (
 	CryptoKeyFeatureWorkspaceApps CryptoKeyFeature = "workspace_apps"
 	CryptoKeyFeatureOidcConvert   CryptoKeyFeature = "oidc_convert"
-	CryptoKeyFeaturePeerReconnect CryptoKeyFeature = "peer_reconnect"
+	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -386,7 +386,7 @@ func (e CryptoKeyFeature) Valid() bool {
 	switch e {
 	case CryptoKeyFeatureWorkspaceApps,
 		CryptoKeyFeatureOidcConvert,
-		CryptoKeyFeaturePeerReconnect:
+		CryptoKeyFeatureTailnetResume:
 		return true
 	}
 	return false
@@ -396,7 +396,7 @@ func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 	return []CryptoKeyFeature{
 		CryptoKeyFeatureWorkspaceApps,
 		CryptoKeyFeatureOidcConvert,
-		CryptoKeyFeaturePeerReconnect,
+		CryptoKeyFeatureTailnetResume,
 	}
 }
 

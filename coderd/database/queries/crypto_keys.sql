@@ -10,7 +10,6 @@ WHERE feature = $1
 ORDER BY sequence DESC
 LIMIT 1;
 
-
 -- name: GetCryptoKeyByFeatureAndSequence :one
 SELECT *
 FROM crypto_keys
@@ -29,13 +28,13 @@ INSERT INTO crypto_keys (
     sequence,
     secret,
     starts_at,
-	secret_key_id
+    secret_key_id
 ) VALUES (
     $1,
     $2,
     $3,
     $4,
-	$5
+    $5
 ) RETURNING *;
 
 -- name: UpdateCryptoKeyDeletesAt :one

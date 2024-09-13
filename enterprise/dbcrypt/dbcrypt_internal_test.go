@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
@@ -353,8 +354,6 @@ func TestCryptoKeys(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	// We don't write a GetCryptoKeyByFeatureAndSequence test
-	// because it's basically the same as InsertCryptoKey.
 	t.Run("InsertCryptoKey", func(t *testing.T) {
 		t.Parallel()
 
@@ -429,6 +428,25 @@ func TestCryptoKeys(t *testing.T) {
 		})
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+	})
+
+	t.Run("UpdateCryptoKeyDeletesAt", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		key := dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		key, err := crypt.UpdateCryptoKeyDeletesAt(ctx, database.UpdateCryptoKeyDeletesAtParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+			DeletesAt: sql.NullTime{
+				Time:  time.Now().Add(time.Hour),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "test", key.Secret.String)
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
 	})
 

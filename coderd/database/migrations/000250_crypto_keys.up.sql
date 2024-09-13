@@ -1,7 +1,7 @@
 CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps',
     'oidc_convert',
-    'peer_reconnect'
+    'tailnet_resume'
 );
 
 CREATE TABLE crypto_keys (
