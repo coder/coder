@@ -110,6 +110,20 @@ func init() {
 		// are deterministic.
 		color = termenv.Ascii
 	}
+
+	DefaultStyles.Code = pretty.Style{
+		ifTerm(pretty.XPad(1, 1)),
+		pretty.FgColor(color.Color("#ED567A")),
+		pretty.BgColor(color.Color("#2C2C2C")),
+	}
+	DefaultStyles.Field = pretty.Style{
+		pretty.XPad(1, 1),
+		pretty.FgColor(color.Color("#FFFFFF")),
+		pretty.BgColor(color.Color("#2B2A2A")),
+	}
+	DefaultStyles.Wrap = pretty.Style{
+		pretty.LineWrap(80),
+	}
 }
 
 func Init(opts InitOptions) {
@@ -129,21 +143,11 @@ func Init(opts InitOptions) {
 	// Doing so would require a round-trip between the program and the terminal
 	// due to the OSC query and response.
 	DefaultStyles = Styles{
-		Code: pretty.Style{
-			ifTerm(pretty.XPad(1, 1)),
-			pretty.FgColor(color.Color("#ED567A")),
-			pretty.BgColor(color.Color("#2C2C2C")),
-		},
 		DateTimeStamp: pretty.Style{
 			pretty.FgColor(brightBlue),
 		},
 		Error: pretty.Style{
 			pretty.FgColor(red),
-		},
-		Field: pretty.Style{
-			pretty.XPad(1, 1),
-			pretty.FgColor(color.Color("#FFFFFF")),
-			pretty.BgColor(color.Color("#2B2A2A")),
 		},
 		Fuchsia: pretty.Style{
 			pretty.FgColor(brightMagenta),
@@ -165,9 +169,6 @@ func Init(opts InitOptions) {
 		},
 		Warn: pretty.Style{
 			pretty.FgColor(yellow),
-		},
-		Wrap: pretty.Style{
-			pretty.LineWrap(80),
 		},
 	}
 }
