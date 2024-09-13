@@ -31,7 +31,6 @@ func (AGPLIDPSync) GroupSyncEnabled() bool {
 }
 
 func (s AGPLIDPSync) GroupSyncSettings() runtimeconfig.RuntimeEntry[*GroupSyncSettings] {
-	fmt.Println("GroupSyncSettings key:", s.Group)
 	return s.Group
 }
 
