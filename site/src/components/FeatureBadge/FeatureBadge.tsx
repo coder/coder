@@ -52,17 +52,24 @@ const styles = {
 		fontSize: "1rem",
 	},
 
-	tooltipTitle: {
+	tooltipTitle: (theme) => ({
+		color: theme.palette.text.primary,
 		fontWeight: 600,
 		fontFamily: "inherit",
 		fontSize: 18,
 		margin: 0,
 		lineHeight: 1,
 		paddingBottom: "8px",
-	},
+	}),
 
 	tooltipDescription: {
 		margin: 0,
+		lineHeight: 1.4,
+		paddingBottom: "8px",
+	},
+
+	tooltipLink: {
+		fontWeight: 600,
 		lineHeight: 1.2,
 	},
 } as const satisfies Record<string, Interpolation<Theme>>;
@@ -159,9 +166,9 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 					href={docs("/contributing/feature-stages")}
 					target="_blank"
 					rel="noreferrer"
-					css={{ fontWeight: 600 }}
+					css={styles.tooltipLink}
 				>
-					Feature stage documentation
+					Learn about feature stages
 					<span style={visuallyHidden}> (link opens in new tab)</span>
 				</Link>
 			</HelpTooltipContent>
