@@ -78,7 +78,7 @@ const FeatureIcon: FC = () => {
 		<TaskAltIcon
 			css={[
 				(theme) => ({
-					color: theme.branding.border,
+					color: theme.branding.premium.border,
 				}),
 			]}
 		/>
@@ -95,8 +95,8 @@ const styles = {
 		padding: 24,
 		borderRadius: 8,
 		gap: 32,
-		backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.background})`,
-		border: `1px solid ${theme.branding.border}`,
+		backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.premium.background})`,
+		border: `1px solid ${theme.branding.premium.border}`,
 	}),
 	title: {
 		fontWeight: 600,
@@ -112,7 +112,7 @@ const styles = {
 	separator: (theme) => ({
 		width: 1,
 		height: 220,
-		backgroundColor: theme.branding.divider,
+		backgroundColor: theme.branding.premium.divider,
 		marginLeft: 8,
 	}),
 	learnButton: {

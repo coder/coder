@@ -2,6 +2,7 @@ import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type { CreateOrganizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Badges, PremiumBadge } from "components/Badges/Badges";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	FormFields,
@@ -22,7 +23,13 @@ import {
 	nameValidator,
 	onChangeTrimmed,
 } from "utils/formUtils";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import * as Yup from "yup";
+import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -58,17 +65,39 @@ export const CreateOrganizationPageView: FC<
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	return (
-		<Stack spacing={3}>
-			<SettingsHeader
-				title="New Organization"
-				description="Organize your deployment into multiple platform teams."
-			/>
+		<Stack>
+			<div>
+				<SettingsHeader
+					title="New Organization"
+					description="Organize your deployment into multiple platform teams."
+				/>
 
-			{Boolean(error) && !isApiValidationError(error) && (
-				<div css={{ marginBottom: 32 }}>
-					<ErrorAlert error={error} />
-				</div>
-			)}
+				{Boolean(error) && !isApiValidationError(error) && (
+					<div css={{ marginBottom: 32 }}>
+						<ErrorAlert error={error} />
+					</div>
+				)}
+
+				<Badges>
+					<Popover mode="hover">
+						{isEntitled && (
+							<PopoverTrigger>
+								<span>
+									<PremiumBadge />
+								</span>
+							</PopoverTrigger>
+						)}
+
+						<PopoverContent css={{ transform: "translateY(-28px)" }}>
+							<PopoverPaywall
+								message="Organizations"
+								description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
+								documentationLink={docs("/guides/using-organizations")}
+							/>
+						</PopoverContent>
+					</Popover>
+				</Badges>
+			</div>
 
 			<ChooseOne>
 				<Cond condition={!isEntitled}>
