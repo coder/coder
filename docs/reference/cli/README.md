@@ -170,8 +170,10 @@ Path to the global `coder` config directory.
 
 ### --no-color
 
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
+|             |                              |
+| ----------- | ---------------------------- |
+| Type        | <code>bool</code>            |
+| Environment | <code>$CODER_NO_COLOR</code> |
+| Default     | <code>false</code>           |
 
 Disable use of color in CLI output.
