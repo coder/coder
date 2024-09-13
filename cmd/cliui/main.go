@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -36,6 +37,43 @@ func main() {
 			return nil
 		},
 	}
+
+	root.Children = append(root.Children, &serpent.Command{
+		Use: "colors",
+		Handler: func(inv *serpent.Invocation) error {
+			msg := pretty.Sprint(cliui.DefaultStyles.Code, "This is a code message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, "This is a datetimestamp message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.Error, "This is an error message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.Field, "This is a field message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.Keyword, "This is a keyword message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.Placeholder, "This is a placeholder message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.Prompt, "This is a prompt message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.FocusedPrompt, "This is a focused prompt message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.Fuchsia, "This is a fuchsia prompt message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			msg = pretty.Sprint(cliui.DefaultStyles.Warn, "This is a warning message")
+			_, _ = fmt.Fprintln(inv.Stdout, msg)
+
+			return nil
+		},
+	})
 
 	root.Children = append(root.Children, &serpent.Command{
 		Use: "prompt",
