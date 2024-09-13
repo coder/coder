@@ -19,7 +19,7 @@ export const Paywall: FC<PaywallProps> = ({
 	documentationLink,
 }) => {
 	return (
-		<div css={[styles.root]}>
+		<div css={styles.root}>
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 24 }}>
 					<h5 css={styles.title}>{message}</h5>
