@@ -14,7 +14,7 @@ The
 can be used to push new template versions, either manually, or in CI/CD
 pipelines. To run the provider in a CI/CD pipeline, and to prevent drift, you'll
 need to store the Terraform state
-[remotely](https://developer.hashicorp.com/terraform/language/settings/backends/configuration).
+[remotely](https://developer.hashicorp.com/terraform/language/backend).
 
 ```hcl
 terraform {
