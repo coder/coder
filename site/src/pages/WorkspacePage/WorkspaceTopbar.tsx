@@ -116,7 +116,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 		(org) => org.id === workspace.organization_id,
 	);
 
-	const orgDisplayName = activeOrg?.display_name ?? workspace.organization_name;
+	const orgDisplayName = activeOrg?.display_name || workspace.organization_name;
 
 	const isImmutable =
 		workspace.latest_build.status === "deleted" ||

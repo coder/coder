@@ -4,7 +4,7 @@ export const getWorkspaceQuotaQueryKey = (
 	organizationName: string,
 	username: string,
 ) => {
-	return [organizationName, username, "workspaceQuota"];
+	return ["workspaceQuota", organizationName, username];
 };
 
 export const workspaceQuota = (organizationName: string, username: string) => {

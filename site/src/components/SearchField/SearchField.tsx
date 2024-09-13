@@ -21,9 +21,8 @@ export const SearchField: FC<SearchFieldProps> = ({
 	const theme = useTheme();
 	return (
 		<TextField
-			// Have to specify min width so that, as we keep adding more and
-			// control options to the filter row, the text box doesn't have a
-			// risk of shrinking so much that it becomes un-clickable
+			// Specifying `minWidth` so that the text box can't shrink so much
+			// that it becomes un-clickable as we add more filter controls
 			css={{ minWidth: "320px" }}
 			size="small"
 			value={value}
