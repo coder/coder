@@ -38,6 +38,14 @@ func main() {
 		},
 	}
 
+	root.Options = []serpent.Option{
+		{
+			Default: "false",
+			Flag:    cliui.NoColorFlag,
+			Value:   serpent.BoolOf(&cliui.NoColor),
+		},
+	}
+
 	root.Children = append(root.Children, &serpent.Command{
 		Use: "colors",
 		Handler: func(inv *serpent.Invocation) error {

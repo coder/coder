@@ -2,7 +2,9 @@ package cliui
 
 import (
 	"flag"
+	"fmt"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -11,6 +13,10 @@ import (
 
 	"github.com/coder/pretty"
 )
+
+const NoColorFlag = "no-color"
+
+var NoColor = false
 
 var Canceled = xerrors.New("canceled")
 
@@ -37,19 +43,28 @@ var (
 )
 
 var (
-	Green  = Color("2")
-	Red    = Color("1")
-	Yellow = Color("3")
-	Blue   = Color("6")
+	Green  = Color("10")
+	Red    = Color("9")
+	Yellow = Color("11")
+	Blue   = Color("12")
 )
 
 // Color returns a color for the given string.
 func Color(s string) termenv.Color {
 	colorOnce.Do(func() {
 		color = termenv.NewOutput(os.Stdout).ColorProfile()
+
 		if flag.Lookup("test.v") != nil {
 			// Use a consistent colorless profile in tests so that results
 			// are deterministic.
+			color = termenv.Ascii
+		}
+
+		// Currently it appears there is no way to use the flag from
+		// serpent as it isn't possible to create a root middleware that
+		// runs for every command. For now we just check if `os.Args`
+		// has the flag.
+		if slices.Contains(os.Args, fmt.Sprintf("--%s", NoColorFlag)) {
 			color = termenv.Ascii
 		}
 	})
