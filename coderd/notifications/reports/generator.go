@@ -113,6 +113,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		return statsRows[i].TemplateName < statsRows[j].TemplateName
 	})
 
+	reportRecipients := map[uuid.UUID]bool{}
 	for _, stats := range statsRows {
 		var failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
 		reportData := map[string]any{}
@@ -143,32 +144,19 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			})
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) { // sql.ErrNoRows: report not generated yet
-				return xerrors.Errorf("unable to get recent report generator log for user: %w", err)
+				logger.Error(ctx, "unable to get recent report generator log for user", slog.F("user_id", templateAdmin.ID), slog.Error(err))
+				continue
 			}
 
 			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequencyDays*24*time.Hour).After(now) {
 				// report generated recently, no need to send it now
-				err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
-					UserID:                 templateAdmin.ID,
-					NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-					LastGeneratedAt:        dbtime.Time(now).UTC(),
-				})
-				if err != nil {
-					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
-				}
+				reportRecipients[templateAdmin.ID] = true
 				continue
 			}
 
 			if len(failedBuilds) == 0 {
 				// no failed workspace builds, no need to send the report
-				err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
-					UserID:                 templateAdmin.ID,
-					NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-					LastGeneratedAt:        dbtime.Time(now).UTC(),
-				})
-				if err != nil {
-					logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
-				}
+				reportRecipients[templateAdmin.ID] = true
 				continue
 			}
 
@@ -188,16 +176,18 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			); err != nil {
 				logger.Warn(ctx, "failed to send a report with failed workspace builds", slog.Error(err))
 			}
+			reportRecipients[templateAdmin.ID] = true
+		}
+	}
 
-			err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
-				UserID:                 templateAdmin.ID,
-				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-				LastGeneratedAt:        dbtime.Time(now).UTC(),
-			})
-			if err != nil {
-				logger.Error(ctx, "unable to update report generator logs", slog.F("template_id", stats.TemplateID), slog.F("user_id", templateAdmin.ID), slog.F("failed_builds", len(failedBuilds)), slog.Error(err))
-				continue
-			}
+	for recipient := range reportRecipients {
+		err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
+			UserID:                 recipient,
+			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+			LastGeneratedAt:        dbtime.Time(now).UTC(),
+		})
+		if err != nil {
+			logger.Error(ctx, "unable to update report generator logs", slog.F("user_id", recipient), slog.Error(err))
 		}
 	}
 

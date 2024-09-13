@@ -191,6 +191,11 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		t.Parallel()
 		// TODO
 	})
+
+	t.Run("FreshTemplate_FailedBuilds_TemplateAdminIn_NoReport", func(t *testing.T) {
+		t.Parallel()
+		// TODO
+	})
 }
 
 func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.Pubsub, *testutil.FakeNotificationsEnqueuer, *quartz.Mock) {
