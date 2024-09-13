@@ -463,6 +463,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		},
 		{
 			Flag:        cliui.NoColorFlag,
+			Env:         "CODER_NO_COLOR",
 			Description: "Disable use of color in CLI output.",
 			Value:       serpent.BoolOf(&cliui.NoColor),
 			Group:       globalGroup,

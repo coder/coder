@@ -43,6 +43,7 @@ var (
 )
 
 var (
+	// ANSI color codes
 	red           = Color("1")
 	green         = Color("2")
 	yellow        = Color("3")
@@ -67,7 +68,9 @@ func Color(s string) termenv.Color {
 		// serpent as it isn't possible to create a root middleware that
 		// runs for every command. For now we just check if `os.Args`
 		// has the flag.
-		if slices.Contains(os.Args, fmt.Sprintf("--%s", NoColorFlag)) {
+		if slices.Contains(os.Args, fmt.Sprintf("--%s", NoColorFlag)) ||
+			os.Getenv("CODER_NO_COLOR") != "" ||
+			os.Getenv("NO_COLOR") != "" {
 			color = termenv.Ascii
 		}
 	})
