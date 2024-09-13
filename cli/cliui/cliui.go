@@ -37,6 +37,7 @@ var (
 )
 
 var (
+	// ANSI color codes
 	red           = Color("1")
 	green         = Color("2")
 	yellow        = Color("3")
