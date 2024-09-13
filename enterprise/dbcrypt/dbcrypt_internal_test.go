@@ -349,6 +349,51 @@ func TestExternalAuthLinks(t *testing.T) {
 	})
 }
 
+func TestCryptoKeys(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db, crypt, ciphers := setup(t)
+
+	// We don't write a GetCryptoKeyByFeatureAndSequence test
+	// because it's basically the same as InsertCryptoKey.
+	t.Run("InsertCryptoKey", func(t *testing.T) {
+		t.Parallel()
+		key := dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		require.Equal(t, "test", key.Secret.String)
+
+		key, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		})
+		require.NoError(t, err)
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
+	})
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		key := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Secret: sql.NullString{
+				String: fakeBase64RandomData(t, 32),
+				Valid:  true,
+			},
+			SecretKeyID: sql.NullString{
+				String: ciphers[0].HexDigest(),
+				Valid:  true,
+			},
+		})
+		_, err := crypt.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		})
+		require.Error(t, err, "expected an error")
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
+	})
+}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 

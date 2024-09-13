@@ -7,6 +7,7 @@ type ForeignKeyConstraint string
 // ForeignKeyConstraint enums.
 const (
 	ForeignKeyAPIKeysUserIDUUID                             ForeignKeyConstraint = "api_keys_user_id_uuid_fkey"                               // ALTER TABLE ONLY api_keys ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+	ForeignKeyCryptoKeysSecretKeyID                         ForeignKeyConstraint = "crypto_keys_secret_key_id_fkey"                           // ALTER TABLE ONLY crypto_keys ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 	ForeignKeyGitAuthLinksOauthAccessTokenKeyID             ForeignKeyConstraint = "git_auth_links_oauth_access_token_key_id_fkey"            // ALTER TABLE ONLY external_auth_links ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 	ForeignKeyGitAuthLinksOauthRefreshTokenKeyID            ForeignKeyConstraint = "git_auth_links_oauth_refresh_token_key_id_fkey"           // ALTER TABLE ONLY external_auth_links ADD CONSTRAINT git_auth_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 	ForeignKeyGitSSHKeysUserID                              ForeignKeyConstraint = "gitsshkeys_user_id_fkey"                                  // ALTER TABLE ONLY gitsshkeys ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);

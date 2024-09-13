@@ -153,6 +153,7 @@ type data struct {
 	// New tables
 	workspaceAgentStats           []database.WorkspaceAgentStat
 	auditLogs                     []database.AuditLog
+	cryptoKeys                    []database.CryptoKey
 	dbcryptKeys                   []database.DBCryptKey
 	files                         []database.File
 	externalAuthLinks             []database.ExternalAuthLink
@@ -1434,6 +1435,25 @@ func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
 }
 
+func (q *FakeQuerier) DeleteCryptoKey(_ context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, key := range q.cryptoKeys {
+		if key.Feature == arg.Feature && key.Sequence == arg.Sequence {
+			q.cryptoKeys[i].Secret.String = ""
+			q.cryptoKeys[i].Secret.Valid = false
+			return q.cryptoKeys[i], nil
+		}
+	}
+	return database.CryptoKey{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) DeleteCustomRole(_ context.Context, arg database.DeleteCustomRoleParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2309,6 +2329,41 @@ func (q *FakeQuerier) GetCoordinatorResumeTokenSigningKey(_ context.Context) (st
 	return q.coordinatorResumeTokenSigningKey, nil
 }
 
+func (q *FakeQuerier) GetCryptoKeyByFeatureAndSequence(_ context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, key := range q.cryptoKeys {
+		if key.Feature == arg.Feature && key.Sequence == arg.Sequence {
+			// Keys with NULL secrets are considered deleted.
+			if key.Secret.Valid {
+				return key, nil
+			}
+			return database.CryptoKey{}, sql.ErrNoRows
+		}
+	}
+
+	return database.CryptoKey{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetCryptoKeys(_ context.Context) ([]database.CryptoKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.CryptoKey, 0)
+	for _, key := range q.cryptoKeys {
+		if key.Secret.Valid {
+			keys = append(keys, key)
+		}
+	}
+	return keys, nil
+}
+
 func (q *FakeQuerier) GetDBCryptKeys(_ context.Context) ([]database.DBCryptKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2804,6 +2859,23 @@ func (q *FakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 		return "", sql.ErrNoRows
 	}
 	return string(q.lastUpdateCheck), nil
+}
+
+func (q *FakeQuerier) GetLatestCryptoKeyByFeature(_ context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var latestKey database.CryptoKey
+	for _, key := range q.cryptoKeys {
+		if key.Feature == feature && latestKey.Sequence < key.Sequence {
+			latestKey = key
+		}
+	}
+
+	if latestKey.Secret.Valid {
+		return latestKey, nil
+	}
+	return database.CryptoKey{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -6305,6 +6377,28 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	return alog, nil
 }
 
+func (q *FakeQuerier) InsertCryptoKey(_ context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	key := database.CryptoKey{
+		Feature:     arg.Feature,
+		Sequence:    arg.Sequence,
+		Secret:      arg.Secret,
+		SecretKeyID: arg.SecretKeyID,
+		StartsAt:    arg.StartsAt,
+	}
+
+	q.cryptoKeys = append(q.cryptoKeys, key)
+
+	return key, nil
+}
+
 func (q *FakeQuerier) InsertCustomRole(_ context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -7772,6 +7866,25 @@ func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateCryptoKeyDeletesAt(_ context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, key := range q.cryptoKeys {
+		if key.Feature == arg.Feature && key.Sequence == arg.Sequence {
+			key.DeletesAt = arg.DeletesAt
+			q.cryptoKeys[i] = key
+			return key, nil
+		}
+	}
+
+	return database.CryptoKey{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateCustomRole(_ context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {

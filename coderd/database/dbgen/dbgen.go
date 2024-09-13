@@ -2,6 +2,7 @@ package dbgen
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -891,6 +892,36 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 	})
 	require.NoError(t, err, "insert custom role")
 	return role
+}
+
+func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) database.CryptoKey {
+	t.Helper()
+
+	b := make([]byte, 96)
+	_, err := rand.Read(b)
+	require.NoError(t, err, "generate secret")
+
+	key, err := db.InsertCryptoKey(genCtx, database.InsertCryptoKeyParams{
+		Sequence: takeFirst(seed.Sequence, 123),
+		Secret: takeFirst(seed.Secret, sql.NullString{
+			String: hex.EncodeToString(b),
+			Valid:  true,
+		}),
+		SecretKeyID: takeFirst(seed.SecretKeyID, sql.NullString{}),
+		Feature:     takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceApps),
+		StartsAt:    takeFirst(seed.StartsAt, time.Now()),
+	})
+	require.NoError(t, err, "insert crypto key")
+
+	if seed.DeletesAt.Valid {
+		key, err = db.UpdateCryptoKeyDeletesAt(genCtx, database.UpdateCryptoKeyDeletesAtParams{
+			Feature:   key.Feature,
+			Sequence:  key.Sequence,
+			DeletesAt: sql.NullTime{Time: seed.DeletesAt.Time, Valid: true},
+		})
+		require.NoError(t, err, "update crypto key deletes_at")
+	}
+	return key
 }
 
 func must[V any](v V, err error) V {

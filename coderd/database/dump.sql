@@ -36,6 +36,12 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE crypto_key_feature AS ENUM (
+    'workspace_apps',
+    'oidc_convert',
+    'peer_reconnect'
+);
+
 CREATE TYPE display_app AS ENUM (
     'vscode',
     'vscode_insiders',
@@ -492,6 +498,15 @@ CREATE TABLE audit_logs (
     additional_fields jsonb NOT NULL,
     request_id uuid NOT NULL,
     resource_icon text NOT NULL
+);
+
+CREATE TABLE crypto_keys (
+    feature crypto_key_feature NOT NULL,
+    sequence integer NOT NULL,
+    secret text,
+    secret_key_id text,
+    starts_at timestamp with time zone NOT NULL,
+    deletes_at timestamp with time zone
 );
 
 CREATE TABLE custom_roles (
@@ -1640,6 +1655,9 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY crypto_keys
+    ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
+
 ALTER TABLE ONLY custom_roles
     ADD CONSTRAINT custom_roles_unique_key UNIQUE (name, organization_id);
 
@@ -2034,6 +2052,9 @@ CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE O
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY crypto_keys
+    ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);

@@ -261,6 +261,31 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 	return link, nil
 }
 
+func (db *dbCrypt) GetCryptoKeyByFeatureAndSequence(ctx context.Context, params database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
+	key, err := db.Store.GetCryptoKeyByFeatureAndSequence(ctx, params)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+	if err := db.decryptField(&key.Secret.String, key.SecretKeyID); err != nil {
+		return database.CryptoKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) InsertCryptoKey(ctx context.Context, params database.InsertCryptoKeyParams) (database.CryptoKey, error) {
+	if err := db.encryptField(&params.Secret.String, &params.SecretKeyID); err != nil {
+		return database.CryptoKey{}, err
+	}
+	key, err := db.Store.InsertCryptoKey(ctx, params)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+	if err := db.decryptField(&key.Secret.String, key.SecretKeyID); err != nil {
+		return database.CryptoKey{}, err
+	}
+	return key, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
