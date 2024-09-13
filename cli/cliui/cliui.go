@@ -3,6 +3,7 @@ package cliui
 import (
 	"flag"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/muesli/termenv"
@@ -10,8 +11,6 @@ import (
 
 	"github.com/coder/pretty"
 )
-
-const NoColorFlag = "no-color"
 
 var Canceled = xerrors.New("canceled")
 
@@ -32,10 +31,32 @@ type Styles struct {
 	Wrap pretty.Style
 }
 
-var color termenv.Profile
+var (
+	color     termenv.Profile
+	colorOnce sync.Once
+)
+
+var (
+	red           = Color("1")
+	green         = Color("2")
+	yellow        = Color("3")
+	magenta       = Color("5")
+	white         = Color("7")
+	brightBlue    = Color("12")
+	brightMagenta = Color("13")
+)
 
 // Color returns a color for the given string.
 func Color(s string) termenv.Color {
+	colorOnce.Do(func() {
+		color = termenv.NewOutput(os.Stdout).EnvColorProfile()
+
+		if flag.Lookup("test.v") != nil {
+			// Use a consistent colorless profile in tests so that results
+			// are deterministic.
+			color = termenv.Ascii
+		}
+	})
 	return color.Color(s)
 }
 
@@ -91,87 +112,58 @@ func Field(s string) string {
 	return pretty.Sprint(DefaultStyles.Field, s)
 }
 
-func ifTerm(f pretty.Formatter) pretty.Formatter {
+func ifTerm(fmt pretty.Formatter) pretty.Formatter {
 	if !isTerm() {
 		return pretty.Nop
 	}
-	return f
-}
-
-type InitOptions struct {
-	NoColor bool
+	return fmt
 }
 
 func init() {
-	color = termenv.NewOutput(os.Stdout).ColorProfile()
-
-	if flag.Lookup("test.v") != nil {
-		// Use a consistent colorless profile in tests so that results
-		// are deterministic.
-		color = termenv.Ascii
-	}
-
-	DefaultStyles.Code = pretty.Style{
-		ifTerm(pretty.XPad(1, 1)),
-	}
-	DefaultStyles.Field = pretty.Style{
-		pretty.XPad(1, 1),
-	}
-	DefaultStyles.Wrap = pretty.Style{
-		pretty.LineWrap(80),
-	}
-}
-
-func Init(opts InitOptions) {
-	if opts.NoColor {
-		color = termenv.Ascii
-	}
-
-	red := color.Color("1")
-	green := color.Color("2")
-	yellow := color.Color("3")
-	magenta := color.Color("5")
-	white := color.Color("7")
-	brightBlue := color.Color("12")
-	brightMagenta := color.Color("13")
-
 	// We do not adapt the color based on whether the terminal is light or dark.
 	// Doing so would require a round-trip between the program and the terminal
 	// due to the OSC query and response.
-	DefaultStyles.Code = append(DefaultStyles.Code,
-		pretty.FgColor(color.Color("#ED567A")),
-		pretty.BgColor(color.Color("#2C2C2C")),
-	)
-	DefaultStyles.DateTimeStamp = pretty.Style{
-		pretty.FgColor(brightBlue),
-	}
-	DefaultStyles.Error = pretty.Style{
-		pretty.FgColor(red),
-	}
-	DefaultStyles.Field = append(DefaultStyles.Field,
-		pretty.FgColor(color.Color("#FFFFFF")),
-		pretty.BgColor(color.Color("#2B2A2A")),
-	)
-	DefaultStyles.Fuchsia = pretty.Style{
-		pretty.FgColor(brightMagenta),
-	}
-	DefaultStyles.FocusedPrompt = pretty.Style{
-		pretty.FgColor(white),
-		pretty.Wrap("> ", ""),
-		pretty.FgColor(brightBlue),
-	}
-	DefaultStyles.Keyword = pretty.Style{
-		pretty.FgColor(green),
-	}
-	DefaultStyles.Placeholder = pretty.Style{
-		pretty.FgColor(magenta),
-	}
-	DefaultStyles.Prompt = pretty.Style{
-		pretty.FgColor(white),
-		pretty.Wrap("  ", ""),
-	}
-	DefaultStyles.Warn = pretty.Style{
-		pretty.FgColor(yellow),
+	DefaultStyles = Styles{
+		Code: pretty.Style{
+			ifTerm(pretty.XPad(1, 1)),
+			pretty.FgColor(Color("#ED567A")),
+			pretty.BgColor(Color("#2C2C2C")),
+		},
+		DateTimeStamp: pretty.Style{
+			pretty.FgColor(brightBlue),
+		},
+		Error: pretty.Style{
+			pretty.FgColor(red),
+		},
+		Field: pretty.Style{
+			pretty.XPad(1, 1),
+			pretty.FgColor(Color("#FFFFFF")),
+			pretty.BgColor(Color("#2B2A2A")),
+		},
+		Fuchsia: pretty.Style{
+			pretty.FgColor(brightMagenta),
+		},
+		FocusedPrompt: pretty.Style{
+			pretty.FgColor(white),
+			pretty.Wrap("> ", ""),
+			pretty.FgColor(brightBlue),
+		},
+		Keyword: pretty.Style{
+			pretty.FgColor(green),
+		},
+		Placeholder: pretty.Style{
+			pretty.FgColor(magenta),
+		},
+		Prompt: pretty.Style{
+			pretty.FgColor(white),
+			pretty.Wrap("  ", ""),
+		},
+		Warn: pretty.Style{
+			pretty.FgColor(yellow),
+		},
+		Wrap: pretty.Style{
+			pretty.LineWrap(80),
+		},
 	}
 }
 

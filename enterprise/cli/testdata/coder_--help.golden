@@ -49,9 +49,6 @@ variables or flags.
           requests. The command must output each header as `key=value` on its
           own line.
 
-      --no-color bool, $CODER_NO_COLOR (default: false)
-          Disable use of color in CLI output.
-
       --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
           Suppress warnings about unlicensed features.
 

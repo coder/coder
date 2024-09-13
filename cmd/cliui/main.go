@@ -388,28 +388,6 @@ func main() {
 		},
 	})
 
-	var noColor bool
-	root.Options = []serpent.Option{
-		{
-			Default: "false",
-			Flag:    cliui.NoColorFlag,
-			Value:   serpent.BoolOf(&noColor),
-		},
-	}
-
-	root.Walk(func(cmd *serpent.Command) {
-		middleware := func(next serpent.HandlerFunc) serpent.HandlerFunc {
-			cliui.Init(cliui.InitOptions{NoColor: noColor})
-			return next
-		}
-
-		if cmd.Middleware != nil {
-			cmd.Middleware = serpent.Chain(cmd.Middleware, middleware)
-		} else {
-			cmd.Middleware = middleware
-		}
-	})
-
 	err := root.Invoke(os.Args[1:]...).WithOS().Run()
 	if err != nil {
 		_, _ = fmt.Println(err.Error())

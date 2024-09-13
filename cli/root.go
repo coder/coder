@@ -331,22 +331,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		r.clientURL = new(url.URL)
 	}
 
-	// Add a wrapper to every command to ensure we've loaded our CLI theme prior
-	// to running any handler.
-	var noColor bool
-	cmd.Walk(func(c *serpent.Command) {
-		middleware := func(next serpent.HandlerFunc) serpent.HandlerFunc {
-			cliui.Init(cliui.InitOptions{NoColor: noColor})
-			return next
-		}
-
-		if c.Middleware != nil {
-			c.Middleware = serpent.Chain(c.Middleware, middleware)
-		} else {
-			c.Middleware = middleware
-		}
-	})
-
 	globalGroup := &serpent.Group{
 		Name:        "Global",
 		Description: `Global options are applied to all commands. They can be set using environment variables or flags.`,
@@ -476,14 +460,6 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Default:     config.DefaultDir(),
 			Value:       serpent.StringOf(&r.globalConfig),
 			Group:       globalGroup,
-		},
-		{
-			Flag:        cliui.NoColorFlag,
-			Env:         "CODER_NO_COLOR",
-			Default:     "false",
-			Description: "Disable use of color in CLI output.",
-			Group:       globalGroup,
-			Value:       serpent.BoolOf(&noColor),
 		},
 		{
 			Flag: "version",
