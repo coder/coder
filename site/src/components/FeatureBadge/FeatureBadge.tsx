@@ -10,6 +10,7 @@ import {
 	type HTMLAttributes,
 	type ReactNode,
 } from "react";
+import tailwindColors from "theme/tailwindColors";
 import { docs } from "utils/docs";
 
 /**
@@ -37,15 +38,18 @@ const styles = {
 		padding: "4px 8px",
 		lineHeight: 1,
 		whiteSpace: "nowrap",
-		border: `1px solid ${theme.palette.divider}`,
-		color: theme.palette.text.secondary,
-		backgroundColor: theme.palette.background.default,
+		border: `1px solid ${theme.roles.preview.outline}`,
+		color: theme.roles.preview.text,
+		backgroundColor: theme.roles.preview.background,
 		borderRadius: "6px",
+		transition:
+			"color 0.4s ease-in-out, border-color 0.4s ease-in-out, background-color 0.4s ease-in-out",
 	}),
 
 	badgeHover: (theme) => ({
-		color: theme.palette.text.primary,
-		borderColor: theme.palette.text.primary,
+		color: theme.roles.preview.hover.text,
+		borderColor: theme.roles.preview.hover.outline,
+		backgroundColor: theme.roles.preview.hover.background,
 	}),
 
 	badgeLargeText: {
