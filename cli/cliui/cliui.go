@@ -102,7 +102,7 @@ type InitOptions struct {
 	NoColor bool
 }
 
-func Init(opts InitOptions) {
+func init() {
 	color = termenv.NewOutput(os.Stdout).ColorProfile()
 
 	if flag.Lookup("test.v") != nil {
@@ -110,7 +110,9 @@ func Init(opts InitOptions) {
 		// are deterministic.
 		color = termenv.Ascii
 	}
+}
 
+func Init(opts InitOptions) {
 	if opts.NoColor {
 		color = termenv.Ascii
 	}
