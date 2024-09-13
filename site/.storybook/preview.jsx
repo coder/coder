@@ -8,7 +8,9 @@
  * @typedef {import("react").ReactElement} ReactElement
  * @typedef {import("react").PropsWithChildren} PropsWithChildren
  * @typedef {import("react").FC<PropsWithChildren>} FC
+ *
  * @typedef {import("@storybook/react").StoryContext} StoryContext
+ * @typedef {import("@storybook/react").Preview} Preview
  *
  * @typedef {(Story: FC, Context: StoryContext) => React.JSX.Element} Decorator A
  * Storybook decorator function used to inject baseline data dependencies into
@@ -31,9 +33,10 @@ import themes from "../src/theme";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
-/**@type {readonly Decorator[]} */
+/** @type {readonly Decorator[]} */
 export const decorators = [withRouter, withQuery, withHelmet, withTheme];
 
+/** @type {Preview["parameters"]} */
 export const parameters = {
 	options: {
 		storySort: {
