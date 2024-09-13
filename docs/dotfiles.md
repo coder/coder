@@ -11,6 +11,21 @@ explains how it loads your repo.
 
 You can read more on dotfiles best practices [here](https://dotfiles.github.io).
 
+## Module
+
+Coder's [dotfiles module](https://registry.coder.com/modules/dotfiles)
+abstracts Coder's dotfiles command into a module. This will prompt the 
+user for their dotfiles repository URL on template creation using a 
+coder_parameter.
+
+```hcl
+module "dotfiles" {
+  source   = "registry.coder.com/modules/dotfiles/coder"
+  version  = "~>1.0.15"
+  agent_id = coder_agent.example.id
+}
+```
+
 ## Templates
 
 Templates can prompt users for their dotfiles repo using the following pattern:
