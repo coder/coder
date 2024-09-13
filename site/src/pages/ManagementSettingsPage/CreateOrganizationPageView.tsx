@@ -12,6 +12,12 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { Paywall } from "components/Paywall/Paywall";
+import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
@@ -23,13 +29,7 @@ import {
 	nameValidator,
 	onChangeTrimmed,
 } from "utils/formUtils";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
 import * as Yup from "yup";
-import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
