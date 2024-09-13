@@ -43,10 +43,13 @@ var (
 )
 
 var (
-	Green  = Color("2")
-	Red    = Color("1")
-	Yellow = Color("3")
-	Blue   = Color("4")
+	Red           = Color("1")
+	Green         = Color("2")
+	Yellow        = Color("3")
+	Blue          = Color("4")
+	Magenta       = Color("5")
+	White         = Color("7")
+	BrightMagenta = Color("13")
 )
 
 // Color returns a color for the given string.
@@ -138,10 +141,10 @@ func init() {
 		Code: pretty.Style{
 			ifTerm(pretty.XPad(1, 1)),
 			pretty.FgColor(color.Color("#ED567A")),
-			pretty.BgColor(color.Color("#2c2c2c")),
+			pretty.BgColor(color.Color("#2C2C2C")),
 		},
 		DateTimeStamp: pretty.Style{
-			pretty.FgColor(color.Color("#7571F9")),
+			pretty.FgColor(Blue),
 		},
 		Error: pretty.Style{
 			pretty.FgColor(Red),
@@ -149,16 +152,19 @@ func init() {
 		Field: pretty.Style{
 			pretty.XPad(1, 1),
 			pretty.FgColor(color.Color("#FFFFFF")),
-			pretty.BgColor(color.Color("#2b2a2a")),
+			pretty.BgColor(color.Color("#2B2A2A")),
+		},
+		Fuchsia: pretty.Style{
+			pretty.FgColor(BrightMagenta),
 		},
 		Keyword: pretty.Style{
 			pretty.FgColor(Green),
 		},
 		Placeholder: pretty.Style{
-			pretty.FgColor(color.Color("#4d46b3")),
+			pretty.FgColor(Magenta),
 		},
 		Prompt: pretty.Style{
-			pretty.FgColor(color.Color("#5C5C5C")),
+			pretty.FgColor(White),
 			pretty.Wrap("> ", ""),
 		},
 		Warn: pretty.Style{

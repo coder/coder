@@ -73,7 +73,7 @@ func main() {
 			msg = pretty.Sprint(cliui.DefaultStyles.FocusedPrompt, "This is a focused prompt message")
 			_, _ = fmt.Fprintln(inv.Stdout, msg)
 
-			msg = pretty.Sprint(cliui.DefaultStyles.Fuchsia, "This is a fuchsia prompt message")
+			msg = pretty.Sprint(cliui.DefaultStyles.Fuchsia, "This is a fuchsia message")
 			_, _ = fmt.Fprintln(inv.Stdout, msg)
 
 			msg = pretty.Sprint(cliui.DefaultStyles.Warn, "This is a warning message")
