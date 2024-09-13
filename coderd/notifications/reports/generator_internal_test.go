@@ -55,6 +55,19 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 	t.Run("FailedBuilds_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
 		t.Parallel()
 
+		verifyNotification := func(t *testing.T, recipient database.User, notif *testutil.Notification, tmpl database.Template, failedBuilds, totalBuilds int64, templateVersions []map[string]interface{}) {
+			t.Helper()
+
+			require.Equal(t, recipient.ID, notif.UserID)
+			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notif.TemplateID)
+			require.Equal(t, tmpl.Name, notif.Labels["template_name"])
+			require.Equal(t, tmpl.DisplayName, notif.Labels["template_display_name"])
+			require.Equal(t, failedBuilds, notif.Data["failed_builds"])
+			require.Equal(t, totalBuilds, notif.Data["total_builds"])
+			require.Equal(t, "week", notif.Data["report_frequency"])
+			require.Equal(t, templateVersions, notif.Data["template_versions"])
+		}
+
 		// Setup
 		ctx, logger, db, ps, notifEnq, clk := setup(t)
 
@@ -128,14 +141,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		require.Len(t, notifEnq.Sent, 4) // 2 templates, 2 template admins
 		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
-			require.Equal(t, templateAdmin.ID, notifEnq.Sent[i].UserID)
-			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notifEnq.Sent[i].TemplateID)
-			require.Equal(t, t1.Name, notifEnq.Sent[i].Labels["template_name"])
-			require.Equal(t, t1.DisplayName, notifEnq.Sent[i].Labels["template_display_name"])
-			require.Equal(t, int64(3), notifEnq.Sent[i].Data["failed_builds"])
-			require.Equal(t, int64(4), notifEnq.Sent[i].Data["total_builds"])
-			require.Equal(t, "week", notifEnq.Sent[i].Data["report_frequency"])
-			require.Equal(t, []map[string]interface{}{
+			verifyNotification(t, templateAdmin, notifEnq.Sent[i], t1, 3, 4, []map[string]interface{}{
 				{
 					"failed_builds": []map[string]interface{}{
 						{"build_number": int32(7), "workspace_name": w3.Name, "workspace_owner_username": user1.Username},
@@ -151,18 +157,11 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 					"failed_count":          1,
 					"template_version_name": t1v2.Name,
 				},
-			}, notifEnq.Sent[i].Data["template_versions"])
+			})
 		}
 
 		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
-			require.Equal(t, templateAdmin.ID, notifEnq.Sent[i+2].UserID)
-			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notifEnq.Sent[i+2].TemplateID)
-			require.Equal(t, t2.Name, notifEnq.Sent[i+2].Labels["template_name"])
-			require.Equal(t, t2.DisplayName, notifEnq.Sent[i+2].Labels["template_display_name"])
-			require.Equal(t, int64(3), notifEnq.Sent[i+2].Data["failed_builds"])
-			require.Equal(t, int64(5), notifEnq.Sent[i+2].Data["total_builds"])
-			require.Equal(t, "week", notifEnq.Sent[i+2].Data["report_frequency"])
-			require.Equal(t, []map[string]interface{}{
+			verifyNotification(t, templateAdmin, notifEnq.Sent[i+2], t2, 3, 5, []map[string]interface{}{
 				{
 					"failed_builds": []map[string]interface{}{
 						{"build_number": int32(8), "workspace_name": w4.Name, "workspace_owner_username": user2.Username},
@@ -178,7 +177,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 					"failed_count":          2,
 					"template_version_name": t2v2.Name,
 				},
-			}, notifEnq.Sent[i+2].Data["template_versions"])
+			})
 		}
 
 		// Given: 6 days later (less than report frequency), and failed build
@@ -209,14 +208,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Then
 		require.Len(t, notifEnq.Sent, 2) // a new failed job should be reported
 		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
-			require.Equal(t, templateAdmin.ID, notifEnq.Sent[i].UserID)
-			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notifEnq.Sent[i].TemplateID)
-			require.Equal(t, t1.Name, notifEnq.Sent[i].Labels["template_name"])
-			require.Equal(t, t1.DisplayName, notifEnq.Sent[i].Labels["template_display_name"])
-			require.Equal(t, int64(1), notifEnq.Sent[i].Data["failed_builds"])
-			require.Equal(t, int64(1), notifEnq.Sent[i].Data["total_builds"])
-			require.Equal(t, "week", notifEnq.Sent[i].Data["report_frequency"])
-			require.Equal(t, []map[string]interface{}{
+			verifyNotification(t, templateAdmin, notifEnq.Sent[i], t1, 1, 1, []map[string]interface{}{
 				{
 					"failed_builds": []map[string]interface{}{
 						{"build_number": int32(77), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
@@ -224,7 +216,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 					"failed_count":          1,
 					"template_version_name": t1v2.Name,
 				},
-			}, notifEnq.Sent[i].Data["template_versions"])
+			})
 		}
 	})
 
@@ -290,6 +282,5 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.P
 
 func authedDB(t *testing.T, db database.Store, logger slog.Logger) database.Store {
 	t.Helper()
-
 	return dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
 }
