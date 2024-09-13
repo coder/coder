@@ -43,10 +43,10 @@ var (
 )
 
 var (
-	Green  = Color("10")
-	Red    = Color("9")
-	Yellow = Color("11")
-	Blue   = Color("12")
+	Green  = Color("2")
+	Red    = Color("1")
+	Yellow = Color("3")
+	Blue   = Color("4")
 )
 
 // Color returns a color for the given string.
