@@ -2,10 +2,7 @@ package cliui
 
 import (
 	"flag"
-	"fmt"
 	"os"
-	"slices"
-	"sync"
 	"time"
 
 	"github.com/muesli/termenv"
@@ -36,45 +33,8 @@ type Styles struct {
 }
 
 var (
-	color     termenv.Profile
-	colorOnce sync.Once
+	color termenv.Profile
 )
-
-var (
-	// ANSI color codes
-	red           = Color("1")
-	green         = Color("2")
-	yellow        = Color("3")
-	magenta       = Color("5")
-	white         = Color("7")
-	brightBlue    = Color("12")
-	brightMagenta = Color("13")
-)
-
-// Color returns a color for the given string.
-func Color(s string) termenv.Color {
-	colorOnce.Do(func() {
-		color = termenv.NewOutput(os.Stdout).ColorProfile()
-
-		if flag.Lookup("test.v") != nil {
-			// Use a consistent colorless profile in tests so that results
-			// are deterministic.
-			color = termenv.Ascii
-		}
-
-		// Currently it appears there is no way to use the flag from
-		// serpent as it isn't possible to create a root middleware that
-		// runs for every command. For now we just check if `os.Args`
-		// has the flag.
-		if slices.Contains(os.Args, fmt.Sprintf("--%s", NoColorFlag)) ||
-			slices.Contains(os.Args, fmt.Sprintf("--%s=true", NoColorFlag)) ||
-			os.Getenv("CODER_NO_COLOR") != "" ||
-			os.Getenv("NO_COLOR") != "" {
-			color = termenv.Ascii
-		}
-	})
-	return color.Color(s)
-}
 
 func isTerm() bool {
 	return color != termenv.Ascii
@@ -135,7 +95,31 @@ func ifTerm(f pretty.Formatter) pretty.Formatter {
 	return f
 }
 
-func init() {
+type InitOptions struct {
+	NoColor bool
+}
+
+func Init(opts InitOptions) {
+	color = termenv.NewOutput(os.Stdout).ColorProfile()
+
+	if flag.Lookup("test.v") != nil {
+		// Use a consistent colorless profile in tests so that results
+		// are deterministic.
+		color = termenv.Ascii
+	}
+
+	if opts.NoColor {
+		color = termenv.Ascii
+	}
+
+	red := color.Color("1")
+	green := color.Color("2")
+	yellow := color.Color("3")
+	magenta := color.Color("5")
+	white := color.Color("7")
+	brightBlue := color.Color("12")
+	brightMagenta := color.Color("13")
+
 	// We do not adapt the color based on whether the terminal is light or dark.
 	// Doing so would require a round-trip between the program and the terminal
 	// due to the OSC query and response.
