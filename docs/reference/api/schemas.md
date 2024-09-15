@@ -4285,6 +4285,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `assign_org_role`         |
 | `assign_role`             |
 | `audit_log`               |
+| `crypto_key`              |
 | `debug_info`              |
 | `deployment_config`       |
 | `deployment_stats`        |

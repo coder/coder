@@ -55,6 +55,16 @@ var (
 		Type: "audit_log",
 	}
 
+	// ResourceCryptoKey
+	// Valid Actions
+	//  - "ActionCreate" :: create crypto keys
+	//  - "ActionDelete" :: delete crypto keys
+	//  - "ActionRead" :: read crypto keys
+	//  - "ActionUpdate" :: update crypto keys
+	ResourceCryptoKey = Object{
+		Type: "crypto_key",
+	}
+
 	// ResourceDebugInfo
 	// Valid Actions
 	//  - "ActionRead" :: access to debug routes
@@ -291,6 +301,7 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceCryptoKey,
 		ResourceDebugInfo,
 		ResourceDeploymentConfig,
 		ResourceDeploymentStats,
