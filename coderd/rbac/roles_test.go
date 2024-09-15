@@ -705,6 +705,15 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name:     "CryptoKeys",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionRead},
+			Resource: rbac.ResourceCryptoKey,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.
