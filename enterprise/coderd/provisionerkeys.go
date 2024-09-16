@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -58,7 +59,7 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-if slices.ContainsFunc(codersdk.ReservedProvisionerKeyNames(), func(s string) bool {
+	if slices.ContainsFunc(codersdk.ReservedProvisionerKeyNames(), func(s string) bool {
 		return strings.EqualFold(req.Name, s)
 	}) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
