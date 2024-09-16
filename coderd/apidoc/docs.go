@@ -3155,7 +3155,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/idpsync.GroupSyncSettings"
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
                         }
                     }
                 }
@@ -3188,7 +3188,75 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/idpsync.GroupSyncSettings"
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/settings/idpsync/roles": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get role IdP Sync settings by organization",
+                "operationId": "get-role-idp-sync-settings-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update role IdP Sync settings by organization",
+                "operationId": "update-role-idp-sync-settings-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
                         }
                     }
                 }
@@ -10523,6 +10591,44 @@ const docTemplate = `{
                 "GroupSourceOIDC"
             ]
         },
+        "codersdk.GroupSyncSettings": {
+            "type": "object",
+            "properties": {
+                "auto_create_missing_groups": {
+                    "description": "AutoCreateMissing controls whether groups returned by the OIDC provider\nare automatically created in Coder if they are missing.",
+                    "type": "boolean"
+                },
+                "field": {
+                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "type": "string"
+                },
+                "legacy_group_name_mapping": {
+                    "description": "LegacyNameMapping is deprecated. It remaps an IDP group name to\na Coder group name. Since configuration is now done at runtime,\ngroup IDs are used to account for group renames.\nFor legacy configurations, this config option has to remain.\nDeprecated: Use Mapping instead.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "mapping": {
+                    "description": "Mapping maps from an OIDC group --\u003e Coder group ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "regex_filter": {
+                    "description": "RegexFilter is a regular expression that filters the groups returned by\nthe OIDC provider. Any group not matched by this regex will be ignored.\nIf the group filter is nil, then no group filtering will occur.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/regexp.Regexp"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.Healthcheck": {
             "type": "object",
             "properties": {
@@ -12234,6 +12340,25 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Permission"
+                    }
+                }
+            }
+        },
+        "codersdk.RoleSyncSettings": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "type": "string"
+                },
+                "mapping": {
+                    "description": "Mapping maps from an OIDC group --\u003e Coder organization role",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 }
             }
@@ -15250,44 +15375,6 @@ const docTemplate = `{
                 },
                 "workspace_proxies": {
                     "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
-                }
-            }
-        },
-        "idpsync.GroupSyncSettings": {
-            "type": "object",
-            "properties": {
-                "auto_create_missing_groups": {
-                    "description": "AutoCreateMissing controls whether groups returned by the OIDC provider\nare automatically created in Coder if they are missing.",
-                    "type": "boolean"
-                },
-                "field": {
-                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
-                    "type": "string"
-                },
-                "legacy_group_name_mapping": {
-                    "description": "LegacyNameMapping is deprecated. It remaps an IDP group name to\na Coder group name. Since configuration is now done at runtime,\ngroup IDs are used to account for group renames.\nFor legacy configurations, this config option has to remain.\nDeprecated: Use Mapping instead.",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "mapping": {
-                    "description": "Mapping maps from an OIDC group --\u003e Coder group ID",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "regex_filter": {
-                    "description": "RegexFilter is a regular expression that filters the groups returned by\nthe OIDC provider. Any group not matched by this regex will be ignored.\nIf the group filter is nil, then no group filtering will occur.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/regexp.Regexp"
-                        }
-                    ]
                 }
             }
         },
