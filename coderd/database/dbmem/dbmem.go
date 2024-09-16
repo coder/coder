@@ -2592,6 +2592,12 @@ func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, 
 		})
 	}
 
+	sort.Slice(workspaceBuildStats, func(i, j int) bool {
+		if workspaceBuildStats[i].TemplateVersionName != workspaceBuildStats[j].TemplateVersionName {
+			return workspaceBuildStats[i].TemplateVersionName < workspaceBuildStats[j].TemplateVersionName
+		}
+		return workspaceBuildStats[i].WorkspaceBuildNumber > workspaceBuildStats[j].WorkspaceBuildNumber
+	})
 	return workspaceBuildStats, nil
 }
 

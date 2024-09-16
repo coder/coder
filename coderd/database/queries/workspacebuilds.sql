@@ -239,4 +239,6 @@ WHERE
 	w.template_id = $1
 	AND wb.created_at >= @since
 	AND pj.completed_at IS NOT NULL
-	AND pj.job_status = 'failed';
+	AND pj.job_status = 'failed'
+ORDER BY
+	tv.name ASC, wb.build_number DESC;
