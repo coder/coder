@@ -3624,7 +3624,7 @@ func TestWorkspaceTimings(t *testing.T) {
 		}
 	}
 
-	makeTimings := func(jobID uuid.UUID, count int) []database.ProvisionerJobTiming {
+	makeProvisionerTimings := func(jobID uuid.UUID, count int) []database.ProvisionerJobTiming {
 		// Use the database.ProvisionerJobTiming struct to mock timings data instead
 		// of directly creating database.InsertProvisionerJobTimingsParams. This
 		// approach makes the mock data easier to understand, as
@@ -3660,31 +3660,31 @@ func TestWorkspaceTimings(t *testing.T) {
 
 	// Given
 	tests := []struct {
-		name            string
-		numberOfTimings int
-		workspace       workspaceWithBuild
-		error           bool
+		name               string
+		provisionerTimings int
+		workspace          workspaceWithBuild
+		error              bool
 	}{
 		{
-			name:            "workspace with 5 provisioner timings",
-			numberOfTimings: 5,
-			workspace:       makeWorkspace(),
+			name:               "workspace with 5 provisioner timings",
+			provisionerTimings: 5,
+			workspace:          makeWorkspace(),
 		},
 		{
-			name:            "workspace with 2 provisioner timings",
-			numberOfTimings: 2,
-			workspace:       makeWorkspace(),
+			name:               "workspace with 2 provisioner timings",
+			provisionerTimings: 2,
+			workspace:          makeWorkspace(),
 		},
 		{
-			name:            "workspace with 0 provisioner timings",
-			numberOfTimings: 0,
-			workspace:       makeWorkspace(),
+			name:               "workspace with 0 provisioner timings",
+			provisionerTimings: 0,
+			workspace:          makeWorkspace(),
 		},
 		{
-			name:            "workspace not found",
-			numberOfTimings: 0,
-			workspace:       workspaceWithBuild{},
-			error:           true,
+			name:               "workspace not found",
+			provisionerTimings: 0,
+			workspace:          workspaceWithBuild{},
+			error:              true,
 		},
 	}
 
@@ -3692,44 +3692,32 @@ func TestWorkspaceTimings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			generatedTimings := make([]database.ProvisionerJobTiming, tt.numberOfTimings)
-			if tt.numberOfTimings > 0 {
-				generatedTimings = makeTimings(tt.workspace.build.JobID, tt.numberOfTimings)
+			// Generate timings based on test config
+			generatedTimings := make([]database.ProvisionerJobTiming, tt.provisionerTimings)
+			if tt.provisionerTimings > 0 {
+				generatedTimings = makeProvisionerTimings(tt.workspace.build.JobID, tt.provisionerTimings)
 			}
 			res, err := client.WorkspaceTimings(context.Background(), tt.workspace.ID)
 
-			// When error is expected
+			// When error is expected, than an error is returned
 			if tt.error {
 				require.Error(t, err)
 				return
 			}
 
-			// When success is expected
+			// When success is expected, than no error is returned and the length and
+			// fields are correctly returned
 			require.NoError(t, err)
-			require.Len(t, res, tt.numberOfTimings)
-
-			// Verify fields
-			for i := range res {
-				require.Equal(t, generatedTimings[i].Resource, res[i].Label)
-				require.Equal(t, generatedTimings[i].StartedAt.UnixMilli(), res[i].StartedAt.UnixMilli(), "diff start times")
-				require.Equal(t, generatedTimings[i].EndedAt.UnixMilli(), res[i].EndedAt.UnixMilli(), "diff end times")
-
-				// Verify metadata
-				metaTests := []struct {
-					name  string
-					value string
-				}{
-					{name: "source", value: generatedTimings[i].Source},
-				}
-				for _, mt := range metaTests {
-					t.Run(fmt.Sprintf("verify metadata %s", mt.name), func(t *testing.T) {
-						contains := codersdk.WorkspaceTimingMetadata{
-							Name:  mt.name,
-							Value: mt.value,
-						}
-						require.Containsf(t, res[i].Metadata, contains, fmt.Sprintf("metadata %s not found", mt.name))
-					})
-				}
+			require.Len(t, res, tt.provisionerTimings)
+			for i := range res.ProvisionerTimings {
+				timingRes := res.ProvisionerTimings[i]
+				require.Equal(t, generatedTimings[i].Resource, timingRes.Resource)
+				require.Equal(t, generatedTimings[i].Action, timingRes.Action)
+				require.Equal(t, generatedTimings[i].Stage, timingRes.Stage)
+				require.Equal(t, generatedTimings[i].JobID, timingRes.JobID)
+				require.Equal(t, generatedTimings[i].Source, timingRes.Source)
+				require.Equal(t, generatedTimings[i].StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+				require.Equal(t, generatedTimings[i].EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
 			}
 		})
 	}

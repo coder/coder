@@ -8242,10 +8242,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceTiming"
-                            }
+                            "$ref": "#/definitions/codersdk.WorkspaceTimings"
                         }
                     }
                 }
@@ -11660,6 +11657,32 @@ const docTemplate = `{
                 "ProvisionerStorageMethodFile"
             ]
         },
+        "codersdk.ProvisionerTiming": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "job_id": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ProxyHealthReport": {
             "type": "object",
             "properties": {
@@ -14481,36 +14504,14 @@ const docTemplate = `{
                 "WorkspaceStatusDeleted"
             ]
         },
-        "codersdk.WorkspaceTiming": {
+        "codersdk.WorkspaceTimings": {
             "type": "object",
             "properties": {
-                "ended_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "label": {
-                    "type": "string"
-                },
-                "metadata": {
+                "provisioner_timings": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceTimingMetadata"
+                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
                     }
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                }
-            }
-        },
-        "codersdk.WorkspaceTimingMetadata": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "value": {
-                    "type": "string"
                 }
             }
         },

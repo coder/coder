@@ -1628,40 +1628,26 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 > 200 Response
 
 ```json
-[
-	{
-		"ended_at": "2019-08-24T14:15:22Z",
-		"label": "string",
-		"metadata": [
-			{
-				"name": "string",
-				"value": "string"
-			}
-		],
-		"started_at": "2019-08-24T14:15:22Z"
-	}
-]
+{
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "string",
+			"job_id": "string",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "string"
+		}
+	]
+}
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                  |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceTiming](schemas.md#codersdkworkspacetiming) |
-
-<h3 id="return-workspace-timings-by-id-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name           | Type              | Required | Restrictions | Description |
-| -------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]` | array             | false    |              |             |
-| `» ended_at`   | string(date-time) | false    |              |             |
-| `» label`      | string            | false    |              |             |
-| `» metadata`   | array             | false    |              |             |
-| `»» name`      | string            | false    |              |             |
-| `»» value`     | string            | false    |              |             |
-| `» started_at` | string(date-time) | false    |              |             |
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceTimings](schemas.md#codersdkworkspacetimings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

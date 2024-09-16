@@ -4177,6 +4177,32 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ------ |
 | `file` |
 
+## codersdk.ProvisionerTiming
+
+```json
+{
+	"action": "string",
+	"ended_at": "string",
+	"job_id": "string",
+	"resource": "string",
+	"source": "string",
+	"stage": "string",
+	"started_at": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `action`     | string | false    |              |             |
+| `ended_at`   | string | false    |              |             |
+| `job_id`     | string | false    |              |             |
+| `resource`   | string | false    |              |             |
+| `source`     | string | false    |              |             |
+| `stage`      | string | false    |              |             |
+| `started_at` | string | false    |              |             |
+
 ## codersdk.ProxyHealthReport
 
 ```json
@@ -7454,46 +7480,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `deleting`  |
 | `deleted`   |
 
-## codersdk.WorkspaceTiming
+## codersdk.WorkspaceTimings
 
 ```json
 {
-	"ended_at": "2019-08-24T14:15:22Z",
-	"label": "string",
-	"metadata": [
+	"provisioner_timings": [
 		{
-			"name": "string",
-			"value": "string"
+			"action": "string",
+			"ended_at": "string",
+			"job_id": "string",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "string"
 		}
-	],
-	"started_at": "2019-08-24T14:15:22Z"
+	]
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                                          | Required | Restrictions | Description |
-| ------------ | ----------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `ended_at`   | string                                                                        | false    |              |             |
-| `label`      | string                                                                        | false    |              |             |
-| `metadata`   | array of [codersdk.WorkspaceTimingMetadata](#codersdkworkspacetimingmetadata) | false    |              |             |
-| `started_at` | string                                                                        | false    |              |             |
-
-## codersdk.WorkspaceTimingMetadata
-
-```json
-{
-	"name": "string",
-	"value": "string"
-}
-```
-
-### Properties
-
-| Name    | Type   | Required | Restrictions | Description |
-| ------- | ------ | -------- | ------------ | ----------- |
-| `name`  | string | false    |              |             |
-| `value` | string | false    |              |             |
+| Name                  | Type                                                              | Required | Restrictions | Description |
+| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `provisioner_timings` | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
 
 ## codersdk.WorkspaceTransition
 

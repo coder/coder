@@ -626,32 +626,31 @@ func (c *Client) UnfavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID)
 	return nil
 }
 
-// A timing can originate from either a provisioner job or an agent. Each source
-// may have different associated data, some of which is useful for users and
-// should be displayed.
-type WorkspaceTimingMetadata struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
+type ProvisionerTiming struct {
+	JobID     uuid.UUID `json:"job_id"`
+	StartedAt time.Time `json:"started_at"`
+	EndedAt   time.Time `json:"ended_at"`
+	Stage     string    `json:"stage"`
+	Source    string    `json:"source"`
+	Action    string    `json:"action"`
+	Resource  string    `json:"resource"`
 }
 
-type WorkspaceTiming struct {
-	Label     string                    `json:"label"`
-	Metadata  []WorkspaceTimingMetadata `json:"metadata"`
-	StartedAt time.Time                 `json:"started_at" format:"date-time"`
-	EndedAt   time.Time                 `json:"ended_at" format:"date-time"`
+type WorkspaceTimings struct {
+	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
 }
 
-func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) ([]WorkspaceTiming, error) {
+func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceTimings, error) {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/timings", id.String())
 	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return []WorkspaceTiming{}, err
+		return WorkspaceTimings{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return []WorkspaceTiming{}, ReadBodyAsError(res)
+		return WorkspaceTimings{}, ReadBodyAsError(res)
 	}
-	var timings []WorkspaceTiming
+	var timings WorkspaceTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }
 

@@ -1746,7 +1746,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Success 200 {object} []codersdk.WorkspaceTiming
+// @Success 200 {object} codersdk.WorkspaceTimings
 // @Router /workspaces/{workspace}/timings [get]
 func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -1763,7 +1763,7 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timings, err := api.Database.GetProvisionerJobTimingsByJobID(ctx, build.JobID)
+	provisionerTimings, err := api.Database.GetProvisionerJobTimingsByJobID(ctx, build.JobID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace timings.",
@@ -1772,18 +1772,18 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := make([]codersdk.WorkspaceTiming, 0, len(timings))
-	for _, timing := range timings {
-		res = append(res, codersdk.WorkspaceTiming{
-			Label:     timing.Resource,
-			StartedAt: timing.StartedAt,
-			EndedAt:   timing.EndedAt,
-			Metadata: []codersdk.WorkspaceTimingMetadata{
-				{Name: "resource", Value: timing.Resource},
-				{Name: "action", Value: timing.Action},
-				{Name: "source", Value: timing.Source},
-				{Name: "stage", Value: string(timing.Stage)},
-			},
+	res := codersdk.WorkspaceTimings{
+		ProvisionerTimings: make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
+	}
+	for _, t := range provisionerTimings {
+		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
+			JobID:     t.JobID,
+			Stage:     string(t.Stage),
+			Source:    t.Source,
+			Action:    t.Action,
+			Resource:  t.Resource,
+			StartedAt: t.StartedAt,
+			EndedAt:   t.EndedAt,
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, res)
