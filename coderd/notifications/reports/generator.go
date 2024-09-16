@@ -42,7 +42,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 			// Acquire a lock to ensure that only one instance of the generator is running at a time.
 			ok, err := tx.TryAcquireLock(ctx, database.LockIDNotificationsReportGenerator)
 			if err != nil {
-				return err
+				return xerrors.Errorf("failed to acquire report generator lock: %w", err)
 			}
 			if !ok {
 				logger.Debug(ctx, "unable to acquire lock for generating periodic reports, skipping")
