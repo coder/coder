@@ -1,4 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -25,15 +26,14 @@ export type IdpSyncPageViewProps = {
 	oidcConfig: OIDCConfig | undefined;
 };
 
-export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
-	oidcConfig = {},
-}) => {
+export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
+	const theme = useTheme();
 	const {
 		groups_field,
 		user_role_field,
 		group_regex_filter,
 		group_auto_create,
-	} = oidcConfig;
+	} = oidcConfig || {};
 	return (
 		<>
 			<ChooseOne>
