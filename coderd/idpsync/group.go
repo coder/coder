@@ -50,21 +50,21 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 
 		// Default to not being configured
 		settings = &GroupSyncSettings{}
-	}
 
-	// Check for legacy settings if the default org.
-	if s.DeploymentSyncSettings.Legacy.GroupField != "" && settings.Field == "" {
-		defaultOrganization, err := db.GetDefaultOrganization(ctx)
-		if err != nil {
-			return nil, xerrors.Errorf("get default organization: %w", err)
-		}
-		if defaultOrganization.ID == orgID {
-			settings = ptr.Ref(GroupSyncSettings(codersdk.GroupSyncSettings{
-				Field:             s.Legacy.GroupField,
-				LegacyNameMapping: s.Legacy.GroupMapping,
-				RegexFilter:       s.Legacy.GroupFilter,
-				AutoCreateMissing: s.Legacy.CreateMissingGroups,
-			}))
+		// Check for legacy settings if the default org.
+		if s.DeploymentSyncSettings.Legacy.GroupField != "" {
+			defaultOrganization, err := db.GetDefaultOrganization(ctx)
+			if err != nil {
+				return nil, xerrors.Errorf("get default organization: %w", err)
+			}
+			if defaultOrganization.ID == orgID {
+				settings = ptr.Ref(GroupSyncSettings(codersdk.GroupSyncSettings{
+					Field:             s.Legacy.GroupField,
+					LegacyNameMapping: s.Legacy.GroupMapping,
+					RegexFilter:       s.Legacy.GroupFilter,
+					AutoCreateMissing: s.Legacy.CreateMissingGroups,
+				}))
+			}
 		}
 	}
 

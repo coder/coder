@@ -727,15 +727,12 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 		require.NoError(t, err, "Everyone group for an org")
 	}
 
-	var settings idpsync.GroupSyncSettings
-	if def.Settings != nil {
-		settings = idpsync.GroupSyncSettings(*def.Settings)
-	}
-
 	manager := runtimeconfig.NewManager()
-	orgResolver := manager.OrganizationResolver(db, org.ID)
-	err = s.Group.SetRuntimeValue(context.Background(), orgResolver, &settings)
-	require.NoError(t, err)
+	if def.Settings != nil {
+		orgResolver := manager.OrganizationResolver(db, org.ID)
+		err = s.Group.SetRuntimeValue(context.Background(), orgResolver, (*idpsync.GroupSyncSettings)(def.Settings))
+		require.NoError(t, err)
+	}
 
 	if !def.NotMember {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
