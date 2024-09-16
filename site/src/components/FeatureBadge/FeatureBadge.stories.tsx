@@ -79,7 +79,8 @@ export const HoverControlledByParent: Story = {
 				{Story({
 					args: {
 						...context.initialArgs,
-						variant: isHovering ? "staticHover" : "static",
+						variant: "static",
+						highlighted: isHovering,
 					},
 				})}
 			</button>

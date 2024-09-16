@@ -77,29 +77,43 @@ const styles = {
 	},
 } as const satisfies Record<string, Interpolation<Theme>>;
 
+function grammaticalArticle(nextWord: string): string {
+	const vowels = ["a", "e", "i", "o", "u"];
+	const firstLetter = nextWord.slice(0, 1).toLowerCase();
+	return vowels.includes(firstLetter) ? "an" : "a";
+}
+
+function capitalizeFirstLetter(text: string): string {
+	return text.slice(0, 1).toUpperCase() + text.slice(1);
+}
+
 type FeatureBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 		type: keyof typeof featureBadgeTypes;
 		size?: "sm" | "lg";
+	} & (
+			| {
+					/**
+					 * Defines whether the FeatureBadge should act as a
+					 * controlled or uncontrolled component with its hover and
+					 * general interaction styling.
+					 */
+					variant: "interactive";
 
-		/**
-		 * Defines how the FeatureBadge should render.
-		 * - interactive (default) - The badge functions like a link and
-		 *   controls its own hover styling.
-		 * - static - The badge is completely static and has no interaction
-		 *   behavior.
-		 * - staticHover - The badge is completely static, but displays badge
-		     hover styling (but nothing related to links). Useful if you want a
-			 parent component to control the hover styling.
-		 */
-		variant?: "interactive" | "static" | "staticHover";
-	}
+					// Had to specify the highlighted key for this union option
+					// even though it won't be used, because otherwise the type
+					// ergonomics for users would be too clunky.
+					highlighted?: undefined;
+			  }
+			| { variant: "static"; highlighted?: boolean }
+		)
 >;
 
 export const FeatureBadge: FC<FeatureBadgeProps> = ({
 	type,
 	size = "sm",
 	variant = "interactive",
+	highlighted = false,
 	onPointerEnter,
 	onPointerLeave,
 	...delegatedProps
@@ -121,7 +135,7 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 
 	const featureType = featureBadgeTypes[type];
 	const showBadgeHoverStyle =
-		variant === "staticHover" ||
+		highlighted ||
 		(variant === "interactive" && (isBadgeHovering || isTooltipHovering));
 
 	const coreContent = (
@@ -171,7 +185,7 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 				</h5>
 
 				<p css={styles.tooltipDescription}>
-					This is {getGrammaticalArticle(featureType)} {featureType} feature. It
+					This is {grammaticalArticle(featureType)} {featureType} feature. It
 					has not yet reached generally availability (GA).
 				</p>
 
@@ -188,13 +202,3 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 		</Popover>
 	);
 };
-
-function getGrammaticalArticle(nextWord: string): string {
-	const vowels = ["a", "e", "i", "o", "u"];
-	const firstLetter = nextWord.slice(0, 1).toLowerCase();
-	return vowels.includes(firstLetter) ? "an" : "a";
-}
-
-function capitalizeFirstLetter(text: string): string {
-	return text.slice(0, 1).toUpperCase() + text.slice(1);
-}
