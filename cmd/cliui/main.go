@@ -43,34 +43,34 @@ func main() {
 		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Code, "This is a code message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.DateTimeStamp, "This is a datetimestamp message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Error, "This is an error message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Field, "This is a field message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Keyword, "This is a keyword message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Placeholder, "This is a placeholder message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Prompt, "This is a prompt message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.FocusedPrompt, "This is a focused prompt message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Fuchsia, "This is a fuchsia message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Warn, "This is a warning message")
-			fmt.Fprintln(inv.Stdout)
+			_, _ = fmt.Fprintln(inv.Stdout)
 
 			return nil
 		},
