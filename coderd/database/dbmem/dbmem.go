@@ -5963,6 +5963,10 @@ func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, sin
 	for _, ts := range templateStats {
 		rows = append(rows, ts)
 	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].TemplateName < rows[j].TemplateName
+	})
 	return rows, nil
 }
 

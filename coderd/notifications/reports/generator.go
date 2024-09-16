@@ -110,9 +110,6 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	if err != nil {
 		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
 	}
-	sort.Slice(statsRows, func(i, j int) bool {
-		return statsRows[i].TemplateName < statsRows[j].TemplateName
-	})
 
 	reportGeneratedNow := map[uuid.UUID]bool{}
 	for _, stats := range statsRows {
