@@ -166,7 +166,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				templateDisplayName = stats.TemplateName
 			}
 
-			if _, err := enqueuer.EnqueueData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceBuildsFailedReport,
+			if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceBuildsFailedReport,
 				map[string]string{
 					"template_name":         stats.TemplateName,
 					"template_display_name": templateDisplayName,

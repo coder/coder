@@ -21,10 +21,10 @@ type Notification struct {
 }
 
 func (f *FakeNotificationsEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	return f.EnqueueData(ctx, userID, templateID, labels, nil, createdBy, targets...)
+	return f.EnqueueWithData(ctx, userID, templateID, labels, nil, createdBy, targets...)
 }
 
-func (f *FakeNotificationsEnqueuer) EnqueueData(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (f *FakeNotificationsEnqueuer) EnqueueWithData(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
