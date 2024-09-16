@@ -3601,7 +3601,8 @@ func TestWorkspaceTimings(t *testing.T) {
 			OwnerID:        owner.UserID,
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     template.ID,
-			Name:           "test-workspace",
+			// Generate unique name for the workspace
+			Name: "test-workspace-" + uuid.New().String(),
 		})
 		jobID := uuid.New()
 		job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
