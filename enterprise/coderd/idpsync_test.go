@@ -29,7 +29,7 @@ func TestGetGroupSyncConfig(t *testing.T) {
 			string(codersdk.ExperimentMultiOrganization),
 		}
 
-		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		owner, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -40,6 +40,7 @@ func TestGetGroupSyncConfig(t *testing.T) {
 				},
 			},
 		})
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		dbresv := runtimeconfig.OrganizationResolver(user.OrganizationID, runtimeconfig.NewStoreResolver(db))
@@ -47,7 +48,7 @@ func TestGetGroupSyncConfig(t *testing.T) {
 		err := entry.SetRuntimeValue(dbauthz.AsSystemRestricted(ctx), dbresv, &idpsync.GroupSyncSettings{Field: "august"})
 		require.NoError(t, err)
 
-		settings, err := client.GroupIDPSyncSettings(ctx, user.OrganizationID.String())
+		settings, err := orgAdmin.GroupIDPSyncSettings(ctx, user.OrganizationID.String())
 		require.NoError(t, err)
 		require.Equal(t, "august", settings.Field)
 	})
