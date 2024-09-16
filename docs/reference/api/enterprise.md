@@ -1657,6 +1657,98 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provis
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List provisioner key daemons
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys/daemons \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/provisionerkeys/daemons`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description     |
+| -------------- | ---- | ------ | -------- | --------------- |
+| `organization` | path | string | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+	{
+		"daemons": [
+			{
+				"api_version": "string",
+				"created_at": "2019-08-24T14:15:22Z",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
+				"last_seen_at": "2019-08-24T14:15:22Z",
+				"name": "string",
+				"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+				"provisioners": ["string"],
+				"tags": {
+					"property1": "string",
+					"property2": "string"
+				},
+				"version": "string"
+			}
+		],
+		"key": {
+			"created_at": "2019-08-24T14:15:22Z",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"name": "string",
+			"organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+			"tags": {
+				"property1": "string",
+				"property2": "string"
+			}
+		}
+	}
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                              |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerKeyDaemons](schemas.md#codersdkprovisionerkeydaemons) |
+
+<h3 id="list-provisioner-key-daemons-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                 | Type                                                         | Required | Restrictions | Description |
+| -------------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`       | array                                                        | false    |              |             |
+| `» daemons`          | array                                                        | false    |              |             |
+| `»» api_version`     | string                                                       | false    |              |             |
+| `»» created_at`      | string(date-time)                                            | false    |              |             |
+| `»» id`              | string(uuid)                                                 | false    |              |             |
+| `»» key_id`          | string(uuid)                                                 | false    |              |             |
+| `»» last_seen_at`    | string(date-time)                                            | false    |              |             |
+| `»» name`            | string                                                       | false    |              |             |
+| `»» organization_id` | string(uuid)                                                 | false    |              |             |
+| `»» provisioners`    | array                                                        | false    |              |             |
+| `»» tags`            | object                                                       | false    |              |             |
+| `»»» [any property]` | string                                                       | false    |              |             |
+| `»» version`         | string                                                       | false    |              |             |
+| `» key`              | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey) | false    |              |             |
+| `»» created_at`      | string(date-time)                                            | false    |              |             |
+| `»» id`              | string(uuid)                                                 | false    |              |             |
+| `»» name`            | string                                                       | false    |              |             |
+| `»» organization`    | string(uuid)                                                 | false    |              |             |
+| `»» tags`            | object                                                       | false    |              |             |
+| `»»» [any property]` | string                                                       | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Delete provisioner key
 
 ### Code samples

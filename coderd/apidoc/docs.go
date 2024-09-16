@@ -3054,6 +3054,43 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/provisionerkeys/daemons": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List provisioner key daemons",
+                "operationId": "list-provisioner-key-daemons",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerKeyDaemons"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/provisionerkeys/{provisionerkey}": {
             "delete": {
                 "security": [
@@ -11715,6 +11752,20 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.ProvisionerKeyDaemons": {
+            "type": "object",
+            "properties": {
+                "daemons": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                    }
+                },
+                "key": {
+                    "$ref": "#/definitions/codersdk.ProvisionerKey"
                 }
             }
         },

@@ -115,13 +115,13 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerKeys(pks))
 }
 
-// @Summary List provisioner key
-// @ID list-provisioner-key
+// @Summary List provisioner key daemons
+// @ID list-provisioner-key-daemons
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
-// @Success 200 {object} []codersdk.ProvisionerKey
+// @Success 200 {object} []codersdk.ProvisionerKeyDaemons
 // @Router /organizations/{organization}/provisionerkeys/daemons [get]
 func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

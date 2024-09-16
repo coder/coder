@@ -289,9 +289,9 @@ type ProvisionerKeyDaemons struct {
 }
 
 const (
-	ProvisionerKeyIDBuiltIn  = "11111111-1111-1111-1111-111111111111"
-	ProvisionerKeyIDUserAuth = "22222222-2222-2222-2222-222222222222"
-	ProvisionerKeyIDPSK      = "33333333-3333-3333-3333-333333333333"
+	ProvisionerKeyIDBuiltIn  = "00000000-0000-0000-0000-000000000001"
+	ProvisionerKeyIDUserAuth = "00000000-0000-0000-0000-000000000002"
+	ProvisionerKeyIDPSK      = "00000000-0000-0000-0000-000000000003"
 )
 
 const (

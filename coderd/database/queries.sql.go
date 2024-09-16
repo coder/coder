@@ -5999,13 +5999,13 @@ WHERE
     organization_id = $1
 AND
     -- exclude reserved built-in key
-    id != '11111111-1111-1111-1111-111111111111'::uuid
+    id != '00000000-0000-0000-0000-000000000001'::uuid
 AND 
     -- exclude reserved user-auth key
-    id != '22222222-2222-2222-2222-222222222222'::uuid
+    id != '00000000-0000-0000-0000-000000000002'::uuid
 AND 
     -- exclude reserved psk key
-    id != '33333333-3333-3333-3333-333333333333'::uuid
+    id != '00000000-0000-0000-0000-000000000003'::uuid
 `
 
 func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
