@@ -85,7 +85,7 @@ func TestGroupSyncTable(t *testing.T) {
 	testCases := []orgSetupDefinition{
 		{
 			Name: "SwitchGroups",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("sg-foo"), ids.ID("sg-foo-2")},
@@ -113,7 +113,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "StayInGroup",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				// Only match foo, so bar does not map
 				RegexFilter: regexp.MustCompile("^foo$"),
@@ -135,7 +135,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "UserJoinsGroups",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("ng-foo"), uuid.New()},
@@ -160,7 +160,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "CreateGroups",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field:             "groups",
 				RegexFilter:       regexp.MustCompile("^create"),
 				AutoCreateMissing: true,
@@ -175,7 +175,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "GroupNamesNoMapping",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field:             "groups",
 				RegexFilter:       regexp.MustCompile(".*"),
 				AutoCreateMissing: false,
@@ -194,7 +194,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "NoUser",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					// Extra ID that does not map to a group
@@ -219,7 +219,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "LegacyMapping",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field:       "groups",
 				RegexFilter: regexp.MustCompile("^legacy"),
 				LegacyNameMapping: map[string]string{
@@ -401,7 +401,7 @@ func TestSyncDisabled(t *testing.T) {
 			ids.ID("baz"): false,
 			ids.ID("bop"): false,
 		},
-		Settings: &codersdk.GroupSyncSettings{
+		GroupSettings: &codersdk.GroupSyncSettings{
 			Field: "groups",
 			Mapping: map[string][]uuid.UUID{
 				"foo": {ids.ID("foo")},
@@ -747,11 +747,15 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 
 	manager := runtimeconfig.NewManager()
 	orgResolver := manager.OrganizationResolver(db, org.ID)
-	err = s.Group.SetRuntimeValue(context.Background(), orgResolver, def.GroupSettings)
-	require.NoError(t, err)
+	if def.GroupSettings != nil {
+		err = s.Group.SetRuntimeValue(context.Background(), orgResolver, (*idpsync.GroupSyncSettings)(def.GroupSettings))
+		require.NoError(t, err)
+	}
 
-	err = s.Role.SetRuntimeValue(context.Background(), orgResolver, def.RoleSettings)
-	require.NoError(t, err)
+	if def.RoleSettings != nil {
+		err = s.Role.SetRuntimeValue(context.Background(), orgResolver, def.RoleSettings)
+		require.NoError(t, err)
+	}
 
 	if !def.NotMember {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -822,7 +826,7 @@ type orgSetupDefinition struct {
 	// NotMember if true will ensure the user is not a member of the organization.
 	NotMember bool
 
-	GroupSettings *idpsync.GroupSyncSettings
+	GroupSettings *codersdk.GroupSyncSettings
 	RoleSettings  *idpsync.RoleSyncSettings
 
 	assertGroups *orgGroupAssert
