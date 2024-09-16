@@ -1062,6 +1062,13 @@ const docTemplate = `{
                         "name": "has_member",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma separated list of group IDs",
+                        "name": "group_ids",
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {

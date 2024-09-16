@@ -631,6 +631,7 @@ export interface Group {
 export interface GroupArguments {
 	readonly Organization: string;
 	readonly HasMember: string;
+	readonly GroupIDs: Readonly<Array<string>>;
 }
 
 // From codersdk/workspaceapps.go
