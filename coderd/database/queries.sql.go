@@ -12702,6 +12702,8 @@ WHERE
 	AND wb.created_at >= $2
 	AND pj.completed_at IS NOT NULL
 	AND pj.job_status = 'failed'
+ORDER BY
+	tv.name ASC, wb.build_number DESC
 `
 
 type GetFailedWorkspaceBuildsByTemplateIDParams struct {
