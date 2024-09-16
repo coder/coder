@@ -12699,7 +12699,7 @@ ON
 	wb.template_version_id = tv.id
 WHERE
 	w.template_id = $1
-	AND wb.created_at > $2
+	AND wb.created_at >= $2
 	AND pj.completed_at IS NOT NULL
 	AND pj.job_status = 'failed'
 `
@@ -13022,7 +13022,7 @@ JOIN
     templates AS t ON
 	w.template_id = t.id
 WHERE
-    wb.created_at > $1
+    wb.created_at >= $1
     AND pj.completed_at IS NOT NULL
 GROUP BY
     w.template_id, template_name, template_display_name, template_organization_id
