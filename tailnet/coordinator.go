@@ -91,7 +91,7 @@ type Coordinatee interface {
 }
 
 type Coordination interface {
-	io.Closer
+	Close(context.Context) error
 	Error() <-chan error
 }
 
@@ -106,7 +106,10 @@ type remoteCoordination struct {
 	respLoopDone chan struct{}
 }
 
-func (c *remoteCoordination) Close() (retErr error) {
+// Close attempts to gracefully close the remoteCoordination by sending a Disconnect message and
+// waiting for the server to hang up the coordination. If the provided context expires, we stop
+// waiting for the server and close the coordination stream from our end.
+func (c *remoteCoordination) Close(ctx context.Context) (retErr error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.closed {
@@ -114,6 +117,18 @@ func (c *remoteCoordination) Close() (retErr error) {
 	}
 	c.closed = true
 	defer func() {
+		// We shouldn't just close the protocol right away, because the way dRPC streams work is
+		// that if you close them, that could take effect immediately, even before the Disconnect
+		// message is processed. Coordinators are supposed to hang up on us once they get a
+		// Disconnect message, so we should wait around for that until the context expires.
+		select {
+		case <-c.respLoopDone:
+			c.logger.Debug(ctx, "responses closed after disconnect")
+			return
+		case <-ctx.Done():
+			c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
+		}
+		// forcefully close the stream
 		protoErr := c.protocol.Close()
 		<-c.respLoopDone
 		if retErr == nil {
@@ -240,7 +255,6 @@ type inMemoryCoordination struct {
 	ctx          context.Context
 	errChan      chan error
 	closed       bool
-	closedCh     chan struct{}
 	respLoopDone chan struct{}
 	coordinatee  Coordinatee
 	logger       slog.Logger
@@ -280,7 +294,6 @@ func NewInMemoryCoordination(
 		errChan:      make(chan error, 1),
 		coordinatee:  coordinatee,
 		logger:       logger,
-		closedCh:     make(chan struct{}),
 		respLoopDone: make(chan struct{}),
 	}
 
@@ -328,24 +341,15 @@ func (c *inMemoryCoordination) respLoop() {
 		c.coordinatee.SetAllPeersLost()
 		close(c.respLoopDone)
 	}()
-	for {
-		select {
-		case <-c.closedCh:
-			c.logger.Debug(context.Background(), "in-memory coordination closed")
+	for resp := range c.resps {
+		c.logger.Debug(context.Background(), "got in-memory response from coordinator", slog.F("resp", resp))
+		err := c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
+		if err != nil {
+			c.sendErr(xerrors.Errorf("failed to update peers: %w", err))
 			return
-		case resp, ok := <-c.resps:
-			if !ok {
-				c.logger.Debug(context.Background(), "in-memory response channel closed")
-				return
-			}
-			c.logger.Debug(context.Background(), "got in-memory response from coordinator", slog.F("resp", resp))
-			err := c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
-			if err != nil {
-				c.sendErr(xerrors.Errorf("failed to update peers: %w", err))
-				return
-			}
 		}
 	}
+	c.logger.Debug(context.Background(), "in-memory response channel closed")
 }
 
 func (*inMemoryCoordination) AwaitAck() <-chan struct{} {
@@ -355,7 +359,10 @@ func (*inMemoryCoordination) AwaitAck() <-chan struct{} {
 	return ch
 }
 
-func (c *inMemoryCoordination) Close() error {
+// Close attempts to gracefully close the remoteCoordination by sending a Disconnect message and
+// waiting for the server to hang up the coordination. If the provided context expires, we stop
+// waiting for the server and close the coordination stream from our end.
+func (c *inMemoryCoordination) Close(ctx context.Context) error {
 	c.Lock()
 	defer c.Unlock()
 	c.logger.Debug(context.Background(), "closing in-memory coordination")
@@ -364,13 +371,17 @@ func (c *inMemoryCoordination) Close() error {
 	}
 	defer close(c.reqs)
 	c.closed = true
-	close(c.closedCh)
-	<-c.respLoopDone
 	select {
-	case <-c.ctx.Done():
+	case <-ctx.Done():
 		return xerrors.Errorf("failed to gracefully disconnect: %w", c.ctx.Err())
 	case c.reqs <- &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}}:
 		c.logger.Debug(context.Background(), "sent graceful disconnect in-memory")
+	}
+
+	select {
+	case <-ctx.Done():
+		return xerrors.Errorf("context expired waiting for responses to close: %w", c.ctx.Err())
+	case <-c.respLoopDone:
 		return nil
 	}
 }

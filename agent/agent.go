@@ -1357,7 +1357,7 @@ func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tai
 		defer close(errCh)
 		select {
 		case <-ctx.Done():
-			err := coordination.Close()
+			err := coordination.Close(a.hardCtx)
 			if err != nil {
 				a.logger.Warn(ctx, "failed to close remote coordination", slog.Error(err))
 			}
@@ -1676,13 +1676,12 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		}
 
 		score, niceErr := proc.Niceness(a.syscaller)
-		if niceErr != nil && !xerrors.Is(niceErr, os.ErrPermission) {
+		if !isBenignProcessErr(niceErr) {
 			debouncer.Warn(ctx, "unable to get proc niceness",
 				slog.F("cmd", proc.Cmd()),
 				slog.F("pid", proc.PID),
 				slog.Error(niceErr),
 			)
-			continue
 		}
 
 		// We only want processes that don't have a nice value set
@@ -1696,7 +1695,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 
 		if niceErr == nil {
 			err := proc.SetNiceness(a.syscaller, niceness)
-			if err != nil && !xerrors.Is(err, os.ErrPermission) {
+			if !isBenignProcessErr(err) {
 				debouncer.Warn(ctx, "unable to set proc niceness",
 					slog.F("cmd", proc.Cmd()),
 					slog.F("pid", proc.PID),
@@ -1710,7 +1709,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		if oomScore != unsetOOMScore && oomScore != proc.OOMScoreAdj && !isCustomOOMScore(agentScore, proc) {
 			oomScoreStr := strconv.Itoa(oomScore)
 			err := afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte(oomScoreStr), 0o644)
-			if err != nil && !xerrors.Is(err, os.ErrPermission) {
+			if !isBenignProcessErr(err) {
 				debouncer.Warn(ctx, "unable to set oom_score_adj",
 					slog.F("cmd", proc.Cmd()),
 					slog.F("pid", proc.PID),
@@ -2145,4 +2144,15 @@ func (l *logDebouncer) log(ctx context.Context, level slog.Level, msg string, fi
 		l.logger.Error(ctx, msg, fields...)
 	}
 	l.messages[msg] = time.Now()
+}
+
+func isBenignProcessErr(err error) bool {
+	return err != nil &&
+		(xerrors.Is(err, os.ErrNotExist) ||
+			xerrors.Is(err, os.ErrPermission) ||
+			isNoSuchProcessErr(err))
+}
+
+func isNoSuchProcessErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "no such process")
 }

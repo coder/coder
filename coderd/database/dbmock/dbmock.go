@@ -1868,6 +1868,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobByID(arg0, arg1 any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobByID", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobByID), arg0, arg1)
 }
 
+// GetProvisionerJobTimingsByJobID mocks base method.
+func (m *MockStore) GetProvisionerJobTimingsByJobID(arg0 context.Context, arg1 uuid.UUID) ([]database.ProvisionerJobTiming, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobTimingsByJobID", arg0, arg1)
+	ret0, _ := ret[0].([]database.ProvisionerJobTiming)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobTimingsByJobID indicates an expected call of GetProvisionerJobTimingsByJobID.
+func (mr *MockStoreMockRecorder) GetProvisionerJobTimingsByJobID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobTimingsByJobID", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobTimingsByJobID), arg0, arg1)
+}
+
 // GetProvisionerJobsByIDs mocks base method.
 func (m *MockStore) GetProvisionerJobsByIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -4028,6 +4043,21 @@ func (m *MockStore) ListProvisionerKeysByOrganization(arg0 context.Context, arg1
 func (mr *MockStoreMockRecorder) ListProvisionerKeysByOrganization(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProvisionerKeysByOrganization", reflect.TypeOf((*MockStore)(nil).ListProvisionerKeysByOrganization), arg0, arg1)
+}
+
+// ListProvisionerKeysByOrganizationExcludeReserved mocks base method.
+func (m *MockStore) ListProvisionerKeysByOrganizationExcludeReserved(arg0 context.Context, arg1 uuid.UUID) ([]database.ProvisionerKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListProvisionerKeysByOrganizationExcludeReserved", arg0, arg1)
+	ret0, _ := ret[0].([]database.ProvisionerKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListProvisionerKeysByOrganizationExcludeReserved indicates an expected call of ListProvisionerKeysByOrganizationExcludeReserved.
+func (mr *MockStoreMockRecorder) ListProvisionerKeysByOrganizationExcludeReserved(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProvisionerKeysByOrganizationExcludeReserved", reflect.TypeOf((*MockStore)(nil).ListProvisionerKeysByOrganizationExcludeReserved), arg0, arg1)
 }
 
 // ListWorkspaceAgentPortShares mocks base method.

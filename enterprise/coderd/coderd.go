@@ -287,6 +287,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Post("/organizations/{organization}/members/roles", api.postOrgRoles)
 			r.Put("/organizations/{organization}/members/roles", api.putOrgRoles)
 			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
+			r.Route("/organizations/{organization}/settings", func(r chi.Router) {
+				r.Get("/idpsync/groups", api.groupIDPSyncSettings)
+				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
+			})
 		})
 
 		r.Group(func(r chi.Router) {
@@ -327,6 +331,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Get("/", api.provisionerKeys)
 			r.Post("/", api.postProvisionerKey)
+			r.Get("/daemons", api.provisionerKeyDaemons)
 			r.Route("/{provisionerkey}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractProvisionerKeyParam(options.Database),
