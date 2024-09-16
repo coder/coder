@@ -1681,6 +1681,100 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get group IdP Sync settings by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/settings/idpsync/groups`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [idpsync.GroupSyncSettings](schemas.md#idpsyncgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update group IdP Sync settings by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/groups`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [idpsync.GroupSyncSettings](schemas.md#idpsyncgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get active replicas
 
 ### Code samples

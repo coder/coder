@@ -41,7 +41,8 @@ type IDPSync interface {
 	// GroupSyncSettings is exposed for the API to implement CRUD operations
 	// on the settings used by IDPSync. This entry is thread safe and can be
 	// accessed concurrently. The settings are stored in the database.
-	GroupSyncSettings() runtimeconfig.RuntimeEntry[*GroupSyncSettings]
+	GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*GroupSyncSettings, error)
+	UpdateGroupSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error
 }
 
 // AGPLIDPSync is the configuration for syncing user information from an external
