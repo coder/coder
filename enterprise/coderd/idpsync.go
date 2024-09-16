@@ -38,8 +38,8 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {object} idpsync.GroupSyncSettings
-// @Router /organizations/{organization}/settings/idpsync/groups [post]
-func (api *API) postGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
+// @Router /organizations/{organization}/settings/idpsync/groups [patch]
+func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 

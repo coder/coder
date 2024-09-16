@@ -289,7 +289,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
 			r.Route("/organizations/{organization}/settings", func(r chi.Router) {
 				r.Get("/idpsync/groups", api.groupIDPSyncSettings)
-				r.Post("/idpsync/groups", api.postGroupIDPSyncSettings)
+				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
 			})
 		})
 
