@@ -223,6 +223,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	// This is to preserve single org deployment behavior.
 	organizations := []uuid.UUID{}
 	if api.IDPSync.AssignDefaultOrganization() {
+		//nolint:gocritic // SCIM operations are a system user
 		defaultOrganization, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 		if err != nil {
 			_ = handlerutil.WriteError(rw, err)
