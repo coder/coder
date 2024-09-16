@@ -39,38 +39,19 @@ func main() {
 	}
 
 	root.Children = append(root.Children, &serpent.Command{
-		Use: "colors",
+		Use:    "colors",
+		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
-			msg := pretty.Sprint(cliui.DefaultStyles.Code, "This is a code message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, "This is a datetimestamp message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.Error, "This is an error message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.Field, "This is a field message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.Keyword, "This is a keyword message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.Placeholder, "This is a placeholder message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.Prompt, "This is a prompt message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.FocusedPrompt, "This is a focused prompt message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.Fuchsia, "This is a fuchsia message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
-			msg = pretty.Sprint(cliui.DefaultStyles.Warn, "This is a warning message")
-			_, _ = fmt.Fprintln(inv.Stdout, msg)
-
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Code, "This is a code message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.DateTimeStamp, "This is a datetimestamp message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Error, "This is an error message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Field, "This is a field message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Keyword, "This is a keyword message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Placeholder, "This is a placeholder message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Prompt, "This is a prompt message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.FocusedPrompt, "This is a focused prompt message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Fuchsia, "This is a fuchsia message\n")
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Warn, "This is a warning message\n")
 			return nil
 		},
 	})
