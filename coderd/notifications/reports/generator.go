@@ -51,7 +51,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 
 			err = reportFailedWorkspaceBuilds(ctx, logger, db, enqueuer, clk)
 			if err != nil {
-				logger.Debug(ctx, "unable to report failed workspace builds")
+				logger.Debug(ctx, "unable to generate reports with failed workspace builds")
 				return err
 			}
 
