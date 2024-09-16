@@ -1,5 +1,6 @@
 import MuiPopover, {
 	type PopoverProps as MuiPopoverProps,
+	// biome-ignore lint/nursery/noRestrictedImports: This is the base component that our custom popover is based on
 } from "@mui/material/Popover";
 import {
 	type FC,

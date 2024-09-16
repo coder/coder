@@ -1,3 +1,4 @@
+// biome-ignore lint/nursery/noRestrictedImports: Have to use MUI styles as base
 import type { Theme as MuiTheme } from "@mui/material/styles";
 import type * as monaco from "monaco-editor";
 import type { Branding } from "./branding";
