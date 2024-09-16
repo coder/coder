@@ -7618,7 +7618,7 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organ
 	return keys, nil
 }
 
-func (q *FakeQuerier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+func (q *FakeQuerier) ListProvisionerKeysByOrganizationExcludeReserved(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 

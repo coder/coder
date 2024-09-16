@@ -142,7 +142,7 @@ func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 	// provisionerdserver.DefaultHeartbeatInterval*3 matches the healthcheck report staleInterval.
 	recentDaemons := db2sdk.RecentProvisionerDaemons(time.Now(), provisionerdserver.DefaultHeartbeatInterval*3, daemons)
 
-	pkDaemons := make([]codersdk.ProvisionerKeyDaemons, 0, len(sdkKeys))
+	pkDaemons := []codersdk.ProvisionerKeyDaemons{}
 	for _, key := range sdkKeys {
 		// currently we exclude user-auth from this list
 		if key.ID.String() == codersdk.ProvisionerKeyIDUserAuth {
