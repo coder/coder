@@ -217,7 +217,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	// Check if changing roles is allowed
-	if !api.allowChangingMemberRoles(rw, ctx, member, organization) {
+	if !api.allowChangingMemberRoles(ctx, rw, member, organization) {
 		return
 	}
 
@@ -265,7 +265,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
 }
 
-func (api *API) allowChangingMemberRoles(rw http.ResponseWriter, ctx context.Context, member httpmw.OrganizationMember, organization database.Organization) bool {
+func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWriter, member httpmw.OrganizationMember, organization database.Organization) bool {
 	// nolint:gocritic // The caller could be an org admin without this perm.
 	// We need to disable manual role assignment if role sync is enabled for
 	// the given organization.
