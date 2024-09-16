@@ -58,7 +58,9 @@ func (api *API) postProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if slices.Contains(codersdk.ReservedProvisionerKeyNames(), req.Name) {
+if slices.ContainsFunc(codersdk.ReservedProvisionerKeyNames(), func(s string) bool {
+		return strings.EqualFold(req.Name, s)
+	}) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Name cannot be reserved name '%s'", req.Name),
 			Validations: []codersdk.ValidationError{
