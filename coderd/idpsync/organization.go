@@ -32,6 +32,10 @@ func (AGPLIDPSync) OrganizationSyncEnabled() bool {
 	return false
 }
 
+func (s AGPLIDPSync) AssignDefaultOrganization() bool {
+	return s.OrganizationAssignDefault
+}
+
 func (s AGPLIDPSync) ParseOrganizationClaims(_ context.Context, _ jwt.MapClaims) (OrganizationParams, *HTTPError) {
 	// For AGPL we only sync the default organization.
 	return OrganizationParams{
