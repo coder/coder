@@ -1683,12 +1683,17 @@ WHERE
 				groups.name = ANY($3)
 			ELSE true
 		END
+		AND CASE WHEN array_length($4 :: uuid[], 1) > 0  THEN
+				groups.id = ANY($4)
+			ELSE true
+		END
 `
 
 type GetGroupsParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	HasMemberID    uuid.UUID `db:"has_member_id" json:"has_member_id"`
-	GroupNames     []string  `db:"group_names" json:"group_names"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	HasMemberID    uuid.UUID   `db:"has_member_id" json:"has_member_id"`
+	GroupNames     []string    `db:"group_names" json:"group_names"`
+	GroupIds       []uuid.UUID `db:"group_ids" json:"group_ids"`
 }
 
 type GetGroupsRow struct {
@@ -1698,7 +1703,12 @@ type GetGroupsRow struct {
 }
 
 func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getGroups, arg.OrganizationID, arg.HasMemberID, pq.Array(arg.GroupNames))
+	rows, err := q.db.QueryContext(ctx, getGroups,
+		arg.OrganizationID,
+		arg.HasMemberID,
+		pq.Array(arg.GroupNames),
+		pq.Array(arg.GroupIds),
+	)
 	if err != nil {
 		return nil, err
 	}

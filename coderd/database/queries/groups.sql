@@ -56,6 +56,10 @@ WHERE
 				groups.name = ANY(@group_names)
 			ELSE true
 		END
+		AND CASE WHEN array_length(@group_ids :: uuid[], 1) > 0  THEN
+				groups.id = ANY(@group_ids)
+			ELSE true
+		END
 ;
 
 -- name: InsertGroup :one

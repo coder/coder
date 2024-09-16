@@ -179,7 +179,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_member=string \
+curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_member=string&group_ids=string \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -188,10 +188,11 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
 
 ### Parameters
 
-| Name           | In    | Type   | Required | Description             |
-| -------------- | ----- | ------ | -------- | ----------------------- |
-| `organization` | query | string | true     | Organization ID or name |
-| `has_member`   | query | string | true     | User ID or name         |
+| Name           | In    | Type   | Required | Description                       |
+| -------------- | ----- | ------ | -------- | --------------------------------- |
+| `organization` | query | string | true     | Organization ID or name           |
+| `has_member`   | query | string | true     | User ID or name                   |
+| `group_ids`    | query | string | true     | Comma separated list of group IDs |
 
 ### Example responses
 

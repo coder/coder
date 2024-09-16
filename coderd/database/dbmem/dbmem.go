@@ -2714,6 +2714,12 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 	orgDetailsCache := make(map[uuid.UUID]struct{ name, displayName string })
 	filtered := make([]database.GetGroupsRow, 0)
 	for _, group := range q.groups {
+		if len(arg.GroupIds) > 0 {
+			if !slices.Contains(arg.GroupIds, group.ID) {
+				continue
+			}
+		}
+
 		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
 			continue
 		}
