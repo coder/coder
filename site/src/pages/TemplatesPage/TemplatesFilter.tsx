@@ -1,15 +1,10 @@
 import { API } from "api/api";
 import type { Organization } from "api/typesGenerated";
+import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
-import {
-	Filter,
-	MenuSkeleton,
-	SearchFieldSkeleton,
-	type useFilter,
-} from "components/Filter/filter";
 import { useFilterMenu } from "components/Filter/menu";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import type { FC } from "react";
@@ -64,12 +59,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 					/>
 				</>
 			}
-			skeleton={
-				<>
-					<SearchFieldSkeleton />
-					<MenuSkeleton />
-				</>
-			}
+			optionsSkeleton={<MenuSkeleton />}
 		/>
 	);
 };

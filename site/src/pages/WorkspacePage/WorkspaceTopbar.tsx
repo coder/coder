@@ -147,11 +147,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 							<OrganizationBreadcrumb
 								orgName={orgDisplayName}
 								orgIconUrl={activeOrg?.icon}
-								orgPageUrl={
-									showOrganizations
-										? `/organizations/${encodeURIComponent(workspace.organization_name)}`
-										: undefined
-								}
+								orgPageUrl={`/organizations/${encodeURIComponent(workspace.organization_name)}`}
 							/>
 						</>
 					)}
