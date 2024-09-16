@@ -15409,7 +15409,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "host": {
-                    "description": "host or host:port",
+                    "description": "host or host:port (see Hostname and Port methods)",
                     "type": "string"
                 },
                 "omitHost": {
