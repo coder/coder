@@ -3,7 +3,6 @@ package reports
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"io"
 	"slices"
 	"sort"
@@ -37,6 +36,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 
 	// Start the ticker with the initial delay.
 	ticker := clk.NewTicker(delay)
+	ticker.Stop()
 	doTick := func(start time.Time) {
 		defer ticker.Reset(delay)
 		// Start a transaction to grab advisory lock, we don't want to run generator jobs at the same time (multiple replicas).
@@ -98,11 +98,14 @@ func (i *reportGenerator) Close() error {
 	return nil
 }
 
-const failedWorkspaceBuildsReportFrequencyDays = 7
+const (
+	failedWorkspaceBuildsReportFrequency      = 7 * 24 * time.Hour
+	failedWorkspaceBuildsReportFrequencyLabel = "week"
+)
 
 func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) error {
 	now := clk.Now()
-	since := now.Add(-failedWorkspaceBuildsReportFrequencyDays * 24 * time.Hour)
+	since := now.Add(-failedWorkspaceBuildsReportFrequency)
 
 	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(since).UTC())
 	if err != nil {
@@ -128,7 +131,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 			}
 
 			// There are some failed builds, so we have to prepare input data for the report.
-			reportData = buildDataForReportFailedWorkspaceBuilds(failedWorkspaceBuildsReportFrequencyDays, stats, failedBuilds)
+			reportData = buildDataForReportFailedWorkspaceBuilds(stats, failedBuilds)
 		}
 
 		templateAdmins, err := findTemplateAdmins(ctx, db, stats)
@@ -147,7 +150,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				continue
 			}
 
-			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequencyDays*24*time.Hour).After(now) {
+			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequency).After(now) {
 				// report generated recently, no need to send it now
 				continue
 			}
@@ -191,7 +194,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 	err = db.DeleteOldReportGeneratorLogs(ctx, database.DeleteOldReportGeneratorLogsParams{
 		NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-		Before:                 dbtime.Time(now.Add(-failedWorkspaceBuildsReportFrequencyDays*24*time.Hour - time.Hour)).UTC(),
+		Before:                 dbtime.Time(now.Add(-failedWorkspaceBuildsReportFrequency - time.Hour)).UTC(),
 	})
 	if err != nil {
 		return xerrors.Errorf("unable to delete old report generator logs: %w", err)
@@ -199,19 +202,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	return nil
 }
 
-func buildDataForReportFailedWorkspaceBuilds(frequencyDays int, stats database.GetWorkspaceBuildStatsByTemplatesRow, failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow) map[string]any {
-	// Format frequency label
-	var frequencyLabel string
-	if frequencyDays == 7 {
-		frequencyLabel = "week"
-	} else {
-		var plural string
-		if frequencyDays > 1 {
-			plural = "s"
-		}
-		frequencyLabel = fmt.Sprintf("%d day%s", frequencyDays, plural)
-	}
-
+func buildDataForReportFailedWorkspaceBuilds(stats database.GetWorkspaceBuildStatsByTemplatesRow, failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow) map[string]any {
 	// Sorting order: template_version_name ASC, workspace build number DESC
 	sort.Slice(failedBuilds, func(i, j int) bool {
 		if failedBuilds[i].TemplateVersionName != failedBuilds[j].TemplateVersionName {
@@ -240,22 +231,24 @@ func buildDataForReportFailedWorkspaceBuilds(frequencyDays int, stats database.G
 			continue
 		}
 
+		tv := templateVersions[c-1]
 		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
-		builds := templateVersions[c-1]["failed_builds"].([]map[string]any)
+		builds := tv["failed_builds"].([]map[string]any)
 		builds = append(builds, map[string]any{
 			"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
 			"workspace_name":           failedBuild.WorkspaceName,
 			"build_number":             failedBuild.WorkspaceBuildNumber,
 		})
-		templateVersions[c-1]["failed_builds"] = builds
+		tv["failed_builds"] = builds
 		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
-		templateVersions[c-1]["failed_count"] = templateVersions[c-1]["failed_count"].(int) + 1
+		tv["failed_count"] = tv["failed_count"].(int) + 1
+		templateVersions[c-1] = tv
 	}
 
 	return map[string]any{
 		"failed_builds":     stats.FailedBuilds,
 		"total_builds":      stats.TotalBuilds,
-		"report_frequency":  frequencyLabel,
+		"report_frequency":  failedWorkspaceBuildsReportFrequencyLabel,
 		"template_versions": templateVersions,
 	}
 }
