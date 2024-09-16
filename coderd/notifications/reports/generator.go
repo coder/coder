@@ -256,29 +256,31 @@ func findTemplateAdmins(ctx context.Context, db database.Store, stats database.G
 		return nil, xerrors.Errorf("unable to fetch template admins: %w", err)
 	}
 
+	var templateAdmins []database.GetUsersRow
+
 	usersByIDs := map[uuid.UUID]database.GetUsersRow{}
+	if len(usersByIDs) == 0 {
+		return templateAdmins, nil
+	}
+
 	var userIDs []uuid.UUID
 	for _, user := range users {
 		usersByIDs[user.ID] = user
 		userIDs = append(userIDs, user.ID)
 	}
 
-	var templateAdmins []database.GetUsersRow
-	if len(userIDs) > 0 {
-		orgIDsByMemberIDs, err := db.GetOrganizationIDsByMemberIDs(ctx, userIDs)
-		if err != nil {
-			return nil, xerrors.Errorf("unable to fetch organization IDs by member IDs: %w", err)
-		}
+	orgIDsByMemberIDs, err := db.GetOrganizationIDsByMemberIDs(ctx, userIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to fetch organization IDs by member IDs: %w", err)
+	}
 
-		for _, entry := range orgIDsByMemberIDs {
-			if slices.Contains(entry.OrganizationIDs, stats.TemplateOrganizationID) {
-				templateAdmins = append(templateAdmins, usersByIDs[entry.UserID])
-			}
+	for _, entry := range orgIDsByMemberIDs {
+		if slices.Contains(entry.OrganizationIDs, stats.TemplateOrganizationID) {
+			templateAdmins = append(templateAdmins, usersByIDs[entry.UserID])
 		}
 	}
 	sort.Slice(templateAdmins, func(i, j int) bool {
 		return templateAdmins[i].Username < templateAdmins[j].Username
 	})
-
 	return templateAdmins, nil
 }
