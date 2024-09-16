@@ -3298,6 +3298,9 @@ func (q *FakeQuerier) GetProvisionerJobTimingsByJobID(_ context.Context, jobID u
 	if len(timings) == 0 {
 		return nil, sql.ErrNoRows
 	}
+	sort.Slice(timings, func(i, j int) bool {
+		return timings[i].StartedAt.Before(timings[j].StartedAt)
+	})
 
 	return timings, nil
 }
@@ -6804,8 +6807,9 @@ func (q *FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg databas
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	insertedTimings := make([]database.ProvisionerJobTiming, 0, len(arg.StartedAt))
 	for i := range arg.StartedAt {
-		q.provisionerJobTimings = append(q.provisionerJobTimings, database.ProvisionerJobTiming{
+		timing := database.ProvisionerJobTiming{
 			JobID:     arg.JobID,
 			StartedAt: arg.StartedAt[i],
 			EndedAt:   arg.EndedAt[i],
@@ -6813,10 +6817,12 @@ func (q *FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg databas
 			Source:    arg.Source[i],
 			Action:    arg.Action[i],
 			Resource:  arg.Resource[i],
-		})
+		}
+		q.provisionerJobTimings = append(q.provisionerJobTimings, timing)
+		insertedTimings = append(insertedTimings, timing)
 	}
 
-	return q.provisionerJobTimings, nil
+	return insertedTimings, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {

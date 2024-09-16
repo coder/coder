@@ -3694,10 +3694,7 @@ func TestWorkspaceTimings(t *testing.T) {
 			t.Parallel()
 
 			// Generate timings based on test config
-			generatedTimings := make([]database.ProvisionerJobTiming, tc.provisionerTimings)
-			if tc.provisionerTimings > 0 {
-				generatedTimings = makeProvisionerTimings(tc.workspace.build.JobID, tc.provisionerTimings)
-			}
+			generatedTimings := makeProvisionerTimings(tc.workspace.build.JobID, tc.provisionerTimings)
 			res, err := client.WorkspaceTimings(context.Background(), tc.workspace.ID)
 
 			// When error is expected, than an error is returned
@@ -3709,16 +3706,17 @@ func TestWorkspaceTimings(t *testing.T) {
 			// When success is expected, than no error is returned and the length and
 			// fields are correctly returned
 			require.NoError(t, err)
-			require.Len(t, res, tc.provisionerTimings)
+			require.Len(t, res.ProvisionerTimings, tc.provisionerTimings)
 			for i := range res.ProvisionerTimings {
 				timingRes := res.ProvisionerTimings[i]
-				require.Equal(t, generatedTimings[i].Resource, timingRes.Resource)
-				require.Equal(t, generatedTimings[i].Action, timingRes.Action)
-				require.Equal(t, generatedTimings[i].Stage, timingRes.Stage)
-				require.Equal(t, generatedTimings[i].JobID, timingRes.JobID)
-				require.Equal(t, generatedTimings[i].Source, timingRes.Source)
-				require.Equal(t, generatedTimings[i].StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
-				require.Equal(t, generatedTimings[i].EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+				genTiming := generatedTimings[i]
+				require.Equal(t, genTiming.Resource, timingRes.Resource)
+				require.Equal(t, genTiming.Action, timingRes.Action)
+				require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+				require.Equal(t, genTiming.JobID.String(), timingRes.JobID.String())
+				require.Equal(t, genTiming.Source, timingRes.Source)
+				require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+				require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
 			}
 		})
 	}
