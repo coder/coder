@@ -47,8 +47,8 @@ func (c *Client) GroupIDPSyncSettings(ctx context.Context, orgID string) (GroupS
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) PostGroupIDPSyncSettings(ctx context.Context, orgID string, req GroupSyncSettings) (GroupSyncSettings, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/groups", orgID), req)
+func (c *Client) PatchGroupIDPSyncSettings(ctx context.Context, orgID string, req GroupSyncSettings) (GroupSyncSettings, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/groups", orgID), req)
 	if err != nil {
 		return GroupSyncSettings{}, xerrors.Errorf("make request: %w", err)
 	}

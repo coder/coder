@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -8,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -63,7 +65,7 @@ func TestPostGroupSyncConfig(t *testing.T) {
 			string(codersdk.ExperimentMultiOrganization),
 		}
 
-		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -75,17 +77,54 @@ func TestPostGroupSyncConfig(t *testing.T) {
 			},
 		})
 
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
+
+		// Test as org admin
 		ctx := testutil.Context(t, testutil.WaitShort)
-		settings, err := client.PostGroupIDPSyncSettings(ctx, user.OrganizationID.String(), codersdk.GroupSyncSettings{
+		settings, err := orgAdmin.PatchGroupIDPSyncSettings(ctx, user.OrganizationID.String(), codersdk.GroupSyncSettings{
 			Field: "august",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "august", settings.Field)
 
-		dbresv := runtimeconfig.OrganizationResolver(user.OrganizationID, runtimeconfig.NewStoreResolver(db))
-		entry := runtimeconfig.MustNew[*idpsync.GroupSyncSettings]("group-sync-settings")
-		dbSettings, err := entry.Resolve(ctx, dbresv)
+		fetchedSettings, err := orgAdmin.GroupIDPSyncSettings(ctx, user.OrganizationID.String())
 		require.NoError(t, err)
-		require.Equal(t, "august", dbSettings.Field)
+		require.Equal(t, "august", fetchedSettings.Field)
+	})
+
+	t.Run("NotAuthorized", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentCustomRoles),
+			string(codersdk.ExperimentMultiOrganization),
+		}
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		member, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := member.PatchGroupIDPSyncSettings(ctx, user.OrganizationID.String(), codersdk.GroupSyncSettings{
+			Field: "august",
+		})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+
+		_, err = member.GroupIDPSyncSettings(ctx, user.OrganizationID.String())
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
 }
