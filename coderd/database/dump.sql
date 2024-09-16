@@ -952,7 +952,7 @@ CREATE TABLE report_generator_logs (
     last_generated_at timestamp with time zone NOT NULL
 );
 
-COMMENT ON TABLE report_generator_logs IS 'Logs with generated reports for users.';
+COMMENT ON TABLE report_generator_logs IS 'Log of generated reports for users.';
 
 CREATE TABLE site_configs (
     key character varying(256) NOT NULL,

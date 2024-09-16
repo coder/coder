@@ -2397,7 +2397,7 @@ type Replica struct {
 	Primary         bool         `db:"primary" json:"primary"`
 }
 
-// Logs with generated reports for users.
+// Log of generated reports for users.
 type ReportGeneratorLog struct {
 	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
 	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
