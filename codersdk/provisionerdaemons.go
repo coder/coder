@@ -283,6 +283,11 @@ type ProvisionerKey struct {
 	// HashedSecret - never include the access token in the API response
 }
 
+type ProvisionerKeyDaemons struct {
+	Key     ProvisionerKey      `json:"key"`
+	Daemons []ProvisionerDaemon `json:"daemons"`
+}
+
 const (
 	ProvisionerKeyIDBuiltIn  = "11111111-1111-1111-1111-111111111111"
 	ProvisionerKeyIDUserAuth = "22222222-2222-2222-2222-222222222222"

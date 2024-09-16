@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -110,6 +113,50 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerKeys(pks))
+}
+
+// @Summary List provisioner key
+// @ID list-provisioner-key
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID"
+// @Success 200 {object} []codersdk.ProvisionerKey
+// @Router /organizations/{organization}/provisionerkeys/daemons [get]
+func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	pks, err := api.Database.ListProvisionerKeysByOrganization(ctx, organization.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	sdkKeys := convertProvisionerKeys(pks)
+
+	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, organization.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	// provisionerdserver.DefaultHeartbeatInterval*3 matches the healthcheck report staleInterval.
+	recentDaemons := db2sdk.RecentProvisionerDaemons(time.Now(), provisionerdserver.DefaultHeartbeatInterval*3, daemons)
+
+	pkDaemons := make([]codersdk.ProvisionerKeyDaemons, 0, len(sdkKeys))
+	for _, key := range sdkKeys {
+		daemons := []codersdk.ProvisionerDaemon{}
+		for _, daemon := range recentDaemons {
+			if daemon.KeyID == key.ID {
+				daemons = append(daemons, daemon)
+			}
+		}
+		pkDaemons = append(pkDaemons, codersdk.ProvisionerKeyDaemons{
+			Key:     key,
+			Daemons: daemons,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, pkDaemons)
 }
 
 // @Summary Delete provisioner key
