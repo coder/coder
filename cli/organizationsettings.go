@@ -65,13 +65,13 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext) *ser
 				return fmt.Errorf("failed to get organization setting %s: %w", inv.Args[0], err)
 			}
 
-			settingJson, err := json.Marshal(setting)
+			settingJSON, err := json.Marshal(setting)
 			if err != nil {
 				return fmt.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
 			}
 
 			var dst bytes.Buffer
-			err = json.Indent(&dst, settingJson, "", "\t")
+			err = json.Indent(&dst, settingJSON, "", "\t")
 			if err != nil {
 				return fmt.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
 			}
