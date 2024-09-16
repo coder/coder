@@ -8,13 +8,10 @@ import (
 	"sort"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
-	"github.com/google/uuid"
-
 	"github.com/coder/quartz"
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
