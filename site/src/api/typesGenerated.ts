@@ -1061,6 +1061,17 @@ export interface ProvisionerKey {
 	readonly tags: Record<string, string>;
 }
 
+// From codersdk/workspaces.go
+export interface ProvisionerTiming {
+	readonly job_id: string;
+	readonly started_at: string;
+	readonly ended_at: string;
+	readonly stage: string;
+	readonly source: string;
+	readonly action: string;
+	readonly resource: string;
+}
+
 // From codersdk/workspaceproxy.go
 export interface ProxyHealthReport {
 	readonly errors: Readonly<Array<string>>;
@@ -2008,6 +2019,11 @@ export interface WorkspaceResourceMetadata {
 	readonly key: string;
 	readonly value: string;
 	readonly sensitive: boolean;
+}
+
+// From codersdk/workspaces.go
+export interface WorkspaceTimings {
+	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
 }
 
 // From codersdk/workspaces.go

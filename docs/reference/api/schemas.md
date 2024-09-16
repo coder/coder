@@ -4177,6 +4177,32 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ------ |
 | `file` |
 
+## codersdk.ProvisionerTiming
+
+```json
+{
+	"action": "string",
+	"ended_at": "2019-08-24T14:15:22Z",
+	"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+	"resource": "string",
+	"source": "string",
+	"stage": "string",
+	"started_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `action`     | string | false    |              |             |
+| `ended_at`   | string | false    |              |             |
+| `job_id`     | string | false    |              |             |
+| `resource`   | string | false    |              |             |
+| `source`     | string | false    |              |             |
+| `stage`      | string | false    |              |             |
+| `started_at` | string | false    |              |             |
+
 ## codersdk.ProxyHealthReport
 
 ```json
@@ -7454,6 +7480,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `canceled`  |
 | `deleting`  |
 | `deleted`   |
+
+## codersdk.WorkspaceTimings
+
+```json
+{
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                              | Required | Restrictions | Description |
+| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `provisioner_timings` | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
 
 ## codersdk.WorkspaceTransition
 
