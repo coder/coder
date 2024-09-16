@@ -628,8 +628,8 @@ func (c *Client) UnfavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID)
 
 type ProvisionerTiming struct {
 	JobID     uuid.UUID `json:"job_id"`
-	StartedAt time.Time `json:"started_at"`
-	EndedAt   time.Time `json:"ended_at"`
+	StartedAt time.Time `json:"started_at" format:"date-time"`
+	EndedAt   time.Time `json:"ended_at" format:"date-time"`
 	Stage     string    `json:"stage"`
 	Source    string    `json:"source"`
 	Action    string    `json:"action"`

@@ -11664,7 +11664,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ended_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "job_id": {
                     "type": "string"
@@ -11679,7 +11680,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "started_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },

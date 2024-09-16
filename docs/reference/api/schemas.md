@@ -4182,12 +4182,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
 	"action": "string",
-	"ended_at": "string",
+	"ended_at": "2019-08-24T14:15:22Z",
 	"job_id": "string",
 	"resource": "string",
 	"source": "string",
 	"stage": "string",
-	"started_at": "string"
+	"started_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -7487,12 +7487,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 	"provisioner_timings": [
 		{
 			"action": "string",
-			"ended_at": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
 			"job_id": "string",
 			"resource": "string",
 			"source": "string",
 			"stage": "string",
-			"started_at": "string"
+			"started_at": "2019-08-24T14:15:22Z"
 		}
 	]
 }

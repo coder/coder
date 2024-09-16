@@ -10526,7 +10526,8 @@
 					"type": "string"
 				},
 				"ended_at": {
-					"type": "string"
+					"type": "string",
+					"format": "date-time"
 				},
 				"job_id": {
 					"type": "string"
@@ -10541,7 +10542,8 @@
 					"type": "string"
 				},
 				"started_at": {
-					"type": "string"
+					"type": "string",
+					"format": "date-time"
 				}
 			}
 		},
