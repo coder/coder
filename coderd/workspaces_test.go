@@ -3659,7 +3659,7 @@ func TestWorkspaceTimings(t *testing.T) {
 	}
 
 	// Given
-	tests := []struct {
+	testCases := []struct {
 		name               string
 		provisionerTimings int
 		workspace          workspaceWithBuild
@@ -3688,19 +3688,20 @@ func TestWorkspaceTimings(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Generate timings based on test config
-			generatedTimings := make([]database.ProvisionerJobTiming, tt.provisionerTimings)
-			if tt.provisionerTimings > 0 {
-				generatedTimings = makeProvisionerTimings(tt.workspace.build.JobID, tt.provisionerTimings)
+			generatedTimings := make([]database.ProvisionerJobTiming, tc.provisionerTimings)
+			if tc.provisionerTimings > 0 {
+				generatedTimings = makeProvisionerTimings(tc.workspace.build.JobID, tc.provisionerTimings)
 			}
-			res, err := client.WorkspaceTimings(context.Background(), tt.workspace.ID)
+			res, err := client.WorkspaceTimings(context.Background(), tc.workspace.ID)
 
 			// When error is expected, than an error is returned
-			if tt.error {
+			if tc.error {
 				require.Error(t, err)
 				return
 			}
@@ -3708,7 +3709,7 @@ func TestWorkspaceTimings(t *testing.T) {
 			// When success is expected, than no error is returned and the length and
 			// fields are correctly returned
 			require.NoError(t, err)
-			require.Len(t, res, tt.provisionerTimings)
+			require.Len(t, res, tc.provisionerTimings)
 			for i := range res.ProvisionerTimings {
 				timingRes := res.ProvisionerTimings[i]
 				require.Equal(t, generatedTimings[i].Resource, timingRes.Resource)

@@ -8226,8 +8226,8 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Return workspace timings by ID",
-                "operationId": "workspace-timings-by-id",
+                "summary": "Get workspace timings by ID",
+                "operationId": "get-workspace-timings-by-id",
                 "parameters": [
                     {
                         "type": "string",

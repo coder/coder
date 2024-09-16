@@ -1740,8 +1740,8 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary Return workspace timings by ID
-// @ID workspace-timings-by-id
+// @Summary Get workspace timings by ID
+// @ID get-workspace-timings-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces

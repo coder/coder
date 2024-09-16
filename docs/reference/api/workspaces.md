@@ -1604,7 +1604,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Return workspace timings by ID
+## Get workspace timings by ID
 
 ### Code samples
 

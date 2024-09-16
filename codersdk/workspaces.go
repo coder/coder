@@ -638,6 +638,7 @@ type ProvisionerTiming struct {
 
 type WorkspaceTimings struct {
 	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
+	// TODO: Add AgentScriptTimings when it is done https://github.com/coder/coder/issues/14630
 }
 
 func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceTimings, error) {
