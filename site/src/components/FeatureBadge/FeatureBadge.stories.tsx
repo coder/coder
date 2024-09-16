@@ -1,7 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { FeatureBadge } from "./FeatureBadge";
-import { useState } from "react";
 import { useTheme } from "@emotion/react";
+import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
+import { FeatureBadge } from "./FeatureBadge";
 
 const meta: Meta<typeof FeatureBadge> = {
 	title: "components/FeatureBadge",

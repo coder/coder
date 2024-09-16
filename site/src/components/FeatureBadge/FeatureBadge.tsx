@@ -10,7 +10,6 @@ import {
 	type HTMLAttributes,
 	type ReactNode,
 } from "react";
-import tailwindColors from "theme/tailwindColors";
 import { docs } from "utils/docs";
 
 /**
