@@ -30,8 +30,45 @@ func (AGPLIDPSync) GroupSyncEnabled() bool {
 	return false
 }
 
-func (s AGPLIDPSync) GroupSyncSettings() runtimeconfig.RuntimeEntry[*GroupSyncSettings] {
-	return s.Group
+func (s AGPLIDPSync) UpdateGroupSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error {
+	orgResolver := s.Manager.OrganizationResolver(db, orgID)
+	err := s.SyncSettings.Group.SetRuntimeValue(ctx, orgResolver, &settings)
+	if err != nil {
+		return xerrors.Errorf("update group sync settings: %w", err)
+	}
+
+	return nil
+}
+
+func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*GroupSyncSettings, error) {
+	orgResolver := s.Manager.OrganizationResolver(db, orgID)
+	settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
+	if err != nil {
+		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
+			return nil, xerrors.Errorf("resolve group sync settings: %w", err)
+		}
+
+		// Default to not being configured
+		settings = &GroupSyncSettings{}
+	}
+
+	// Check for legacy settings if the default org.
+	if s.DeploymentSyncSettings.Legacy.GroupField != "" && settings.Field == "" {
+		defaultOrganization, err := db.GetDefaultOrganization(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("get default organization: %w", err)
+		}
+		if defaultOrganization.ID == orgID {
+			settings = ptr.Ref(GroupSyncSettings(codersdk.GroupSyncSettings{
+				Field:             s.Legacy.GroupField,
+				LegacyNameMapping: s.Legacy.GroupMapping,
+				RegexFilter:       s.Legacy.GroupFilter,
+				AutoCreateMissing: s.Legacy.CreateMissingGroups,
+			}))
+		}
+	}
+
+	return settings, nil
 }
 
 func (s AGPLIDPSync) ParseGroupClaims(_ context.Context, _ jwt.MapClaims) (GroupParams, *HTTPError) {
@@ -48,18 +85,6 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 
 	// nolint:gocritic // all syncing is done as a system user
 	ctx = dbauthz.AsSystemRestricted(ctx)
-
-	// Only care about the default org for deployment settings if the
-	// legacy deployment settings exist.
-	defaultOrgID := uuid.Nil
-	// Default organization is configured via legacy deployment values
-	if s.DeploymentSyncSettings.Legacy.GroupField != "" {
-		defaultOrganization, err := db.GetDefaultOrganization(ctx)
-		if err != nil {
-			return xerrors.Errorf("get default organization: %w", err)
-		}
-		defaultOrgID = defaultOrganization.ID
-	}
 
 	err := db.InTx(func(tx database.Store) error {
 		userGroups, err := tx.GetGroups(ctx, database.GetGroupsParams{
@@ -83,24 +108,20 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		// organization.
 		orgSettings := make(map[uuid.UUID]GroupSyncSettings)
 		for orgID := range userOrgs {
-			orgResolver := s.Manager.OrganizationResolver(tx, orgID)
-			settings, err := s.SyncSettings.Group.Resolve(ctx, orgResolver)
-			if err != nil {
-				if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
-					return xerrors.Errorf("resolve group sync settings: %w", err)
-				}
-				// Default to not being configured
-				settings = &GroupSyncSettings{}
+			def, _ := tx.GetDefaultOrganization(ctx)
+			if def.ID == orgID {
+				fmt.Println("as")
 			}
-
-			// Legacy deployment settings will override empty settings.
-			if orgID == defaultOrgID && settings.Field == "" {
-				settings = ptr.Ref(GroupSyncSettings(codersdk.GroupSyncSettings{
-					Field:             s.Legacy.GroupField,
-					LegacyNameMapping: s.Legacy.GroupMapping,
-					RegexFilter:       s.Legacy.GroupFilter,
-					AutoCreateMissing: s.Legacy.CreateMissingGroups,
-				}))
+			settings, err := s.GroupSyncSettings(ctx, orgID, tx)
+			if err != nil {
+				// TODO: This error is currently silent to org admins.
+				// We need to come up with a way to notify the org admin of this
+				// error.
+				s.Logger.Error(ctx, "failed to get group sync settings",
+					slog.F("organization_id", orgID),
+					slog.Error(err),
+				)
+				settings = &GroupSyncSettings{}
 			}
 			orgSettings[orgID] = *settings
 		}

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"net/http"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestGetGroupSyncConfig(t *testing.T) {
@@ -51,6 +53,44 @@ func TestGetGroupSyncConfig(t *testing.T) {
 		settings, err := orgAdmin.GroupIDPSyncSettings(ctx, user.OrganizationID.String())
 		require.NoError(t, err)
 		require.Equal(t, "august", settings.Field)
+	})
+
+	t.Run("Legacy", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentCustomRoles),
+			string(codersdk.ExperimentMultiOrganization),
+		}
+		dv.OIDC.GroupField = "legacy-group"
+		dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile("legacy-filter"))
+		dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{
+			Value: map[string]string{
+				"foo": "bar",
+			},
+		}
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		settings, err := orgAdmin.GroupIDPSyncSettings(ctx, user.OrganizationID.String())
+		require.NoError(t, err)
+		require.Equal(t, dv.OIDC.GroupField.Value(), settings.Field)
+		require.Equal(t, dv.OIDC.GroupRegexFilter.String(), settings.RegexFilter.String())
+		require.Equal(t, dv.OIDC.GroupMapping.Value, settings.LegacyNameMapping)
 	})
 }
 

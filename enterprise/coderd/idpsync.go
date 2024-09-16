@@ -28,12 +28,9 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rlv := api.Options.RuntimeConfig.OrganizationResolver(api.Database, org.ID)
-	runtimeConfigEntry := api.IDPSync.GroupSyncSettings()
-
 	//nolint:gocritic // Requires system context to read runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	settings, err := runtimeConfigEntry.Resolve(sysCtx, rlv)
+	settings, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, api.Database)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -64,18 +61,15 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	rlv := api.Options.RuntimeConfig.OrganizationResolver(api.Database, org.ID)
-	runtimeConfigEntry := api.IDPSync.GroupSyncSettings()
-
 	//nolint:gocritic // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	err := runtimeConfigEntry.SetRuntimeValue(sysCtx, rlv, &req)
+	err := api.IDPSync.UpdateGroupSettings(sysCtx, org.ID, api.Database, req)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	settings, err := runtimeConfigEntry.Resolve(sysCtx, rlv)
+	settings, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, api.Database)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

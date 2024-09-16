@@ -242,6 +242,15 @@ func TestGroupSyncTable(t *testing.T) {
 				manager,
 				idpsync.DeploymentSyncSettings{
 					GroupField: "groups",
+					Legacy: idpsync.DefaultOrgLegacySettings{
+						GroupField: "groups",
+						GroupMapping: map[string]string{
+							"foo": "legacy-foo",
+							"baz": "legacy-baz",
+						},
+						GroupFilter:         regexp.MustCompile("^legacy"),
+						CreateMissingGroups: true,
+					},
 				},
 			)
 
@@ -275,6 +284,8 @@ func TestGroupSyncTable(t *testing.T) {
 			// Also sync the default org!
 			idpsync.DeploymentSyncSettings{
 				GroupField: "groups",
+				// This legacy field will fail any tests if the legacy override code
+				// has any bugs.
 				Legacy: idpsync.DefaultOrgLegacySettings{
 					GroupField: "groups",
 					GroupMapping: map[string]string{
