@@ -23,7 +23,7 @@ export const SearchField: FC<SearchFieldProps> = ({
 		<TextField
 			// Specifying `minWidth` so that the text box can't shrink so much
 			// that it becomes un-clickable as we add more filter controls
-			css={{ minWidth: "320px" }}
+			css={{ minWidth: "280px" }}
 			size="small"
 			value={value}
 			onChange={(e) => onChange(e.target.value)}
