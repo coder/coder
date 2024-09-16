@@ -1062,6 +1062,12 @@ export interface ProvisionerKey {
 	readonly tags: Record<string, string>;
 }
 
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerKeyDaemons {
+	readonly key: ProvisionerKey;
+	readonly daemons: Readonly<Array<ProvisionerDaemon>>;
+}
+
 // From codersdk/workspaces.go
 export interface ProvisionerTiming {
 	readonly job_id: string;
