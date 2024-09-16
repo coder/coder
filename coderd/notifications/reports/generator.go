@@ -145,7 +145,6 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			})
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) { // sql.ErrNoRows: report not generated yet
-				logger.Error(ctx, "unable to get recent report generator log for user", slog.F("user_id", templateAdmin.ID), slog.Error(err))
 				continue
 			}
 
