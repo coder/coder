@@ -1633,7 +1633,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 		{
 			"action": "string",
 			"ended_at": "2019-08-24T14:15:22Z",
-			"job_id": "string",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
 			"resource": "string",
 			"source": "string",
 			"stage": "string",

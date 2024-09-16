@@ -11668,7 +11668,8 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "job_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "resource": {
                     "type": "string"

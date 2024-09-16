@@ -4183,7 +4183,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
 	"action": "string",
 	"ended_at": "2019-08-24T14:15:22Z",
-	"job_id": "string",
+	"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
 	"resource": "string",
 	"source": "string",
 	"stage": "string",
@@ -7488,7 +7488,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		{
 			"action": "string",
 			"ended_at": "2019-08-24T14:15:22Z",
-			"job_id": "string",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
 			"resource": "string",
 			"source": "string",
 			"stage": "string",
