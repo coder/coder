@@ -214,7 +214,7 @@ func buildDataForReportFailedWorkspaceBuilds(stats database.GetWorkspaceBuildSta
 	for _, failedBuild := range failedBuilds {
 		c := len(templateVersions)
 
-		if len(templateVersions) == 0 || templateVersions[c-1]["template_version_name"] != failedBuild.TemplateVersionName {
+		if c == 0 || templateVersions[c-1]["template_version_name"] != failedBuild.TemplateVersionName {
 			templateVersions = append(templateVersions, map[string]any{
 				"template_version_name": failedBuild.TemplateVersionName,
 				"failed_count":          1,
