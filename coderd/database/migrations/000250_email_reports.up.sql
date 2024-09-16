@@ -2,7 +2,7 @@ INSERT INTO notification_templates (id, name, title_template, body_template, "gr
 VALUES ('34a20db2-e9cc-4a93-b0e4-8569699d7a00', 'Report: Workspace Builds Failed For Template', E'Workspace builds failed for template "{{.Labels.template_display_name}}"',
         E'Hi {{.UserName}},
 
-Template **{{.Labels.template_display_name}}** has failed to build {{.Data.failed_builds}}/{{.Data.total_builds}} times over the last {{.Data.report_frequency}} and may be unstable.
+Template **{{.Labels.template_display_name}}** has failed to build {{.Data.failed_builds}}/{{.Data.total_builds}} times over the last {{.Data.report_frequency}}.
 
 **Report:**
 {{range $version := .Data.template_versions}}
@@ -25,8 +25,7 @@ CREATE TABLE report_generator_logs
     notification_template_id uuid NOT NULL,
     last_generated_at timestamp with time zone NOT NULL,
 
-    PRIMARY KEY (user_id, notification_template_id),
-    UNIQUE (user_id, notification_template_id)
+    PRIMARY KEY (user_id, notification_template_id)
 );
 
-COMMENT ON TABLE report_generator_logs IS 'Logs with generated reports for users.';
+COMMENT ON TABLE report_generator_logs IS 'Log of generated reports for users.';
