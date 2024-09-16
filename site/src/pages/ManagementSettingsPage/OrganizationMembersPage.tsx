@@ -1,7 +1,5 @@
-import {
-	groupsByUserId,
-	groupsByUserIdInOrganization,
-} from "api/queries/groups";
+import { getErrorMessage } from "api/errors";
+import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
 	addOrganizationMember,
 	organizationMembers,
@@ -11,9 +9,12 @@ import {
 } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
@@ -52,44 +53,89 @@ const OrganizationMembersPage: FC = () => {
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
+	const [memberToDelete, setMemberToDelete] =
+		useState<OrganizationMemberWithUserData>();
+
 	const permissions = permissionsQuery.data;
 	if (!permissions) {
 		return <Loader />;
 	}
 
 	return (
-		<OrganizationMembersPageView
-			allAvailableRoles={organizationRolesQuery.data}
-			canEditMembers={permissions.editMembers}
-			error={
-				membersQuery.error ??
-				addMemberMutation.error ??
-				removeMemberMutation.error ??
-				updateMemberRolesMutation.error
-			}
-			isAddingMember={addMemberMutation.isLoading}
-			isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
-			me={me}
-			members={members}
-			groupsByUserId={groupsByUserIdQuery.data}
-			addMember={async (user: User) => {
-				await addMemberMutation.mutateAsync(user.id);
-				void membersQuery.refetch();
-			}}
-			removeMember={async (member: OrganizationMemberWithUserData) => {
-				await removeMemberMutation.mutateAsync(member.user_id);
-				void membersQuery.refetch();
-			}}
-			updateMemberRoles={async (
-				member: OrganizationMemberWithUserData,
-				newRoles: string[],
-			) => {
-				await updateMemberRolesMutation.mutateAsync({
-					userId: member.user_id,
-					roles: newRoles,
-				});
-			}}
-		/>
+		<>
+			<OrganizationMembersPageView
+				allAvailableRoles={organizationRolesQuery.data}
+				canEditMembers={permissions.editMembers}
+				error={
+					membersQuery.error ??
+					addMemberMutation.error ??
+					removeMemberMutation.error ??
+					updateMemberRolesMutation.error
+				}
+				isAddingMember={addMemberMutation.isLoading}
+				isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
+				me={me}
+				members={members}
+				groupsByUserId={groupsByUserIdQuery.data}
+				addMember={async (user: User) => {
+					await addMemberMutation.mutateAsync(user.id);
+					void membersQuery.refetch();
+				}}
+				removeMember={setMemberToDelete}
+				updateMemberRoles={async (
+					member: OrganizationMemberWithUserData,
+					newRoles: string[],
+				) => {
+					await updateMemberRolesMutation.mutateAsync({
+						userId: member.user_id,
+						roles: newRoles,
+					});
+				}}
+			/>
+
+			<ConfirmDialog
+				type="delete"
+				open={memberToDelete !== undefined}
+				onClose={() => setMemberToDelete(undefined)}
+				title="Remove member"
+				confirmText="Remove"
+				onConfirm={async () => {
+					try {
+						if (memberToDelete) {
+							await removeMemberMutation.mutateAsync(memberToDelete?.user_id);
+						}
+						setMemberToDelete(undefined);
+						await membersQuery.refetch();
+						displaySuccess("User removed from organization successfully!");
+					} catch (error) {
+						setMemberToDelete(undefined);
+						displayError(
+							getErrorMessage(error, "Failed to remove user from organization"),
+						);
+					}
+				}}
+				description={
+					<Stack>
+						<p>
+							Removing this member will also:
+							<ul>
+								<li>Remove them from all groups in this organization</li>
+								<li>Remove all user role assignments</li>
+								<li>
+									Irreversibly orphan all their workspaces associated with this
+									organization
+								</li>
+							</ul>
+						</p>
+
+						<p>
+							Are you sure you want to remove{" "}
+							<strong>{memberToDelete?.username}</strong>?
+						</p>
+					</Stack>
+				}
+			/>
+		</>
 	);
 };
 
