@@ -33,7 +33,8 @@ INSERT INTO
 		last_seen_at,
 		"version",
 		organization_id,
-		api_version
+		api_version,
+		key_id
 	)
 VALUES (
 	gen_random_uuid(),
@@ -44,14 +45,16 @@ VALUES (
 	@last_seen_at,
 	@version,
 	@organization_id,
-	@api_version
+	@api_version,
+	@key_id
 ) ON CONFLICT("organization_id", "name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = @provisioners,
 	tags = @tags,
 	last_seen_at = @last_seen_at,
 	"version" = @version,
 	api_version = @api_version,
-	organization_id = @organization_id
+	organization_id = @organization_id,
+	key_id = @key_id
 RETURNING *;
 
 -- name: UpdateProvisionerDaemonLastSeenAt :exec

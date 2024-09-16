@@ -4971,7 +4971,7 @@ func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
-	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id, key_id
 FROM
 	provisioner_daemons
 `
@@ -4996,6 +4996,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 			&i.Version,
 			&i.APIVersion,
 			&i.OrganizationID,
+			&i.KeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -5012,7 +5013,7 @@ func (q *sqlQuerier) GetProvisionerDaemons(ctx context.Context) ([]ProvisionerDa
 
 const getProvisionerDaemonsByOrganization = `-- name: GetProvisionerDaemonsByOrganization :many
 SELECT
-	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
+	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id, key_id
 FROM
 	provisioner_daemons
 WHERE
@@ -5039,6 +5040,7 @@ func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, or
 			&i.Version,
 			&i.APIVersion,
 			&i.OrganizationID,
+			&i.KeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -5084,7 +5086,8 @@ INSERT INTO
 		last_seen_at,
 		"version",
 		organization_id,
-		api_version
+		api_version,
+		key_id
 	)
 VALUES (
 	gen_random_uuid(),
@@ -5095,15 +5098,17 @@ VALUES (
 	$5,
 	$6,
 	$7,
-	$8
+	$8,
+	$9
 ) ON CONFLICT("organization_id", "name", LOWER(COALESCE(tags ->> 'owner'::text, ''::text))) DO UPDATE SET
 	provisioners = $3,
 	tags = $4,
 	last_seen_at = $5,
 	"version" = $6,
 	api_version = $8,
-	organization_id = $7
-RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id
+	organization_id = $7,
+	key_id = $9
+RETURNING id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id, key_id
 `
 
 type UpsertProvisionerDaemonParams struct {
@@ -5115,6 +5120,7 @@ type UpsertProvisionerDaemonParams struct {
 	Version        string            `db:"version" json:"version"`
 	OrganizationID uuid.UUID         `db:"organization_id" json:"organization_id"`
 	APIVersion     string            `db:"api_version" json:"api_version"`
+	KeyID          uuid.UUID         `db:"key_id" json:"key_id"`
 }
 
 func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error) {
@@ -5127,6 +5133,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		arg.Version,
 		arg.OrganizationID,
 		arg.APIVersion,
+		arg.KeyID,
 	)
 	var i ProvisionerDaemon
 	err := row.Scan(
@@ -5140,6 +5147,7 @@ func (q *sqlQuerier) UpsertProvisionerDaemon(ctx context.Context, arg UpsertProv
 		&i.Version,
 		&i.APIVersion,
 		&i.OrganizationID,
+		&i.KeyID,
 	)
 	return i, err
 }
@@ -5993,6 +6001,54 @@ WHERE
 
 func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
 	rows, err := q.db.QueryContext(ctx, listProvisionerKeysByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerKey
+	for rows.Next() {
+		var i ProvisionerKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Name,
+			&i.HashedSecret,
+			&i.Tags,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProvisionerKeysByOrganizationExcludeReserved = `-- name: ListProvisionerKeysByOrganizationExcludeReserved :many
+SELECT
+    id, created_at, organization_id, name, hashed_secret, tags
+FROM
+    provisioner_keys
+WHERE
+    organization_id = $1
+AND
+    -- exclude reserved built-in key
+    id != '00000000-0000-0000-0000-000000000001'::uuid
+AND 
+    -- exclude reserved user-auth key
+    id != '00000000-0000-0000-0000-000000000002'::uuid
+AND 
+    -- exclude reserved psk key
+    id != '00000000-0000-0000-0000-000000000003'::uuid
+`
+
+func (q *sqlQuerier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
+	rows, err := q.db.QueryContext(ctx, listProvisionerKeysByOrganizationExcludeReserved, organizationID)
 	if err != nil {
 		return nil, err
 	}

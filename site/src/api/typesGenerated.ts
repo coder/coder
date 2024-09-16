@@ -1016,6 +1016,7 @@ export interface ProvisionerConfig {
 export interface ProvisionerDaemon {
 	readonly id: string;
 	readonly organization_id: string;
+	readonly key_id: string;
 	readonly created_at: string;
 	readonly last_seen_at?: string;
 	readonly name: string;
@@ -1059,6 +1060,12 @@ export interface ProvisionerKey {
 	readonly organization: string;
 	readonly name: string;
 	readonly tags: Record<string, string>;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerKeyDaemons {
+	readonly key: ProvisionerKey;
+	readonly daemons: Readonly<Array<ProvisionerDaemon>>;
 }
 
 // From codersdk/workspaces.go

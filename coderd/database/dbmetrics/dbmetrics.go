@@ -1922,6 +1922,13 @@ func (m metricsStore) ListProvisionerKeysByOrganization(ctx context.Context, org
 	return r0, r1
 }
 
+func (m metricsStore) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListProvisionerKeysByOrganizationExcludeReserved(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("ListProvisionerKeysByOrganizationExcludeReserved").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListWorkspaceAgentPortShares(ctx, workspaceID)

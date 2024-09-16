@@ -331,6 +331,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Get("/", api.provisionerKeys)
 			r.Post("/", api.postProvisionerKey)
+			r.Get("/daemons", api.provisionerKeyDaemons)
 			r.Route("/{provisionerkey}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractProvisionerKeyParam(options.Database),
