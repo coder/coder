@@ -257,12 +257,11 @@ func findTemplateAdmins(ctx context.Context, db database.Store, stats database.G
 	}
 
 	var templateAdmins []database.GetUsersRow
-
-	usersByIDs := map[uuid.UUID]database.GetUsersRow{}
-	if len(usersByIDs) == 0 {
+	if len(users) == 0 {
 		return templateAdmins, nil
 	}
 
+	usersByIDs := map[uuid.UUID]database.GetUsersRow{}
 	var userIDs []uuid.UUID
 	for _, user := range users {
 		usersByIDs[user.ID] = user
