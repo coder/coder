@@ -15,7 +15,7 @@ You can read more on dotfiles best practices [here](https://dotfiles.github.io).
 
 Coder's [dotfiles module](https://registry.coder.com/modules/dotfiles)
 abstracts Coder's dotfiles command into a module. This will prompt the 
-user for their dotfiles repository URL on template creation using a 
+user for their dotfiles repository URL on workspace creation using a 
 coder_parameter.
 
 ```hcl
