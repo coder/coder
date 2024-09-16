@@ -165,7 +165,7 @@ export const GroupPage: FC = () => {
 							<TableRow>
 								<TableCell width="59%">User</TableCell>
 								<TableCell width="40">Status</TableCell>
-								<TableCell width="1%"></TableCell>
+								<TableCell width="1%" />
 							</TableRow>
 						</TableHead>
 

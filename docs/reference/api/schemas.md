@@ -6269,6 +6269,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -6447,6 +6448,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"threshold": 0,
 				"url": "string"
 			},
+			"hidden": true,
 			"icon": "string",
 			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 			"sharing_level": "owner",
@@ -6840,6 +6842,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"threshold": 0,
 		"url": "string"
 	},
+	"hidden": true,
 	"icon": "string",
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"sharing_level": "owner",
@@ -6859,6 +6862,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `external`       | boolean                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
 | `health`         | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
 | `healthcheck`    | [codersdk.Healthcheck](#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
+| `hidden`         | boolean                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `icon`           | string                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `id`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `sharing_level`  | [codersdk.WorkspaceAppSharingLevel](#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
@@ -6955,6 +6959,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 								"threshold": 0,
 								"url": "string"
 							},
+							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"sharing_level": "owner",
@@ -7289,6 +7294,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"threshold": 0,
 						"url": "string"
 					},
+					"hidden": true,
 					"icon": "string",
 					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 					"sharing_level": "owner",
@@ -7565,6 +7571,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 										"external": true,
 										"health": "disabled",
 										"healthcheck": {},
+										"hidden": true,
 										"icon": "string",
 										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 										"sharing_level": "owner",
@@ -8978,6 +8985,7 @@ _None_
 ```json
 {
 	"access_token": "string",
+	"expires_in": 0,
 	"expiry": "string",
 	"refresh_token": "string",
 	"token_type": "string"
@@ -8986,13 +8994,14 @@ _None_
 
 ### Properties
 
-| Name                                                                                                                                                    | Type   | Required | Restrictions | Description                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `access_token`                                                                                                                                          | string | false    |              | Access token is the token that authorizes and authenticates the requests.                                                   |
-| `expiry`                                                                                                                                                | string | false    |              | Expiry is the optional expiration time of the access token.                                                                 |
+| Name                                                                                                                                                    | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_token`                                                                                                                                          | string  | false    |              | Access token is the token that authorizes and authenticates the requests.                                                                                                                                                                                                   |
+| `expires_in`                                                                                                                                            | integer | false    |              | Expires in is the OAuth2 wire format "expires_in" field, which specifies how many seconds later the token expires, relative to an unknown time base approximately around "now". It is the application's responsibility to populate `Expiry` from `ExpiresIn` when required. |
+| `expiry`                                                                                                                                                | string  | false    |              | Expiry is the optional expiration time of the access token.                                                                                                                                                                                                                 |
 | If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used. |
-| `refresh_token`                                                                                                                                         | string | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires. |
-| `token_type`                                                                                                                                            | string | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                              |
+| `refresh_token`                                                                                                                                         | string  | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires.                                                                                                                                                 |
+| `token_type`                                                                                                                                            | string  | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                                                                                                                                                                              |
 
 ## serpent.Annotations
 

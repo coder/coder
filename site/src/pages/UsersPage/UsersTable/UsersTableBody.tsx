@@ -12,7 +12,7 @@ import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
-import { EnterpriseBadge } from "components/Badges/Badges";
+import { PremiumBadge } from "components/Badges/Badges";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { LastSeen } from "components/LastSeen/LastSeen";
@@ -208,7 +208,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 											disabled={!canViewActivity}
 										>
 											View activity
-											{!canViewActivity && <EnterpriseBadge />}
+											{!canViewActivity && <PremiumBadge />}
 										</MoreMenuItem>
 										<MoreMenuItem
 											onClick={() => onResetUserPassword(user)}

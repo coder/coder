@@ -70,6 +70,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 								"threshold": 0,
 								"url": "string"
 							},
+							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"sharing_level": "owner",
@@ -252,6 +253,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 								"threshold": 0,
 								"url": "string"
 							},
+							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"sharing_level": "owner",
@@ -573,6 +575,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 							"threshold": 0,
 							"url": "string"
 						},
+						"hidden": true,
 						"icon": "string",
 						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 						"sharing_level": "owner",
@@ -692,6 +695,7 @@ Status Code **200**
 | `»»»» interval`                 | integer                                                                                                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
 | `»»»» threshold`                | integer                                                                                                | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy".                                                                                                                                               |
 | `»»»» url`                      | string                                                                                                 | false    |              | URL specifies the endpoint to check for the app health.                                                                                                                                                                                        |
+| `»»» hidden`                    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» icon`                      | string                                                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
@@ -862,6 +866,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 								"threshold": 0,
 								"url": "string"
 							},
+							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"sharing_level": "owner",
@@ -1049,6 +1054,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -1205,6 +1211,7 @@ Status Code **200**
 | `»»»»» interval`                 | integer                                                                                                | false    |              | Interval specifies the seconds between each health check.                                                                                                                                                                                      |
 | `»»»»» threshold`                | integer                                                                                                | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy".                                                                                                                                               |
 | `»»»»» url`                      | string                                                                                                 | false    |              | URL specifies the endpoint to check for the app health.                                                                                                                                                                                        |
+| `»»»» hidden`                    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» icon`                      | string                                                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `»»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
@@ -1429,6 +1436,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 								"threshold": 0,
 								"url": "string"
 							},
+							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"sharing_level": "owner",

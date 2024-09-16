@@ -236,7 +236,7 @@ authentication. Upon deactivation, users are
 the Coder server.
 
 ```env
-CODER_SCIM_API_KEY="your-api-key"
+CODER_SCIM_AUTH_HEADER="your-api-key"
 ```
 
 ## TLS

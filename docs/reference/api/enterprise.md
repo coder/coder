@@ -1141,6 +1141,7 @@ grant_type: authorization_code
 ```json
 {
 	"access_token": "string",
+	"expires_in": 0,
 	"expiry": "string",
 	"refresh_token": "string",
 	"token_type": "string"

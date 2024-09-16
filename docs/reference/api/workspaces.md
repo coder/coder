@@ -109,6 +109,7 @@ of the template will be used.
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -324,6 +325,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -563,6 +565,7 @@ of the template will be used.
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -777,6 +780,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 										"external": true,
 										"health": "disabled",
 										"healthcheck": {},
+										"hidden": true,
 										"icon": "string",
 										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 										"sharing_level": "owner",
@@ -993,6 +997,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -1324,6 +1329,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",

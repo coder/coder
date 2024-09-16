@@ -95,7 +95,7 @@ Specify a duration workspaces may be in the dormant state prior to being deleted
 | Type    | <code>bool</code>  |
 | Default | <code>false</code> |
 
-Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.
+Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature. See https://coder.com/docs/templates/general-settings#require-automatic-updates-enterprise for more details.
 
 ### -y, --yes
 

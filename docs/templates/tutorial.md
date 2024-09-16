@@ -111,7 +111,7 @@ workspaces.
 ![Building a template](../images/templates/build-template.png)
 
 Select **Publish version**. In the **Publish new version** dialog, make sure
-**Promote to default version** is checked then select **Publish**.
+**Promote to active version** is checked then select **Publish**.
 
 ![Publish a template](../images/templates/publish.png)
 

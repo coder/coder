@@ -14044,6 +14044,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "hidden": {
+                    "type": "boolean"
+                },
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
@@ -15213,6 +15216,10 @@ const docTemplate = `{
                 "access_token": {
                     "description": "AccessToken is the token that authorizes and authenticates\nthe requests.",
                     "type": "string"
+                },
+                "expires_in": {
+                    "description": "ExpiresIn is the OAuth2 wire format \"expires_in\" field,\nwhich specifies how many seconds later the token expires,\nrelative to an unknown time base approximately around \"now\".\nIt is the application's responsibility to populate\n` + "`" + `Expiry` + "`" + ` from ` + "`" + `ExpiresIn` + "`" + ` when required.",
+                    "type": "integer"
                 },
                 "expiry": {
                     "description": "Expiry is the optional expiration time of the access token.\n\nIf zero, TokenSource implementations will reuse the same\ntoken forever and RefreshToken or equivalent\nmechanisms for that TokenSource will not be used.",

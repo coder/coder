@@ -1183,6 +1183,13 @@ func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt tim
 	return q.db.DeleteReplicasUpdatedBefore(ctx, updatedAt)
 }
 
+func (q *querier) DeleteRuntimeConfig(ctx context.Context, key string) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteRuntimeConfig(ctx, key)
+}
+
 func (q *querier) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
 		return database.DeleteTailnetAgentRow{}, err
@@ -1858,6 +1865,13 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 		return nil, err
 	}
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
+}
+
+func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetRuntimeConfig(ctx, key)
 }
 
 func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
@@ -2882,6 +2896,14 @@ func (q *querier) InsertUser(ctx context.Context, arg database.InsertUserParams)
 	return insert(q.log, q.auth, obj, q.db.InsertUser)(ctx, arg)
 }
 
+func (q *querier) InsertUserGroupsByID(ctx context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+	// This is used by OIDC sync. So only used by a system user.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.InsertUserGroupsByID(ctx, arg)
+}
+
 func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
 	// This will add the user to all named groups. This counts as updating a group.
 	// NOTE: instead of checking if the user has permission to update each group, we instead
@@ -3088,6 +3110,14 @@ func (q *querier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID)
 		return err
 	}
 	return q.db.RemoveUserFromAllGroups(ctx, userID)
+}
+
+func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
+	// This is a system function to clear user groups in group sync.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.RemoveUserFromGroups(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
@@ -3908,6 +3938,13 @@ func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.Upse
 		return database.ProvisionerDaemon{}, err
 	}
 	return q.db.UpsertProvisionerDaemon(ctx, arg)
+}
+
+func (q *querier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertRuntimeConfig(ctx, arg)
 }
 
 func (q *querier) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

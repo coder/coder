@@ -78,6 +78,7 @@ type agentAppAttributes struct {
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 	Order       int64                      `mapstructure:"order"`
+	Hidden      bool                       `mapstructure:"hidden"`
 }
 
 type agentEnvAttributes struct {
@@ -443,6 +444,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 						SharingLevel: sharingLevel,
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
+						Hidden:       attrs.Hidden,
 					})
 				}
 			}

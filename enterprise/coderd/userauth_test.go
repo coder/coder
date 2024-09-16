@@ -402,7 +402,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
 				},
 			})
 
@@ -433,8 +435,10 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
-					cfg.GroupMapping = map[string]string{oidcGroupName: coderGroupName}
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
+					dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{oidcGroupName: coderGroupName}}
 				},
 			})
 
@@ -468,7 +472,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
 				},
 			})
 
@@ -502,7 +508,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
 				},
 			})
 
@@ -537,7 +545,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
 				},
 			})
 
@@ -559,8 +569,10 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
-					cfg.CreateMissingGroups = true
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
+					dv.OIDC.GroupAutoCreate = true
 				},
 			})
 
@@ -582,8 +594,10 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
-					cfg.CreateMissingGroups = true
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
+					dv.OIDC.GroupAutoCreate = true
 				},
 			})
 
@@ -606,8 +620,10 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
-					cfg.GroupAllowList = map[string]bool{allowedGroup: true}
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
+					dv.OIDC.GroupAllowList = []string{allowedGroup}
 				},
 			})
 
@@ -697,6 +713,7 @@ func TestGroupSync(t *testing.T) {
 	testCases := []struct {
 		name   string
 		modCfg func(cfg *coderd.OIDCConfig)
+		modDV  func(dv *codersdk.DeploymentValues)
 		// initialOrgGroups is initial groups in the org
 		initialOrgGroups []string
 		// initialUserGroups is initial groups for the user
@@ -718,10 +735,10 @@ func TestGroupSync(t *testing.T) {
 		},
 		{
 			name: "GroupSyncDisabled",
-			modCfg: func(cfg *coderd.OIDCConfig) {
+			modDV: func(dv *codersdk.DeploymentValues) {
 				// Disable group sync
-				cfg.GroupField = ""
-				cfg.GroupFilter = regexp.MustCompile(".*")
+				dv.OIDC.GroupField = ""
+				dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile(".*"))
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"b", "c", "d"},
@@ -732,10 +749,8 @@ func TestGroupSync(t *testing.T) {
 		{
 			// From a,c,b -> b,c,d
 			name: "ChangeUserGroups",
-			modCfg: func(cfg *coderd.OIDCConfig) {
-				cfg.GroupMapping = map[string]string{
-					"D": "d",
-				}
+			modDV: func(dv *codersdk.DeploymentValues) {
+				dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{"D": "d"}}
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -749,8 +764,8 @@ func TestGroupSync(t *testing.T) {
 		{
 			// From a,c,b -> []
 			name: "RemoveAllGroups",
-			modCfg: func(cfg *coderd.OIDCConfig) {
-				cfg.GroupFilter = regexp.MustCompile(".*")
+			modDV: func(dv *codersdk.DeploymentValues) {
+				dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile(".*"))
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -763,8 +778,8 @@ func TestGroupSync(t *testing.T) {
 		{
 			// From a,c,b -> b,c,d,e,f
 			name: "CreateMissingGroups",
-			modCfg: func(cfg *coderd.OIDCConfig) {
-				cfg.CreateMissingGroups = true
+			modDV: func(dv *codersdk.DeploymentValues) {
+				dv.OIDC.GroupAutoCreate = true
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -777,14 +792,11 @@ func TestGroupSync(t *testing.T) {
 		{
 			// From a,c,b -> b,c,d,e,f
 			name: "CreateMissingGroupsFilter",
-			modCfg: func(cfg *coderd.OIDCConfig) {
-				cfg.CreateMissingGroups = true
+			modDV: func(dv *codersdk.DeploymentValues) {
+				dv.OIDC.GroupAutoCreate = true
 				// Only single letter groups
-				cfg.GroupFilter = regexp.MustCompile("^[a-z]$")
-				cfg.GroupMapping = map[string]string{
-					// Does not match the filter, but does after being mapped!
-					"zebra": "z",
-				}
+				dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile("^[a-z]$"))
+				dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{"zebra": "z"}}
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -806,8 +818,15 @@ func TestGroupSync(t *testing.T) {
 			t.Parallel()
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
-					cfg.GroupField = "groups"
-					tc.modCfg(cfg)
+					if tc.modCfg != nil {
+						tc.modCfg(cfg)
+					}
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = "groups"
+					if tc.modDV != nil {
+						tc.modDV(dv)
+					}
 				},
 			})
 
