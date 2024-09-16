@@ -37,6 +37,23 @@ WHERE
 AND 
     lower(name) = lower(@name);
 
+-- name: ListProvisionerKeysByOrganizationExcludeReserved :many
+SELECT
+    *
+FROM
+    provisioner_keys
+WHERE
+    organization_id = $1
+AND
+    -- exclude reserved built-in key
+    id != '00000000-0000-0000-0000-000000000001'::uuid
+AND 
+    -- exclude reserved user-auth key
+    id != '00000000-0000-0000-0000-000000000002'::uuid
+AND 
+    -- exclude reserved psk key
+    id != '00000000-0000-0000-0000-000000000003'::uuid;
+
 -- name: ListProvisionerKeysByOrganization :many
 SELECT
     *

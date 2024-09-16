@@ -154,7 +154,8 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 				<FormFooter
 					onCancel={onCancel}
 					isLoading={isSubmitting}
-					submitDisabled={disabled}
+					submitLabel="Submit and restart"
+					submitDisabled={disabled || !form.dirty}
 				/>
 			</HorizontalForm>
 		</>

@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -84,7 +85,7 @@ func TestGroupSyncTable(t *testing.T) {
 	testCases := []orgSetupDefinition{
 		{
 			Name: "SwitchGroups",
-			Settings: &idpsync.GroupSyncSettings{
+			Settings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("sg-foo"), ids.ID("sg-foo-2")},
@@ -110,7 +111,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "StayInGroup",
-			Settings: &idpsync.GroupSyncSettings{
+			Settings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				// Only match foo, so bar does not map
 				RegexFilter: regexp.MustCompile("^foo$"),
@@ -130,7 +131,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "UserJoinsGroups",
-			Settings: &idpsync.GroupSyncSettings{
+			Settings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("ng-foo"), uuid.New()},
@@ -153,7 +154,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "CreateGroups",
-			Settings: &idpsync.GroupSyncSettings{
+			Settings: &codersdk.GroupSyncSettings{
 				Field:             "groups",
 				RegexFilter:       regexp.MustCompile("^create"),
 				AutoCreateMissing: true,
@@ -166,7 +167,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "GroupNamesNoMapping",
-			Settings: &idpsync.GroupSyncSettings{
+			Settings: &codersdk.GroupSyncSettings{
 				Field:             "groups",
 				RegexFilter:       regexp.MustCompile(".*"),
 				AutoCreateMissing: false,
@@ -183,7 +184,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "NoUser",
-			Settings: &idpsync.GroupSyncSettings{
+			Settings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					// Extra ID that does not map to a group
@@ -205,7 +206,7 @@ func TestGroupSyncTable(t *testing.T) {
 		},
 		{
 			Name: "LegacyMapping",
-			Settings: &idpsync.GroupSyncSettings{
+			Settings: &codersdk.GroupSyncSettings{
 				Field:       "groups",
 				RegexFilter: regexp.MustCompile("^legacy"),
 				LegacyNameMapping: map[string]string{
@@ -241,6 +242,15 @@ func TestGroupSyncTable(t *testing.T) {
 				manager,
 				idpsync.DeploymentSyncSettings{
 					GroupField: "groups",
+					Legacy: idpsync.DefaultOrgLegacySettings{
+						GroupField: "groups",
+						GroupMapping: map[string]string{
+							"foo": "legacy-foo",
+							"baz": "legacy-baz",
+						},
+						GroupFilter:         regexp.MustCompile("^legacy"),
+						CreateMissingGroups: true,
+					},
 				},
 			)
 
@@ -274,6 +284,8 @@ func TestGroupSyncTable(t *testing.T) {
 			// Also sync the default org!
 			idpsync.DeploymentSyncSettings{
 				GroupField: "groups",
+				// This legacy field will fail any tests if the legacy override code
+				// has any bugs.
 				Legacy: idpsync.DefaultOrgLegacySettings{
 					GroupField: "groups",
 					GroupMapping: map[string]string{
@@ -373,7 +385,7 @@ func TestSyncDisabled(t *testing.T) {
 			ids.ID("baz"): false,
 			ids.ID("bop"): false,
 		},
-		Settings: &idpsync.GroupSyncSettings{
+		Settings: &codersdk.GroupSyncSettings{
 			Field: "groups",
 			Mapping: map[string][]uuid.UUID{
 				"foo": {ids.ID("foo")},
@@ -716,9 +728,11 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 	}
 
 	manager := runtimeconfig.NewManager()
-	orgResolver := manager.OrganizationResolver(db, org.ID)
-	err = s.Group.SetRuntimeValue(context.Background(), orgResolver, def.Settings)
-	require.NoError(t, err)
+	if def.Settings != nil {
+		orgResolver := manager.OrganizationResolver(db, org.ID)
+		err = s.Group.SetRuntimeValue(context.Background(), orgResolver, (*idpsync.GroupSyncSettings)(def.Settings))
+		require.NoError(t, err)
+	}
 
 	if !def.NotMember {
 		dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -759,7 +773,7 @@ type orgSetupDefinition struct {
 	GroupNames map[string]bool
 	NotMember  bool
 
-	Settings           *idpsync.GroupSyncSettings
+	Settings           *codersdk.GroupSyncSettings
 	ExpectedGroups     []uuid.UUID
 	ExpectedGroupNames []string
 }

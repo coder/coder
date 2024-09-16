@@ -277,7 +277,7 @@ func (tac *tailnetAPIConnector) coordinate(client proto.DRPCTailnetClient) {
 	select {
 	case <-tac.ctx.Done():
 		tac.logger.Debug(tac.ctx, "main context canceled; do graceful disconnect")
-		crdErr := coordination.Close()
+		crdErr := coordination.Close(tac.gracefulCtx)
 		if crdErr != nil {
 			tac.logger.Warn(tac.ctx, "failed to close remote coordination", slog.Error(err))
 		}
