@@ -13026,6 +13026,8 @@ WHERE
     AND pj.completed_at IS NOT NULL
 GROUP BY
     w.template_id, template_name, template_display_name, template_organization_id
+ORDER BY
+    template_name ASC
 `
 
 type GetWorkspaceBuildStatsByTemplatesRow struct {
