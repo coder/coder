@@ -1896,7 +1896,9 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 			coordinator, conn)
 		t.Cleanup(func() {
 			t.Logf("closing coordination %s", name)
-			err := coordination.Close()
+			cctx, ccancel := context.WithTimeout(testCtx, testutil.WaitShort)
+			defer ccancel()
+			err := coordination.Close(cctx)
 			if err != nil {
 				t.Logf("error closing in-memory coordination: %s", err.Error())
 			}
@@ -2384,7 +2386,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		clientID, metadata.AgentID,
 		coordinator, conn)
 	t.Cleanup(func() {
-		err := coordination.Close()
+		cctx, ccancel := context.WithTimeout(testCtx, testutil.WaitShort)
+		defer ccancel()
+		err := coordination.Close(cctx)
 		if err != nil {
 			t.Logf("error closing in-mem coordination: %s", err.Error())
 		}
