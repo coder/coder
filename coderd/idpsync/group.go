@@ -108,10 +108,6 @@ func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user dat
 		// organization.
 		orgSettings := make(map[uuid.UUID]GroupSyncSettings)
 		for orgID := range userOrgs {
-			def, _ := tx.GetDefaultOrganization(ctx)
-			if def.ID == orgID {
-				fmt.Println("as")
-			}
 			settings, err := s.GroupSyncSettings(ctx, orgID, tx)
 			if err != nil {
 				// TODO: This error is currently silent to org admins.
