@@ -216,31 +216,9 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
 
-	// Keep this block scoping to prevent accidental use of the user variable.
-	{
-		// nolint:gocritic // The caller could be an org admin without this perm.
-		// We need to disable manual role assignment if role sync is enabled for
-		// the given organization.
-		user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.UserID)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-		if user.LoginType == database.LoginTypeOIDC {
-			// nolint:gocritic // fetching settings
-			orgSync, err := api.IDPSync.OrganizationRoleSyncEnabled(dbauthz.AsSystemRestricted(ctx), api.Database, organization.ID)
-			if err != nil {
-				httpapi.InternalServerError(rw, err)
-				return
-			}
-			if orgSync {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Cannot modify roles for OIDC users when role sync is enabled. This organization member's roles are managed by the identity provider.",
-					Detail:  "'User Role Field' is set in the organization settings. Ask an administrator to adjust or disable these settings.",
-				})
-				return
-			}
-		}
+	// Check if changing roles is allowed
+	if !api.allowChangingMemberRoles(rw, ctx, member, organization) {
+		return
 	}
 
 	if apiKey.UserID == member.OrganizationMember.UserID {
@@ -285,6 +263,35 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
+}
+
+func (api *API) allowChangingMemberRoles(rw http.ResponseWriter, ctx context.Context, member httpmw.OrganizationMember, organization database.Organization) bool {
+	// nolint:gocritic // The caller could be an org admin without this perm.
+	// We need to disable manual role assignment if role sync is enabled for
+	// the given organization.
+	user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.UserID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+
+	if user.LoginType == database.LoginTypeOIDC {
+		// nolint:gocritic // fetching settings
+		orgSync, err := api.IDPSync.OrganizationRoleSyncEnabled(dbauthz.AsSystemRestricted(ctx), api.Database, organization.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return false
+		}
+		if orgSync {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot modify roles for OIDC users when role sync is enabled. This organization member's roles are managed by the identity provider.",
+				Detail:  "'User Role Field' is set in the organization settings. Ask an administrator to adjust or disable these settings.",
+			})
+			return false
+		}
+	}
+
+	return true
 }
 
 // convertOrganizationMembers batches the role lookup to make only 1 sql call
