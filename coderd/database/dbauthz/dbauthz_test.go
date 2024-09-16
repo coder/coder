@@ -551,6 +551,11 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
+	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		t := dbgen.ProvisionerJobTimings(s.T(), db, database.InsertProvisionerJobTimingsParams{JobID: j.ID})
+		check.Args(j.ID).Asserts().Returns(slice.New(t))
+	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
