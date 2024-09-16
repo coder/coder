@@ -217,22 +217,14 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		sUser.UserName = codersdk.UsernameFrom(sUser.UserName)
 	}
 
-	// TODO: This is a temporary solution that does not support multi-org
-	// 	deployments. This assumption places all new SCIM users into the
-	//	default organization.
-	//nolint:gocritic
-	defaultOrganization, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
-	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
-		return
-	}
-
 	//nolint:gocritic // needed for SCIM
 	dbUser, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-			Username:        sUser.UserName,
-			Email:           email,
-			OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
+			Username: sUser.UserName,
+			Email:    email,
+			// In the multi-org world, SCIM does not assign any orgs. Users will
+			// be automatically sync'd with the correct organization on login.
+			OrganizationIDs: []uuid.UUID{},
 		},
 		LoginType: database.LoginTypeOIDC,
 		// Do not send notifications to user admins as SCIM endpoint might be called sequentially to all users.

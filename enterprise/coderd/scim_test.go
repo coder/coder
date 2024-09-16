@@ -157,6 +157,7 @@ func TestScim(t *testing.T) {
 			require.Len(t, userRes.Users, 1)
 			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
+			assert.Len(t, userRes.Users[0].OrganizationIDs, 0)
 
 			// Expect zero notifications (SkipNotifications = true)
 			require.Empty(t, notifyEnq.Sent)
