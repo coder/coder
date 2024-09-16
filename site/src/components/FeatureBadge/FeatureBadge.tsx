@@ -4,11 +4,11 @@ import { visuallyHidden } from "@mui/utils";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import {
-	useEffect,
-	useState,
 	type FC,
 	type HTMLAttributes,
 	type ReactNode,
+	useEffect,
+	useState,
 } from "react";
 import { docs } from "utils/docs";
 
