@@ -5997,6 +5997,45 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
+`
+
+func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
+	rows, err := q.db.QueryContext(ctx, listProvisionerKeysByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerKey
+	for rows.Next() {
+		var i ProvisionerKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.Name,
+			&i.HashedSecret,
+			&i.Tags,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProvisionerKeysByOrganizationExcludeReserved = `-- name: ListProvisionerKeysByOrganizationExcludeReserved :many
+SELECT
+    id, created_at, organization_id, name, hashed_secret, tags
+FROM
+    provisioner_keys
+WHERE
+    organization_id = $1
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
@@ -6008,8 +6047,8 @@ AND
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
 
-func (q *sqlQuerier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
-	rows, err := q.db.QueryContext(ctx, listProvisionerKeysByOrganization, organizationID)
+func (q *sqlQuerier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error) {
+	rows, err := q.db.QueryContext(ctx, listProvisionerKeysByOrganizationExcludeReserved, organizationID)
 	if err != nil {
 		return nil, err
 	}

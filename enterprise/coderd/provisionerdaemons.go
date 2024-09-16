@@ -71,10 +71,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// provisionerdserver.DefaultHeartbeatInterval*3 matches the healthcheck report staleInterval.
-	recentDaemons := db2sdk.RecentProvisionerDaemons(time.Now(), provisionerdserver.DefaultHeartbeatInterval*3, daemons)
-
-	httpapi.Write(ctx, rw, http.StatusOK, recentDaemons)
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
 }
 
 type provisionerDaemonAuth struct {

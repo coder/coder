@@ -7610,6 +7610,20 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organ
 
 	keys := make([]database.ProvisionerKey, 0)
 	for _, key := range q.provisionerKeys {
+		if key.OrganizationID == organizationID {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys, nil
+}
+
+func (q *FakeQuerier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.ProvisionerKey, 0)
+	for _, key := range q.provisionerKeys {
 		if key.ID.String() == codersdk.ProvisionerKeyIDBuiltIn ||
 			key.ID.String() == codersdk.ProvisionerKeyIDUserAuth ||
 			key.ID.String() == codersdk.ProvisionerKeyIDPSK {

@@ -37,7 +37,7 @@ WHERE
 AND 
     lower(name) = lower(@name);
 
--- name: ListProvisionerKeysByOrganization :many
+-- name: ListProvisionerKeysByOrganizationExcludeReserved :many
 SELECT
     *
 FROM
@@ -53,6 +53,14 @@ AND
 AND 
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid;
+
+-- name: ListProvisionerKeysByOrganization :many
+SELECT
+    *
+FROM
+    provisioner_keys
+WHERE
+    organization_id = $1;
 
 -- name: DeleteProvisionerKey :exec
 DELETE FROM

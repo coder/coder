@@ -743,6 +743,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
+			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureExternalProvisionerDaemons: 1,
@@ -752,6 +753,16 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		})
 		org := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, org.ID, rbac.ScopedRoleOrgAdmin(org.ID))
+
+		res, err := orgAdmin.CreateProvisionerKey(context.Background(), org.ID, codersdk.CreateProvisionerKeyRequest{
+			Name: "my-key",
+		})
+		require.NoError(t, err)
+
+		keys, err := orgAdmin.ListProvisionerKeys(context.Background(), org.ID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		daemonName := testutil.MustRandString(t, 63)
@@ -762,18 +773,32 @@ func TestGetProvisionerDaemons(t *testing.T) {
 			Provisioners: []codersdk.ProvisionerType{
 				codersdk.ProvisionerTypeEcho,
 			},
-			Tags: map[string]string{},
+			Tags:           map[string]string{},
+			ProvisionerKey: res.Key,
 		})
 		require.NoError(t, err)
 		srv.DRPCConn().Close()
 
 		daemons, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID)
 		require.NoError(t, err)
-		if assert.Len(t, daemons, 1) {
-			assert.Equal(t, daemonName, daemons[0].Name)
-			assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-			assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
-			assert.Equal(t, codersdk.ProvisionerKeyIDUserAuth, daemons[0].KeyID.String())
-		}
+		require.Len(t, daemons, 1)
+
+		assert.Equal(t, daemonName, daemons[0].Name)
+		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
+		assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+		assert.Equal(t, keys[0].ID, daemons[0].KeyID)
+
+		pkDaemons, err := orgAdmin.ListProvisionerKeyDaemons(ctx, org.ID)
+		require.NoError(t, err)
+
+		require.Len(t, pkDaemons, 1)
+		require.Len(t, pkDaemons[0].Daemons, 1)
+		assert.Equal(t, keys[0].ID, pkDaemons[0].Key.ID)
+		assert.Equal(t, keys[0].Name, pkDaemons[0].Key.Name)
+
+		assert.Equal(t, daemonName, pkDaemons[0].Daemons[0].Name)
+		assert.Equal(t, buildinfo.Version(), pkDaemons[0].Daemons[0].Version)
+		assert.Equal(t, proto.CurrentVersion.String(), pkDaemons[0].Daemons[0].APIVersion)
+		assert.Equal(t, keys[0].ID, pkDaemons[0].Daemons[0].KeyID)
 	})
 }

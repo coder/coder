@@ -106,7 +106,7 @@ func (api *API) provisionerKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 
-	pks, err := api.Database.ListProvisionerKeysByOrganization(ctx, organization.ID)
+	pks, err := api.Database.ListProvisionerKeysByOrganizationExcludeReserved(ctx, organization.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -144,6 +144,10 @@ func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 
 	pkDaemons := make([]codersdk.ProvisionerKeyDaemons, 0, len(sdkKeys))
 	for _, key := range sdkKeys {
+		// currently we exclude user-auth from this list
+		if key.ID.String() == codersdk.ProvisionerKeyIDUserAuth {
+			continue
+		}
 		daemons := []codersdk.ProvisionerDaemon{}
 		for _, daemon := range recentDaemons {
 			if daemon.KeyID == key.ID {
