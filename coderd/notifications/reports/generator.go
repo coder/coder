@@ -72,6 +72,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 		for {
 			select {
 			case <-ctx.Done():
+				logger.Debug(ctx, "closing report generator")
 				return
 			case tick := <-ticker.C:
 				ticker.Stop()
