@@ -740,27 +740,12 @@ type OIDCConfig struct {
 	// support the userinfo endpoint, or if the userinfo endpoint causes
 	// undesirable behavior.
 	IgnoreUserInfo bool
-	// UserRoleField selects the claim field to be used as the created user's
-	// roles. If the field is the empty string, then no role updates
-	// will ever come from the OIDC provider.
-	UserRoleField string
-	// UserRoleMapping controls how groups returned by the OIDC provider get mapped
-	// to roles within Coder.
-	// map[oidcRoleName][]coderRoleName
-	UserRoleMapping map[string][]string
-	// UserRolesDefault is the default set of roles to assign to a user if role sync
-	// is enabled.
-	UserRolesDefault []string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
 	IconURL string
 	// SignupsDisabledText is the text do display on the static error page.
 	SignupsDisabledText string
-}
-
-func (cfg OIDCConfig) RoleSyncEnabled() bool {
-	return cfg.UserRoleField != ""
 }
 
 // @Summary OpenID Connect Callback
@@ -983,12 +968,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 
-	roles, roleErr := api.oidcRoles(ctx, mergedClaims)
-	if roleErr != nil {
-		roleErr.Write(rw, r)
-		return
-	}
-
 	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("email", email), slog.Error(err))
@@ -1011,6 +990,12 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	roleSync, roleSyncErr := api.IDPSync.ParseRoleClaims(ctx, mergedClaims)
+	if roleSyncErr != nil {
+		roleSyncErr.Write(rw, r)
+		return
+	}
+
 	// If a new user is authenticating for the first time
 	// the audit action is 'register', not 'login'
 	if user.ID == uuid.Nil {
@@ -1028,10 +1013,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Username:         username,
 		Name:             name,
 		AvatarURL:        picture,
-		UsingRoles:       api.OIDCConfig.RoleSyncEnabled(),
-		Roles:            roles,
 		OrganizationSync: orgSync,
 		GroupSync:        groupSync,
+		RoleSync:         roleSync,
 		DebugContext: OauthDebugContext{
 			IDTokenClaims:  idtokenClaims,
 			UserInfoClaims: userInfoClaims,
@@ -1065,61 +1049,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// any nefarious redirects.
 	redirect = uriFromURL(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
-}
-
-// oidcRoles returns the roles for the user from the OIDC claims.
-// If the function returns false, then the caller should return early.
-// All writes to the response writer are handled by this function.
-// It would be preferred to just return an error, however this function
-// decorates returned errors with the appropriate HTTP status codes and details
-// that are hard to carry in a standard `error` without more work.
-func (api *API) oidcRoles(ctx context.Context, mergedClaims map[string]interface{}) ([]string, *idpsync.HTTPError) {
-	roles := api.OIDCConfig.UserRolesDefault
-	if !api.OIDCConfig.RoleSyncEnabled() {
-		return roles, nil
-	}
-
-	rolesRow, ok := mergedClaims[api.OIDCConfig.UserRoleField]
-	if !ok {
-		// If no claim is provided than we can assume the user is just
-		// a member. This is because there is no way to tell the difference
-		// between []string{} and nil for OIDC claims. IDPs omit claims
-		// if they are empty ([]string{}).
-		// Use []interface{}{} so the next typecast works.
-		rolesRow = []interface{}{}
-	}
-
-	parsedRoles, err := idpsync.ParseStringSliceClaim(rolesRow)
-	if err != nil {
-		api.Logger.Error(ctx, "oidc claims user roles field was an unknown type",
-			slog.F("type", fmt.Sprintf("%T", rolesRow)),
-			slog.Error(err),
-		)
-		return nil, &idpsync.HTTPError{
-			Code:             http.StatusInternalServerError,
-			Msg:              "Login disabled until OIDC config is fixed",
-			Detail:           fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
-			RenderStaticPage: false,
-		}
-	}
-
-	api.Logger.Debug(ctx, "roles returned in oidc claims",
-		slog.F("len", len(parsedRoles)),
-		slog.F("roles", parsedRoles),
-	)
-	for _, role := range parsedRoles {
-		if mappedRoles, ok := api.OIDCConfig.UserRoleMapping[role]; ok {
-			if len(mappedRoles) == 0 {
-				continue
-			}
-			// Mapped roles are added to the list of roles
-			roles = append(roles, mappedRoles...)
-			continue
-		}
-
-		roles = append(roles, role)
-	}
-	return roles, nil
 }
 
 // claimFields returns the sorted list of fields in the claims map.
@@ -1182,10 +1111,7 @@ type oauthLoginParams struct {
 	// OrganizationSync has the organizations that the user will be assigned to.
 	OrganizationSync idpsync.OrganizationParams
 	GroupSync        idpsync.GroupParams
-	// Is UsingRoles is true, then the user will be assigned
-	// the roles provided.
-	UsingRoles bool
-	Roles      []string
+	RoleSync         idpsync.RoleParams
 
 	DebugContext OauthDebugContext
 
@@ -1394,37 +1320,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			return xerrors.Errorf("sync groups: %w", err)
 		}
 
-		// Ensure roles are correct.
-		if params.UsingRoles {
-			ignored := make([]string, 0)
-			filtered := make([]string, 0, len(params.Roles))
-			for _, role := range params.Roles {
-				// TODO: This only supports mapping deployment wide roles. Organization scoped roles
-				// are unsupported.
-				if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: role}); err == nil {
-					filtered = append(filtered, role)
-				} else {
-					ignored = append(ignored, role)
-				}
-			}
-
-			//nolint:gocritic
-			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, filtered)
-			if err != nil {
-				return &idpsync.HTTPError{
-					Code:             http.StatusBadRequest,
-					Msg:              "Invalid roles through OIDC claims",
-					Detail:           fmt.Sprintf("Error from role assignment attempt: %s", err.Error()),
-					RenderStaticPage: true,
-				}
-			}
-			if len(ignored) > 0 {
-				logger.Debug(ctx, "OIDC roles ignored in assignment",
-					slog.F("ignored", ignored),
-					slog.F("assigned", filtered),
-					slog.F("user_id", user.ID),
-				)
-			}
+		// Role sync needs to occur after org sync.
+		err = api.IDPSync.SyncRoles(ctx, tx, user, params.RoleSync)
+		if err != nil {
+			return xerrors.Errorf("sync roles: %w", err)
 		}
 
 		needsUpdate := false

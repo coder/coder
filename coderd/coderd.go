@@ -181,7 +181,6 @@ type Options struct {
 	NetworkTelemetryBatchFrequency time.Duration
 	NetworkTelemetryBatchMaxSize   int
 	SwaggerEndpoint                bool
-	SetUserSiteRoles               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
@@ -372,14 +371,6 @@ func New(options *Options) *API {
 	}
 	if options.TracerProvider == nil {
 		options.TracerProvider = trace.NewNoopTracerProvider()
-	}
-	if options.SetUserSiteRoles == nil {
-		options.SetUserSiteRoles = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, roles []string) error {
-			logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise license",
-				slog.F("user_id", userID), slog.F("roles", roles),
-			)
-			return nil
-		}
 	}
 	if options.TemplateScheduleStore == nil {
 		options.TemplateScheduleStore = &atomic.Pointer[schedule.TemplateScheduleStore]{}
@@ -1157,6 +1148,7 @@ func New(options *Options) *API {
 					r.Post("/", api.postWorkspaceAgentPortShare)
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
 				})
+				r.Get("/timings", api.workspaceTimings)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -1490,6 +1482,11 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		dbTypes = append(dbTypes, database.ProvisionerType(tp))
 	}
 
+	keyID, err := uuid.Parse(string(codersdk.ProvisionerKeyIDBuiltIn))
+	if err != nil {
+		return nil, xerrors.Errorf("failed to parse built-in provisioner key ID: %w", err)
+	}
+
 	//nolint:gocritic // in-memory provisioners are owned by system
 	daemon, err := api.Database.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(dialCtx), database.UpsertProvisionerDaemonParams{
 		Name:           name,
@@ -1500,6 +1497,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		LastSeenAt:     sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),
+		KeyID:          keyID,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create in-memory provisioner daemon: %w", err)

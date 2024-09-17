@@ -4,9 +4,11 @@ import {
 	waitFor,
 } from "@testing-library/react";
 import { AppProviders } from "App";
+import type { ProxyProvider } from "contexts/ProxyContext";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
+import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
@@ -83,6 +85,11 @@ export type RenderWithAuthOptions = {
 	nonAuthenticatedRoutes?: RouteObject[];
 	// In case you want to render a layout inside of it
 	children?: RouteObject["children"];
+
+	mockAuthProviders?: Readonly<{
+		DashboardProvider?: typeof DashboardProvider;
+		ProxyProvider?: typeof ProxyProvider;
+	}>;
 };
 
 export function renderWithAuth(
@@ -92,12 +99,13 @@ export function renderWithAuth(
 		route = "/",
 		extraRoutes = [],
 		nonAuthenticatedRoutes = [],
+		mockAuthProviders = {},
 		children,
 	}: RenderWithAuthOptions = {},
 ) {
 	const routes: RouteObject[] = [
 		{
-			element: <RequireAuth />,
+			element: <RequireAuth {...mockAuthProviders} />,
 			children: [{ path, element, children }, ...extraRoutes],
 		},
 		...nonAuthenticatedRoutes,
@@ -108,8 +116,8 @@ export function renderWithAuth(
 	);
 
 	return {
-		user: MockUser,
 		...renderResult,
+		user: MockUser,
 	};
 }
 

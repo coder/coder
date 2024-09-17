@@ -68,6 +68,7 @@ func New() database.Store {
 			notificationPreferences:   make([]database.NotificationPreference, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
+			provisionerKeys:           make([]database.ProvisionerKey, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
 			workspaceResources:        make([]database.WorkspaceResource, 0),
@@ -108,6 +109,41 @@ func New() database.Store {
 
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
+
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           codersdk.ProvisionerKeyNameBuiltIn,
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create built-in provisioner key: %w", err))
+	}
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDUserAuth),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           codersdk.ProvisionerKeyNameUserAuth,
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create user-auth provisioner key: %w", err))
+	}
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDPSK),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           codersdk.ProvisionerKeyNamePSK,
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create psk provisioner key: %w", err))
+	}
+
 	return q
 }
 
@@ -156,7 +192,6 @@ type data struct {
 	dbcryptKeys                     []database.DBCryptKey
 	files                           []database.File
 	externalAuthLinks               []database.ExternalAuthLink
-	notificationReportGeneratorLogs []database.NotificationReportGeneratorLog
 	gitSSHKey                       []database.GitSSHKey
 	groupMembers                    []database.GroupMemberTable
 	groups                          []database.Group
@@ -164,6 +199,7 @@ type data struct {
 	licenses                        []database.License
 	notificationMessages            []database.NotificationMessage
 	notificationPreferences         []database.NotificationPreference
+	notificationReportGeneratorLogs []database.NotificationReportGeneratorLog
 	oauth2ProviderApps              []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets        []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes          []database.OAuth2ProviderAppCode
@@ -196,6 +232,7 @@ type data struct {
 	workspaces                      []database.Workspace
 	workspaceProxies                []database.WorkspaceProxy
 	customRoles                     []database.CustomRole
+	provisionerJobTimings           []database.ProvisionerJobTiming
 	runtimeConfig                   map[string]string
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
@@ -2784,6 +2821,12 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 	orgDetailsCache := make(map[uuid.UUID]struct{ name, displayName string })
 	filtered := make([]database.GetGroupsRow, 0)
 	for _, group := range q.groups {
+		if len(arg.GroupIds) > 0 {
+			if !slices.Contains(arg.GroupIds, group.ID) {
+				continue
+			}
+		}
+
 		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
 			continue
 		}
@@ -3369,6 +3412,26 @@ func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	defer q.mutex.RUnlock()
 
 	return q.getProvisionerJobByIDNoLock(ctx, id)
+}
+
+func (q *FakeQuerier) GetProvisionerJobTimingsByJobID(_ context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	timings := make([]database.ProvisionerJobTiming, 0)
+	for _, timing := range q.provisionerJobTimings {
+		if timing.JobID == jobID {
+			timings = append(timings, timing)
+		}
+	}
+	if len(timings) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	sort.Slice(timings, func(i, j int) bool {
+		return timings[i].StartedAt.Before(timings[j].StartedAt)
+	})
+
+	return timings, nil
 }
 
 func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
@@ -6921,13 +6984,31 @@ func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
-func (*FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+func (q *FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, nil
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	insertedTimings := make([]database.ProvisionerJobTiming, 0, len(arg.StartedAt))
+	for i := range arg.StartedAt {
+		timing := database.ProvisionerJobTiming{
+			JobID:     arg.JobID,
+			StartedAt: arg.StartedAt[i],
+			EndedAt:   arg.EndedAt[i],
+			Stage:     arg.Stage[i],
+			Source:    arg.Source[i],
+			Action:    arg.Action[i],
+			Resource:  arg.Resource[i],
+		}
+		q.provisionerJobTimings = append(q.provisionerJobTimings, timing)
+		insertedTimings = append(insertedTimings, timing)
+	}
+
+	return insertedTimings, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
@@ -7673,6 +7754,25 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organ
 
 	keys := make([]database.ProvisionerKey, 0)
 	for _, key := range q.provisionerKeys {
+		if key.OrganizationID == organizationID {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys, nil
+}
+
+func (q *FakeQuerier) ListProvisionerKeysByOrganizationExcludeReserved(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.ProvisionerKey, 0)
+	for _, key := range q.provisionerKeys {
+		if key.ID.String() == codersdk.ProvisionerKeyIDBuiltIn ||
+			key.ID.String() == codersdk.ProvisionerKeyIDUserAuth ||
+			key.ID.String() == codersdk.ProvisionerKeyIDPSK {
+			continue
+		}
 		if key.OrganizationID == organizationID {
 			keys = append(keys, key)
 		}
@@ -8774,7 +8874,7 @@ func (q *FakeQuerier) UpdateUserRoles(_ context.Context, arg database.UpdateUser
 		}
 
 		// Set new roles
-		user.RBACRoles = arg.GrantedRoles
+		user.RBACRoles = slice.Unique(arg.GrantedRoles)
 		// Remove duplicates and sort
 		uniqueRoles := make([]string, 0, len(user.RBACRoles))
 		exist := make(map[string]struct{})
@@ -9430,6 +9530,7 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		Version:        arg.Version,
 		APIVersion:     arg.APIVersion,
 		OrganizationID: arg.OrganizationID,
+		KeyID:          arg.KeyID,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil

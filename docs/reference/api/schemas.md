@@ -3988,6 +3988,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"api_version": "string",
 	"created_at": "2019-08-24T14:15:22Z",
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 	"last_seen_at": "2019-08-24T14:15:22Z",
 	"name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -4007,6 +4008,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `api_version`      | string          | false    |              |             |
 | `created_at`       | string          | false    |              |             |
 | `id`               | string          | false    |              |             |
+| `key_id`           | string          | false    |              |             |
 | `last_seen_at`     | string          | false    |              |             |
 | `name`             | string          | false    |              |             |
 | `organization_id`  | string          | false    |              |             |
@@ -4149,6 +4151,47 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `tags`             | object | false    |              |             |
 | » `[any property]` | string | false    |              |             |
 
+## codersdk.ProvisionerKeyDaemons
+
+```json
+{
+	"daemons": [
+		{
+			"api_version": "string",
+			"created_at": "2019-08-24T14:15:22Z",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"name": "string",
+			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+			"provisioners": ["string"],
+			"tags": {
+				"property1": "string",
+				"property2": "string"
+			},
+			"version": "string"
+		}
+	],
+	"key": {
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"name": "string",
+		"organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		}
+	}
+}
+```
+
+### Properties
+
+| Name      | Type                                                              | Required | Restrictions | Description |
+| --------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `daemons` | array of [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
+| `key`     | [codersdk.ProvisionerKey](#codersdkprovisionerkey)                | false    |              |             |
+
 ## codersdk.ProvisionerLogLevel
 
 ```json
@@ -4176,6 +4219,32 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value  |
 | ------ |
 | `file` |
+
+## codersdk.ProvisionerTiming
+
+```json
+{
+	"action": "string",
+	"ended_at": "2019-08-24T14:15:22Z",
+	"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+	"resource": "string",
+	"source": "string",
+	"stage": "string",
+	"started_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `action`     | string | false    |              |             |
+| `ended_at`   | string | false    |              |             |
+| `job_id`     | string | false    |              |             |
+| `resource`   | string | false    |              |             |
+| `source`     | string | false    |              |             |
+| `stage`      | string | false    |              |             |
+| `started_at` | string | false    |              |             |
 
 ## codersdk.ProxyHealthReport
 
@@ -4291,6 +4360,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `file`                    |
 | `group`                   |
 | `group_member`            |
+| `idpsync_settings`        |
 | `license`                 |
 | `notification_preference` |
 | `notification_template`   |
@@ -7454,6 +7524,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `deleting`  |
 | `deleted`   |
 
+## codersdk.WorkspaceTimings
+
+```json
+{
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                              | Required | Restrictions | Description |
+| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `provisioner_timings` | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
+
 ## codersdk.WorkspaceTransition
 
 ```json
@@ -8534,6 +8628,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 					"api_version": "string",
 					"created_at": "2019-08-24T14:15:22Z",
 					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 					"last_seen_at": "2019-08-24T14:15:22Z",
 					"name": "string",
 					"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -8653,6 +8748,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"api_version": "string",
 				"created_at": "2019-08-24T14:15:22Z",
 				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 				"last_seen_at": "2019-08-24T14:15:22Z",
 				"name": "string",
 				"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -8707,6 +8803,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"api_version": "string",
 		"created_at": "2019-08-24T14:15:22Z",
 		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 		"last_seen_at": "2019-08-24T14:15:22Z",
 		"name": "string",
 		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -8867,6 +8964,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity` | `warning` |
 | `severity` | `error`   |
 
+## idpsync.GroupSyncSettings
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
+### Properties
+
+| Name                         | Type                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                            |
+| ---------------------------- | ------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto_create_missing_groups` | boolean                        | false    |              | Auto create missing groups controls whether groups returned by the OIDC provider are automatically created in Coder if they are missing.                                                                                                                                               |
+| `field`                      | string                         | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider.                                                                                                            |
+| `legacy_group_name_mapping`  | object                         | false    |              | Legacy group name mapping is deprecated. It remaps an IDP group name to a Coder group name. Since configuration is now done at runtime, group IDs are used to account for group renames. For legacy configurations, this config option has to remain. Deprecated: Use Mapping instead. |
+| » `[any property]`           | string                         | false    |              |                                                                                                                                                                                                                                                                                        |
+| `mapping`                    | object                         | false    |              | Mapping maps from an OIDC group --> Coder group ID                                                                                                                                                                                                                                     |
+| » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
+| `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
+
 ## key.NodePublic
 
 ```json
@@ -8944,6 +9071,7 @@ _None_
 ```json
 {
 	"access_token": "string",
+	"expires_in": 0,
 	"expiry": "string",
 	"refresh_token": "string",
 	"token_type": "string"
@@ -8952,13 +9080,24 @@ _None_
 
 ### Properties
 
-| Name                                                                                                                                                    | Type   | Required | Restrictions | Description                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `access_token`                                                                                                                                          | string | false    |              | Access token is the token that authorizes and authenticates the requests.                                                   |
-| `expiry`                                                                                                                                                | string | false    |              | Expiry is the optional expiration time of the access token.                                                                 |
+| Name                                                                                                                                                    | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_token`                                                                                                                                          | string  | false    |              | Access token is the token that authorizes and authenticates the requests.                                                                                                                                                                                                   |
+| `expires_in`                                                                                                                                            | integer | false    |              | Expires in is the OAuth2 wire format "expires_in" field, which specifies how many seconds later the token expires, relative to an unknown time base approximately around "now". It is the application's responsibility to populate `Expiry` from `ExpiresIn` when required. |
+| `expiry`                                                                                                                                                | string  | false    |              | Expiry is the optional expiration time of the access token.                                                                                                                                                                                                                 |
 | If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used. |
-| `refresh_token`                                                                                                                                         | string | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires. |
-| `token_type`                                                                                                                                            | string | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                              |
+| `refresh_token`                                                                                                                                         | string  | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires.                                                                                                                                                 |
+| `token_type`                                                                                                                                            | string  | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                                                                                                                                                                              |
+
+## regexp.Regexp
+
+```json
+{}
+```
+
+### Properties
+
+_None_
 
 ## serpent.Annotations
 

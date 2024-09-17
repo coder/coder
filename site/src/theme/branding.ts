@@ -1,6 +1,14 @@
 export interface Branding {
-	background: string;
-	divider: string;
-	border: string;
-	text: string;
+	enterprise: {
+		background: string;
+		divider: string;
+		border: string;
+		text: string;
+	};
+	premium: {
+		background: string;
+		divider: string;
+		border: string;
+		text: string;
+	};
 }

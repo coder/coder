@@ -551,6 +551,23 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
+	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
+		jobID := uuid.New()
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: jobID})
+		t := dbgen.ProvisionerJobTimings(s.T(), db, database.InsertProvisionerJobTimingsParams{
+			JobID:     jobID,
+			StartedAt: []time.Time{dbtime.Now(), dbtime.Now()},
+			EndedAt:   []time.Time{dbtime.Now(), dbtime.Now()},
+			Stage: []database.ProvisionerJobTimingStage{
+				database.ProvisionerJobTimingStageInit,
+				database.ProvisionerJobTimingStagePlan,
+			},
+			Source:   []string{"source1", "source2"},
+			Action:   []string{"action1", "action2"},
+			Resource: []string{"resource1", "resource2"},
+		})
+		check.Args(j.ID).Asserts().Returns(t)
+	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
@@ -1991,6 +2008,19 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 		}).Asserts(pk, policy.ActionRead).Returns(pk)
 	}))
 	s.Run("ListProvisionerKeysByOrganization", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
+		pks := []database.ProvisionerKey{
+			{
+				ID:             pk.ID,
+				CreatedAt:      pk.CreatedAt,
+				OrganizationID: pk.OrganizationID,
+				Name:           pk.Name,
+			},
+		}
+		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
+	}))
+	s.Run("ListProvisionerKeysByOrganizationExcludeReserved", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
 		pks := []database.ProvisionerKey{
