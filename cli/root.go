@@ -29,7 +29,6 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/buildinfo"
@@ -658,9 +657,11 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 	}
 
 	// No org selected, and we are more than 1? Return an error.
-	validOrgs := db2sdk.List(orgs, func(org codersdk.Organization) string {
-		return fmt.Sprintf("%q", org.Name)
-	})
+	validOrgs := make([]string, 0, len(orgs))
+	for _, org := range orgs {
+		validOrgs = append(validOrgs, org.Name)
+	}
+
 	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>. Choose from: %s", strings.Join(validOrgs, ", "))
 }
 
