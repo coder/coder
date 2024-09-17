@@ -110,7 +110,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					onClick={onPopoverClose}
 				>
 					Organizations
-					<FeatureBadge type="beta" size="sm" variant="static" />
+					<FeatureBadge type="beta" size="xs" variant="static" />
 				</MenuItem>
 			)}
 			{canViewAllUsers && (

@@ -43,3 +43,14 @@ export const LargeStaticBeta: Story = {
 		variant: "static",
 	},
 };
+
+// While it's possible, we shouldn't use the xs size with the interactive
+// variant, because then the badge might be too small for users with motor
+// control issues to get their hand to hover over the target reliably
+export const ExtraSmallStaticBeta: Story = {
+	args: {
+		type: "beta",
+		size: "xs",
+		variant: "static",
+	},
+};

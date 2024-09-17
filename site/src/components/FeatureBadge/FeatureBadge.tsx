@@ -55,6 +55,10 @@ const styles = {
 		fontSize: "1rem",
 	},
 
+	badgeExtraSmallText: {
+		fontSize: "0.625rem",
+	},
+
 	tooltipTitle: (theme) => ({
 		color: theme.palette.text.primary,
 		fontWeight: 600,
@@ -80,7 +84,7 @@ const styles = {
 type FeatureBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 		type: keyof typeof featureBadgeTypes;
-		size?: "sm" | "lg";
+		size?: "xs" | "sm" | "lg";
 		variant: "interactive" | "static";
 	}
 >;
@@ -116,6 +120,7 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 		<span
 			css={[
 				styles.badge,
+				size === "xs" && styles.badgeExtraSmallText,
 				size === "lg" && styles.badgeLargeText,
 				showBadgeHoverStyle && styles.badgeHover,
 			]}
