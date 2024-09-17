@@ -51,7 +51,6 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 
 			err = reportFailedWorkspaceBuilds(ctx, logger, db, enqueuer, clk)
 			if err != nil {
-				logger.Debug(ctx, "unable to generate reports with failed workspace builds")
 				return xerrors.Errorf("unable to generate reports with failed workspace builds: %w", err)
 			}
 
@@ -137,6 +136,11 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	}
 
 	for _, stats := range templateStatsRows {
+		if ctx.Err() == context.Canceled {
+			logger.Debug(ctx, "context is canceled, quitting")
+			break
+		}
+
 		if stats.FailedBuilds == 0 {
 			logger.Info(ctx, "no failed workspace builds found for template", slog.F("template_id", stats.TemplateID), slog.Error(err))
 			continue
@@ -167,6 +171,11 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 
 		for _, templateAdmin := range templateAdmins {
+			if ctx.Err() == context.Canceled {
+				logger.Debug(ctx, "context is canceled, quitting")
+				break
+			}
+
 			if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceBuildsFailedReport,
 				map[string]string{
 					"template_name":         stats.TemplateName,
@@ -181,6 +190,11 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 	}
 
+	if ctx.Err() == context.Canceled {
+		logger.Error(ctx, "report generator job is canceled")
+		return ctx.Err()
+	}
+
 	// Lastly, update the timestamp in the generator log.
 	err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
 		NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
@@ -193,14 +207,6 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 }
 
 func buildDataForReportFailedWorkspaceBuilds(stats database.GetWorkspaceBuildStatsByTemplatesRow, failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow) map[string]any {
-	// Sorting order: template_version_name ASC, workspace build number DESC
-	sort.Slice(failedBuilds, func(i, j int) bool {
-		if failedBuilds[i].TemplateVersionName != failedBuilds[j].TemplateVersionName {
-			return failedBuilds[i].TemplateVersionName < failedBuilds[j].TemplateVersionName
-		}
-		return failedBuilds[i].WorkspaceBuildNumber > failedBuilds[j].WorkspaceBuildNumber
-	})
-
 	// Build notification model for template versions and failed workspace builds.
 	//
 	// Failed builds are sorted by template version ascending, workspace build number descending.
