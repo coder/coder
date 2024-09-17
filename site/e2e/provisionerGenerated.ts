@@ -195,6 +195,7 @@ export interface App {
 	sharingLevel: AppSharingLevel;
 	external: boolean;
 	order: number;
+	hidden: boolean;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -741,6 +742,9 @@ export const App = {
 		}
 		if (message.order !== 0) {
 			writer.uint32(80).int64(message.order);
+		}
+		if (message.hidden === true) {
+			writer.uint32(88).bool(message.hidden);
 		}
 		return writer;
 	},

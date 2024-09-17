@@ -1448,11 +1448,19 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			UserVariableValues: req.UserVariableValues,
 		})
 		if err != nil {
-			return xerrors.Errorf("marshal job input: %w", err)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error creating template version.",
+				Detail:  xerrors.Errorf("marshal job input: %w", err).Error(),
+			})
+			return err
 		}
 		traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
 		if err != nil {
-			return xerrors.Errorf("marshal job metadata: %w", err)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error creating template version.",
+				Detail:  xerrors.Errorf("marshal job metadata: %w", err).Error(),
+			})
+			return err
 		}
 
 		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -1473,7 +1481,11 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			},
 		})
 		if err != nil {
-			return xerrors.Errorf("insert provisioner job: %w", err)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error creating template version.",
+				Detail:  xerrors.Errorf("insert provisioner job: %w", err).Error(),
+			})
+			return err
 		}
 
 		var templateID uuid.NullUUID
@@ -1501,20 +1513,36 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			CreatedBy:      apiKey.UserID,
 		})
 		if err != nil {
-			return xerrors.Errorf("insert template version: %w", err)
+			if database.IsUniqueViolation(err, database.UniqueTemplateVersionsTemplateIDNameKey) {
+				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+					Message: fmt.Sprintf("A template version with name %q already exists for this template.", req.Name),
+					Validations: []codersdk.ValidationError{{
+						Field:  "name",
+						Detail: "This value is already in use and should be unique.",
+					}},
+				})
+				return err
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error creating template version.",
+				Detail:  xerrors.Errorf("insert template version: %w", err).Error(),
+			})
+			return err
 		}
 
 		templateVersion, err = tx.GetTemplateVersionByID(ctx, templateVersionID)
 		if err != nil {
-			return xerrors.Errorf("fetched inserted template version: %w", err)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error creating template version.",
+				Detail:  xerrors.Errorf("fetched inserted template version: %w", err).Error(),
+			})
+			return err
 		}
 
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: err.Error(),
-		})
+		// Each failure case in the tx should have already written a response.
 		return
 	}
 	aReq.New = templateVersion

@@ -24,6 +24,7 @@ export const Provisioners: Story = {
 		provisioners: {
 			builtin: [MockProvisioner, MockProvisioner2],
 			psk: [MockProvisioner, MockUserProvisioner, MockProvisionerWithTags],
+			userAuth: [],
 			keys: new Map([
 				[
 					"ベン",

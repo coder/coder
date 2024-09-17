@@ -20,7 +20,6 @@ func (r *RootCmd) provisionerKeys() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Hidden:  true,
 		Aliases: []string{"key"},
 		Children: []*serpent.Command{
 			r.provisionerKeysCreate(),

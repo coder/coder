@@ -1282,7 +1282,7 @@ class ApiMethods {
 	updateUserPassword = async (
 		userId: TypesGen.User["id"],
 		updatePassword: TypesGen.UpdateUserPasswordRequest,
-	): Promise<undefined> => {
+	): Promise<void> => {
 		await this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 	};
 
@@ -1684,11 +1684,13 @@ class ApiMethods {
 	};
 
 	getWorkspaceQuota = async (
+		organizationName: string,
 		username: string,
 	): Promise<TypesGen.WorkspaceQuota> => {
 		const response = await this.axios.get(
-			`/api/v2/workspace-quota/${encodeURIComponent(username)}`,
+			`/api/v2/organizations/${encodeURIComponent(organizationName)}/members/${encodeURIComponent(username)}/workspace-quota`,
 		);
+
 		return response.data;
 	};
 

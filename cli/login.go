@@ -212,7 +212,7 @@ func (r *RootCmd) login() *serpent.Command {
 				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
-					if !isTTY(inv) {
+					if !isTTYIn(inv) {
 						return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 					}
 

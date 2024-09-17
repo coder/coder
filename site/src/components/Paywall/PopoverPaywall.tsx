@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { EnterpriseBadge, PremiumBadge } from "components/Badges/Badges";
+import { PremiumBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
 import { docs } from "utils/docs";
@@ -11,21 +11,27 @@ export interface PopoverPaywallProps {
 	message: string;
 	description?: ReactNode;
 	documentationLink?: string;
-	licenseType?: "enterprise" | "premium";
 }
 
 export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 	message,
 	description,
 	documentationLink,
-	licenseType = "enterprise",
 }) => {
 	return (
-		<div css={styles.root}>
+		<div
+			css={[
+				styles.root,
+				(theme) => ({
+					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.premium.background})`,
+					border: `1px solid ${theme.branding.premium.border}`,
+				}),
+			]}
+		>
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 18 }}>
 					<h5 css={styles.title}>{message}</h5>
-					{licenseType === "premium" ? <PremiumBadge /> : <EnterpriseBadge />}
+					<PremiumBadge />
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
@@ -38,44 +44,49 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 					Read the documentation
 				</Link>
 			</div>
-			<div css={styles.separator}></div>
-			<Stack direction="column" alignItems="center" spacing={2}>
+			<div css={styles.separator} />
+			<Stack direction="column" alignItems="left" spacing={2}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
-						<FeatureIcon /> Template access control
+						<FeatureIcon /> High availability & workspace proxies
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> User groups
+						<FeatureIcon /> Multi-org & role-based access control
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> 24 hour support
+						<FeatureIcon /> 24x7 global support with SLA
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> Audit logs
+						<FeatureIcon /> Unlimited Git & external auth integrations
 					</li>
-					{licenseType === "premium" && (
-						<li css={styles.feature}>
-							<FeatureIcon /> Organizations
-						</li>
-					)}
 				</ul>
-				<Button
-					href={docs("/enterprise")}
-					target="_blank"
-					rel="noreferrer"
-					startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
-					variant="outlined"
-					color="neutral"
-				>
-					Learn about {licenseType === "premium" ? "Premium" : "Enterprise"}
-				</Button>
+				<div css={styles.learnButton}>
+					<Button
+						href={docs("/enterprise")}
+						target="_blank"
+						rel="noreferrer"
+						startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
+						variant="outlined"
+						color="neutral"
+					>
+						Learn about Premium
+					</Button>
+				</div>
 			</Stack>
 		</div>
 	);
 };
 
 const FeatureIcon: FC = () => {
-	return <TaskAltIcon css={styles.featureIcon} />;
+	return (
+		<TaskAltIcon
+			css={[
+				(theme) => ({
+					color: theme.branding.premium.border,
+				}),
+			]}
+		/>
+	);
 };
 
 const styles = {
@@ -83,10 +94,8 @@ const styles = {
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		maxWidth: 600,
+		maxWidth: 770,
 		padding: "24px 36px",
-		backgroundImage: `linear-gradient(160deg, transparent, ${theme.roles.active.background})`,
-		border: `1px solid ${theme.roles.active.fill.outline}`,
 		borderRadius: 8,
 		gap: 18,
 	}),
@@ -99,7 +108,7 @@ const styles = {
 	description: (theme) => ({
 		marginTop: 8,
 		fontFamily: "inherit",
-		maxWidth: 420,
+		maxWidth: 360,
 		lineHeight: "160%",
 		color: theme.palette.text.secondary,
 		fontSize: 14,
@@ -114,14 +123,13 @@ const styles = {
 		listStyle: "none",
 		margin: 0,
 		marginRight: 8,
-		padding: "0 12px",
+		padding: "0 0 0 24px",
 		fontSize: 13,
 		fontWeight: 500,
 	},
-	featureIcon: (theme) => ({
-		color: theme.roles.active.fill.outline,
-		fontSize: "1.5em",
-	}),
+	learnButton: {
+		padding: "0 28px",
+	},
 	feature: {
 		display: "flex",
 		alignItems: "center",

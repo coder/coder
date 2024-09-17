@@ -179,7 +179,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_member=string \
+curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_member=string&group_ids=string \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -188,10 +188,11 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
 
 ### Parameters
 
-| Name           | In    | Type   | Required | Description             |
-| -------------- | ----- | ------ | -------- | ----------------------- |
-| `organization` | query | string | true     | Organization ID or name |
-| `has_member`   | query | string | true     | User ID or name         |
+| Name           | In    | Type   | Required | Description                       |
+| -------------- | ----- | ------ | -------- | --------------------------------- |
+| `organization` | query | string | true     | Organization ID or name           |
+| `has_member`   | query | string | true     | User ID or name                   |
+| `group_ids`    | query | string | true     | Comma separated list of group IDs |
 
 ### Example responses
 
@@ -1141,6 +1142,7 @@ grant_type: authorization_code
 ```json
 {
 	"access_token": "string",
+	"expires_in": 0,
 	"expiry": "string",
 	"refresh_token": "string",
 	"token_type": "string"
@@ -1491,6 +1493,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 		"api_version": "string",
 		"created_at": "2019-08-24T14:15:22Z",
 		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 		"last_seen_at": "2019-08-24T14:15:22Z",
 		"name": "string",
 		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -1520,6 +1523,7 @@ Status Code **200**
 | `» api_version`     | string            | false    |              |             |
 | `» created_at`      | string(date-time) | false    |              |             |
 | `» id`              | string(uuid)      | false    |              |             |
+| `» key_id`          | string(uuid)      | false    |              |             |
 | `» last_seen_at`    | string(date-time) | false    |              |             |
 | `» name`            | string            | false    |              |             |
 | `» organization_id` | string(uuid)      | false    |              |             |
@@ -1653,6 +1657,98 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/provis
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List provisioner key daemons
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys/daemons \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/provisionerkeys/daemons`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description     |
+| -------------- | ---- | ------ | -------- | --------------- |
+| `organization` | path | string | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+	{
+		"daemons": [
+			{
+				"api_version": "string",
+				"created_at": "2019-08-24T14:15:22Z",
+				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
+				"last_seen_at": "2019-08-24T14:15:22Z",
+				"name": "string",
+				"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+				"provisioners": ["string"],
+				"tags": {
+					"property1": "string",
+					"property2": "string"
+				},
+				"version": "string"
+			}
+		],
+		"key": {
+			"created_at": "2019-08-24T14:15:22Z",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"name": "string",
+			"organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+			"tags": {
+				"property1": "string",
+				"property2": "string"
+			}
+		}
+	}
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                              |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerKeyDaemons](schemas.md#codersdkprovisionerkeydaemons) |
+
+<h3 id="list-provisioner-key-daemons-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                 | Type                                                         | Required | Restrictions | Description |
+| -------------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`       | array                                                        | false    |              |             |
+| `» daemons`          | array                                                        | false    |              |             |
+| `»» api_version`     | string                                                       | false    |              |             |
+| `»» created_at`      | string(date-time)                                            | false    |              |             |
+| `»» id`              | string(uuid)                                                 | false    |              |             |
+| `»» key_id`          | string(uuid)                                                 | false    |              |             |
+| `»» last_seen_at`    | string(date-time)                                            | false    |              |             |
+| `»» name`            | string                                                       | false    |              |             |
+| `»» organization_id` | string(uuid)                                                 | false    |              |             |
+| `»» provisioners`    | array                                                        | false    |              |             |
+| `»» tags`            | object                                                       | false    |              |             |
+| `»»» [any property]` | string                                                       | false    |              |             |
+| `»» version`         | string                                                       | false    |              |             |
+| `» key`              | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey) | false    |              |             |
+| `»» created_at`      | string(date-time)                                            | false    |              |             |
+| `»» id`              | string(uuid)                                                 | false    |              |             |
+| `»» name`            | string                                                       | false    |              |             |
+| `»» organization`    | string(uuid)                                                 | false    |              |             |
+| `»» tags`            | object                                                       | false    |              |             |
+| `»»» [any property]` | string                                                       | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Delete provisioner key
 
 ### Code samples
@@ -1677,6 +1773,182 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
 | Status | Meaning                                                         | Description | Schema |
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get group IdP Sync settings by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/settings/idpsync/groups`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update group IdP Sync settings by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/groups`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get role IdP Sync settings by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/settings/idpsync/roles`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update role IdP Sync settings by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/roles`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

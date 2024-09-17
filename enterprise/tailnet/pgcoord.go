@@ -3,7 +3,6 @@ package tailnet
 import (
 	"context"
 	"database/sql"
-	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -211,14 +210,6 @@ func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 		return nil
 	}
 	return node
-}
-
-func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
-	return agpl.ServeClientV1(c.ctx, c.logger, c, conn, id, agent)
-}
-
-func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
-	return agpl.ServeAgentV1(c.ctx, c.logger, c, conn, id, name)
 }
 
 func (c *pgCoord) Close() error {

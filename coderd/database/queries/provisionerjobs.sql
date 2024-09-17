@@ -156,3 +156,8 @@ SELECT
     unnest(@action::text[]),
     unnest(@resource::text[])
 RETURNING *;
+
+-- name: GetProvisionerJobTimingsByJobID :many
+SELECT * FROM provisioner_job_timings
+WHERE job_id = $1
+ORDER BY started_at ASC;

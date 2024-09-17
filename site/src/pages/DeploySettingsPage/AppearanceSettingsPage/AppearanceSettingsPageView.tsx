@@ -4,9 +4,8 @@ import TextField from "@mui/material/TextField";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
 import {
 	Badges,
-	DisabledBadge,
 	EnterpriseBadge,
-	EntitledBadge,
+	PremiumBadge,
 } from "components/Badges/Badges";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import {
@@ -24,6 +23,7 @@ import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 export type AppearanceSettingsPageViewProps = {
 	appearance: UpdateAppearanceConfig;
 	isEntitled: boolean;
+	isPremium: boolean;
 	onSaveAppearance: (
 		newConfig: Partial<UpdateAppearanceConfig>,
 	) => Promise<void>;
@@ -31,7 +31,7 @@ export type AppearanceSettingsPageViewProps = {
 
 export const AppearanceSettingsPageView: FC<
 	AppearanceSettingsPageViewProps
-> = ({ appearance, isEntitled, onSaveAppearance }) => {
+> = ({ appearance, isEntitled, isPremium, onSaveAppearance }) => {
 	const applicationNameForm = useFormik<{
 		application_name: string;
 	}>({
@@ -60,17 +60,21 @@ export const AppearanceSettingsPageView: FC<
 			/>
 
 			<Badges>
-				{isEntitled ? <EntitledBadge /> : <DisabledBadge />}
 				<Popover mode="hover">
-					<PopoverTrigger>
-						<span>
-							<EnterpriseBadge />
-						</span>
-					</PopoverTrigger>
+					{isEntitled && !isPremium ? (
+						<EnterpriseBadge />
+					) : (
+						<PopoverTrigger>
+							<span>
+								<PremiumBadge />
+							</span>
+						</PopoverTrigger>
+					)}
+
 					<PopoverContent css={{ transform: "translateY(-28px)" }}>
 						<PopoverPaywall
 							message="Appearance"
-							description="With an Enterprise license, you can customize the appearance of your deployment."
+							description="With a Premium license, you can customize the appearance of your deployment."
 							documentationLink="https://coder.com/docs/admin/appearance"
 						/>
 					</PopoverContent>

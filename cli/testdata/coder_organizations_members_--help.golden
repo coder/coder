@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations members
+
+  Manage organization members
+
+  Aliases: member
+
+SUBCOMMANDS:
+    add           Add a new member to the current organization
+    edit-roles    Edit organization member's roles
+    list          List all organization members
+    remove        Remove a new member to the current organization
+
+———
+Run `coder --help` for a list of global options.

@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/testutil"
@@ -41,7 +42,7 @@ type Expectations struct {
 }
 
 type OrganizationSyncTestCase struct {
-	Settings     idpsync.SyncSettings
+	Settings     idpsync.DeploymentSyncSettings
 	Entitlements *entitlements.Set
 	Exps         []Expectations
 }
@@ -89,7 +90,7 @@ func TestOrganizationSync(t *testing.T) {
 				other := dbgen.Organization(t, db, database.Organization{})
 				return OrganizationSyncTestCase{
 					Entitlements: entitled,
-					Settings: idpsync.SyncSettings{
+					Settings: idpsync.DeploymentSyncSettings{
 						OrganizationField:         "",
 						OrganizationMapping:       nil,
 						OrganizationAssignDefault: true,
@@ -142,7 +143,7 @@ func TestOrganizationSync(t *testing.T) {
 				three := dbgen.Organization(t, db, database.Organization{})
 				return OrganizationSyncTestCase{
 					Entitlements: entitled,
-					Settings: idpsync.SyncSettings{
+					Settings: idpsync.DeploymentSyncSettings{
 						OrganizationField: "organizations",
 						OrganizationMapping: map[string][]uuid.UUID{
 							"first":  {one.ID},
@@ -236,7 +237,7 @@ func TestOrganizationSync(t *testing.T) {
 			}
 
 			// Create a new sync object
-			sync := enidpsync.NewSync(logger, caseData.Entitlements, caseData.Settings)
+			sync := enidpsync.NewSync(logger, runtimeconfig.NewManager(), caseData.Entitlements, caseData.Settings)
 			for _, exp := range caseData.Exps {
 				t.Run(exp.Name, func(t *testing.T) {
 					params, httpErr := sync.ParseOrganizationClaims(ctx, exp.Claims)

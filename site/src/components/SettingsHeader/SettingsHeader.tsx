@@ -9,6 +9,7 @@ interface HeaderProps {
 	description?: ReactNode;
 	secondary?: boolean;
 	docsHref?: string;
+	tooltip?: ReactNode;
 }
 
 export const SettingsHeader: FC<HeaderProps> = ({
@@ -16,32 +17,36 @@ export const SettingsHeader: FC<HeaderProps> = ({
 	description,
 	docsHref,
 	secondary,
+	tooltip,
 }) => {
 	const theme = useTheme();
 
 	return (
 		<Stack alignItems="baseline" direction="row" justifyContent="space-between">
 			<div css={{ maxWidth: 420, marginBottom: 24 }}>
-				<h1
-					css={[
-						{
-							fontSize: 32,
-							fontWeight: 700,
-							display: "flex",
-							alignItems: "center",
-							lineHeight: "initial",
-							margin: 0,
-							marginBottom: 4,
-							gap: 8,
-						},
-						secondary && {
-							fontSize: 24,
-							fontWeight: 500,
-						},
-					]}
-				>
-					{title}
-				</h1>
+				<Stack direction="row" spacing={1} alignItems="center">
+					<h1
+						css={[
+							{
+								fontSize: 32,
+								fontWeight: 700,
+								display: "flex",
+								alignItems: "center",
+								lineHeight: "initial",
+								margin: 0,
+								marginBottom: 4,
+								gap: 8,
+							},
+							secondary && {
+								fontSize: 24,
+								fontWeight: 500,
+							},
+						]}
+					>
+						{title}
+					</h1>
+					{tooltip}
+				</Stack>
 				{description && (
 					<span
 						css={{

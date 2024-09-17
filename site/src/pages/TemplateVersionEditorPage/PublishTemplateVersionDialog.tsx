@@ -10,11 +10,25 @@ import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipLink,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
+	HelpTooltipTitle,
+	HelpTooltipTrigger,
+} from "../../components/HelpTooltip/HelpTooltip";
+import { docs } from "../../utils/docs";
 
 export const Language = {
 	versionNameLabel: "Version name",
 	messagePlaceholder: "Write a short message about the changes you made...",
-	defaultCheckboxLabel: "Promote to default version",
+	defaultCheckboxLabel: "Promote to active version",
+	activeVersionHelpTitle: "Active versions",
+	activeVersionHelpText:
+		"Templates can enforce that the active version be used for all workspaces (enterprise-only)",
+	activeVersionHelpBody: "Review the documentation",
 };
 
 export type PublishTemplateVersionDialogProps = DialogProps & {
@@ -88,22 +102,46 @@ export const PublishTemplateVersionDialog: FC<
 								rows={5}
 							/>
 
-							<FormControlLabel
-								label={Language.defaultCheckboxLabel}
-								control={
-									<Checkbox
-										size="small"
-										checked={form.values.isActiveVersion}
-										onChange={async (e) => {
-											await form.setFieldValue(
-												"isActiveVersion",
-												e.target.checked,
-											);
-										}}
-										name="isActiveVersion"
-									/>
-								}
-							/>
+							<Stack direction={"row"}>
+								<FormControlLabel
+									label={Language.defaultCheckboxLabel}
+									control={
+										<Checkbox
+											size="small"
+											checked={form.values.isActiveVersion}
+											onChange={async (e) => {
+												await form.setFieldValue(
+													"isActiveVersion",
+													e.target.checked,
+												);
+											}}
+											name="isActiveVersion"
+										/>
+									}
+								/>
+
+								<HelpTooltip>
+									<HelpTooltipTrigger />
+
+									<HelpTooltipContent>
+										<HelpTooltipTitle>
+											{Language.activeVersionHelpTitle}
+										</HelpTooltipTitle>
+										<HelpTooltipText>
+											{Language.activeVersionHelpText}
+										</HelpTooltipText>
+										<HelpTooltipLinksGroup>
+											<HelpTooltipLink
+												href={docs(
+													"/templates/general-settings#require-automatic-updates-enterprise",
+												)}
+											>
+												{Language.activeVersionHelpBody}
+											</HelpTooltipLink>
+										</HelpTooltipLinksGroup>
+									</HelpTooltipContent>
+								</HelpTooltip>
+							</Stack>
 						</FormFields>
 					</Stack>
 				</form>

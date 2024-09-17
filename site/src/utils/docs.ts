@@ -9,7 +9,7 @@ function defaultDocsUrl(): string {
 	}
 
 	// Strip the postfix version info that's not part of the link.
-	const i = version?.indexOf("-") ?? -1;
+	const i = version?.match(/[+-]/)?.index ?? -1;
 	if (i >= 0) {
 		version = version.slice(0, i);
 	}

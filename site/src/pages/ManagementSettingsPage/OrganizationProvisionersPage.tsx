@@ -18,20 +18,33 @@ import {
 	type ProvisionersByGroup,
 } from "./OrganizationProvisionersPageView";
 
+const ProvisionerKeyIDBuiltIn = "00000000-0000-0000-0000-000000000001";
+const ProvisionerKeyIDUserAuth = "00000000-0000-0000-0000-000000000002";
+const ProvisionerKeyIDPSK = "00000000-0000-0000-0000-000000000003";
+
 function groupProvisioners(
 	provisioners: readonly ProvisionerDaemon[],
 ): ProvisionersByGroup {
-	const groups: ProvisionersByGroup = { builtin: [], psk: [], keys: new Map() };
-	const type = "builtin";
+	const groups: ProvisionersByGroup = {
+		builtin: [],
+		psk: [],
+		userAuth: [],
+		keys: new Map(),
+	};
+	// NOTE: I'll fix this at the end of the PR chain
 	const keyName = "TODO";
 
 	for (const it of provisioners) {
-		if (type === "builtin") {
+		if (it.key_id === ProvisionerKeyIDBuiltIn) {
 			groups.builtin.push(it);
 			continue;
 		}
-		if (type === "psk") {
+		if (it.key_id === ProvisionerKeyIDPSK) {
 			groups.psk.push(it);
+			continue;
+		}
+		if (it.key_id === ProvisionerKeyIDUserAuth) {
+			groups.userAuth.push(it);
 			continue;
 		}
 
@@ -99,5 +112,9 @@ const OrganizationProvisionersPage: FC = () => {
 
 export default OrganizationProvisionersPage;
 
-const getOrganizationByName = (organizations: Organization[], name: string) =>
-	organizations.find((org) => org.name === name);
+const getOrganizationByName = (
+	organizations: readonly Organization[],
+	name: string,
+) => {
+	return organizations.find((org) => org.name === name);
+};
