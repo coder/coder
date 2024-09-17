@@ -22,6 +22,8 @@ func TestUpdateGroupSync(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 
@@ -38,6 +40,7 @@ func TestUpdateGroupSync(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root := clitest.New(t, "organization", "settings", "set", "groupsync")
+		//nolint:gocritic // Using the owner, testing the cli not perms
 		clitest.SetupConfig(t, owner, root)
 
 		expectedSettings := codersdk.GroupSyncSettings{
@@ -75,6 +78,8 @@ func TestUpdateRoleSync(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 
@@ -111,6 +116,7 @@ func TestUpdateRoleSync(t *testing.T) {
 
 		// Now read it back
 		inv, root = clitest.New(t, "organization", "settings", "show", "rolesync")
+		//nolint:gocritic // Using the owner, testing the cli not perms
 		clitest.SetupConfig(t, owner, root)
 
 		buf = new(bytes.Buffer)
