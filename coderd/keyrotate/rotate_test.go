@@ -65,7 +65,7 @@ func TestKeyRotator(t *testing.T) {
 		})
 		resultsCh := make(chan []database.CryptoKey)
 
-		kr, err := keyrotate.Open(ctx, db, logger, clock, keyrotate.DefaultKeyDuration, keyrotate.DefaultRotationInterval, resultsCh)
+		kr, err := keyrotate.Open(ctx, db, logger, clock, keyrotate.DefaultRotationInterval, keyrotate.DefaultKeyDuration, resultsCh)
 		require.NoError(t, err)
 		t.Cleanup(kr.Close)
 
