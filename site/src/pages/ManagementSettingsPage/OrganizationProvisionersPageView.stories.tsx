@@ -38,7 +38,7 @@ export const Provisioners: Story = {
 						},
 					],
 				],
-				["じぇいダレン", [MockProvisioner, MockProvisioner2]],
+				["ジャイデン", [MockProvisioner, MockProvisioner2]],
 				[
 					"ケイラ",
 					[
