@@ -1,13 +1,20 @@
-import { useTheme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Business from "@mui/icons-material/Business";
 import Person from "@mui/icons-material/Person";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { BuildInfoResponse, ProvisionerDaemon } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
+import { docs } from "utils/docs";
 import { ProvisionerTag } from "./ProvisionerTag";
 
 type ProvisionerGroupType = "builtin" | "psk" | "key";
@@ -159,14 +166,51 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 								width: 310,
 							}}
 						>
-							<div css={{ lineHeight: "160%" }}>
+							<div css={{ lineHeight: 1.6 }}>
 								<h4 css={{ fontWeight: 500, margin: 0 }}>{provisioner.name}</h4>
-								<span css={{ color: theme.palette.text.secondary }}>
+								<span
+									css={{ color: theme.palette.text.secondary, fontSize: 13 }}
+								>
 									{type === "builtin" ? (
 										<span>Built-in</span>
 									) : (
 										<>
-											{upToDate ? "Up to date" : provisioner.version} &mdash;{" "}
+											<Popover mode="hover">
+												<PopoverTrigger>
+													<span>
+														{buildInfo
+															? provisioner.version === buildInfo.version
+																? "Up to date"
+																: "Out of date"
+															: provisioner.version}
+													</span>
+												</PopoverTrigger>
+												<PopoverContent
+													transformOrigin={{ vertical: -8, horizontal: 0 }}
+													css={{
+														"& .MuiPaper-root": {
+															padding: "20px 20px 8px",
+															maxWidth: 340,
+														},
+													}}
+												>
+													<h4 css={styles.title}>Release version</h4>
+													<p css={styles.text}>{provisioner.version}</p>
+													<h4 css={styles.title}>Protocol version</h4>
+													<p css={styles.text}>{provisioner.api_version}</p>
+													{provisioner.api_version !==
+														buildInfo?.provisioner_api_version && (
+														<p css={[styles.text, { fontSize: 13 }]}>
+															This provisioner is out of date. You may
+															experience issues when using a provisioner version
+															that doesn’t match your Coder deployment. Please
+															upgrade to a newer version.{" "}
+															<Link href={docs("/")}>Learn more…</Link>
+														</p>
+													)}
+												</PopoverContent>
+											</Popover>{" "}
+											&mdash;{" "}
 											{provisioner.last_seen_at && (
 												<span data-chromatic="ignore">
 													Last seen {createDayString(provisioner.last_seen_at)}
@@ -211,3 +255,19 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		</div>
 	);
 };
+
+const styles = {
+	title: (theme) => ({
+		marginTop: 0,
+		marginBottom: 0,
+		color: theme.palette.text.primary,
+		fontSize: 14,
+		lineHeight: "150%",
+		fontWeight: 600,
+	}),
+
+	text: (theme) => ({
+		marginTop: 0,
+		marginBottom: 12,
+	}),
+} satisfies Record<string, Interpolation<Theme>>;
