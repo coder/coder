@@ -291,10 +291,11 @@ WHERE
 -- name: InsertWorkspaceAgentScriptTimings :one
 INSERT INTO
     workspace_agent_script_timings (
+        job_id,
         display_name,
         started_at,
         ended_at,
         exit_code
     )
 VALUES
-    ($1, $2, $3, $4) RETURNING *;
+    ($1, $2, $3, $4, $5) RETURNING *;

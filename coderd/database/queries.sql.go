@@ -11805,16 +11805,18 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 const insertWorkspaceAgentScriptTimings = `-- name: InsertWorkspaceAgentScriptTimings :one
 INSERT INTO
     workspace_agent_script_timings (
+        job_id,
         display_name,
         started_at,
         ended_at,
         exit_code
     )
 VALUES
-    ($1, $2, $3, $4) RETURNING display_name, started_at, ended_at, exit_code
+    ($1, $2, $3, $4, $5) RETURNING job_id, display_name, started_at, ended_at, exit_code
 `
 
 type InsertWorkspaceAgentScriptTimingsParams struct {
+	JobID       uuid.UUID `db:"job_id" json:"job_id"`
 	DisplayName string    `db:"display_name" json:"display_name"`
 	StartedAt   time.Time `db:"started_at" json:"started_at"`
 	EndedAt     time.Time `db:"ended_at" json:"ended_at"`
@@ -11823,6 +11825,7 @@ type InsertWorkspaceAgentScriptTimingsParams struct {
 
 func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) (WorkspaceAgentScriptTiming, error) {
 	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentScriptTimings,
+		arg.JobID,
 		arg.DisplayName,
 		arg.StartedAt,
 		arg.EndedAt,
@@ -11830,6 +11833,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg 
 	)
 	var i WorkspaceAgentScriptTiming
 	err := row.Scan(
+		&i.JobID,
 		&i.DisplayName,
 		&i.StartedAt,
 		&i.EndedAt,

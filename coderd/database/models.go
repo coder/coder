@@ -2884,6 +2884,7 @@ type WorkspaceAgentScript struct {
 }
 
 type WorkspaceAgentScriptTiming struct {
+	JobID       uuid.UUID `db:"job_id" json:"job_id"`
 	DisplayName string    `db:"display_name" json:"display_name"`
 	StartedAt   time.Time `db:"started_at" json:"started_at"`
 	EndedAt     time.Time `db:"ended_at" json:"ended_at"`
