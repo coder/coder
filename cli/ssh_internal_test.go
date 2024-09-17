@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -68,7 +71,7 @@ func TestCloserStack_Mainline(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	uut := newCloserStack(ctx, logger)
+	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	closes := new([]*fakeCloser)
 	fc0 := &fakeCloser{closes: closes}
 	fc1 := &fakeCloser{closes: closes}
@@ -84,13 +87,27 @@ func TestCloserStack_Mainline(t *testing.T) {
 	require.Equal(t, []*fakeCloser{fc1, fc0}, *closes)
 }
 
+func TestCloserStack_Empty(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
+
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		uut.close(nil)
+	}()
+	testutil.RequireRecvCtx(ctx, t, closed)
+}
+
 func TestCloserStack_Context(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	uut := newCloserStack(ctx, logger)
+	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	closes := new([]*fakeCloser)
 	fc0 := &fakeCloser{closes: closes}
 	fc1 := &fakeCloser{closes: closes}
@@ -111,7 +128,7 @@ func TestCloserStack_PushAfterClose(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	uut := newCloserStack(ctx, logger)
+	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	closes := new([]*fakeCloser)
 	fc0 := &fakeCloser{closes: closes}
 	fc1 := &fakeCloser{closes: closes}
@@ -134,13 +151,9 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(testCtx)
 	defer cancel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	uut := newCloserStack(ctx, logger)
-	ac := &asyncCloser{
-		t:        t,
-		ctx:      testCtx,
-		complete: make(chan struct{}),
-		started:  make(chan struct{}),
-	}
+	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
+	ac := newAsyncCloser(testCtx, t)
+	defer ac.complete()
 	err := uut.push("async", ac)
 	require.NoError(t, err)
 	cancel()
@@ -160,9 +173,51 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 		t.Fatal("closed before stack was finished")
 	}
 
-	// complete the asyncCloser
-	close(ac.complete)
+	ac.complete()
 	testutil.RequireRecvCtx(testCtx, t, closed)
+}
+
+func TestCloserStack_Timeout(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().TickerFunc("closerStack")
+	defer trap.Close()
+	uut := newCloserStack(ctx, logger, mClock)
+	var ac [3]*asyncCloser
+	for i := range ac {
+		ac[i] = newAsyncCloser(ctx, t)
+		err := uut.push(fmt.Sprintf("async %d", i), ac[i])
+		require.NoError(t, err)
+	}
+	defer func() {
+		for _, a := range ac {
+			a.complete()
+		}
+	}()
+
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		uut.close(nil)
+	}()
+	trap.MustWait(ctx).Release()
+	// top starts right away, but it hangs
+	testutil.RequireRecvCtx(ctx, t, ac[2].started)
+	// timer pops and we start the middle one
+	mClock.Advance(gracefulShutdownTimeout).MustWait(ctx)
+	testutil.RequireRecvCtx(ctx, t, ac[1].started)
+
+	// middle one finishes
+	ac[1].complete()
+	// bottom starts, but also hangs
+	testutil.RequireRecvCtx(ctx, t, ac[0].started)
+
+	// timer has to pop twice to time out.
+	mClock.Advance(gracefulShutdownTimeout).MustWait(ctx)
+	mClock.Advance(gracefulShutdownTimeout).MustWait(ctx)
+	testutil.RequireRecvCtx(ctx, t, closed)
 }
 
 type fakeCloser struct {
@@ -176,10 +231,11 @@ func (c *fakeCloser) Close() error {
 }
 
 type asyncCloser struct {
-	t        *testing.T
-	ctx      context.Context
-	started  chan struct{}
-	complete chan struct{}
+	t             *testing.T
+	ctx           context.Context
+	started       chan struct{}
+	isComplete    chan struct{}
+	comepleteOnce sync.Once
 }
 
 func (c *asyncCloser) Close() error {
@@ -188,7 +244,20 @@ func (c *asyncCloser) Close() error {
 	case <-c.ctx.Done():
 		c.t.Error("timed out")
 		return c.ctx.Err()
-	case <-c.complete:
+	case <-c.isComplete:
 		return nil
+	}
+}
+
+func (c *asyncCloser) complete() {
+	c.comepleteOnce.Do(func() { close(c.isComplete) })
+}
+
+func newAsyncCloser(ctx context.Context, t *testing.T) *asyncCloser {
+	return &asyncCloser{
+		t:          t,
+		ctx:        ctx,
+		isComplete: make(chan struct{}),
+		started:    make(chan struct{}),
 	}
 }
