@@ -206,6 +206,8 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	return nil
 }
 
+const workspaceBuildsLimitPerTemplateVersion = 10
+
 func buildDataForReportFailedWorkspaceBuilds(stats database.GetWorkspaceBuildStatsByTemplatesRow, failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow) map[string]any {
 	// Build notification model for template versions and failed workspace builds.
 	//
@@ -233,15 +235,19 @@ func buildDataForReportFailedWorkspaceBuilds(stats database.GetWorkspaceBuildSta
 
 		tv := templateVersions[c-1]
 		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
-		builds := tv["failed_builds"].([]map[string]any)
-		builds = append(builds, map[string]any{
-			"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
-			"workspace_name":           failedBuild.WorkspaceName,
-			"build_number":             failedBuild.WorkspaceBuildNumber,
-		})
-		tv["failed_builds"] = builds
-		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
 		tv["failed_count"] = tv["failed_count"].(int) + 1
+
+		//nolint:errorlint,forcetypeassert // only this function prepares the notification model
+		builds := tv["failed_builds"].([]map[string]any)
+		if len(builds) < workspaceBuildsLimitPerTemplateVersion {
+			// return N last builds to prevent long email reports
+			builds = append(builds, map[string]any{
+				"workspace_owner_username": failedBuild.WorkspaceOwnerUsername,
+				"workspace_name":           failedBuild.WorkspaceName,
+				"build_number":             failedBuild.WorkspaceBuildNumber,
+			})
+			tv["failed_builds"] = builds
+		}
 		templateVersions[c-1] = tv
 	}
 

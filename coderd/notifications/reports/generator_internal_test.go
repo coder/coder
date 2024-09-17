@@ -115,7 +115,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		require.Empty(t, notifEnq.Sent)
 	})
 
-	t.Run("FailedBuilds_FirstRun_Report_SecondRunTooEarly_NoReport_ThirdRun_Report", func(t *testing.T) {
+	t.Run("FailedBuilds_SecondRun_Report_ThirdRunTooEarly_NoReport_FourthRun_Report", func(t *testing.T) {
 		t.Parallel()
 
 		verifyNotification := func(t *testing.T, recipient database.User, notif *testutil.Notification, tmpl database.Template, failedBuilds, totalBuilds int64, templateVersions []map[string]interface{}) {
@@ -288,6 +288,118 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 				},
 			})
 		}
+	})
+
+	t.Run("TooManyFailedBuilds_SecondRun_Report", func(t *testing.T) {
+		t.Parallel()
+
+		verifyNotification := func(t *testing.T, recipient database.User, notif *testutil.Notification, tmpl database.Template, failedBuilds, totalBuilds int64, templateVersions []map[string]interface{}) {
+			t.Helper()
+
+			require.Equal(t, recipient.ID, notif.UserID)
+			require.Equal(t, notifications.TemplateWorkspaceBuildsFailedReport, notif.TemplateID)
+			require.Equal(t, tmpl.Name, notif.Labels["template_name"])
+			require.Equal(t, tmpl.DisplayName, notif.Labels["template_display_name"])
+			require.Equal(t, failedBuilds, notif.Data["failed_builds"])
+			require.Equal(t, totalBuilds, notif.Data["total_builds"])
+			require.Equal(t, "week", notif.Data["report_frequency"])
+			require.Equal(t, templateVersions, notif.Data["template_versions"])
+		}
+
+		// Setup
+		ctx, logger, db, ps, notifEnq, clk := setup(t)
+
+		// Given
+
+		// Organization
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// Template admins
+		templateAdmin1 := dbgen.User(t, db, database.User{Username: "template-admin-1", RBACRoles: []string{rbac.RoleTemplateAdmin().Name}})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: templateAdmin1.ID, OrganizationID: org.ID})
+
+		// Regular users
+		user1 := dbgen.User(t, db, database.User{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user1.ID, OrganizationID: org.ID})
+
+		// Templates
+		t1 := dbgen.Template(t, db, database.Template{Name: "template-1", DisplayName: "First Template", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID})
+
+		// Template versions
+		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
+		t1v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-2", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
+
+		// Workspaces
+		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
+
+		// When: first run
+		notifEnq.Clear()
+		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
+
+		// Then
+		require.NoError(t, err)
+		require.Empty(t, notifEnq.Sent) // no notifications
+
+		// One week later...
+		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
+		now := clk.Now()
+
+		// Workspace builds
+		pj0 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-24 * time.Hour), Valid: true}})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 777, TemplateVersionID: t1v1.ID, JobID: pj0.ID, CreatedAt: now.Add(-24 * time.Hour), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+
+		for i := 1; i <= 23; i++ {
+			at := now.Add(-time.Duration(i) * time.Hour)
+
+			pj1 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: at, Valid: true}})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: int32(i), TemplateVersionID: t1v1.ID, JobID: pj1.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+
+			pj2 := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: at, Valid: true}})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: int32(i) + 100, TemplateVersionID: t1v2.ID, JobID: pj2.ID, CreatedAt: at, Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		}
+
+		// When
+		notifEnq.Clear()
+		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
+
+		// Then
+		require.NoError(t, err)
+
+		require.Len(t, notifEnq.Sent, 1) // 1 template, 1 template admin
+		verifyNotification(t, templateAdmin1, notifEnq.Sent[0], t1, 46, 47, []map[string]interface{}{
+			{
+				"failed_builds": []map[string]interface{}{
+					{"build_number": int32(23), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(22), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(21), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(20), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(19), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(18), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(17), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(16), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(15), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(14), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+				},
+				"failed_count":          23,
+				"template_version_name": t1v1.Name,
+			},
+			{
+				"failed_builds": []map[string]interface{}{
+					{"build_number": int32(123), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(122), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(121), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(120), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(119), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(118), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(117), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(116), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(115), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+					{"build_number": int32(114), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
+				},
+				"failed_count":          23,
+				"template_version_name": t1v2.Name,
+			},
+		})
 	})
 
 	t.Run("NoFailedBuilds_NoReport", func(t *testing.T) {
