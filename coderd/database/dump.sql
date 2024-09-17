@@ -1355,6 +1355,13 @@ CREATE TABLE workspace_agent_port_share (
     protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
 );
 
+CREATE TABLE workspace_agent_script_timings (
+    display_name text NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone NOT NULL,
+    exit_code integer NOT NULL
+);
+
 CREATE TABLE workspace_agent_scripts (
     workspace_agent_id uuid NOT NULL,
     log_source_id uuid NOT NULL,
@@ -1365,7 +1372,8 @@ CREATE TABLE workspace_agent_scripts (
     start_blocks_login boolean NOT NULL,
     run_on_start boolean NOT NULL,
     run_on_stop boolean NOT NULL,
-    timeout_seconds integer NOT NULL
+    timeout_seconds integer NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq

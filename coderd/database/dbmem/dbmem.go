@@ -222,6 +222,7 @@ type data struct {
 	workspaceAgentLogs              []database.WorkspaceAgentLog
 	workspaceAgentLogSources        []database.WorkspaceAgentLogSource
 	workspaceAgentPortShares        []database.WorkspaceAgentPortShare
+	workspaceAgentScriptTimings     []database.WorkspaceAgentScriptTiming
 	workspaceAgentScripts           []database.WorkspaceAgentScript
 	workspaceAgentStats             []database.WorkspaceAgentStat
 	workspaceApps                   []database.WorkspaceApp
@@ -7826,6 +7827,26 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentScriptTiming{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	scriptTiming := database.WorkspaceAgentScriptTiming{
+		StartedAt: arg.StartedAt,
+		EndedAt:   arg.EndedAt,
+		ExitCode:  arg.ExitCode,
+	}
+
+	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings, scriptTiming)
+
+	return scriptTiming, nil
+}
+
 func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -7840,6 +7861,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg databas
 		script := database.WorkspaceAgentScript{
 			LogSourceID:      source,
 			WorkspaceAgentID: arg.WorkspaceAgentID,
+			DisplayName:      arg.DisplayName[index],
 			LogPath:          arg.LogPath[index],
 			Script:           arg.Script[index],
 			Cron:             arg.Cron[index],

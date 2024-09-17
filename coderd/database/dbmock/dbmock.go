@@ -4064,6 +4064,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentMetadata), arg0, arg1)
 }
 
+// InsertWorkspaceAgentScriptTimings mocks base method.
+func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentScriptTimings", arg0, arg1)
+	ret0, _ := ret[0].(database.WorkspaceAgentScriptTiming)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentScriptTimings indicates an expected call of InsertWorkspaceAgentScriptTimings.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentScriptTimings(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentScriptTimings", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentScriptTimings), arg0, arg1)
+}
+
 // InsertWorkspaceAgentScripts mocks base method.
 func (m *MockStore) InsertWorkspaceAgentScripts(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
 	m.ctrl.T.Helper()

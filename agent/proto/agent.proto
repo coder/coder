@@ -53,6 +53,7 @@ message WorkspaceAgentScript {
 	bool run_on_stop = 6;
 	bool start_blocks_login = 7;
 	google.protobuf.Duration timeout = 8;
+	string display_name = 9;
 }
 
 message WorkspaceAgentMetadata {
@@ -264,6 +265,20 @@ message BannerConfig {
 	string background_color = 3;
 }
 
+message WorkspaceAgentScriptCompletedRequest {
+    Timing timing = 1;
+}
+
+message WorkspaceAgentScriptCompletedResponse {
+}
+
+message Timing {
+    string display_name = 1;
+    google.protobuf.Timestamp start = 2;
+    google.protobuf.Timestamp end = 3;
+    int32 exit_code = 4;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -274,4 +289,5 @@ service Agent {
 	rpc BatchUpdateMetadata(BatchUpdateMetadataRequest) returns (BatchUpdateMetadataResponse);
 	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
 	rpc GetAnnouncementBanners(GetAnnouncementBannersRequest) returns (GetAnnouncementBannersResponse);
+	rpc ScriptCompleted(WorkspaceAgentScriptCompletedRequest) returns (WorkspaceAgentScriptCompletedResponse);
 }

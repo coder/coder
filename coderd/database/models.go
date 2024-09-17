@@ -2880,6 +2880,14 @@ type WorkspaceAgentScript struct {
 	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
 	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+}
+
+type WorkspaceAgentScriptTiming struct {
+	DisplayName string    `db:"display_name" json:"display_name"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+	EndedAt     time.Time `db:"ended_at" json:"ended_at"`
+	ExitCode    int32     `db:"exit_code" json:"exit_code"`
 }
 
 type WorkspaceAgentStat struct {

@@ -165,6 +165,7 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 
 	return codersdk.WorkspaceAgentScript{
 		LogSourceID:      id,
+		DisplayName:      protoScript.DisplayName,
 		LogPath:          protoScript.LogPath,
 		Script:           protoScript.Script,
 		Cron:             protoScript.Cron,
@@ -177,6 +178,7 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 
 func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScript {
 	return &proto.WorkspaceAgentScript{
+		DisplayName:      s.DisplayName,
 		LogSourceId:      s.LogSourceID[:],
 		LogPath:          s.LogPath,
 		Script:           s.Script,

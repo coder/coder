@@ -886,6 +886,7 @@ export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
 };
 
 export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
+	display_name: "",
 	log_source_id: MockWorkspaceAgentLogSource.id,
 	cron: "",
 	log_path: "",
