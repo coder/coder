@@ -206,7 +206,11 @@ func buildDataForReportFailedWorkspaceBuilds(stats database.GetWorkspaceBuildSta
 		return failedBuilds[i].WorkspaceBuildNumber > failedBuilds[j].WorkspaceBuildNumber
 	})
 
-	// Build notification model for template versions and failed workspace builds
+	// Build notification model for template versions and failed workspace builds.
+	//
+	// Failed builds are sorted by template version ascending, workspace build number descending.
+	// Review builds, group them by template versions, and assign to builds to template versions.
+	// The map requires `[]map[string]any{}` to be compatible with data passed to `NotificationEnqueuer`.
 	templateVersions := []map[string]any{}
 	for _, failedBuild := range failedBuilds {
 		c := len(templateVersions)
