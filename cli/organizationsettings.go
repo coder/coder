@@ -69,8 +69,12 @@ func (r *RootCmd) updateOrganizationSetting(orgContext *OrganizationContext) *se
 				}
 				setting, err = client.PatchGroupIDPSyncSettings(ctx, org.ID.String(), req)
 			case "rolesync", "role-sync":
-				// TODO: Implement role sync settings.
-				return fmt.Errorf("role sync settings are not implemented")
+				var req codersdk.RoleSyncSettings
+				err = json.Unmarshal(inputData, &req)
+				if err != nil {
+					return xerrors.Errorf("unmarshalling role sync settings: %w", err)
+				}
+				setting, err = client.PatchRoleIDPSyncSettings(ctx, org.ID.String(), req)
 			default:
 				_, _ = fmt.Fprintln(inv.Stderr, "Valid organization settings are: 'groupsync', 'rolesync'")
 				return fmt.Errorf("unknown organization setting %s", inv.Args[0])
@@ -126,8 +130,7 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext) *ser
 			case "groupsync", "group-sync":
 				setting, err = client.GroupIDPSyncSettings(ctx, org.ID.String())
 			case "rolesync", "role-sync":
-				// TODO: Implement role sync settings.
-				return fmt.Errorf("role sync settings are not implemented")
+				setting, err = client.RoleIDPSyncSettings(ctx, org.ID.String())
 			default:
 				_, _ = fmt.Fprintln(inv.Stderr, "Valid organization settings are: 'groupsync', 'rolesync'")
 				return fmt.Errorf("unknown organization setting %s", inv.Args[0])
