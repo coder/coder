@@ -1553,7 +1553,7 @@ func (mr *MockStoreMockRecorder) GetNotificationMessagesByStatus(arg0, arg1 any)
 }
 
 // GetNotificationReportGeneratorLogByTemplate mocks base method.
-func (m *MockStore) GetNotificationReportGeneratorLogByTemplate(arg0 context.Context, arg1 database.GetNotificationReportGeneratorLogByTemplateParams) (database.NotificationReportGeneratorLog, error) {
+func (m *MockStore) GetNotificationReportGeneratorLogByTemplate(arg0 context.Context, arg1 uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetNotificationReportGeneratorLogByTemplate", arg0, arg1)
 	ret0, _ := ret[0].(database.NotificationReportGeneratorLog)
