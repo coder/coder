@@ -136,7 +136,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	}
 
 	for _, stats := range templateStatsRows {
-		if ctx.Err() == context.Canceled {
+		if xerrors.Is(ctx.Err(), context.Canceled) {
 			logger.Debug(ctx, "context is canceled, quitting")
 			break
 		}
@@ -171,7 +171,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 
 		for _, templateAdmin := range templateAdmins {
-			if ctx.Err() == context.Canceled {
+			if xerrors.Is(ctx.Err(), context.Canceled) {
 				logger.Debug(ctx, "context is canceled, quitting")
 				break
 			}
@@ -190,7 +190,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 	}
 
-	if ctx.Err() == context.Canceled {
+	if xerrors.Is(ctx.Err(), context.Canceled) {
 		logger.Error(ctx, "report generator job is canceled")
 		return ctx.Err()
 	}
