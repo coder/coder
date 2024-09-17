@@ -49,7 +49,7 @@ which excludes obscure API providers.
 
 Dynamic secrets can be implemented in your template code like so:
 
-```hcl
+```tf
 resource "twilio_iam_api_key" "api_key" {
   account_sid   = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
   friendly_name = "Test API Key"
@@ -80,7 +80,7 @@ can also show them in the Workspace UI with
 
 Can be produced with
 
-```hcl
+```tf
 resource "twilio_iam_api_key" "api_key" {
   account_sid   = "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
   friendly_name = "Test API Key"

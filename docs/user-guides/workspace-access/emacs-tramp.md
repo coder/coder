@@ -45,7 +45,7 @@ To fix this:
 
 1. In your workspace Terraform template be sure to add the following:
 
-   ```hcl
+   ```tf
    data "coder_workspace" "me" {
    }
 

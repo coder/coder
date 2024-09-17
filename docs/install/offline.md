@@ -117,7 +117,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 > [example templates](https://github.com/coder/coder/tree/main/examples/templates)
 > you intend to use.
 
-```hcl
+```tf
 # filesystem-mirror-example.tfrc
 provider_installation {
   filesystem_mirror {
@@ -126,7 +126,7 @@ provider_installation {
 }
 ```
 
-```hcl
+```tf
 # network-mirror-example.tfrc
 provider_installation {
   network_mirror {

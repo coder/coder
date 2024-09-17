@@ -5,7 +5,7 @@ In Coder, web IDEs are defined as
 resources in the template. With our generic model, any web application can be
 used as a Coder application. For example:
 
-```hcl
+```tf
 # Add button to open Portainer in the workspace dashboard
 # Note: Portainer must be already running in the workspace
 resource "coder_app" "portainer" {
@@ -35,7 +35,7 @@ cd your-template/
 vim main.tf
 ```
 
-```hcl
+```tf
 resource "coder_agent" "main" {
     arch           = "amd64"
     os             = "linux"
@@ -75,7 +75,7 @@ RUN code-server --install-extension eamodio.gitlens
 You'll also need to specify a `coder_app` resource related to the agent. This is
 how code-server is displayed on the workspace page.
 
-```hcl
+```tf
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
@@ -104,7 +104,7 @@ command. To add VS Code web as a web IDE, you have two options.
    [vscode-web module](https://registry.coder.com/modules/vscode-web) from the
    coder registry.
 
-   ```hcl
+   ```tf
    module "vscode-web" {
      source         = "registry.coder.com/modules/vscode-web/coder"
      version        = "1.0.14"
@@ -116,7 +116,7 @@ command. To add VS Code web as a web IDE, you have two options.
 2. Install and start in your `startup_script` and create a corresponding
    `coder_app`
 
-   ```hcl
+   ```tf
    resource "coder_agent" "main" {
        arch           = "amd64"
        os             = "linux"
@@ -137,7 +137,7 @@ command. To add VS Code web as a web IDE, you have two options.
 
    You also need to add a `coder_app` resource for this.
 
-   ```hcl
+   ```tf
    # VS Code Web
    resource "coder_app" "vscode-web" {
      agent_id     = coder_agent.coder.id
@@ -155,7 +155,7 @@ command. To add VS Code web as a web IDE, you have two options.
 Configure your agent and `coder_app` like so to use Jupyter. Notice the
 `subdomain=true` configuration:
 
-```hcl
+```tf
 data "coder_workspace" "me" {}
 
 resource "coder_agent" "coder" {
@@ -209,7 +209,7 @@ value substitution to recreate the path structure.
 Configure your agent and `coder_app` like so to use RStudio. Notice the
 `subdomain=true` configuration:
 
-```hcl
+```tf
 resource "coder_agent" "coder" {
   os             = "linux"
   arch           = "amd64"
@@ -256,7 +256,7 @@ community template example.
 Configure your agent and `coder_app` like so to use Airflow. Notice the
 `subdomain=true` configuration:
 
-```hcl
+```tf
 resource "coder_agent" "coder" {
   os   = "linux"
   arch = "amd64"
@@ -307,7 +307,7 @@ manipulate files in a web browser.
 
 Show and manipulate the contents of the `/home/coder` directory in a browser.
 
-```hcl
+```tf
 resource "coder_agent" "coder" {
   os   = "linux"
   arch = "amd64"

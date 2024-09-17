@@ -16,7 +16,7 @@ pipelines. To run the provider in a CI/CD pipeline, and to prevent drift, you'll
 need to store the Terraform state
 [remotely](https://developer.hashicorp.com/terraform/language/settings/backends/configuration).
 
-```hcl
+```tf
 terraform {
   required_providers {
     coderd = {

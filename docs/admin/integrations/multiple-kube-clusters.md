@@ -61,7 +61,7 @@ You can start from our
 From there, add [template parameters](../../templates/concepts/parameters.md) to
 allow developers to pick their desired cluster.
 
-```hcl
+```tf
 # main.tf
 
 data "coder_parameter" "kube_context" {
@@ -159,7 +159,7 @@ rolebinding.rbac.authorization.k8s.io/coder-v2 created
 You can start from our
 [example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
 
-```hcl
+```tf
 variable "host" {
   description = "Cluster host address"
   sensitive   = true

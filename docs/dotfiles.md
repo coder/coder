@@ -11,11 +11,26 @@ explains how it loads your repo.
 
 You can read more on dotfiles best practices [here](https://dotfiles.github.io).
 
+## Module
+
+Coder's [dotfiles module](https://registry.coder.com/modules/dotfiles)
+abstracts Coder's dotfiles command into a module. This will prompt the
+user for their dotfiles repository URL on workspace creation using a
+coder_parameter.
+
+```tf
+module "dotfiles" {
+  source   = "registry.coder.com/modules/dotfiles/coder"
+  version  = "~>1.0.15"
+  agent_id = coder_agent.example.id
+}
+```
+
 ## Templates
 
 Templates can prompt users for their dotfiles repo using the following pattern:
 
-```hcl
+```tf
 variable "dotfiles_uri" {
   description = <<-EOF
   Dotfiles repo URI (optional)
@@ -42,7 +57,7 @@ In such cases:
 - Set the `startup_script` to call a `~/personalize` script that the user can
   edit
 
-```hcl
+```tf
 resource "coder_agent" "main" {
   ...
   startup_script = "/home/coder/personalize"

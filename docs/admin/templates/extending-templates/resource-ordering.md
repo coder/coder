@@ -16,7 +16,7 @@ The `order` property of `coder_parameter` resource allows specifying the order
 of parameters in UI forms. In the below example, `project_id` will appear
 _before_ `account_id`:
 
-```hcl
+```tf
 data "coder_parameter" "project_id" {
   name         = "project_id"
   display_name = "Project ID"
@@ -37,7 +37,7 @@ data "coder_parameter" "account_id" {
 Agent resources within the UI left pane are sorted based on the `order`
 property, followed by `name`, ensuring a consistent and intuitive arrangement.
 
-```hcl
+```tf
 resource "coder_agent" "primary" {
   ...
 
@@ -59,7 +59,7 @@ The `coder_agent` exposes metadata to present operational metrics in the UI.
 Metrics defined with Terraform `metadata` blocks can be ordered using additional
 `order` property; otherwise, they are sorted by `key`.
 
-```hcl
+```tf
 resource "coder_agent" "main" {
   ...
 
@@ -107,7 +107,7 @@ workspace view.
 Only template defined applications can be arranged. _VS Code_ or _Terminal_
 buttons are static.
 
-```hcl
+```tf
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
@@ -135,7 +135,7 @@ The options for Coder parameters maintain the same order as in the file
 structure. This simplifies management and ensures consistency between
 configuration files and UI presentation.
 
-```hcl
+```tf
 data "coder_parameter" "database_region" {
   name         = "database_region"
   display_name = "Database Region"
@@ -166,7 +166,7 @@ In cases where multiple item properties exist, the order is inherited from the
 file, facilitating seamless integration between a Coder template and UI
 presentation.
 
-```hcl
+```tf
 resource "coder_metadata" "attached_volumes" {
   resource_id = docker_image.main.id
 

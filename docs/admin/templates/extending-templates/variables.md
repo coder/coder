@@ -6,7 +6,7 @@ construction of customizable templates. Unlike parameters, which are primarily
 for workspace customization, template variables remain under the control of the
 template author, ensuring workspace users cannot modify them.
 
-```hcl
+```tf
 variable "CLOUD_API_KEY" {
   type        = string
   description = "API key for the service"
@@ -53,7 +53,7 @@ variables, you can employ a straightforward solution:
 
 1. Create a `terraform.tfvars` file in in the template directory:
 
-```hcl
+```tf
 coder_image = newimage:tag
 ```
 

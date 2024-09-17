@@ -22,7 +22,7 @@ come bundled with your Coder deployment.
 
   These can all be configured to use an icon by setting the `icon` field.
 
-  ```hcl
+  ```tf
   data "coder_parameter" "my_parameter" {
     icon = "/icon/coder.svg"
 

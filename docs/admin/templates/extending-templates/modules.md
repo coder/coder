@@ -8,7 +8,7 @@ You can store these modules externally from your Coder deployment, like in a git
 repository or a Terraform registry. This example shows how to reference a module
 from your template:
 
-```hcl
+```tf
 data "coder_workspace" "me" {}
 
 module "coder-base" {
@@ -82,7 +82,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 5. Create a file `.terraformrc` with following content and mount at
    `/home/coder/.terraformrc` within the Coder provisioner.
 
-   ```hcl
+   ```tf
    provider_installation {
      direct {
          exclude = ["registry.terraform.io/*/*"]
@@ -95,7 +95,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 
 6. Update module source as,
 
-   ```hcl
+   ```tf
    module "module-name" {
      source = "https://example.jfrog.io/tf__coder/module-name/coder"
      version = "1.0.0"

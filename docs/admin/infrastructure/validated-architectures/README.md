@@ -161,7 +161,7 @@ compute as users start/stop workspaces at the beginning and end of their day.
 Set nodeSelectors, affinities, and tolerations in Coder templates to assign
 workspaces to the given node group:
 
-```hcl
+```tf
 resource "kubernetes_deployment" "coder" {
   spec {
     template {
