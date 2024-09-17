@@ -64,6 +64,7 @@ func TestUpdateGroupSync(t *testing.T) {
 
 		// Now read it back
 		inv, root = clitest.New(t, "organization", "settings", "show", "groupsync")
+		//nolint:gocritic // Using the owner, testing the cli not perms
 		clitest.SetupConfig(t, owner, root)
 
 		buf = new(bytes.Buffer)
@@ -96,6 +97,7 @@ func TestUpdateRoleSync(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root := clitest.New(t, "organization", "settings", "set", "rolesync")
+		//nolint:gocritic // Using the owner, testing the cli not perms
 		clitest.SetupConfig(t, owner, root)
 
 		expectedSettings := codersdk.RoleSyncSettings{
