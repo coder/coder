@@ -398,7 +398,7 @@ const UserAuthProvisionerTitle: FC = () => {
 				<HelpTooltip>
 					<HelpTooltipTrigger />
 					<HelpTooltipContent>
-						<HelpTooltipTitle>User authenitcated provisioners</HelpTooltipTitle>
+						<HelpTooltipTitle>User authenticated provisioners</HelpTooltipTitle>
 						<HelpTooltipText>
 							These provisioners have been authenticated by a user. This can
 							happen if an authenticated user is running a provisioner using the{" "}
