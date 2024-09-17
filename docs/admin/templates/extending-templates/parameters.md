@@ -287,7 +287,10 @@ data "coder_parameter" "project_id" {
 }
 ```
 
-## Create Autofill
+## Autofill Parameters
+
+> This feature requires the `auto-fill-parameters`
+> [experiment](https://coder.com/docs/contributing/feature-stages).
 
 When the template doesn't specify default values, Coder may still autofill
 parameters.
