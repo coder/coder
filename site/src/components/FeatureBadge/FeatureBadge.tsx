@@ -34,6 +34,7 @@ const styles = {
 
 		cursor: "default",
 		flexShrink: 0,
+		alignSelf: "baseline",
 		padding: "4px 8px",
 		lineHeight: 1,
 		whiteSpace: "nowrap",

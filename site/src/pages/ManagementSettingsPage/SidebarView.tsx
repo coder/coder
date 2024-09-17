@@ -7,6 +7,7 @@ import type {
 	Experiments,
 	Organization,
 } from "api/typesGenerated";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 import { Loader } from "components/Loader/Loader";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
@@ -47,7 +48,10 @@ export const SidebarView: FC<SidebarProps> = ({
 	// TODO: Do something nice to scroll to the active org.
 	return (
 		<BaseSidebar>
-			<header css={styles.sidebarHeader}>Deployment</header>
+			<header>
+				<h2 css={styles.sidebarHeader}>Deployment</h2>
+			</header>
+
 			<DeploymentSettingsNavigation
 				active={!activeOrganizationName && activeSettings}
 				experiments={experiments}
@@ -190,7 +194,18 @@ const OrganizationsSettingsNavigation: FC<
 
 	return (
 		<>
-			<header css={styles.sidebarHeader}>Organizations</header>
+			<header
+				css={{
+					display: "flex",
+					flexFlow: "row wrap",
+					columnGap: "8px",
+					alignItems: "baseline",
+				}}
+			>
+				<h2 css={styles.sidebarHeader}>Organizations</h2>
+				<FeatureBadge type="beta" variant="static" size="sm" />
+			</header>
+
 			{permissions.createOrganization && (
 				<SidebarNavItem
 					active="auto"
@@ -364,7 +379,8 @@ const SidebarNavSubItem: FC<SidebarNavSubItemProps> = ({
 const styles = {
 	sidebarHeader: {
 		textTransform: "uppercase",
-		letterSpacing: "0.15em",
+		letterSpacing: "0.1em",
+		margin: 0,
 		fontSize: 11,
 		fontWeight: 500,
 		paddingBottom: 4,
