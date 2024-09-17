@@ -177,6 +177,7 @@ message App {
     AppSharingLevel sharing_level = 8;
     bool external = 9;
     int64 order = 10;
+    bool hidden = 11;
 }
 
 // Healthcheck represents configuration for checking for app readiness.

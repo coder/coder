@@ -388,6 +388,17 @@ func (s *MethodTestSuite) TestGroup() {
 			GroupNames:     slice.New(g1.Name, g2.Name),
 		}).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionUpdate).Returns()
 	}))
+	s.Run("InsertUserGroupsByID", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u1 := dbgen.User(s.T(), db, database.User{})
+		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+		check.Args(database.InsertUserGroupsByIDParams{
+			UserID:   u1.ID,
+			GroupIds: slice.New(g1.ID, g2.ID),
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
+	}))
 	s.Run("RemoveUserFromAllGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u1 := dbgen.User(s.T(), db, database.User{})
@@ -396,6 +407,18 @@ func (s *MethodTestSuite) TestGroup() {
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
 		check.Args(u1.ID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
+	}))
+	s.Run("RemoveUserFromGroups", s.Subtest(func(db database.Store, check *expects) {
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u1 := dbgen.User(s.T(), db, database.User{})
+		g1 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g2.ID, UserID: u1.ID})
+		check.Args(database.RemoveUserFromGroupsParams{
+			UserID:   u1.ID,
+			GroupIds: []uuid.UUID{g1.ID, g2.ID},
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
 	}))
 	s.Run("UpdateGroupByID", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
@@ -527,6 +550,26 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		})
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
+	}))
+	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		t := dbgen.ProvisionerJobTimings(s.T(), db, database.InsertProvisionerJobTimingsParams{
+			JobID:     j.ID,
+			StartedAt: []time.Time{dbtime.Now(), dbtime.Now()},
+			EndedAt:   []time.Time{dbtime.Now(), dbtime.Now()},
+			Stage: []database.ProvisionerJobTimingStage{
+				database.ProvisionerJobTimingStageInit,
+				database.ProvisionerJobTimingStagePlan,
+			},
+			Source:   []string{"source1", "source2"},
+			Action:   []string{"action1", "action2"},
+			Resource: []string{"resource1", "resource2"},
+		})
+		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
@@ -1980,6 +2023,19 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 		}
 		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
 	}))
+	s.Run("ListProvisionerKeysByOrganizationExcludeReserved", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
+		pks := []database.ProvisionerKey{
+			{
+				ID:             pk.ID,
+				CreatedAt:      pk.CreatedAt,
+				OrganizationID: pk.OrganizationID,
+				Name:           pk.Name,
+			},
+		}
+		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
+	}))
 	s.Run("DeleteProvisionerKey", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
@@ -2695,6 +2751,22 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			WorkspaceID: ws.ID,
 			AgentID:     uuid.New(),
 		}).Asserts(tpl, policy.ActionCreate)
+	}))
+	s.Run("DeleteRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
+	s.Run("GetRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		_ = db.UpsertRuntimeConfig(context.Background(), database.UpsertRuntimeConfigParams{
+			Key:   "test",
+			Value: "value",
+		})
+		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpsertRuntimeConfig", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertRuntimeConfigParams{
+			Key:   "test",
+			Value: "value",
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 }
 

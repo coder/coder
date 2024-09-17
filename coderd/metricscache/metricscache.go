@@ -99,7 +99,7 @@ func (c *Cache) refreshTemplateBuildTimes(ctx context.Context) error {
 				Valid: true,
 			},
 			StartTime: sql.NullTime{
-				Time:  dbtime.Time(time.Now().AddDate(0, -30, 0)),
+				Time:  dbtime.Time(time.Now().AddDate(0, 0, -30)),
 				Valid: true,
 			},
 		})

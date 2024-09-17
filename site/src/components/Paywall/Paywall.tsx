@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { EnterpriseBadge } from "components/Badges/Badges";
+import { PremiumBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
 import { docs } from "utils/docs";
@@ -23,7 +23,7 @@ export const Paywall: FC<PaywallProps> = ({
 			<div>
 				<Stack direction="row" alignItems="center" css={{ marginBottom: 24 }}>
 					<h5 css={styles.title}>{message}</h5>
-					<EnterpriseBadge />
+					<PremiumBadge />
 				</Stack>
 
 				{description && <p css={styles.description}>{description}</p>}
@@ -36,39 +36,53 @@ export const Paywall: FC<PaywallProps> = ({
 					Read the documentation
 				</Link>
 			</div>
-			<div css={styles.separator}></div>
-			<Stack direction="column" alignItems="center" spacing={3}>
+			<div css={styles.separator} />
+			<Stack direction="column" alignItems="left" spacing={3}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
-						<FeatureIcon /> Template access control
+						<FeatureIcon />
+						High availability & workspace proxies
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> User groups
+						<FeatureIcon />
+						Multi-org & role-based access control
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> 24 hour support
+						<FeatureIcon />
+						24x7 global support with SLA
 					</li>
 					<li css={styles.feature}>
-						<FeatureIcon /> Audit logs
+						<FeatureIcon />
+						Unlimited Git & external auth integrations
 					</li>
 				</ul>
-				<Button
-					href={docs("/enterprise")}
-					target="_blank"
-					rel="noreferrer"
-					startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
-					variant="outlined"
-					color="neutral"
-				>
-					Learn about Enterprise
-				</Button>
+				<div css={styles.learnButton}>
+					<Button
+						href={docs("/enterprise")}
+						target="_blank"
+						rel="noreferrer"
+						startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
+						variant="outlined"
+						color="neutral"
+					>
+						Learn about Premium
+					</Button>
+				</div>
 			</Stack>
 		</div>
 	);
 };
 
 const FeatureIcon: FC = () => {
-	return <TaskAltIcon css={styles.featureIcon} />;
+	return (
+		<TaskAltIcon
+			css={[
+				(theme) => ({
+					color: theme.branding.premium.border,
+				}),
+			]}
+		/>
+	);
 };
 
 const styles = {
@@ -77,14 +91,12 @@ const styles = {
 		flexDirection: "row",
 		justifyContent: "center",
 		alignItems: "center",
-		minHeight: 300,
-		maxWidth: 920,
-		margin: "auto",
+		minHeight: 280,
 		padding: 24,
-		backgroundImage: `linear-gradient(160deg, transparent, ${theme.roles.active.background})`,
-		border: `1px solid ${theme.roles.active.fill.outline}`,
 		borderRadius: 8,
 		gap: 32,
+		backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.premium.background})`,
+		border: `1px solid ${theme.branding.premium.border}`,
 	}),
 	title: {
 		fontWeight: 600,
@@ -92,25 +104,24 @@ const styles = {
 		fontSize: 22,
 		margin: 0,
 	},
-	description: (theme) => ({
-		marginTop: 16,
+	description: () => ({
 		fontFamily: "inherit",
-		maxWidth: 420,
-		lineHeight: "160%",
-		color: theme.palette.text.secondary,
-		fontSize: 16,
+		maxWidth: 460,
+		fontSize: 14,
 	}),
 	separator: (theme) => ({
 		width: 1,
 		height: 220,
-		backgroundColor: theme.palette.divider,
+		backgroundColor: theme.branding.premium.divider,
 		marginLeft: 8,
 	}),
+	learnButton: {
+		padding: "0 28px",
+	},
 	featureList: {
 		listStyle: "none",
 		margin: 0,
-		marginRight: 8,
-		padding: "0 12px",
+		padding: "0 24px",
 		fontSize: 14,
 		fontWeight: 500,
 	},

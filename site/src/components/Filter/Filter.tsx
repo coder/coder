@@ -125,17 +125,13 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 	);
 };
 
-export const SearchFieldSkeleton: FC = () => {
-	return <BaseSkeleton width="100%" />;
-};
-
 export const MenuSkeleton: FC = () => {
 	return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
 };
 
 type FilterProps = {
 	filter: ReturnType<typeof useFilter>;
-	skeleton: ReactNode;
+	optionsSkeleton: ReactNode;
 	isLoading: boolean;
 	learnMoreLink?: string;
 	learnMoreLabel2?: string;
@@ -143,20 +139,26 @@ type FilterProps = {
 	error?: unknown;
 	options?: ReactNode;
 	presets: PresetFilter[];
-	breakpoint?: Breakpoint;
+
+	/**
+	 * The CSS media query breakpoint that defines when the UI will try
+	 * displaying all options on one row, regardless of the number of options
+	 * present
+	 */
+	singleRowBreakpoint?: Breakpoint;
 };
 
 export const Filter: FC<FilterProps> = ({
 	filter,
 	isLoading,
 	error,
-	skeleton,
+	optionsSkeleton,
 	options,
 	learnMoreLink,
 	learnMoreLabel2,
 	learnMoreLink2,
 	presets,
-	breakpoint = "md",
+	singleRowBreakpoint = "lg",
 }) => {
 	const theme = useTheme();
 	// Storing local copy of the filter query so that it can be updated more
@@ -187,15 +189,18 @@ export const Filter: FC<FilterProps> = ({
 				display: "flex",
 				gap: 8,
 				marginBottom: 16,
-				flexWrap: "nowrap",
+				flexWrap: "wrap",
 
-				[theme.breakpoints.down(breakpoint)]: {
-					flexWrap: "wrap",
+				[theme.breakpoints.up(singleRowBreakpoint)]: {
+					flexWrap: "nowrap",
 				},
 			}}
 		>
 			{isLoading ? (
-				skeleton
+				<>
+					<BaseSkeleton width="100%" />
+					{optionsSkeleton}
+				</>
 			) : (
 				<>
 					<InputGroup css={{ width: "100%" }}>
@@ -294,21 +299,21 @@ const PresetMenu: FC<PresetMenuProps> = ({
 					</MenuItem>
 				))}
 				{learnMoreLink && (
-					<>
-						<Divider css={{ borderColor: theme.palette.divider }} />
-						<MenuItem
-							component="a"
-							href={learnMoreLink}
-							target="_blank"
-							css={{ fontSize: 13, fontWeight: 500 }}
-							onClick={() => {
-								setIsOpen(false);
-							}}
-						>
-							<OpenInNewOutlined css={{ fontSize: "14px !important" }} />
-							View advanced filtering
-						</MenuItem>
-					</>
+					<Divider css={{ borderColor: theme.palette.divider }} />
+				)}
+				{learnMoreLink && (
+					<MenuItem
+						component="a"
+						href={learnMoreLink}
+						target="_blank"
+						css={{ fontSize: 13, fontWeight: 500 }}
+						onClick={() => {
+							setIsOpen(false);
+						}}
+					>
+						<OpenInNewOutlined css={{ fontSize: "14px !important" }} />
+						View advanced filtering
+					</MenuItem>
 				)}
 				{learnMoreLink2 && learnMoreLabel2 && (
 					<MenuItem

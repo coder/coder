@@ -1,6 +1,7 @@
 -- name: FetchNewMessageMetadata :one
 -- This is used to build up the notification_message's JSON payload.
 SELECT nt.name                                                    AS notification_name,
+       nt.id                                                      AS notification_template_id,
        nt.actions                                                 AS actions,
        nt.method                                                  AS custom_method,
        u.id                                                       AS user_id,

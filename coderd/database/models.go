@@ -2311,6 +2311,7 @@ type ProvisionerDaemon struct {
 	// The API version of the provisioner daemon
 	APIVersion     string    `db:"api_version" json:"api_version"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	KeyID          uuid.UUID `db:"key_id" json:"key_id"`
 }
 
 type ProvisionerJob struct {
@@ -2843,6 +2844,8 @@ type WorkspaceApp struct {
 	External             bool               `db:"external" json:"external"`
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	// Determines if the app is not shown in user interfaces.
+	Hidden bool `db:"hidden" json:"hidden"`
 }
 
 // A record of workspace app usage statistics

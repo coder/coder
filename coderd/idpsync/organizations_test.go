@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -18,11 +19,13 @@ func TestParseOrganizationClaims(t *testing.T) {
 	t.Run("SingleOrgDeployment", func(t *testing.T) {
 		t.Parallel()
 
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), idpsync.SyncSettings{
-			OrganizationField:         "",
-			OrganizationMapping:       nil,
-			OrganizationAssignDefault: true,
-		})
+		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+			runtimeconfig.NewManager(),
+			idpsync.DeploymentSyncSettings{
+				OrganizationField:         "",
+				OrganizationMapping:       nil,
+				OrganizationAssignDefault: true,
+			})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
@@ -38,13 +41,15 @@ func TestParseOrganizationClaims(t *testing.T) {
 		t.Parallel()
 
 		// AGPL has limited behavior
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), idpsync.SyncSettings{
-			OrganizationField: "orgs",
-			OrganizationMapping: map[string][]uuid.UUID{
-				"random": {uuid.New()},
-			},
-			OrganizationAssignDefault: false,
-		})
+		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+			runtimeconfig.NewManager(),
+			idpsync.DeploymentSyncSettings{
+				OrganizationField: "orgs",
+				OrganizationMapping: map[string][]uuid.UUID{
+					"random": {uuid.New()},
+				},
+				OrganizationAssignDefault: false,
+			})
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 

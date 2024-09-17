@@ -161,7 +161,7 @@ func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
 
 type TestMultiAgent struct {
 	t        testing.TB
-	id       uuid.UUID
+	ID       uuid.UUID
 	a        tailnet.MultiAgentConn
 	nodeKey  []byte
 	discoKey string
@@ -172,8 +172,8 @@ func NewTestMultiAgent(t testing.TB, coord tailnet.Coordinator) *TestMultiAgent 
 	require.NoError(t, err)
 	dk, err := key.NewDisco().Public().MarshalText()
 	require.NoError(t, err)
-	m := &TestMultiAgent{t: t, id: uuid.New(), nodeKey: nk, discoKey: string(dk)}
-	m.a = coord.ServeMultiAgent(m.id)
+	m := &TestMultiAgent{t: t, ID: uuid.New(), nodeKey: nk, discoKey: string(dk)}
+	m.a = coord.ServeMultiAgent(m.ID)
 	return m
 }
 
@@ -277,8 +277,7 @@ func (m *TestMultiAgent) RequireEventuallyClosed(ctx context.Context) {
 }
 
 type FakeCoordinator struct {
-	CoordinateCalls  chan *FakeCoordinate
-	ServeClientCalls chan *FakeServeClient
+	CoordinateCalls chan *FakeCoordinate
 }
 
 func (*FakeCoordinator) ServeHTTPDebug(http.ResponseWriter, *http.Request) {
@@ -286,21 +285,6 @@ func (*FakeCoordinator) ServeHTTPDebug(http.ResponseWriter, *http.Request) {
 }
 
 func (*FakeCoordinator) Node(uuid.UUID) *tailnet.Node {
-	panic("unimplemented")
-}
-
-func (f *FakeCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
-	errCh := make(chan error)
-	f.ServeClientCalls <- &FakeServeClient{
-		Conn:  conn,
-		ID:    id,
-		Agent: agent,
-		ErrCh: errCh,
-	}
-	return <-errCh
-}
-
-func (*FakeCoordinator) ServeAgent(net.Conn, uuid.UUID, string) error {
 	panic("unimplemented")
 }
 
@@ -328,8 +312,7 @@ func (f *FakeCoordinator) Coordinate(ctx context.Context, id uuid.UUID, name str
 
 func NewFakeCoordinator() *FakeCoordinator {
 	return &FakeCoordinator{
-		CoordinateCalls:  make(chan *FakeCoordinate, 100),
-		ServeClientCalls: make(chan *FakeServeClient, 100),
+		CoordinateCalls: make(chan *FakeCoordinate, 100),
 	}
 }
 

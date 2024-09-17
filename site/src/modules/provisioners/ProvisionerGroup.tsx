@@ -4,7 +4,7 @@ import Person from "@mui/icons-material/Person";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import type { BuildInfoResponse } from "api/typesGenerated";
+import type { BuildInfoResponse, ProvisionerDaemon } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import {
@@ -12,7 +12,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import type { ProvisionerDaemonWithWarnings } from "pages/ManagementSettingsPage/OrganizationProvisionersPageView";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
@@ -24,7 +23,7 @@ interface ProvisionerGroupProps {
 	readonly buildInfo?: BuildInfoResponse;
 	readonly keyName?: string;
 	readonly type: ProvisionerGroupType;
-	readonly provisioners: ProvisionerDaemonWithWarnings[];
+	readonly provisioners: ProvisionerDaemon[];
 }
 
 export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
@@ -47,39 +46,22 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	);
 	const upToDate =
 		allProvisionersAreSameVersion && buildInfo?.version === provisioner.version;
-	const protocolUpToDate =
-		allProvisionersAreSameVersion &&
-		buildInfo?.provisioner_api_version === provisioner.api_version;
 	const provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
 
-	// Count how many total warnings there are in this group, and how many
-	// provisioners they come from.
-	let warningCount = 0;
-	let warningProvisionerCount = 0;
-	for (const provisioner of provisioners) {
-		const provisionerWarningCount = provisioner.warnings?.length ?? 0;
-		warningCount += provisionerWarningCount;
-		warningProvisionerCount += provisionerWarningCount > 0 ? 1 : 0;
-	}
-
 	const extraTags = Object.entries(provisioner.tags).filter(
 		([key]) => key !== "scope" && key !== "owner",
 	);
-	const isWarning = warningCount > 0;
 
 	return (
 		<div
-			css={[
-				{
-					borderRadius: 8,
-					border: `1px solid ${theme.palette.divider}`,
-					fontSize: 14,
-				},
-				isWarning && { borderColor: theme.roles.warning.fill.outline },
-			]}
+			css={{
+				borderRadius: 8,
+				border: `1px solid ${theme.palette.divider}`,
+				fontSize: 14,
+			}}
 		>
 			<header
 				css={{
@@ -176,19 +158,13 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					{provisioners.map((provisioner) => (
 						<div
 							key={provisioner.id}
-							css={[
-								{
-									borderRadius: 8,
-									border: `1px solid ${theme.palette.divider}`,
-									fontSize: 14,
-									padding: "12px 18px",
-									width: 310,
-								},
-								provisioner.warnings &&
-									provisioner.warnings.length > 0 && {
-										borderColor: theme.roles.warning.fill.outline,
-									},
-							]}
+							css={{
+								borderRadius: 8,
+								border: `1px solid ${theme.palette.divider}`,
+								fontSize: 14,
+								padding: "12px 18px",
+								width: 310,
+							}}
 						>
 							<div css={{ lineHeight: 1.6 }}>
 								<h4 css={{ fontWeight: 500, margin: 0 }}>{provisioner.name}</h4>
@@ -260,16 +236,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					color: theme.palette.text.secondary,
 				}}
 			>
-				{warningCount > 0 ? (
-					<span>
-						{warningCount === 1 ? "1 warning" : `${warningCount} warnings`} from{" "}
-						{warningProvisionerCount === 1
-							? "1 provisioner"
-							: `${warningProvisionerCount} provisioners`}
-					</span>
-				) : (
-					<span>No warnings from {provisionerCount}</span>
-				)}
+				<span>No warnings from {provisionerCount}</span>
 				<Button
 					variant="text"
 					css={{

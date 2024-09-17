@@ -1,24 +1,17 @@
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Button from "@mui/material/Button";
-import type {
-	BuildInfoResponse,
-	HealthMessage,
-	ProvisionerDaemon,
-} from "api/typesGenerated";
+import type { BuildInfoResponse, ProvisionerDaemon } from "api/typesGenerated";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
-export interface ProvisionerDaemonWithWarnings extends ProvisionerDaemon {
-	readonly warnings?: readonly HealthMessage[];
-}
-
 export interface ProvisionersByGroup {
-	builtin: ProvisionerDaemonWithWarnings[];
-	psk: ProvisionerDaemonWithWarnings[];
-	keys: Map<string, ProvisionerDaemonWithWarnings[]>;
+	builtin: ProvisionerDaemon[];
+	psk: ProvisionerDaemon[];
+	userAuth: ProvisionerDaemon[];
+	keys: Map<string, ProvisionerDaemon[]>;
 }
 
 interface OrganizationProvisionersPageViewProps {

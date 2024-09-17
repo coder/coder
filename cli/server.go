@@ -56,6 +56,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
@@ -186,14 +187,6 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		EmailField:          vals.OIDC.EmailField.String(),
 		AuthURLParams:       vals.OIDC.AuthURLParams.Value,
 		IgnoreUserInfo:      vals.OIDC.IgnoreUserInfo.Value(),
-		GroupField:          vals.OIDC.GroupField.String(),
-		GroupFilter:         vals.OIDC.GroupRegexFilter.Value(),
-		GroupAllowList:      groupAllowList,
-		CreateMissingGroups: vals.OIDC.GroupAutoCreate.Value(),
-		GroupMapping:        vals.OIDC.GroupMapping.Value,
-		UserRoleField:       vals.OIDC.UserRoleField.String(),
-		UserRoleMapping:     vals.OIDC.UserRoleMapping.Value,
-		UserRolesDefault:    vals.OIDC.UserRolesDefault.GetSlice(),
 		SignInText:          vals.OIDC.SignInText.String(),
 		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
 		IconURL:             vals.OIDC.IconURL.String(),
@@ -819,6 +812,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return err
 			}
+
+			options.RuntimeConfig = runtimeconfig.NewManager()
 
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")

@@ -68,6 +68,7 @@ func New() database.Store {
 			notificationPreferences:   make([]database.NotificationPreference, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
+			provisionerKeys:           make([]database.ProvisionerKey, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
 			workspaceResources:        make([]database.WorkspaceResource, 0),
@@ -84,6 +85,7 @@ func New() database.Store {
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 			customRoles:               make([]database.CustomRole, 0),
 			locks:                     map[int64]struct{}{},
+			runtimeConfig:             map[string]string{},
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -107,6 +109,41 @@ func New() database.Store {
 
 	q.defaultProxyDisplayName = "Default"
 	q.defaultProxyIconURL = "/emojis/1f3e1.png"
+
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           codersdk.ProvisionerKeyNameBuiltIn,
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create built-in provisioner key: %w", err))
+	}
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDUserAuth),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           codersdk.ProvisionerKeyNameUserAuth,
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create user-auth provisioner key: %w", err))
+	}
+	_, err = q.InsertProvisionerKey(context.Background(), database.InsertProvisionerKeyParams{
+		ID:             uuid.MustParse(codersdk.ProvisionerKeyIDPSK),
+		OrganizationID: defaultOrg.ID,
+		CreatedAt:      dbtime.Now(),
+		HashedSecret:   []byte{},
+		Name:           codersdk.ProvisionerKeyNamePSK,
+		Tags:           map[string]string{},
+	})
+	if err != nil {
+		panic(xerrors.Errorf("failed to create psk provisioner key: %w", err))
+	}
+
 	return q
 }
 
@@ -194,6 +231,8 @@ type data struct {
 	workspaces                    []database.Workspace
 	workspaceProxies              []database.WorkspaceProxy
 	customRoles                   []database.CustomRole
+	provisionerJobTimings         []database.ProvisionerJobTiming
+	runtimeConfig                 map[string]string
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                            map[int64]struct{}
@@ -1928,6 +1967,14 @@ func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	return nil
 }
 
+func (q *FakeQuerier) DeleteRuntimeConfig(_ context.Context, key string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	delete(q.runtimeConfig, key)
+	return nil
+}
+
 func (*FakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
 }
@@ -2653,14 +2700,14 @@ func (q *FakeQuerier) GetGroupMembersByGroupID(ctx context.Context, id uuid.UUID
 
 	var groupMembers []database.GroupMember
 	for _, member := range q.groupMembers {
-		groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
-		if errors.Is(err, errUserDeleted) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
 		if member.GroupID == id {
+			groupMember, err := q.getGroupMemberNoLock(ctx, member.UserID, member.GroupID)
+			if errors.Is(err, errUserDeleted) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
 			groupMembers = append(groupMembers, groupMember)
 		}
 	}
@@ -2685,18 +2732,18 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	groupIDs := make(map[uuid.UUID]struct{})
+	userGroupIDs := make(map[uuid.UUID]struct{})
 	if arg.HasMemberID != uuid.Nil {
 		for _, member := range q.groupMembers {
 			if member.UserID == arg.HasMemberID {
-				groupIDs[member.GroupID] = struct{}{}
+				userGroupIDs[member.GroupID] = struct{}{}
 			}
 		}
 
 		// Handle the everyone group
 		for _, orgMember := range q.organizationMembers {
 			if orgMember.UserID == arg.HasMemberID {
-				groupIDs[orgMember.OrganizationID] = struct{}{}
+				userGroupIDs[orgMember.OrganizationID] = struct{}{}
 			}
 		}
 	}
@@ -2704,12 +2751,22 @@ func (q *FakeQuerier) GetGroups(_ context.Context, arg database.GetGroupsParams)
 	orgDetailsCache := make(map[uuid.UUID]struct{ name, displayName string })
 	filtered := make([]database.GetGroupsRow, 0)
 	for _, group := range q.groups {
+		if len(arg.GroupIds) > 0 {
+			if !slices.Contains(arg.GroupIds, group.ID) {
+				continue
+			}
+		}
+
 		if arg.OrganizationID != uuid.Nil && group.OrganizationID != arg.OrganizationID {
 			continue
 		}
 
-		_, ok := groupIDs[group.ID]
+		_, ok := userGroupIDs[group.ID]
 		if arg.HasMemberID != uuid.Nil && !ok {
+			continue
+		}
+
+		if len(arg.GroupNames) > 0 && !slices.Contains(arg.GroupNames, group.Name) {
 			continue
 		}
 
@@ -3270,6 +3327,26 @@ func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	return q.getProvisionerJobByIDNoLock(ctx, id)
 }
 
+func (q *FakeQuerier) GetProvisionerJobTimingsByJobID(_ context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	timings := make([]database.ProvisionerJobTiming, 0)
+	for _, timing := range q.provisionerJobTimings {
+		if timing.JobID == jobID {
+			timings = append(timings, timing)
+		}
+	}
+	if len(timings) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	sort.Slice(timings, func(i, j int) bool {
+		return timings[i].StartedAt.Before(timings[j].StartedAt)
+	})
+
+	return timings, nil
+}
+
 func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3503,6 +3580,18 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
+}
+
+func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	val, ok := q.runtimeConfig[key]
+	if !ok {
+		return "", sql.ErrNoRows
+	}
+
+	return val, nil
 }
 
 func (*FakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
@@ -6751,13 +6840,31 @@ func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
-func (*FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+func (q *FakeQuerier) InsertProvisionerJobTimings(_ context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
 
-	return nil, nil
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	insertedTimings := make([]database.ProvisionerJobTiming, 0, len(arg.StartedAt))
+	for i := range arg.StartedAt {
+		timing := database.ProvisionerJobTiming{
+			JobID:     arg.JobID,
+			StartedAt: arg.StartedAt[i],
+			EndedAt:   arg.EndedAt[i],
+			Stage:     arg.Stage[i],
+			Source:    arg.Source[i],
+			Action:    arg.Action[i],
+			Resource:  arg.Resource[i],
+		}
+		q.provisionerJobTimings = append(q.provisionerJobTimings, timing)
+		insertedTimings = append(insertedTimings, timing)
+	}
+
+	return insertedTimings, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerKey(_ context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
@@ -6993,7 +7100,37 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
+func (q *FakeQuerier) InsertUserGroupsByID(_ context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var groupIDs []uuid.UUID
+	for _, group := range q.groups {
+		for _, groupID := range arg.GroupIds {
+			if group.ID == groupID {
+				q.groupMembers = append(q.groupMembers, database.GroupMemberTable{
+					UserID:  arg.UserID,
+					GroupID: groupID,
+				})
+				groupIDs = append(groupIDs, group.ID)
+			}
+		}
+	}
+
+	return groupIDs, nil
+}
+
 func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.InsertUserGroupsByNameParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -7291,6 +7428,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		HealthcheckInterval:  arg.HealthcheckInterval,
 		HealthcheckThreshold: arg.HealthcheckThreshold,
 		Health:               arg.Health,
+		Hidden:               arg.Hidden,
 		DisplayOrder:         arg.DisplayOrder,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
@@ -7480,6 +7618,25 @@ func (q *FakeQuerier) ListProvisionerKeysByOrganization(_ context.Context, organ
 	return keys, nil
 }
 
+func (q *FakeQuerier) ListProvisionerKeysByOrganizationExcludeReserved(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.ProvisionerKey, 0)
+	for _, key := range q.provisionerKeys {
+		if key.ID.String() == codersdk.ProvisionerKeyIDBuiltIn ||
+			key.ID.String() == codersdk.ProvisionerKeyIDUserAuth ||
+			key.ID.String() == codersdk.ProvisionerKeyIDPSK {
+			continue
+		}
+		if key.OrganizationID == organizationID {
+			keys = append(keys, key)
+		}
+	}
+
+	return keys, nil
+}
+
 func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -7582,6 +7739,34 @@ func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUI
 	q.groupMembers = newMembers
 
 	return nil
+}
+
+func (q *FakeQuerier) RemoveUserFromGroups(_ context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	removed := make([]uuid.UUID, 0)
+	q.data.groupMembers = slices.DeleteFunc(q.data.groupMembers, func(groupMember database.GroupMemberTable) bool {
+		// Delete all group members that match the arguments.
+		if groupMember.UserID != arg.UserID {
+			// Not the right user, ignore.
+			return false
+		}
+
+		if !slices.Contains(arg.GroupIds, groupMember.GroupID) {
+			return false
+		}
+
+		removed = append(removed, groupMember.GroupID)
+		return true
+	})
+
+	return removed, nil
 }
 
 func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string) error {
@@ -8545,7 +8730,7 @@ func (q *FakeQuerier) UpdateUserRoles(_ context.Context, arg database.UpdateUser
 		}
 
 		// Set new roles
-		user.RBACRoles = arg.GrantedRoles
+		user.RBACRoles = slice.Unique(arg.GrantedRoles)
 		// Remove duplicates and sort
 		uniqueRoles := make([]string, 0, len(user.RBACRoles))
 		exist := make(map[string]struct{})
@@ -9181,9 +9366,23 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		Version:        arg.Version,
 		APIVersion:     arg.APIVersion,
 		OrganizationID: arg.OrganizationID,
+		KeyID:          arg.KeyID,
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil
+}
+
+func (q *FakeQuerier) UpsertRuntimeConfig(_ context.Context, arg database.UpsertRuntimeConfigParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.runtimeConfig[arg.Key] = arg.Value
+	return nil
 }
 
 func (*FakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

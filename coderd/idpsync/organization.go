@@ -16,9 +16,24 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
+type OrganizationParams struct {
+	// SyncEnabled if false will skip syncing the user's organizations.
+	SyncEnabled bool
+	// IncludeDefault is primarily for single org deployments. It will ensure
+	// a user is always inserted into the default org.
+	IncludeDefault bool
+	// Organizations is the list of organizations the user should be a member of
+	// assuming syncing is turned on.
+	Organizations []uuid.UUID
+}
+
 func (AGPLIDPSync) OrganizationSyncEnabled() bool {
 	// AGPL does not support syncing organizations.
 	return false
+}
+
+func (s AGPLIDPSync) AssignDefaultOrganization() bool {
+	return s.OrganizationAssignDefault
 }
 
 func (s AGPLIDPSync) ParseOrganizationClaims(_ context.Context, _ jwt.MapClaims) (OrganizationParams, *HTTPError) {
