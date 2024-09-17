@@ -399,8 +399,8 @@ const styles = {
 		fontWeight: 600,
 	}),
 
-	text: (theme) => ({
+	text: {
 		marginTop: 0,
 		marginBottom: 12,
-	}),
+	},
 } satisfies Record<string, Interpolation<Theme>>;
