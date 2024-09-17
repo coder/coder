@@ -19,7 +19,7 @@ export interface DashboardValue {
 	entitlements: Entitlements;
 	experiments: Experiments;
 	appearance: AppearanceConfig;
-	organizations: Organization[];
+	organizations: readonly Organization[];
 	showOrganizations: boolean;
 }
 

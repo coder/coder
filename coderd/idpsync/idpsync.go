@@ -24,6 +24,7 @@ import (
 // claims to the internal representation of a user in Coder.
 // TODO: Move group + role sync into this interface.
 type IDPSync interface {
+	AssignDefaultOrganization() bool
 	OrganizationSyncEnabled() bool
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
@@ -41,7 +42,26 @@ type IDPSync interface {
 	// GroupSyncSettings is exposed for the API to implement CRUD operations
 	// on the settings used by IDPSync. This entry is thread safe and can be
 	// accessed concurrently. The settings are stored in the database.
-	GroupSyncSettings() runtimeconfig.RuntimeEntry[*GroupSyncSettings]
+	GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*GroupSyncSettings, error)
+	UpdateGroupSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error
+
+	// RoleSyncEntitled returns true if the deployment is entitled to role syncing.
+	RoleSyncEntitled() bool
+	// OrganizationRoleSyncEnabled returns true if the organization has role sync
+	// enabled.
+	OrganizationRoleSyncEnabled(ctx context.Context, db database.Store, org uuid.UUID) (bool, error)
+	// SiteRoleSyncEnabled returns true if the deployment has role sync enabled
+	// at the site level.
+	SiteRoleSyncEnabled() bool
+	// RoleSyncSettings is similar to GroupSyncSettings. See GroupSyncSettings for
+	// rational.
+	RoleSyncSettings() runtimeconfig.RuntimeEntry[*RoleSyncSettings]
+	// ParseRoleClaims takes claims from an OIDC provider, and returns the params
+	// for role syncing. Most of the logic happens in SyncRoles.
+	ParseRoleClaims(ctx context.Context, mergedClaims jwt.MapClaims) (RoleParams, *HTTPError)
+	// SyncRoles assigns and removes users from roles based on the provided params.
+	// Site & org roles are handled in this method.
+	SyncRoles(ctx context.Context, db database.Store, user database.User, params RoleParams) error
 }
 
 // AGPLIDPSync is the configuration for syncing user information from an external
@@ -75,6 +95,18 @@ type DeploymentSyncSettings struct {
 	GroupAllowList map[string]struct{}
 	// Legacy deployment settings that only apply to the default org.
 	Legacy DefaultOrgLegacySettings
+
+	// SiteRoleField selects the claim field to be used as the created user's
+	// roles. If the field is the empty string, then no site role updates
+	// will ever come from the OIDC provider.
+	SiteRoleField string
+	// SiteRoleMapping controls how groups returned by the OIDC provider get mapped
+	// to site roles within Coder.
+	// map[oidcRoleName][]coderRoleName
+	SiteRoleMapping map[string][]string
+	// SiteDefaultRoles is the default set of site roles to assign to a user if role sync
+	// is enabled.
+	SiteDefaultRoles []string
 }
 
 type DefaultOrgLegacySettings struct {
@@ -92,6 +124,10 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 		OrganizationField:         dv.OIDC.OrganizationField.Value(),
 		OrganizationMapping:       dv.OIDC.OrganizationMapping.Value,
 		OrganizationAssignDefault: dv.OIDC.OrganizationAssignDefault.Value(),
+
+		SiteRoleField:    dv.OIDC.UserRoleField.Value(),
+		SiteRoleMapping:  dv.OIDC.UserRoleMapping.Value,
+		SiteDefaultRoles: dv.OIDC.UserRolesDefault.Value(),
 
 		// TODO: Separate group field for allow list from default org.
 		// Right now you cannot disable group sync from the default org and
@@ -111,6 +147,7 @@ type SyncSettings struct {
 	DeploymentSyncSettings
 
 	Group runtimeconfig.RuntimeEntry[*GroupSyncSettings]
+	Role  runtimeconfig.RuntimeEntry[*RoleSyncSettings]
 }
 
 func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
@@ -120,6 +157,7 @@ func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings De
 		SyncSettings: SyncSettings{
 			DeploymentSyncSettings: settings,
 			Group:                  runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings"),
+			Role:                   runtimeconfig.MustNew[*RoleSyncSettings]("role-sync-settings"),
 		},
 	}
 }

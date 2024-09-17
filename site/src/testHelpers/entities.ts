@@ -567,6 +567,14 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		roles: [],
 	};
 
+export const MockProvisionerKey: TypesGen.ProvisionerKey = {
+	id: "test-provisioner-key",
+	organization: MockOrganization.id,
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	name: "test-name",
+	tags: { scope: "organization" },
+};
+
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "test-provisioner",
@@ -576,6 +584,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	tags: { scope: "organization" },
 	version: MockBuildInfo.version,
 	api_version: MockBuildInfo.provisioner_api_version,
+	key_id: MockProvisionerKey.id,
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
@@ -3528,6 +3537,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "ok",
@@ -3549,6 +3559,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "00000000-0000-0000-000000000000",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "user-scoped",
@@ -3570,6 +3581,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "unhappy",
@@ -3726,6 +3738,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "vvuurrkk-2",
