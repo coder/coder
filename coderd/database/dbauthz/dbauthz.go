@@ -1613,11 +1613,11 @@ func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg datab
 	return q.db.GetNotificationMessagesByStatus(ctx, arg)
 }
 
-func (q *querier) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.NotificationReportGeneratorLog, error) {
+func (q *querier) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.NotificationReportGeneratorLog{}, err
 	}
-	return q.db.GetNotificationReportGeneratorLogByUserAndTemplate(ctx, arg)
+	return q.db.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
 }
 
 func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {

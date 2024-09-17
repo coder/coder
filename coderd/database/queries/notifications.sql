@@ -175,21 +175,20 @@ FROM notification_templates
 WHERE kind = @kind::notification_template_kind
 ORDER BY name ASC;
 
--- name: GetNotificationReportGeneratorLogByUserAndTemplate :one
+-- name: GetNotificationReportGeneratorLogByTemplate :one
 -- Fetch the notification report generator log indicating recent activity.
 SELECT
 	*
 FROM
 	notification_report_generator_logs
 WHERE
-	user_id = $1
-	AND notification_template_id = $2;
+	notification_template_id = $1;
 
 -- name: UpsertNotificationReportGeneratorLog :exec
 -- Insert or update notification report generator logs with recent activity.
-INSERT INTO notification_report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES (@user_id, @notification_template_id, @last_generated_at)
-ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
-WHERE report_generator_logs.user_id = EXCLUDED.user_id AND report_generator_logs.notification_template_id = EXCLUDED.notification_template_id;
+INSERT INTO notification_report_generator_logs (notification_template_id, last_generated_at) VALUES (@notification_template_id, @last_generated_at)
+ON CONFLICT (notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
+WHERE report_generator_logs.notification_template_id = EXCLUDED.notification_template_id;
 
 -- name: DeleteOldNotificationReportGeneratorLogs :exec
 -- Delete report generator logs that have been created at least a @before date.

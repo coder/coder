@@ -3002,7 +3002,7 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
-func (q *FakeQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(_ context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.NotificationReportGeneratorLog, error) {
+func (q *FakeQuerier) GetNotificationReportGeneratorLogByTemplate(_ context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.NotificationReportGeneratorLog{}, err
@@ -9384,7 +9384,7 @@ func (q *FakeQuerier) UpsertNotificationReportGeneratorLog(_ context.Context, ar
 	defer q.mutex.Unlock()
 
 	for i, record := range q.notificationReportGeneratorLogs {
-		if arg.NotificationTemplateID == record.NotificationTemplateID && arg.UserID == record.UserID {
+		if arg.NotificationTemplateID == record.NotificationTemplateID {
 			q.notificationReportGeneratorLogs[i].LastGeneratedAt = arg.LastGeneratedAt
 			return nil
 		}

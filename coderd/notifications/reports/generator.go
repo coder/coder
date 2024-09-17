@@ -137,7 +137,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 
 		for _, templateAdmin := range templateAdmins {
-			reportLog, err := db.GetNotificationReportGeneratorLogByUserAndTemplate(ctx, database.GetNotificationReportGeneratorLogByUserAndTemplateParams{
+			reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, database.GetNotificationReportGeneratorLogByTemplateParams{
 				UserID:                 templateAdmin.ID,
 				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			})

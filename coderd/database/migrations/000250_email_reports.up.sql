@@ -21,11 +21,10 @@ We recommend reviewing these issues to ensure future builds are successful.',
 
 CREATE TABLE notification_report_generator_logs
 (
-    user_id uuid NOT NULL,
     notification_template_id uuid NOT NULL,
     last_generated_at timestamp with time zone NOT NULL,
 
-    PRIMARY KEY (user_id, notification_template_id)
+    PRIMARY KEY (notification_template_id)
 );
 
 COMMENT ON TABLE notification_report_generator_logs IS 'Log of generated reports for users.';

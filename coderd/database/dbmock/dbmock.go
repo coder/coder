@@ -1552,19 +1552,19 @@ func (mr *MockStoreMockRecorder) GetNotificationMessagesByStatus(arg0, arg1 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationMessagesByStatus", reflect.TypeOf((*MockStore)(nil).GetNotificationMessagesByStatus), arg0, arg1)
 }
 
-// GetNotificationReportGeneratorLogByUserAndTemplate mocks base method.
-func (m *MockStore) GetNotificationReportGeneratorLogByUserAndTemplate(arg0 context.Context, arg1 database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.NotificationReportGeneratorLog, error) {
+// GetNotificationReportGeneratorLogByTemplate mocks base method.
+func (m *MockStore) GetNotificationReportGeneratorLogByTemplate(arg0 context.Context, arg1 database.GetNotificationReportGeneratorLogByTemplateParams) (database.NotificationReportGeneratorLog, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNotificationReportGeneratorLogByUserAndTemplate", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetNotificationReportGeneratorLogByTemplate", arg0, arg1)
 	ret0, _ := ret[0].(database.NotificationReportGeneratorLog)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetNotificationReportGeneratorLogByUserAndTemplate indicates an expected call of GetNotificationReportGeneratorLogByUserAndTemplate.
-func (mr *MockStoreMockRecorder) GetNotificationReportGeneratorLogByUserAndTemplate(arg0, arg1 any) *gomock.Call {
+// GetNotificationReportGeneratorLogByTemplate indicates an expected call of GetNotificationReportGeneratorLogByTemplate.
+func (mr *MockStoreMockRecorder) GetNotificationReportGeneratorLogByTemplate(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationReportGeneratorLogByUserAndTemplate", reflect.TypeOf((*MockStore)(nil).GetNotificationReportGeneratorLogByUserAndTemplate), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationReportGeneratorLogByTemplate", reflect.TypeOf((*MockStore)(nil).GetNotificationReportGeneratorLogByTemplate), arg0, arg1)
 }
 
 // GetNotificationTemplateByID mocks base method.

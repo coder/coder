@@ -774,10 +774,10 @@ func (m metricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg d
 	return r0, r1
 }
 
-func (m metricsStore) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.NotificationReportGeneratorLog, error) {
+func (m metricsStore) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetNotificationReportGeneratorLogByUserAndTemplate(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByUserAndTemplate").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByTemplate").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
