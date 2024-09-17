@@ -24,6 +24,7 @@ import (
 // claims to the internal representation of a user in Coder.
 // TODO: Move group + role sync into this interface.
 type IDPSync interface {
+	AssignDefaultOrganization() bool
 	OrganizationSyncEnabled() bool
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
