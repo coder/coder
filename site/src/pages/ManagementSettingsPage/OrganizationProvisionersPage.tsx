@@ -1,23 +1,71 @@
+import { buildInfo } from "api/queries/buildInfo";
 import {
 	organizationsPermissions,
 	provisionerDaemons,
 } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
+import type { Organization, ProvisionerDaemon } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import NotFoundPage from "pages/404Page/404Page";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
-import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
+import {
+	OrganizationProvisionersPageView,
+	type ProvisionersByGroup,
+} from "./OrganizationProvisionersPageView";
+
+const ProvisionerKeyIDBuiltIn = "00000000-0000-0000-0000-000000000001";
+const ProvisionerKeyIDUserAuth = "00000000-0000-0000-0000-000000000002";
+const ProvisionerKeyIDPSK = "00000000-0000-0000-0000-000000000003";
+
+function groupProvisioners(
+	provisioners: readonly ProvisionerDaemon[],
+): ProvisionersByGroup {
+	const groups: ProvisionersByGroup = {
+		builtin: [],
+		psk: [],
+		userAuth: [],
+		keys: new Map(),
+	};
+	// NOTE: I'll fix this at the end of the PR chain
+	const keyName = "TODO";
+
+	for (const it of provisioners) {
+		if (it.key_id === ProvisionerKeyIDBuiltIn) {
+			groups.builtin.push(it);
+			continue;
+		}
+		if (it.key_id === ProvisionerKeyIDPSK) {
+			groups.psk.push(it);
+			continue;
+		}
+		if (it.key_id === ProvisionerKeyIDUserAuth) {
+			groups.userAuth.push(it);
+			continue;
+		}
+
+		const keyGroup = groups.keys.get(keyName) ?? [];
+		if (!groups.keys.has(keyName)) {
+			groups.keys.set(keyName, keyGroup);
+		}
+		keyGroup.push(it);
+	}
+
+	return groups;
+}
 
 const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
 	const { organizations } = useOrganizationSettings();
+
+	const { metadata } = useEmbeddedMetadata();
+	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 
 	const organization = organizations
 		? getOrganizationByName(organizations, organizationName)
@@ -54,7 +102,12 @@ const OrganizationProvisionersPage: FC = () => {
 		return <NotFoundPage />;
 	}
 
-	return <OrganizationProvisionersPageView provisioners={provisioners} />;
+	return (
+		<OrganizationProvisionersPageView
+			buildInfo={buildInfoQuery.data}
+			provisioners={groupProvisioners(provisioners)}
+		/>
+	);
 };
 
 export default OrganizationProvisionersPage;
