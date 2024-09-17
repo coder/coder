@@ -25,13 +25,13 @@ import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import { ProvisionerTag } from "./ProvisionerTag";
 
-type ProvisionerGroupType = "builtin" | "psk" | "key";
+type ProvisionerGroupType = "builtin" | "psk" | "userAuth" | "key";
 
 interface ProvisionerGroupProps {
 	readonly buildInfo?: BuildInfoResponse;
 	readonly keyName?: string;
 	readonly type: ProvisionerGroupType;
-	readonly provisioners: ProvisionerDaemon[];
+	readonly provisioners: readonly ProvisionerDaemon[];
 }
 
 export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
@@ -46,14 +46,10 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	const [showDetails, setShowDetails] = useState(false);
 
 	const daemonScope = provisioner.tags.scope || "organization";
-	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
-
 	const provisionerVersion = provisioner.version;
 	const allProvisionersAreSameVersion = provisioners.every(
 		(provisioner) => provisioner.version === provisionerVersion,
 	);
-	const upToDate =
-		allProvisionersAreSameVersion && buildInfo?.version === provisioner.version;
 	const provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
@@ -89,7 +85,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					}}
 				>
 					{type === "builtin" && (
-						<div css={{ lineHeight: "160%" }}>
+						<div css={{ lineHeight: 1.6 }}>
 							<BuiltinProvisionerTitle />
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash; Built-in
@@ -97,7 +93,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						</div>
 					)}
 					{type === "psk" && (
-						<div css={{ lineHeight: "160%" }}>
+						<div css={{ lineHeight: 1.6 }}>
 							<PskProvisionerTitle />
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
@@ -109,8 +105,21 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 							</span>
 						</div>
 					)}
+					{type === "userAuth" && (
+						<div css={{ lineHeight: 1.6 }}>
+							<UserAuthProvisionerTitle />
+							<span css={{ color: theme.palette.text.secondary }}>
+								{provisionerCount} &mdash;{" "}
+								{allProvisionersAreSameVersion ? (
+									<code>{provisionerVersion}</code>
+								) : (
+									<span>Multiple versions</span>
+								)}
+							</span>
+						</div>
+					)}
 					{type === "key" && (
-						<div css={{ lineHeight: "160%" }}>
+						<div css={{ lineHeight: 1.6 }}>
 							<h4 css={styles.groupTitle}>Key group &ndash; {keyName}</h4>
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
@@ -133,7 +142,10 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					}}
 				>
 					<Tooltip title="Scope">
-						<Pill size="lg" icon={iconScope}>
+						<Pill
+							size="lg"
+							icon={daemonScope === "organization" ? <Business /> : <Person />}
+						>
 							<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
 						</Pill>
 					</Tooltip>
@@ -378,6 +390,28 @@ const PskProvisionerTitle: FC = () => {
 	);
 };
 
+const UserAuthProvisionerTitle: FC = () => {
+	return (
+		<h4 css={styles.groupTitle}>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>User authenticated provisioners</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>User authenitcated provisioners</HelpTooltipTitle>
+						<HelpTooltipText>
+							These provisioners have been authenticated by a user. This can
+							happen if an authenticated user is running a provisioner using the{" "}
+							<code>coder provisionerd start</code> command without specifying a
+							provisioner key. <Link href={docs("/")}>Learn more&hellip;</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
 const styles = {
 	groupTitle: {
 		fontWeight: 500,
@@ -389,7 +423,7 @@ const styles = {
 		marginBottom: 0,
 		color: theme.palette.text.primary,
 		fontSize: 14,
-		lineHeight: "150%",
+		lineHeight: 1.5,
 		fontWeight: 600,
 	}),
 

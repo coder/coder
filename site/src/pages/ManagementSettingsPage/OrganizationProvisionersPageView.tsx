@@ -1,6 +1,7 @@
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Button from "@mui/material/Button";
 import type { BuildInfoResponse, ProvisionerDaemon } from "api/typesGenerated";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
@@ -22,6 +23,13 @@ interface OrganizationProvisionersPageViewProps {
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
 > = ({ buildInfo, provisioners }) => {
+	const isEmpty =
+		provisioners.builtin.length +
+			provisioners.psk.length +
+			provisioners.userAuth.length +
+			provisioners.keys.size ===
+		0;
+
 	return (
 		<div>
 			<PageHeader
@@ -40,6 +48,21 @@ export const OrganizationProvisionersPageView: FC<
 				<PageHeaderTitle>Provisioners</PageHeaderTitle>
 			</PageHeader>
 			<Stack spacing={4.5}>
+				{isEmpty && (
+					<EmptyState
+						message="No provisioners"
+						description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
+						cta={
+							<Button
+								endIcon={<OpenInNewIcon />}
+								target="_blank"
+								href={docs("/admin/provisioners")}
+							>
+								Create a provisioner
+							</Button>
+						}
+					/>
+				)}
 				{provisioners.builtin.length > 0 && (
 					<ProvisionerGroup
 						buildInfo={buildInfo}
@@ -52,6 +75,13 @@ export const OrganizationProvisionersPageView: FC<
 						buildInfo={buildInfo}
 						type="psk"
 						provisioners={provisioners.psk}
+					/>
+				)}
+				{provisioners.userAuth.length > 0 && (
+					<ProvisionerGroup
+						buildInfo={buildInfo}
+						type="userAuth"
+						provisioners={provisioners.userAuth}
 					/>
 				)}
 				{[...provisioners.keys].map(([keyId, provisioners]) => (
