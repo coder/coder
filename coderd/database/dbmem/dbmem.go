@@ -1690,20 +1690,6 @@ func (*FakeQuerier) DeleteOldNotificationMessages(_ context.Context) error {
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOldNotificationReportGeneratorLogs(_ context.Context, params database.DeleteOldNotificationReportGeneratorLogsParams) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	var validLogs []database.NotificationReportGeneratorLog
-	for _, record := range q.notificationReportGeneratorLogs {
-		if record.NotificationTemplateID != params.NotificationTemplateID || record.LastGeneratedAt.After(params.Before) {
-			validLogs = append(validLogs, record)
-		}
-	}
-	q.notificationReportGeneratorLogs = validLogs
-	return nil
-}
-
 func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

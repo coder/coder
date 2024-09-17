@@ -106,59 +106,67 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	now := clk.Now()
 	since := now.Add(-failedWorkspaceBuildsReportFrequency)
 
-	statsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(since).UTC())
+	// Firstly, check if this is the first run of the job ever
+	reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, notifications.TemplateWorkspaceBuildsFailedReport)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("unable to read report generator log: %w", err)
+	}
+	if xerrors.Is(err, sql.ErrNoRows) {
+		// First run? Check-in the job, and get back after one week.
+		logger.Info(ctx, "report generator is executing the job for the first time", slog.F("notification_template_id", notifications.TemplateWorkspaceBuildsFailedReport))
+
+		err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
+			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+			LastGeneratedAt:        dbtime.Time(now).UTC(),
+		})
+		if err != nil {
+			return xerrors.Errorf("unable to update report generator logs (first time execution): %w", err)
+		}
+		return nil
+	}
+
+	// Secondly, check if the job has not been running recently
+	if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequency).After(now) {
+		return nil // reports sent recently, no need to send them now
+	}
+
+	// Thirdly, fetch workspace build stats by templates
+	templateStatsRows, err := db.GetWorkspaceBuildStatsByTemplates(ctx, dbtime.Time(since).UTC())
 	if err != nil {
 		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
 	}
 
-	processedUsers := map[uuid.UUID]bool{}
-	for _, stats := range statsRows {
-		var failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
-		reportData := map[string]any{}
-
-		if stats.FailedBuilds > 0 {
-			failedBuilds, err = db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
-				TemplateID: stats.TemplateID,
-				Since:      dbtime.Time(since).UTC(),
-			})
-			if err != nil {
-				logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", stats.TemplateID), slog.Error(err))
-				continue
-			}
-
-			// There are some failed builds, so we have to prepare input data for the report.
-			reportData = buildDataForReportFailedWorkspaceBuilds(stats, failedBuilds)
-		}
-
-		templateAdmins, err := findTemplateAdmins(ctx, db, stats)
-		if err != nil {
-			logger.Error(ctx, "unable to find template admins", slog.F("template_id", stats.TemplateID), slog.Error(err))
+	for _, stats := range templateStatsRows {
+		if stats.FailedBuilds == 0 {
+			logger.Error(ctx, "no failed workspace builds found for template", slog.F("template_id", stats.TemplateID), slog.Error(err))
 			continue
 		}
 
+		// Fetch template admins with org access to the templates
+		templateAdmins, err := findTemplateAdmins(ctx, db, stats)
+		if err != nil {
+			logger.Error(ctx, "unable to find template admins for template", slog.F("template_id", stats.TemplateID), slog.Error(err))
+			continue
+		}
+
+		// Fetch failed builds by the template
+		failedBuilds, err := db.GetFailedWorkspaceBuildsByTemplateID(ctx, database.GetFailedWorkspaceBuildsByTemplateIDParams{
+			TemplateID: stats.TemplateID,
+			Since:      dbtime.Time(since).UTC(),
+		})
+		if err != nil {
+			logger.Error(ctx, "unable to fetch failed workspace builds", slog.F("template_id", stats.TemplateID), slog.Error(err))
+			continue
+		}
+		reportData := buildDataForReportFailedWorkspaceBuilds(stats, failedBuilds)
+
+		// Send reports to template admins
+		templateDisplayName := stats.TemplateDisplayName
+		if templateDisplayName == "" {
+			templateDisplayName = stats.TemplateName
+		}
+
 		for _, templateAdmin := range templateAdmins {
-			reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, notifications.TemplateWorkspaceBuildsFailedReport)
-			if err != nil && !xerrors.Is(err, sql.ErrNoRows) { // sql.ErrNoRows: report not generated yet
-				continue
-			}
-
-			if !reportLog.LastGeneratedAt.IsZero() && reportLog.LastGeneratedAt.Add(failedWorkspaceBuildsReportFrequency).After(now) {
-				// report generated recently, no need to send it now
-				continue
-			}
-
-			processedUsers[templateAdmin.ID] = true
-
-			if len(failedBuilds) == 0 {
-				// no failed workspace builds, no need to send the report
-				continue
-			}
-
-			templateDisplayName := stats.TemplateDisplayName
-			if templateDisplayName == "" {
-				templateDisplayName = stats.TemplateName
-			}
-
 			if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceBuildsFailedReport,
 				map[string]string{
 					"template_name":         stats.TemplateName,
@@ -173,22 +181,13 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 	}
 
-	for u := range processedUsers {
-		err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
-			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-			LastGeneratedAt:        dbtime.Time(now).UTC(),
-		})
-		if err != nil {
-			logger.Error(ctx, "unable to update report generator logs", slog.F("user_id", u), slog.Error(err))
-		}
-	}
-
-	err = db.DeleteOldNotificationReportGeneratorLogs(ctx, database.DeleteOldNotificationReportGeneratorLogsParams{
+	// Lastly, update the timestamp in the generator log.
+	err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
 		NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-		Before:                 dbtime.Time(now.Add(-failedWorkspaceBuildsReportFrequency - time.Hour)).UTC(),
+		LastGeneratedAt:        dbtime.Time(now).UTC(),
 	})
 	if err != nil {
-		return xerrors.Errorf("unable to delete old report generator logs: %w", err)
+		return xerrors.Errorf("unable to update report generator logs: %w", err)
 	}
 	return nil
 }

@@ -189,7 +189,3 @@ WHERE
 INSERT INTO notification_report_generator_logs (notification_template_id, last_generated_at) VALUES (@notification_template_id, @last_generated_at)
 ON CONFLICT (notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
 WHERE report_generator_logs.notification_template_id = EXCLUDED.notification_template_id;
-
--- name: DeleteOldNotificationReportGeneratorLogs :exec
--- Delete report generator logs that have been created at least a @before date.
-DELETE FROM notification_report_generator_logs WHERE last_generated_at < @before::timestamptz AND notification_template_id = @notification_template_id;
