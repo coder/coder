@@ -136,9 +136,11 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	}
 
 	for _, stats := range templateStatsRows {
-		if xerrors.Is(ctx.Err(), context.Canceled) {
-			logger.Debug(ctx, "context is canceled, quitting")
+		select {
+		case <-ctx.Done():
+			logger.Debug(ctx, "context is canceled, quitting", slog.Error(ctx.Err()))
 			break
+		default:
 		}
 
 		if stats.FailedBuilds == 0 {
@@ -171,9 +173,11 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 
 		for _, templateAdmin := range templateAdmins {
-			if xerrors.Is(ctx.Err(), context.Canceled) {
-				logger.Debug(ctx, "context is canceled, quitting")
+			select {
+			case <-ctx.Done():
+				logger.Debug(ctx, "context is canceled, quitting", slog.Error(ctx.Err()))
 				break
+			default:
 			}
 
 			if _, err := enqueuer.EnqueueWithData(ctx, templateAdmin.ID, notifications.TemplateWorkspaceBuildsFailedReport,
