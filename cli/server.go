@@ -1024,8 +1024,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
 
 				// Run report generator to distribute periodic reports.
-				reportGenerator := reports.NewReportGenerator(ctx, logger, options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-				defer reportGenerator.Close()
+				notificationReportGenerator := reports.NewReportGenerator(ctx, logger, options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+				defer notificationReportGenerator.Close()
 			}
 
 			// Wrap the server in middleware that redirects to the access URL if
