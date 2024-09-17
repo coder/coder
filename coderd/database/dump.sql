@@ -717,6 +717,14 @@ CREATE TABLE notification_preferences (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE notification_report_generator_logs (
+    user_id uuid NOT NULL,
+    notification_template_id uuid NOT NULL,
+    last_generated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE notification_report_generator_logs IS 'Log of generated reports for users.';
+
 CREATE TABLE notification_templates (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -945,14 +953,6 @@ CREATE TABLE replicas (
     error text DEFAULT ''::text NOT NULL,
     "primary" boolean DEFAULT true NOT NULL
 );
-
-CREATE TABLE report_generator_logs (
-    user_id uuid NOT NULL,
-    notification_template_id uuid NOT NULL,
-    last_generated_at timestamp with time zone NOT NULL
-);
-
-COMMENT ON TABLE report_generator_logs IS 'Log of generated reports for users.';
 
 CREATE TABLE site_configs (
     key character varying(256) NOT NULL,
@@ -1696,6 +1696,9 @@ ALTER TABLE ONLY notification_messages
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
 
+ALTER TABLE ONLY notification_report_generator_logs
+    ADD CONSTRAINT notification_report_generator_logs_pkey PRIMARY KEY (user_id, notification_template_id);
+
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
 
@@ -1758,9 +1761,6 @@ ALTER TABLE ONLY provisioner_jobs
 
 ALTER TABLE ONLY provisioner_keys
     ADD CONSTRAINT provisioner_keys_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY report_generator_logs
-    ADD CONSTRAINT report_generator_logs_pkey PRIMARY KEY (user_id, notification_template_id);
 
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);

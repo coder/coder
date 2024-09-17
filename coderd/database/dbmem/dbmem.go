@@ -156,7 +156,7 @@ type data struct {
 	dbcryptKeys                   []database.DBCryptKey
 	files                         []database.File
 	externalAuthLinks             []database.ExternalAuthLink
-	reportGeneratorLogs           []database.ReportGeneratorLog
+	notificationReportGeneratorLogs           []database.NotificationReportGeneratorLog
 	gitSSHKey                     []database.GitSSHKey
 	groupMembers                  []database.GroupMemberTable
 	groups                        []database.Group
@@ -1694,13 +1694,13 @@ func (q *FakeQuerier) DeleteOldNotificationReportGeneratorLogs(_ context.Context
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	var validLogs []database.ReportGeneratorLog
-	for _, record := range q.reportGeneratorLogs {
+	var validLogs []database.NotificationReportGeneratorLog
+	for _, record := range q.notificationReportGeneratorLogs {
 		if record.NotificationTemplateID != params.NotificationTemplateID || record.LastGeneratedAt.After(params.Before) {
 			validLogs = append(validLogs, record)
 		}
 	}
-	q.reportGeneratorLogs = validLogs
+	q.notificationReportGeneratorLogs = validLogs
 	return nil
 }
 
@@ -3002,21 +3002,21 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
-func (q *FakeQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(_ context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+func (q *FakeQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(_ context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.NotificationReportGeneratorLog, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.ReportGeneratorLog{}, err
+		return database.NotificationReportGeneratorLog{}, err
 	}
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, record := range q.reportGeneratorLogs {
+	for _, record := range q.notificationReportGeneratorLogs {
 		if record.UserID == arg.UserID && record.NotificationTemplateID == arg.NotificationTemplateID {
 			return record, nil
 		}
 	}
-	return database.ReportGeneratorLog{}, sql.ErrNoRows
+	return database.NotificationReportGeneratorLog{}, sql.ErrNoRows
 }
 
 func (*FakeQuerier) GetNotificationTemplateByID(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
@@ -9383,14 +9383,14 @@ func (q *FakeQuerier) UpsertNotificationReportGeneratorLog(_ context.Context, ar
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	for i, record := range q.reportGeneratorLogs {
+	for i, record := range q.notificationReportGeneratorLogs {
 		if arg.NotificationTemplateID == record.NotificationTemplateID && arg.UserID == record.UserID {
-			q.reportGeneratorLogs[i].LastGeneratedAt = arg.LastGeneratedAt
+			q.notificationReportGeneratorLogs[i].LastGeneratedAt = arg.LastGeneratedAt
 			return nil
 		}
 	}
 
-	q.reportGeneratorLogs = append(q.reportGeneratorLogs, database.ReportGeneratorLog(arg))
+	q.notificationReportGeneratorLogs = append(q.notificationReportGeneratorLogs, database.NotificationReportGeneratorLog(arg))
 	return nil
 }
 

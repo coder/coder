@@ -3553,7 +3553,7 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 }
 
 const deleteOldNotificationReportGeneratorLogs = `-- name: DeleteOldNotificationReportGeneratorLogs :exec
-DELETE FROM report_generator_logs WHERE last_generated_at < $1::timestamptz AND notification_template_id = $2
+DELETE FROM notification_report_generator_logs WHERE last_generated_at < $1::timestamptz AND notification_template_id = $2
 `
 
 type DeleteOldNotificationReportGeneratorLogsParams struct {
@@ -3708,7 +3708,7 @@ const getNotificationReportGeneratorLogByUserAndTemplate = `-- name: GetNotifica
 SELECT
 	user_id, notification_template_id, last_generated_at
 FROM
-	report_generator_logs
+	notification_report_generator_logs
 WHERE
 	user_id = $1
 	AND notification_template_id = $2
@@ -3720,9 +3720,9 @@ type GetNotificationReportGeneratorLogByUserAndTemplateParams struct {
 }
 
 // Fetch the notification report generator log indicating recent activity.
-func (q *sqlQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg GetNotificationReportGeneratorLogByUserAndTemplateParams) (ReportGeneratorLog, error) {
+func (q *sqlQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg GetNotificationReportGeneratorLogByUserAndTemplateParams) (NotificationReportGeneratorLog, error) {
 	row := q.db.QueryRowContext(ctx, getNotificationReportGeneratorLogByUserAndTemplate, arg.UserID, arg.NotificationTemplateID)
-	var i ReportGeneratorLog
+	var i NotificationReportGeneratorLog
 	err := row.Scan(&i.UserID, &i.NotificationTemplateID, &i.LastGeneratedAt)
 	return i, err
 }
@@ -3877,7 +3877,7 @@ func (q *sqlQuerier) UpdateUserNotificationPreferences(ctx context.Context, arg 
 }
 
 const upsertNotificationReportGeneratorLog = `-- name: UpsertNotificationReportGeneratorLog :exec
-INSERT INTO report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES ($1, $2, $3)
+INSERT INTO notification_report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES ($1, $2, $3)
 ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
 WHERE report_generator_logs.user_id = EXCLUDED.user_id AND report_generator_logs.notification_template_id = EXCLUDED.notification_template_id
 `

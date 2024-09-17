@@ -2192,6 +2192,13 @@ type NotificationPreference struct {
 	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Log of generated reports for users.
+type NotificationReportGeneratorLog struct {
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+	LastGeneratedAt        time.Time `db:"last_generated_at" json:"last_generated_at"`
+}
+
 // Templates from which to create notification messages.
 type NotificationTemplate struct {
 	ID            uuid.UUID      `db:"id" json:"id"`
@@ -2395,13 +2402,6 @@ type Replica struct {
 	Version         string       `db:"version" json:"version"`
 	Error           string       `db:"error" json:"error"`
 	Primary         bool         `db:"primary" json:"primary"`
-}
-
-// Log of generated reports for users.
-type ReportGeneratorLog struct {
-	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
-	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
-	LastGeneratedAt        time.Time `db:"last_generated_at" json:"last_generated_at"`
 }
 
 type SiteConfig struct {
