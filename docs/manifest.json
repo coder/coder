@@ -2,7 +2,7 @@
 	"versions": ["main"],
 	"routes": [
 		{
-			"title": "About",
+			"title": "Home",
 			"description": "Landing Page",
 			"path": "./README.md",
 			"icon_path": "./images/icons/home.svg",
