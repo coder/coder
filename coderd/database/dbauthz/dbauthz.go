@@ -1144,11 +1144,11 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return q.db.DeleteOldProvisionerDaemons(ctx)
 }
 
-func (q *querier) DeleteOldReportGeneratorLogs(ctx context.Context, arg database.DeleteOldReportGeneratorLogsParams) error {
+func (q *querier) DeleteOldNotificationReportGeneratorLogs(ctx context.Context, arg database.DeleteOldNotificationReportGeneratorLogsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteOldReportGeneratorLogs(ctx, arg)
+	return q.db.DeleteOldNotificationReportGeneratorLogs(ctx, arg)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
@@ -1877,11 +1877,11 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 	return q.db.GetReplicasUpdatedAfter(ctx, updatedAt)
 }
 
-func (q *querier) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+func (q *querier) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.ReportGeneratorLog{}, err
 	}
-	return q.db.GetReportGeneratorLogByUserAndTemplate(ctx, arg)
+	return q.db.GetNotificationReportGeneratorLogByUserAndTemplate(ctx, arg)
 }
 
 func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
@@ -3964,11 +3964,11 @@ func (q *querier) UpsertProvisionerDaemon(ctx context.Context, arg database.Upse
 	return q.db.UpsertProvisionerDaemon(ctx, arg)
 }
 
-func (q *querier) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
+func (q *querier) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.UpsertReportGeneratorLog(ctx, arg)
+	return q.db.UpsertNotificationReportGeneratorLog(ctx, arg)
 }
 
 func (q *querier) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {

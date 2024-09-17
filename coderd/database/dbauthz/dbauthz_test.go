@@ -2735,8 +2735,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Value: "value",
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("DeleteOldReportGeneratorLogs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.DeleteOldReportGeneratorLogsParams{
+	s.Run("DeleteOldNotificationReportGeneratorLogs", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.DeleteOldNotificationReportGeneratorLogsParams{
 			Before:                 dbtime.Now(),
 			NotificationTemplateID: uuid.New(),
 		}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
@@ -2747,14 +2747,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Since:      dbtime.Now(),
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetReportGeneratorLogByUserAndTemplate", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetNotificationReportGeneratorLogByUserAndTemplate", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		_ = db.UpsertReportGeneratorLog(context.Background(), database.UpsertReportGeneratorLogParams{
+		_ = db.UpsertNotificationReportGeneratorLog(context.Background(), database.UpsertNotificationReportGeneratorLogParams{
 			UserID:                 u.ID,
 			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			LastGeneratedAt:        dbtime.Now(),
 		})
-		check.Args(database.GetReportGeneratorLogByUserAndTemplateParams{
+		check.Args(database.GetNotificationReportGeneratorLogByUserAndTemplateParams{
 			UserID:                 u.ID,
 			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -2762,8 +2762,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetWorkspaceBuildStatsByTemplates", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("UpsertReportGeneratorLog", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.UpsertReportGeneratorLogParams{
+	s.Run("UpsertNotificationReportGeneratorLog", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertNotificationReportGeneratorLogParams{
 			UserID:                 uuid.New(),
 			NotificationTemplateID: uuid.New(),
 			LastGeneratedAt:        dbtime.Now(),

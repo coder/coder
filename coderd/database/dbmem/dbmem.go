@@ -1709,7 +1709,7 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOldReportGeneratorLogs(_ context.Context, params database.DeleteOldReportGeneratorLogsParams) error {
+func (q *FakeQuerier) DeleteOldNotificationReportGeneratorLogs(_ context.Context, params database.DeleteOldNotificationReportGeneratorLogsParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -3603,7 +3603,7 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 	return replicas, nil
 }
 
-func (q *FakeQuerier) GetReportGeneratorLogByUserAndTemplate(_ context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+func (q *FakeQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(_ context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.ReportGeneratorLog{}, err
@@ -9429,7 +9429,7 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 	return d, nil
 }
 
-func (q *FakeQuerier) UpsertReportGeneratorLog(_ context.Context, arg database.UpsertReportGeneratorLogParams) error {
+func (q *FakeQuerier) UpsertNotificationReportGeneratorLog(_ context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err

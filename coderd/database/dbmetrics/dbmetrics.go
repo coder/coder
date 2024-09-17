@@ -305,10 +305,10 @@ func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return r0
 }
 
-func (m metricsStore) DeleteOldReportGeneratorLogs(ctx context.Context, frequencyDays database.DeleteOldReportGeneratorLogsParams) error {
+func (m metricsStore) DeleteOldNotificationReportGeneratorLogs(ctx context.Context, frequencyDays database.DeleteOldNotificationReportGeneratorLogsParams) error {
 	start := time.Now()
-	r0 := m.s.DeleteOldReportGeneratorLogs(ctx, frequencyDays)
-	m.queryLatencies.WithLabelValues("DeleteOldReportGeneratorLogs").Observe(time.Since(start).Seconds())
+	r0 := m.s.DeleteOldNotificationReportGeneratorLogs(ctx, frequencyDays)
+	m.queryLatencies.WithLabelValues("DeleteOldNotificationReportGeneratorLogs").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -1012,10 +1012,10 @@ func (m metricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedAt tim
 	return replicas, err
 }
 
-func (m metricsStore) GetReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+func (m metricsStore) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetReportGeneratorLogByUserAndTemplate(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetReportGeneratorLogByUserAndTemplate").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetNotificationReportGeneratorLogByUserAndTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByUserAndTemplate").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2510,10 +2510,10 @@ func (m metricsStore) UpsertProvisionerDaemon(ctx context.Context, arg database.
 	return r0, r1
 }
 
-func (m metricsStore) UpsertReportGeneratorLog(ctx context.Context, arg database.UpsertReportGeneratorLogParams) error {
+func (m metricsStore) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
 	start := time.Now()
-	r0 := m.s.UpsertReportGeneratorLog(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertReportGeneratorLog").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpsertNotificationReportGeneratorLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertNotificationReportGeneratorLog").Observe(time.Since(start).Seconds())
 	return r0
 }
 

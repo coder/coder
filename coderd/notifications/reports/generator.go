@@ -137,7 +137,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 
 		for _, templateAdmin := range templateAdmins {
-			reportLog, err := db.GetReportGeneratorLogByUserAndTemplate(ctx, database.GetReportGeneratorLogByUserAndTemplateParams{
+			reportLog, err := db.GetNotificationReportGeneratorLogByUserAndTemplate(ctx, database.GetNotificationReportGeneratorLogByUserAndTemplateParams{
 				UserID:                 templateAdmin.ID,
 				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			})
@@ -177,7 +177,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 	}
 
 	for u := range processedUsers {
-		err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
+		err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
 			UserID:                 u,
 			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			LastGeneratedAt:        dbtime.Time(now).UTC(),
@@ -187,7 +187,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 	}
 
-	err = db.DeleteOldReportGeneratorLogs(ctx, database.DeleteOldReportGeneratorLogsParams{
+	err = db.DeleteOldNotificationReportGeneratorLogs(ctx, database.DeleteOldNotificationReportGeneratorLogsParams{
 		NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 		Before:                 dbtime.Time(now.Add(-failedWorkspaceBuildsReportFrequency - time.Hour)).UTC(),
 	})
