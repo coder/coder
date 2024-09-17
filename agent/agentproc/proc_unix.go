@@ -45,8 +45,7 @@ func List(fs afero.Fs, syscaller Syscaller) ([]*Process, error) {
 
 		cmdline, err := afero.ReadFile(fs, filepath.Join(defaultProcDir, entry, "cmdline"))
 		if err != nil {
-			var errNo syscall.Errno
-			if xerrors.As(err, &errNo) && errNo == syscall.EPERM {
+			if isBenignError(err) {
 				continue
 			}
 			return nil, xerrors.Errorf("read cmdline: %w", err)
@@ -54,7 +53,7 @@ func List(fs afero.Fs, syscaller Syscaller) ([]*Process, error) {
 
 		oomScore, err := afero.ReadFile(fs, filepath.Join(defaultProcDir, entry, "oom_score_adj"))
 		if err != nil {
-			if xerrors.Is(err, os.ErrPermission) {
+			if isBenignError(err) {
 				continue
 			}
 
@@ -123,4 +122,13 @@ func (p *Process) Cmd() string {
 
 func (p *Process) cmdLine() []string {
 	return strings.Split(p.CmdLine, "\x00")
+}
+
+func isBenignError(err error) bool {
+	var errno syscall.Errno
+	if !xerrors.As(err, &errno) {
+		return false
+	}
+
+	return errno == syscall.ESRCH || errno == syscall.EPERM || xerrors.Is(err, os.ErrNotExist)
 }

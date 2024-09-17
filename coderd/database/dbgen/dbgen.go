@@ -547,6 +547,7 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 		HealthcheckThreshold: takeFirst(orig.HealthcheckThreshold, 60),
 		Health:               takeFirst(orig.Health, database.WorkspaceAppHealthHealthy),
 		DisplayOrder:         takeFirst(orig.DisplayOrder, 1),
+		Hidden:               orig.Hidden,
 	})
 	require.NoError(t, err, "insert app")
 	return resource
@@ -890,6 +891,12 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 	})
 	require.NoError(t, err, "insert custom role")
 	return role
+}
+
+func ProvisionerJobTimings(t testing.TB, db database.Store, seed database.InsertProvisionerJobTimingsParams) []database.ProvisionerJobTiming {
+	timings, err := db.InsertProvisionerJobTimings(genCtx, seed)
+	require.NoError(t, err, "insert provisioner job timings")
+	return timings
 }
 
 func must[V any](v V, err error) V {

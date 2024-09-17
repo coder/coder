@@ -533,7 +533,7 @@ func TestPeerDiagnostics(t *testing.T) {
 				LastWireguardHandshake: time.Time{},
 			},
 			want: []*regexp.Regexp{
-				regexp.MustCompile(`^✔ sent local data to Coder networking coodinator$`),
+				regexp.MustCompile(`^✔ sent local data to Coder networking coordinator$`),
 			},
 		},
 		{

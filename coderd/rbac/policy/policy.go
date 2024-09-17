@@ -274,4 +274,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update notification preferences"),
 		},
 	},
+	// idpsync_settings should always be org scoped
+	"idpsync_settings": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read IdP sync settings"),
+			ActionUpdate: actDef("update IdP sync settings"),
+		},
+	},
 }

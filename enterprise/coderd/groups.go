@@ -430,6 +430,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization query string true "Organization ID or name"
 // @Param has_member query string true "User ID or name"
+// @Param group_ids query string true "Comma separated list of group IDs"
 // @Success 200 {array} codersdk.Group
 // @Router /groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
@@ -457,6 +458,9 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 		}
 		return user.ID, nil
 	})
+
+	filter.GroupIds = parser.UUIDs(r.URL.Query(), []uuid.UUID{}, "group_ids")
+
 	parser.ErrorExcessParams(r.URL.Query())
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

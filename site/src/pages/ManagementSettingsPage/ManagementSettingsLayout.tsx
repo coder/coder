@@ -12,9 +12,9 @@ import { Outlet } from "react-router-dom";
 import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 import { Sidebar } from "./Sidebar";
 
-type OrganizationSettingsValue = {
-	organizations: Organization[];
-};
+type OrganizationSettingsValue = Readonly<{
+	organizations: readonly Organization[];
+}>;
 
 export const useOrganizationSettings = (): OrganizationSettingsValue => {
 	const { organizations } = useDashboard();

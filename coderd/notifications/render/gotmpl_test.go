@@ -56,6 +56,15 @@ func TestGoTemplate(t *testing.T) {
 				"url": "https://mocked-server-address/@johndoe/my-workspace"
 			}]`,
 		},
+		{
+			name: "render notification template ID",
+			in:   `{{ .NotificationTemplateID }}`,
+			payload: types.MessagePayload{
+				NotificationTemplateID: "4e19c0ac-94e1-4532-9515-d1801aa283b2",
+			},
+			expectedOutput: "4e19c0ac-94e1-4532-9515-d1801aa283b2",
+			expectedErr:    nil,
+		},
 	}
 
 	for _, tc := range tests {

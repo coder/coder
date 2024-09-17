@@ -11,6 +11,7 @@ import {
 } from "components/Filter/menu";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
+import type { FC } from "react";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 
 export const useTemplateFilterMenu = ({
@@ -53,9 +54,15 @@ export const useTemplateFilterMenu = ({
 
 export type TemplateFilterMenu = ReturnType<typeof useTemplateFilterMenu>;
 
-export const TemplateMenu = (menu: TemplateFilterMenu) => {
+type TemplateMenuProps = Readonly<{
+	width?: number;
+	menu: TemplateFilterMenu;
+}>;
+
+export const TemplateMenu: FC<TemplateMenuProps> = ({ width, menu }) => {
 	return (
 		<SelectFilter
+			width={width}
 			label="Select a template"
 			emptyText="No templates found"
 			placeholder="All templates"
@@ -106,9 +113,15 @@ export const useStatusFilterMenu = ({
 
 export type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
 
-export const StatusMenu = (menu: StatusFilterMenu) => {
+type StatusMenuProps = Readonly<{
+	width?: number;
+	menu: StatusFilterMenu;
+}>;
+
+export const StatusMenu: FC<StatusMenuProps> = ({ width, menu }) => {
 	return (
 		<SelectFilter
+			width={width}
 			placeholder="All statuses"
 			label="Select a status"
 			options={menu.searchOptions}

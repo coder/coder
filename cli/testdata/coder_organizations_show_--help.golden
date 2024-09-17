@@ -1,0 +1,38 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations show [flags] ["selected"|"me"|uuid|org_name]
+
+  Show the organization. Using "selected" will show the selected organization
+  from the "--org" flag. Using "me" will show all organizations you are a member
+  of.
+
+    - coder org show selected:
+  
+       $ Shows the organizations selected with '--org=<org_name>'. This
+  organization is the organization used by the cli.
+  
+    - coder org show me:
+  
+       $ List of all organizations you are a member of.
+  
+    - coder org show developers:
+  
+       $ Show organization with name 'developers'
+  
+    - coder org show 90ee1875-3db5-43b3-828e-af3687522e43:
+  
+       $ Show organization with the given ID.
+
+OPTIONS:
+  -c, --column [id|name|display name|icon|description|created at|updated at|default] (default: id,name,default)
+          Columns to display in table output.
+
+      --only-id bool
+          Only print the organization ID.
+
+  -o, --output text|table|json (default: text)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

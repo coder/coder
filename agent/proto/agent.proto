@@ -41,6 +41,7 @@ message WorkspaceApp {
 		UNHEALTHY = 4;
 	}
 	Health health = 12;
+	bool hidden = 13;
 }
 
 message WorkspaceAgentScript {

@@ -1,11 +1,10 @@
+import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
-import {
-	Filter,
-	MenuSkeleton,
-	SearchFieldSkeleton,
-	type useFilter,
-} from "components/Filter/filter";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import {
+	type OrganizationsFilterMenu,
+	OrganizationsMenu,
+} from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import {
@@ -63,13 +62,14 @@ const PRESETS_WITH_DORMANT: FilterPreset[] = [
 	},
 ];
 
-type WorkspaceFilterProps = {
+export type WorkspaceFilterProps = {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
 	menus: {
 		user?: UserFilterMenu;
 		template: TemplateFilterMenu;
 		status: StatusFilterMenu;
+		organizations?: OrganizationsFilterMenu;
 	};
 };
 
@@ -78,7 +78,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	error,
 	menus,
 }) => {
-	const { entitlements } = useDashboard();
+	const { entitlements, showOrganizations } = useDashboard();
+	const width = showOrganizations ? 175 : undefined;
 	const presets = entitlements.features.advanced_template_scheduling.enabled
 		? PRESETS_WITH_DORMANT
 		: PRESET_FILTERS;
@@ -92,17 +93,20 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			learnMoreLink={docs("/workspaces#workspace-filtering")}
 			options={
 				<>
-					{menus.user && <UserMenu menu={menus.user} />}
-					<TemplateMenu {...menus.template} />
-					<StatusMenu {...menus.status} />
+					{menus.user && <UserMenu width={width} menu={menus.user} />}
+					<TemplateMenu width={width} menu={menus.template} />
+					<StatusMenu width={width} menu={menus.status} />
+					{showOrganizations && menus.organizations !== undefined && (
+						<OrganizationsMenu width={width} menu={menus.organizations} />
+					)}
 				</>
 			}
-			skeleton={
+			optionsSkeleton={
 				<>
-					<SearchFieldSkeleton />
 					{menus.user && <MenuSkeleton />}
 					<MenuSkeleton />
 					<MenuSkeleton />
+					{showOrganizations && <MenuSkeleton />}
 				</>
 			}
 		/>

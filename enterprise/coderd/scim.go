@@ -217,14 +217,19 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		sUser.UserName = codersdk.UsernameFrom(sUser.UserName)
 	}
 
-	// TODO: This is a temporary solution that does not support multi-org
-	// 	deployments. This assumption places all new SCIM users into the
-	//	default organization.
-	//nolint:gocritic
-	defaultOrganization, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
-	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
-		return
+	// If organization sync is enabled, the user's organizations will be
+	// corrected on login. If including the default org, then always assign
+	// the default org, regardless if sync is enabled or not.
+	// This is to preserve single org deployment behavior.
+	organizations := []uuid.UUID{}
+	if api.IDPSync.AssignDefaultOrganization() {
+		//nolint:gocritic // SCIM operations are a system user
+		defaultOrganization, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+		if err != nil {
+			_ = handlerutil.WriteError(rw, err)
+			return
+		}
+		organizations = append(organizations, defaultOrganization.ID)
 	}
 
 	//nolint:gocritic // needed for SCIM
@@ -232,7 +237,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
 			Username:        sUser.UserName,
 			Email:           email,
-			OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
+			OrganizationIDs: organizations,
 		},
 		LoginType: database.LoginTypeOIDC,
 		// Do not send notifications to user admins as SCIM endpoint might be called sequentially to all users.

@@ -2,11 +2,9 @@ package tailnet
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
-	"net"
 	"net/http"
 	"net/netip"
 	"sync"
@@ -14,12 +12,19 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet/proto"
+)
+
+const (
+	// ResponseBufferSize is the max number of responses to buffer per connection before we start
+	// dropping updates
+	ResponseBufferSize = 512
+	// RequestBufferSize is the max number of requests to buffer per connection
+	RequestBufferSize = 32
 )
 
 // Coordinator exchanges nodes with agents to establish connections.
@@ -28,27 +33,7 @@ import (
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
 // Coordinators have different guarantees for HA support.
 type Coordinator interface {
-	CoordinatorV1
 	CoordinatorV2
-}
-
-type CoordinatorV1 interface {
-	// ServeHTTPDebug serves a debug webpage that shows the internal state of
-	// the coordinator.
-	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
-	// Node returns an in-memory node by ID.
-	Node(id uuid.UUID) *Node
-	// ServeClient accepts a WebSocket connection that wants to connect to an agent
-	// with the specified ID.
-	ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error
-	// ServeAgent accepts a WebSocket connection to an agent that listens to
-	// incoming connections and publishes node updates.
-	// Name is just used for debug information. It can be left blank.
-	ServeAgent(conn net.Conn, id uuid.UUID, name string) error
-	// Close closes the coordinator.
-	Close() error
-
-	ServeMultiAgent(id uuid.UUID) MultiAgentConn
 }
 
 // CoordinatorV2 is the interface for interacting with the coordinator via the 2.0 tailnet API.
@@ -60,6 +45,7 @@ type CoordinatorV2 interface {
 	Node(id uuid.UUID) *Node
 	Close() error
 	Coordinate(ctx context.Context, id uuid.UUID, name string, a CoordinateeAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse)
+	ServeMultiAgent(id uuid.UUID) MultiAgentConn
 }
 
 // Node represents a node in the network.
@@ -105,7 +91,7 @@ type Coordinatee interface {
 }
 
 type Coordination interface {
-	io.Closer
+	Close(context.Context) error
 	Error() <-chan error
 }
 
@@ -120,7 +106,10 @@ type remoteCoordination struct {
 	respLoopDone chan struct{}
 }
 
-func (c *remoteCoordination) Close() (retErr error) {
+// Close attempts to gracefully close the remoteCoordination by sending a Disconnect message and
+// waiting for the server to hang up the coordination. If the provided context expires, we stop
+// waiting for the server and close the coordination stream from our end.
+func (c *remoteCoordination) Close(ctx context.Context) (retErr error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.closed {
@@ -128,6 +117,18 @@ func (c *remoteCoordination) Close() (retErr error) {
 	}
 	c.closed = true
 	defer func() {
+		// We shouldn't just close the protocol right away, because the way dRPC streams work is
+		// that if you close them, that could take effect immediately, even before the Disconnect
+		// message is processed. Coordinators are supposed to hang up on us once they get a
+		// Disconnect message, so we should wait around for that until the context expires.
+		select {
+		case <-c.respLoopDone:
+			c.logger.Debug(ctx, "responses closed after disconnect")
+			return
+		case <-ctx.Done():
+			c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
+		}
+		// forcefully close the stream
 		protoErr := c.protocol.Close()
 		<-c.respLoopDone
 		if retErr == nil {
@@ -254,7 +255,6 @@ type inMemoryCoordination struct {
 	ctx          context.Context
 	errChan      chan error
 	closed       bool
-	closedCh     chan struct{}
 	respLoopDone chan struct{}
 	coordinatee  Coordinatee
 	logger       slog.Logger
@@ -294,7 +294,6 @@ func NewInMemoryCoordination(
 		errChan:      make(chan error, 1),
 		coordinatee:  coordinatee,
 		logger:       logger,
-		closedCh:     make(chan struct{}),
 		respLoopDone: make(chan struct{}),
 	}
 
@@ -342,24 +341,15 @@ func (c *inMemoryCoordination) respLoop() {
 		c.coordinatee.SetAllPeersLost()
 		close(c.respLoopDone)
 	}()
-	for {
-		select {
-		case <-c.closedCh:
-			c.logger.Debug(context.Background(), "in-memory coordination closed")
+	for resp := range c.resps {
+		c.logger.Debug(context.Background(), "got in-memory response from coordinator", slog.F("resp", resp))
+		err := c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
+		if err != nil {
+			c.sendErr(xerrors.Errorf("failed to update peers: %w", err))
 			return
-		case resp, ok := <-c.resps:
-			if !ok {
-				c.logger.Debug(context.Background(), "in-memory response channel closed")
-				return
-			}
-			c.logger.Debug(context.Background(), "got in-memory response from coordinator", slog.F("resp", resp))
-			err := c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
-			if err != nil {
-				c.sendErr(xerrors.Errorf("failed to update peers: %w", err))
-				return
-			}
 		}
 	}
+	c.logger.Debug(context.Background(), "in-memory response channel closed")
 }
 
 func (*inMemoryCoordination) AwaitAck() <-chan struct{} {
@@ -369,7 +359,10 @@ func (*inMemoryCoordination) AwaitAck() <-chan struct{} {
 	return ch
 }
 
-func (c *inMemoryCoordination) Close() error {
+// Close attempts to gracefully close the remoteCoordination by sending a Disconnect message and
+// waiting for the server to hang up the coordination. If the provided context expires, we stop
+// waiting for the server and close the coordination stream from our end.
+func (c *inMemoryCoordination) Close(ctx context.Context) error {
 	c.Lock()
 	defer c.Unlock()
 	c.logger.Debug(context.Background(), "closing in-memory coordination")
@@ -378,53 +371,19 @@ func (c *inMemoryCoordination) Close() error {
 	}
 	defer close(c.reqs)
 	c.closed = true
-	close(c.closedCh)
-	<-c.respLoopDone
 	select {
-	case <-c.ctx.Done():
+	case <-ctx.Done():
 		return xerrors.Errorf("failed to gracefully disconnect: %w", c.ctx.Err())
 	case c.reqs <- &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}}:
 		c.logger.Debug(context.Background(), "sent graceful disconnect in-memory")
+	}
+
+	select {
+	case <-ctx.Done():
+		return xerrors.Errorf("context expired waiting for responses to close: %w", c.ctx.Err())
+	case <-c.respLoopDone:
 		return nil
 	}
-}
-
-// ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
-func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func(node *Node), <-chan error) {
-	errChan := make(chan error, 1)
-	sendErr := func(err error) {
-		select {
-		case errChan <- err:
-		default:
-		}
-	}
-	go func() {
-		decoder := json.NewDecoder(conn)
-		for {
-			var nodes []*Node
-			err := decoder.Decode(&nodes)
-			if err != nil {
-				sendErr(xerrors.Errorf("read: %w", err))
-				return
-			}
-			err = updateNodes(nodes)
-			if err != nil {
-				sendErr(xerrors.Errorf("update nodes: %w", err))
-			}
-		}
-	}()
-
-	return func(node *Node) {
-		data, err := json.Marshal(node)
-		if err != nil {
-			sendErr(xerrors.Errorf("marshal node: %w", err))
-			return
-		}
-		_, err = conn.Write(data)
-		if err != nil {
-			sendErr(xerrors.Errorf("write: %w", err))
-		}
-	}, errChan
 }
 
 const LoggerName = "coord"
@@ -540,11 +499,11 @@ func ServeMultiAgent(c CoordinatorV2, logger slog.Logger, id uuid.UUID) MultiAge
 		},
 	}).Init()
 
-	go v1RespLoop(ctx, cancel, logger, m, resps)
+	go qRespLoop(ctx, cancel, logger, m, resps)
 	return m
 }
 
-// core is an in-memory structure of Node and TrackedConn mappings.  Its methods may be called from multiple goroutines;
+// core is an in-memory structure of peer mappings.  Its methods may be called from multiple goroutines;
 // it is protected by a mutex to ensure data stay consistent.
 type core struct {
 	logger slog.Logger
@@ -605,42 +564,6 @@ func (c *core) node(id uuid.UUID) *Node {
 		return nil
 	}
 	return v1Node
-}
-
-// ServeClient accepts a WebSocket connection that wants to connect to an agent
-// with the specified ID.
-func (c *coordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	return ServeClientV1(ctx, c.core.logger, c, conn, id, agentID)
-}
-
-// ServeClientV1 adapts a v1 Client to a v2 Coordinator
-func ServeClientV1(ctx context.Context, logger slog.Logger, c CoordinatorV2, conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
-	logger = logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			logger.Debug(ctx, "closing client connection", slog.Error(err))
-		}
-	}()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	reqs, resps := c.Coordinate(ctx, id, id.String(), ClientCoordinateeAuth{AgentID: agent})
-	err := SendCtx(ctx, reqs, &proto.CoordinateRequest{
-		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)},
-	})
-	if err != nil {
-		// can only be a context error, no need to log here.
-		return err
-	}
-
-	tc := NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0, QueueKindClient)
-	go tc.SendUpdates()
-	go v1RespLoop(ctx, cancel, logger, tc, resps)
-	go v1ReqLoop(ctx, cancel, logger, conn, reqs)
-	<-ctx.Done()
-	return nil
 }
 
 func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
@@ -887,34 +810,6 @@ func (c *core) removePeerLocked(id uuid.UUID, kind proto.CoordinateResponse_Peer
 	delete(c.peers, id)
 }
 
-// ServeAgent accepts a WebSocket connection to an agent that
-// listens to incoming connections and publishes node updates.
-func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	return ServeAgentV1(ctx, c.core.logger, c, conn, id, name)
-}
-
-func ServeAgentV1(ctx context.Context, logger slog.Logger, c CoordinatorV2, conn net.Conn, id uuid.UUID, name string) error {
-	logger = logger.With(slog.F("agent_id", id), slog.F("name", name))
-	defer func() {
-		logger.Debug(ctx, "closing agent connection")
-		err := conn.Close()
-		logger.Debug(ctx, "closed agent connection", slog.Error(err))
-	}()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	logger.Debug(ctx, "starting new agent connection")
-	reqs, resps := c.Coordinate(ctx, id, name, AgentCoordinateeAuth{ID: id})
-	tc := NewTrackedConn(ctx, cancel, conn, id, logger, name, 0, QueueKindAgent)
-	go tc.SendUpdates()
-	go v1RespLoop(ctx, cancel, logger, tc, resps)
-	go v1ReqLoop(ctx, cancel, logger, conn, reqs)
-	<-ctx.Done()
-	logger.Debug(ctx, "ending agent connection")
-	return nil
-}
-
 // Close closes all of the open connections in the coordinator and stops the
 // coordinator from accepting new connections.
 func (c *coordinator) Close() error {
@@ -1073,44 +968,7 @@ func RecvCtx[A any](ctx context.Context, c <-chan A) (a A, err error) {
 	}
 }
 
-func v1ReqLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger,
-	conn net.Conn, reqs chan<- *proto.CoordinateRequest,
-) {
-	defer close(reqs)
-	defer cancel()
-	decoder := json.NewDecoder(conn)
-	for {
-		var node Node
-		err := decoder.Decode(&node)
-		if err != nil {
-			if xerrors.Is(err, io.EOF) ||
-				xerrors.Is(err, io.ErrClosedPipe) ||
-				xerrors.Is(err, context.Canceled) ||
-				xerrors.Is(err, context.DeadlineExceeded) ||
-				websocket.CloseStatus(err) > 0 {
-				logger.Debug(ctx, "v1ReqLoop exiting", slog.Error(err))
-			} else {
-				logger.Info(ctx, "v1ReqLoop failed to decode Node update", slog.Error(err))
-			}
-			return
-		}
-		logger.Debug(ctx, "v1ReqLoop got node update", slog.F("node", node))
-		pn, err := NodeToProto(&node)
-		if err != nil {
-			logger.Critical(ctx, "v1ReqLoop failed to convert v1 node", slog.F("node", node), slog.Error(err))
-			return
-		}
-		req := &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-			Node: pn,
-		}}
-		if err := SendCtx(ctx, reqs, req); err != nil {
-			logger.Debug(ctx, "v1ReqLoop ctx expired", slog.Error(err))
-			return
-		}
-	}
-}
-
-func v1RespLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger, q Queue, resps <-chan *proto.CoordinateResponse) {
+func qRespLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger, q Queue, resps <-chan *proto.CoordinateResponse) {
 	defer func() {
 		cErr := q.Close()
 		if cErr != nil {
@@ -1121,13 +979,13 @@ func v1RespLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logg
 	for {
 		resp, err := RecvCtx(ctx, resps)
 		if err != nil {
-			logger.Debug(ctx, "v1RespLoop done reading responses", slog.Error(err))
+			logger.Debug(ctx, "qRespLoop done reading responses", slog.Error(err))
 			return
 		}
-		logger.Debug(ctx, "v1RespLoop got response", slog.F("resp", resp))
+		logger.Debug(ctx, "qRespLoop got response", slog.F("resp", resp))
 		err = q.Enqueue(resp)
 		if err != nil && !xerrors.Is(err, context.Canceled) {
-			logger.Error(ctx, "v1RespLoop failed to enqueue v1 update", slog.Error(err))
+			logger.Error(ctx, "qRespLoop failed to enqueue v1 update", slog.Error(err))
 		}
 	}
 }
