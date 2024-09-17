@@ -81,13 +81,6 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	return err
 }
 
-func (m metricsStore) DeleteOldNotificationReportGeneratorLogs(ctx context.Context, frequencyDays database.DeleteOldNotificationReportGeneratorLogsParams) error {
-	start := time.Now()
-	r0 := m.s.DeleteOldNotificationReportGeneratorLogs(ctx, frequencyDays)
-	m.queryLatencies.WithLabelValues("DeleteOldNotificationReportGeneratorLogs").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)

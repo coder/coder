@@ -2735,12 +2735,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Value: "value",
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("DeleteOldNotificationReportGeneratorLogs", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.DeleteOldNotificationReportGeneratorLogsParams{
-			Before:                 dbtime.Now(),
-			NotificationTemplateID: uuid.New(),
-		}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
-	}))
 	s.Run("GetFailedWorkspaceBuildsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetFailedWorkspaceBuildsByTemplateIDParams{
 			TemplateID: uuid.New(),
