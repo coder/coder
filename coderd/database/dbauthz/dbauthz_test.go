@@ -2253,6 +2253,57 @@ func (s *MethodTestSuite) TestDBCrypt() {
 	}))
 }
 
+func (s *MethodTestSuite) TestCryptoKeys() {
+	s.Run("GetCryptoKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
+	s.Run("InsertCryptoKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertCryptoKeyParams{
+			Feature: database.CryptoKeyFeatureWorkspaceApps,
+		}).
+			Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
+	}))
+	s.Run("DeleteCryptoKey", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.DeleteCryptoKeyParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionDelete)
+	}))
+	s.Run("GetCryptoKeyByFeatureAndSequence", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionRead).Returns(key)
+	}))
+	s.Run("GetLatestCryptoKeyByFeature", s.Subtest(func(db database.Store, check *expects) {
+		dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.CryptoKeyFeatureWorkspaceApps).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
+	s.Run("UpdateCryptoKeyDeletesAt", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.UpdateCryptoKeyDeletesAtParams{
+			Feature:   key.Feature,
+			Sequence:  key.Sequence,
+			DeletesAt: sql.NullTime{Time: time.Now(), Valid: true},
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
+	}))
+}
+
 func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpdateUserLinkedID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
