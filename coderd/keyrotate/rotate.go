@@ -20,42 +20,47 @@ const (
 	OIDCConvertTokenDuration   = time.Minute * 5
 	TailnetResumeTokenDuration = time.Hour * 24
 
-	DefaultScanInterval = time.Minute * 10
-	DefaultKeyDuration  = time.Hour * 24 * 30
+	// DefaultRotationInterval is the default interval at which keys are checked for rotation.
+	DefaultRotationInterval = time.Minute * 10
+	// DefaultKeyDuration is the default duration for which a key is valid. It applies to all features.
+	DefaultKeyDuration = time.Hour * 24 * 30
 )
 
 // Rotator is responsible for rotating keys in the database.
 type Rotator struct {
-	db           database.Store
-	logger       slog.Logger
-	clock        quartz.Clock
-	keyDuration  time.Duration
-	scanInterval time.Duration
-	features     []database.CryptoKeyFeature
+	db          database.Store
+	logger      slog.Logger
+	clock       quartz.Clock
+	keyDuration time.Duration
 	// resultsCh is purely for testing.
 	resultsCh chan []database.CryptoKey
-	ticker    *quartz.Ticker
+
+	// The following fields are instantiated in Open.
+	ticker   *quartz.Ticker
+	features []database.CryptoKeyFeature
 }
 
-// New instantiates a new Rotator. It ensures there's at least one
-// valid key per feature prior to returning.
-func New(ctx context.Context, db database.Store, logger slog.Logger, clock quartz.Clock, keyDuration time.Duration, scanInterval time.Duration, results chan []database.CryptoKey) (*Rotator, error) {
-	if keyDuration == 0 || scanInterval == 0 {
-		return nil, xerrors.Errorf("key duration and scan interval must be set")
+// Open instantiates a new Rotator. It ensures there's at least one
+// valid key per feature prior to returning. Close should be called
+// to ensure the ticker that is instantiated is not leaked.
+func Open(ctx context.Context, db database.Store, logger slog.Logger, clock quartz.Clock, rotateInterval time.Duration, keyDuration time.Duration, results chan []database.CryptoKey) (*Rotator, error) {
+	if keyDuration == 0 || rotateInterval == 0 {
+		return nil, xerrors.Errorf("key duration and rotate interval must be set")
 	}
 
 	kr := &Rotator{
-		db:           db,
-		keyDuration:  keyDuration,
-		clock:        clock,
-		logger:       logger,
-		scanInterval: scanInterval,
-		features:     database.AllCryptoKeyFeatureValues(),
-		resultsCh:    results,
-		ticker:       clock.NewTicker(scanInterval),
+		db:          db,
+		keyDuration: keyDuration,
+		logger:      logger,
+		clock:       clock,
+		resultsCh:   results,
+
+		features: database.AllCryptoKeyFeatureValues(),
+		ticker:   clock.NewTicker(rotateInterval),
 	}
 	_, err := kr.rotateKeys(ctx)
 	if err != nil {
+		kr.Close()
 		return nil, xerrors.Errorf("rotate keys: %w", err)
 	}
 
@@ -64,8 +69,6 @@ func New(ctx context.Context, db database.Store, logger slog.Logger, clock quart
 
 // Start begins the rotation routine. Callers should invoke this in a goroutine.
 func (k *Rotator) Start(ctx context.Context) {
-	defer k.ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -219,6 +222,10 @@ func (k *Rotator) rotateKey(ctx context.Context, tx database.Store, key database
 	}
 
 	return []database.CryptoKey{updatedKey, newKey}, nil
+}
+
+func (k *Rotator) Close() {
+	k.ticker.Stop()
 }
 
 func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {

@@ -34,8 +34,9 @@ func TestKeyRotator(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, dbkeys, 0)
 
-		_, err = keyrotate.New(ctx, db, logger, clock, keyrotate.DefaultKeyDuration, keyrotate.DefaultScanInterval, nil)
+		kr, err := keyrotate.Open(ctx, db, logger, clock, keyrotate.DefaultKeyDuration, keyrotate.DefaultRotationInterval, nil)
 		require.NoError(t, err)
+		t.Cleanup(kr.Close)
 
 		// Fetch the keys from the database and ensure they
 		// are as expected.
@@ -64,8 +65,9 @@ func TestKeyRotator(t *testing.T) {
 		})
 		resultsCh := make(chan []database.CryptoKey)
 
-		kr, err := keyrotate.New(ctx, db, logger, clock, keyrotate.DefaultKeyDuration, keyrotate.DefaultScanInterval, resultsCh)
+		kr, err := keyrotate.Open(ctx, db, logger, clock, keyrotate.DefaultKeyDuration, keyrotate.DefaultRotationInterval, resultsCh)
 		require.NoError(t, err)
+		t.Cleanup(kr.Close)
 
 		// Fetch the keys from the database and ensure they
 		// are as expected.

@@ -34,12 +34,11 @@ func Test_rotateKeys(t *testing.T) {
 		)
 
 		kr := &Rotator{
-			db:           db,
-			keyDuration:  keyDuration,
-			clock:        clock,
-			logger:       logger,
-			scanInterval: 0,
-			resultsCh:    resultsCh,
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -116,12 +115,11 @@ func Test_rotateKeys(t *testing.T) {
 		)
 
 		kr := &Rotator{
-			db:           db,
-			keyDuration:  keyDuration,
-			clock:        clock,
-			logger:       logger,
-			scanInterval: 0,
-			resultsCh:    resultsCh,
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -172,12 +170,11 @@ func Test_rotateKeys(t *testing.T) {
 		)
 
 		kr := &Rotator{
-			db:           db,
-			keyDuration:  keyDuration,
-			clock:        clock,
-			logger:       logger,
-			scanInterval: 0,
-			resultsCh:    resultsCh,
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -229,12 +226,11 @@ func Test_rotateKeys(t *testing.T) {
 		)
 
 		kr := &Rotator{
-			db:           db,
-			keyDuration:  keyDuration,
-			clock:        clock,
-			logger:       logger,
-			scanInterval: 0,
-			resultsCh:    resultsCh,
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -290,12 +286,11 @@ func Test_rotateKeys(t *testing.T) {
 		)
 
 		kr := &Rotator{
-			db:           db,
-			keyDuration:  keyDuration,
-			clock:        clock,
-			logger:       logger,
-			scanInterval: 0,
-			resultsCh:    resultsCh,
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -323,12 +318,11 @@ func Test_rotateKeys(t *testing.T) {
 		)
 
 		kr := &Rotator{
-			db:           db,
-			keyDuration:  keyDuration,
-			clock:        clock,
-			logger:       logger,
-			scanInterval: 0,
-			resultsCh:    resultsCh,
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -372,13 +366,12 @@ func Test_rotateKeys(t *testing.T) {
 		)
 
 		kr := &Rotator{
-			db:           db,
-			keyDuration:  keyDuration,
-			clock:        clock,
-			logger:       logger,
-			scanInterval: 0,
-			resultsCh:    resultsCh,
-			features:     database.AllCryptoKeyFeatureValues(),
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			resultsCh:   resultsCh,
+			features:    database.AllCryptoKeyFeatureValues(),
 		}
 
 		now := dbnow(clock)
