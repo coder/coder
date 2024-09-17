@@ -82,13 +82,13 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
 	// Delete all notification messages which have not been updated for over a week.
 	DeleteOldNotificationMessages(ctx context.Context) error
+	// Delete report generator logs that have been created at least a @before date.
+	DeleteOldNotificationReportGeneratorLogs(ctx context.Context, arg DeleteOldNotificationReportGeneratorLogsParams) error
 	// Delete provisioner daemons that have been created at least a week ago
 	// and have not connected to coderd since a week.
 	// A provisioner daemon with "zeroed" last_seen_at column indicates possible
 	// connectivity issues (no provisioner daemon activity since registration).
 	DeleteOldProvisionerDaemons(ctx context.Context) error
-	// Delete report generator logs that have been created at least a @before date.
-	DeleteOldNotificationReportGeneratorLogs(ctx context.Context, arg DeleteOldNotificationReportGeneratorLogsParams) error
 	// If an agent hasn't connected in the last 7 days, we purge it's logs.
 	// Exception: if the logs are related to the latest build, we keep those around.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
@@ -169,6 +169,8 @@ type sqlcQuerier interface {
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg GetNotificationMessagesByStatusParams) ([]NotificationMessage, error)
+	// Fetch the notification report generator log indicating recent activity.
+	GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg GetNotificationReportGeneratorLogByUserAndTemplateParams) (ReportGeneratorLog, error)
 	GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (NotificationTemplate, error)
 	GetNotificationTemplatesByKind(ctx context.Context, kind NotificationTemplateKind) ([]NotificationTemplate, error)
 	GetNotificationsSettings(ctx context.Context) (string, error)
@@ -203,8 +205,6 @@ type sqlcQuerier interface {
 	GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error)
 	GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
-	// Fetch the report generator log indicating recent activity.
-	GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg GetNotificationReportGeneratorLogByUserAndTemplateParams) (ReportGeneratorLog, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
 	GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error)
 	GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error)
@@ -487,11 +487,11 @@ type sqlcQuerier interface {
 	UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
+	// Insert or update notification report generator logs with recent activity.
+	UpsertNotificationReportGeneratorLog(ctx context.Context, arg UpsertNotificationReportGeneratorLogParams) error
 	UpsertNotificationsSettings(ctx context.Context, value string) error
 	UpsertOAuthSigningKey(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)
-	// Insert or update report generator logs with recent activity.
-	UpsertNotificationReportGeneratorLog(ctx context.Context, arg UpsertNotificationReportGeneratorLogParams) error
 	UpsertRuntimeConfig(ctx context.Context, arg UpsertRuntimeConfigParams) error
 	UpsertTailnetAgent(ctx context.Context, arg UpsertTailnetAgentParams) (TailnetAgent, error)
 	UpsertTailnetClient(ctx context.Context, arg UpsertTailnetClientParams) (TailnetClient, error)

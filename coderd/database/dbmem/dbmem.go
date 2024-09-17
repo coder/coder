@@ -1690,6 +1690,20 @@ func (*FakeQuerier) DeleteOldNotificationMessages(_ context.Context) error {
 	return nil
 }
 
+func (q *FakeQuerier) DeleteOldNotificationReportGeneratorLogs(_ context.Context, params database.DeleteOldNotificationReportGeneratorLogsParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var validLogs []database.ReportGeneratorLog
+	for _, record := range q.reportGeneratorLogs {
+		if record.NotificationTemplateID != params.NotificationTemplateID || record.LastGeneratedAt.After(params.Before) {
+			validLogs = append(validLogs, record)
+		}
+	}
+	q.reportGeneratorLogs = validLogs
+	return nil
+}
+
 func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1706,20 +1720,6 @@ func (q *FakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
 		validDaemons = append(validDaemons, p)
 	}
 	q.provisionerDaemons = validDaemons
-	return nil
-}
-
-func (q *FakeQuerier) DeleteOldNotificationReportGeneratorLogs(_ context.Context, params database.DeleteOldNotificationReportGeneratorLogsParams) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	var validLogs []database.ReportGeneratorLog
-	for _, record := range q.reportGeneratorLogs {
-		if record.NotificationTemplateID != params.NotificationTemplateID || record.LastGeneratedAt.After(params.Before) {
-			validLogs = append(validLogs, record)
-		}
-	}
-	q.reportGeneratorLogs = validLogs
 	return nil
 }
 
@@ -3002,6 +3002,23 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
+func (q *FakeQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(_ context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.ReportGeneratorLog{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, record := range q.reportGeneratorLogs {
+		if record.UserID == arg.UserID && record.NotificationTemplateID == arg.NotificationTemplateID {
+			return record, nil
+		}
+	}
+	return database.ReportGeneratorLog{}, sql.ErrNoRows
+}
+
 func (*FakeQuerier) GetNotificationTemplateByID(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
 	// Not implementing this function because it relies on state in the database which is created with migrations.
 	// We could consider using code-generation to align the database state and dbmem, but it's not worth it right now.
@@ -3601,23 +3618,6 @@ func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 		}
 	}
 	return replicas, nil
-}
-
-func (q *FakeQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(_ context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.ReportGeneratorLog{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, record := range q.reportGeneratorLogs {
-		if record.UserID == arg.UserID && record.NotificationTemplateID == arg.NotificationTemplateID {
-			return record, nil
-		}
-	}
-	return database.ReportGeneratorLog{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetRuntimeConfig(_ context.Context, key string) (string, error) {
@@ -9374,6 +9374,26 @@ func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	return nil
 }
 
+func (q *FakeQuerier) UpsertNotificationReportGeneratorLog(_ context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, record := range q.reportGeneratorLogs {
+		if arg.NotificationTemplateID == record.NotificationTemplateID && arg.UserID == record.UserID {
+			q.reportGeneratorLogs[i].LastGeneratedAt = arg.LastGeneratedAt
+			return nil
+		}
+	}
+
+	q.reportGeneratorLogs = append(q.reportGeneratorLogs, database.ReportGeneratorLog(arg))
+	return nil
+}
+
 func (q *FakeQuerier) UpsertNotificationsSettings(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -9427,26 +9447,6 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 	}
 	q.provisionerDaemons = append(q.provisionerDaemons, d)
 	return d, nil
-}
-
-func (q *FakeQuerier) UpsertNotificationReportGeneratorLog(_ context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for i, record := range q.reportGeneratorLogs {
-		if arg.NotificationTemplateID == record.NotificationTemplateID && arg.UserID == record.UserID {
-			q.reportGeneratorLogs[i].LastGeneratedAt = arg.LastGeneratedAt
-			return nil
-		}
-	}
-
-	q.reportGeneratorLogs = append(q.reportGeneratorLogs, database.ReportGeneratorLog(arg))
-	return nil
 }
 
 func (q *FakeQuerier) UpsertRuntimeConfig(_ context.Context, arg database.UpsertRuntimeConfigParams) error {

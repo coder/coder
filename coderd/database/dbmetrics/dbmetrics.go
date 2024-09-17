@@ -298,17 +298,17 @@ func (m metricsStore) DeleteOldNotificationMessages(ctx context.Context) error {
 	return r0
 }
 
-func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
-	start := time.Now()
-	r0 := m.s.DeleteOldProvisionerDaemons(ctx)
-	m.queryLatencies.WithLabelValues("DeleteOldProvisionerDaemons").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m metricsStore) DeleteOldNotificationReportGeneratorLogs(ctx context.Context, frequencyDays database.DeleteOldNotificationReportGeneratorLogsParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldNotificationReportGeneratorLogs(ctx, frequencyDays)
 	m.queryLatencies.WithLabelValues("DeleteOldNotificationReportGeneratorLogs").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldProvisionerDaemons(ctx)
+	m.queryLatencies.WithLabelValues("DeleteOldProvisionerDaemons").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -774,6 +774,13 @@ func (m metricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m metricsStore) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationReportGeneratorLogByUserAndTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByUserAndTemplate").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationTemplateByID(ctx, id)
@@ -1010,13 +1017,6 @@ func (m metricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedAt tim
 	replicas, err := m.s.GetReplicasUpdatedAfter(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("GetReplicasUpdatedAfter").Observe(time.Since(start).Seconds())
 	return replicas, err
-}
-
-func (m metricsStore) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetNotificationReportGeneratorLogByUserAndTemplate(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByUserAndTemplate").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m metricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
@@ -2489,6 +2489,13 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	return r0
 }
 
+func (m metricsStore) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertNotificationReportGeneratorLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertNotificationReportGeneratorLog").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpsertNotificationsSettings(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertNotificationsSettings(ctx, value)
@@ -2508,13 +2515,6 @@ func (m metricsStore) UpsertProvisionerDaemon(ctx context.Context, arg database.
 	r0, r1 := m.s.UpsertProvisionerDaemon(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertProvisionerDaemon").Observe(time.Since(start).Seconds())
 	return r0, r1
-}
-
-func (m metricsStore) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertNotificationReportGeneratorLog(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertNotificationReportGeneratorLog").Observe(time.Since(start).Seconds())
-	return r0
 }
 
 func (m metricsStore) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {

@@ -3128,7 +3128,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO
+INSERT INTO 
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3137,7 +3137,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES
+VALUES 
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -3552,8 +3552,8 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 	return err
 }
 
-const DeleteOldNotificationReportGeneratorLogs = `-- name: DeleteOldNotificationReportGeneratorLogs :exec
-DELETE FROM notification_report_generator_logs WHERE last_generated_at < $1::timestamptz AND notification_template_id = $2
+const deleteOldNotificationReportGeneratorLogs = `-- name: DeleteOldNotificationReportGeneratorLogs :exec
+DELETE FROM report_generator_logs WHERE last_generated_at < $1::timestamptz AND notification_template_id = $2
 `
 
 type DeleteOldNotificationReportGeneratorLogsParams struct {
@@ -3563,7 +3563,7 @@ type DeleteOldNotificationReportGeneratorLogsParams struct {
 
 // Delete report generator logs that have been created at least a @before date.
 func (q *sqlQuerier) DeleteOldNotificationReportGeneratorLogs(ctx context.Context, arg DeleteOldNotificationReportGeneratorLogsParams) error {
-	_, err := q.db.ExecContext(ctx, DeleteOldNotificationReportGeneratorLogs, arg.Before, arg.NotificationTemplateID)
+	_, err := q.db.ExecContext(ctx, deleteOldNotificationReportGeneratorLogs, arg.Before, arg.NotificationTemplateID)
 	return err
 }
 
@@ -3704,6 +3704,29 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 	return items, nil
 }
 
+const getNotificationReportGeneratorLogByUserAndTemplate = `-- name: GetNotificationReportGeneratorLogByUserAndTemplate :one
+SELECT
+	user_id, notification_template_id, last_generated_at
+FROM
+	report_generator_logs
+WHERE
+	user_id = $1
+	AND notification_template_id = $2
+`
+
+type GetNotificationReportGeneratorLogByUserAndTemplateParams struct {
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+}
+
+// Fetch the notification report generator log indicating recent activity.
+func (q *sqlQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg GetNotificationReportGeneratorLogByUserAndTemplateParams) (ReportGeneratorLog, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationReportGeneratorLogByUserAndTemplate, arg.UserID, arg.NotificationTemplateID)
+	var i ReportGeneratorLog
+	err := row.Scan(&i.UserID, &i.NotificationTemplateID, &i.LastGeneratedAt)
+	return i, err
+}
+
 const getNotificationTemplateByID = `-- name: GetNotificationTemplateByID :one
 SELECT id, name, title_template, body_template, actions, "group", method, kind
 FROM notification_templates
@@ -3763,29 +3786,6 @@ func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind No
 		return nil, err
 	}
 	return items, nil
-}
-
-const GetNotificationReportGeneratorLogByUserAndTemplate = `-- name: GetNotificationReportGeneratorLogByUserAndTemplate :one
-SELECT
-	user_id, notification_template_id, last_generated_at
-FROM
-	notification_report_generator_logs
-WHERE
-	user_id = $1
-	AND notification_template_id = $2
-`
-
-type GetNotificationReportGeneratorLogByUserAndTemplateParams struct {
-	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
-	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
-}
-
-// Fetch the report generator log indicating recent activity.
-func (q *sqlQuerier) GetNotificationReportGeneratorLogByUserAndTemplate(ctx context.Context, arg GetNotificationReportGeneratorLogByUserAndTemplateParams) (ReportGeneratorLog, error) {
-	row := q.db.QueryRowContext(ctx, GetNotificationReportGeneratorLogByUserAndTemplate, arg.UserID, arg.NotificationTemplateID)
-	var i ReportGeneratorLog
-	err := row.Scan(&i.UserID, &i.NotificationTemplateID, &i.LastGeneratedAt)
-	return i, err
 }
 
 const getUserNotificationPreferences = `-- name: GetUserNotificationPreferences :many
@@ -3876,10 +3876,10 @@ func (q *sqlQuerier) UpdateUserNotificationPreferences(ctx context.Context, arg 
 	return result.RowsAffected()
 }
 
-const UpsertNotificationReportGeneratorLog = `-- name: UpsertNotificationReportGeneratorLog :exec
-INSERT INTO notification_report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES ($1, $2, $3)
+const upsertNotificationReportGeneratorLog = `-- name: UpsertNotificationReportGeneratorLog :exec
+INSERT INTO report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES ($1, $2, $3)
 ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
-WHERE notification_report_generator_logs.user_id = EXCLUDED.user_id AND notification_report_generator_logs.notification_template_id = EXCLUDED.notification_template_id
+WHERE report_generator_logs.user_id = EXCLUDED.user_id AND report_generator_logs.notification_template_id = EXCLUDED.notification_template_id
 `
 
 type UpsertNotificationReportGeneratorLogParams struct {
@@ -3888,9 +3888,9 @@ type UpsertNotificationReportGeneratorLogParams struct {
 	LastGeneratedAt        time.Time `db:"last_generated_at" json:"last_generated_at"`
 }
 
-// Insert or update report generator logs with recent activity.
+// Insert or update notification report generator logs with recent activity.
 func (q *sqlQuerier) UpsertNotificationReportGeneratorLog(ctx context.Context, arg UpsertNotificationReportGeneratorLogParams) error {
-	_, err := q.db.ExecContext(ctx, UpsertNotificationReportGeneratorLog, arg.UserID, arg.NotificationTemplateID, arg.LastGeneratedAt)
+	_, err := q.db.ExecContext(ctx, upsertNotificationReportGeneratorLog, arg.UserID, arg.NotificationTemplateID, arg.LastGeneratedAt)
 	return err
 }
 
@@ -5924,7 +5924,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND
+AND 
     lower(name) = lower($2)
 `
 
@@ -7677,7 +7677,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE
+UPDATE 
 	tailnet_peers
 SET
 	status = $2

@@ -486,20 +486,6 @@ func (mr *MockStoreMockRecorder) DeleteOldNotificationMessages(arg0 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldNotificationMessages", reflect.TypeOf((*MockStore)(nil).DeleteOldNotificationMessages), arg0)
 }
 
-// DeleteOldProvisionerDaemons mocks base method.
-func (m *MockStore) DeleteOldProvisionerDaemons(arg0 context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldProvisionerDaemons", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteOldProvisionerDaemons indicates an expected call of DeleteOldProvisionerDaemons.
-func (mr *MockStoreMockRecorder) DeleteOldProvisionerDaemons(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldProvisionerDaemons", reflect.TypeOf((*MockStore)(nil).DeleteOldProvisionerDaemons), arg0)
-}
-
 // DeleteOldNotificationReportGeneratorLogs mocks base method.
 func (m *MockStore) DeleteOldNotificationReportGeneratorLogs(arg0 context.Context, arg1 database.DeleteOldNotificationReportGeneratorLogsParams) error {
 	m.ctrl.T.Helper()
@@ -512,6 +498,20 @@ func (m *MockStore) DeleteOldNotificationReportGeneratorLogs(arg0 context.Contex
 func (mr *MockStoreMockRecorder) DeleteOldNotificationReportGeneratorLogs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldNotificationReportGeneratorLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldNotificationReportGeneratorLogs), arg0, arg1)
+}
+
+// DeleteOldProvisionerDaemons mocks base method.
+func (m *MockStore) DeleteOldProvisionerDaemons(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldProvisionerDaemons", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOldProvisionerDaemons indicates an expected call of DeleteOldProvisionerDaemons.
+func (mr *MockStoreMockRecorder) DeleteOldProvisionerDaemons(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldProvisionerDaemons", reflect.TypeOf((*MockStore)(nil).DeleteOldProvisionerDaemons), arg0)
 }
 
 // DeleteOldWorkspaceAgentLogs mocks base method.
@@ -1552,6 +1552,21 @@ func (mr *MockStoreMockRecorder) GetNotificationMessagesByStatus(arg0, arg1 any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationMessagesByStatus", reflect.TypeOf((*MockStore)(nil).GetNotificationMessagesByStatus), arg0, arg1)
 }
 
+// GetNotificationReportGeneratorLogByUserAndTemplate mocks base method.
+func (m *MockStore) GetNotificationReportGeneratorLogByUserAndTemplate(arg0 context.Context, arg1 database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationReportGeneratorLogByUserAndTemplate", arg0, arg1)
+	ret0, _ := ret[0].(database.ReportGeneratorLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationReportGeneratorLogByUserAndTemplate indicates an expected call of GetNotificationReportGeneratorLogByUserAndTemplate.
+func (mr *MockStoreMockRecorder) GetNotificationReportGeneratorLogByUserAndTemplate(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationReportGeneratorLogByUserAndTemplate", reflect.TypeOf((*MockStore)(nil).GetNotificationReportGeneratorLogByUserAndTemplate), arg0, arg1)
+}
+
 // GetNotificationTemplateByID mocks base method.
 func (m *MockStore) GetNotificationTemplateByID(arg0 context.Context, arg1 uuid.UUID) (database.NotificationTemplate, error) {
 	m.ctrl.T.Helper()
@@ -2060,21 +2075,6 @@ func (m *MockStore) GetReplicasUpdatedAfter(arg0 context.Context, arg1 time.Time
 func (mr *MockStoreMockRecorder) GetReplicasUpdatedAfter(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicasUpdatedAfter", reflect.TypeOf((*MockStore)(nil).GetReplicasUpdatedAfter), arg0, arg1)
-}
-
-// GetNotificationReportGeneratorLogByUserAndTemplate mocks base method.
-func (m *MockStore) GetNotificationReportGeneratorLogByUserAndTemplate(arg0 context.Context, arg1 database.GetNotificationReportGeneratorLogByUserAndTemplateParams) (database.ReportGeneratorLog, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNotificationReportGeneratorLogByUserAndTemplate", arg0, arg1)
-	ret0, _ := ret[0].(database.ReportGeneratorLog)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetNotificationReportGeneratorLogByUserAndTemplate indicates an expected call of GetNotificationReportGeneratorLogByUserAndTemplate.
-func (mr *MockStoreMockRecorder) GetNotificationReportGeneratorLogByUserAndTemplate(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationReportGeneratorLogByUserAndTemplate", reflect.TypeOf((*MockStore)(nil).GetNotificationReportGeneratorLogByUserAndTemplate), arg0, arg1)
 }
 
 // GetRuntimeConfig mocks base method.
@@ -5226,6 +5226,20 @@ func (mr *MockStoreMockRecorder) UpsertLogoURL(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertLogoURL", reflect.TypeOf((*MockStore)(nil).UpsertLogoURL), arg0, arg1)
 }
 
+// UpsertNotificationReportGeneratorLog mocks base method.
+func (m *MockStore) UpsertNotificationReportGeneratorLog(arg0 context.Context, arg1 database.UpsertNotificationReportGeneratorLogParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertNotificationReportGeneratorLog", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertNotificationReportGeneratorLog indicates an expected call of UpsertNotificationReportGeneratorLog.
+func (mr *MockStoreMockRecorder) UpsertNotificationReportGeneratorLog(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationReportGeneratorLog", reflect.TypeOf((*MockStore)(nil).UpsertNotificationReportGeneratorLog), arg0, arg1)
+}
+
 // UpsertNotificationsSettings mocks base method.
 func (m *MockStore) UpsertNotificationsSettings(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -5267,20 +5281,6 @@ func (m *MockStore) UpsertProvisionerDaemon(arg0 context.Context, arg1 database.
 func (mr *MockStoreMockRecorder) UpsertProvisionerDaemon(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProvisionerDaemon", reflect.TypeOf((*MockStore)(nil).UpsertProvisionerDaemon), arg0, arg1)
-}
-
-// UpsertNotificationReportGeneratorLog mocks base method.
-func (m *MockStore) UpsertNotificationReportGeneratorLog(arg0 context.Context, arg1 database.UpsertNotificationReportGeneratorLogParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertNotificationReportGeneratorLog", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertNotificationReportGeneratorLog indicates an expected call of UpsertNotificationReportGeneratorLog.
-func (mr *MockStoreMockRecorder) UpsertNotificationReportGeneratorLog(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationReportGeneratorLog", reflect.TypeOf((*MockStore)(nil).UpsertNotificationReportGeneratorLog), arg0, arg1)
 }
 
 // UpsertRuntimeConfig mocks base method.
