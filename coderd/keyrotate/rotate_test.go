@@ -79,7 +79,6 @@ func TestKeyRotator(t *testing.T) {
 		_, wait := clock.AdvanceNext()
 		wait.MustWait(ctx)
 		results := <-resultsCh
-
 		require.Len(t, results, 2)
 
 		keys, err := db.GetCryptoKeys(ctx)
@@ -101,6 +100,12 @@ func TestKeyRotator(t *testing.T) {
 		require.Equal(t, rotatingKey.StartsAt, oldKey.StartsAt)
 		require.True(t, oldKey.DeletesAt.Valid)
 		require.Equal(t, expectedDeletesAt, oldKey.DeletesAt.Time)
+
+		// Try rotating again and ensure no keys are rotated.
+		_, wait = clock.AdvanceNext()
+		wait.MustWait(ctx)
+		results = <-resultsCh
+		require.Len(t, results, 0)
 	})
 }
 
