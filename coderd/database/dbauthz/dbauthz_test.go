@@ -552,10 +552,13 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
 	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
-		jobID := uuid.New()
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: jobID})
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
 		t := dbgen.ProvisionerJobTimings(s.T(), db, database.InsertProvisionerJobTimingsParams{
-			JobID:     jobID,
+			JobID:     j.ID,
 			StartedAt: []time.Time{dbtime.Now(), dbtime.Now()},
 			EndedAt:   []time.Time{dbtime.Now(), dbtime.Now()},
 			Stage: []database.ProvisionerJobTimingStage{
@@ -566,7 +569,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			Action:   []string{"action1", "action2"},
 			Resource: []string{"resource1", "resource2"},
 		})
-		check.Args(j.ID).Asserts().Returns(t)
+		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
