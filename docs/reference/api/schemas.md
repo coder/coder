@@ -2895,6 +2895,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `user` |
 | `oidc` |
 
+## codersdk.GroupSyncSettings
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
+### Properties
+
+| Name                         | Type                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                            |
+| ---------------------------- | ------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto_create_missing_groups` | boolean                        | false    |              | Auto create missing groups controls whether groups returned by the OIDC provider are automatically created in Coder if they are missing.                                                                                                                                               |
+| `field`                      | string                         | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider.                                                                                                            |
+| `legacy_group_name_mapping`  | object                         | false    |              | Legacy group name mapping is deprecated. It remaps an IDP group name to a Coder group name. Since configuration is now done at runtime, group IDs are used to account for group renames. For legacy configurations, this config option has to remain. Deprecated: Use Mapping instead. |
+| » `[any property]`           | string                         | false    |              |                                                                                                                                                                                                                                                                                        |
+| `mapping`                    | object                         | false    |              | Mapping maps from an OIDC group --> Coder group ID                                                                                                                                                                                                                                     |
+| » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
+| `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
+
 ## codersdk.Healthcheck
 
 ```json
@@ -4659,6 +4689,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
 | `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 | `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+
+## codersdk.RoleSyncSettings
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	}
+}
+```
+
+### Properties
+
+| Name               | Type            | Required | Restrictions | Description                                                                                                                                                                 |
+| ------------------ | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `field`            | string          | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider. |
+| `mapping`          | object          | false    |              | Mapping maps from an OIDC group --> Coder organization role                                                                                                                 |
+| » `[any property]` | array of string | false    |              |                                                                                                                                                                             |
 
 ## codersdk.SSHConfig
 
@@ -8963,36 +9013,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity` | `ok`      |
 | `severity` | `warning` |
 | `severity` | `error`   |
-
-## idpsync.GroupSyncSettings
-
-```json
-{
-	"auto_create_missing_groups": true,
-	"field": "string",
-	"legacy_group_name_mapping": {
-		"property1": "string",
-		"property2": "string"
-	},
-	"mapping": {
-		"property1": ["string"],
-		"property2": ["string"]
-	},
-	"regex_filter": {}
-}
-```
-
-### Properties
-
-| Name                         | Type                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                            |
-| ---------------------------- | ------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auto_create_missing_groups` | boolean                        | false    |              | Auto create missing groups controls whether groups returned by the OIDC provider are automatically created in Coder if they are missing.                                                                                                                                               |
-| `field`                      | string                         | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider.                                                                                                            |
-| `legacy_group_name_mapping`  | object                         | false    |              | Legacy group name mapping is deprecated. It remaps an IDP group name to a Coder group name. Since configuration is now done at runtime, group IDs are used to account for group renames. For legacy configurations, this config option has to remain. Deprecated: Use Mapping instead. |
-| » `[any property]`           | string                         | false    |              |                                                                                                                                                                                                                                                                                        |
-| `mapping`                    | object                         | false    |              | Mapping maps from an OIDC group --> Coder group ID                                                                                                                                                                                                                                     |
-| » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
-| `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
 
 ## key.NodePublic
 

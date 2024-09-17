@@ -1164,6 +1164,12 @@ export interface Role {
 	readonly user_permissions: Readonly<Array<Permission>>;
 }
 
+// From codersdk/idpsync.go
+export interface RoleSyncSettings {
+	readonly field: string;
+	readonly mapping: Record<string, Readonly<Array<string>>>;
+}
+
 // From codersdk/deployment.go
 export interface SSHConfig {
 	readonly DeploymentName: string;
