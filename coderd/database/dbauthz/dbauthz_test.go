@@ -2776,9 +2776,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			LastGeneratedAt:        dbtime.Now(),
 		})
-		check.Args(database.GetNotificationReportGeneratorLogByTemplateParams{
-			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(notifications.TemplateWorkspaceBuildsFailedReport).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceBuildStatsByTemplates", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
