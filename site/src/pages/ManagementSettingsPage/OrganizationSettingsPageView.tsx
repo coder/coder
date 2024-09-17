@@ -8,6 +8,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -26,7 +27,6 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
