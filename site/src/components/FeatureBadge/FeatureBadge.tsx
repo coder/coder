@@ -81,39 +81,14 @@ type FeatureBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 		type: keyof typeof featureBadgeTypes;
 		size?: "sm" | "lg";
-	} & (
-			| {
-					/**
-					 * Defines whether the FeatureBadge should respond directly
-					 * to user input (displaying tooltips, controlling its own
-					 * hover styling, etc.)
-					 */
-					variant: "static";
-
-					/**
-					 * When used with the static variant, this lets you define
-					 * whether the component should display hover/highlighted
-					 * styling. Useful for coordinating hover behavior with an
-					 * outside component.
-					 */
-					highlighted?: boolean;
-			  }
-			| {
-					variant: "interactive";
-
-					// Had to specify the highlighted key for this union option
-					// even though it won't be used, because otherwise the type
-					// ergonomics for users would be too clunky.
-					highlighted?: undefined;
-			  }
-		)
+		variant: "interactive" | "static";
+	}
 >;
 
 export const FeatureBadge: FC<FeatureBadgeProps> = ({
 	type,
 	size = "sm",
 	variant = "interactive",
-	highlighted = false,
 	onPointerEnter,
 	onPointerLeave,
 	...delegatedProps
@@ -135,8 +110,7 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 
 	const featureType = featureBadgeTypes[type];
 	const showBadgeHoverStyle =
-		highlighted ||
-		(variant === "interactive" && (isBadgeHovering || isTooltipHovering));
+		variant === "interactive" && (isBadgeHovering || isTooltipHovering);
 
 	const coreContent = (
 		<span
