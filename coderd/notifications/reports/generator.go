@@ -111,7 +111,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		return xerrors.Errorf("unable to fetch failed workspace builds: %w", err)
 	}
 
-	reportGeneratedNow := map[uuid.UUID]bool{}
+	processedUsers := map[uuid.UUID]bool{}
 	for _, stats := range statsRows {
 		var failedBuilds []database.GetFailedWorkspaceBuildsByTemplateIDRow
 		reportData := map[string]any{}
@@ -150,7 +150,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 				continue
 			}
 
-			reportGeneratedNow[templateAdmin.ID] = true
+			processedUsers[templateAdmin.ID] = true
 
 			if len(failedBuilds) == 0 {
 				// no failed workspace builds, no need to send the report
@@ -176,14 +176,14 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 	}
 
-	for recipient := range reportGeneratedNow {
+	for u := range processedUsers {
 		err = db.UpsertReportGeneratorLog(ctx, database.UpsertReportGeneratorLogParams{
-			UserID:                 recipient,
+			UserID:                 u,
 			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			LastGeneratedAt:        dbtime.Time(now).UTC(),
 		})
 		if err != nil {
-			logger.Error(ctx, "unable to update report generator logs", slog.F("user_id", recipient), slog.Error(err))
+			logger.Error(ctx, "unable to update report generator logs", slog.F("user_id", u), slog.Error(err))
 		}
 	}
 
