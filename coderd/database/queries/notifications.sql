@@ -180,17 +180,17 @@ ORDER BY name ASC;
 SELECT
 	*
 FROM
-	report_generator_logs
+	notification_report_generator_logs
 WHERE
 	user_id = $1
 	AND notification_template_id = $2;
 
 -- name: UpsertNotificationReportGeneratorLog :exec
 -- Insert or update notification report generator logs with recent activity.
-INSERT INTO report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES (@user_id, @notification_template_id, @last_generated_at)
+INSERT INTO notification_report_generator_logs (user_id, notification_template_id, last_generated_at) VALUES (@user_id, @notification_template_id, @last_generated_at)
 ON CONFLICT (user_id, notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
 WHERE report_generator_logs.user_id = EXCLUDED.user_id AND report_generator_logs.notification_template_id = EXCLUDED.notification_template_id;
 
 -- name: DeleteOldNotificationReportGeneratorLogs :exec
 -- Delete report generator logs that have been created at least a @before date.
-DELETE FROM report_generator_logs WHERE last_generated_at < @before::timestamptz AND notification_template_id = @notification_template_id;
+DELETE FROM notification_report_generator_logs WHERE last_generated_at < @before::timestamptz AND notification_template_id = @notification_template_id;
