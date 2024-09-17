@@ -182,7 +182,7 @@ SELECT
 FROM
 	notification_report_generator_logs
 WHERE
-	notification_template_id = $1;
+	notification_template_id = @template_id::uuid;
 
 -- name: UpsertNotificationReportGeneratorLog :exec
 -- Insert or update notification report generator logs with recent activity.

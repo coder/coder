@@ -137,10 +137,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 		}
 
 		for _, templateAdmin := range templateAdmins {
-			reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, database.GetNotificationReportGeneratorLogByTemplateParams{
-				UserID:                 templateAdmin.ID,
-				NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
-			})
+			reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, notifications.TemplateWorkspaceBuildsFailedReport)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) { // sql.ErrNoRows: report not generated yet
 				continue
 			}
@@ -178,7 +175,6 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 	for u := range processedUsers {
 		err = db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
-			UserID:                 u,
 			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
 			LastGeneratedAt:        dbtime.Time(now).UTC(),
 		})

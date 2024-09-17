@@ -3002,8 +3002,8 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	return out, nil
 }
 
-func (q *FakeQuerier) GetNotificationReportGeneratorLogByTemplate(_ context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
-	err := validateDatabaseType(arg)
+func (q *FakeQuerier) GetNotificationReportGeneratorLogByTemplate(_ context.Context, templateID uuid.UUID) (database.NotificationReportGeneratorLog, error) {
+	err := validateDatabaseType(templateID)
 	if err != nil {
 		return database.NotificationReportGeneratorLog{}, err
 	}
@@ -3012,7 +3012,7 @@ func (q *FakeQuerier) GetNotificationReportGeneratorLogByTemplate(_ context.Cont
 	defer q.mutex.RUnlock()
 
 	for _, record := range q.notificationReportGeneratorLogs {
-		if record.UserID == arg.UserID && record.NotificationTemplateID == arg.NotificationTemplateID {
+		if record.NotificationTemplateID == templateID {
 			return record, nil
 		}
 	}
