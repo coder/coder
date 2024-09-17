@@ -8,11 +8,6 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Getting Started",
-					"description": "Start here to learn about Coder",
-					"path": "./install/README.md"
-				},
-				{
 					"title": "Tour Coder",
 					"description": "Tour Coder by creating a deployment with Docker",
 					"path": "./start/coder-tour.md"
