@@ -352,6 +352,7 @@
 					"title": "Integrations",
 					"description": "Use integrations to extend Coder",
 					"path": "./admin/integrations/README.md",
+					"icon_path": "./images/icons/puzzle.svg",
 					"children": [
 						{
 							"title": "Prometheus",
