@@ -210,33 +210,19 @@ type CreateWorkspaceRequest struct {
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s", name), nil)
-	if err != nil {
-		return Organization{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return Organization{}, ReadBodyAsError(res)
-	}
-
-	var organization Organization
-	return organization, json.NewDecoder(res.Body).Decode(&organization)
+	return makeSDKRequest[Organization](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s", name),
+		ExpectCode: http.StatusOK,
+	})
 }
 
 func (c *Client) Organizations(ctx context.Context) ([]Organization, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/organizations", nil)
-	if err != nil {
-		return []Organization{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return []Organization{}, ReadBodyAsError(res)
-	}
-
-	var organizations []Organization
-	return organizations, json.NewDecoder(res.Body).Decode(&organizations)
+	return makeSDKRequest[[]Organization](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        "/api/v2/organizations",
+		ExpectCode: http.StatusOK,
+	})
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {
@@ -264,34 +250,23 @@ func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationR
 // UpdateOrganization will update information about the corresponding organization, based on
 // the UUID/name provided as `orgID`.
 func (c *Client) UpdateOrganization(ctx context.Context, orgID string, req UpdateOrganizationRequest) (Organization, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s", orgID), req)
-	if err != nil {
-		return Organization{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return Organization{}, ReadBodyAsError(res)
-	}
-
-	var organization Organization
-	return organization, json.NewDecoder(res.Body).Decode(&organization)
+	return makeSDKRequest[Organization](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPatch,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s", orgID),
+		Body:       req,
+		ExpectCode: http.StatusOK,
+	})
 }
 
 // DeleteOrganization will remove the corresponding organization from the deployment, based on
 // the UUID/name provided as `orgID`.
 func (c *Client) DeleteOrganization(ctx context.Context, orgID string) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s", orgID), nil)
-	if err != nil {
-		return xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return ReadBodyAsError(res)
-	}
-
-	return nil
+	_, err := makeSDKRequest[noResponse](ctx, c, sdkRequestArgs{
+		Method:     http.MethodDelete,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s", orgID),
+		ExpectCode: http.StatusOK,
+	})
+	return err
 }
 
 // ProvisionerDaemons returns provisioner daemons available.
@@ -445,22 +420,12 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 
 // Templates lists all viewable templates
 func (c *Client) Templates(ctx context.Context, filter TemplateFilter) ([]Template, error) {
-	res, err := c.Request(ctx, http.MethodGet,
-		"/api/v2/templates",
-		nil,
-		filter.asRequestOption(),
-	)
-	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var templates []Template
-	return templates, json.NewDecoder(res.Body).Decode(&templates)
+	return makeSDKRequest[[]Template](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        "/api/v2/templates",
+		ExpectCode: http.StatusOK,
+		ReqOpts:    []RequestOption{filter.asRequestOption()},
+	})
 }
 
 // TemplateByName finds a template inside the organization provided with a case-insensitive name.
@@ -468,21 +433,11 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 	if name == "" {
 		return Template{}, xerrors.Errorf("template name cannot be empty")
 	}
-	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/templates/%s", organizationID.String(), name),
-		nil,
-	)
-	if err != nil {
-		return Template{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return Template{}, ReadBodyAsError(res)
-	}
-
-	var template Template
-	return template, json.NewDecoder(res.Body).Decode(&template)
+	return makeSDKRequest[Template](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s/templates/%s", organizationID.String(), name),
+		ExpectCode: http.StatusOK,
+	})
 }
 
 // CreateWorkspace creates a new workspace for the template specified.
