@@ -94,7 +94,7 @@ CODER_EXTERNAL_AUTH_1_SCOPES="applied-permissions/user"
    [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth) module to
    configure the integration.
 
-```hcl
+```tf
 module "jfrog" {
   source = "registry.coder.com/modules/jfrog-oauth/coder"
   version = "1.0.0"
@@ -129,7 +129,7 @@ To set this up, follow these steps:
    store the token in a sensitive terraform variable to prevent it from being
    displayed in plain text in the terraform state.
 
-```hcl
+```tf
 variable "artifactory_access_token" {
   type      = string
   sensitive = true

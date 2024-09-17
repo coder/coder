@@ -93,7 +93,7 @@ nano main.tf
 We'll start by setting up our providers. At a minimum, we need the `coder`
 provider. For this template, we also need the `docker` provider:
 
-```hcl
+```tf
 terraform {
   required_providers {
     coder = {
@@ -153,7 +153,7 @@ needs `curl` access to the Coder server. Remember that we installed `curl` in
 
 This snippet creates the agent:
 
-```hcl
+```tf
 resource "coder_agent" "main" {
   arch                   = data.coder_provisioner.me.arch
   os                     = "linux"
@@ -234,7 +234,7 @@ the `startup_script` argument in `coder_agent`. We make it available from a
 workspace with a `coder_app` resource. See [web IDEs](../ides/web-ides.md) for
 more examples.
 
-```hcl
+```tf
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
@@ -256,7 +256,7 @@ resource "coder_app" "code-server" {
 You can also use a `coder_app` resource to link to external apps, such as links
 to wikis or cloud consoles.
 
-```hcl
+```tf
 resource "coder_app" "coder-server-doc" {
   agent_id     = coder_agent.main.id
   icon         = "/emojis/1f4dd.png"
@@ -288,7 +288,7 @@ the Terraform
 [count](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
 meta-argument.
 
-```hcl
+```tf
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
   # Protect the volume from being deleted due to changes in attributes.
@@ -307,7 +307,7 @@ For details, see
 To set up our Docker container, our template has a `docker_image` resource that
 uses `build/Dockerfile`, which we created earlier.
 
-```hcl
+```tf
 resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}"
   build {
@@ -326,7 +326,7 @@ resource "docker_image" "main" {
 Our `docker_container` resource uses `coder_workspace` `start_count` to start
 and stop the Docker container:
 
-```hcl
+```tf
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.main.name

@@ -169,7 +169,7 @@ coder:
 Navigate to your EC2 workspace template in Coder, and configure the AWS provider
 using the block below:
 
-```hcl
+```tf
 provider "aws" {
   assume_role_with_web_identity {
     # enter role ARN here - copy from AWS console

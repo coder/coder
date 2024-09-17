@@ -14,7 +14,7 @@ can enable dynamic tag selection and modify static template tags.
 Here is a sample `coder_workspace_tags` data resource with a few workspace tags
 specified:
 
-```hcl
+```tf
 data "coder_workspace_tags" "custom_workspace_tags" {
   tags = {
     "zone"        = "developers"

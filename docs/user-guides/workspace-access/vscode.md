@@ -98,7 +98,7 @@ Web or using the workspace's terminal.
 
    **Startup Script**
 
-   ```hcl
+   ```tf
    resource "coder_agent" "main" {
      ...
      startup_script = "code-server --install-extension /vsix/Github.copilot.vsix"
@@ -107,7 +107,7 @@ Web or using the workspace's terminal.
 
    **Image Definition**
 
-   ```hcl
+   ```tf
    resource "kubernetes_deployment" "main" {
      spec {
        template {

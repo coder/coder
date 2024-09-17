@@ -71,7 +71,7 @@ template. In the example below, we define the secret via the
 `image_pull_secrets` argument. Note that this argument is nested at the same
 level as the `container` argument:
 
-```hcl
+```tf
 resource "kubernetes_pod" "dev" {
   metadata {
     # this must be the same namespace where workspaces will be deployed

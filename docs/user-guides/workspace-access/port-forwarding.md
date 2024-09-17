@@ -71,7 +71,7 @@ workspace's template. This approach shows a visual application icon in the
 dashboard. See the following `coder_app` example for a Node React app and note
 the `subdomain` and `share` settings:
 
-```hcl
+```tf
 # node app
 resource "coder_app" "node-react-app" {
   agent_id  = coder_agent.dev.id

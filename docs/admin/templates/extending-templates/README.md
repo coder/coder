@@ -8,7 +8,7 @@ There are a variety of Coder-native features to extend the configuration of your
 
 For users to connect to a workspace, the template must include a [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent). The associated agent will facilitate [workspace connections](../../../user-guides/workspace-access/README.md) via SSH, port forwarding, and IDEs. The agent may also display real-time [workspace metadata](./agent-metadata.md) like resource usage.
 
-```hcl
+```tf
 resource "coder_agent" "dev" {
   os   = "linux"
   arch = "amd64"
