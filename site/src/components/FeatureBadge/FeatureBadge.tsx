@@ -77,16 +77,6 @@ const styles = {
 	},
 } as const satisfies Record<string, Interpolation<Theme>>;
 
-function grammaticalArticle(nextWord: string): string {
-	const vowels = ["a", "e", "i", "o", "u"];
-	const firstLetter = nextWord.slice(0, 1).toLowerCase();
-	return vowels.includes(firstLetter) ? "an" : "a";
-}
-
-function capitalizeFirstLetter(text: string): string {
-	return text.slice(0, 1).toUpperCase() + text.slice(1);
-}
-
 type FeatureBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 		type: keyof typeof featureBadgeTypes;
@@ -94,10 +84,21 @@ type FeatureBadgeProps = Readonly<
 	} & (
 			| {
 					/**
-					 * Defines whether the FeatureBadge should act as a
-					 * controlled or uncontrolled component with its hover and
-					 * general interaction styling.
+					 * Defines whether the FeatureBadge should respond directly
+					 * to user input (displaying tooltips, controlling its own
+					 * hover styling, etc.)
 					 */
+					variant: "static";
+
+					/**
+					 * When used with the static variant, this lets you define
+					 * whether the component should display hover/highlighted
+					 * styling. Useful for coordinating hover behavior with an
+					 * outside component.
+					 */
+					highlighted?: boolean;
+			  }
+			| {
 					variant: "interactive";
 
 					// Had to specify the highlighted key for this union option
@@ -105,7 +106,6 @@ type FeatureBadgeProps = Readonly<
 					// ergonomics for users would be too clunky.
 					highlighted?: undefined;
 			  }
-			| { variant: "static"; highlighted?: boolean }
 		)
 >;
 
@@ -180,13 +180,8 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 				onPointerEnter={() => setIsTooltipHovering(true)}
 				onPointerLeave={() => setIsTooltipHovering(false)}
 			>
-				<h5 css={styles.tooltipTitle}>
-					{capitalizeFirstLetter(featureType)} Feature
-				</h5>
-
 				<p css={styles.tooltipDescription}>
-					This is {grammaticalArticle(featureType)} {featureType} feature. It
-					has not yet reached generally availability (GA).
+					This feature has not yet reached general availability (GA).
 				</p>
 
 				<Link
