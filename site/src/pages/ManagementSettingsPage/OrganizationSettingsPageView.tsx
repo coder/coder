@@ -26,6 +26,7 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -66,7 +67,10 @@ export const OrganizationSettingsPageView: FC<
 
 	return (
 		<div>
-			<SettingsHeader title="Settings" />
+			<SettingsHeader
+				title="Settings"
+				tooltip={<FeatureBadge type="beta" variant="interactive" size="lg" />}
+			/>
 
 			{Boolean(error) && !isApiValidationError(error) && (
 				<div css={{ marginBottom: 32 }}>

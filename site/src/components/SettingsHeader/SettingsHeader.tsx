@@ -31,7 +31,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 								fontSize: 32,
 								fontWeight: 700,
 								display: "flex",
-								alignItems: "center",
+								alignItems: "baseline",
 								lineHeight: "initial",
 								margin: 0,
 								marginBottom: 4,
@@ -47,6 +47,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 					</h1>
 					{tooltip}
 				</Stack>
+
 				{description && (
 					<span
 						css={{
