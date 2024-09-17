@@ -55,6 +55,10 @@ export const RBACResourceActions: Partial<
   group_member: {
     read: "read group members",
   },
+  idpsync_settings: {
+    read: "read IdP sync settings",
+    update: "update IdP sync settings",
+  },
   license: {
     create: "create a license",
     delete: "delete license",

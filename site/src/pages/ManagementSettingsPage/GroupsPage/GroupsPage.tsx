@@ -99,5 +99,8 @@ export const GroupsPage: FC = () => {
 
 export default GroupsPage;
 
-export const getOrganizationNameByDefault = (organizations: Organization[]) =>
-	organizations.find((org) => org.is_default)?.name;
+export const getOrganizationNameByDefault = (
+	organizations: readonly Organization[],
+) => {
+	return organizations.find((org) => org.is_default)?.name;
+};

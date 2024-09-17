@@ -30,14 +30,15 @@ import {
 } from "utils/schedule";
 import { isWorkspaceOn } from "utils/workspace";
 
-export interface WorkspaceScheduleContainerProps {
+interface WorkspaceScheduleContainerProps {
 	children?: ReactNode;
 	onClickIcon?: () => void;
 }
 
-export const WorkspaceScheduleContainer: FC<
-	WorkspaceScheduleContainerProps
-> = ({ children, onClickIcon }) => {
+const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
+	children,
+	onClickIcon,
+}) => {
 	const icon = (
 		<TopbarIcon>
 			<ScheduleOutlined aria-label="Schedule" />
@@ -49,6 +50,7 @@ export const WorkspaceScheduleContainer: FC<
 			<Tooltip title="Schedule">
 				{onClickIcon ? (
 					<button
+						type="button"
 						data-testid="schedule-icon-button"
 						onClick={onClickIcon}
 						css={styles.scheduleIconButton}
@@ -294,6 +296,7 @@ const styles = {
 		padding: 0,
 		fontSize: "inherit",
 		lineHeight: "inherit",
+		cursor: "pointer",
 	},
 
 	scheduleValue: {

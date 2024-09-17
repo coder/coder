@@ -57,7 +57,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 	derpMapCh := make(chan *tailcfg.DERPMap)
 	defer close(derpMapCh)
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                  logger,
+		Logger:                  logger.Named("svc"),
 		CoordPtr:                &coordPtr,
 		DERPMapUpdateFrequency:  time.Millisecond,
 		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
@@ -82,7 +82,8 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 
 	fConn := newFakeTailnetConn()
 
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, quartz.NewReal(), &websocket.DialOptions{})
+	uut := newTailnetAPIConnector(ctx, logger.Named("tac"), agentID, svr.URL,
+		quartz.NewReal(), &websocket.DialOptions{})
 	uut.runConnector(fConn)
 
 	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
@@ -108,6 +109,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 	reqDisc := testutil.RequireRecvCtx(testCtx, t, call.Reqs)
 	require.NotNil(t, reqDisc)
 	require.NotNil(t, reqDisc.Disconnect)
+	close(call.Resps)
 }
 
 func TestTailnetAPIConnector_UplevelVersion(t *testing.T) {

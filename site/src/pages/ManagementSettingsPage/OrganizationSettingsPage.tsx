@@ -55,7 +55,7 @@ const OrganizationSettingsPage: FC = () => {
 	// Redirect /organizations => /organizations/default-org, or if they cannot edit
 	// the default org, then the first org they can edit, if any.
 	if (!organizationName) {
-		const editableOrg = organizations
+		const editableOrg = [...organizations]
 			.sort((a, b) => {
 				// Prefer default org (it may not be first).
 				// JavaScript will happily subtract booleans, but use numbers to keep
@@ -112,5 +112,9 @@ const OrganizationSettingsPage: FC = () => {
 
 export default OrganizationSettingsPage;
 
-const getOrganizationByName = (organizations: Organization[], name: string) =>
-	organizations.find((org) => org.name === name);
+const getOrganizationByName = (
+	organizations: readonly Organization[],
+	name: string,
+) => {
+	return organizations.find((org) => org.name === name);
+};

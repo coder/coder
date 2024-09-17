@@ -42,7 +42,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
 				},
 			})
 
@@ -239,7 +241,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
 				},
 			})
 
@@ -267,9 +271,13 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
-					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin().String()},
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
+					dv.OIDC.UserRoleMapping = serpent.Struct[map[string][]string]{
+						Value: map[string][]string{
+							oidcRoleName: {rbac.RoleTemplateAdmin().String()},
+						},
 					}
 				},
 			})
@@ -299,9 +307,13 @@ func TestUserOIDC(t *testing.T) {
 				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
-					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
+					dv.OIDC.UserRoleMapping = serpent.Struct[map[string][]string]{
+						Value: map[string][]string{
+							oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
+						},
 					}
 				},
 			})
@@ -334,9 +346,13 @@ func TestUserOIDC(t *testing.T) {
 				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
-					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
+					dv.OIDC.UserRoleMapping = serpent.Struct[map[string][]string]{
+						Value: map[string][]string{
+							oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
+						},
 					}
 				},
 			})
@@ -367,7 +383,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
 				},
 			})
 
@@ -653,7 +671,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
 				},
 			})
 

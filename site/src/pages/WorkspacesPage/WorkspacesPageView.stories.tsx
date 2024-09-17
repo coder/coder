@@ -98,6 +98,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 		user: MockMenu,
 		template: MockMenu,
 		status: MockMenu,
+		organizations: MockMenu,
 	},
 	values: {
 		owner: MockUser.username,

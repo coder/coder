@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -215,6 +216,11 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
 
+	// Check if changing roles is allowed
+	if !api.allowChangingMemberRoles(ctx, rw, member, organization) {
+		return
+	}
+
 	if apiKey.UserID == member.OrganizationMember.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own organization roles.",
@@ -257,6 +263,35 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
+}
+
+func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWriter, member httpmw.OrganizationMember, organization database.Organization) bool {
+	// nolint:gocritic // The caller could be an org admin without this perm.
+	// We need to disable manual role assignment if role sync is enabled for
+	// the given organization.
+	user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.UserID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+
+	if user.LoginType == database.LoginTypeOIDC {
+		// nolint:gocritic // fetching settings
+		orgSync, err := api.IDPSync.OrganizationRoleSyncEnabled(dbauthz.AsSystemRestricted(ctx), api.Database, organization.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return false
+		}
+		if orgSync {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot modify roles for OIDC users when role sync is enabled. This organization member's roles are managed by the identity provider.",
+				Detail:  "'User Role Field' is set in the organization settings. Ask an administrator to adjust or disable these settings.",
+			})
+			return false
+		}
+	}
+
+	return true
 }
 
 // convertOrganizationMembers batches the role lookup to make only 1 sql call

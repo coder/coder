@@ -2311,6 +2311,7 @@ type ProvisionerDaemon struct {
 	// The API version of the provisioner daemon
 	APIVersion     string    `db:"api_version" json:"api_version"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	KeyID          uuid.UUID `db:"key_id" json:"key_id"`
 }
 
 type ProvisionerJob struct {
