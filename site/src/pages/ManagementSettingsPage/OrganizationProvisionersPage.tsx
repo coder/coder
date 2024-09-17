@@ -59,5 +59,9 @@ const OrganizationProvisionersPage: FC = () => {
 
 export default OrganizationProvisionersPage;
 
-const getOrganizationByName = (organizations: Organization[], name: string) =>
-	organizations.find((org) => org.name === name);
+const getOrganizationByName = (
+	organizations: readonly Organization[],
+	name: string,
+) => {
+	return organizations.find((org) => org.name === name);
+};

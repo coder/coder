@@ -89,7 +89,7 @@ export const OrganizationMembersPageView: FC<
 										<TableColumnHelpTooltip variant="groups" />
 									</Stack>
 								</TableCell>
-								<TableCell width="1%"></TableCell>
+								<TableCell width="1%" />
 							</TableRow>
 						</TableHead>
 						<TableBody>

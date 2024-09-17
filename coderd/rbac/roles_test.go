@@ -714,6 +714,20 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
 			},
 		},
+		{
+			Name:     "IDPSyncSettings",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceIdpsyncSettings.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin},
+				false: {
+					orgMemberMe, otherOrgAdmin,
+					memberMe, userAdmin, templateAdmin,
+					orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.

@@ -949,6 +949,13 @@ func (m metricsStore) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	return job, err
 }
 
+func (m metricsStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobTimingsByJobID(ctx, jobID)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobTimingsByJobID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	start := time.Now()
 	jobs, err := m.s.GetProvisionerJobsByIDs(ctx, ids)
@@ -1947,6 +1954,13 @@ func (m metricsStore) ListProvisionerKeysByOrganization(ctx context.Context, org
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("ListProvisionerKeysByOrganization").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListProvisionerKeysByOrganizationExcludeReserved(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("ListProvisionerKeysByOrganizationExcludeReserved").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

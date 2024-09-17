@@ -1,5 +1,5 @@
 import { action } from "@storybook/addon-actions";
-import type { UseFilterResult } from "./filter";
+import type { UseFilterResult } from "./Filter";
 import type { UseFilterMenuResult } from "./menu";
 
 export const MockMenu: UseFilterMenuResult = {

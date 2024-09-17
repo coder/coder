@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -412,6 +413,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
+		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -424,6 +426,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
+		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -438,6 +441,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
+		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -453,6 +457,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
+		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
 	})
 	require.NoError(t, err)
 

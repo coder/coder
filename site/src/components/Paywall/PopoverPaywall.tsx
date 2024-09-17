@@ -23,8 +23,8 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 			css={[
 				styles.root,
 				(theme) => ({
-					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.background})`,
-					border: `1px solid ${theme.branding.border}`,
+					backgroundImage: `linear-gradient(160deg, transparent, ${theme.branding.premium.background})`,
+					border: `1px solid ${theme.branding.premium.border}`,
 				}),
 			]}
 		>
@@ -45,7 +45,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 				</Link>
 			</div>
 			<div css={styles.separator} />
-			<Stack direction="column" alignItems="center" spacing={2}>
+			<Stack direction="column" alignItems="left" spacing={2}>
 				<ul css={styles.featureList}>
 					<li css={styles.feature}>
 						<FeatureIcon /> High availability & workspace proxies
@@ -60,16 +60,18 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 						<FeatureIcon /> Unlimited Git & external auth integrations
 					</li>
 				</ul>
-				<Button
-					href={docs("/enterprise")}
-					target="_blank"
-					rel="noreferrer"
-					startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
-					variant="outlined"
-					color="neutral"
-				>
-					Learn about Premium
-				</Button>
+				<div css={styles.learnButton}>
+					<Button
+						href={docs("/enterprise")}
+						target="_blank"
+						rel="noreferrer"
+						startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
+						variant="outlined"
+						color="neutral"
+					>
+						Learn about Premium
+					</Button>
+				</div>
 			</Stack>
 		</div>
 	);
@@ -80,7 +82,7 @@ const FeatureIcon: FC = () => {
 		<TaskAltIcon
 			css={[
 				(theme) => ({
-					color: theme.branding.border,
+					color: theme.branding.premium.border,
 				}),
 			]}
 		/>
@@ -92,7 +94,7 @@ const styles = {
 		display: "flex",
 		flexDirection: "row",
 		alignItems: "center",
-		maxWidth: 600,
+		maxWidth: 770,
 		padding: "24px 36px",
 		borderRadius: 8,
 		gap: 18,
@@ -106,7 +108,7 @@ const styles = {
 	description: (theme) => ({
 		marginTop: 8,
 		fontFamily: "inherit",
-		maxWidth: 420,
+		maxWidth: 360,
 		lineHeight: "160%",
 		color: theme.palette.text.secondary,
 		fontSize: 14,
@@ -121,9 +123,12 @@ const styles = {
 		listStyle: "none",
 		margin: 0,
 		marginRight: 8,
-		padding: "0 12px",
+		padding: "0 0 0 24px",
 		fontSize: 13,
 		fontWeight: 500,
+	},
+	learnButton: {
+		padding: "0 28px",
 	},
 	feature: {
 		display: "flex",

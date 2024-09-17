@@ -929,6 +929,12 @@ func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) databas
 	return key
 }
 
+func ProvisionerJobTimings(t testing.TB, db database.Store, seed database.InsertProvisionerJobTimingsParams) []database.ProvisionerJobTiming {
+	timings, err := db.InsertProvisionerJobTimings(genCtx, seed)
+	require.NoError(t, err, "insert provisioner job timings")
+	return timings
+}
+
 func must[V any](v V, err error) V {
 	if err != nil {
 		panic(err)

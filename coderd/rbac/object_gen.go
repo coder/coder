@@ -112,6 +112,14 @@ var (
 		Type: "group_member",
 	}
 
+	// ResourceIdpsyncSettings
+	// Valid Actions
+	//  - "ActionRead" :: read IdP sync settings
+	//  - "ActionUpdate" :: update IdP sync settings
+	ResourceIdpsyncSettings = Object{
+		Type: "idpsync_settings",
+	}
+
 	// ResourceLicense
 	// Valid Actions
 	//  - "ActionCreate" :: create a license
@@ -308,6 +316,7 @@ func AllResources() []Objecter {
 		ResourceFile,
 		ResourceGroup,
 		ResourceGroupMember,
+		ResourceIdpsyncSettings,
 		ResourceLicense,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,

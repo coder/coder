@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
 import { getWorkspaceQuotaQueryKey } from "api/queries/workspaceQuota";
+import type { Workspace, WorkspaceQuota } from "api/typesGenerated";
 import { addHours, addMinutes } from "date-fns";
 import {
+	MockOrganization,
 	MockTemplate,
 	MockTemplateVersion,
 	MockUser,
@@ -11,9 +13,12 @@ import {
 import { withDashboardProvider } from "testHelpers/storybook";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
-// We want a workspace without a deadline to not pollute the screenshot
-const baseWorkspace = {
+// We want a workspace without a deadline to not pollute the screenshot. Also
+// want to make sure that the workspace is synced to our other mock values
+const baseWorkspace: Workspace = {
 	...MockWorkspace,
+	organization_name: MockOrganization.name,
+	organization_id: MockOrganization.id,
 	latest_build: {
 		...MockWorkspace.latest_build,
 		deadline: undefined,
@@ -262,15 +267,37 @@ export const WithFarAwayDeadlineRequiredByTemplate: Story = {
 	},
 };
 
-export const WithQuota: Story = {
+export const WithQuotaNoOrgs: Story = {
 	parameters: {
+		showOrganizations: false,
 		queries: [
 			{
-				key: getWorkspaceQuotaQueryKey(MockUser.username),
+				key: getWorkspaceQuotaQueryKey(
+					MockOrganization.name,
+					MockUser.username,
+				),
 				data: {
 					credits_consumed: 2,
 					budget: 40,
-				},
+				} satisfies WorkspaceQuota,
+			},
+		],
+	},
+};
+
+export const WithQuotaWithOrgs: Story = {
+	parameters: {
+		showOrganizations: true,
+		queries: [
+			{
+				key: getWorkspaceQuotaQueryKey(
+					MockOrganization.name,
+					MockUser.username,
+				),
+				data: {
+					credits_consumed: 2,
+					budget: 40,
+				} satisfies WorkspaceQuota,
 			},
 		],
 	},

@@ -631,6 +631,17 @@ export interface Group {
 export interface GroupArguments {
 	readonly Organization: string;
 	readonly HasMember: string;
+	readonly GroupIDs: Readonly<Array<string>>;
+}
+
+// From codersdk/idpsync.go
+export interface GroupSyncSettings {
+	readonly field: string;
+	readonly mapping: Record<string, Readonly<Array<string>>>;
+	// external type "regexp.Regexp", using "unknown"
+	readonly regex_filter?: unknown;
+	readonly auto_create_missing_groups: boolean;
+	readonly legacy_group_name_mapping?: Record<string, string>;
 }
 
 // From codersdk/workspaceapps.go
@@ -1005,6 +1016,7 @@ export interface ProvisionerConfig {
 export interface ProvisionerDaemon {
 	readonly id: string;
 	readonly organization_id: string;
+	readonly key_id: string;
 	readonly created_at: string;
 	readonly last_seen_at?: string;
 	readonly name: string;
@@ -1048,6 +1060,23 @@ export interface ProvisionerKey {
 	readonly organization: string;
 	readonly name: string;
 	readonly tags: Record<string, string>;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerKeyDaemons {
+	readonly key: ProvisionerKey;
+	readonly daemons: Readonly<Array<ProvisionerDaemon>>;
+}
+
+// From codersdk/workspaces.go
+export interface ProvisionerTiming {
+	readonly job_id: string;
+	readonly started_at: string;
+	readonly ended_at: string;
+	readonly stage: string;
+	readonly source: string;
+	readonly action: string;
+	readonly resource: string;
 }
 
 // From codersdk/workspaceproxy.go
@@ -1997,6 +2026,11 @@ export interface WorkspaceResourceMetadata {
 	readonly key: string;
 	readonly value: string;
 	readonly sensitive: boolean;
+}
+
+// From codersdk/workspaces.go
+export interface WorkspaceTimings {
+	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
 }
 
 // From codersdk/workspaces.go

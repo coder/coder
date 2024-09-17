@@ -1357,7 +1357,7 @@ func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tai
 		defer close(errCh)
 		select {
 		case <-ctx.Done():
-			err := coordination.Close()
+			err := coordination.Close(a.hardCtx)
 			if err != nil {
 				a.logger.Warn(ctx, "failed to close remote coordination", slog.Error(err))
 			}
