@@ -5829,12 +5829,10 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 			if !ok {
 				latestAgentStats[key] = agentStat
 			} else {
-				if agentStat.CreatedAt.After(val.CreatedAt) || agentStat.CreatedAt.Equal(val.CreatedAt) {
-					val.SessionCountVSCode = agentStat.SessionCountVSCode
-					val.SessionCountJetBrains = agentStat.SessionCountJetBrains
-					val.SessionCountReconnectingPTY = agentStat.SessionCountReconnectingPTY
-					val.SessionCountSSH = agentStat.SessionCountSSH
-				}
+				val.SessionCountVSCode += agentStat.SessionCountVSCode
+				val.SessionCountJetBrains += agentStat.SessionCountJetBrains
+				val.SessionCountReconnectingPTY += agentStat.SessionCountReconnectingPTY
+				val.SessionCountSSH += agentStat.SessionCountSSH
 				val.ConnectionCount += agentStat.ConnectionCount
 				latestAgentStats[key] = val
 			}

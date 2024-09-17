@@ -372,7 +372,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 		WorkspaceName:             workspace1.Name,
 		RxBytes:                   3,
 		TxBytes:                   3,
-		SessionCountVSCode:        2,
+		SessionCountVSCode:        3,
 		ConnectionMedianLatencyMS: 1,
 	})
 

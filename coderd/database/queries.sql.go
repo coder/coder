@@ -12082,12 +12082,8 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
-	FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, usage, ROW_NUMBER() OVER (PARTITION BY user_id, agent_id, workspace_id ORDER BY created_at DESC) AS rn
-		FROM workspace_agent_stats
-		WHERE usage = true
-	) as a
-	WHERE a.rn = 1
+	FROM workspace_agent_stats
+	WHERE usage = true
 	GROUP BY user_id, agent_id, workspace_id
 ), latest_agent_latencies AS (
 	SELECT
