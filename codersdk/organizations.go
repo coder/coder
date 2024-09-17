@@ -233,18 +233,12 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 
 // CreateOrganization creates an organization and adds the user making the request as an owner.
 func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
-	if err != nil {
-		return Organization{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Organization{}, ReadBodyAsError(res)
-	}
-
-	var org Organization
-	return org, json.NewDecoder(res.Body).Decode(&org)
+	return makeSDKRequest[Organization](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPost,
+		URL:        "/api/v2/organizations",
+		Body:       req,
+		ExpectCode: http.StatusCreated,
+	})
 }
 
 // UpdateOrganization will update information about the corresponding organization, based on
@@ -290,97 +284,49 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 }
 
 func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
-	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String()),
-		nil,
-	)
-	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var daemons []ProvisionerDaemon
-	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
+	return makeSDKRequest[[]ProvisionerDaemon](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String()),
+		ExpectCode: http.StatusOK,
+	})
 }
 
 // CreateTemplateVersion processes source-code and optionally associates the version with a template.
 // Executing without a template is useful for validating source-code.
 func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.UUID, req CreateTemplateVersionRequest) (TemplateVersion, error) {
-	res, err := c.Request(ctx, http.MethodPost,
-		fmt.Sprintf("/api/v2/organizations/%s/templateversions", organizationID.String()),
-		req,
-	)
-	if err != nil {
-		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return TemplateVersion{}, ReadBodyAsError(res)
-	}
-
-	var templateVersion TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+	return makeSDKRequest[TemplateVersion](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPost,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s/templateversions", organizationID.String()),
+		Body:       req,
+		ExpectCode: http.StatusCreated,
+	})
 }
 
 func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organizationID uuid.UUID, templateName, versionName string) (TemplateVersion, error) {
-	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s", organizationID.String(), templateName, versionName),
-		nil,
-	)
-	if err != nil {
-		return TemplateVersion{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return TemplateVersion{}, ReadBodyAsError(res)
-	}
-
-	var templateVersion TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+	return makeSDKRequest[TemplateVersion](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s/templates/%s/versions/%s", organizationID.String(), templateName, versionName),
+		ExpectCode: http.StatusOK,
+	})
 }
 
 // CreateTemplate creates a new template inside an organization.
 func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, request CreateTemplateRequest) (Template, error) {
-	res, err := c.Request(ctx, http.MethodPost,
-		fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
-		request,
-	)
-	if err != nil {
-		return Template{}, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Template{}, ReadBodyAsError(res)
-	}
-
-	var template Template
-	return template, json.NewDecoder(res.Body).Decode(&template)
+	return makeSDKRequest[Template](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPost,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
+		Body:       request,
+		ExpectCode: http.StatusCreated,
+	})
 }
 
 // TemplatesByOrganization lists all templates inside of an organization.
 func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]Template, error) {
-	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
-		nil,
-	)
-	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var templates []Template
-	return templates, json.NewDecoder(res.Body).Decode(&templates)
+	return makeSDKRequest[[]Template](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/organizations/%s/templates", organizationID.String()),
+		ExpectCode: http.StatusOK,
+	})
 }
 
 type TemplateFilter struct {
@@ -449,16 +395,10 @@ func (c *Client) CreateWorkspace(ctx context.Context, _ uuid.UUID, user string, 
 
 // CreateUserWorkspace creates a new workspace for the template specified.
 func (c *Client) CreateUserWorkspace(ctx context.Context, user string, request CreateWorkspaceRequest) (Workspace, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
-	if err != nil {
-		return Workspace{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Workspace{}, ReadBodyAsError(res)
-	}
-
-	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+	return makeSDKRequest[Workspace](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPost,
+		URL:        fmt.Sprintf("/api/v2/users/%s/workspaces", user),
+		Body:       request,
+		ExpectCode: http.StatusCreated,
+	})
 }
