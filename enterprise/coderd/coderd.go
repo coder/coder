@@ -145,7 +145,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 		return c.Subject, c.Trial, nil
 	}
-	api.AGPL.Options.SetUserSiteRoles = api.setUserSiteRoles
 	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
 		// If the user can read the workspace proxy resource, return that.
 		// If not, always default to the regions.

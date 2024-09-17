@@ -8730,7 +8730,7 @@ func (q *FakeQuerier) UpdateUserRoles(_ context.Context, arg database.UpdateUser
 		}
 
 		// Set new roles
-		user.RBACRoles = arg.GrantedRoles
+		user.RBACRoles = slice.Unique(arg.GrantedRoles)
 		// Remove duplicates and sort
 		uniqueRoles := make([]string, 0, len(user.RBACRoles))
 		exist := make(map[string]struct{})

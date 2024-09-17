@@ -85,7 +85,7 @@ func TestGroupSyncTable(t *testing.T) {
 	testCases := []orgSetupDefinition{
 		{
 			Name: "SwitchGroups",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("sg-foo"), ids.ID("sg-foo-2")},
@@ -102,16 +102,18 @@ func TestGroupSyncTable(t *testing.T) {
 				ids.ID("sg-bar"):   false,
 				ids.ID("sg-baz"):   false,
 			},
-			ExpectedGroups: []uuid.UUID{
-				ids.ID("sg-foo"),
-				ids.ID("sg-foo-2"),
-				ids.ID("sg-bar"),
-				ids.ID("sg-baz"),
+			assertGroups: &orgGroupAssert{
+				ExpectedGroups: []uuid.UUID{
+					ids.ID("sg-foo"),
+					ids.ID("sg-foo-2"),
+					ids.ID("sg-bar"),
+					ids.ID("sg-baz"),
+				},
 			},
 		},
 		{
 			Name: "StayInGroup",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				// Only match foo, so bar does not map
 				RegexFilter: regexp.MustCompile("^foo$"),
@@ -125,13 +127,15 @@ func TestGroupSyncTable(t *testing.T) {
 				ids.ID("gg-foo"): true,
 				ids.ID("gg-bar"): false,
 			},
-			ExpectedGroups: []uuid.UUID{
-				ids.ID("gg-foo"),
+			assertGroups: &orgGroupAssert{
+				ExpectedGroups: []uuid.UUID{
+					ids.ID("gg-foo"),
+				},
 			},
 		},
 		{
 			Name: "UserJoinsGroups",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					"foo": {ids.ID("ng-foo"), uuid.New()},
@@ -145,29 +149,33 @@ func TestGroupSyncTable(t *testing.T) {
 				ids.ID("ng-bar-2"): false,
 				ids.ID("ng-baz"):   false,
 			},
-			ExpectedGroups: []uuid.UUID{
-				ids.ID("ng-foo"),
-				ids.ID("ng-bar"),
-				ids.ID("ng-bar-2"),
-				ids.ID("ng-baz"),
+			assertGroups: &orgGroupAssert{
+				ExpectedGroups: []uuid.UUID{
+					ids.ID("ng-foo"),
+					ids.ID("ng-bar"),
+					ids.ID("ng-bar-2"),
+					ids.ID("ng-baz"),
+				},
 			},
 		},
 		{
 			Name: "CreateGroups",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field:             "groups",
 				RegexFilter:       regexp.MustCompile("^create"),
 				AutoCreateMissing: true,
 			},
 			Groups: map[uuid.UUID]bool{},
-			ExpectedGroupNames: []string{
-				"create-bar",
-				"create-baz",
+			assertGroups: &orgGroupAssert{
+				ExpectedGroupNames: []string{
+					"create-bar",
+					"create-baz",
+				},
 			},
 		},
 		{
 			Name: "GroupNamesNoMapping",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field:             "groups",
 				RegexFilter:       regexp.MustCompile(".*"),
 				AutoCreateMissing: false,
@@ -177,14 +185,16 @@ func TestGroupSyncTable(t *testing.T) {
 				"bar":  false,
 				"goob": true,
 			},
-			ExpectedGroupNames: []string{
-				"foo",
-				"bar",
+			assertGroups: &orgGroupAssert{
+				ExpectedGroupNames: []string{
+					"foo",
+					"bar",
+				},
 			},
 		},
 		{
 			Name: "NoUser",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field: "groups",
 				Mapping: map[string][]uuid.UUID{
 					// Extra ID that does not map to a group
@@ -200,13 +210,16 @@ func TestGroupSyncTable(t *testing.T) {
 			},
 		},
 		{
-			Name:     "NoSettingsNoUser",
-			Settings: nil,
-			Groups:   map[uuid.UUID]bool{},
+			Name:          "NoSettings",
+			GroupSettings: nil,
+			Groups:        map[uuid.UUID]bool{},
+			assertGroups: &orgGroupAssert{
+				ExpectedGroups: []uuid.UUID{},
+			},
 		},
 		{
 			Name: "LegacyMapping",
-			Settings: &codersdk.GroupSyncSettings{
+			GroupSettings: &codersdk.GroupSyncSettings{
 				Field:       "groups",
 				RegexFilter: regexp.MustCompile("^legacy"),
 				LegacyNameMapping: map[string]string{
@@ -224,9 +237,11 @@ func TestGroupSyncTable(t *testing.T) {
 				"extra":      true,
 				"legacy-bop": true,
 			},
-			ExpectedGroupNames: []string{
-				"legacy-bar",
-				"legacy-foo",
+			assertGroups: &orgGroupAssert{
+				ExpectedGroupNames: []string{
+					"legacy-bar",
+					"legacy-foo",
+				},
 			},
 		},
 	}
@@ -311,9 +326,10 @@ func TestGroupSyncTable(t *testing.T) {
 				"random":     true,
 			},
 			// No settings, because they come from the deployment values
-			Settings:           nil,
-			ExpectedGroups:     nil,
-			ExpectedGroupNames: []string{"legacy-foo", "legacy-baz", "legacy-bar"},
+			GroupSettings: nil,
+			assertGroups: &orgGroupAssert{
+				ExpectedGroupNames: []string{"legacy-foo", "legacy-baz", "legacy-bar"},
+			},
 		}
 
 		//nolint:gocritic // testing
@@ -385,16 +401,18 @@ func TestSyncDisabled(t *testing.T) {
 			ids.ID("baz"): false,
 			ids.ID("bop"): false,
 		},
-		Settings: &codersdk.GroupSyncSettings{
+		GroupSettings: &codersdk.GroupSyncSettings{
 			Field: "groups",
 			Mapping: map[string][]uuid.UUID{
 				"foo": {ids.ID("foo")},
 				"baz": {ids.ID("baz")},
 			},
 		},
-		ExpectedGroups: []uuid.UUID{
-			ids.ID("foo"),
-			ids.ID("bar"),
+		assertGroups: &orgGroupAssert{
+			ExpectedGroups: []uuid.UUID{
+				ids.ID("foo"),
+				ids.ID("bar"),
+			},
 		},
 	}
 
@@ -728,9 +746,14 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 	}
 
 	manager := runtimeconfig.NewManager()
-	if def.Settings != nil {
-		orgResolver := manager.OrganizationResolver(db, org.ID)
-		err = s.Group.SetRuntimeValue(context.Background(), orgResolver, (*idpsync.GroupSyncSettings)(def.Settings))
+	orgResolver := manager.OrganizationResolver(db, org.ID)
+	if def.GroupSettings != nil {
+		err = s.Group.SetRuntimeValue(context.Background(), orgResolver, (*idpsync.GroupSyncSettings)(def.GroupSettings))
+		require.NoError(t, err)
+	}
+
+	if def.RoleSettings != nil {
+		err = s.Role.SetRuntimeValue(context.Background(), orgResolver, def.RoleSettings)
 		require.NoError(t, err)
 	}
 
@@ -740,6 +763,33 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 			OrganizationID: org.ID,
 		})
 	}
+
+	if len(def.OrganizationRoles) > 0 {
+		_, err := db.UpdateMemberRoles(context.Background(), database.UpdateMemberRolesParams{
+			GrantedRoles: def.OrganizationRoles,
+			UserID:       user.ID,
+			OrgID:        org.ID,
+		})
+		require.NoError(t, err)
+	}
+
+	if len(def.CustomRoles) > 0 {
+		for _, cr := range def.CustomRoles {
+			_, err := db.InsertCustomRole(context.Background(), database.InsertCustomRoleParams{
+				Name:        cr,
+				DisplayName: cr,
+				OrganizationID: uuid.NullUUID{
+					UUID:  org.ID,
+					Valid: true,
+				},
+				SitePermissions: nil,
+				OrgPermissions:  nil,
+				UserPermissions: nil,
+			})
+			require.NoError(t, err)
+		}
+	}
+
 	for groupID, in := range def.Groups {
 		dbgen.Group(t, db, database.Group{
 			ID:             groupID,
@@ -769,11 +819,25 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 type orgSetupDefinition struct {
 	Name string
 	// True if the user is a member of the group
-	Groups     map[uuid.UUID]bool
-	GroupNames map[string]bool
-	NotMember  bool
+	Groups            map[uuid.UUID]bool
+	GroupNames        map[string]bool
+	OrganizationRoles []string
+	CustomRoles       []string
+	// NotMember if true will ensure the user is not a member of the organization.
+	NotMember bool
 
-	Settings           *codersdk.GroupSyncSettings
+	GroupSettings *codersdk.GroupSyncSettings
+	RoleSettings  *idpsync.RoleSyncSettings
+
+	assertGroups *orgGroupAssert
+	assertRoles  *orgRoleAssert
+}
+
+type orgRoleAssert struct {
+	ExpectedOrgRoles []string
+}
+
+type orgGroupAssert struct {
 	ExpectedGroups     []uuid.UUID
 	ExpectedGroupNames []string
 }
@@ -793,6 +857,25 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 	} else {
 		require.Len(t, members, 1, "should be a member")
 	}
+
+	if o.assertGroups != nil {
+		o.assertGroups.Assert(t, orgID, db, user)
+	}
+	if o.assertRoles != nil {
+		o.assertRoles.Assert(t, orgID, db, o.NotMember, user)
+	}
+
+	// If the user is not a member, there is nothing to really assert in the org
+	if o.assertGroups == nil && o.assertRoles == nil && !o.NotMember {
+		t.Errorf("no group or role asserts present, must have at least one")
+		t.FailNow()
+	}
+}
+
+func (o orgGroupAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, user database.User) {
+	t.Helper()
+
+	ctx := context.Background()
 
 	userGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
 		OrganizationID: orgID,
@@ -825,4 +908,24 @@ func (o orgSetupDefinition) Assert(t *testing.T, orgID uuid.UUID, db database.St
 		require.ElementsMatch(t, o.ExpectedGroups, found, "user groups")
 		require.Len(t, o.ExpectedGroupNames, 0, "ExpectedGroupNames should be empty")
 	}
+}
+
+//nolint:revive
+func (o orgRoleAssert) Assert(t *testing.T, orgID uuid.UUID, db database.Store, notMember bool, user database.User) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: orgID,
+		UserID:         user.ID,
+	})
+	if notMember {
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		return
+	}
+	require.NoError(t, err)
+	require.Len(t, members, 1)
+	member := members[0]
+	require.ElementsMatch(t, member.OrganizationMember.Roles, o.ExpectedOrgRoles)
 }
