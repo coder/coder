@@ -26,6 +26,7 @@ func (r *RootCmd) organizations() *serpent.Command {
 			r.createOrganization(),
 			r.organizationMembers(orgContext),
 			r.organizationRoles(orgContext),
+			r.organizationSettings(orgContext),
 		},
 	}
 
