@@ -157,6 +157,66 @@ func TestScim(t *testing.T) {
 			require.Len(t, userRes.Users, 1)
 			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
+			assert.Len(t, userRes.Users[0].OrganizationIDs, 1)
+
+			// Expect zero notifications (SkipNotifications = true)
+			require.Empty(t, notifyEnq.Sent)
+		})
+
+		t.Run("OKNoDefault", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// given
+			scimAPIKey := []byte("hi")
+			mockAudit := audit.NewMock()
+			notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+			dv := coderdtest.DeploymentValues(t)
+			dv.OIDC.OrganizationAssignDefault = false
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					Auditor:               mockAudit,
+					NotificationsEnqueuer: notifyEnq,
+					DeploymentValues:      dv,
+				},
+				SCIMAPIKey:   scimAPIKey,
+				AuditLogging: true,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM:     1,
+						codersdk.FeatureAuditLog: 1,
+					},
+				},
+			})
+			mockAudit.ResetLogs()
+
+			// when
+			sUser := makeScimUser(t)
+			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			// then
+			// Expect audit logs
+			aLogs := mockAudit.AuditLogs()
+			require.Len(t, aLogs, 1)
+			af := map[string]string{}
+			err = json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af)
+			require.NoError(t, err)
+			assert.Equal(t, coderd.SCIMAuditAdditionalFields, af)
+			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
+
+			// Expect users exposed over API
+			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
+			require.NoError(t, err)
+			require.Len(t, userRes.Users, 1)
+			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
+			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
+			assert.Len(t, userRes.Users[0].OrganizationIDs, 0)
 
 			// Expect zero notifications (SkipNotifications = true)
 			require.Empty(t, notifyEnq.Sent)
