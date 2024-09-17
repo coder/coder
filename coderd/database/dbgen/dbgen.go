@@ -800,6 +800,7 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		SessionCountReconnectingPTY: []int64{takeFirst(orig.SessionCountReconnectingPTY, 0)},
 		SessionCountSSH:             []int64{takeFirst(orig.SessionCountSSH, 0)},
 		ConnectionMedianLatencyMS:   []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
+		Usage:                       []bool{takeFirst(orig.Usage, false)},
 	}
 	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
@@ -822,6 +823,7 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		SessionCountJetBrains:       params.SessionCountJetBrains[0],
 		SessionCountReconnectingPTY: params.SessionCountReconnectingPTY[0],
 		SessionCountSSH:             params.SessionCountSSH[0],
+		Usage:                       params.Usage[0],
 	}
 }
 

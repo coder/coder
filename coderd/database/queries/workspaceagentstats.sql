@@ -165,13 +165,13 @@ latest_buckets AS (
 		minute_bucket DESC
 ),
 latest_agent_stats AS (
-	SELECT
-		SUM(session_count_vscode) AS session_count_vscode,
-		SUM(session_count_ssh) AS session_count_ssh,
-		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
-	FROM
-		latest_buckets
+    SELECT
+        SUM(session_count_vscode) AS session_count_vscode,
+        SUM(session_count_ssh) AS session_count_ssh,
+        SUM(session_count_jetbrains) AS session_count_jetbrains,
+        SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
+    FROM
+        latest_buckets
 )
 SELECT * FROM agent_stats, latest_agent_stats;
 
@@ -218,15 +218,15 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
-), 
+),
 minute_buckets AS (
 	SELECT
 		agent_id,
 		date_trunc('minute', created_at) AS minute_bucket,
 		SUM(session_count_vscode) AS session_count_vscode,
-		SUM(session_count_ssh) AS session_count_ssh,		
+		SUM(session_count_ssh) AS session_count_ssh,
 		SUM(session_count_jetbrains) AS session_count_jetbrains,
 		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
 	FROM
@@ -246,27 +246,17 @@ minute_buckets AS (
 latest_buckets AS (
 	SELECT DISTINCT ON (agent_id)
 		agent_id,
-		minute_bucket,
 		session_count_vscode,
+		session_count_ssh,
 		session_count_jetbrains,
-		session_count_reconnecting_pty,
-		session_count_ssh
+		session_count_reconnecting_pty
 	FROM
 		minute_buckets
 	ORDER BY
 		agent_id,
 		minute_bucket DESC
-), latest_agent_stats AS (
-	SELECT
-		agent_id,
-		SUM(session_count_vscode) AS session_count_vscode,
-		SUM(session_count_ssh) AS session_count_ssh,
-		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
-	FROM
-		latest_buckets
 )
-SELECT * FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id;
+SELECT * FROM agent_stats JOIN latest_buckets ON agent_stats.agent_id = latest_buckets.agent_id;
 
 -- name: GetWorkspaceAgentStatsAndLabels :many
 WITH agent_stats AS (
@@ -339,8 +329,12 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
-	FROM workspace_agent_stats
-	WHERE usage = true
+	FROM (
+		SELECT *, ROW_NUMBER() OVER (PARTITION BY user_id, agent_id, workspace_id ORDER BY created_at DESC) AS rn
+		FROM workspace_agent_stats
+		WHERE usage = true
+	) as a
+	WHERE a.rn = 1
 	GROUP BY user_id, agent_id, workspace_id
 ), latest_agent_latencies AS (
 	SELECT

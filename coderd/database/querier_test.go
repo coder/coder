@@ -100,6 +100,293 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 	})
 }
 
+func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	ctx := context.Background()
+	agentID := uuid.New()
+	// Since the queries exclude the current minute
+	insertTime := dbtime.Now().Add(-time.Minute)
+
+	// Old stats
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 insertTime.Add(-time.Minute),
+		AgentID:                   agentID,
+		TxBytes:                   1,
+		RxBytes:                   1,
+		ConnectionMedianLatencyMS: 1,
+	})
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:          insertTime.Add(-time.Minute),
+		AgentID:            agentID,
+		SessionCountVSCode: 1,
+		Usage:              true,
+	})
+
+	// Latest stats
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 insertTime,
+		AgentID:                   agentID,
+		TxBytes:                   1,
+		RxBytes:                   1,
+		ConnectionMedianLatencyMS: 2,
+	})
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:          insertTime,
+		AgentID:            agentID,
+		SessionCountVSCode: 2,
+		Usage:              true,
+	})
+
+	stats, err := db.GetDeploymentWorkspaceAgentUsageStats(ctx, dbtime.Now().Add(-time.Hour))
+	require.NoError(t, err)
+
+	require.Equal(t, int64(2), stats.WorkspaceTxBytes)
+	require.Equal(t, int64(2), stats.WorkspaceRxBytes)
+	require.Equal(t, 1.5, stats.WorkspaceConnectionLatency50)
+	require.Equal(t, 1.95, stats.WorkspaceConnectionLatency95)
+	require.Equal(t, int64(2), stats.SessionCountVSCode)
+}
+
+func TestGetWorkspaceAgentUsageStats(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+	db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	ctx := context.Background()
+	// Since the queries exclude the current minute
+	insertTime := dbtime.Now().Add(-time.Minute)
+
+	agentID1 := uuid.New()
+	agentID2 := uuid.New()
+	workspaceID1 := uuid.New()
+	workspaceID2 := uuid.New()
+	templateID1 := uuid.New()
+	templateID2 := uuid.New()
+	userID1 := uuid.New()
+	userID2 := uuid.New()
+
+	// Old workspace 1 stats
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 insertTime.Add(-time.Minute),
+		AgentID:                   agentID1,
+		WorkspaceID:               workspaceID1,
+		TemplateID:                templateID1,
+		UserID:                    userID1,
+		TxBytes:                   1,
+		RxBytes:                   1,
+		ConnectionMedianLatencyMS: 1,
+	})
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:          insertTime.Add(-time.Minute),
+		AgentID:            agentID1,
+		WorkspaceID:        workspaceID1,
+		TemplateID:         templateID1,
+		UserID:             userID1,
+		SessionCountVSCode: 1,
+		Usage:              true,
+	})
+
+	// Latest workspace 1 stats
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 insertTime,
+		AgentID:                   agentID1,
+		WorkspaceID:               workspaceID1,
+		TemplateID:                templateID1,
+		UserID:                    userID1,
+		TxBytes:                   2,
+		RxBytes:                   2,
+		ConnectionMedianLatencyMS: 1,
+	})
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:          insertTime,
+		AgentID:            agentID1,
+		WorkspaceID:        workspaceID1,
+		TemplateID:         templateID1,
+		UserID:             userID1,
+		SessionCountVSCode: 2,
+		Usage:              true,
+	})
+
+	// Latest workspace 2 stats
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 insertTime,
+		AgentID:                   agentID2,
+		WorkspaceID:               workspaceID2,
+		TemplateID:                templateID2,
+		UserID:                    userID2,
+		TxBytes:                   4,
+		RxBytes:                   8,
+		ConnectionMedianLatencyMS: 1,
+	})
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:          insertTime,
+		AgentID:            agentID2,
+		WorkspaceID:        workspaceID2,
+		TemplateID:         templateID2,
+		UserID:             userID2,
+		SessionCountVSCode: 5,
+		Usage:              true,
+	})
+
+	reqTime := dbtime.Now().Add(-time.Hour)
+	stats, err := db.GetWorkspaceAgentUsageStats(ctx, reqTime)
+	require.NoError(t, err)
+
+	ws1Stats, ws2Stats := stats[0], stats[1]
+	if ws1Stats.WorkspaceID != workspaceID1 {
+		ws1Stats, ws2Stats = ws2Stats, ws1Stats
+	}
+	require.Equal(t, ws1Stats.WorkspaceTxBytes, int64(3))
+	require.Equal(t, ws1Stats.WorkspaceRxBytes, int64(3))
+	require.Equal(t, ws1Stats.SessionCountVSCode, int64(2))
+
+	require.Equal(t, ws2Stats.WorkspaceTxBytes, int64(4))
+	require.Equal(t, ws2Stats.WorkspaceRxBytes, int64(8))
+	require.Equal(t, ws2Stats.SessionCountVSCode, int64(5))
+}
+
+func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+	// Since the queries exclude the current minute
+	insertTime := dbtime.Now().Add(-time.Minute)
+
+	// Insert user, agent, template, workspace
+	user1 := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	job1 := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+	})
+	resource1 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job1.ID,
+	})
+	agent1 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: resource1.ID,
+	})
+	template1 := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user1.ID,
+	})
+	workspace1 := dbgen.Workspace(t, db, database.Workspace{
+		OwnerID:        user1.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template1.ID,
+	})
+	user2 := dbgen.User(t, db, database.User{})
+	job2 := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+	})
+	resource2 := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job2.ID,
+	})
+	agent2 := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: resource2.ID,
+	})
+	template2 := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user1.ID,
+		OrganizationID: org.ID,
+	})
+	workspace2 := dbgen.Workspace(t, db, database.Workspace{
+		OwnerID:        user2.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template2.ID,
+	})
+
+	// Old workspace 1 stats
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 insertTime.Add(-time.Minute),
+		AgentID:                   agent1.ID,
+		WorkspaceID:               workspace1.ID,
+		TemplateID:                template1.ID,
+		UserID:                    user1.ID,
+		TxBytes:                   1,
+		RxBytes:                   1,
+		ConnectionMedianLatencyMS: 1,
+	})
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:          insertTime.Add(-time.Minute),
+		AgentID:            agent1.ID,
+		WorkspaceID:        workspace1.ID,
+		TemplateID:         template1.ID,
+		UserID:             user1.ID,
+		SessionCountVSCode: 1,
+		Usage:              true,
+	})
+
+	// Latest workspace 1 stats
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 insertTime,
+		AgentID:                   agent1.ID,
+		WorkspaceID:               workspace1.ID,
+		TemplateID:                template1.ID,
+		UserID:                    user1.ID,
+		TxBytes:                   2,
+		RxBytes:                   2,
+		ConnectionMedianLatencyMS: 1,
+	})
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:          insertTime,
+		AgentID:            agent1.ID,
+		WorkspaceID:        workspace1.ID,
+		TemplateID:         template1.ID,
+		UserID:             user1.ID,
+		SessionCountVSCode: 2,
+		Usage:              true,
+	})
+
+	// Latest workspace 2 stats
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 insertTime,
+		AgentID:                   agent2.ID,
+		WorkspaceID:               workspace2.ID,
+		TemplateID:                template2.ID,
+		UserID:                    user2.ID,
+		TxBytes:                   4,
+		RxBytes:                   8,
+		ConnectionMedianLatencyMS: 1,
+	})
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:          insertTime,
+		AgentID:            agent2.ID,
+		WorkspaceID:        workspace2.ID,
+		TemplateID:         template2.ID,
+		UserID:             user2.ID,
+		SessionCountVSCode: 5,
+		Usage:              true,
+	})
+
+	stats, err := db.GetWorkspaceAgentUsageStatsAndLabels(ctx, insertTime.Add(-time.Hour))
+	require.NoError(t, err)
+
+	require.Len(t, stats, 2)
+	require.Contains(t, stats, database.GetWorkspaceAgentUsageStatsAndLabelsRow{
+		Username:                  user1.Username,
+		AgentName:                 agent1.Name,
+		WorkspaceName:             workspace1.Name,
+		RxBytes:                   3,
+		TxBytes:                   3,
+		SessionCountVSCode:        2,
+		ConnectionMedianLatencyMS: 1,
+	})
+
+	require.Contains(t, stats, database.GetWorkspaceAgentUsageStatsAndLabelsRow{
+		Username:                  user2.Username,
+		AgentName:                 agent2.Name,
+		WorkspaceName:             workspace2.Name,
+		RxBytes:                   8,
+		TxBytes:                   4,
+		SessionCountVSCode:        5,
+		ConnectionMedianLatencyMS: 1,
+	})
+}
+
 func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
