@@ -19,7 +19,7 @@ We recommend reviewing these issues to ensure future builds are successful.',
         }
     ]'::jsonb);
 
-CREATE TABLE report_generator_logs
+CREATE TABLE notification_report_generator_logs
 (
     user_id uuid NOT NULL,
     notification_template_id uuid NOT NULL,
@@ -28,4 +28,4 @@ CREATE TABLE report_generator_logs
     PRIMARY KEY (user_id, notification_template_id)
 );
 
-COMMENT ON TABLE report_generator_logs IS 'Log of generated reports for users.';
+COMMENT ON TABLE notification_report_generator_logs IS 'Log of generated reports for users.';
