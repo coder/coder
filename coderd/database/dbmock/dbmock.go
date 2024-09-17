@@ -486,20 +486,6 @@ func (mr *MockStoreMockRecorder) DeleteOldNotificationMessages(arg0 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldNotificationMessages", reflect.TypeOf((*MockStore)(nil).DeleteOldNotificationMessages), arg0)
 }
 
-// DeleteOldNotificationReportGeneratorLogs mocks base method.
-func (m *MockStore) DeleteOldNotificationReportGeneratorLogs(arg0 context.Context, arg1 database.DeleteOldNotificationReportGeneratorLogsParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldNotificationReportGeneratorLogs", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteOldNotificationReportGeneratorLogs indicates an expected call of DeleteOldNotificationReportGeneratorLogs.
-func (mr *MockStoreMockRecorder) DeleteOldNotificationReportGeneratorLogs(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldNotificationReportGeneratorLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldNotificationReportGeneratorLogs), arg0, arg1)
-}
-
 // DeleteOldProvisionerDaemons mocks base method.
 func (m *MockStore) DeleteOldProvisionerDaemons(arg0 context.Context) error {
 	m.ctrl.T.Helper()

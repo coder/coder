@@ -3552,21 +3552,6 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 	return err
 }
 
-const deleteOldNotificationReportGeneratorLogs = `-- name: DeleteOldNotificationReportGeneratorLogs :exec
-DELETE FROM notification_report_generator_logs WHERE last_generated_at < $1::timestamptz AND notification_template_id = $2
-`
-
-type DeleteOldNotificationReportGeneratorLogsParams struct {
-	Before                 time.Time `db:"before" json:"before"`
-	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
-}
-
-// Delete report generator logs that have been created at least a @before date.
-func (q *sqlQuerier) DeleteOldNotificationReportGeneratorLogs(ctx context.Context, arg DeleteOldNotificationReportGeneratorLogsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteOldNotificationReportGeneratorLogs, arg.Before, arg.NotificationTemplateID)
-	return err
-}
-
 const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :exec
 INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by, created_at)
 VALUES ($1,

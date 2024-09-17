@@ -898,6 +898,13 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	return nil
 }
 
+func (q *querier) DeleteOldNotificationReportGeneratorLogs(ctx context.Context, arg database.DeleteOldNotificationReportGeneratorLogsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldNotificationReportGeneratorLogs(ctx, arg)
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -1135,13 +1142,6 @@ func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldNotificationMessages(ctx)
-}
-
-func (q *querier) DeleteOldNotificationReportGeneratorLogs(ctx context.Context, arg database.DeleteOldNotificationReportGeneratorLogsParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.DeleteOldNotificationReportGeneratorLogs(ctx, arg)
 }
 
 func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
