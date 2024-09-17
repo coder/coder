@@ -1821,6 +1821,10 @@ func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (data
 }
 
 func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
+	_, err := q.GetProvisionerJobByID(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
 	return q.db.GetProvisionerJobTimingsByJobID(ctx, jobID)
 }
 

@@ -256,7 +256,7 @@ func (m selectModel) View() string {
 		if m.cursor == start+i {
 			style = pretty.Style{
 				pretty.Wrap("> ", ""),
-				pretty.FgColor(Green),
+				DefaultStyles.Keyword,
 			}
 		}
 
@@ -481,13 +481,13 @@ func (m multiSelectModel) View() string {
 		o := option.option
 
 		if m.cursor == i {
-			cursor = pretty.Sprint(pretty.FgColor(Green), "> ")
-			chosen = pretty.Sprint(pretty.FgColor(Green), "[ ]")
-			o = pretty.Sprint(pretty.FgColor(Green), o)
+			cursor = pretty.Sprint(DefaultStyles.Keyword, "> ")
+			chosen = pretty.Sprint(DefaultStyles.Keyword, "[ ]")
+			o = pretty.Sprint(DefaultStyles.Keyword, o)
 		}
 
 		if option.chosen {
-			chosen = pretty.Sprint(pretty.FgColor(Green), "[x]")
+			chosen = pretty.Sprint(DefaultStyles.Keyword, "[x]")
 		}
 
 		_, _ = s.WriteString(fmt.Sprintf(
