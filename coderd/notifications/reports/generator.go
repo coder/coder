@@ -138,7 +138,7 @@ func reportFailedWorkspaceBuilds(ctx context.Context, logger slog.Logger, db dat
 
 	for _, stats := range templateStatsRows {
 		if stats.FailedBuilds == 0 {
-			logger.Error(ctx, "no failed workspace builds found for template", slog.F("template_id", stats.TemplateID), slog.Error(err))
+			logger.Info(ctx, "no failed workspace builds found for template", slog.F("template_id", stats.TemplateID), slog.Error(err))
 			continue
 		}
 

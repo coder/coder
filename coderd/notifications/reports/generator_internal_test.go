@@ -35,7 +35,7 @@ var (
 func TestReportFailedWorkspaceBuilds(t *testing.T) {
 	t.Parallel()
 
-	t.Run("InitialState_NoBuilds_NoReport", func(t *testing.T) {
+	t.Run("EmptyState_NoBuilds_NoReport", func(t *testing.T) {
 		t.Parallel()
 
 		// Setup
@@ -44,10 +44,73 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Database is ready, so we can clear notifications queue
 		notifEnq.Clear()
 
-		// When
+		// When: first run
 		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
 
-		// Then
+		// Then: no report should be generated
+		require.NoError(t, err)
+		require.Empty(t, notifEnq.Sent)
+
+		// Given: one week later and no jobs were executed
+		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
+
+		// When
+		notifEnq.Clear()
+		err = reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
+
+		// Then: report is still empty
+		require.NoError(t, err)
+		require.Empty(t, notifEnq.Sent)
+	})
+
+	t.Run("InitialState_NoBuilds_NoReport", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup
+		ctx, logger, db, ps, notifEnq, clk := setup(t)
+		now := clk.Now()
+
+		// Organization
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// Template admins
+		templateAdmin1 := dbgen.User(t, db, database.User{Username: "template-admin-1", RBACRoles: []string{rbac.RoleTemplateAdmin().Name}})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: templateAdmin1.ID, OrganizationID: org.ID})
+
+		// Regular users
+		user1 := dbgen.User(t, db, database.User{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user1.ID, OrganizationID: org.ID})
+		user2 := dbgen.User(t, db, database.User{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user2.ID, OrganizationID: org.ID})
+
+		// Templates
+		t1 := dbgen.Template(t, db, database.Template{Name: "template-1", DisplayName: "First Template", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID})
+
+		// Template versions
+		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
+
+		// Workspaces
+		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
+
+		w1wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 1, TemplateVersionID: t1v1.ID, JobID: w1wb1pj.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+
+		// When: first run
+		notifEnq.Clear()
+		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
+
+		// Then: failed builds should not be reported
+		require.NoError(t, err)
+		require.Empty(t, notifEnq.Sent)
+
+		// Given: one week later, but still no jobs
+		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
+
+		// When
+		notifEnq.Clear()
+		err = reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
+
+		// Then: report is still empty
 		require.NoError(t, err)
 		require.Empty(t, notifEnq.Sent)
 	})
@@ -72,6 +135,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		ctx, logger, db, ps, notifEnq, clk := setup(t)
 
 		// Given
+
 		// Organization
 		org := dbgen.Organization(t, db, database.Organization{})
 
@@ -105,6 +169,16 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		w3 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
 		w4 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t2.ID, OwnerID: user2.ID, OrganizationID: org.ID})
 
+		// When: first run
+		notifEnq.Clear()
+		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
+
+		// Then
+		require.NoError(t, err)
+		require.Empty(t, notifEnq.Sent) // no notifications
+
+		// One week later...
+		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
 		now := clk.Now()
 
 		// Workspace builds
@@ -130,11 +204,9 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		w4wb2pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-dayDuration), Valid: true}})
 		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w4.ID, BuildNumber: 9, TemplateVersionID: t2v2.ID, JobID: w4wb2pj.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
 
-		// Database is ready, so we can clear notifications queue
-		notifEnq.Clear()
-
 		// When
-		err := reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
+		notifEnq.Clear()
+		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
 
 		// Then
 		require.NoError(t, err)
@@ -182,30 +254,28 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Given: 6 days later (less than report frequency), and failed build
 		clk.Advance(6 * dayDuration).MustWait(context.Background())
-
 		now = clk.Now()
 
 		w1wb4pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-dayDuration), Valid: true}})
 		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 77, TemplateVersionID: t1v2.ID, JobID: w1wb4pj.ID, CreatedAt: now.Add(-dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
 
-		notifEnq.Clear()
-
 		// When
+		notifEnq.Clear()
 		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
 		require.NoError(t, err)
 
-		// Then
-		require.Empty(t, notifEnq.Sent) // no notifications as it is too early.
+		// Then: no notifications as it is too early
+		require.Empty(t, notifEnq.Sent)
 
 		// Given: 1 day 1 hour later
 		clk.Advance(dayDuration + time.Hour).MustWait(context.Background())
-		notifEnq.Clear()
 
 		// When
+		notifEnq.Clear()
 		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
 		require.NoError(t, err)
 
-		// Then
+		// Then: we should see the failed job in the report
 		require.Len(t, notifEnq.Sent, 2) // a new failed job should be reported
 		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
 			verifyNotification(t, templateAdmin, notifEnq.Sent[i], t1, 1, 1, []map[string]interface{}{
@@ -247,23 +317,30 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Workspaces
 		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
 
+		// When: first run
+		notifEnq.Clear()
+		err := reportFailedWorkspaceBuilds(ctx, logger, db, notifEnq, clk)
+
+		// Then: no notifications
+		require.NoError(t, err)
+		require.Empty(t, notifEnq.Sent)
+
+		// Given: one week later, and a successful few jobs being executed
+		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
 		now := clk.Now()
 
 		// Workspace builds
 		w1wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 1, TemplateVersionID: t1v1.ID, JobID: w1wb1pj.ID, CreatedAt: now.Add(-6 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 1, TemplateVersionID: t1v1.ID, JobID: w1wb1pj.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
 		w1wb2pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, CompletedAt: sql.NullTime{Time: now.Add(-5 * dayDuration), Valid: true}})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 2, TemplateVersionID: t1v1.ID, JobID: w1wb2pj.ID, CreatedAt: now.Add(-5 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
-
-		// Database is ready, so we can clear notifications queue
-		notifEnq.Clear()
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 2, TemplateVersionID: t1v1.ID, JobID: w1wb2pj.ID, CreatedAt: now.Add(-1 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
 
 		// When
-		err := reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
+		notifEnq.Clear()
+		err = reportFailedWorkspaceBuilds(ctx, logger, authedDB(t, db, logger), notifEnq, clk)
 
-		// Then
+		// Then: no failures? nothing to report
 		require.NoError(t, err)
-
 		require.Len(t, notifEnq.Sent, 0) // all jobs succeeded so nothing to report
 	})
 }
