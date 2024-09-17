@@ -412,7 +412,7 @@ const classNames = {
   `,
 
 	subLink: (css, theme) => css`
-    color: inherit;
+    color: ${theme.palette.text.secondary};
     text-decoration: none;
 
     display: block;
@@ -429,7 +429,8 @@ const classNames = {
     }
   `,
 
-	activeSubLink: (css) => css`
+	activeSubLink: (css, theme) => css`
+	color: ${theme.palette.text.primary};
     font-weight: 600;
   `,
 } satisfies Record<string, ClassName>;
