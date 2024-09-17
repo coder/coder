@@ -33,13 +33,13 @@ func Test_rotateKeys(t *testing.T) {
 			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &KeyRotator{
-			DB:           db,
-			KeyDuration:  keyDuration,
-			Clock:        clock,
-			Logger:       logger,
-			ScanInterval: 0,
-			ResultsCh:    resultsCh,
+		kr := &Rotator{
+			db:           db,
+			keyDuration:  keyDuration,
+			clock:        clock,
+			logger:       logger,
+			scanInterval: 0,
+			resultsCh:    resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -115,13 +115,13 @@ func Test_rotateKeys(t *testing.T) {
 			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &KeyRotator{
-			DB:           db,
-			KeyDuration:  keyDuration,
-			Clock:        clock,
-			Logger:       logger,
-			ScanInterval: 0,
-			ResultsCh:    resultsCh,
+		kr := &Rotator{
+			db:           db,
+			keyDuration:  keyDuration,
+			clock:        clock,
+			logger:       logger,
+			scanInterval: 0,
+			resultsCh:    resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -138,9 +138,16 @@ func Test_rotateKeys(t *testing.T) {
 
 		// Advance the clock by 6 days, 23 hours. Once we
 		// breach the last hour we will insert a new key.
-		clock.Advance(keyDuration - time.Hour)
+		clock.Advance(keyDuration - 2*time.Hour)
 
 		keys, err := kr.rotateKeys(ctx)
+		require.NoError(t, err)
+		require.Empty(t, keys)
+
+		// Advance it again to just before the key is scheduled to be rotated for sanity purposes.
+		clock.Advance(time.Hour - time.Second)
+
+		keys, err = kr.rotateKeys(ctx)
 		require.NoError(t, err)
 		require.Empty(t, keys)
 
@@ -164,13 +171,13 @@ func Test_rotateKeys(t *testing.T) {
 			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &KeyRotator{
-			DB:           db,
-			KeyDuration:  keyDuration,
-			Clock:        clock,
-			Logger:       logger,
-			ScanInterval: 0,
-			ResultsCh:    resultsCh,
+		kr := &Rotator{
+			db:           db,
+			keyDuration:  keyDuration,
+			clock:        clock,
+			logger:       logger,
+			scanInterval: 0,
+			resultsCh:    resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -221,13 +228,13 @@ func Test_rotateKeys(t *testing.T) {
 			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &KeyRotator{
-			DB:           db,
-			KeyDuration:  keyDuration,
-			Clock:        clock,
-			Logger:       logger,
-			ScanInterval: 0,
-			ResultsCh:    resultsCh,
+		kr := &Rotator{
+			db:           db,
+			keyDuration:  keyDuration,
+			clock:        clock,
+			logger:       logger,
+			scanInterval: 0,
+			resultsCh:    resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -252,6 +259,7 @@ func Test_rotateKeys(t *testing.T) {
 		keys, err := kr.rotateKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
+		//nolint:gocritic
 		expectedKeys := append(keys, deletingKey)
 
 		dbKeys, err := db.GetCryptoKeys(ctx)
@@ -281,13 +289,13 @@ func Test_rotateKeys(t *testing.T) {
 			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &KeyRotator{
-			DB:           db,
-			KeyDuration:  keyDuration,
-			Clock:        clock,
-			Logger:       logger,
-			ScanInterval: 0,
-			ResultsCh:    resultsCh,
+		kr := &Rotator{
+			db:           db,
+			keyDuration:  keyDuration,
+			clock:        clock,
+			logger:       logger,
+			scanInterval: 0,
+			resultsCh:    resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -314,13 +322,13 @@ func Test_rotateKeys(t *testing.T) {
 			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &KeyRotator{
-			DB:           db,
-			KeyDuration:  keyDuration,
-			Clock:        clock,
-			Logger:       logger,
-			ScanInterval: 0,
-			ResultsCh:    resultsCh,
+		kr := &Rotator{
+			db:           db,
+			keyDuration:  keyDuration,
+			clock:        clock,
+			logger:       logger,
+			scanInterval: 0,
+			resultsCh:    resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -346,6 +354,100 @@ func Test_rotateKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
 		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, now, time.Time{}, deletedkey.Sequence+1)
+	})
+
+	// This tests ensures that rotation works with multiple
+	// features. It's mainly a sanity test since some bugs
+	// are not unveiled in the simple n=1 case.
+	t.Run("AllFeatures", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			clock       = quartz.NewMock(t)
+			keyDuration = time.Hour * 24 * 7
+			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			ctx         = testutil.Context(t, testutil.WaitShort)
+			resultsCh   = make(chan []database.CryptoKey, 1)
+		)
+
+		kr := &Rotator{
+			db:           db,
+			keyDuration:  keyDuration,
+			clock:        clock,
+			logger:       logger,
+			scanInterval: 0,
+			resultsCh:    resultsCh,
+			features:     database.AllCryptoKeyFeatureValues(),
+		}
+
+		now := dbnow(clock)
+
+		// We'll test a scenario where one feature has no valid keys.
+		// Another has a key that should be rotate. And one that
+		// has a valid key that shouldn't trigger an action.
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureTailnetResume,
+			StartsAt: now.Add(-keyDuration),
+			Sequence: 5,
+			Secret: sql.NullString{
+				String: "older key",
+				Valid:  false,
+			},
+		})
+		deletedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureTailnetResume,
+			StartsAt: now.Add(-keyDuration),
+			Sequence: 19,
+			Secret: sql.NullString{
+				String: "old key",
+				Valid:  false,
+			},
+		})
+
+		// Insert a key that should be rotated.
+		rotatedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now.Add(-keyDuration),
+			Sequence: 42,
+		})
+
+		// Insert a key that should not trigger an action.
+		validKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureOidcConvert,
+			StartsAt: now,
+			Sequence: 17,
+		})
+
+		keys, err := kr.rotateKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 3)
+
+		dbKeys, err := db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, dbKeys, 4)
+
+		kbf := keysByFeature(dbKeys, database.AllCryptoKeyFeatureValues())
+		// No actions on OIDC convert.
+		require.Len(t, kbf[database.CryptoKeyFeatureOidcConvert], 1)
+		// Workspace apps should have been rotated.
+		require.Len(t, kbf[database.CryptoKeyFeatureWorkspaceApps], 2)
+		// No existing key for tailnet resume should've
+		// caused a key to be inserted.
+		require.Len(t, kbf[database.CryptoKeyFeatureTailnetResume], 1)
+
+		oidcKey := kbf[database.CryptoKeyFeatureOidcConvert][0]
+		tailnetKey := kbf[database.CryptoKeyFeatureTailnetResume][0]
+		requireKey(t, oidcKey, database.CryptoKeyFeatureOidcConvert, now, time.Time{}, validKey.Sequence)
+		requireKey(t, tailnetKey, database.CryptoKeyFeatureTailnetResume, now, time.Time{}, deletedKey.Sequence+1)
+
+		newKey := kbf[database.CryptoKeyFeatureWorkspaceApps][0]
+		oldKey := kbf[database.CryptoKeyFeatureWorkspaceApps][1]
+		if newKey.Sequence == rotatedKey.Sequence {
+			oldKey, newKey = newKey, oldKey
+		}
+		requireKey(t, oldKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.StartsAt.UTC(), rotatedKey.ExpiresAt(keyDuration).Add(WorkspaceAppsTokenDuration+time.Hour), rotatedKey.Sequence)
+		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.ExpiresAt(keyDuration), time.Time{}, rotatedKey.Sequence+1)
 	})
 }
 

@@ -900,7 +900,7 @@ func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) databas
 
 	seed.Feature = takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceApps)
 
-	if !seed.Secret.Valid {
+	if seed.Secret.String == "" {
 		secret, err := newCryptoKeySecret(seed.Feature)
 		require.NoError(t, err, "generate secret")
 		seed.Secret = sql.NullString{

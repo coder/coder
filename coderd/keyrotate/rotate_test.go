@@ -2,47 +2,105 @@ package keyrotate_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/keyrotate"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestKeyRotator(t *testing.T) {
-	t.Run("NoExistingKeys", func(t *testing.T) {
-		// t.Parallel()
+	t.Parallel()
 
-		// var (
-		// 	db, _     = dbtestutil.NewDB(t)
-		// 	clock     = quartz.NewMock(t)
-		// 	logger    = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		// 	ctx       = testutil.Context(t, testutil.WaitShort)
-		// 	resultsCh = make(chan []database.CryptoKey, 1)
-		// )
+	t.Run("NoKeysOnInit", func(t *testing.T) {
+		t.Parallel()
 
-		// kr := &KeyRotator{
-		// 	DB:           db,
-		// 	KeyDuration:  0,
-		// 	Clock:        clock,
-		// 	Logger:       logger,
-		// 	ScanInterval: 0,
-		// 	ResultsCh:    resultsCh,
-		// }
+		var (
+			db, _  = dbtestutil.NewDB(t)
+			clock  = quartz.NewMock(t)
+			logger = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			ctx    = testutil.Context(t, testutil.WaitShort)
+		)
 
-		// now := dbnow(clock)
-		// keys, err := kr.rotateKeys(ctx)
-		// require.NoError(t, err)
-		// require.Len(t, keys, len(database.AllCryptoKeyFeatureValues()))
+		dbkeys, err := db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, dbkeys, 0)
 
-		// // Fetch the keys from the database and ensure they
-		// // are as expected.
-		// dbkeys, err := db.GetCryptoKeys(ctx)
-		// require.NoError(t, err)
-		// require.Equal(t, keys, dbkeys)
-		// requireContainsAllFeatures(t, keys)
-		// for _, key := range keys {
-		// 	requireKey(t, key, key.Feature, now, time.Time{}, 1)
-		// }
+		_, err = keyrotate.New(ctx, db, logger, clock, keyrotate.DefaultKeyDuration, keyrotate.DefaultScanInterval, nil)
+		require.NoError(t, err)
+
+		// Fetch the keys from the database and ensure they
+		// are as expected.
+		dbkeys, err = db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, dbkeys, len(database.AllCryptoKeyFeatureValues()))
+		requireContainsAllFeatures(t, dbkeys)
+	})
+
+	t.Run("RotateKeys", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _  = dbtestutil.NewDB(t)
+			clock  = quartz.NewMock(t)
+			logger = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			ctx    = testutil.Context(t, testutil.WaitShort)
+		)
+
+		now := clock.Now().UTC()
+
+		rotatingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now.Add(-keyrotate.DefaultKeyDuration + time.Hour + time.Minute),
+			Sequence: 12345,
+		})
+		resultsCh := make(chan []database.CryptoKey)
+
+		kr, err := keyrotate.New(ctx, db, logger, clock, keyrotate.DefaultKeyDuration, keyrotate.DefaultScanInterval, resultsCh)
+		require.NoError(t, err)
+
+		// Fetch the keys from the database and ensure they
+		// are as expected.
+		dbkeys, err := db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, dbkeys, len(database.AllCryptoKeyFeatureValues()))
+		requireContainsAllFeatures(t, dbkeys)
+
+		go kr.Start(ctx)
+
+		_, wait := clock.AdvanceNext()
+		wait.MustWait(ctx)
+		results := <-resultsCh
+
+		require.Len(t, results, 2)
+
+		keys, err := db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 4)
+
+		newKey, err := db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		require.NoError(t, err)
+		require.Equal(t, rotatingKey.Sequence+1, newKey.Sequence)
+		require.Equal(t, rotatingKey.ExpiresAt(keyrotate.DefaultKeyDuration), newKey.StartsAt.UTC())
+		require.False(t, newKey.DeletesAt.Valid)
+
+		oldKey, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  rotatingKey.Feature,
+			Sequence: rotatingKey.Sequence,
+		})
+		expectedDeletesAt := rotatingKey.StartsAt.Add(keyrotate.DefaultKeyDuration + time.Hour + keyrotate.WorkspaceAppsTokenDuration)
+		require.NoError(t, err)
+		require.Equal(t, rotatingKey.StartsAt, oldKey.StartsAt)
+		require.True(t, oldKey.DeletesAt.Valid)
+		require.Equal(t, expectedDeletesAt, oldKey.DeletesAt.Time)
 	})
 }
 
@@ -53,7 +111,7 @@ func requireContainsAllFeatures(t *testing.T, keys []database.CryptoKey) {
 	for _, key := range keys {
 		features[key.Feature] = true
 	}
-	require.True(t, features[database.CryptoKeyFeatureOidcConvert])
-	require.True(t, features[database.CryptoKeyFeatureWorkspaceApps])
-	require.True(t, features[database.CryptoKeyFeatureTailnetResume])
+	for _, feature := range database.AllCryptoKeyFeatureValues() {
+		require.True(t, features[feature])
+	}
 }
