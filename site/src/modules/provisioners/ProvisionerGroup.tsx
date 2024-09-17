@@ -134,13 +134,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 				>
 					<Tooltip title="Scope">
 						<Pill size="lg" icon={iconScope}>
-							<span
-								css={{
-									textTransform: "capitalize",
-								}}
-							>
-								{daemonScope}
-							</span>
+							<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
 						</Pill>
 					</Tooltip>
 					{type === "key" &&

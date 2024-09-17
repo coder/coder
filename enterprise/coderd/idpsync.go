@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Get group IdP Sync settings by organization
@@ -58,6 +59,20 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 
 	var req idpsync.GroupSyncSettings
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if len(req.LegacyNameMapping) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unexpected field 'legacy_group_name_mapping'. Field not allowed, set to null or remove it.",
+			Detail:  "legacy_group_name_mapping is deprecated, use mapping instead",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "legacy_group_name_mapping",
+					Detail: "field is not allowed",
+				},
+			},
+		})
 		return
 	}
 

@@ -858,6 +858,41 @@
 							"path": "reference/cli/organizations_roles_show.md"
 						},
 						{
+							"title": "organizations settings",
+							"description": "Manage organization settings.",
+							"path": "reference/cli/organizations_settings.md"
+						},
+						{
+							"title": "organizations settings set",
+							"description": "Update specified organization setting.",
+							"path": "reference/cli/organizations_settings_set.md"
+						},
+						{
+							"title": "organizations settings set group-sync",
+							"description": "Group sync settings to sync groups from an IdP.",
+							"path": "reference/cli/organizations_settings_set_group-sync.md"
+						},
+						{
+							"title": "organizations settings set role-sync",
+							"description": "Role sync settings to sync organization roles from an IdP.",
+							"path": "reference/cli/organizations_settings_set_role-sync.md"
+						},
+						{
+							"title": "organizations settings show",
+							"description": "Outputs specified organization setting.",
+							"path": "reference/cli/organizations_settings_show.md"
+						},
+						{
+							"title": "organizations settings show group-sync",
+							"description": "Group sync settings to sync groups from an IdP.",
+							"path": "reference/cli/organizations_settings_show_group-sync.md"
+						},
+						{
+							"title": "organizations settings show role-sync",
+							"description": "Role sync settings to sync organization roles from an IdP.",
+							"path": "reference/cli/organizations_settings_show_role-sync.md"
+						},
+						{
 							"title": "organizations show",
 							"description": "Show the organization. Using \"selected\" will show the selected organization from the \"--org\" flag. Using \"me\" will show all organizations you are a member of.",
 							"path": "reference/cli/organizations_show.md"

@@ -761,6 +761,186 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const deleteCryptoKey = `-- name: DeleteCryptoKey :one
+UPDATE crypto_keys
+SET secret = NULL, secret_key_id = NULL
+WHERE feature = $1 AND sequence = $2 RETURNING feature, sequence, secret, secret_key_id, starts_at, deletes_at
+`
+
+type DeleteCryptoKeyParams struct {
+	Feature  CryptoKeyFeature `db:"feature" json:"feature"`
+	Sequence int32            `db:"sequence" json:"sequence"`
+}
+
+func (q *sqlQuerier) DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error) {
+	row := q.db.QueryRowContext(ctx, deleteCryptoKey, arg.Feature, arg.Sequence)
+	var i CryptoKey
+	err := row.Scan(
+		&i.Feature,
+		&i.Sequence,
+		&i.Secret,
+		&i.SecretKeyID,
+		&i.StartsAt,
+		&i.DeletesAt,
+	)
+	return i, err
+}
+
+const getCryptoKeyByFeatureAndSequence = `-- name: GetCryptoKeyByFeatureAndSequence :one
+SELECT feature, sequence, secret, secret_key_id, starts_at, deletes_at
+FROM crypto_keys
+WHERE feature = $1
+  AND sequence = $2
+  AND secret IS NOT NULL
+`
+
+type GetCryptoKeyByFeatureAndSequenceParams struct {
+	Feature  CryptoKeyFeature `db:"feature" json:"feature"`
+	Sequence int32            `db:"sequence" json:"sequence"`
+}
+
+func (q *sqlQuerier) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error) {
+	row := q.db.QueryRowContext(ctx, getCryptoKeyByFeatureAndSequence, arg.Feature, arg.Sequence)
+	var i CryptoKey
+	err := row.Scan(
+		&i.Feature,
+		&i.Sequence,
+		&i.Secret,
+		&i.SecretKeyID,
+		&i.StartsAt,
+		&i.DeletesAt,
+	)
+	return i, err
+}
+
+const getCryptoKeys = `-- name: GetCryptoKeys :many
+SELECT feature, sequence, secret, secret_key_id, starts_at, deletes_at
+FROM crypto_keys
+WHERE secret IS NOT NULL
+`
+
+func (q *sqlQuerier) GetCryptoKeys(ctx context.Context) ([]CryptoKey, error) {
+	rows, err := q.db.QueryContext(ctx, getCryptoKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CryptoKey
+	for rows.Next() {
+		var i CryptoKey
+		if err := rows.Scan(
+			&i.Feature,
+			&i.Sequence,
+			&i.Secret,
+			&i.SecretKeyID,
+			&i.StartsAt,
+			&i.DeletesAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLatestCryptoKeyByFeature = `-- name: GetLatestCryptoKeyByFeature :one
+SELECT feature, sequence, secret, secret_key_id, starts_at, deletes_at
+FROM crypto_keys
+WHERE feature = $1
+ORDER BY sequence DESC
+LIMIT 1
+`
+
+func (q *sqlQuerier) GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error) {
+	row := q.db.QueryRowContext(ctx, getLatestCryptoKeyByFeature, feature)
+	var i CryptoKey
+	err := row.Scan(
+		&i.Feature,
+		&i.Sequence,
+		&i.Secret,
+		&i.SecretKeyID,
+		&i.StartsAt,
+		&i.DeletesAt,
+	)
+	return i, err
+}
+
+const insertCryptoKey = `-- name: InsertCryptoKey :one
+INSERT INTO crypto_keys (
+    feature,
+    sequence,
+    secret,
+    starts_at,
+    secret_key_id
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5
+) RETURNING feature, sequence, secret, secret_key_id, starts_at, deletes_at
+`
+
+type InsertCryptoKeyParams struct {
+	Feature     CryptoKeyFeature `db:"feature" json:"feature"`
+	Sequence    int32            `db:"sequence" json:"sequence"`
+	Secret      sql.NullString   `db:"secret" json:"secret"`
+	StartsAt    time.Time        `db:"starts_at" json:"starts_at"`
+	SecretKeyID sql.NullString   `db:"secret_key_id" json:"secret_key_id"`
+}
+
+func (q *sqlQuerier) InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error) {
+	row := q.db.QueryRowContext(ctx, insertCryptoKey,
+		arg.Feature,
+		arg.Sequence,
+		arg.Secret,
+		arg.StartsAt,
+		arg.SecretKeyID,
+	)
+	var i CryptoKey
+	err := row.Scan(
+		&i.Feature,
+		&i.Sequence,
+		&i.Secret,
+		&i.SecretKeyID,
+		&i.StartsAt,
+		&i.DeletesAt,
+	)
+	return i, err
+}
+
+const updateCryptoKeyDeletesAt = `-- name: UpdateCryptoKeyDeletesAt :one
+UPDATE crypto_keys
+SET deletes_at = $3
+WHERE feature = $1 AND sequence = $2 RETURNING feature, sequence, secret, secret_key_id, starts_at, deletes_at
+`
+
+type UpdateCryptoKeyDeletesAtParams struct {
+	Feature   CryptoKeyFeature `db:"feature" json:"feature"`
+	Sequence  int32            `db:"sequence" json:"sequence"`
+	DeletesAt sql.NullTime     `db:"deletes_at" json:"deletes_at"`
+}
+
+func (q *sqlQuerier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error) {
+	row := q.db.QueryRowContext(ctx, updateCryptoKeyDeletesAt, arg.Feature, arg.Sequence, arg.DeletesAt)
+	var i CryptoKey
+	err := row.Scan(
+		&i.Feature,
+		&i.Sequence,
+		&i.Secret,
+		&i.SecretKeyID,
+		&i.StartsAt,
+		&i.DeletesAt,
+	)
+	return i, err
+}
+
 const getDBCryptKeys = `-- name: GetDBCryptKeys :many
 SELECT number, active_key_digest, revoked_key_digest, created_at, revoked_at, test FROM dbcrypt_keys ORDER BY number ASC
 `

@@ -317,6 +317,21 @@ func (mr *MockStoreMockRecorder) DeleteCoordinator(arg0, arg1 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCoordinator", reflect.TypeOf((*MockStore)(nil).DeleteCoordinator), arg0, arg1)
 }
 
+// DeleteCryptoKey mocks base method.
+func (m *MockStore) DeleteCryptoKey(arg0 context.Context, arg1 database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCryptoKey", arg0, arg1)
+	ret0, _ := ret[0].(database.CryptoKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteCryptoKey indicates an expected call of DeleteCryptoKey.
+func (mr *MockStoreMockRecorder) DeleteCryptoKey(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCryptoKey", reflect.TypeOf((*MockStore)(nil).DeleteCryptoKey), arg0, arg1)
+}
+
 // DeleteCustomRole mocks base method.
 func (m *MockStore) DeleteCustomRole(arg0 context.Context, arg1 database.DeleteCustomRoleParams) error {
 	m.ctrl.T.Helper()
@@ -1058,6 +1073,36 @@ func (mr *MockStoreMockRecorder) GetCoordinatorResumeTokenSigningKey(arg0 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCoordinatorResumeTokenSigningKey", reflect.TypeOf((*MockStore)(nil).GetCoordinatorResumeTokenSigningKey), arg0)
 }
 
+// GetCryptoKeyByFeatureAndSequence mocks base method.
+func (m *MockStore) GetCryptoKeyByFeatureAndSequence(arg0 context.Context, arg1 database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCryptoKeyByFeatureAndSequence", arg0, arg1)
+	ret0, _ := ret[0].(database.CryptoKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCryptoKeyByFeatureAndSequence indicates an expected call of GetCryptoKeyByFeatureAndSequence.
+func (mr *MockStoreMockRecorder) GetCryptoKeyByFeatureAndSequence(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCryptoKeyByFeatureAndSequence", reflect.TypeOf((*MockStore)(nil).GetCryptoKeyByFeatureAndSequence), arg0, arg1)
+}
+
+// GetCryptoKeys mocks base method.
+func (m *MockStore) GetCryptoKeys(arg0 context.Context) ([]database.CryptoKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCryptoKeys", arg0)
+	ret0, _ := ret[0].([]database.CryptoKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCryptoKeys indicates an expected call of GetCryptoKeys.
+func (mr *MockStoreMockRecorder) GetCryptoKeys(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCryptoKeys", reflect.TypeOf((*MockStore)(nil).GetCryptoKeys), arg0)
+}
+
 // GetDBCryptKeys mocks base method.
 func (m *MockStore) GetDBCryptKeys(arg0 context.Context) ([]database.DBCryptKey, error) {
 	m.ctrl.T.Helper()
@@ -1416,6 +1461,21 @@ func (m *MockStore) GetLastUpdateCheck(arg0 context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLastUpdateCheck(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), arg0)
+}
+
+// GetLatestCryptoKeyByFeature mocks base method.
+func (m *MockStore) GetLatestCryptoKeyByFeature(arg0 context.Context, arg1 database.CryptoKeyFeature) (database.CryptoKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestCryptoKeyByFeature", arg0, arg1)
+	ret0, _ := ret[0].(database.CryptoKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestCryptoKeyByFeature indicates an expected call of GetLatestCryptoKeyByFeature.
+func (mr *MockStoreMockRecorder) GetLatestCryptoKeyByFeature(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestCryptoKeyByFeature", reflect.TypeOf((*MockStore)(nil).GetLatestCryptoKeyByFeature), arg0, arg1)
 }
 
 // GetLatestWorkspaceBuildByWorkspaceID mocks base method.
@@ -3367,6 +3427,21 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), arg0, arg1)
 }
 
+// InsertCryptoKey mocks base method.
+func (m *MockStore) InsertCryptoKey(arg0 context.Context, arg1 database.InsertCryptoKeyParams) (database.CryptoKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertCryptoKey", arg0, arg1)
+	ret0, _ := ret[0].(database.CryptoKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertCryptoKey indicates an expected call of InsertCryptoKey.
+func (mr *MockStoreMockRecorder) InsertCryptoKey(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCryptoKey", reflect.TypeOf((*MockStore)(nil).InsertCryptoKey), arg0, arg1)
+}
+
 // InsertCustomRole mocks base method.
 func (m *MockStore) InsertCustomRole(arg0 context.Context, arg1 database.InsertCustomRoleParams) (database.CustomRole, error) {
 	m.ctrl.T.Helper()
@@ -4232,6 +4307,21 @@ func (m *MockStore) UpdateAPIKeyByID(arg0 context.Context, arg1 database.UpdateA
 func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), arg0, arg1)
+}
+
+// UpdateCryptoKeyDeletesAt mocks base method.
+func (m *MockStore) UpdateCryptoKeyDeletesAt(arg0 context.Context, arg1 database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateCryptoKeyDeletesAt", arg0, arg1)
+	ret0, _ := ret[0].(database.CryptoKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateCryptoKeyDeletesAt indicates an expected call of UpdateCryptoKeyDeletesAt.
+func (mr *MockStoreMockRecorder) UpdateCryptoKeyDeletesAt(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCryptoKeyDeletesAt", reflect.TypeOf((*MockStore)(nil).UpdateCryptoKeyDeletesAt), arg0, arg1)
 }
 
 // UpdateCustomRole mocks base method.
