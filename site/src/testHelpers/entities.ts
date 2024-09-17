@@ -451,6 +451,38 @@ export const MockAssignableSiteRoles = [
 	assignableRole(MockAuditorRole, true),
 ];
 
+export const MockOIDCConfig: TypesGen.OIDCConfig = {
+	allow_signups: true,
+	client_id: "test",
+	client_secret: "test",
+	client_key_file: "test",
+	client_cert_file: "test",
+	email_domain: [],
+	issuer_url: "test",
+	scopes: [],
+	ignore_email_verified: true,
+	username_field: "",
+	name_field: "",
+	email_field: "",
+	auth_url_params: {},
+	ignore_user_info: true,
+	organization_field: "",
+	organization_mapping: {},
+	organization_assign_default: true,
+	group_auto_create: false,
+	group_regex_filter: "^Coder-.*$",
+	group_allow_list: [],
+	groups_field: "groups",
+	group_mapping: { group1: "developers", group2: "admin", group3: "auditors" },
+	user_role_field: "roles",
+	user_role_mapping: { role1: ["role1", "role2"] },
+	user_roles_default: [],
+	sign_in_text: "",
+	icon_url: "",
+	signups_disabled_text: "string",
+	skip_issuer_checks: true,
+};
+
 export const MockMemberPermissions = {
 	viewAuditLog: false,
 };
@@ -535,9 +567,18 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		roles: [],
 	};
 
+export const MockProvisionerKey: TypesGen.ProvisionerKey = {
+	id: "test-provisioner-key",
+	organization: MockOrganization.id,
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	name: "test-name",
+	tags: { scope: "organization" },
+};
+
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "test-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000001",
 	organization_id: MockOrganization.id,
 	name: "Test Provisioner",
 	provisioners: ["echo"],
@@ -547,10 +588,35 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	last_seen_at: new Date().toISOString(),
 };
 
+export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-user-auth-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000002",
+	name: `${MockUser.name}'s provisioner`,
+	tags: { scope: "user" },
+};
+
+export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-psk-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000003",
+	name: "Test psk provisioner",
+};
+
+export const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-key-provisioner",
+	key_id: MockProvisionerKey.id,
+	organization_id: MockProvisionerKey.organization,
+	name: "Test key provisioner",
+	tags: MockProvisionerKey.tags,
+};
+
 export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-provisioner-2",
 	name: "Test Provisioner 2",
+	key_id: MockProvisionerKey.id,
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
@@ -808,6 +874,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 		interval: 0,
 		threshold: 0,
 	},
+	hidden: false,
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
@@ -3514,6 +3581,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "ok",
@@ -3535,6 +3603,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "00000000-0000-0000-000000000000",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "user-scoped",
@@ -3556,6 +3625,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "unhappy",
@@ -3712,6 +3782,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "vvuurrkk-2",

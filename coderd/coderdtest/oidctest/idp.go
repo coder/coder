@@ -479,7 +479,6 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 // This is a niche case, but it is needed for testing ConvertLoginType.
 func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
-
 	path := "/api/v2/users/oidc/callback"
 	if f.callbackPath != "" {
 		path = f.callbackPath
@@ -489,13 +488,23 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 	f.SetRedirect(t, coderOauthURL.String())
 
 	cli := f.HTTPClient(client.HTTPClient)
-	cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	redirectFn := cli.CheckRedirect
+	checkRedirect := func(req *http.Request, via []*http.Request) error {
 		// Store the idTokenClaims to the specific state request. This ties
 		// the claims 1:1 with a given authentication flow.
-		state := req.URL.Query().Get("state")
-		f.stateToIDTokenClaims.Store(state, idTokenClaims)
+		if state := req.URL.Query().Get("state"); state != "" {
+			f.stateToIDTokenClaims.Store(state, idTokenClaims)
+			return nil
+		}
+		// This is mainly intended to prevent the _last_ redirect
+		// The one involving the state param is a core part of the
+		// OIDC flow and shouldn't be redirected.
+		if redirectFn != nil {
+			return redirectFn(req, via)
+		}
 		return nil
 	}
+	cli.CheckRedirect = checkRedirect
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", coderOauthURL.String(), nil)
 	require.NoError(t, err)

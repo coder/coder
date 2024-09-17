@@ -832,7 +832,8 @@ CREATE TABLE provisioner_daemons (
     last_seen_at timestamp with time zone,
     version text DEFAULT ''::text NOT NULL,
     api_version text DEFAULT '1.0'::text NOT NULL,
-    organization_id uuid NOT NULL
+    organization_id uuid NOT NULL,
+    key_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN provisioner_daemons.api_version IS 'The API version of the provisioner daemon';
@@ -1473,10 +1474,13 @@ CREATE TABLE workspace_apps (
     sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
     slug text NOT NULL,
     external boolean DEFAULT false NOT NULL,
-    display_order integer DEFAULT 0 NOT NULL
+    display_order integer DEFAULT 0 NOT NULL,
+    hidden boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
@@ -2091,6 +2095,9 @@ ALTER TABLE ONLY organization_members
 
 ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_daemons
+    ADD CONSTRAINT provisioner_daemons_key_id_fkey FOREIGN KEY (key_id) REFERENCES provisioner_keys(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

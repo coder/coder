@@ -33,7 +33,7 @@ func TestAddMember(t *testing.T) {
 func TestDeleteMember(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NotAllowed", func(t *testing.T) {
+	t.Run("Allowed", func(t *testing.T) {
 		t.Parallel()
 		owner := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, owner)
@@ -45,7 +45,7 @@ func TestDeleteMember(t *testing.T) {
 		// this test should be updated to check there is no error.
 		// nolint:gocritic // must be an owner to see the user
 		err := owner.DeleteOrganizationMember(ctx, first.OrganizationID, user.Username)
-		require.ErrorContains(t, err, "Multi-organizations is currently an experiment")
+		require.NoError(t, err)
 	})
 }
 

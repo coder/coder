@@ -4,8 +4,15 @@ import Person from "@mui/icons-material/Person";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
-import type { BuildInfoResponse } from "api/typesGenerated";
+import type { BuildInfoResponse, ProvisionerDaemon } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipText,
+	HelpTooltipTitle,
+	HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
 import { Pill } from "components/Pill/Pill";
 import {
 	Popover,
@@ -13,7 +20,6 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import type { ProvisionerDaemonWithWarnings } from "pages/ManagementSettingsPage/OrganizationProvisionersPageView";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
@@ -25,7 +31,7 @@ interface ProvisionerGroupProps {
 	readonly buildInfo?: BuildInfoResponse;
 	readonly keyName?: string;
 	readonly type: ProvisionerGroupType;
-	readonly provisioners: ProvisionerDaemonWithWarnings[];
+	readonly provisioners: ProvisionerDaemon[];
 }
 
 export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
@@ -46,36 +52,24 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	const allProvisionersAreSameVersion = provisioners.every(
 		(provisioner) => provisioner.version === provisionerVersion,
 	);
+	const upToDate =
+		allProvisionersAreSameVersion && buildInfo?.version === provisioner.version;
 	const provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
 
-	// Count how many total warnings there are in this group, and how many
-	// provisioners they come from.
-	let warningCount = 0;
-	let warningProvisionerCount = 0;
-	for (const provisioner of provisioners) {
-		const provisionerWarningCount = provisioner.warnings?.length ?? 0;
-		warningCount += provisionerWarningCount;
-		warningProvisionerCount += provisionerWarningCount > 0 ? 1 : 0;
-	}
-
 	const extraTags = Object.entries(provisioner.tags).filter(
 		([key]) => key !== "scope" && key !== "owner",
 	);
-	const isWarning = warningCount > 0;
 
 	return (
 		<div
-			css={[
-				{
-					borderRadius: 8,
-					border: `1px solid ${theme.palette.divider}`,
-					fontSize: 14,
-				},
-				isWarning && { borderColor: theme.roles.warning.fill.outline },
-			]}
+			css={{
+				borderRadius: 8,
+				border: `1px solid ${theme.palette.divider}`,
+				fontSize: 14,
+			}}
 		>
 			<header
 				css={{
@@ -96,9 +90,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 				>
 					{type === "builtin" && (
 						<div css={{ lineHeight: "160%" }}>
-							<h4 css={{ fontWeight: 500, margin: 0 }}>
-								Built-in provisioners
-							</h4>
+							<BuiltinProvisionerTitle />
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash; Built-in
 							</span>
@@ -106,7 +98,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					)}
 					{type === "psk" && (
 						<div css={{ lineHeight: "160%" }}>
-							<h4 css={{ fontWeight: 500, margin: 0 }}>PSK provisioners</h4>
+							<PskProvisionerTitle />
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
 								{allProvisionersAreSameVersion ? (
@@ -119,9 +111,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					)}
 					{type === "key" && (
 						<div css={{ lineHeight: "160%" }}>
-							<h4 css={{ fontWeight: 500, margin: 0 }}>
-								Key group &ndash; {keyName}
-							</h4>
+							<h4 css={styles.groupTitle}>Key group &ndash; {keyName}</h4>
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
 								{allProvisionersAreSameVersion ? (
@@ -172,19 +162,13 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					{provisioners.map((provisioner) => (
 						<div
 							key={provisioner.id}
-							css={[
-								{
-									borderRadius: 8,
-									border: `1px solid ${theme.palette.divider}`,
-									fontSize: 14,
-									padding: "14px 18px",
-									width: 375,
-								},
-								provisioner.warnings &&
-									provisioner.warnings.length > 0 && {
-										borderColor: theme.roles.warning.fill.outline,
-									},
-							]}
+							css={{
+								borderRadius: 8,
+								border: `1px solid ${theme.palette.divider}`,
+								fontSize: 14,
+								padding: "14px 18px",
+								width: 375,
+							}}
 						>
 							<Stack
 								direction="row"
@@ -237,16 +221,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					color: theme.palette.text.secondary,
 				}}
 			>
-				{warningCount > 0 ? (
-					<span>
-						{warningCount === 1 ? "1 warning" : `${warningCount} warnings`} from{" "}
-						{warningProvisionerCount === 1
-							? "1 provisioner"
-							: `${warningProvisionerCount} provisioners`}
-					</span>
-				) : (
-					<span>No warnings from {provisionerCount}</span>
-				)}
+				<span>No warnings from {provisionerCount}</span>
 				<Button
 					variant="text"
 					css={{
@@ -268,7 +243,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 
 interface ProvisionerVersionPopoverProps {
 	buildInfo?: BuildInfoResponse;
-	provisioner: ProvisionerDaemonWithWarnings;
+	provisioner: ProvisionerDaemon;
 }
 
 const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
@@ -295,9 +270,9 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 					},
 				}}
 			>
-				<h4 css={styles.title}>Release version</h4>
+				<h4 css={styles.versionPopoverTitle}>Release version</h4>
 				<p css={styles.text}>{provisioner.version}</p>
-				<h4 css={styles.title}>Protocol version</h4>
+				<h4 css={styles.versionPopoverTitle}>Protocol version</h4>
 				<p css={styles.text}>{provisioner.api_version}</p>
 				{provisioner.api_version !== buildInfo?.provisioner_api_version && (
 					<p css={[styles.text, { fontSize: 13 }]}>
@@ -367,8 +342,55 @@ const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
 	);
 };
 
+const BuiltinProvisionerTitle: FC = () => {
+	return (
+		<h4 css={styles.groupTitle}>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>Built-in provisioners</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>Built-in provisioners</HelpTooltipTitle>
+						<HelpTooltipText>
+							These provisioners are running as part of a coderd instance.
+							Built-in provisioners are only available for the default
+							organization. <Link href={docs("/")}>Learn more&hellip;</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
+const PskProvisionerTitle: FC = () => {
+	return (
+		<h4 css={styles.groupTitle}>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>PSK provisioners</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>PSK provisioners</HelpTooltipTitle>
+						<HelpTooltipText>
+							These provisioners all use pre-shared key authentication. PSK
+							provisioners are only available for the default organization.{" "}
+							<Link href={docs("/")}>Learn more&hellip;</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
 const styles = {
-	title: (theme) => ({
+	groupTitle: {
+		fontWeight: 500,
+		margin: 0,
+	},
+
+	versionPopoverTitle: (theme) => ({
 		marginTop: 0,
 		marginBottom: 0,
 		color: theme.palette.text.primary,

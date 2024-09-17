@@ -1119,9 +1119,6 @@ func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
 		return []netip.Prefix{
 			// This is the IP that should be used primarily.
 			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
-			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
-			// allows for a transition away from wsconncache.
-			netip.PrefixFrom(workspacesdk.AgentIP, 128),
 		}
 	}
 
@@ -1360,7 +1357,7 @@ func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tai
 		defer close(errCh)
 		select {
 		case <-ctx.Done():
-			err := coordination.Close()
+			err := coordination.Close(a.hardCtx)
 			if err != nil {
 				a.logger.Warn(ctx, "failed to close remote coordination", slog.Error(err))
 			}
@@ -1510,6 +1507,8 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	var mu sync.Mutex
 	status := a.network.Status()
 	durations := []float64{}
+	p2pConns := 0
+	derpConns := 0
 	pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 	defer cancelFunc()
 	for nodeID, peer := range status.Peer {
@@ -1526,13 +1525,18 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			duration, _, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
+			duration, p2p, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
 			if err != nil {
 				return
 			}
 			mu.Lock()
 			defer mu.Unlock()
 			durations = append(durations, float64(duration.Microseconds()))
+			if p2p {
+				p2pConns++
+			} else {
+				derpConns++
+			}
 		}()
 	}
 	wg.Wait()
@@ -1552,6 +1556,9 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	// Agent metrics are changing all the time, so there is no need to perform
 	// reflect.DeepEqual to see if stats should be transferred.
 
+	// currentConnections behaves like a hypothetical `GaugeFuncVec` and is only set at collection time.
+	a.metrics.currentConnections.WithLabelValues("p2p").Set(float64(p2pConns))
+	a.metrics.currentConnections.WithLabelValues("derp").Set(float64(derpConns))
 	metricsCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 	defer cancelFunc()
 	a.logger.Debug(ctx, "collecting agent metrics for stats")
@@ -1669,13 +1676,12 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		}
 
 		score, niceErr := proc.Niceness(a.syscaller)
-		if niceErr != nil && !xerrors.Is(niceErr, os.ErrPermission) {
+		if !isBenignProcessErr(niceErr) {
 			debouncer.Warn(ctx, "unable to get proc niceness",
 				slog.F("cmd", proc.Cmd()),
 				slog.F("pid", proc.PID),
 				slog.Error(niceErr),
 			)
-			continue
 		}
 
 		// We only want processes that don't have a nice value set
@@ -1689,7 +1695,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 
 		if niceErr == nil {
 			err := proc.SetNiceness(a.syscaller, niceness)
-			if err != nil && !xerrors.Is(err, os.ErrPermission) {
+			if !isBenignProcessErr(err) {
 				debouncer.Warn(ctx, "unable to set proc niceness",
 					slog.F("cmd", proc.Cmd()),
 					slog.F("pid", proc.PID),
@@ -1703,7 +1709,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		if oomScore != unsetOOMScore && oomScore != proc.OOMScoreAdj && !isCustomOOMScore(agentScore, proc) {
 			oomScoreStr := strconv.Itoa(oomScore)
 			err := afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte(oomScoreStr), 0o644)
-			if err != nil && !xerrors.Is(err, os.ErrPermission) {
+			if !isBenignProcessErr(err) {
 				debouncer.Warn(ctx, "unable to set oom_score_adj",
 					slog.F("cmd", proc.Cmd()),
 					slog.F("pid", proc.PID),
@@ -2138,4 +2144,15 @@ func (l *logDebouncer) log(ctx context.Context, level slog.Level, msg string, fi
 		l.logger.Error(ctx, msg, fields...)
 	}
 	l.messages[msg] = time.Now()
+}
+
+func isBenignProcessErr(err error) bool {
+	return err != nil &&
+		(xerrors.Is(err, os.ErrNotExist) ||
+			xerrors.Is(err, os.ErrPermission) ||
+			isNoSuchProcessErr(err))
+}
+
+func isNoSuchProcessErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "no such process")
 }

@@ -309,7 +309,7 @@ func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
 		_, _ = fmt.Fprint(w, "✘ not connected to DERP\n")
 	}
 	if d.SentNode {
-		_, _ = fmt.Fprint(w, "✔ sent local data to Coder networking coodinator\n")
+		_, _ = fmt.Fprint(w, "✔ sent local data to Coder networking coordinator\n")
 	} else {
 		_, _ = fmt.Fprint(w, "✘ have not sent local data to Coder networking coordinator\n")
 	}
@@ -394,11 +394,17 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 		for _, msg := range d.AgentNetcheck.Interfaces.Warnings {
 			agent = append(agent, msg.Message)
 		}
+		if len(d.AgentNetcheck.Interfaces.Warnings) > 0 {
+			agent[len(agent)-1] += "\nhttps://coder.com/docs/networking/troubleshooting#low-mtu"
+		}
 	}
 
 	if d.LocalInterfaces != nil {
 		for _, msg := range d.LocalInterfaces.Warnings {
 			client = append(client, msg.Message)
+		}
+		if len(d.LocalInterfaces.Warnings) > 0 {
+			client[len(client)-1] += "\nhttps://coder.com/docs/networking/troubleshooting#low-mtu"
 		}
 	}
 
@@ -414,37 +420,45 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 	}
 
 	if d.ConnInfo.DisableDirectConnections {
-		general = append(general, "❗ Your Coder administrator has blocked direct connections")
+		general = append(general, "❗ Your Coder administrator has blocked direct connections\n"+
+			"   https://coder.com/docs/networking/troubleshooting#disabled-deployment-wide")
 		if !d.Verbose {
 			return general, client, agent
 		}
 	}
 
 	if !d.ConnInfo.DERPMap.HasSTUN() {
-		general = append(general, "The DERP map is not configured to use STUN")
+		general = append(general, "❗ The DERP map is not configured to use STUN\n"+
+			"   https://coder.com/docs/networking/troubleshooting#no-stun-servers")
 	} else if d.LocalNetInfo != nil && !d.LocalNetInfo.UDP {
-		client = append(client, "Client could not connect to STUN over UDP")
+		client = append(client, "Client could not connect to STUN over UDP\n"+
+			"   https://coder.com/docs/networking/troubleshooting#udp-blocked")
 	}
 
 	if d.LocalNetInfo != nil && d.LocalNetInfo.MappingVariesByDestIP.EqualBool(true) {
-		client = append(client, "Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers")
+		client = append(client, "Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n"+
+			"   https://coder.com/docs/networking/troubleshooting#Endpoint-Dependent-Nat-Hard-NAT")
 	}
 
 	if d.AgentNetcheck != nil && d.AgentNetcheck.NetInfo != nil {
 		if d.AgentNetcheck.NetInfo.MappingVariesByDestIP.EqualBool(true) {
-			agent = append(agent, "Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers")
+			agent = append(agent, "Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n"+
+				"   https://coder.com/docs/networking/troubleshooting#Endpoint-Dependent-Nat-Hard-NAT")
 		}
 		if !d.AgentNetcheck.NetInfo.UDP {
-			agent = append(agent, "Agent could not connect to STUN over UDP")
+			agent = append(agent, "Agent could not connect to STUN over UDP\n"+
+				"   https://coder.com/docs/networking/troubleshooting#udp-blocked")
 		}
 	}
 
 	if d.ClientIPIsAWS {
-		client = append(client, "Client IP address is within an AWS range (AWS uses hard NAT)")
+		client = append(client, "Client IP address is within an AWS range (AWS uses hard NAT)\n"+
+			"   https://coder.com/docs/networking/troubleshooting#Endpoint-Dependent-Nat-Hard-NAT")
 	}
 
 	if d.AgentIPIsAWS {
-		agent = append(agent, "Agent IP address is within an AWS range (AWS uses hard NAT)")
+		agent = append(agent, "Agent IP address is within an AWS range (AWS uses hard NAT)\n"+
+			"   https://coder.com/docs/networking/troubleshooting#Endpoint-Dependent-Nat-Hard-NAT")
 	}
 	return general, client, agent
 }

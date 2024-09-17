@@ -45,8 +45,11 @@ export const TemplateRedirectController: FC = () => {
 	return <Outlet />;
 };
 
-const getOrganizationNameByDefault = (organizations: Organization[]) =>
-	organizations.find((org) => org.is_default)?.name;
+const getOrganizationNameByDefault = (
+	organizations: readonly Organization[],
+) => {
+	return organizations.find((org) => org.is_default)?.name;
+};
 
 // I really hate doing it this way, but React Router does not provide a better way.
 const removePrefix = (self: string, prefix: string) =>

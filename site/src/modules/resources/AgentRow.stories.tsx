@@ -319,3 +319,17 @@ export const WithXRayScan: Story = {
 		],
 	},
 };
+
+export const HideApp: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			apps: [
+				{
+					...M.MockWorkspaceApp,
+					hidden: true,
+				},
+			],
+		},
+	},
+};

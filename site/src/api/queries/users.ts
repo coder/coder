@@ -115,11 +115,13 @@ export const updateRoles = (queryClient: QueryClient) => {
 	};
 };
 
+export const authMethodsQueryKey = ["authMethods"];
+
 export const authMethods = () => {
 	return {
 		// Even the endpoint being /users/authmethods we don't want to revalidate it
 		// when users change so its better add a unique query key
-		queryKey: ["authMethods"],
+		queryKey: authMethodsQueryKey,
 		queryFn: API.getAuthMethods,
 	};
 };

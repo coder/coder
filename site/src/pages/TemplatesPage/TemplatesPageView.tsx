@@ -16,7 +16,7 @@ import { ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
-import type { useFilter } from "components/Filter/filter";
+import type { useFilter } from "components/Filter/Filter";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -332,9 +332,6 @@ const styles = {
 	}),
 	actionButton: (theme) => ({
 		transition: "none",
-		color: theme.palette.text.secondary,
-		"&:hover": {
-			borderColor: theme.palette.text.primary,
-		},
+		color: theme.palette.text.primary,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

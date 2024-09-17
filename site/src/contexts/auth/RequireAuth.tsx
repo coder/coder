@@ -1,14 +1,30 @@
 import { API } from "api/api";
 import { isApiError } from "api/errors";
 import { Loader } from "components/Loader/Loader";
-import { ProxyProvider } from "contexts/ProxyContext";
-import { DashboardProvider } from "modules/dashboard/DashboardProvider";
+import { ProxyProvider as ProductionProxyProvider } from "contexts/ProxyContext";
+import { DashboardProvider as ProductionDashboardProvider } from "modules/dashboard/DashboardProvider";
 import { type FC, useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { embedRedirect } from "utils/redirect";
 import { type AuthContextValue, useAuthContext } from "./AuthProvider";
 
-export const RequireAuth: FC = () => {
+type RequireAuthProps = Readonly<{
+	ProxyProvider?: typeof ProductionProxyProvider;
+	DashboardProvider?: typeof ProductionDashboardProvider;
+}>;
+
+/**
+ * Wraps any component and ensures that the user has been authenticated before
+ * they can access the component's contents.
+ *
+ * In production, it is assumed that this component will not be called with any
+ * props at all. But to make testing easier, you can call this component with
+ * specific providers to mock them out.
+ */
+export const RequireAuth: FC<RequireAuthProps> = ({
+	DashboardProvider = ProductionDashboardProvider,
+	ProxyProvider = ProductionProxyProvider,
+}) => {
 	const location = useLocation();
 	const { signOut, isSigningOut, isSignedOut, isSignedIn, isLoading } =
 		useAuthContext();

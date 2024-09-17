@@ -1162,7 +1162,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = user
 
-	if user.LoginType == database.LoginTypeOIDC && api.OIDCConfig.RoleSyncEnabled() {
+	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.SiteRoleSyncEnabled() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot modify roles for OIDC users when role sync is enabled.",
 			Detail:  "'User Role Field' is set in the OIDC configuration. All role changes must come from the oidc identity provider.",

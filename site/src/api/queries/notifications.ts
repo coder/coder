@@ -136,3 +136,22 @@ export const updateNotificationTemplateMethod = (
 		UpdateNotificationTemplateMethod
 	>;
 };
+
+export const disableNotification = (
+	userId: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: async (templateId: string) => {
+			const result = await API.putUserNotificationPreferences(userId, {
+				template_disabled_map: {
+					[templateId]: true,
+				},
+			});
+			return result;
+		},
+		onSuccess: (data) => {
+			queryClient.setQueryData(userNotificationPreferencesKey(userId), data);
+		},
+	} satisfies UseMutationOptions<NotificationPreference[], unknown, string>;
+};
