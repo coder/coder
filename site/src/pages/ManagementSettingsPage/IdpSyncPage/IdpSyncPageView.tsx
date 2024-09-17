@@ -9,7 +9,11 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { OIDCConfig } from "api/typesGenerated";
+import type {
+	OIDCConfig,
+	GroupSyncSettings,
+	RoleSyncSettings,
+} from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
@@ -25,16 +29,17 @@ import { docs } from "utils/docs";
 
 export type IdpSyncPageViewProps = {
 	oidcConfig: OIDCConfig | undefined;
+	groupSyncSettings: GroupSyncSettings | undefined;
+	roleSyncSettings: RoleSyncSettings | undefined;
 };
 
-export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
+export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
+	oidcConfig,
+	groupSyncSettings,
+	roleSyncSettings,
+}) => {
 	const theme = useTheme();
-	const {
-		groups_field,
-		user_role_field,
-		group_regex_filter,
-		group_auto_create,
-	} = oidcConfig || {};
+	const { user_role_field } = oidcConfig || {};
 	return (
 		<>
 			<ChooseOne>
@@ -54,16 +59,22 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 							<Stack direction={"row"} alignItems={"center"} spacing={8}>
 								<IdpField
 									name={"Sync Field"}
-									fieldText={groups_field}
+									fieldText={groupSyncSettings?.field}
 									showStatusIndicator
 								/>
 								<IdpField
 									name={"Regex Filter"}
-									fieldText={group_regex_filter}
+									fieldText={
+										typeof groupSyncSettings?.regex_filter === "string"
+											? groupSyncSettings?.regex_filter
+											: ""
+									}
 								/>
 								<IdpField
 									name={"Auto Create"}
-									fieldText={group_auto_create?.toString()}
+									fieldText={String(
+										groupSyncSettings?.auto_create_missing_groups,
+									)}
 								/>
 							</Stack>
 						</fieldset>

@@ -6,11 +6,20 @@ import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink, useParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
+import {
+	organizationsPermissions,
+	groupIdpSyncSettings,
+	roleIdpSyncSettings,
+} from "api/queries/organizations";
+import { useQuery } from "react-query";
+import { useOrganizationSettings } from "../ManagementSettingsLayout";
+import { Loader } from "components/Loader/Loader";
+import { EmptyState } from "components/EmptyState/EmptyState";
 
 const mockOIDCConfig = {
 	allow_signups: true,
@@ -45,19 +54,39 @@ const mockOIDCConfig = {
 };
 
 export const IdpSyncPage: FC = () => {
+	const { organization: organizationName } = useParams() as {
+		organization: string;
+	};
+
 	// feature visibility and permissions to be implemented when integrating with backend
 	// const feats = useFeatureVisibility();
 	// const { organization: organizationName } = useParams() as {
 	// 	organization: string;
 	// };
-	// const { organizations } = useOrganizationSettings();
-	// const organization = organizations?.find((o) => o.name === organizationName);
-	// const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+	const { organizations } = useOrganizationSettings();
+	const organization = organizations?.find((o) => o.name === organizationName);
+	const permissionsQuery = useQuery(
+		organizationsPermissions(organizations?.map((o) => o.id)),
+	);
+	const groupIdpSyncSettingsQuery = useQuery(
+		groupIdpSyncSettings(organizationName),
+	);
+	const roleIdpSyncSettingsQuery = useQuery(
+		roleIdpSyncSettings(organizationName),
+	);
 	// const permissions = permissionsQuery.data;
 
-	// if (!permissions) {
-	// 	return <Loader />;
-	// }
+	if (!organization) {
+		return <EmptyState message="Organization not found" />;
+	}
+
+	if (
+		permissionsQuery.isLoading ||
+		groupIdpSyncSettingsQuery.isLoading ||
+		roleIdpSyncSettingsQuery.isLoading
+	) {
+		return <Loader />;
+	}
 
 	return (
 		<>
@@ -91,7 +120,11 @@ export const IdpSyncPage: FC = () => {
 				</Stack>
 			</Stack>
 
-			<IdpSyncPageView oidcConfig={mockOIDCConfig} />
+			<IdpSyncPageView
+				oidcConfig={mockOIDCConfig}
+				groupSyncSettings={groupIdpSyncSettingsQuery.data}
+				roleSyncSettings={roleIdpSyncSettingsQuery.data}
+			/>
 		</>
 	);
 };

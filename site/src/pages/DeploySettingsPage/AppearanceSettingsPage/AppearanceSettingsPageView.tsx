@@ -74,7 +74,7 @@ export const AppearanceSettingsPageView: FC<
 					<PopoverContent css={{ transform: "translateY(-28px)" }}>
 						<PopoverPaywall
 							message="Appearance"
-							description="With a Premium license, you can customize the appearance of your deployment."
+							description="With a Premium license, you can customize the appearance and branding of your deployment."
 							documentationLink="https://coder.com/docs/admin/appearance"
 						/>
 					</PopoverContent>
