@@ -578,6 +578,7 @@ export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "test-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000001",
 	organization_id: MockOrganization.id,
 	name: "Test Provisioner",
 	provisioners: ["echo"],
@@ -585,6 +586,30 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	version: MockBuildInfo.version,
 	api_version: MockBuildInfo.provisioner_api_version,
 	last_seen_at: new Date().toISOString(),
+};
+
+export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-user-auth-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000002",
+	name: `${MockUser.name}'s provisioner`,
+	tags: { scope: "user" },
+};
+
+export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-psk-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000003",
+	name: "Test psk provisioner",
+};
+
+export const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-key-provisioner",
+	key_id: MockProvisionerKey.id,
+	organization_id: MockProvisionerKey.organization,
+	name: "Test key provisioner",
+	tags: MockProvisionerKey.tags,
 };
 
 export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
