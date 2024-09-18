@@ -32,7 +32,7 @@ export const OrganizationProvisionersPageView: FC<
 			>
 				<SettingsHeader
 					title="Provisioners"
-					tooltip={<FeatureBadge type="beta" variant="interactive" size="lg" />}
+					badges={<FeatureBadge type="beta" variant="interactive" size="lg" />}
 				/>
 				<Button
 					endIcon={<OpenInNewIcon />}

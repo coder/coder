@@ -73,12 +73,8 @@ export const IdpSyncPage: FC = () => {
 				<SettingsHeader
 					title="IdP Sync"
 					description="Group and role sync mappings (configured outside Coder)."
-					tooltip={
-						<>
-							<IdpSyncHelpTooltip />
-							<FeatureBadge type="beta" size="lg" variant="interactive" />
-						</>
-					}
+					tooltip={<IdpSyncHelpTooltip />}
+					badges={<FeatureBadge type="beta" size="lg" variant="interactive" />}
 				/>
 				<Stack direction="row" spacing={2}>
 					<Button

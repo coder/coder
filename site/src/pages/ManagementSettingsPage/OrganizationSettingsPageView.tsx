@@ -69,7 +69,7 @@ export const OrganizationSettingsPageView: FC<
 		<div>
 			<SettingsHeader
 				title="Settings"
-				tooltip={<FeatureBadge type="beta" variant="interactive" size="lg" />}
+				badges={<FeatureBadge type="beta" variant="interactive" size="lg" />}
 			/>
 
 			{Boolean(error) && !isApiValidationError(error) && (

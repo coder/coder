@@ -63,7 +63,7 @@ export const OrganizationMembersPageView: FC<
 		<div>
 			<SettingsHeader
 				title="Members"
-				tooltip={<FeatureBadge type="beta" size="lg" variant="interactive" />}
+				badges={<FeatureBadge type="beta" size="lg" variant="interactive" />}
 			/>
 
 			<Stack>

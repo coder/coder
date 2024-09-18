@@ -67,7 +67,7 @@ export const CustomRolesPage: FC = () => {
 				<SettingsHeader
 					title="Custom Roles"
 					description="Manage custom roles for this organization."
-					tooltip={<FeatureBadge type="beta" variant="interactive" size="lg" />}
+					badges={<FeatureBadge type="beta" variant="interactive" size="lg" />}
 				/>
 				{permissions.assignOrgRole && isCustomRolesEnabled && (
 					<Button component={RouterLink} startIcon={<AddIcon />} to="create">

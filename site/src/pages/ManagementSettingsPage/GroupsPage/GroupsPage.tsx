@@ -81,7 +81,7 @@ export const GroupsPage: FC = () => {
 				<SettingsHeader
 					title="Groups"
 					description="Manage groups for this organization."
-					tooltip={<FeatureBadge type="beta" variant="interactive" size="lg" />}
+					badges={<FeatureBadge type="beta" variant="interactive" size="lg" />}
 				/>
 				{permissions.createGroup && feats.template_rbac && (
 					<Button component={RouterLink} startIcon={<GroupAdd />} to="create">
