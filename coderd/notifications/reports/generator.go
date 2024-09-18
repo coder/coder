@@ -75,6 +75,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 				return
 			case tick := <-ticker.C:
 				ticker.Stop()
+
 				doTick(dbtime.Time(tick).UTC())
 			}
 		}
