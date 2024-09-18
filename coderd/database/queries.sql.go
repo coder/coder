@@ -11651,10 +11651,10 @@ minute_buckets AS (
 	SELECT
 		agent_id,
 		date_trunc('minute', created_at) AS minute_bucket,
-		SUM(session_count_vscode) AS session_count_vscode,
-		SUM(session_count_ssh) AS session_count_ssh,
-		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	FROM
 		workspace_agent_stats
 	WHERE
@@ -11681,10 +11681,10 @@ latest_buckets AS (
 ),
 latest_agent_stats AS (
     SELECT
-        SUM(session_count_vscode) AS session_count_vscode,
-        SUM(session_count_ssh) AS session_count_ssh,
-        SUM(session_count_jetbrains) AS session_count_jetbrains,
-        SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
     FROM
         latest_buckets
 )
@@ -11974,10 +11974,10 @@ minute_buckets AS (
 	SELECT
 		agent_id,
 		date_trunc('minute', created_at) AS minute_bucket,
-		SUM(session_count_vscode) AS session_count_vscode,
-		SUM(session_count_ssh) AS session_count_ssh,
-		SUM(session_count_jetbrains) AS session_count_jetbrains,
-		SUM(session_count_reconnecting_pty) AS session_count_reconnecting_pty
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	FROM
 		workspace_agent_stats
 	WHERE
@@ -12083,7 +12083,9 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
 	FROM workspace_agent_stats
-	WHERE usage = true
+	-- We only want the latest stats, but those stats might be
+	-- spread across multiple rows.
+	WHERE usage = true AND created_at > now() - '1 minute'::interval
 	GROUP BY user_id, agent_id, workspace_id
 ), latest_agent_latencies AS (
 	SELECT
@@ -12094,11 +12096,15 @@ WITH agent_stats AS (
 )
 SELECT
 	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
-	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
-	connection_count, connection_median_latency_ms
+	coalesce(session_count_vscode, 0)::bigint AS session_count_vscode,
+	coalesce(session_count_ssh, 0)::bigint AS session_count_ssh,
+	coalesce(session_count_jetbrains, 0)::bigint AS session_count_jetbrains,
+	coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty,
+	coalesce(connection_count, 0)::bigint AS connection_count,
+	connection_median_latency_ms
 FROM
 	agent_stats
-JOIN
+LEFT JOIN
 	latest_agent_stats
 ON
 	agent_stats.agent_id = latest_agent_stats.agent_id

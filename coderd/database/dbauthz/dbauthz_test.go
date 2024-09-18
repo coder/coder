@@ -2574,6 +2574,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetDeploymentWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
+	s.Run("GetDeploymentWorkspaceAgentUsageStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
 	s.Run("GetDeploymentWorkspaceStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
 	}))
@@ -2610,7 +2613,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetWorkspaceAgentStatsAndLabels", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
+	s.Run("GetWorkspaceAgentUsageStatsAndLabels", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
 	s.Run("GetWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
+	s.Run("GetWorkspaceAgentUsageStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
 	s.Run("GetWorkspaceProxyByHostname", s.Subtest(func(db database.Store, check *expects) {

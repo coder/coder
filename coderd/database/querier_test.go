@@ -255,8 +255,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	ctx := context.Background()
-	// Since the queries exclude the current minute
-	insertTime := dbtime.Now().Add(-time.Minute)
+	insertTime := dbtime.Now()
 
 	// Insert user, agent, template, workspace
 	user1 := dbgen.User(t, db, database.User{})
@@ -372,7 +371,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 		WorkspaceName:             workspace1.Name,
 		RxBytes:                   3,
 		TxBytes:                   3,
-		SessionCountVSCode:        3,
+		SessionCountVSCode:        2,
 		ConnectionMedianLatencyMS: 1,
 	})
 

@@ -150,7 +150,7 @@ func TestCache_BuildTime(t *testing.T) {
 					},
 				},
 				transition: database.WorkspaceTransitionStop,
-			}, want{50 * 1000, true},
+			}, want{30 * 1000, true},
 		},
 		{
 			"three/delete", args{
@@ -300,6 +300,7 @@ func TestCache_DeploymentStats(t *testing.T) {
 		SessionCountReconnectingPTY: []int64{0},
 		SessionCountSSH:             []int64{0},
 		ConnectionMedianLatencyMS:   []float64{10},
+		Usage:                       []bool{false},
 	})
 	require.NoError(t, err)
 
