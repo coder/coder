@@ -116,6 +116,52 @@ func TestTimeout(t *testing.T) {
 	require.ErrorIs(t, runner.Execute(context.Background(), nil), agentscripts.ErrTimeout)
 }
 
+func TestScriptReportsTiming(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		displayName string
+		script      string
+		exitCode    int32
+	}{
+		{
+			displayName: "exit-0",
+			script:      "exit 0",
+			exitCode:    0,
+		},
+		{
+			displayName: "exit-1",
+			script:      "exit 1",
+			exitCode:    1,
+		},
+	}
+
+	for _, tt := range tests {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		fLogger := newFakeScriptLogger()
+		runner := setup(t, func(uuid2 uuid.UUID) agentscripts.ScriptLogger {
+			return fLogger
+		})
+		defer runner.Close()
+		aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
+		err := runner.Init([]codersdk.WorkspaceAgentScript{{
+			DisplayName: tt.displayName,
+			LogSourceID: uuid.New(),
+			Script:      tt.script,
+		}}, aAPI.ScriptCompleted)
+		require.NoError(t, err)
+		require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
+			return true
+		}))
+		_ = testutil.RequireRecvCtx(ctx, t, fLogger.logs)
+
+		require.Equal(t, len(aAPI.GetTiming()), 1)
+		timing := aAPI.GetTiming()[0]
+		require.Equal(t, timing.DisplayName, tt.displayName)
+		require.Equal(t, timing.ExitCode, tt.exitCode)
+	}
+}
+
 // TestCronClose exists because cron.Run() can happen after cron.Close().
 // If this happens, there used to be a deadlock.
 func TestCronClose(t *testing.T) {
