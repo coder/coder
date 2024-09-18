@@ -425,6 +425,7 @@ const classNames = {
     position: relative;
 
     &:hover {
+	  color: ${theme.palette.text.primary};
       background-color: ${theme.palette.action.hover};
     }
   `,
