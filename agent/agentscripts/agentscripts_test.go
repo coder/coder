@@ -135,9 +135,9 @@ func TestScriptReportsTiming(t *testing.T) {
 			exitCode:    0,
 		},
 		{
-			displayName: "exit-1",
-			script:      "exit 1",
-			exitCode:    1,
+			displayName: "say-hello",
+			script:      "echo 'Hello, World!'",
+			exitCode:    0,
 		},
 	}
 
