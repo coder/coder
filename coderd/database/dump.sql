@@ -286,6 +286,25 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION delete_group_members_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+	-- Remove the user from all groups associated with the same
+	-- organization as the organization_member being deleted.
+	DELETE FROM group_members
+	WHERE
+		user_id = OLD.user_id
+		AND group_id IN (
+			SELECT id
+			FROM groups
+			WHERE organization_id = OLD.organization_id
+		);
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -731,6 +750,13 @@ CREATE TABLE notification_preferences (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+CREATE TABLE notification_report_generator_logs (
+    notification_template_id uuid NOT NULL,
+    last_generated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE notification_report_generator_logs IS 'Log of generated reports for users.';
 
 CREATE TABLE notification_templates (
     id uuid NOT NULL,
@@ -1707,6 +1733,9 @@ ALTER TABLE ONLY notification_messages
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
 
+ALTER TABLE ONLY notification_report_generator_logs
+    ADD CONSTRAINT notification_report_generator_logs_pkey PRIMARY KEY (notification_template_id);
+
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
 
@@ -2040,6 +2069,8 @@ CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON ta
 CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
 
 CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
+
+CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 

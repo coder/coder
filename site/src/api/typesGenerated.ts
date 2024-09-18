@@ -48,6 +48,7 @@ export interface AppHostResponse {
 export interface AppearanceConfig {
 	readonly application_name: string;
 	readonly logo_url: string;
+	readonly docs_url: string;
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: Readonly<Array<BannerConfig>>;
 	readonly support_links?: Readonly<Array<LinkConfig>>;
@@ -1208,6 +1209,7 @@ export interface SessionCountDeploymentStats {
 export interface SessionLifetime {
 	readonly disable_expiry_refresh?: boolean;
 	readonly default_duration: number;
+	readonly default_token_lifetime?: number;
 	readonly max_token_lifetime?: number;
 }
 

@@ -217,7 +217,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
 	provisioner_api_version: "1.1",
 	external_url: "file:///mock-url",
-	version: "v99.999.9999+c9cdf14",
+	version: "v2.99.99",
 	dashboard_url: "https:///mock-url",
 	workspace_proxy: false,
 	upgrade_message: "My custom upgrade message",
@@ -578,12 +578,44 @@ export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "test-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000001",
 	organization_id: MockOrganization.id,
 	name: "Test Provisioner",
 	provisioners: ["echo"],
 	tags: { scope: "organization" },
 	version: MockBuildInfo.version,
 	api_version: MockBuildInfo.provisioner_api_version,
+	last_seen_at: new Date().toISOString(),
+};
+
+export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-user-auth-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000002",
+	name: `${MockUser.name}'s provisioner`,
+	tags: { scope: "user" },
+};
+
+export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-psk-provisioner",
+	key_id: "00000000-0000-0000-0000-000000000003",
+	name: "Test psk provisioner",
+};
+
+export const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-key-provisioner",
+	key_id: MockProvisionerKey.id,
+	organization_id: MockProvisionerKey.organization,
+	name: "Test key provisioner",
+	tags: MockProvisionerKey.tags,
+};
+
+export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-provisioner-2",
+	name: "Test Provisioner 2",
 	key_id: MockProvisionerKey.id,
 };
 
@@ -592,6 +624,18 @@ export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
 	id: "test-user-provisioner",
 	name: "Test User Provisioner",
 	tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
+};
+
+export const MockProvisionerWithTags: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-provisioner-tags",
+	name: "Test Provisioner with tags",
+	tags: {
+		...MockProvisioner.tags,
+		都市: "ユタ",
+		きっぷ: "yes",
+		ちいさい: "no",
+	},
 };
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -2669,6 +2713,7 @@ export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
 		enabled: false,
 	},
 	announcement_banners: [],
+	docs_url: "https://coder.com/docs/@main/",
 };
 
 export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {

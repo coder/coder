@@ -43,11 +43,12 @@ Specifies the wildcard hostname to use for workspace applications in the form "\
 
 ### --docs-url
 
-|             |                                 |
-| ----------- | ------------------------------- |
-| Type        | <code>url</code>                |
-| Environment | <code>$CODER_DOCS_URL</code>    |
-| YAML        | <code>networking.docsURL</code> |
+|             |                                     |
+| ----------- | ----------------------------------- |
+| Type        | <code>url</code>                    |
+| Environment | <code>$CODER_DOCS_URL</code>        |
+| YAML        | <code>networking.docsURL</code>     |
+| Default     | <code>https://coder.com/docs</code> |
 
 Specifies the custom docs URL.
 
@@ -909,6 +910,17 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 | Default     | <code>876600h0m0s</code>                      |
 
 The maximum lifetime duration users can specify when creating an API token.
+
+### --default-token-lifetime
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>duration</code>                      |
+| Environment | <code>$CODER_DEFAULT_TOKEN_LIFETIME</code> |
+| YAML        | <code>defaultTokenLifetime</code>          |
+| Default     | <code>168h0m0s</code>                      |
+
+The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.
 
 ### --swagger-enable
 

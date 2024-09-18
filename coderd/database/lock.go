@@ -10,6 +10,7 @@ const (
 	LockIDEnterpriseDeploymentSetup
 	LockIDDBRollup
 	LockIDDBPurge
+	LockIDNotificationsReportGenerator
 	LockIDCryptoKeyRotation
 )
 

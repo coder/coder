@@ -67,6 +67,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		env              []string
 		usageApp         string
 		disableAutostart bool
+		appearanceConfig codersdk.AppearanceConfig
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -76,6 +77,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
+			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) (retErr error) {
 			// Before dialing the SSH server over TCP, capture Interrupt signals
@@ -230,9 +232,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
-				Fetch:     client.WorkspaceAgent,
-				FetchLogs: client.WorkspaceAgentLogsAfter,
-				Wait:      wait,
+				FetchInterval: 0,
+				Fetch:         client.WorkspaceAgent,
+				FetchLogs:     client.WorkspaceAgentLogsAfter,
+				Wait:          wait,
+				DocsURL:       appearanceConfig.DocsURL,
 			})
 			if err != nil {
 				if xerrors.Is(err, context.Canceled) {

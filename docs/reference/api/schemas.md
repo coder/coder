@@ -391,6 +391,7 @@
 		}
 	],
 	"application_name": "string",
+	"docs_url": "string",
 	"logo_url": "string",
 	"service_banner": {
 		"background_color": "string",
@@ -413,6 +414,7 @@
 | ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `docs_url`             | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 | `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
@@ -1902,6 +1904,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"secure_auth_cookie": true,
 		"session_lifetime": {
 			"default_duration": 0,
+			"default_token_lifetime": 0,
 			"disable_expiry_refresh": true,
 			"max_token_lifetime": 0
 		},
@@ -2328,6 +2331,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"secure_auth_cookie": true,
 	"session_lifetime": {
 		"default_duration": 0,
+		"default_token_lifetime": 0,
 		"disable_expiry_refresh": true,
 		"max_token_lifetime": 0
 	},
@@ -4772,6 +4776,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
 	"default_duration": 0,
+	"default_token_lifetime": 0,
 	"disable_expiry_refresh": true,
 	"max_token_lifetime": 0
 }
@@ -4781,7 +4786,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Name                     | Type    | Required | Restrictions | Description                                                                                                                                                                        |
 | ------------------------ | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default_duration`       | integer | false    |              | Default duration is for api keys, not tokens.                                                                                                                                      |
+| `default_duration`       | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
+| `default_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
 | `disable_expiry_refresh` | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
 | `max_token_lifetime`     | integer | false    |              |                                                                                                                                                                                    |
 
