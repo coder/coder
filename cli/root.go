@@ -657,7 +657,12 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 	}
 
 	// No org selected, and we are more than 1? Return an error.
-	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>.")
+	validOrgs := make([]string, 0, len(orgs))
+	for _, org := range orgs {
+		validOrgs = append(validOrgs, org.Name)
+	}
+
+	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>. Choose from: %s", strings.Join(validOrgs, ", "))
 }
 
 func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {

@@ -1817,9 +1817,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                           |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [idpsync.GroupSyncSettings](schemas.md#idpsyncgroupsyncsettings) |
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1864,9 +1864,91 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Responses
 
+| Status | Meaning                                                 | Description | Schema                                                             |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get role IdP Sync settings by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/settings/idpsync/roles`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	}
+}
+```
+
+### Responses
+
 | Status | Meaning                                                 | Description | Schema                                                           |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [idpsync.GroupSyncSettings](schemas.md#idpsyncgroupsyncsettings) |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update role IdP Sync settings by organization
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/roles`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

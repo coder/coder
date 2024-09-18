@@ -552,10 +552,13 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
 	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
-		jobID := uuid.New()
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: jobID})
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
 		t := dbgen.ProvisionerJobTimings(s.T(), db, database.InsertProvisionerJobTimingsParams{
-			JobID:     jobID,
+			JobID:     j.ID,
 			StartedAt: []time.Time{dbtime.Now(), dbtime.Now()},
 			EndedAt:   []time.Time{dbtime.Now(), dbtime.Now()},
 			Stage: []database.ProvisionerJobTimingStage{
@@ -566,7 +569,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			Action:   []string{"action1", "action2"},
 			Resource: []string{"resource1", "resource2"},
 		})
-		check.Args(j.ID).Asserts().Returns(t)
+		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
@@ -2247,6 +2250,57 @@ func (s *MethodTestSuite) TestDBCrypt() {
 		check.Args("revoke me").
 			Asserts(rbac.ResourceSystem, policy.ActionUpdate).
 			Returns()
+	}))
+}
+
+func (s *MethodTestSuite) TestCryptoKeys() {
+	s.Run("GetCryptoKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
+	s.Run("InsertCryptoKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertCryptoKeyParams{
+			Feature: database.CryptoKeyFeatureWorkspaceApps,
+		}).
+			Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
+	}))
+	s.Run("DeleteCryptoKey", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.DeleteCryptoKeyParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionDelete)
+	}))
+	s.Run("GetCryptoKeyByFeatureAndSequence", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionRead).Returns(key)
+	}))
+	s.Run("GetLatestCryptoKeyByFeature", s.Subtest(func(db database.Store, check *expects) {
+		dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.CryptoKeyFeatureWorkspaceApps).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
+	s.Run("UpdateCryptoKeyDeletesAt", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.UpdateCryptoKeyDeletesAtParams{
+			Feature:   key.Feature,
+			Sequence:  key.Sequence,
+			DeletesAt: sql.NullTime{Time: time.Now(), Valid: true},
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
 	}))
 }
 

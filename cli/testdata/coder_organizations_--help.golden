@@ -1,0 +1,24 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations [flags] [subcommand]
+
+  Organization related commands
+
+  Aliases: organization, org, orgs
+
+SUBCOMMANDS:
+    create      Create a new organization.
+    members     Manage organization members
+    roles       Manage organization roles.
+    settings    Manage organization settings.
+    show        Show the organization. Using "selected" will show the selected
+                organization from the "--org" flag. Using "me" will show all
+                organizations you are a member of.
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+———
+Run `coder --help` for a list of global options.
