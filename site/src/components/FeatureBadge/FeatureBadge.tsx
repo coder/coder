@@ -56,6 +56,9 @@ const styles = {
 	},
 
 	badgeExtraSmallText: {
+		// Have to beef up font weight so that the letters still maintain the
+		// same relative thickness as all our other main UI text
+		fontWeight: 500,
 		fontSize: "0.625rem",
 	},
 
