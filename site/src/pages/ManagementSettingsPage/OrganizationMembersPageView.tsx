@@ -33,6 +33,7 @@ import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
@@ -60,7 +61,10 @@ export const OrganizationMembersPageView: FC<
 > = (props) => {
 	return (
 		<div>
-			<SettingsHeader title="Members" />
+			<SettingsHeader
+				title="Members"
+				tooltip={<FeatureBadge type="beta" size="lg" variant="interactive" />}
+			/>
 
 			<Stack>
 				{Boolean(props.error) && <ErrorAlert error={props.error} />}

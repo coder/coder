@@ -10,6 +10,7 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 const mockOIDCConfig = {
 	allow_signups: true,
@@ -72,7 +73,12 @@ export const IdpSyncPage: FC = () => {
 				<SettingsHeader
 					title="IdP Sync"
 					description="Group and role sync mappings (configured outside Coder)."
-					tooltip={<IdpSyncHelpTooltip />}
+					tooltip={
+						<>
+							<IdpSyncHelpTooltip />
+							<FeatureBadge type="beta" size="lg" variant="interactive" />
+						</>
+					}
 				/>
 				<Stack direction="row" spacing={2}>
 					<Button

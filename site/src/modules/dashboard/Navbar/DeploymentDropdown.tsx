@@ -2,7 +2,6 @@ import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 import {
 	Popover,
 	PopoverContent,
@@ -110,7 +109,6 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					onClick={onPopoverClose}
 				>
 					Organizations
-					<FeatureBadge type="beta" size="xs" variant="static" />
 				</MenuItem>
 			)}
 			{canViewAllUsers && (

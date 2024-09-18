@@ -17,6 +17,7 @@ import { Navigate, Link as RouterLink, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import GroupsPageView from "./GroupsPageView";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 export const GroupsPage: FC = () => {
 	const feats = useFeatureVisibility();
@@ -80,6 +81,7 @@ export const GroupsPage: FC = () => {
 				<SettingsHeader
 					title="Groups"
 					description="Manage groups for this organization."
+					tooltip={<FeatureBadge type="beta" variant="interactive" size="lg" />}
 				/>
 				{permissions.createGroup && feats.template_rbac && (
 					<Button component={RouterLink} startIcon={<GroupAdd />} to="create">

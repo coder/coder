@@ -17,6 +17,7 @@ import { Link as RouterLink, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import CustomRolesPageView from "./CustomRolesPageView";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 export const CustomRolesPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -66,6 +67,7 @@ export const CustomRolesPage: FC = () => {
 				<SettingsHeader
 					title="Custom Roles"
 					description="Manage custom roles for this organization."
+					tooltip={<FeatureBadge type="beta" variant="interactive" size="lg" />}
 				/>
 				{permissions.assignOrgRole && isCustomRolesEnabled && (
 					<Button component={RouterLink} startIcon={<AddIcon />} to="create">

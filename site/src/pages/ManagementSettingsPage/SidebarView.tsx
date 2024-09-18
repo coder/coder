@@ -203,7 +203,7 @@ const OrganizationsSettingsNavigation: FC<
 				}}
 			>
 				<h2 css={styles.sidebarHeader}>Organizations</h2>
-				<FeatureBadge type="beta" variant="static" size="sm" />
+				<FeatureBadge type="beta" variant="interactive" size="sm" />
 			</header>
 
 			{permissions.createOrganization && (

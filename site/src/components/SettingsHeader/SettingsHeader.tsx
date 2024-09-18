@@ -24,7 +24,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 	return (
 		<Stack alignItems="baseline" direction="row" justifyContent="space-between">
 			<div css={{ maxWidth: 420, marginBottom: 24 }}>
-				<Stack direction="row" spacing={1} alignItems="center">
+				<Stack direction="row" spacing={1.5} alignItems="center">
 					<h1
 						css={[
 							{
