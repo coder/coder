@@ -1944,7 +1944,7 @@ func (q *FakeQuerier) DeleteOrganization(_ context.Context, id uuid.UUID) error 
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) DeleteOrganizationMember(_ context.Context, arg database.DeleteOrganizationMemberParams) error {
+func (q *FakeQuerier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
@@ -1959,6 +1959,16 @@ func (q *FakeQuerier) DeleteOrganizationMember(_ context.Context, arg database.D
 	if len(deleted) == 0 {
 		return sql.ErrNoRows
 	}
+
+	// Delete group member trigger
+	q.groupMembers = slices.DeleteFunc(q.groupMembers, func(member database.GroupMemberTable) bool {
+		if member.UserID != arg.UserID {
+			return false
+		}
+		g, _ := q.getGroupByIDNoLock(ctx, member.GroupID)
+		return g.OrganizationID == arg.OrganizationID
+	})
+
 	return nil
 }
 
