@@ -1,6 +1,7 @@
 import AddIcon from "@mui/icons-material/AddOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -10,7 +11,6 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 const mockOIDCConfig = {
 	allow_signups: true,

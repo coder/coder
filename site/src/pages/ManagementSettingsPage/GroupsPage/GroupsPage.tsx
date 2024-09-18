@@ -5,6 +5,7 @@ import { groupsByOrganization } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
@@ -17,7 +18,6 @@ import { Navigate, Link as RouterLink, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import GroupsPageView from "./GroupsPageView";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 export const GroupsPage: FC = () => {
 	const feats = useFeatureVisibility();

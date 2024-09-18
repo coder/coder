@@ -5,6 +5,7 @@ import { organizationPermissions } from "api/queries/organizations";
 import { deleteOrganizationRole, organizationRoles } from "api/queries/roles";
 import type { Role } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
@@ -17,7 +18,6 @@ import { Link as RouterLink, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import CustomRolesPageView from "./CustomRolesPageView";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 
 export const CustomRolesPage: FC = () => {
 	const queryClient = useQueryClient();
