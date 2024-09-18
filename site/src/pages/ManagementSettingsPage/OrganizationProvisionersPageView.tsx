@@ -1,7 +1,7 @@
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Button from "@mui/material/Button";
 import type { BuildInfoResponse, ProvisionerDaemon } from "api/typesGenerated";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
@@ -32,7 +32,9 @@ export const OrganizationProvisionersPageView: FC<
 			>
 				<SettingsHeader
 					title="Provisioners"
-					badges={<FeatureBadge type="beta" variant="interactive" size="lg" />}
+					badges={
+						<FeatureStageBadge type="beta" variant="interactive" size="lg" />
+					}
 				/>
 				<Button
 					endIcon={<OpenInNewIcon />}

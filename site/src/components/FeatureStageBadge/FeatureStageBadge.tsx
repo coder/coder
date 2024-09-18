@@ -16,7 +16,7 @@ import { docs } from "utils/docs";
  * All types of feature that we are currently supporting. Defined as record to
  * ensure that we can't accidentally make typos when writing the badge text.
  */
-const featureBadgeTypes = {
+const featureStageBadgeTypes = {
 	beta: "beta",
 	experimental: "experimental",
 } as const satisfies Record<string, ReactNode>;
@@ -84,15 +84,15 @@ const styles = {
 	},
 } as const satisfies Record<string, Interpolation<Theme>>;
 
-type FeatureBadgeProps = Readonly<
+type FeatureStageBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
-		type: keyof typeof featureBadgeTypes;
+		type: keyof typeof featureStageBadgeTypes;
 		size?: "xs" | "sm" | "lg";
 		variant: "interactive" | "static";
 	}
 >;
 
-export const FeatureBadge: FC<FeatureBadgeProps> = ({
+export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 	type,
 	size = "sm",
 	variant = "interactive",
@@ -117,7 +117,7 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 		return () => window.removeEventListener("blur", onWindowBlur);
 	}, []);
 
-	const featureType = featureBadgeTypes[type];
+	const featureType = featureStageBadgeTypes[type];
 	const showBadgeHoverStyle =
 		variant === "interactive" && (isBadgeHovering || isTooltipHovering);
 

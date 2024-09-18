@@ -1,16 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { FeatureBadge } from "./FeatureBadge";
+import { FeatureStageBadge } from "./FeatureStageBadge";
 
-const meta: Meta<typeof FeatureBadge> = {
-	title: "components/FeatureBadge",
-	component: FeatureBadge,
+const meta: Meta<typeof FeatureStageBadge> = {
+	title: "components/FeatureStageBadge",
+	component: FeatureStageBadge,
 	args: {
 		type: "beta",
 	},
 };
 
 export default meta;
-type Story = StoryObj<typeof FeatureBadge>;
+type Story = StoryObj<typeof FeatureStageBadge>;
 
 export const SmallInteractiveBeta: Story = {
 	args: {

@@ -5,7 +5,7 @@ import { organizationPermissions } from "api/queries/organizations";
 import { deleteOrganizationRole, organizationRoles } from "api/queries/roles";
 import type { Role } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
@@ -67,7 +67,9 @@ export const CustomRolesPage: FC = () => {
 				<SettingsHeader
 					title="Custom Roles"
 					description="Manage custom roles for this organization."
-					badges={<FeatureBadge type="beta" variant="interactive" size="lg" />}
+					badges={
+						<FeatureStageBadge type="beta" variant="interactive" size="lg" />
+					}
 				/>
 				{permissions.assignOrgRole && isCustomRolesEnabled && (
 					<Button component={RouterLink} startIcon={<AddIcon />} to="create">

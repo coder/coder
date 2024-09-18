@@ -17,7 +17,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	MoreMenu,
@@ -63,7 +63,9 @@ export const OrganizationMembersPageView: FC<
 		<div>
 			<SettingsHeader
 				title="Members"
-				badges={<FeatureBadge type="beta" size="lg" variant="interactive" />}
+				badges={
+					<FeatureStageBadge type="beta" size="lg" variant="interactive" />
+				}
 			/>
 
 			<Stack>

@@ -7,7 +7,7 @@ import type {
 	Experiments,
 	Organization,
 } from "api/typesGenerated";
-import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
@@ -203,7 +203,7 @@ const OrganizationsSettingsNavigation: FC<
 				}}
 			>
 				<h2 css={styles.sidebarHeader}>Organizations</h2>
-				<FeatureBadge type="beta" variant="interactive" size="sm" />
+				<FeatureStageBadge type="beta" variant="interactive" size="sm" />
 			</header>
 
 			{permissions.createOrganization && (
