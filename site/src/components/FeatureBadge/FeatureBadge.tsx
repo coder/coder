@@ -101,7 +101,9 @@ export const FeatureBadge: FC<FeatureBadgeProps> = ({
 	...delegatedProps
 }) => {
 	// Not a big fan of having two hover variables, but we need to make sure the
-	// badge maintains its hover styling while the mouse is inside the tooltip
+	// badge maintains its hover styling while the mouse is inside the tooltip.
+	// If we had one variable, we could have race conditions based on how events
+	// decide to bubble (especially with custom event handlers)
 	const [isBadgeHovering, setIsBadgeHovering] = useState(false);
 	const [isTooltipHovering, setIsTooltipHovering] = useState(false);
 
