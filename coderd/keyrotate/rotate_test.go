@@ -63,6 +63,9 @@ func TestRotator(t *testing.T) {
 			Sequence: 12345,
 		})
 
+		trap := clock.Trap().TickerFunc()
+		t.Cleanup(trap.Close)
+
 		err := keyrotate.StartRotator(ctx, logger, db, keyrotate.WithClock(clock))
 		require.NoError(t, err)
 
@@ -74,6 +77,7 @@ func TestRotator(t *testing.T) {
 		require.Len(t, dbkeys, initialKeyLen)
 		requireContainsAllFeatures(t, dbkeys)
 
+		trap.MustWait(ctx).Release()
 		_, wait := clock.AdvanceNext()
 		wait.MustWait(ctx)
 
