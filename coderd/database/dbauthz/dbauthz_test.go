@@ -2632,6 +2632,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("InsertWorkspaceAppStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAppStatsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("InsertWorkspaceAgentScriptTimings", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
+		check.Args(database.InsertWorkspaceAgentScriptTimingsParams{
+			JobID: j.ID,
+		}).Asserts( /* rbac.ResourceSystem, policy.ActionCreate */ )
+	}))
 	s.Run("InsertWorkspaceAgentScripts", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentScriptsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))

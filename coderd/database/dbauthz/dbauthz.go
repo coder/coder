@@ -3028,8 +3028,9 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 }
 
 func (q *querier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
-	// TODO: I have no idea what to add here.
-
+	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
 	return q.db.InsertWorkspaceAgentScriptTimings(ctx, arg)
 }
 
