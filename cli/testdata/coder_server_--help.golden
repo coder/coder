@@ -175,7 +175,7 @@ NETWORKING OPTIONS:
       --access-url url, $CODER_ACCESS_URL
           The URL that users will use to access the Coder deployment.
 
-      --docs-url url, $CODER_DOCS_URL
+      --docs-url url, $CODER_DOCS_URL (default: https://coder.com/docs)
           Specifies the custom docs URL.
 
       --proxy-trusted-headers string-array, $CODER_PROXY_TRUSTED_HEADERS

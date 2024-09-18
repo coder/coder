@@ -8890,6 +8890,9 @@ const docTemplate = `{
                 "application_name": {
                     "type": "string"
                 },
+                "docs_url": {
+                    "type": "string"
+                },
                 "logo_url": {
                     "type": "string"
                 },

@@ -27,6 +27,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 		}
 	],
 	"application_name": "string",
+	"docs_url": "string",
 	"logo_url": "string",
 	"service_banner": {
 		"background_color": "string",

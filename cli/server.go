@@ -628,7 +628,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 								"new version of coder available",
 								slog.F("new_version", r.Version),
 								slog.F("url", r.URL),
-								slog.F("upgrade_instructions", "https://coder.com/docs/admin/upgrade"),
+								slog.F("upgrade_instructions", fmt.Sprintf("%s/admin/upgrade", vals.DocsURL.String())),
 							)
 						}
 					},
@@ -854,7 +854,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer options.Telemetry.Close()
 			} else {
-				logger.Warn(ctx, `telemetry disabled, unable to notify of security issues. Read more: https://coder.com/docs/admin/telemetry`)
+				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/telemetry`, vals.DocsURL.String()))
 			}
 
 			// This prevents the pprof import from being accidentally deleted.

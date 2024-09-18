@@ -25,6 +25,7 @@ type AgentOptions struct {
 	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
 	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error)
 	Wait          bool // If true, wait for the agent to be ready (startup script).
+	DocsURL       string
 }
 
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
@@ -119,7 +120,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			if agent.Status == codersdk.WorkspaceAgentTimeout {
 				now := time.Now()
 				sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
-				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, "https://coder.com/docs/templates#agent-connection-issues"))
+				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, fmt.Sprintf("%s/templates#agent-connection-issues", opts.DocsURL)))
 				for agent.Status == codersdk.WorkspaceAgentTimeout {
 					if agent, err = fetch(); err != nil {
 						return xerrors.Errorf("fetch: %w", err)
@@ -224,13 +225,13 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script exited with an error and your workspace may be incomplete.")
-				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/templates/troubleshooting#startup-script-exited-with-an-error"))
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates#startup-script-exited-with-an-error", opts.DocsURL)))
 			default:
 				switch {
 				case agent.LifecycleState.Starting():
 					// Use zero time (omitted) to separate these from the startup logs.
 					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup scripts are still running and your workspace may be incomplete.")
-					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/templates/troubleshooting#your-workspace-may-be-incomplete"))
+					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates#your-workspace-may-be-incomplete", opts.DocsURL)))
 					// Note: We don't complete or fail the stage here, it's
 					// intentionally left open to indicate this stage didn't
 					// complete.
@@ -252,7 +253,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			stage := "The workspace agent lost connection"
 			sw.Start(stage)
 			sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
-			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/templates/troubleshooting#agent-connection-issues"))
+			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates#agent-connection-issues", opts.DocsURL)))
 
 			disconnectedAt := agent.DisconnectedAt
 			for agent.Status == codersdk.WorkspaceAgentDisconnected {
@@ -351,16 +352,16 @@ func PeerDiagnostics(w io.Writer, d tailnet.PeerDiagnostics) {
 }
 
 type ConnDiags struct {
-	ConnInfo        workspacesdk.AgentConnectionInfo
-	PingP2P         bool
-	DisableDirect   bool
-	LocalNetInfo    *tailcfg.NetInfo
-	LocalInterfaces *healthsdk.InterfacesReport
-	AgentNetcheck   *healthsdk.AgentNetcheckReport
-	ClientIPIsAWS   bool
-	AgentIPIsAWS    bool
-	Verbose         bool
-	// TODO: More diagnostics
+	ConnInfo           workspacesdk.AgentConnectionInfo
+	PingP2P            bool
+	DisableDirect      bool
+	LocalNetInfo       *tailcfg.NetInfo
+	LocalInterfaces    *healthsdk.InterfacesReport
+	AgentNetcheck      *healthsdk.AgentNetcheckReport
+	ClientIPIsAWS      bool
+	AgentIPIsAWS       bool
+	Verbose            bool
+	TroubleshootingURL string
 }
 
 func (d ConnDiags) Write(w io.Writer) {
@@ -395,7 +396,7 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 			agent = append(agent, msg.Message)
 		}
 		if len(d.AgentNetcheck.Interfaces.Warnings) > 0 {
-			agent[len(agent)-1] += "\nhttps://coder.com/docs/networking/troubleshooting#low-mtu"
+			agent[len(agent)-1] += fmt.Sprintf("\n%s#low-mtu", d.TroubleshootingURL)
 		}
 	}
 
@@ -404,7 +405,7 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 			client = append(client, msg.Message)
 		}
 		if len(d.LocalInterfaces.Warnings) > 0 {
-			client[len(client)-1] += "\nhttps://coder.com/docs/networking/troubleshooting#low-mtu"
+			client[len(client)-1] += fmt.Sprintf("\n%s#low-mtu", d.TroubleshootingURL)
 		}
 	}
 
@@ -420,45 +421,45 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 	}
 
 	if d.ConnInfo.DisableDirectConnections {
-		general = append(general, "❗ Your Coder administrator has blocked direct connections\n"+
-			"   https://coder.com/docs/networking/troubleshooting#disabled-deployment-wide")
+		general = append(general,
+			fmt.Sprintf("❗ Your Coder administrator has blocked direct connections\n   %s#disabled-deployment-wide", d.TroubleshootingURL))
 		if !d.Verbose {
 			return general, client, agent
 		}
 	}
 
 	if !d.ConnInfo.DERPMap.HasSTUN() {
-		general = append(general, "❗ The DERP map is not configured to use STUN\n"+
-			"   https://coder.com/docs/networking/troubleshooting#no-stun-servers")
+		general = append(general,
+			fmt.Sprintf("❗ The DERP map is not configured to use STUN\n   %s#no-stun-servers", d.TroubleshootingURL))
 	} else if d.LocalNetInfo != nil && !d.LocalNetInfo.UDP {
-		client = append(client, "Client could not connect to STUN over UDP\n"+
-			"   https://coder.com/docs/networking/troubleshooting#udp-blocked")
+		client = append(client,
+			fmt.Sprintf("Client could not connect to STUN over UDP\n   %s#udp-blocked", d.TroubleshootingURL))
 	}
 
 	if d.LocalNetInfo != nil && d.LocalNetInfo.MappingVariesByDestIP.EqualBool(true) {
-		client = append(client, "Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n"+
-			"   https://coder.com/docs/networking/troubleshooting#Endpoint-Dependent-Nat-Hard-NAT")
+		client = append(client,
+			fmt.Sprintf("Client is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n  %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 	}
 
 	if d.AgentNetcheck != nil && d.AgentNetcheck.NetInfo != nil {
 		if d.AgentNetcheck.NetInfo.MappingVariesByDestIP.EqualBool(true) {
-			agent = append(agent, "Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n"+
-				"   https://coder.com/docs/networking/troubleshooting#Endpoint-Dependent-Nat-Hard-NAT")
+			agent = append(agent,
+				fmt.Sprintf("Agent is potentially behind a hard NAT, as multiple endpoints were retrieved from different STUN servers\n   %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 		}
 		if !d.AgentNetcheck.NetInfo.UDP {
-			agent = append(agent, "Agent could not connect to STUN over UDP\n"+
-				"   https://coder.com/docs/networking/troubleshooting#udp-blocked")
+			agent = append(agent,
+				fmt.Sprintf("Agent could not connect to STUN over UDP\n   %s#udp-blocked", d.TroubleshootingURL))
 		}
 	}
 
 	if d.ClientIPIsAWS {
-		client = append(client, "Client IP address is within an AWS range (AWS uses hard NAT)\n"+
-			"   https://coder.com/docs/networking/troubleshooting#Endpoint-Dependent-Nat-Hard-NAT")
+		client = append(client,
+			fmt.Sprintf("Client IP address is within an AWS range (AWS uses hard NAT)\n   %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 	}
 
 	if d.AgentIPIsAWS {
-		agent = append(agent, "Agent IP address is within an AWS range (AWS uses hard NAT)\n"+
-			"   https://coder.com/docs/networking/troubleshooting#Endpoint-Dependent-Nat-Hard-NAT")
+		agent = append(agent,
+			fmt.Sprintf("Agent IP address is within an AWS range (AWS uses hard NAT)\n   %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 	}
 	return general, client, agent
 }

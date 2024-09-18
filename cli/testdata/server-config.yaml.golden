@@ -7,8 +7,8 @@ networking:
   # (default: <unset>, type: string)
   wildcardAccessURL: ""
   # Specifies the custom docs URL.
-  # (default: <unset>, type: url)
-  docsURL:
+  # (default: https://coder.com/docs, type: url)
+  docsURL: https://coder.com/docs
   # Specifies whether to redirect requests that do not match the access URL host.
   # (default: <unset>, type: bool)
   redirectToAccessURL: false
