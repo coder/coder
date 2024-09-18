@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -34,10 +35,11 @@ func TestExecuteBasic(t *testing.T) {
 		return fLogger
 	})
 	defer runner.Close()
+	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: uuid.New(),
 		Script:      "echo hello",
-	}})
+	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
 	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
 		return true
@@ -61,10 +63,11 @@ func TestEnv(t *testing.T) {
 			cmd.exe /c echo %CODER_SCRIPT_BIN_DIR%
 		`
 	}
+	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: id,
 		Script:      script,
-	}})
+	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -103,11 +106,12 @@ func TestTimeout(t *testing.T) {
 	t.Parallel()
 	runner := setup(t, nil)
 	defer runner.Close()
+	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: uuid.New(),
 		Script:      "sleep infinity",
 		Timeout:     time.Millisecond,
-	}})
+	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
 	require.ErrorIs(t, runner.Execute(context.Background(), nil), agentscripts.ErrTimeout)
 }

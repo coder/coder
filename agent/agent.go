@@ -582,11 +582,6 @@ func (a *agent) reportMetadata(ctx context.Context, conn drpc.Conn) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case timing := <-*a.scriptRunner.ScriptTimings():
-			_, err := aAPI.ScriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
-				Timing: timing.ToProto(),
-			})
-			return err
 		case mr := <-metadataResults:
 			// This can overwrite unsent values, but that's fine because
 			// we're only interested about up-to-date values.
@@ -946,7 +941,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
-			err = a.scriptRunner.Init(manifest.Scripts)
+			err = a.scriptRunner.Init(manifest.Scripts, aAPI.ScriptCompleted)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
 			}

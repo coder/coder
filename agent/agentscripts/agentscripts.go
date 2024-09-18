@@ -19,10 +19,12 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -66,7 +68,6 @@ func New(opts Options) *Runner {
 		cronCtxCancel: cronCtxCancel,
 		cron:          cron.New(cron.WithParser(parser)),
 		closed:        make(chan struct{}),
-		scriptTimings: make(chan TimingSpan),
 		dataDir:       filepath.Join(opts.DataDirBase, "coder-script-data"),
 		scriptsExecuted: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "agent",
@@ -76,28 +77,26 @@ func New(opts Options) *Runner {
 	}
 }
 
+type ScriptCompletedFunc func(context.Context, *proto.WorkspaceAgentScriptCompletedRequest) (*proto.WorkspaceAgentScriptCompletedResponse, error)
+
 type Runner struct {
 	Options
 
-	cronCtx       context.Context
-	cronCtxCancel context.CancelFunc
-	cmdCloseWait  sync.WaitGroup
-	closed        chan struct{}
-	closeMutex    sync.Mutex
-	cron          *cron.Cron
-	initialized   atomic.Bool
-	scripts       []codersdk.WorkspaceAgentScript
-	scriptTimings chan TimingSpan
-	dataDir       string
+	cronCtx         context.Context
+	cronCtxCancel   context.CancelFunc
+	cmdCloseWait    sync.WaitGroup
+	closed          chan struct{}
+	closeMutex      sync.Mutex
+	cron            *cron.Cron
+	initialized     atomic.Bool
+	scripts         []codersdk.WorkspaceAgentScript
+	dataDir         string
+	scriptCompleted ScriptCompletedFunc
 
 	// scriptsExecuted includes all scripts executed by the workspace agent. Agents
 	// execute startup scripts, and scripts on a cron schedule. Both will increment
 	// this counter.
 	scriptsExecuted *prometheus.CounterVec
-}
-
-func (r *Runner) ScriptTimings() *chan TimingSpan {
-	return &r.scriptTimings
 }
 
 // DataDir returns the directory where scripts data is stored.
@@ -122,12 +121,13 @@ func (r *Runner) RegisterMetrics(reg prometheus.Registerer) {
 // Init initializes the runner with the provided scripts.
 // It also schedules any scripts that have a schedule.
 // This function must be called before Execute.
-func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
+func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted ScriptCompletedFunc) error {
 	if r.initialized.Load() {
 		return xerrors.New("init: already initialized")
 	}
 	r.initialized.Store(true)
 	r.scripts = scripts
+	r.scriptCompleted = scriptCompleted
 	r.Logger.Info(r.cronCtx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
 
 	err := r.Filesystem.MkdirAll(r.ScriptBinDir(), 0o700)
@@ -321,12 +321,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 			logger.Info(ctx, fmt.Sprintf("%s script completed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
 		}
 
-		r.scriptTimings <- TimingSpan{
-			displayName: script.DisplayName,
-			start:       start,
-			end:         end,
-			exitCode:    int32(exitCode),
-		}
+		_, err = r.scriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
+			Timing: &proto.Timing{
+				DisplayName: script.DisplayName,
+				Start:       timestamppb.New(start),
+				End:         timestamppb.New(end),
+				ExitCode:    int32(exitCode),
+			},
+		})
 	}()
 
 	err = cmd.Start()
