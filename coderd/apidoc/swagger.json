@@ -2773,7 +2773,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/idpsync.GroupSyncSettings"
+							"$ref": "#/definitions/codersdk.GroupSyncSettings"
 						}
 					}
 				}
@@ -2802,7 +2802,67 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/idpsync.GroupSyncSettings"
+							"$ref": "#/definitions/codersdk.GroupSyncSettings"
+						}
+					}
+				}
+			}
+		},
+		"/organizations/{organization}/settings/idpsync/roles": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get role IdP Sync settings by organization",
+				"operationId": "get-role-idp-sync-settings-by-organization",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.RoleSyncSettings"
+						}
+					}
+				}
+			},
+			"patch": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Update role IdP Sync settings by organization",
+				"operationId": "update-role-idp-sync-settings-by-organization",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.RoleSyncSettings"
 						}
 					}
 				}
@@ -7820,6 +7880,9 @@
 				"application_name": {
 					"type": "string"
 				},
+				"docs_url": {
+					"type": "string"
+				},
 				"logo_url": {
 					"type": "string"
 				},
@@ -9445,6 +9508,44 @@
 			"enum": ["user", "oidc"],
 			"x-enum-varnames": ["GroupSourceUser", "GroupSourceOIDC"]
 		},
+		"codersdk.GroupSyncSettings": {
+			"type": "object",
+			"properties": {
+				"auto_create_missing_groups": {
+					"description": "AutoCreateMissing controls whether groups returned by the OIDC provider\nare automatically created in Coder if they are missing.",
+					"type": "boolean"
+				},
+				"field": {
+					"description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+					"type": "string"
+				},
+				"legacy_group_name_mapping": {
+					"description": "LegacyNameMapping is deprecated. It remaps an IDP group name to\na Coder group name. Since configuration is now done at runtime,\ngroup IDs are used to account for group renames.\nFor legacy configurations, this config option has to remain.\nDeprecated: Use Mapping instead.",
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"mapping": {
+					"description": "Mapping maps from an OIDC group --\u003e Coder group ID",
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				},
+				"regex_filter": {
+					"description": "RegexFilter is a regular expression that filters the groups returned by\nthe OIDC provider. Any group not matched by this regex will be ignored.\nIf the group filter is nil, then no group filtering will occur.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/regexp.Regexp"
+						}
+					]
+				}
+			}
+		},
 		"codersdk.Healthcheck": {
 			"type": "object",
 			"properties": {
@@ -10761,6 +10862,7 @@
 				"assign_org_role",
 				"assign_role",
 				"audit_log",
+				"crypto_key",
 				"debug_info",
 				"deployment_config",
 				"deployment_stats",
@@ -10793,6 +10895,7 @@
 				"ResourceAssignOrgRole",
 				"ResourceAssignRole",
 				"ResourceAuditLog",
+				"ResourceCryptoKey",
 				"ResourceDebugInfo",
 				"ResourceDeploymentConfig",
 				"ResourceDeploymentStats",
@@ -11070,6 +11173,25 @@
 				}
 			}
 		},
+		"codersdk.RoleSyncSettings": {
+			"type": "object",
+			"properties": {
+				"field": {
+					"description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+					"type": "string"
+				},
+				"mapping": {
+					"description": "Mapping maps from an OIDC group --\u003e Coder organization role",
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
+			}
+		},
 		"codersdk.SSHConfig": {
 			"type": "object",
 			"properties": {
@@ -11121,7 +11243,10 @@
 			"type": "object",
 			"properties": {
 				"default_duration": {
-					"description": "DefaultDuration is for api keys, not tokens.",
+					"description": "DefaultDuration is only for browser, workspace app and oauth sessions.",
+					"type": "integer"
+				},
+				"default_token_lifetime": {
 					"type": "integer"
 				},
 				"disable_expiry_refresh": {
@@ -13903,44 +14028,6 @@
 				},
 				"workspace_proxies": {
 					"$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
-				}
-			}
-		},
-		"idpsync.GroupSyncSettings": {
-			"type": "object",
-			"properties": {
-				"auto_create_missing_groups": {
-					"description": "AutoCreateMissing controls whether groups returned by the OIDC provider\nare automatically created in Coder if they are missing.",
-					"type": "boolean"
-				},
-				"field": {
-					"description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
-					"type": "string"
-				},
-				"legacy_group_name_mapping": {
-					"description": "LegacyNameMapping is deprecated. It remaps an IDP group name to\na Coder group name. Since configuration is now done at runtime,\ngroup IDs are used to account for group renames.\nFor legacy configurations, this config option has to remain.\nDeprecated: Use Mapping instead.",
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					}
-				},
-				"mapping": {
-					"description": "Mapping maps from an OIDC group --\u003e Coder group ID",
-					"type": "object",
-					"additionalProperties": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						}
-					}
-				},
-				"regex_filter": {
-					"description": "RegexFilter is a regular expression that filters the groups returned by\nthe OIDC provider. Any group not matched by this regex will be ignored.\nIf the group filter is nil, then no group filtering will occur.",
-					"allOf": [
-						{
-							"$ref": "#/definitions/regexp.Regexp"
-						}
-					]
 				}
 			}
 		},

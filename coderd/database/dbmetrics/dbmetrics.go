@@ -214,6 +214,13 @@ func (m metricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	return r0
 }
 
+func (m metricsStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteCryptoKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteCryptoKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) DeleteCustomRole(ctx context.Context, arg database.DeleteCustomRoleParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteCustomRole(ctx, arg)
@@ -543,6 +550,20 @@ func (m metricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (
 	return r0, r1
 }
 
+func (m metricsStore) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCryptoKeyByFeatureAndSequence(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetCryptoKeyByFeatureAndSequence").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCryptoKeys(ctx)
+	m.queryLatencies.WithLabelValues("GetCryptoKeys").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDBCryptKeys(ctx)
@@ -610,6 +631,13 @@ func (m metricsStore) GetExternalAuthLinksByUserID(ctx context.Context, userID u
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAuthLinksByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetExternalAuthLinksByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFailedWorkspaceBuildsByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFailedWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -711,6 +739,13 @@ func (m metricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return version, err
 }
 
+func (m metricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
+	m.queryLatencies.WithLabelValues("GetLatestCryptoKeyByFeature").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	start := time.Now()
 	build, err := m.s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
@@ -757,6 +792,13 @@ func (m metricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg d
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetNotificationMessagesByStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByTemplate").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1446,6 +1488,13 @@ func (m metricsStore) GetWorkspaceBuildParameters(ctx context.Context, workspace
 	return params, err
 }
 
+func (m metricsStore) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildStatsByTemplates(ctx, since)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildStatsByTemplates").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
 	start := time.Now()
 	builds, err := m.s.GetWorkspaceBuildsByWorkspaceID(ctx, arg)
@@ -1598,6 +1647,13 @@ func (m metricsStore) InsertAuditLog(ctx context.Context, arg database.InsertAud
 	log, err := m.s.InsertAuditLog(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAuditLog").Observe(time.Since(start).Seconds())
 	return log, err
+}
+
+func (m metricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
+	start := time.Now()
+	key, err := m.s.InsertCryptoKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCryptoKey").Observe(time.Since(start).Seconds())
+	return key, err
 }
 
 func (m metricsStore) InsertCustomRole(ctx context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
@@ -2004,6 +2060,13 @@ func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateA
 	err := m.s.UpdateAPIKeyByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m metricsStore) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
+	start := time.Now()
+	key, err := m.s.UpdateCryptoKeyDeletesAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateCryptoKeyDeletesAt").Observe(time.Since(start).Seconds())
+	return key, err
 }
 
 func (m metricsStore) UpdateCustomRole(ctx context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
@@ -2472,6 +2535,13 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertLogoURL(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertNotificationReportGeneratorLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertNotificationReportGeneratorLog").Observe(time.Since(start).Seconds())
 	return r0
 }
 

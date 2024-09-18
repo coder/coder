@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"sync"
+	"text/template"
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -36,13 +37,14 @@ type notifier struct {
 
 	handlers map[database.NotificationMethod]Handler
 	metrics  *Metrics
+	helpers  template.FuncMap
 
 	// clock is for testing
 	clock quartz.Clock
 }
 
 func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store,
-	hr map[database.NotificationMethod]Handler, metrics *Metrics, clock quartz.Clock,
+	hr map[database.NotificationMethod]Handler, helpers template.FuncMap, metrics *Metrics, clock quartz.Clock,
 ) *notifier {
 	tick := clock.NewTicker(cfg.FetchInterval.Value(), "notifier", "fetchInterval")
 	return &notifier{
@@ -54,6 +56,7 @@ func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger
 		tick:     tick,
 		store:    db,
 		handlers: hr,
+		helpers:  helpers,
 		metrics:  metrics,
 		clock:    clock,
 	}
@@ -221,10 +224,10 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	}
 
 	var title, body string
-	if title, err = render.GoTemplate(msg.TitleTemplate, payload, nil); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, payload, n.helpers); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, payload, nil); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, payload, n.helpers); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 

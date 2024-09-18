@@ -36,6 +36,12 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE crypto_key_feature AS ENUM (
+    'workspace_apps',
+    'oidc_convert',
+    'tailnet_resume'
+);
+
 CREATE TYPE display_app AS ENUM (
     'vscode',
     'vscode_insiders',
@@ -280,6 +286,25 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION delete_group_members_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+	-- Remove the user from all groups associated with the same
+	-- organization as the organization_member being deleted.
+	DELETE FROM group_members
+	WHERE
+		user_id = OLD.user_id
+		AND group_id IN (
+			SELECT id
+			FROM groups
+			WHERE organization_id = OLD.organization_id
+		);
+	RETURN OLD;
+END;
+$$;
+
 CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -492,6 +517,15 @@ CREATE TABLE audit_logs (
     additional_fields jsonb NOT NULL,
     request_id uuid NOT NULL,
     resource_icon text NOT NULL
+);
+
+CREATE TABLE crypto_keys (
+    feature crypto_key_feature NOT NULL,
+    sequence integer NOT NULL,
+    secret text,
+    secret_key_id text,
+    starts_at timestamp with time zone NOT NULL,
+    deletes_at timestamp with time zone
 );
 
 CREATE TABLE custom_roles (
@@ -716,6 +750,13 @@ CREATE TABLE notification_preferences (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+CREATE TABLE notification_report_generator_logs (
+    notification_template_id uuid NOT NULL,
+    last_generated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE notification_report_generator_logs IS 'Log of generated reports for users.';
 
 CREATE TABLE notification_templates (
     id uuid NOT NULL,
@@ -1641,6 +1682,9 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY crypto_keys
+    ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
+
 ALTER TABLE ONLY custom_roles
     ADD CONSTRAINT custom_roles_unique_key UNIQUE (name, organization_id);
 
@@ -1688,6 +1732,9 @@ ALTER TABLE ONLY notification_messages
 
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
+
+ALTER TABLE ONLY notification_report_generator_logs
+    ADD CONSTRAINT notification_report_generator_logs_pkey PRIMARY KEY (notification_template_id);
 
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
@@ -2023,6 +2070,8 @@ CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON ta
 
 CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
 
+CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
+
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
@@ -2035,6 +2084,9 @@ CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE O
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY crypto_keys
+    ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);

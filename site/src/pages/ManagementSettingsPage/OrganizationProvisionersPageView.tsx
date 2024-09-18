@@ -1,20 +1,28 @@
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Button from "@mui/material/Button";
-import type { ProvisionerDaemon } from "api/typesGenerated";
+import type { BuildInfoResponse, ProvisionerDaemon } from "api/typesGenerated";
 import { FeatureBadge } from "components/FeatureBadge/FeatureBadge";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
-import { Provisioner } from "modules/provisioners/Provisioner";
+import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
+export interface ProvisionersByGroup {
+	builtin: ProvisionerDaemon[];
+	psk: ProvisionerDaemon[];
+	userAuth: ProvisionerDaemon[];
+	keys: Map<string, ProvisionerDaemon[]>;
+}
+
 interface OrganizationProvisionersPageViewProps {
-	provisioners: ProvisionerDaemon[];
+	buildInfo?: BuildInfoResponse;
+	provisioners: ProvisionersByGroup;
 }
 
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
-> = ({ provisioners }) => {
+> = ({ buildInfo, provisioners }) => {
 	return (
 		<div>
 			<Stack
@@ -36,8 +44,28 @@ export const OrganizationProvisionersPageView: FC<
 			</Stack>
 
 			<Stack spacing={4.5}>
-				{provisioners.map((provisioner) => (
-					<Provisioner key={provisioner.id} provisioner={provisioner} />
+				{provisioners.builtin.length > 0 && (
+					<ProvisionerGroup
+						buildInfo={buildInfo}
+						type="builtin"
+						provisioners={provisioners.builtin}
+					/>
+				)}
+				{provisioners.psk.length > 0 && (
+					<ProvisionerGroup
+						buildInfo={buildInfo}
+						type="psk"
+						provisioners={provisioners.psk}
+					/>
+				)}
+				{[...provisioners.keys].map(([keyId, provisioners]) => (
+					<ProvisionerGroup
+						key={keyId}
+						buildInfo={buildInfo}
+						keyName={keyId}
+						type="key"
+						provisioners={provisioners}
+					/>
 				))}
 			</Stack>
 		</div>

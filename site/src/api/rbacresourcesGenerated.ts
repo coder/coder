@@ -32,6 +32,12 @@ export const RBACResourceActions: Partial<
     create: "create new audit log entries",
     read: "read audit logs",
   },
+  crypto_key: {
+    create: "create crypto keys",
+    delete: "delete crypto keys",
+    read: "read crypto keys",
+    update: "update crypto keys",
+  },
   debug_info: {
     read: "access to debug routes",
   },

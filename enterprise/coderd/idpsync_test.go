@@ -170,3 +170,122 @@ func TestPostGroupSyncConfig(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
 }
+
+func TestGetRoleSyncConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentCustomRoles),
+			string(codersdk.ExperimentMultiOrganization),
+		}
+
+		owner, _, _, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		settings, err := orgAdmin.PatchRoleIDPSyncSettings(ctx, user.OrganizationID.String(), codersdk.RoleSyncSettings{
+			Field: "august",
+			Mapping: map[string][]string{
+				"foo": {"bar"},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "august", settings.Field)
+		require.Equal(t, map[string][]string{"foo": {"bar"}}, settings.Mapping)
+
+		settings, err = orgAdmin.RoleIDPSyncSettings(ctx, user.OrganizationID.String())
+		require.NoError(t, err)
+		require.Equal(t, "august", settings.Field)
+		require.Equal(t, map[string][]string{"foo": {"bar"}}, settings.Mapping)
+	})
+}
+
+func TestPostRoleSyncConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentCustomRoles),
+			string(codersdk.ExperimentMultiOrganization),
+		}
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
+
+		// Test as org admin
+		ctx := testutil.Context(t, testutil.WaitShort)
+		settings, err := orgAdmin.PatchRoleIDPSyncSettings(ctx, user.OrganizationID.String(), codersdk.RoleSyncSettings{
+			Field: "august",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "august", settings.Field)
+
+		fetchedSettings, err := orgAdmin.RoleIDPSyncSettings(ctx, user.OrganizationID.String())
+		require.NoError(t, err)
+		require.Equal(t, "august", fetchedSettings.Field)
+	})
+
+	t.Run("NotAuthorized", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentCustomRoles),
+			string(codersdk.ExperimentMultiOrganization),
+		}
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		member, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := member.PatchRoleIDPSyncSettings(ctx, user.OrganizationID.String(), codersdk.RoleSyncSettings{
+			Field: "august",
+		})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+
+		_, err = member.RoleIDPSyncSettings(ctx, user.OrganizationID.String())
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+	})
+}

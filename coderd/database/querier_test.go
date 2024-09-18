@@ -1216,6 +1216,103 @@ func TestExpectOne(t *testing.T) {
 	})
 }
 
+func TestGroupRemovalTrigger(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	orgA := dbgen.Organization(t, db, database.Organization{})
+	_, err := db.InsertAllUsersGroup(context.Background(), orgA.ID)
+	require.NoError(t, err)
+
+	orgB := dbgen.Organization(t, db, database.Organization{})
+	_, err = db.InsertAllUsersGroup(context.Background(), orgB.ID)
+	require.NoError(t, err)
+
+	orgs := []database.Organization{orgA, orgB}
+
+	user := dbgen.User(t, db, database.User{})
+	extra := dbgen.User(t, db, database.User{})
+	users := []database.User{user, extra}
+
+	groupA1 := dbgen.Group(t, db, database.Group{
+		OrganizationID: orgA.ID,
+	})
+	groupA2 := dbgen.Group(t, db, database.Group{
+		OrganizationID: orgA.ID,
+	})
+
+	groupB1 := dbgen.Group(t, db, database.Group{
+		OrganizationID: orgB.ID,
+	})
+	groupB2 := dbgen.Group(t, db, database.Group{
+		OrganizationID: orgB.ID,
+	})
+
+	groups := []database.Group{groupA1, groupA2, groupB1, groupB2}
+
+	// Add users to all organizations
+	for _, u := range users {
+		for _, o := range orgs {
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				OrganizationID: o.ID,
+				UserID:         u.ID,
+			})
+		}
+	}
+
+	// Add users to all groups
+	for _, u := range users {
+		for _, g := range groups {
+			dbgen.GroupMember(t, db, database.GroupMemberTable{
+				GroupID: g.ID,
+				UserID:  u.ID,
+			})
+		}
+	}
+
+	// Verify user is in all groups
+	ctx := testutil.Context(t, testutil.WaitLong)
+	onlyGroupIDs := func(row database.GetGroupsRow) uuid.UUID {
+		return row.Group.ID
+	}
+	userGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
+		HasMemberID: user.ID,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{
+		orgA.ID, orgB.ID, // Everyone groups
+		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
+	}, db2sdk.List(userGroups, onlyGroupIDs))
+
+	// Remove the user from org A
+	err = db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+		OrganizationID: orgA.ID,
+		UserID:         user.ID,
+	})
+	require.NoError(t, err)
+
+	// Verify user is no longer in org A groups
+	userGroups, err = db.GetGroups(ctx, database.GetGroupsParams{
+		HasMemberID: user.ID,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{
+		orgB.ID,                // Everyone group
+		groupB1.ID, groupB2.ID, // Org groups
+	}, db2sdk.List(userGroups, onlyGroupIDs))
+
+	// Verify extra user is unchanged
+	extraUserGroups, err := db.GetGroups(ctx, database.GetGroupsParams{
+		HasMemberID: extra.ID,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{
+		orgA.ID, orgB.ID, // Everyone groups
+		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
+	}, db2sdk.List(extraUserGroups, onlyGroupIDs))
+}
+
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
