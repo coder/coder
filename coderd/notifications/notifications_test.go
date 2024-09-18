@@ -882,7 +882,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 						},
 						{
 							"template_version_name": "bobby-template-version-2",
-							"failed_count":          1,
+							"failed_count":          1.0,
 							"failed_builds": []map[string]any{
 								{
 									"workspace_owner_username": "ben",
