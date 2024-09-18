@@ -26,6 +26,11 @@ OPTIONS:
           systemd. This directory is NOT safe to be configured as a shared
           directory across coderd/provisionerd replicas.
 
+      --default-token-lifetime duration, $CODER_DEFAULT_TOKEN_LIFETIME (default: 168h0m0s)
+          The default lifetime duration for API tokens. This value is used when
+          creating a token without specifying a duration, such as when
+          authenticating the CLI or an IDE plugin.
+
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution
           on all workspaces. This prevents the 'owner' from ssh, apps, and

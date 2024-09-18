@@ -1958,7 +1958,7 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 		UserID:          user.ID,
 		LoginType:       user.LoginType,
 		TokenName:       workspaceSessionTokenName(workspace),
-		DefaultLifetime: s.DeploymentValues.Sessions.DefaultDuration.Value(),
+		DefaultLifetime: s.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LifetimeSeconds: int64(s.DeploymentValues.Sessions.MaximumTokenDuration.Value().Seconds()),
 	})
 	if err != nil {

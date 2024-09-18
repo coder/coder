@@ -12416,7 +12416,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default_duration": {
-                    "description": "DefaultDuration is for api keys, not tokens.",
+                    "description": "DefaultDuration is only for browser, workspace app and oauth sessions.",
+                    "type": "integer"
+                },
+                "default_token_lifetime": {
                     "type": "integer"
                 },
                 "disable_expiry_refresh": {

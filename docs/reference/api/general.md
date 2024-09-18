@@ -396,6 +396,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 		"secure_auth_cookie": true,
 		"session_lifetime": {
 			"default_duration": 0,
+			"default_token_lifetime": 0,
 			"disable_expiry_refresh": true,
 			"max_token_lifetime": 0
 		},

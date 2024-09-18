@@ -423,6 +423,11 @@ experiments: []
 # performed once per day.
 # (default: false, type: bool)
 updateCheck: false
+# The default lifetime duration for API tokens. This value is used when creating a
+# token without specifying a duration, such as when authenticating the CLI or an
+# IDE plugin.
+# (default: 168h0m0s, type: duration)
+defaultTokenLifetime: 168h0m0s
 # Expose the swagger endpoint via /swagger.
 # (default: <unset>, type: bool)
 enableSwagger: false
