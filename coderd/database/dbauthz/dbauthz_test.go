@@ -2819,6 +2819,28 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Value: "value",
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("GetFailedWorkspaceBuildsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetFailedWorkspaceBuildsByTemplateIDParams{
+			TemplateID: uuid.New(),
+			Since:      dbtime.Now(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetNotificationReportGeneratorLogByTemplate", s.Subtest(func(db database.Store, check *expects) {
+		_ = db.UpsertNotificationReportGeneratorLog(context.Background(), database.UpsertNotificationReportGeneratorLogParams{
+			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+			LastGeneratedAt:        dbtime.Now(),
+		})
+		check.Args(notifications.TemplateWorkspaceBuildsFailedReport).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceBuildStatsByTemplates", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpsertNotificationReportGeneratorLog", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertNotificationReportGeneratorLogParams{
+			NotificationTemplateID: uuid.New(),
+			LastGeneratedAt:        dbtime.Now(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {

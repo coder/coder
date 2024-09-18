@@ -751,6 +751,13 @@ CREATE TABLE notification_preferences (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE notification_report_generator_logs (
+    notification_template_id uuid NOT NULL,
+    last_generated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE notification_report_generator_logs IS 'Log of generated reports for users.';
+
 CREATE TABLE notification_templates (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -1725,6 +1732,9 @@ ALTER TABLE ONLY notification_messages
 
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
+
+ALTER TABLE ONLY notification_report_generator_logs
+    ADD CONSTRAINT notification_report_generator_logs_pkey PRIMARY KEY (notification_template_id);
 
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);

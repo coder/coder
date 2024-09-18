@@ -187,53 +187,54 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	workspaceAgentStats           []database.WorkspaceAgentStat
-	auditLogs                     []database.AuditLog
-	cryptoKeys                    []database.CryptoKey
-	dbcryptKeys                   []database.DBCryptKey
-	files                         []database.File
-	externalAuthLinks             []database.ExternalAuthLink
-	gitSSHKey                     []database.GitSSHKey
-	groupMembers                  []database.GroupMemberTable
-	groups                        []database.Group
-	jfrogXRayScans                []database.JfrogXrayScan
-	licenses                      []database.License
-	notificationMessages          []database.NotificationMessage
-	notificationPreferences       []database.NotificationPreference
-	oauth2ProviderApps            []database.OAuth2ProviderApp
-	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
-	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
-	oauth2ProviderAppTokens       []database.OAuth2ProviderAppToken
-	parameterSchemas              []database.ParameterSchema
-	provisionerDaemons            []database.ProvisionerDaemon
-	provisionerJobLogs            []database.ProvisionerJobLog
-	provisionerJobs               []database.ProvisionerJob
-	provisionerKeys               []database.ProvisionerKey
-	replicas                      []database.Replica
-	templateVersions              []database.TemplateVersionTable
-	templateVersionParameters     []database.TemplateVersionParameter
-	templateVersionVariables      []database.TemplateVersionVariable
-	templateVersionWorkspaceTags  []database.TemplateVersionWorkspaceTag
-	templates                     []database.TemplateTable
-	templateUsageStats            []database.TemplateUsageStat
-	workspaceAgents               []database.WorkspaceAgent
-	workspaceAgentMetadata        []database.WorkspaceAgentMetadatum
-	workspaceAgentLogs            []database.WorkspaceAgentLog
-	workspaceAgentLogSources      []database.WorkspaceAgentLogSource
-	workspaceAgentScripts         []database.WorkspaceAgentScript
-	workspaceAgentPortShares      []database.WorkspaceAgentPortShare
-	workspaceApps                 []database.WorkspaceApp
-	workspaceAppStatsLastInsertID int64
-	workspaceAppStats             []database.WorkspaceAppStat
-	workspaceBuilds               []database.WorkspaceBuild
-	workspaceBuildParameters      []database.WorkspaceBuildParameter
-	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
-	workspaceResources            []database.WorkspaceResource
-	workspaces                    []database.Workspace
-	workspaceProxies              []database.WorkspaceProxy
-	customRoles                   []database.CustomRole
-	provisionerJobTimings         []database.ProvisionerJobTiming
-	runtimeConfig                 map[string]string
+	auditLogs                       []database.AuditLog
+	cryptoKeys                      []database.CryptoKey
+	dbcryptKeys                     []database.DBCryptKey
+	files                           []database.File
+	externalAuthLinks               []database.ExternalAuthLink
+	gitSSHKey                       []database.GitSSHKey
+	groupMembers                    []database.GroupMemberTable
+	groups                          []database.Group
+	jfrogXRayScans                  []database.JfrogXrayScan
+	licenses                        []database.License
+	notificationMessages            []database.NotificationMessage
+	notificationPreferences         []database.NotificationPreference
+	notificationReportGeneratorLogs []database.NotificationReportGeneratorLog
+	oauth2ProviderApps              []database.OAuth2ProviderApp
+	oauth2ProviderAppSecrets        []database.OAuth2ProviderAppSecret
+	oauth2ProviderAppCodes          []database.OAuth2ProviderAppCode
+	oauth2ProviderAppTokens         []database.OAuth2ProviderAppToken
+	parameterSchemas                []database.ParameterSchema
+	provisionerDaemons              []database.ProvisionerDaemon
+	provisionerJobLogs              []database.ProvisionerJobLog
+	provisionerJobs                 []database.ProvisionerJob
+	provisionerKeys                 []database.ProvisionerKey
+	replicas                        []database.Replica
+	templateVersions                []database.TemplateVersionTable
+	templateVersionParameters       []database.TemplateVersionParameter
+	templateVersionVariables        []database.TemplateVersionVariable
+	templateVersionWorkspaceTags    []database.TemplateVersionWorkspaceTag
+	templates                       []database.TemplateTable
+	templateUsageStats              []database.TemplateUsageStat
+	workspaceAgents                 []database.WorkspaceAgent
+	workspaceAgentMetadata          []database.WorkspaceAgentMetadatum
+	workspaceAgentLogs              []database.WorkspaceAgentLog
+	workspaceAgentLogSources        []database.WorkspaceAgentLogSource
+	workspaceAgentPortShares        []database.WorkspaceAgentPortShare
+	workspaceAgentScripts           []database.WorkspaceAgentScript
+	workspaceAgentStats             []database.WorkspaceAgentStat
+	workspaceApps                   []database.WorkspaceApp
+	workspaceAppStatsLastInsertID   int64
+	workspaceAppStats               []database.WorkspaceAppStat
+	workspaceBuilds                 []database.WorkspaceBuild
+	workspaceBuildParameters        []database.WorkspaceBuildParameter
+	workspaceResourceMetadata       []database.WorkspaceResourceMetadatum
+	workspaceResources              []database.WorkspaceResource
+	workspaces                      []database.Workspace
+	workspaceProxies                []database.WorkspaceProxy
+	customRoles                     []database.CustomRole
+	provisionerJobTimings           []database.ProvisionerJobTiming
+	runtimeConfig                   map[string]string
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                            map[int64]struct{}
@@ -2621,6 +2622,75 @@ func (q *FakeQuerier) GetExternalAuthLinksByUserID(_ context.Context, userID uui
 	return gals, nil
 }
 
+func (q *FakeQuerier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaceBuildStats := []database.GetFailedWorkspaceBuildsByTemplateIDRow{}
+	for _, wb := range q.workspaceBuilds {
+		job, err := q.getProvisionerJobByIDNoLock(ctx, wb.JobID)
+		if err != nil {
+			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
+		}
+
+		if job.JobStatus != database.ProvisionerJobStatusFailed {
+			continue
+		}
+
+		if !job.CompletedAt.Valid {
+			continue
+		}
+
+		if wb.CreatedAt.Before(arg.Since) {
+			continue
+		}
+
+		w, err := q.getWorkspaceByIDNoLock(ctx, wb.WorkspaceID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by ID: %w", err)
+		}
+
+		t, err := q.getTemplateByIDNoLock(ctx, w.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template by ID: %w", err)
+		}
+
+		if t.ID != arg.TemplateID {
+			continue
+		}
+
+		workspaceOwner, err := q.getUserByIDNoLock(w.OwnerID)
+		if err != nil {
+			return nil, xerrors.Errorf("get user by ID: %w", err)
+		}
+
+		templateVersion, err := q.getTemplateVersionByIDNoLock(ctx, wb.TemplateVersionID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template version by ID: %w", err)
+		}
+
+		workspaceBuildStats = append(workspaceBuildStats, database.GetFailedWorkspaceBuildsByTemplateIDRow{
+			WorkspaceName:          w.Name,
+			WorkspaceOwnerUsername: workspaceOwner.Username,
+			TemplateVersionName:    templateVersion.Name,
+			WorkspaceBuildNumber:   wb.BuildNumber,
+		})
+	}
+
+	sort.Slice(workspaceBuildStats, func(i, j int) bool {
+		if workspaceBuildStats[i].TemplateVersionName != workspaceBuildStats[j].TemplateVersionName {
+			return workspaceBuildStats[i].TemplateVersionName < workspaceBuildStats[j].TemplateVersionName
+		}
+		return workspaceBuildStats[i].WorkspaceBuildNumber > workspaceBuildStats[j].WorkspaceBuildNumber
+	})
+	return workspaceBuildStats, nil
+}
+
 func (q *FakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.File{}, err
@@ -3042,6 +3112,23 @@ func (q *FakeQuerier) GetNotificationMessagesByStatus(_ context.Context, arg dat
 	}
 
 	return out, nil
+}
+
+func (q *FakeQuerier) GetNotificationReportGeneratorLogByTemplate(_ context.Context, templateID uuid.UUID) (database.NotificationReportGeneratorLog, error) {
+	err := validateDatabaseType(templateID)
+	if err != nil {
+		return database.NotificationReportGeneratorLog{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, record := range q.notificationReportGeneratorLogs {
+		if record.NotificationTemplateID == templateID {
+			return record, nil
+		}
+	}
+	return database.NotificationReportGeneratorLog{}, sql.ErrNoRows
 }
 
 func (*FakeQuerier) GetNotificationTemplateByID(_ context.Context, _ uuid.UUID) (database.NotificationTemplate, error) {
@@ -5962,6 +6049,63 @@ func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 		params = append(params, param)
 	}
 	return params, nil
+}
+
+func (q *FakeQuerier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	templateStats := map[uuid.UUID]database.GetWorkspaceBuildStatsByTemplatesRow{}
+	for _, wb := range q.workspaceBuilds {
+		job, err := q.getProvisionerJobByIDNoLock(ctx, wb.JobID)
+		if err != nil {
+			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
+		}
+
+		if !job.CompletedAt.Valid {
+			continue
+		}
+
+		if wb.CreatedAt.Before(since) {
+			continue
+		}
+
+		w, err := q.getWorkspaceByIDNoLock(ctx, wb.WorkspaceID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by ID: %w", err)
+		}
+
+		if _, ok := templateStats[w.TemplateID]; !ok {
+			t, err := q.getTemplateByIDNoLock(ctx, w.TemplateID)
+			if err != nil {
+				return nil, xerrors.Errorf("get template by ID: %w", err)
+			}
+
+			templateStats[w.TemplateID] = database.GetWorkspaceBuildStatsByTemplatesRow{
+				TemplateID:             w.TemplateID,
+				TemplateName:           t.Name,
+				TemplateDisplayName:    t.DisplayName,
+				TemplateOrganizationID: w.OrganizationID,
+			}
+		}
+
+		s := templateStats[w.TemplateID]
+		s.TotalBuilds++
+		if job.JobStatus == database.ProvisionerJobStatusFailed {
+			s.FailedBuilds++
+		}
+		templateStats[w.TemplateID] = s
+	}
+
+	rows := make([]database.GetWorkspaceBuildStatsByTemplatesRow, 0, len(templateStats))
+	for _, ts := range templateStats {
+		rows = append(rows, ts)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].TemplateName < rows[j].TemplateName
+	})
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
@@ -9437,6 +9581,26 @@ func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	defer q.mutex.Unlock()
 
 	q.logoURL = data
+	return nil
+}
+
+func (q *FakeQuerier) UpsertNotificationReportGeneratorLog(_ context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, record := range q.notificationReportGeneratorLogs {
+		if arg.NotificationTemplateID == record.NotificationTemplateID {
+			q.notificationReportGeneratorLogs[i].LastGeneratedAt = arg.LastGeneratedAt
+			return nil
+		}
+	}
+
+	q.notificationReportGeneratorLogs = append(q.notificationReportGeneratorLogs, database.NotificationReportGeneratorLog(arg))
 	return nil
 }
 

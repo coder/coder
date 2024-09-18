@@ -1253,6 +1253,21 @@ func (mr *MockStoreMockRecorder) GetExternalAuthLinksByUserID(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAuthLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetExternalAuthLinksByUserID), arg0, arg1)
 }
 
+// GetFailedWorkspaceBuildsByTemplateID mocks base method.
+func (m *MockStore) GetFailedWorkspaceBuildsByTemplateID(arg0 context.Context, arg1 database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFailedWorkspaceBuildsByTemplateID", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetFailedWorkspaceBuildsByTemplateIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFailedWorkspaceBuildsByTemplateID indicates an expected call of GetFailedWorkspaceBuildsByTemplateID.
+func (mr *MockStoreMockRecorder) GetFailedWorkspaceBuildsByTemplateID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFailedWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetFailedWorkspaceBuildsByTemplateID), arg0, arg1)
+}
+
 // GetFileByHashAndCreator mocks base method.
 func (m *MockStore) GetFileByHashAndCreator(arg0 context.Context, arg1 database.GetFileByHashAndCreatorParams) (database.File, error) {
 	m.ctrl.T.Helper()
@@ -1581,6 +1596,21 @@ func (m *MockStore) GetNotificationMessagesByStatus(arg0 context.Context, arg1 d
 func (mr *MockStoreMockRecorder) GetNotificationMessagesByStatus(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationMessagesByStatus", reflect.TypeOf((*MockStore)(nil).GetNotificationMessagesByStatus), arg0, arg1)
+}
+
+// GetNotificationReportGeneratorLogByTemplate mocks base method.
+func (m *MockStore) GetNotificationReportGeneratorLogByTemplate(arg0 context.Context, arg1 uuid.UUID) (database.NotificationReportGeneratorLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationReportGeneratorLogByTemplate", arg0, arg1)
+	ret0, _ := ret[0].(database.NotificationReportGeneratorLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationReportGeneratorLogByTemplate indicates an expected call of GetNotificationReportGeneratorLogByTemplate.
+func (mr *MockStoreMockRecorder) GetNotificationReportGeneratorLogByTemplate(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationReportGeneratorLogByTemplate", reflect.TypeOf((*MockStore)(nil).GetNotificationReportGeneratorLogByTemplate), arg0, arg1)
 }
 
 // GetNotificationTemplateByID mocks base method.
@@ -3081,6 +3111,21 @@ func (m *MockStore) GetWorkspaceBuildParameters(arg0 context.Context, arg1 uuid.
 func (mr *MockStoreMockRecorder) GetWorkspaceBuildParameters(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildParameters), arg0, arg1)
+}
+
+// GetWorkspaceBuildStatsByTemplates mocks base method.
+func (m *MockStore) GetWorkspaceBuildStatsByTemplates(arg0 context.Context, arg1 time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceBuildStatsByTemplates", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetWorkspaceBuildStatsByTemplatesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceBuildStatsByTemplates indicates an expected call of GetWorkspaceBuildStatsByTemplates.
+func (mr *MockStoreMockRecorder) GetWorkspaceBuildStatsByTemplates(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildStatsByTemplates", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildStatsByTemplates), arg0, arg1)
 }
 
 // GetWorkspaceBuildsByWorkspaceID mocks base method.
@@ -5285,6 +5330,20 @@ func (m *MockStore) UpsertLogoURL(arg0 context.Context, arg1 string) error {
 func (mr *MockStoreMockRecorder) UpsertLogoURL(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertLogoURL", reflect.TypeOf((*MockStore)(nil).UpsertLogoURL), arg0, arg1)
+}
+
+// UpsertNotificationReportGeneratorLog mocks base method.
+func (m *MockStore) UpsertNotificationReportGeneratorLog(arg0 context.Context, arg1 database.UpsertNotificationReportGeneratorLogParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertNotificationReportGeneratorLog", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertNotificationReportGeneratorLog indicates an expected call of UpsertNotificationReportGeneratorLog.
+func (mr *MockStoreMockRecorder) UpsertNotificationReportGeneratorLog(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNotificationReportGeneratorLog", reflect.TypeOf((*MockStore)(nil).UpsertNotificationReportGeneratorLog), arg0, arg1)
 }
 
 // UpsertNotificationsSettings mocks base method.

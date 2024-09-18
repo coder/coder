@@ -634,6 +634,13 @@ func (m metricsStore) GetExternalAuthLinksByUserID(ctx context.Context, userID u
 	return r0, r1
 }
 
+func (m metricsStore) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFailedWorkspaceBuildsByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFailedWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	start := time.Now()
 	file, err := m.s.GetFileByHashAndCreator(ctx, arg)
@@ -785,6 +792,13 @@ func (m metricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg d
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetNotificationMessagesByStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByTemplate").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1472,6 +1486,13 @@ func (m metricsStore) GetWorkspaceBuildParameters(ctx context.Context, workspace
 	params, err := m.s.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParameters").Observe(time.Since(start).Seconds())
 	return params, err
+}
+
+func (m metricsStore) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildStatsByTemplates(ctx, since)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildStatsByTemplates").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
@@ -2514,6 +2535,13 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertLogoURL(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertNotificationReportGeneratorLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertNotificationReportGeneratorLog").Observe(time.Since(start).Seconds())
 	return r0
 }
 

@@ -1459,6 +1459,13 @@ func (q *querier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.
 	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLinksByUserID)(ctx, userID)
 }
 
+func (q *querier) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFailedWorkspaceBuildsByTemplateID(ctx, arg)
+}
+
 func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	file, err := q.db.GetFileByHashAndCreator(ctx, arg)
 	if err != nil {
@@ -1626,6 +1633,13 @@ func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.GetNotificationMessagesByStatus(ctx, arg)
+}
+
+func (q *querier) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.NotificationReportGeneratorLog{}, err
+	}
+	return q.db.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
 }
 
 func (q *querier) GetNotificationTemplateByID(ctx context.Context, id uuid.UUID) (database.NotificationTemplate, error) {
@@ -2508,6 +2522,13 @@ func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuil
 	}
 
 	return q.db.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
+}
+
+func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceBuildStatsByTemplates(ctx, since)
 }
 
 func (q *querier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
@@ -3964,6 +3985,13 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
+}
+
+func (q *querier) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertNotificationReportGeneratorLog(ctx, arg)
 }
 
 func (q *querier) UpsertNotificationsSettings(ctx context.Context, value string) error {

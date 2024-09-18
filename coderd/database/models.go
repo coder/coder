@@ -2262,6 +2262,12 @@ type NotificationPreference struct {
 	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Log of generated reports for users.
+type NotificationReportGeneratorLog struct {
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+	LastGeneratedAt        time.Time `db:"last_generated_at" json:"last_generated_at"`
+}
+
 // Templates from which to create notification messages.
 type NotificationTemplate struct {
 	ID            uuid.UUID      `db:"id" json:"id"`

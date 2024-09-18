@@ -17,4 +17,5 @@ type MessagePayload struct {
 
 	Actions []TemplateAction  `json:"actions"`
 	Labels  map[string]string `json:"labels"`
+	Data    map[string]any    `json:"data"`
 }
