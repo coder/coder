@@ -66,7 +66,7 @@ func New(opts Options) *Runner {
 		cronCtxCancel: cronCtxCancel,
 		cron:          cron.New(cron.WithParser(parser)),
 		closed:        make(chan struct{}),
-		scriptTimings: make(chan timingSpan),
+		scriptTimings: make(chan TimingSpan),
 		dataDir:       filepath.Join(opts.DataDirBase, "coder-script-data"),
 		scriptsExecuted: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "agent",
@@ -87,7 +87,7 @@ type Runner struct {
 	cron          *cron.Cron
 	initialized   atomic.Bool
 	scripts       []codersdk.WorkspaceAgentScript
-	scriptTimings chan timingSpan
+	scriptTimings chan TimingSpan
 	dataDir       string
 
 	// scriptsExecuted includes all scripts executed by the workspace agent. Agents
@@ -96,7 +96,7 @@ type Runner struct {
 	scriptsExecuted *prometheus.CounterVec
 }
 
-func (r *Runner) ScriptTimings() *chan timingSpan {
+func (r *Runner) ScriptTimings() *chan TimingSpan {
 	return &r.scriptTimings
 }
 
@@ -321,7 +321,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 			logger.Info(ctx, fmt.Sprintf("%s script completed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
 		}
 
-		r.scriptTimings <- timingSpan{
+		r.scriptTimings <- TimingSpan{
 			displayName: script.DisplayName,
 			start:       start,
 			end:         end,

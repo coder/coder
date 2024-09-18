@@ -583,9 +583,10 @@ func (a *agent) reportMetadata(ctx context.Context, conn drpc.Conn) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case timing := <-*a.scriptRunner.ScriptTimings():
-			aAPI.ScriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
+			_, err := aAPI.ScriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
 				Timing: timing.ToProto(),
 			})
+			return err
 		case mr := <-metadataResults:
 			// This can overwrite unsent values, but that's fine because
 			// we're only interested about up-to-date values.

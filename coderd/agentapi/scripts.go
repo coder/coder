@@ -3,9 +3,10 @@ package agentapi
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/google/uuid"
 )
 
 type ScriptsAPI struct {

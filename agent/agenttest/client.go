@@ -301,7 +301,7 @@ func (f *FakeAgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.Batc
 	return &agentproto.BatchCreateLogsResponse{}, nil
 }
 
-func (f *FakeAgentAPI) ScriptCompleted(ctx context.Context, req *agentproto.WorkspaceAgentScriptCompletedRequest) (*agentproto.WorkspaceAgentScriptCompletedResponse, error) {
+func (*FakeAgentAPI) ScriptCompleted(_ context.Context, _ *agentproto.WorkspaceAgentScriptCompletedRequest) (*agentproto.WorkspaceAgentScriptCompletedResponse, error) {
 	return &agentproto.WorkspaceAgentScriptCompletedResponse{}, nil
 }
 

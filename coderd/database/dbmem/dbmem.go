@@ -7827,7 +7827,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
+func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.WorkspaceAgentScriptTiming{}, err
@@ -7836,6 +7836,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	//nolint:gosimple
 	scriptTiming := database.WorkspaceAgentScriptTiming{
 		StartedAt:   arg.StartedAt,
 		EndedAt:     arg.EndedAt,
