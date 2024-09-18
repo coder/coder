@@ -1,11 +1,9 @@
 package agentscripts_test
 
 import (
-	"cmp"
 	"context"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"testing"
 	"time"
 
@@ -20,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -121,26 +118,6 @@ func TestTimeout(t *testing.T) {
 
 func TestScriptReportsTiming(t *testing.T) {
 	t.Parallel()
-
-	type test struct {
-		displayName string
-		script      string
-		exitCode    int32
-	}
-
-	tests := []test{
-		{
-			displayName: "exit-0",
-			script:      "exit 0",
-			exitCode:    0,
-		},
-		{
-			displayName: "say-hello",
-			script:      "echo 'Hello, World!'",
-			exitCode:    0,
-		},
-	}
-
 	ctx := testutil.Context(t, testutil.WaitShort)
 	fLogger := newFakeScriptLogger()
 	runner := setup(t, func(uuid2 uuid.UUID) agentscripts.ScriptLogger {
@@ -148,39 +125,23 @@ func TestScriptReportsTiming(t *testing.T) {
 	})
 	defer runner.Close()
 	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
-
-	scripts := []codersdk.WorkspaceAgentScript{}
-	for _, tt := range tests {
-		scripts = append(scripts, codersdk.WorkspaceAgentScript{
-			DisplayName: tt.displayName,
-			LogSourceID: uuid.New(),
-			Script:      tt.script,
-		})
-	}
-
-	err := runner.Init(scripts, aAPI.ScriptCompleted)
+	err := runner.Init([]codersdk.WorkspaceAgentScript{{
+		DisplayName: "say-hello",
+		LogSourceID: uuid.New(),
+		Script:      "echo hello",
+	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
 	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
 		return true
 	}))
-	_ = testutil.RequireRecvCtx(ctx, t, fLogger.logs)
-
-	timing := aAPI.GetTiming()
-	require.Equal(t, len(timing), len(tests))
-
-	// Sort the tests and timing by display name to ensure
-	// consistent order.
-	slices.SortFunc(timing, func(a, b *proto.Timing) int {
-		return cmp.Compare(a.DisplayName, b.DisplayName)
-	})
-	slices.SortFunc(tests, func(a, b test) int {
-		return cmp.Compare(a.displayName, b.displayName)
-	})
-
-	for i, tt := range tests {
-		require.Equal(t, timing[i].DisplayName, tt.displayName)
-		require.Equal(t, timing[i].ExitCode, tt.exitCode)
-	}
+	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
+	require.Equal(t, "hello", log.Output)
+	timings := aAPI.GetTimings()
+	require.Equal(t, len(timings), 1)
+	timing := timings[0]
+	require.Equal(t, timing.DisplayName, "say-hello")
+	require.Equal(t, timing.ExitCode, int32(0))
+	require.GreaterOrEqual(t, timing.End.AsTime(), timing.Start.AsTime())
 }
 
 // TestCronClose exists because cron.Run() can happen after cron.Close().

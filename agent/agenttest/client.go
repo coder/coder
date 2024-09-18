@@ -170,7 +170,7 @@ type FakeAgentAPI struct {
 	logsCh          chan<- *agentproto.BatchCreateLogsRequest
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	metadata        map[string]agentsdk.Metadata
-	timing          []*agentproto.Timing
+	timings         []*agentproto.Timing
 
 	getAnnouncementBannersFunc func() ([]codersdk.BannerConfig, error)
 }
@@ -183,8 +183,8 @@ func (*FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceBan
 	return &agentproto.ServiceBanner{}, nil
 }
 
-func (f *FakeAgentAPI) GetTiming() []*agentproto.Timing {
-	return f.timing
+func (f *FakeAgentAPI) GetTimings() []*agentproto.Timing {
+	return f.timings
 }
 
 func (f *FakeAgentAPI) SetAnnouncementBannersFunc(fn func() ([]codersdk.BannerConfig, error)) {
@@ -308,7 +308,7 @@ func (f *FakeAgentAPI) BatchCreateLogs(ctx context.Context, req *agentproto.Batc
 
 func (f *FakeAgentAPI) ScriptCompleted(_ context.Context, req *agentproto.WorkspaceAgentScriptCompletedRequest) (*agentproto.WorkspaceAgentScriptCompletedResponse, error) {
 	f.Lock()
-	f.timing = append(f.timing, req.Timing)
+	f.timings = append(f.timings, req.Timing)
 	f.Unlock()
 
 	return &agentproto.WorkspaceAgentScriptCompletedResponse{}, nil
