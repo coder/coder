@@ -17,7 +17,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestKeyRotator(t *testing.T) {
+func TestRotator(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoKeysOnInit", func(t *testing.T) {
@@ -34,9 +34,8 @@ func TestKeyRotator(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, dbkeys, 0)
 
-		kr, err := keyrotate.Open(ctx, db, logger, clock, keyrotate.DefaultKeyDuration, keyrotate.DefaultRotationInterval, nil)
+		err = keyrotate.StartRotator(ctx, logger, db, keyrotate.WithClock(clock))
 		require.NoError(t, err)
-		t.Cleanup(kr.Close)
 
 		// Fetch the keys from the database and ensure they
 		// are as expected.
@@ -63,29 +62,24 @@ func TestKeyRotator(t *testing.T) {
 			StartsAt: now.Add(-keyrotate.DefaultKeyDuration + time.Hour + time.Minute),
 			Sequence: 12345,
 		})
-		resultsCh := make(chan []database.CryptoKey)
 
-		kr, err := keyrotate.Open(ctx, db, logger, clock, keyrotate.DefaultRotationInterval, keyrotate.DefaultKeyDuration, resultsCh)
+		err := keyrotate.StartRotator(ctx, logger, db, keyrotate.WithClock(clock))
 		require.NoError(t, err)
-		t.Cleanup(kr.Close)
 
+		initialKeyLen := len(database.AllCryptoKeyFeatureValues())
 		// Fetch the keys from the database and ensure they
 		// are as expected.
 		dbkeys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, dbkeys, len(database.AllCryptoKeyFeatureValues()))
+		require.Len(t, dbkeys, initialKeyLen)
 		requireContainsAllFeatures(t, dbkeys)
-
-		go kr.Start(ctx)
 
 		_, wait := clock.AdvanceNext()
 		wait.MustWait(ctx)
-		results := <-resultsCh
-		require.Len(t, results, 2)
 
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 4)
+		require.Len(t, keys, initialKeyLen+1)
 
 		newKey, err := db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
 		require.NoError(t, err)
@@ -106,8 +100,10 @@ func TestKeyRotator(t *testing.T) {
 		// Try rotating again and ensure no keys are rotated.
 		_, wait = clock.AdvanceNext()
 		wait.MustWait(ctx)
-		results = <-resultsCh
-		require.Len(t, results, 0)
+
+		keys, err = db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, initialKeyLen+1)
 	})
 }
 

@@ -30,15 +30,13 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration = time.Hour * 24 * 7
 			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			ctx         = testutil.Context(t, testutil.WaitShort)
-			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &Rotator{
+		kr := &rotator{
 			db:          db,
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -55,14 +53,13 @@ func Test_rotateKeys(t *testing.T) {
 
 		// Advance the window to just inside rotation time.
 		_ = clock.Advance(keyDuration - time.Minute*59)
-		keys, err := kr.rotateKeys(ctx)
+		err := kr.rotateKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 2)
 
 		now = dbnow(clock)
 		expectedDeletesAt := oldKey.ExpiresAt(keyDuration).Add(WorkspaceAppsTokenDuration + time.Hour)
 
-		// Fetch the old key, it should have an expires_at now.
+		// Fetch the old key, it should have an deletes_at now.
 		oldKey, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
 			Feature:  oldKey.Feature,
 			Sequence: oldKey.Sequence,
@@ -82,17 +79,19 @@ func Test_rotateKeys(t *testing.T) {
 		clock.Advance(oldKey.DeletesAt.Time.UTC().Sub(now) - time.Second)
 
 		// No action should be taken.
-		keys, err = kr.rotateKeys(ctx)
+		err = kr.rotateKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 0)
+
+		keys, err := db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 2)
 
 		// Advance the clock just past the keys delete time.
 		clock.Advance(oldKey.DeletesAt.Time.UTC().Sub(now) + time.Second)
 
 		// We should have deleted the old key.
-		keys, err = kr.rotateKeys(ctx)
+		err = kr.rotateKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 1)
 
 		// The old key should be "deleted".
 		_, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
@@ -100,6 +99,11 @@ func Test_rotateKeys(t *testing.T) {
 			Sequence: oldKey.Sequence,
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		keys, err = db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, newKey, keys[0])
 	})
 
 	t.Run("DoesNotRotateValidKeys", func(t *testing.T) {
@@ -111,15 +115,13 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration = time.Hour * 24 * 7
 			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			ctx         = testutil.Context(t, testutil.WaitShort)
-			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &Rotator{
+		kr := &rotator{
 			db:          db,
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -131,29 +133,32 @@ func Test_rotateKeys(t *testing.T) {
 		existingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			StartsAt: now,
-			Sequence: 1,
+			Sequence: 123,
 		})
 
 		// Advance the clock by 6 days, 23 hours. Once we
 		// breach the last hour we will insert a new key.
 		clock.Advance(keyDuration - 2*time.Hour)
 
-		keys, err := kr.rotateKeys(ctx)
+		err := kr.rotateKeys(ctx)
 		require.NoError(t, err)
-		require.Empty(t, keys)
+
+		keys, err := db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, existingKey, keys[0])
 
 		// Advance it again to just before the key is scheduled to be rotated for sanity purposes.
 		clock.Advance(time.Hour - time.Second)
 
-		keys, err = kr.rotateKeys(ctx)
+		err = kr.rotateKeys(ctx)
 		require.NoError(t, err)
-		require.Empty(t, keys)
 
 		// Verify that the existing key is still the only key in the database
-		dbKeys, err := db.GetCryptoKeys(ctx)
+		keys, err = db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, dbKeys, 1)
-		requireKey(t, dbKeys[0], existingKey.Feature, existingKey.StartsAt.UTC(), existingKey.DeletesAt.Time.UTC(), existingKey.Sequence)
+		require.Len(t, keys, 1)
+		requireKey(t, keys[0], existingKey.Feature, existingKey.StartsAt.UTC(), time.Time{}, existingKey.Sequence)
 	})
 
 	// Simulate a situation where the database was manually altered such that we only have a key that is scheduled to be deleted and assert we insert a new key.
@@ -166,15 +171,13 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration = time.Hour * 24 * 7
 			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			ctx         = testutil.Context(t, testutil.WaitShort)
-			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &Rotator{
+		kr := &rotator{
 			db:          db,
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -186,23 +189,22 @@ func Test_rotateKeys(t *testing.T) {
 		deletingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			StartsAt: now.Add(-keyDuration),
-			Sequence: 1,
+			Sequence: 789,
 			DeletesAt: sql.NullTime{
 				Time:  now,
 				Valid: true,
 			},
 		})
 
-		keys, err := kr.rotateKeys(ctx)
+		err := kr.rotateKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 2)
 
 		// We should only get one key since the old key
 		// should be deleted.
-		dbKeys, err := db.GetCryptoKeys(ctx)
+		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, dbKeys, 1)
-		requireKey(t, dbKeys[0], deletingKey.Feature, deletingKey.DeletesAt.Time.UTC(), time.Time{}, deletingKey.Sequence+1)
+		require.Len(t, keys, 1)
+		requireKey(t, keys[0], deletingKey.Feature, deletingKey.DeletesAt.Time.UTC(), time.Time{}, deletingKey.Sequence+1)
 		// The old key should be "deleted".
 		_, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
 			Feature:  deletingKey.Feature,
@@ -222,15 +224,13 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration = time.Hour * 24 * 7
 			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			ctx         = testutil.Context(t, testutil.WaitShort)
-			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &Rotator{
+		kr := &rotator{
 			db:          db,
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -242,35 +242,26 @@ func Test_rotateKeys(t *testing.T) {
 		deletingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			StartsAt: now,
-			Sequence: 1,
+			Sequence: 456,
 			DeletesAt: sql.NullTime{
 				Time:  now.Add(time.Hour),
 				Valid: true,
 			},
 		})
 
-		clock.Advance(time.Minute * 59)
-
 		// We should only have inserted a key.
-		keys, err := kr.rotateKeys(ctx)
+		err := kr.rotateKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 1)
-		//nolint:gocritic
-		expectedKeys := append(keys, deletingKey)
 
-		dbKeys, err := db.GetCryptoKeys(ctx)
+		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, dbKeys, 2)
-		for _, expectedKey := range expectedKeys {
-			var found bool
-			for _, dbKey := range dbKeys {
-				if dbKey.Sequence == expectedKey.Sequence {
-					requireKey(t, dbKey, expectedKey.Feature, expectedKey.StartsAt.UTC(), expectedKey.DeletesAt.Time.UTC(), expectedKey.Sequence)
-					found = true
-				}
-			}
-			require.True(t, found, "expected key %+v not found", expectedKey)
+		require.Len(t, keys, 2)
+		oldKey, newKey := keys[0], keys[1]
+		if oldKey.Sequence != deletingKey.Sequence {
+			oldKey, newKey = newKey, oldKey
 		}
+		requireKey(t, oldKey, deletingKey.Feature, deletingKey.StartsAt.UTC(), deletingKey.DeletesAt.Time.UTC(), deletingKey.Sequence)
+		requireKey(t, newKey, deletingKey.Feature, now, time.Time{}, deletingKey.Sequence+1)
 	})
 
 	t.Run("NoKeys", func(t *testing.T) {
@@ -282,29 +273,28 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration = time.Hour * 24 * 7
 			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			ctx         = testutil.Context(t, testutil.WaitShort)
-			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &Rotator{
+		kr := &rotator{
 			db:          db,
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
 		}
 
-		now := dbnow(clock)
+		err := kr.rotateKeys(ctx)
+		require.NoError(t, err)
 
-		keys, err := kr.rotateKeys(ctx)
+		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
-		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, now, time.Time{}, 1)
+		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, clock.Now().UTC(), time.Time{}, 1)
 	})
 
-	// Assert we insert a new key when the only key is deleted.
+	// Assert we insert a new key when the only key was manually deleted.
 	t.Run("OnlyDeletedKeys", func(t *testing.T) {
 		t.Parallel()
 
@@ -314,15 +304,13 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration = time.Hour * 24 * 7
 			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			ctx         = testutil.Context(t, testutil.WaitShort)
-			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &Rotator{
+		kr := &rotator{
 			db:          db,
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			resultsCh:   resultsCh,
 			features: []database.CryptoKeyFeature{
 				database.CryptoKeyFeatureWorkspaceApps,
 			},
@@ -344,7 +332,10 @@ func Test_rotateKeys(t *testing.T) {
 			},
 		})
 
-		keys, err := kr.rotateKeys(ctx)
+		err := kr.rotateKeys(ctx)
+		require.NoError(t, err)
+
+		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
 		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, now, time.Time{}, deletedkey.Sequence+1)
@@ -359,18 +350,16 @@ func Test_rotateKeys(t *testing.T) {
 		var (
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
-			keyDuration = time.Hour * 24 * 7
+			keyDuration = time.Hour * 24 * 30
 			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			ctx         = testutil.Context(t, testutil.WaitShort)
-			resultsCh   = make(chan []database.CryptoKey, 1)
 		)
 
-		kr := &Rotator{
+		kr := &rotator{
 			db:          db,
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			resultsCh:   resultsCh,
 			features:    database.AllCryptoKeyFeatureValues(),
 		}
 
@@ -401,7 +390,7 @@ func Test_rotateKeys(t *testing.T) {
 		// Insert a key that should be rotated.
 		rotatedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
-			StartsAt: now.Add(-keyDuration),
+			StartsAt: now.Add(-keyDuration + time.Hour),
 			Sequence: 42,
 		})
 
@@ -412,15 +401,16 @@ func Test_rotateKeys(t *testing.T) {
 			Sequence: 17,
 		})
 
-		keys, err := kr.rotateKeys(ctx)
+		err := kr.rotateKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 3)
 
-		dbKeys, err := db.GetCryptoKeys(ctx)
+		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, dbKeys, 4)
+		require.Len(t, keys, 4)
 
-		kbf := keysByFeature(dbKeys, database.AllCryptoKeyFeatureValues())
+		kbf, err := keysByFeature(keys, database.AllCryptoKeyFeatureValues())
+		require.NoError(t, err)
+
 		// No actions on OIDC convert.
 		require.Len(t, kbf[database.CryptoKeyFeatureOidcConvert], 1)
 		// Workspace apps should have been rotated.
@@ -441,6 +431,71 @@ func Test_rotateKeys(t *testing.T) {
 		}
 		requireKey(t, oldKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.StartsAt.UTC(), rotatedKey.ExpiresAt(keyDuration).Add(WorkspaceAppsTokenDuration+time.Hour), rotatedKey.Sequence)
 		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.ExpiresAt(keyDuration), time.Time{}, rotatedKey.Sequence+1)
+	})
+
+	t.Run("UnknownFeature", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			clock       = quartz.NewMock(t)
+			keyDuration = time.Hour * 24 * 7
+			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			ctx         = testutil.Context(t, testutil.WaitShort)
+		)
+
+		kr := &rotator{
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			features:    []database.CryptoKeyFeature{database.CryptoKeyFeature("unknown")},
+		}
+
+		err := kr.rotateKeys(ctx)
+		require.Error(t, err)
+	})
+
+	t.Run("MinStartsAt", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			clock       = quartz.NewMock(t)
+			keyDuration = time.Hour * 24 * 5
+			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			ctx         = testutil.Context(t, testutil.WaitShort)
+		)
+
+		now := dbnow(clock)
+
+		kr := &rotator{
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			features:    []database.CryptoKeyFeature{database.CryptoKeyFeatureWorkspaceApps},
+		}
+
+		expiringKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now.Add(-keyDuration),
+			Sequence: 345,
+		})
+
+		err := kr.rotateKeys(ctx)
+		require.NoError(t, err)
+
+		keys, err := db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 2)
+
+		rotatedKey, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  expiringKey.Feature,
+			Sequence: expiringKey.Sequence + 1,
+		})
+		require.NoError(t, err)
+		require.Equal(t, now.Add(defaultRotationInterval*3), rotatedKey.StartsAt.UTC())
 	})
 }
 
