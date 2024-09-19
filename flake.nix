@@ -40,7 +40,7 @@
         # From https://nixos.wiki/wiki/Google_Cloud_SDK
         gdk = pkgs.google-cloud-sdk.withExtraComponents ([ pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin ]);
 
-        customProtocGenGo = pkgs.buildGoModule rec {
+        proto_gen_go_1_30 = pkgs.buildGoModule rec {
           name = "protoc-gen-go";
           owner = "protocolbuffers";
           repo = "protobuf-go";
@@ -102,7 +102,7 @@
           playwright-driver.browsers
           postgresql_16
           protobuf
-          customProtocGenGo
+          proto_gen_go_1_30
           ripgrep
           # This doesn't build on latest nixpkgs (July 10 2024)
           (pinnedPkgs.sapling)
