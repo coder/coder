@@ -256,7 +256,22 @@ latest_buckets AS (
 		agent_id,
 		minute_bucket DESC
 )
-SELECT * FROM agent_stats JOIN latest_buckets ON agent_stats.agent_id = latest_buckets.agent_id;
+SELECT user_id,
+agent_stats.agent_id,
+workspace_id,
+template_id,
+aggregated_from,
+workspace_rx_bytes,
+workspace_tx_bytes,
+workspace_connection_latency_50,
+workspace_connection_latency_95,
+-- `minute_buckets` could return 0 rows if there are no usage stats since `created_at`.
+coalesce(latest_buckets.agent_id,agent_stats.agent_id) AS agent_id,
+coalesce(session_count_vscode, 0)::bigint AS session_count_vscode,
+coalesce(session_count_ssh, 0)::bigint AS session_count_ssh,
+coalesce(session_count_jetbrains, 0)::bigint AS session_count_jetbrains,
+coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty
+FROM agent_stats LEFT JOIN latest_buckets ON agent_stats.agent_id = latest_buckets.agent_id;
 
 -- name: GetWorkspaceAgentStatsAndLabels :many
 WITH agent_stats AS (

@@ -2460,8 +2460,14 @@ func (q *FakeQuerier) GetDeploymentWorkspaceAgentUsageStats(_ context.Context, c
 			val, ok := sessions[agentStat.AgentID]
 			if !ok {
 				sessions[agentStat.AgentID] = agentStat
-			} else if val.CreatedAt.Before(agentStat.CreatedAt) {
+			} else if agentStat.CreatedAt.After(val.CreatedAt) {
 				sessions[agentStat.AgentID] = agentStat
+			} else if agentStat.CreatedAt.Truncate(time.Minute).Equal(val.CreatedAt.Truncate(time.Minute)) {
+				val.SessionCountVSCode += agentStat.SessionCountVSCode
+				val.SessionCountJetBrains += agentStat.SessionCountJetBrains
+				val.SessionCountReconnectingPTY += agentStat.SessionCountReconnectingPTY
+				val.SessionCountSSH += agentStat.SessionCountSSH
+				sessions[agentStat.AgentID] = val
 			}
 		}
 	}
@@ -5752,6 +5758,7 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStats(_ context.Context, createdAt t
 				val.SessionCountJetBrains += agentStat.SessionCountJetBrains
 				val.SessionCountReconnectingPTY += agentStat.SessionCountReconnectingPTY
 				val.SessionCountSSH += agentStat.SessionCountSSH
+				minuteBuckets[key] = val
 			} else {
 				minuteBuckets[key] = bucketRow{
 					GetWorkspaceAgentUsageStatsRow: database.GetWorkspaceAgentUsageStatsRow{
@@ -5815,12 +5822,19 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 		if agentStat.CreatedAt.After(createdAt) {
 			val, ok := latestAgentStats[key]
 			if !ok {
-				latestAgentStats[key] = agentStat
+				val = agentStat
+				val.SessionCountJetBrains = 0
+				val.SessionCountReconnectingPTY = 0
+				val.SessionCountSSH = 0
+				val.SessionCountVSCode = 0
 			} else {
 				val.RxBytes += agentStat.RxBytes
 				val.TxBytes += agentStat.TxBytes
-				latestAgentStats[key] = val
 			}
+			if agentStat.ConnectionMedianLatencyMS > maxConnMedianLatency {
+				val.ConnectionMedianLatencyMS = agentStat.ConnectionMedianLatencyMS
+			}
+			latestAgentStats[key] = val
 		}
 		// WHERE usage = true AND created_at > now() - '1 minute'::interval
 		// GROUP BY user_id, agent_id, workspace_id
@@ -5834,20 +5848,6 @@ func (q *FakeQuerier) GetWorkspaceAgentUsageStatsAndLabels(_ context.Context, cr
 				val.SessionCountReconnectingPTY += agentStat.SessionCountReconnectingPTY
 				val.SessionCountSSH += agentStat.SessionCountSSH
 				val.ConnectionCount += agentStat.ConnectionCount
-				latestAgentStats[key] = val
-			}
-		}
-		// 	SELECT
-		// 	agent_id,
-		// 	coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
-		// FROM workspace_agent_stats
-		// GROUP BY user_id, agent_id, workspace_id
-		if agentStat.ConnectionMedianLatencyMS > maxConnMedianLatency {
-			val, ok := latestAgentStats[key]
-			if !ok {
-				latestAgentStats[key] = agentStat
-			} else {
-				val.ConnectionMedianLatencyMS = agentStat.ConnectionMedianLatencyMS
 				latestAgentStats[key] = val
 			}
 		}
