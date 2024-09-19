@@ -18,12 +18,12 @@ export const TimingBlocks: FC<TimingBlocksProps> = ({
 	stageSize,
 	blockSize,
 }) => {
-	const realBlockSize = blockSize + blocksSpacing;
+	const spacingBetweenBlocks = (timings.length - 1) * blocksSpacing;
 	const freeSize = stageSize - blocksPadding * 2;
-	const necessarySize = realBlockSize * timings.length;
+	const necessarySize = blockSize * timings.length + spacingBetweenBlocks;
 	const hasSpacing = necessarySize <= freeSize;
 	const nOfPossibleBlocks = Math.floor(
-		(freeSize - moreIconSize) / realBlockSize,
+		(freeSize - moreIconSize - spacingBetweenBlocks) / blockSize,
 	);
 	const nOfBlocks = hasSpacing ? timings.length : nOfPossibleBlocks;
 

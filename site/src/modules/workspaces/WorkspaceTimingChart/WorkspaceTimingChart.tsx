@@ -107,7 +107,7 @@ export const WorkspaceTimingChart: FC<WorkspaceTimingChartProps> = ({
 									<TimingBlocks
 										timings={timings}
 										stageSize={stageSize}
-										blockSize={4}
+										blockSize={20}
 									/>
 								)}
 							</Bar>
