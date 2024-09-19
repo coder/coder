@@ -106,6 +106,7 @@ func TestManifest(t *testing.T) {
 		},
 		Scripts: []codersdk.WorkspaceAgentScript{
 			{
+				ID:               uuid.New(),
 				LogSourceID:      uuid.New(),
 				LogPath:          "/var/log/script.log",
 				Script:           "script",
@@ -116,6 +117,7 @@ func TestManifest(t *testing.T) {
 				Timeout:          time.Second,
 			},
 			{
+				ID:               uuid.New(),
 				LogSourceID:      uuid.New(),
 				LogPath:          "/var/log/script2.log",
 				Script:           "script2",

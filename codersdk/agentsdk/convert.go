@@ -184,6 +184,7 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 
 func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScript {
 	return &proto.WorkspaceAgentScript{
+		Id:               s.ID[:],
 		DisplayName:      s.DisplayName,
 		LogSourceId:      s.LogSourceID[:],
 		LogPath:          s.LogPath,
