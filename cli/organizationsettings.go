@@ -125,13 +125,13 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 
 				settingJSON, err := json.Marshal(output)
 				if err != nil {
-					return fmt.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
+					return xerrors.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
 				}
 
 				var dst bytes.Buffer
 				err = json.Indent(&dst, settingJSON, "", "\t")
 				if err != nil {
-					return fmt.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
+					return xerrors.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
 				}
 
 				_, err = fmt.Fprintln(inv.Stdout, dst.String())
@@ -190,13 +190,13 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 
 				settingJSON, err := json.Marshal(output)
 				if err != nil {
-					return fmt.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
+					return xerrors.Errorf("failed to marshal organization setting %s: %w", inv.Args[0], err)
 				}
 
 				var dst bytes.Buffer
 				err = json.Indent(&dst, settingJSON, "", "\t")
 				if err != nil {
-					return fmt.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
+					return xerrors.Errorf("failed to indent organization setting as json %s: %w", inv.Args[0], err)
 				}
 
 				_, err = fmt.Fprintln(inv.Stdout, dst.String())
