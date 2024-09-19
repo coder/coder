@@ -28,7 +28,14 @@ export const Bar = forwardRef<HTMLDivElement, BarProps>(
 				css={[styles.root, { transform: `translateX(${x}px)` }]}
 				{...htmlProps}
 			>
-				<div css={[styles.bar, colorStyles[color], { width }]}>{children}</div>
+				<button
+					type="button"
+					css={[styles.bar, colorStyles[color], { width }]}
+					disabled={htmlProps.disabled}
+					aria-labelledby={htmlProps["aria-labelledby"]}
+				>
+					{children}
+				</button>
 				{afterLabel}
 			</div>
 		);
@@ -47,6 +54,18 @@ const styles = {
 		border: "1px solid transparent",
 		borderRadius: 8,
 		height: 32,
+		display: "flex",
+		padding: 0,
+
+		"&:not(:disabled)": {
+			cursor: "pointer",
+
+			"&:focus, &:hover, &:active": {
+				outline: "none",
+				background: "#082F49",
+				borderColor: "#38BDF8",
+			},
+		},
 	},
 } satisfies Record<string, Interpolation<Theme>>;
 

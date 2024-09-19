@@ -102,6 +102,7 @@ export const WorkspaceTimingChart: FC<WorkspaceTimingChartProps> = ({
 								}
 								aria-labelledby={`${s.name}-label`}
 								ref={applyBarHeightToLabel}
+								disabled={timings.length <= 1}
 							>
 								{timings.length > 1 && (
 									<TimingBlocks
