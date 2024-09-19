@@ -69,12 +69,12 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	let provisionersWithWarnings = 0;
 	const provisionersWithWarningInfo = provisioners.map((it) => {
 		const outOfDate = Boolean(buildInfo) && it.version !== buildInfo?.version;
-
 		const warningCount = outOfDate ? 1 : 0;
 		warnings += warningCount;
 		if (warnings > 0) {
 			provisionersWithWarnings++;
 		}
+
 		return { ...it, warningCount, outOfDate };
 	});
 
