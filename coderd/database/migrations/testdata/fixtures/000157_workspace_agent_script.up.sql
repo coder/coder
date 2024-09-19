@@ -15,6 +15,7 @@ INSERT INTO workspace_agent_log_sources (
 ) ON CONFLICT DO NOTHING;
 
 INSERT INTO workspace_agent_scripts (
+    id,
 	workspace_agent_id,
 	created_at,
 	log_source_id,
@@ -26,6 +27,7 @@ INSERT INTO workspace_agent_scripts (
 	run_on_stop,
 	timeout_seconds
 ) VALUES (
+	'a810e1ba-0b28-4db2-a5b6-1857ea72bf93',
 	'45e89705-e09d-4850-bcec-f9a937f5d78d',
 	'2022-11-02 13:03:45.046432+02',
 	'0ff953c0-92a6-4fe6-a415-eb0139a36ad1',
