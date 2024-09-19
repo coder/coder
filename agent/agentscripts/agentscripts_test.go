@@ -141,11 +141,11 @@ func TestScriptReportsTiming(t *testing.T) {
 	require.Equal(t, "hello", log.Output)
 
 	timings := aAPI.GetTimings()
-	require.Equal(t, len(timings), 1)
+	require.Equal(t, 1, len(timings))
 
 	timing := timings[0]
-	require.Equal(t, timing.DisplayName, "say-hello")
-	require.Equal(t, timing.ExitCode, int32(0))
+	require.Equal(t, "say-hello", timing.DisplayName)
+	require.Equal(t, int32(0), timing.ExitCode)
 	require.GreaterOrEqual(t, timing.End.AsTime(), timing.Start.AsTime())
 }
 
