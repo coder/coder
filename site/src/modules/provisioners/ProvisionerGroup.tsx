@@ -51,10 +51,12 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	}
 
 	const daemonScope = firstProvisioner.tags.scope || "organization";
-	const provisionerVersion = firstProvisioner.version;
 	const allProvisionersAreSameVersion = provisioners.every(
-		(provisioner) => provisioner.version === provisionerVersion,
+		(it) => it.version === firstProvisioner.version,
 	);
+	const provisionerVersion = allProvisionersAreSameVersion
+		? firstProvisioner.version
+		: null;
 	const provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
@@ -86,7 +88,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						css={{
 							display: "flex",
 							flexDirection: "column",
-							lineHeight: 1.6,
+							lineHeight: 1.5,
 						}}
 					>
 						{type === "builtin" && (
@@ -105,7 +107,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						{type !== "builtin" && (
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
-								{allProvisionersAreSameVersion ? (
+								{provisionerVersion ? (
 									<code>{provisionerVersion}</code>
 								) : (
 									<span>Multiple versions</span>
