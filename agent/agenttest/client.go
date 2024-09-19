@@ -184,7 +184,9 @@ func (*FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceBan
 }
 
 func (f *FakeAgentAPI) GetTimings() []*agentproto.Timing {
-	return f.timings
+	f.Lock()
+	defer f.Unlock()
+	return slices.Clone(f.timings)
 }
 
 func (f *FakeAgentAPI) SetAnnouncementBannersFunc(fn func() ([]codersdk.BannerConfig, error)) {
