@@ -40,6 +40,28 @@
         # From https://nixos.wiki/wiki/Google_Cloud_SDK
         gdk = pkgs.google-cloud-sdk.withExtraComponents ([ pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin ]);
 
+        customProtocGenGo = pkgs.buildGoModule rec {
+          name = "protoc-gen-go";
+          owner = "protocolbuffers";
+          repo = "protobuf-go";
+          rev = "v1.30.0"; 
+          src = pkgs.fetchFromGitHub {
+            owner = "protocolbuffers";
+            repo = "protobuf-go";
+            rev = rev;
+            # This should be updated whenever rev changes!
+            # To update, set to "", run nix-shell, insert new hash
+            sha256 = "sha256-GTZQ40uoi62Im2F4YvlZWiSNNJ4fEAkRojYa0EYz9HU=";
+          };
+          subPackages = [ "cmd/protoc-gen-go" ];
+          vendorHash = null;
+          proxyVendor = true;
+          preBuild = ''
+            export GOPROXY=https://proxy.golang.org,direct
+            go mod download
+          '';
+        };
+
         # The minimal set of packages to build Coder.
         devShellPackages = with pkgs; [
           # google-chrome is not available on OSX and aarch64 linux
@@ -80,7 +102,7 @@
           playwright-driver.browsers
           postgresql_16
           protobuf
-          protoc-gen-go
+          customProtocGenGo
           ripgrep
           # This doesn't build on latest nixpkgs (July 10 2024)
           (pinnedPkgs.sapling)
