@@ -11,7 +11,6 @@ import { docs } from "utils/docs";
 export interface ProvisionersByGroup {
 	builtin: ProvisionerDaemon[];
 	psk: ProvisionerDaemon[];
-	userAuth: ProvisionerDaemon[];
 	keys: Map<string, ProvisionerDaemon[]>;
 }
 
@@ -26,7 +25,6 @@ export const OrganizationProvisionersPageView: FC<
 	const isEmpty =
 		provisioners.builtin.length +
 			provisioners.psk.length +
-			provisioners.userAuth.length +
 			provisioners.keys.size ===
 		0;
 
@@ -58,7 +56,7 @@ export const OrganizationProvisionersPageView: FC<
 								target="_blank"
 								href={docs("/admin/provisioners")}
 							>
-								Create a provisioner
+								Show me how to create a provisioner
 							</Button>
 						}
 					/>
@@ -75,13 +73,6 @@ export const OrganizationProvisionersPageView: FC<
 						buildInfo={buildInfo}
 						type="psk"
 						provisioners={provisioners.psk}
-					/>
-				)}
-				{provisioners.userAuth.length > 0 && (
-					<ProvisionerGroup
-						buildInfo={buildInfo}
-						type="userAuth"
-						provisioners={provisioners.userAuth}
 					/>
 				)}
 				{[...provisioners.keys].map(([keyId, provisioners]) => (

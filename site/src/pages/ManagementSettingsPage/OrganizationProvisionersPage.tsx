@@ -28,7 +28,6 @@ function groupProvisioners(
 	const groups: ProvisionersByGroup = {
 		builtin: [],
 		psk: [],
-		userAuth: [],
 		keys: new Map(),
 	};
 	// NOTE: I'll fix this at the end of the PR chain
@@ -41,10 +40,6 @@ function groupProvisioners(
 		}
 		if (it.key_id === ProvisionerKeyIDPSK) {
 			groups.psk.push(it);
-			continue;
-		}
-		if (it.key_id === ProvisionerKeyIDUserAuth) {
-			groups.userAuth.push(it);
 			continue;
 		}
 

@@ -58,3 +58,14 @@ export const Provisioners: Story = {
 		},
 	},
 };
+
+export const Empty: Story = {
+	args: {
+		provisioners: {
+			builtin: [],
+			psk: [],
+			userAuth: [],
+			keys: new Map(),
+		},
+	},
+};

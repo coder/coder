@@ -24,8 +24,9 @@ import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import { ProvisionerTag } from "./ProvisionerTag";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 
-type ProvisionerGroupType = "builtin" | "psk" | "userAuth" | "key";
+type ProvisionerGroupType = "builtin" | "psk" | "key";
 
 interface ProvisionerGroupProps {
 	readonly buildInfo?: BuildInfoResponse;
@@ -40,13 +41,17 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	type,
 	provisioners,
 }) => {
-	const [provisioner] = provisioners;
 	const theme = useTheme();
 
 	const [showDetails, setShowDetails] = useState(false);
 
-	const daemonScope = provisioner.tags.scope || "organization";
-	const provisionerVersion = provisioner.version;
+	const firstProvisioner = provisioners[0];
+	if (!firstProvisioner) {
+		return null;
+	}
+
+	const daemonScope = firstProvisioner.tags.scope || "organization";
+	const provisionerVersion = firstProvisioner.version;
 	const allProvisionersAreSameVersion = provisioners.every(
 		(provisioner) => provisioner.version === provisionerVersion,
 	);
@@ -54,8 +59,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
-
-	const extraTags = Object.entries(provisioner.tags).filter(
+	const extraTags = Object.entries(firstProvisioner.tags).filter(
 		([key]) => key !== "scope" && key !== "owner",
 	);
 
@@ -76,51 +80,29 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					gap: 24,
 				}}
 			>
-				<div
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: 24,
-						objectFit: "fill",
-					}}
-				>
-					{type === "builtin" && (
-						<div css={{ lineHeight: 1.6 }}>
-							<BuiltinProvisionerTitle />
-							<span css={{ color: theme.palette.text.secondary }}>
-								{provisionerCount} &mdash; Built-in
-							</span>
-						</div>
-					)}
-					{type === "psk" && (
-						<div css={{ lineHeight: 1.6 }}>
-							<PskProvisionerTitle />
-							<span css={{ color: theme.palette.text.secondary }}>
-								{provisionerCount} &mdash;{" "}
-								{allProvisionersAreSameVersion ? (
-									<code>{provisionerVersion}</code>
-								) : (
-									<span>Multiple versions</span>
-								)}
-							</span>
-						</div>
-					)}
-					{type === "userAuth" && (
-						<div css={{ lineHeight: 1.6 }}>
-							<UserAuthProvisionerTitle />
-							<span css={{ color: theme.palette.text.secondary }}>
-								{provisionerCount} &mdash;{" "}
-								{allProvisionersAreSameVersion ? (
-									<code>{provisionerVersion}</code>
-								) : (
-									<span>Multiple versions</span>
-								)}
-							</span>
-						</div>
-					)}
-					{type === "key" && (
-						<div css={{ lineHeight: 1.6 }}>
+				<div css={{ display: "flex", alignItems: "center", gap: 16 }}>
+					<StatusIndicator color="success" />
+					<div
+						css={{
+							display: "flex",
+							flexDirection: "column",
+							lineHeight: 1.6,
+						}}
+					>
+						{type === "builtin" && (
+							<>
+								<BuiltinProvisionerTitle />
+								<span css={{ color: theme.palette.text.secondary }}>
+									{provisionerCount} &mdash; Built-in
+								</span>
+							</>
+						)}
+
+						{type === "psk" && <PskProvisionerTitle />}
+						{type === "key" && (
 							<h4 css={styles.groupTitle}>Key group &ndash; {keyName}</h4>
+						)}
+						{type !== "builtin" && (
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
 								{allProvisionersAreSameVersion ? (
@@ -129,8 +111,8 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 									<span>Multiple versions</span>
 								)}
 							</span>
-						</div>
-					)}
+						)}
+					</div>
 				</div>
 				<div
 					css={{
@@ -382,28 +364,6 @@ const PskProvisionerTitle: FC = () => {
 							These provisioners all use pre-shared key authentication. PSK
 							provisioners are only available for the default organization.{" "}
 							<Link href={docs("/")}>Learn more&hellip;</Link>
-						</HelpTooltipText>
-					</HelpTooltipContent>
-				</HelpTooltip>
-			</Stack>
-		</h4>
-	);
-};
-
-const UserAuthProvisionerTitle: FC = () => {
-	return (
-		<h4 css={styles.groupTitle}>
-			<Stack direction="row" alignItems="end" spacing={1}>
-				<span>User authenticated provisioners</span>
-				<HelpTooltip>
-					<HelpTooltipTrigger />
-					<HelpTooltipContent>
-						<HelpTooltipTitle>User authenticated provisioners</HelpTooltipTitle>
-						<HelpTooltipText>
-							These provisioners have been authenticated by a user. This can
-							happen if an authenticated user is running a provisioner using the{" "}
-							<code>coder provisionerd start</code> command without specifying a
-							provisioner key. <Link href={docs("/")}>Learn more&hellip;</Link>
 						</HelpTooltipText>
 					</HelpTooltipContent>
 				</HelpTooltip>
