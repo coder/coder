@@ -4,7 +4,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"regexp"
 	"time"
@@ -75,12 +77,25 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				// We can only select an organization if using user auth
 				org, err := orgContext.Selected(inv, client)
 				if err != nil {
-					return xerrors.Errorf("get organization: %w", err)
+					var cErr *codersdk.Error
+					if !errors.As(err, &cErr) || cErr.StatusCode() != http.StatusUnauthorized {
+						return xerrors.Errorf("current organization: %w", err)
+					}
+
+					return xerrors.New("must provide a pre-shared key or provisioner key when not authenticated as a user")
 				}
+
 				orgID = org.ID
-			} else {
-				if orgContext.FlagSelect != "" {
-					return xerrors.New("cannot provide --org value with --psk or --key flags")
+			} else if orgContext.FlagSelect != "" {
+				return xerrors.New("cannot provide --org value with --psk or --key flags")
+			}
+
+			if provisionerKey != "" {
+				if preSharedKey != "" {
+					return xerrors.New("cannot provide both provisioner key --key and pre-shared key --psk")
+				}
+				if len(rawTags) > 0 {
+					return xerrors.New("cannot provide tags when using provisioner key")
 				}
 			}
 
