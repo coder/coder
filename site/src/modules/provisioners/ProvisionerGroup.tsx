@@ -20,11 +20,11 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import { ProvisionerTag } from "./ProvisionerTag";
-import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 
 type ProvisionerGroupType = "builtin" | "psk" | "key";
 
