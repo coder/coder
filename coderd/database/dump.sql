@@ -1360,7 +1360,9 @@ CREATE TABLE workspace_agent_script_timings (
     display_name text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     ended_at timestamp with time zone NOT NULL,
-    exit_code integer NOT NULL
+    exit_code integer NOT NULL,
+    ran_on_start boolean NOT NULL,
+    blocked_login boolean NOT NULL
 );
 
 CREATE TABLE workspace_agent_scripts (

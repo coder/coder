@@ -295,7 +295,9 @@ INSERT INTO
         display_name,
         started_at,
         ended_at,
-        exit_code
+        exit_code,
+        ran_on_start,
+        blocked_login
     )
 VALUES
-    ($1, $2, $3, $4, $5) RETURNING *;
+    ($1, $2, $3, $4, $5, $6, $7) RETURNING *;

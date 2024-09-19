@@ -11809,18 +11809,22 @@ INSERT INTO
         display_name,
         started_at,
         ended_at,
-        exit_code
+        exit_code,
+        ran_on_start,
+        blocked_login
     )
 VALUES
-    ($1, $2, $3, $4, $5) RETURNING job_id, display_name, started_at, ended_at, exit_code
+    ($1, $2, $3, $4, $5, $6, $7) RETURNING job_id, display_name, started_at, ended_at, exit_code, ran_on_start, blocked_login
 `
 
 type InsertWorkspaceAgentScriptTimingsParams struct {
-	JobID       uuid.UUID `db:"job_id" json:"job_id"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	StartedAt   time.Time `db:"started_at" json:"started_at"`
-	EndedAt     time.Time `db:"ended_at" json:"ended_at"`
-	ExitCode    int32     `db:"exit_code" json:"exit_code"`
+	JobID        uuid.UUID `db:"job_id" json:"job_id"`
+	DisplayName  string    `db:"display_name" json:"display_name"`
+	StartedAt    time.Time `db:"started_at" json:"started_at"`
+	EndedAt      time.Time `db:"ended_at" json:"ended_at"`
+	ExitCode     int32     `db:"exit_code" json:"exit_code"`
+	RanOnStart   bool      `db:"ran_on_start" json:"ran_on_start"`
+	BlockedLogin bool      `db:"blocked_login" json:"blocked_login"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) (WorkspaceAgentScriptTiming, error) {
@@ -11830,6 +11834,8 @@ func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg 
 		arg.StartedAt,
 		arg.EndedAt,
 		arg.ExitCode,
+		arg.RanOnStart,
+		arg.BlockedLogin,
 	)
 	var i WorkspaceAgentScriptTiming
 	err := row.Scan(
@@ -11838,6 +11844,8 @@ func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg 
 		&i.StartedAt,
 		&i.EndedAt,
 		&i.ExitCode,
+		&i.RanOnStart,
+		&i.BlockedLogin,
 	)
 	return i, err
 }

@@ -323,10 +323,12 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 
 		_, err = r.scriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
 			Timing: &proto.Timing{
-				DisplayName: script.DisplayName,
-				Start:       timestamppb.New(start),
-				End:         timestamppb.New(end),
-				ExitCode:    int32(exitCode),
+				DisplayName:  script.DisplayName,
+				Start:        timestamppb.New(start),
+				End:          timestamppb.New(end),
+				ExitCode:     int32(exitCode),
+				RanOnStart:   script.RunOnStart,
+				BlockedLogin: script.StartBlocksLogin,
 			},
 		})
 	}()

@@ -2884,11 +2884,13 @@ type WorkspaceAgentScript struct {
 }
 
 type WorkspaceAgentScriptTiming struct {
-	JobID       uuid.UUID `db:"job_id" json:"job_id"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	StartedAt   time.Time `db:"started_at" json:"started_at"`
-	EndedAt     time.Time `db:"ended_at" json:"ended_at"`
-	ExitCode    int32     `db:"exit_code" json:"exit_code"`
+	JobID        uuid.UUID `db:"job_id" json:"job_id"`
+	DisplayName  string    `db:"display_name" json:"display_name"`
+	StartedAt    time.Time `db:"started_at" json:"started_at"`
+	EndedAt      time.Time `db:"ended_at" json:"ended_at"`
+	ExitCode     int32     `db:"exit_code" json:"exit_code"`
+	RanOnStart   bool      `db:"ran_on_start" json:"ran_on_start"`
+	BlockedLogin bool      `db:"blocked_login" json:"blocked_login"`
 }
 
 type WorkspaceAgentStat struct {

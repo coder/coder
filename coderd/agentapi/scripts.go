@@ -29,11 +29,13 @@ func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.Worksp
 	}
 
 	_, err = s.Database.InsertWorkspaceAgentScriptTimings(ctx, database.InsertWorkspaceAgentScriptTimingsParams{
-		JobID:       resource.JobID,
-		DisplayName: req.Timing.DisplayName,
-		StartedAt:   req.Timing.Start.AsTime(),
-		EndedAt:     req.Timing.End.AsTime(),
-		ExitCode:    req.Timing.ExitCode,
+		JobID:        resource.JobID,
+		DisplayName:  req.Timing.DisplayName,
+		StartedAt:    req.Timing.Start.AsTime(),
+		EndedAt:      req.Timing.End.AsTime(),
+		ExitCode:     req.Timing.ExitCode,
+		RanOnStart:   req.Timing.RanOnStart,
+		BlockedLogin: req.Timing.BlockedLogin,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert workspace agent script timings into database: %w", err)

@@ -277,6 +277,8 @@ message Timing {
     google.protobuf.Timestamp start = 2;
     google.protobuf.Timestamp end = 3;
     int32 exit_code = 4;
+    bool ran_on_start = 5;
+    bool blocked_login = 6;
 }
 
 service Agent {
