@@ -2900,6 +2900,7 @@ type WorkspaceAgentStat struct {
 	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	Usage                       bool            `db:"usage" json:"usage"`
 }
 
 type WorkspaceApp struct {
