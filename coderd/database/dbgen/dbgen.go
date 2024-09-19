@@ -900,6 +900,10 @@ func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) databas
 
 	seed.Feature = takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceApps)
 
+	// An empty string for the secret is interpreted as
+	// a caller wanting a new secret to be generated.
+	// To generate a key with a NULL secret set Valid=false
+	// and String to a non-empty string.
 	if seed.Secret.String == "" {
 		secret, err := newCryptoKeySecret(seed.Feature)
 		require.NoError(t, err, "generate secret")

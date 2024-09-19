@@ -79,15 +79,13 @@ func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, op
 // start begins the process of rotating keys.
 // Canceling the context will stop the rotation process.
 func (k *rotator) start(ctx context.Context) {
-	for ctx.Err() == nil {
-		wait := k.clock.TickerFunc(ctx, defaultRotationInterval, func() error {
-			return k.rotateKeys(ctx)
-		})
-		err := wait.Wait()
+	k.clock.TickerFunc(ctx, defaultRotationInterval, func() error {
+		err := k.rotateKeys(ctx)
 		if err != nil {
 			k.logger.Error(ctx, "failed to rotate keys", slog.Error(err))
 		}
-	}
+		return nil
+	})
 	k.logger.Debug(ctx, "ctx canceled, stopping key rotation")
 }
 
@@ -95,78 +93,77 @@ func (k *rotator) start(ctx context.Context) {
 // may insert a new key if it detects that a valid one does
 // not exist for a feature.
 func (k *rotator) rotateKeys(ctx context.Context) error {
-	return database.ReadModifyUpdate(k.db, func(tx database.Store) error {
-		ok, err := tx.TryAcquireLock(ctx, database.LockIDCryptoKeyRotation)
-		if err != nil {
-			return xerrors.Errorf("acquire lock: %w", err)
-		}
-		if !ok {
-			k.logger.Debug(ctx, "lock not acquired, skipping key rotation")
-			return nil
-		}
+	return k.db.InTx(
+		func(tx database.Store) error {
+			err := tx.AcquireLock(ctx, database.LockIDCryptoKeyRotation)
+			if err != nil {
+				return xerrors.Errorf("acquire lock: %w", err)
+			}
 
-		cryptokeys, err := tx.GetCryptoKeys(ctx)
-		if err != nil {
-			return xerrors.Errorf("get keys: %w", err)
-		}
+			cryptokeys, err := tx.GetCryptoKeys(ctx)
+			if err != nil {
+				return xerrors.Errorf("get keys: %w", err)
+			}
 
-		featureKeys, err := keysByFeature(cryptokeys, k.features)
-		if err != nil {
-			return xerrors.Errorf("keys by feature: %w", err)
-		}
+			featureKeys, err := keysByFeature(cryptokeys, k.features)
+			if err != nil {
+				return xerrors.Errorf("keys by feature: %w", err)
+			}
 
-		now := dbtime.Time(k.clock.Now().UTC())
-		for feature, keys := range featureKeys {
-			// We'll use a counter to determine if we should insert a new key. We should always have at least one key for a feature.
-			var validKeys int
-			for _, key := range keys {
-				switch {
-				case shouldDeleteKey(key, now):
-					_, err := tx.DeleteCryptoKey(ctx, database.DeleteCryptoKeyParams{
-						Feature:  key.Feature,
-						Sequence: key.Sequence,
-					})
-					if err != nil {
-						return xerrors.Errorf("delete key: %w", err)
-					}
-					k.logger.Debug(ctx, "deleted key",
-						slog.F("key", key.Sequence),
-						slog.F("feature", key.Feature),
-					)
-				case shouldRotateKey(key, k.keyDuration, now):
-					_, err := k.rotateKey(ctx, tx, key, now)
-					if err != nil {
-						return xerrors.Errorf("rotate key: %w", err)
-					}
-					k.logger.Debug(ctx, "rotated key",
-						slog.F("key", key.Sequence),
-						slog.F("feature", key.Feature),
-					)
-					validKeys++
-				default:
-					// We only consider keys without a populated deletes_at field as valid.
-					// This is because under normal circumstances the deletes_at field
-					// is set during rotation (meaning a new key was generated)
-					// but it's possible if the database was manually altered to
-					// delete the new key we may be in a situation where there
-					// isn't a key to replace the one scheduled for deletion.
-					if !key.DeletesAt.Valid {
+			now := dbtime.Time(k.clock.Now().UTC())
+			for feature, keys := range featureKeys {
+				// We'll use a counter to determine if we should insert a new key. We should always have at least one key for a feature.
+				var validKeys int
+				for _, key := range keys {
+					switch {
+					case shouldDeleteKey(key, now):
+						_, err := tx.DeleteCryptoKey(ctx, database.DeleteCryptoKeyParams{
+							Feature:  key.Feature,
+							Sequence: key.Sequence,
+						})
+						if err != nil {
+							return xerrors.Errorf("delete key: %w", err)
+						}
+						k.logger.Debug(ctx, "deleted key",
+							slog.F("key", key.Sequence),
+							slog.F("feature", key.Feature),
+						)
+					case shouldRotateKey(key, k.keyDuration, now):
+						_, err := k.rotateKey(ctx, tx, key, now)
+						if err != nil {
+							return xerrors.Errorf("rotate key: %w", err)
+						}
+						k.logger.Debug(ctx, "rotated key",
+							slog.F("key", key.Sequence),
+							slog.F("feature", key.Feature),
+						)
 						validKeys++
+					default:
+						// We only consider keys without a populated deletes_at field as valid.
+						// This is because under normal circumstances the deletes_at field
+						// is set during rotation (meaning a new key was generated)
+						// but it's possible if the database was manually altered to
+						// delete the new key we may be in a situation where there
+						// isn't a key to replace the one scheduled for deletion.
+						if !key.DeletesAt.Valid {
+							validKeys++
+						}
+					}
+				}
+				if validKeys == 0 {
+					k.logger.Info(ctx, "no valid keys detected, inserting new key",
+						slog.F("feature", feature),
+					)
+					_, err := k.insertNewKey(ctx, tx, feature, now)
+					if err != nil {
+						return xerrors.Errorf("insert new key: %w", err)
 					}
 				}
 			}
-			if validKeys == 0 {
-				k.logger.Info(ctx, "no valid keys detected, inserting new key",
-					slog.F("feature", feature),
-				)
-				_, err := k.insertNewKey(ctx, tx, feature, now)
-				if err != nil {
-					return xerrors.Errorf("insert new key: %w", err)
-				}
-			}
-		}
-		return nil
-	})
+			return nil
+		}, &sql.TxOptions{
+			Isolation: sql.LevelRepeatableRead,
+		})
 }
 
 func (k *rotator) insertNewKey(ctx context.Context, tx database.Store, feature database.CryptoKeyFeature, startsAt time.Time) (database.CryptoKey, error) {
@@ -210,7 +207,7 @@ func (k *rotator) rotateKey(ctx context.Context, tx database.Store, key database
 	// for this feature is expected to be valid for. This should
 	// allow for sufficient time for the new key to propagate to
 	// dependent services (i.e. Workspace Proxies).
-	deletesAt := key.ExpiresAt(k.keyDuration).Add(time.Hour).Add(tokenDuration(key.Feature))
+	deletesAt := startsAt.Add(time.Hour).Add(tokenDuration(key.Feature))
 
 	updatedKey, err := tx.UpdateCryptoKeyDeletesAt(ctx, database.UpdateCryptoKeyDeletesAtParams{
 		Feature:  key.Feature,
@@ -289,7 +286,7 @@ func keysByFeature(keys []database.CryptoKey, features []database.CryptoKeyFeatu
 	return m, nil
 }
 
-// minStartsAt ensures the minimu starts_at time we use for a new
+// minStartsAt ensures the minimum starts_at time we use for a new
 // key is no less than 3*the default rotation interval.
 func minStartsAt(key database.CryptoKey, now time.Time, keyDuration time.Duration) time.Time {
 	expiresAt := key.ExpiresAt(keyDuration)

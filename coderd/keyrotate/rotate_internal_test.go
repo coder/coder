@@ -73,7 +73,7 @@ func Test_rotateKeys(t *testing.T) {
 			Sequence: oldKey.Sequence + 1,
 		})
 		require.NoError(t, err)
-		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceApps, oldKey.ExpiresAt(keyDuration), time.Time{}, oldKey.Sequence+1)
+		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceApps, oldKey.ExpiresAt(keyDuration), nullTime, oldKey.Sequence+1)
 
 		// Advance the clock just before the keys delete time.
 		clock.Advance(oldKey.DeletesAt.Time.UTC().Sub(now) - time.Second)
@@ -136,7 +136,7 @@ func Test_rotateKeys(t *testing.T) {
 			Sequence: 123,
 		})
 
-		// Advance the clock by 6 days, 23 hours. Once we
+		// Advance the clock by 6 days, 22 hours. Once we
 		// breach the last hour we will insert a new key.
 		clock.Advance(keyDuration - 2*time.Hour)
 
@@ -158,7 +158,7 @@ func Test_rotateKeys(t *testing.T) {
 		keys, err = db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
-		requireKey(t, keys[0], existingKey.Feature, existingKey.StartsAt.UTC(), time.Time{}, existingKey.Sequence)
+		requireKey(t, keys[0], existingKey.Feature, existingKey.StartsAt.UTC(), nullTime, existingKey.Sequence)
 	})
 
 	// Simulate a situation where the database was manually altered such that we only have a key that is scheduled to be deleted and assert we insert a new key.
@@ -204,7 +204,7 @@ func Test_rotateKeys(t *testing.T) {
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
-		requireKey(t, keys[0], deletingKey.Feature, deletingKey.DeletesAt.Time.UTC(), time.Time{}, deletingKey.Sequence+1)
+		requireKey(t, keys[0], deletingKey.Feature, deletingKey.DeletesAt.Time.UTC(), nullTime, deletingKey.Sequence+1)
 		// The old key should be "deleted".
 		_, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
 			Feature:  deletingKey.Feature,
@@ -260,8 +260,8 @@ func Test_rotateKeys(t *testing.T) {
 		if oldKey.Sequence != deletingKey.Sequence {
 			oldKey, newKey = newKey, oldKey
 		}
-		requireKey(t, oldKey, deletingKey.Feature, deletingKey.StartsAt.UTC(), deletingKey.DeletesAt.Time.UTC(), deletingKey.Sequence)
-		requireKey(t, newKey, deletingKey.Feature, now, time.Time{}, deletingKey.Sequence+1)
+		requireKey(t, oldKey, deletingKey.Feature, deletingKey.StartsAt.UTC(), deletingKey.DeletesAt, deletingKey.Sequence)
+		requireKey(t, newKey, deletingKey.Feature, now, nullTime, deletingKey.Sequence+1)
 	})
 
 	t.Run("NoKeys", func(t *testing.T) {
@@ -291,7 +291,7 @@ func Test_rotateKeys(t *testing.T) {
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
-		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, clock.Now().UTC(), time.Time{}, 1)
+		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, clock.Now().UTC(), nullTime, 1)
 	})
 
 	// Assert we insert a new key when the only key was manually deleted.
@@ -338,7 +338,7 @@ func Test_rotateKeys(t *testing.T) {
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
-		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, now, time.Time{}, deletedkey.Sequence+1)
+		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, now, nullTime, deletedkey.Sequence+1)
 	})
 
 	// This tests ensures that rotation works with multiple
@@ -421,16 +421,20 @@ func Test_rotateKeys(t *testing.T) {
 
 		oidcKey := kbf[database.CryptoKeyFeatureOidcConvert][0]
 		tailnetKey := kbf[database.CryptoKeyFeatureTailnetResume][0]
-		requireKey(t, oidcKey, database.CryptoKeyFeatureOidcConvert, now, time.Time{}, validKey.Sequence)
-		requireKey(t, tailnetKey, database.CryptoKeyFeatureTailnetResume, now, time.Time{}, deletedKey.Sequence+1)
+		requireKey(t, oidcKey, database.CryptoKeyFeatureOidcConvert, now, nullTime, validKey.Sequence)
+		requireKey(t, tailnetKey, database.CryptoKeyFeatureTailnetResume, now, nullTime, deletedKey.Sequence+1)
 
 		newKey := kbf[database.CryptoKeyFeatureWorkspaceApps][0]
 		oldKey := kbf[database.CryptoKeyFeatureWorkspaceApps][1]
 		if newKey.Sequence == rotatedKey.Sequence {
 			oldKey, newKey = newKey, oldKey
 		}
-		requireKey(t, oldKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.StartsAt.UTC(), rotatedKey.ExpiresAt(keyDuration).Add(WorkspaceAppsTokenDuration+time.Hour), rotatedKey.Sequence)
-		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.ExpiresAt(keyDuration), time.Time{}, rotatedKey.Sequence+1)
+		deletesAt := sql.NullTime{
+			Time:  rotatedKey.ExpiresAt(keyDuration).Add(WorkspaceAppsTokenDuration + time.Hour),
+			Valid: true,
+		}
+		requireKey(t, oldKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.StartsAt.UTC(), deletesAt, rotatedKey.Sequence)
+		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.ExpiresAt(keyDuration), nullTime, rotatedKey.Sequence+1)
 	})
 
 	t.Run("UnknownFeature", func(t *testing.T) {
@@ -497,17 +501,86 @@ func Test_rotateKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, now.Add(defaultRotationInterval*3), rotatedKey.StartsAt.UTC())
 	})
+
+	// Test that the the deletes_at of a key that is well past its expiration
+	// Has its deletes_at field set to value that is relative
+	// to the current time to afford propagation time for the
+	// new key.
+	t.Run("ExtensivelyExpiredKey", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _       = dbtestutil.NewDB(t)
+			clock       = quartz.NewMock(t)
+			keyDuration = time.Hour * 24 * 3
+			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			ctx         = testutil.Context(t, testutil.WaitShort)
+		)
+
+		kr := &rotator{
+			db:          db,
+			keyDuration: keyDuration,
+			clock:       clock,
+			logger:      logger,
+			features:    []database.CryptoKeyFeature{database.CryptoKeyFeatureWorkspaceApps},
+		}
+
+		now := dbnow(clock)
+
+		expiredKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now.Add(-keyDuration - 2*time.Hour),
+			Sequence: 19,
+		})
+
+		deletedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now,
+			Sequence: 20,
+			Secret: sql.NullString{
+				String: "deleted",
+				Valid:  false,
+			},
+		})
+
+		err := kr.rotateKeys(ctx)
+		require.NoError(t, err)
+
+		keys, err := db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 2)
+
+		deletesAtKey, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  expiredKey.Feature,
+			Sequence: expiredKey.Sequence,
+		})
+
+		deletesAt := sql.NullTime{
+			Time:  now.Add(defaultRotationInterval * 3).Add(WorkspaceAppsTokenDuration + time.Hour),
+			Valid: true,
+		}
+		require.NoError(t, err)
+		requireKey(t, deletesAtKey, expiredKey.Feature, expiredKey.StartsAt.UTC(), deletesAt, expiredKey.Sequence)
+
+		newKey, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  expiredKey.Feature,
+			Sequence: deletedKey.Sequence + 1,
+		})
+		require.NoError(t, err)
+		requireKey(t, newKey, expiredKey.Feature, now.Add(defaultRotationInterval*3), nullTime, deletedKey.Sequence+1)
+	})
 }
 
 func dbnow(c quartz.Clock) time.Time {
 	return dbtime.Time(c.Now().UTC())
 }
 
-func requireKey(t *testing.T, key database.CryptoKey, feature database.CryptoKeyFeature, startsAt time.Time, deletesAt time.Time, sequence int32) {
+func requireKey(t *testing.T, key database.CryptoKey, feature database.CryptoKeyFeature, startsAt time.Time, deletesAt sql.NullTime, sequence int32) {
 	t.Helper()
 	require.Equal(t, feature, key.Feature)
 	require.Equal(t, startsAt, key.StartsAt.UTC())
-	require.Equal(t, deletesAt, key.DeletesAt.Time.UTC())
+	require.Equal(t, deletesAt.Valid, key.DeletesAt.Valid)
+	require.Equal(t, deletesAt.Time.UTC(), key.DeletesAt.Time.UTC())
 	require.Equal(t, sequence, key.Sequence)
 
 	secret, err := hex.DecodeString(key.Secret.String)
@@ -524,3 +597,5 @@ func requireKey(t *testing.T, key database.CryptoKey, feature database.CryptoKey
 		t.Fatalf("unknown key feature: %s", key.Feature)
 	}
 }
+
+var nullTime = sql.NullTime{Time: time.Time{}, Valid: false}
