@@ -7836,7 +7836,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg d
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	//nolint:gosimple
+	//nolint:gosimple // Stop linter suggesting 'arg' should be of type database.WorkspaceAgentScriptTiming
 	scriptTiming := database.WorkspaceAgentScriptTiming{
 		StartedAt:   arg.StartedAt,
 		EndedAt:     arg.EndedAt,
