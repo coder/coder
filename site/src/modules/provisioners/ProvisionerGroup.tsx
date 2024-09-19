@@ -57,7 +57,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	const provisionerVersion = allProvisionersAreSameVersion
 		? firstProvisioner.version
 		: null;
-	const provisionerCount =
+	let provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
@@ -65,13 +65,43 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		([key]) => key !== "scope" && key !== "owner",
 	);
 
+	let warnings = 0;
+	let provisionersWithWarnings = 0;
+	const provisionersWithWarningInfo = provisioners.map((it) => {
+		const outOfDate = Boolean(buildInfo) && it.version !== buildInfo?.version;
+
+		const warningCount = outOfDate ? 1 : 0;
+		warnings += warningCount;
+		if (warnings > 0) {
+			provisionersWithWarnings++;
+		}
+		return { ...it, warningCount, outOfDate };
+	});
+
+	const hasWarning = warnings > 0;
+	const warningsCount =
+		warnings === 0
+			? "No warnings"
+			: warnings === 1
+				? "1 warning"
+				: `${warnings} warnings`;
+	if (hasWarning) {
+		provisionerCount =
+			provisionersWithWarnings === 1
+				? "1 provisioner"
+				: `${provisionersWithWarnings} provisioners`;
+	}
+
 	return (
 		<div
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				fontSize: 14,
-			}}
+			css={[
+				{
+					borderRadius: 8,
+					border: `1px solid ${theme.palette.divider}`,
+					fontSize: 14,
+				},
+				hasWarning && styles.warningBorder,
+			]}
 		>
 			<header
 				css={{
@@ -83,7 +113,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 				}}
 			>
 				<div css={{ display: "flex", alignItems: "center", gap: 16 }}>
-					<StatusIndicator color="success" />
+					<StatusIndicator color={hasWarning ? "warning" : "success"} />
 					<div
 						css={{
 							display: "flex",
@@ -149,16 +179,19 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						flexWrap: "wrap",
 					}}
 				>
-					{provisioners.map((provisioner) => (
+					{provisionersWithWarningInfo.map((provisioner) => (
 						<div
 							key={provisioner.id}
-							css={{
-								borderRadius: 8,
-								border: `1px solid ${theme.palette.divider}`,
-								fontSize: 14,
-								padding: "14px 18px",
-								width: 375,
-							}}
+							css={[
+								{
+									borderRadius: 8,
+									border: `1px solid ${theme.palette.divider}`,
+									fontSize: 14,
+									padding: "14px 18px",
+									width: 375,
+								},
+								provisioner.warningCount > 0 && styles.warningBorder,
+							]}
 						>
 							<Stack
 								direction="row"
@@ -211,7 +244,9 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					color: theme.palette.text.secondary,
 				}}
 			>
-				<span>No warnings from {provisionerCount}</span>
+				<span>
+					{warningsCount} from {provisionerCount}
+				</span>
 				<Button
 					variant="text"
 					css={{
@@ -375,6 +410,10 @@ const PskProvisionerTitle: FC = () => {
 };
 
 const styles = {
+	warningBorder: (theme) => ({
+		borderColor: theme.roles.warning.fill.outline,
+	}),
+
 	groupTitle: {
 		fontWeight: 500,
 		margin: 0,
