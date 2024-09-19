@@ -3,6 +3,9 @@ import {
 	MockBuildInfo,
 	MockProvisioner,
 	MockProvisioner2,
+	MockProvisionerBuiltinKey,
+	MockProvisionerKey,
+	MockProvisionerPskKey,
 	MockProvisionerWithTags,
 	MockUserProvisioner,
 } from "testHelpers/entities";
@@ -21,49 +24,54 @@ type Story = StoryObj<typeof OrganizationProvisionersPageView>;
 
 export const Provisioners: Story = {
 	args: {
-		provisioners: {
-			builtin: [MockProvisioner, MockProvisioner2],
-			psk: [MockProvisioner, MockUserProvisioner, MockProvisionerWithTags],
-			keys: new Map([
-				[
-					"ベン",
-					[
-						MockProvisioner,
-						{
-							...MockProvisioner2,
-							version: "2.0.0",
-							api_version: "1.0",
-							warnings: [{ code: "EUNKNOWN", message: "時代遅れです" }],
-						},
-					],
+		provisioners: [
+			{
+				key: MockProvisionerBuiltinKey,
+				daemons: [MockProvisioner, MockProvisioner2],
+			},
+			{
+				key: MockProvisionerPskKey,
+				daemons: [
+					MockProvisioner,
+					MockUserProvisioner,
+					MockProvisionerWithTags,
 				],
-				["ジャイデン", [MockProvisioner, MockProvisioner2]],
-				[
-					"ケイラ",
-					[
-						{
-							...MockProvisioner,
-							tags: {
-								...MockProvisioner.tags,
-								都市: "ユタ",
-								きっぷ: "yes",
-								ちいさい: "no",
-							},
-							warnings: [{ code: "EUNKNOWN", message: "日本語が話せません" }],
-						},
-					],
+			},
+			{
+				key: { ...MockProvisionerKey, id: "ジャイデン", name: "ジャイデン" },
+				daemons: [MockProvisioner, MockProvisioner2],
+			},
+			{
+				key: { ...MockProvisionerKey, id: "ベン", name: "ベン" },
+				daemons: [
+					MockProvisioner,
+					{
+						...MockProvisioner2,
+						version: "2.0.0",
+						api_version: "1.0",
+					},
 				],
-			]),
-		},
+			},
+			{
+				key: { ...MockProvisionerKey, id: "ケイラ", name: "ケイラ" },
+				daemons: [
+					{
+						...MockProvisioner,
+						tags: {
+							...MockProvisioner.tags,
+							都市: "ユタ",
+							きっぷ: "yes",
+							ちいさい: "no",
+						},
+					},
+				],
+			},
+		],
 	},
 };
 
 export const Empty: Story = {
 	args: {
-		provisioners: {
-			builtin: [],
-			psk: [],
-			keys: new Map(),
-		},
+		provisioners: [],
 	},
 };
