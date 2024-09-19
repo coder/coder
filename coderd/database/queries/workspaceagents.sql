@@ -291,7 +291,7 @@ WHERE
 -- name: InsertWorkspaceAgentScriptTimings :one
 INSERT INTO
     workspace_agent_script_timings (
-        agent_id,
+        script_id,
         display_name,
         started_at,
         ended_at,

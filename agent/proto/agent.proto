@@ -54,6 +54,7 @@ message WorkspaceAgentScript {
 	bool start_blocks_login = 7;
 	google.protobuf.Duration timeout = 8;
 	string display_name = 9;
+	bytes id = 10;
 }
 
 message WorkspaceAgentMetadata {
@@ -279,6 +280,7 @@ message Timing {
     int32 exit_code = 4;
     bool ran_on_start = 5;
     bool blocked_login = 6;
+    bytes script_id = 7;
 }
 
 service Agent {

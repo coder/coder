@@ -1818,6 +1818,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
 		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
+		scriptIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		scriptDisplayName := make([]string, 0, len(prAgent.Scripts))
 		scriptLogPaths := make([]string, 0, len(prAgent.Scripts))
 		scriptSources := make([]string, 0, len(prAgent.Scripts))
@@ -1831,6 +1832,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			logSourceIDs = append(logSourceIDs, uuid.New())
 			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
 			logSourceIcons = append(logSourceIcons, script.Icon)
+			scriptIDs = append(scriptIDs, uuid.New())
 			scriptDisplayName = append(scriptDisplayName, script.DisplayName)
 			scriptLogPaths = append(scriptLogPaths, script.LogPath)
 			scriptSources = append(scriptSources, script.Script)
@@ -1864,6 +1866,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			RunOnStart:       scriptRunOnStart,
 			RunOnStop:        scriptRunOnStop,
 			DisplayName:      scriptDisplayName,
+			ID:               scriptIDs,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent scripts: %w", err)

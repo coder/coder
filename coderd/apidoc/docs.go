@@ -14263,6 +14263,10 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "log_path": {
                     "type": "string"
                 },

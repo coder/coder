@@ -158,13 +158,19 @@ func ProtoFromScripts(scripts []codersdk.WorkspaceAgentScript) []*proto.Workspac
 }
 
 func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.WorkspaceAgentScript, error) {
-	id, err := uuid.FromBytes(protoScript.LogSourceId)
+	id, err := uuid.FromBytes(protoScript.Id)
 	if err != nil {
 		return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("parse id: %w", err)
 	}
 
+	logSourceID, err := uuid.FromBytes(protoScript.LogSourceId)
+	if err != nil {
+		return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("parse log source id: %w", err)
+	}
+
 	return codersdk.WorkspaceAgentScript{
-		LogSourceID:      id,
+		ID:               id,
+		LogSourceID:      logSourceID,
 		DisplayName:      protoScript.DisplayName,
 		LogPath:          protoScript.LogPath,
 		Script:           protoScript.Script,

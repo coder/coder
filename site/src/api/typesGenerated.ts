@@ -1887,6 +1887,7 @@ export interface WorkspaceAgentPortShares {
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentScript {
+	readonly id: string;
 	readonly display_name: string;
 	readonly log_source_id: string;
 	readonly log_path: string;

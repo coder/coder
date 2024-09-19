@@ -1356,7 +1356,7 @@ CREATE TABLE workspace_agent_port_share (
 );
 
 CREATE TABLE workspace_agent_script_timings (
-    agent_id uuid NOT NULL,
+    script_id uuid NOT NULL,
     display_name text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     ended_at timestamp with time zone NOT NULL,
@@ -1376,6 +1376,7 @@ CREATE TABLE workspace_agent_scripts (
     run_on_start boolean NOT NULL,
     run_on_stop boolean NOT NULL,
     timeout_seconds integer NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     display_name text DEFAULT ''::text NOT NULL
 );
 
@@ -1868,6 +1869,9 @@ ALTER TABLE ONLY workspace_agent_metadata
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_pkey PRIMARY KEY (workspace_id, agent_name, port);
 
+ALTER TABLE ONLY workspace_agent_scripts
+    ADD CONSTRAINT workspace_agent_scripts_id_key UNIQUE (id);
+
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
 
@@ -2236,7 +2240,7 @@ ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_script_timings
-    ADD CONSTRAINT workspace_agent_script_timings_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_agent_script_timings_script_id_fkey FOREIGN KEY (script_id) REFERENCES workspace_agent_scripts(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_scripts
     ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

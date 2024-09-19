@@ -323,6 +323,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 
 		_, err = r.scriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
 			Timing: &proto.Timing{
+				ScriptId:     script.ID[:],
 				DisplayName:  script.DisplayName,
 				Start:        timestamppb.New(start),
 				End:          timestamppb.New(end),
@@ -331,6 +332,10 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 				BlockedLogin: script.StartBlocksLogin,
 			},
 		})
+
+		if err != nil {
+			logger.Error(ctx, fmt.Sprintf("reporting script completed: %s", err.Error()))
+		}
 	}()
 
 	err = cmd.Start()
