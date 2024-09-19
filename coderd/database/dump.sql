@@ -1356,7 +1356,7 @@ CREATE TABLE workspace_agent_port_share (
 );
 
 CREATE TABLE workspace_agent_script_timings (
-    job_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
     display_name text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     ended_at timestamp with time zone NOT NULL,
@@ -2236,7 +2236,7 @@ ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_script_timings
-    ADD CONSTRAINT workspace_agent_script_timings_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_agent_script_timings_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_scripts
     ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

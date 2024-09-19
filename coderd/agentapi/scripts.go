@@ -18,18 +18,8 @@ type ScriptsAPI struct {
 func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.WorkspaceAgentScriptCompletedRequest) (*agentproto.WorkspaceAgentScriptCompletedResponse, error) {
 	res := &agentproto.WorkspaceAgentScriptCompletedResponse{}
 
-	agent, err := s.Database.GetWorkspaceAgentByID(ctx, s.AgentID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace agent by id in database: %w", err)
-	}
-
-	resource, err := s.Database.GetWorkspaceResourceByID(ctx, agent.ResourceID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace resource by id in database: %w", err)
-	}
-
-	_, err = s.Database.InsertWorkspaceAgentScriptTimings(ctx, database.InsertWorkspaceAgentScriptTimingsParams{
-		JobID:        resource.JobID,
+	_, err := s.Database.InsertWorkspaceAgentScriptTimings(ctx, database.InsertWorkspaceAgentScriptTimingsParams{
+		AgentID:      s.AgentID,
 		DisplayName:  req.Timing.DisplayName,
 		StartedAt:    req.Timing.Start.AsTime(),
 		EndedAt:      req.Timing.End.AsTime(),
