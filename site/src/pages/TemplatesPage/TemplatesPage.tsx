@@ -1,5 +1,5 @@
 import { templateExamples, templates } from "api/queries/templates";
-import { useFilter } from "components/Filter/filter";
+import { useFilter } from "components/Filter/Filter";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";

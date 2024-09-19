@@ -1282,7 +1282,7 @@ class ApiMethods {
 	updateUserPassword = async (
 		userId: TypesGen.User["id"],
 		updatePassword: TypesGen.UpdateUserPasswordRequest,
-	): Promise<undefined> => {
+	): Promise<void> => {
 		await this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 	};
 
@@ -1603,14 +1603,27 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getGroups = async (
+		options: { userId?: string } = {},
+	): Promise<TypesGen.Group[]> => {
+		const params: Record<string, string> = {};
+		if (options.userId !== undefined) {
+			params.has_member = options.userId;
+		}
+
+		const response = await this.axios.get("/api/v2/groups", { params });
+		return response.data;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */
-	getGroups = async (organization: string): Promise<TypesGen.Group[]> => {
+	getGroupsByOrganization = async (
+		organization: string,
+	): Promise<TypesGen.Group[]> => {
 		const response = await this.axios.get(
 			`/api/v2/organizations/${organization}/groups`,
 		);
-
 		return response.data;
 	};
 
@@ -1671,11 +1684,13 @@ class ApiMethods {
 	};
 
 	getWorkspaceQuota = async (
+		organizationName: string,
 		username: string,
 	): Promise<TypesGen.WorkspaceQuota> => {
 		const response = await this.axios.get(
-			`/api/v2/workspace-quota/${encodeURIComponent(username)}`,
+			`/api/v2/organizations/${encodeURIComponent(organizationName)}/members/${encodeURIComponent(username)}/workspace-quota`,
 		);
+
 		return response.data;
 	};
 
@@ -1786,6 +1801,7 @@ class ApiMethods {
 			if (isAxiosError(ex) && ex.response?.status === 404) {
 				return {
 					application_name: "",
+					docs_url: "",
 					logo_url: "",
 					announcement_banners: [],
 					service_banner: {

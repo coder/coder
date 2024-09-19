@@ -20,7 +20,12 @@ export const withDashboardProvider = (
 	Story: FC,
 	{ parameters }: StoryContext,
 ) => {
-	const { features = [], experiments = [] } = parameters;
+	const {
+		features = [],
+		experiments = [],
+		showOrganizations = false,
+		organizations = [MockDefaultOrganization],
+	} = parameters;
 
 	const entitlements: Entitlements = {
 		...MockEntitlements,
@@ -40,9 +45,9 @@ export const withDashboardProvider = (
 			value={{
 				entitlements,
 				experiments,
+				organizations,
+				showOrganizations,
 				appearance: MockAppearanceConfig,
-				organizations: [MockDefaultOrganization],
-				showOrganizations: false,
 			}}
 		>
 			<Story />

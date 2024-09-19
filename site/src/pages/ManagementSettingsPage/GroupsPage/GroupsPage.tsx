@@ -1,7 +1,7 @@
 import GroupAdd from "@mui/icons-material/GroupAddOutlined";
 import Button from "@mui/material/Button";
 import { getErrorMessage } from "api/errors";
-import { groups } from "api/queries/groups";
+import { groupsByOrganization } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -21,11 +21,9 @@ import GroupsPageView from "./GroupsPageView";
 export const GroupsPage: FC = () => {
 	const feats = useFeatureVisibility();
 	const { organization: organizationName } = useParams() as {
-		organization?: string;
+		organization: string;
 	};
-	const groupsQuery = useQuery(
-		organizationName ? groups(organizationName) : { enabled: false },
-	);
+	const groupsQuery = useQuery(groupsByOrganization(organizationName));
 	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
@@ -101,5 +99,8 @@ export const GroupsPage: FC = () => {
 
 export default GroupsPage;
 
-export const getOrganizationNameByDefault = (organizations: Organization[]) =>
-	organizations.find((org) => org.is_default)?.name;
+export const getOrganizationNameByDefault = (
+	organizations: readonly Organization[],
+) => {
+	return organizations.find((org) => org.is_default)?.name;
+};

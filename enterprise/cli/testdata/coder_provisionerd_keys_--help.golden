@@ -10,7 +10,7 @@ USAGE:
 SUBCOMMANDS:
     create    Create a new provisioner key
     delete    Delete a provisioner key
-    list      List provisioner keys
+    list      List provisioner keys in an organization
 
 ———
 Run `coder --help` for a list of global options.

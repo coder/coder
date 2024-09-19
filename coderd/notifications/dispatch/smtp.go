@@ -53,7 +53,8 @@ type SMTPHandler struct {
 	cfg codersdk.NotificationsEmailConfig
 	log slog.Logger
 
-	loginWarnOnce sync.Once
+	noAuthWarnOnce sync.Once
+	loginWarnOnce  sync.Once
 
 	helpers template.FuncMap
 }
@@ -136,14 +137,20 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 
 		// Check for authentication capabilities.
 		if ok, avail := c.Extension("AUTH"); ok {
-			// Ensure the auth mechanisms available are ones we can use.
+			// Ensure the auth mechanisms available are ones we can use, and create a SASL client.
 			auth, err := s.auth(ctx, avail)
 			if err != nil {
 				return true, xerrors.Errorf("determine auth mechanism: %w", err)
 			}
 
-			// If so, use the auth mechanism to authenticate.
-			if auth != nil {
+			if auth == nil {
+				// If we get here, no SASL client (which handles authentication) was returned.
+				// This is expected if auth is supported by the smarthost BUT no authentication details were configured.
+				s.noAuthWarnOnce.Do(func() {
+					s.log.Warn(ctx, "skipping auth; no authentication client created")
+				})
+			} else {
+				// We have a SASL client, use it to authenticate.
 				if err := c.Auth(auth); err != nil {
 					return true, xerrors.Errorf("%T auth: %w", auth, err)
 				}
@@ -183,7 +190,15 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		if err != nil {
 			return true, xerrors.Errorf("message transmission: %w", err)
 		}
-		defer message.Close()
+		closeOnce := sync.OnceValue(func() error {
+			return message.Close()
+		})
+		// Close the message when this method exits in order to not leak resources. Even though we're calling this explicitly
+		// further down, the method may exit before then.
+		defer func() {
+			// If we try close an already-closed writer, it'll send a subsequent request to the server which is invalid.
+			_ = closeOnce()
+		}()
 
 		// Create message headers.
 		msg := &bytes.Buffer{}
@@ -249,6 +264,10 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		_, err = message.Write(multipartBuffer.Bytes())
 		if err != nil {
 			return false, xerrors.Errorf("write body buffer: %w", err)
+		}
+
+		if err = closeOnce(); err != nil {
+			return true, xerrors.Errorf("delivery failure: %w", err)
 		}
 
 		// Returning false, nil indicates successful send (i.e. non-retryable non-error)
@@ -418,6 +437,12 @@ func (s *SMTPHandler) loadCertificate() (*tls.Certificate, error) {
 // auth returns a value which implements the smtp.Auth based on the available auth mechanisms.
 func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, error) {
 	username := s.cfg.Auth.Username.String()
+
+	// All auth mechanisms require username, so if one is not defined then don't return an auth client.
+	if username == "" {
+		// nolint:nilnil // This is a valid response.
+		return nil, nil
+	}
 
 	var errs error
 	list := strings.Split(mechs, " ")

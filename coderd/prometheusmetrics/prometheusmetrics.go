@@ -388,7 +388,8 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	}, nil
 }
 
-func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration, aggregateByLabels []string) (func(), error) {
+// nolint:revive // This will be removed alongside the workspaceusage experiment
+func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration, aggregateByLabels []string, usage bool) (func(), error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
@@ -520,7 +521,20 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			timer := prometheus.NewTimer(metricsCollectorAgentStats)
 
 			checkpoint := time.Now()
-			stats, err := db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+			var (
+				stats []database.GetWorkspaceAgentStatsAndLabelsRow
+				err   error
+			)
+			if usage {
+				var agentUsageStats []database.GetWorkspaceAgentUsageStatsAndLabelsRow
+				agentUsageStats, err = db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAfter)
+				stats = make([]database.GetWorkspaceAgentStatsAndLabelsRow, 0, len(agentUsageStats))
+				for _, agentUsageStat := range agentUsageStats {
+					stats = append(stats, database.GetWorkspaceAgentStatsAndLabelsRow(agentUsageStat))
+				}
+			} else {
+				stats, err = db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+			}
 			if err != nil {
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
 			} else {

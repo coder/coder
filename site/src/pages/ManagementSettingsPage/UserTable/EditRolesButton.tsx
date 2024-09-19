@@ -2,6 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import UserIcon from "@mui/icons-material/PersonOutline";
 import Checkbox from "@mui/material/Checkbox";
 import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import type { SlimRole } from "api/typesGenerated";
 import {
 	HelpTooltip,
@@ -116,13 +117,15 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<IconButton
-					size="small"
-					css={styles.editButton}
-					title="Edit user roles"
-				>
-					<EditSquare />
-				</IconButton>
+				<Tooltip title="Edit user roles">
+					<IconButton
+						aria-label="Edit user roles"
+						size="small"
+						css={styles.editButton}
+					>
+						<EditSquare />
+					</IconButton>
+				</Tooltip>
 			</PopoverTrigger>
 
 			<PopoverContent classes={{ paper }}>

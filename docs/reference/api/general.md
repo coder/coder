@@ -345,6 +345,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 			"ignore_user_info": true,
 			"issuer_url": "string",
 			"name_field": "string",
+			"organization_assign_default": true,
+			"organization_field": "string",
+			"organization_mapping": {},
 			"scopes": ["string"],
 			"sign_in_text": "string",
 			"signups_disabled_text": "string",
@@ -393,6 +396,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 		"secure_auth_cookie": true,
 		"session_lifetime": {
 			"default_duration": 0,
+			"default_token_lifetime": 0,
 			"disable_expiry_refresh": true,
 			"max_token_lifetime": 0
 		},

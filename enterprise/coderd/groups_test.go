@@ -779,6 +779,45 @@ func TestGroup(t *testing.T) {
 		require.Contains(t, group.Members, user2.ReducedUser)
 	})
 
+	t.Run("ByIDs", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		groupA, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "group-a",
+		})
+		require.NoError(t, err)
+
+		groupB, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "group-b",
+		})
+		require.NoError(t, err)
+
+		// group-c should be omitted from the filter
+		_, err = userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "group-c",
+		})
+		require.NoError(t, err)
+
+		found, err := userAdminClient.Groups(ctx, codersdk.GroupArguments{
+			GroupIDs: []uuid.UUID{groupA.ID, groupB.ID},
+		})
+		require.NoError(t, err)
+
+		foundIDs := db2sdk.List(found, func(g codersdk.Group) uuid.UUID {
+			return g.ID
+		})
+
+		require.ElementsMatch(t, []uuid.UUID{groupA.ID, groupB.ID}, foundIDs)
+	})
+
 	t.Run("everyoneGroupReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
 

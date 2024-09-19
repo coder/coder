@@ -87,6 +87,7 @@ func TestGetManifest(t *testing.T) {
 				Subdomain:    false,
 				SharingLevel: database.AppSharingLevelPublic,
 				Health:       database.WorkspaceAppHealthDisabled,
+				Hidden:       false,
 			},
 			{
 				ID:                   uuid.New(),
@@ -102,6 +103,7 @@ func TestGetManifest(t *testing.T) {
 				HealthcheckUrl:       "http://localhost:4321/health",
 				HealthcheckInterval:  20,
 				HealthcheckThreshold: 5,
+				Hidden:               true,
 			},
 		}
 		scripts = []database.WorkspaceAgentScript{
@@ -182,6 +184,7 @@ func TestGetManifest(t *testing.T) {
 					Threshold: apps[0].HealthcheckThreshold,
 				},
 				Health: agentproto.WorkspaceApp_HEALTHY,
+				Hidden: false,
 			},
 			{
 				Id:            apps[1].ID[:],
@@ -200,6 +203,7 @@ func TestGetManifest(t *testing.T) {
 					Threshold: 0,
 				},
 				Health: agentproto.WorkspaceApp_DISABLED,
+				Hidden: false,
 			},
 			{
 				Id:            apps[2].ID[:],
@@ -218,6 +222,7 @@ func TestGetManifest(t *testing.T) {
 					Threshold: apps[2].HealthcheckThreshold,
 				},
 				Health: agentproto.WorkspaceApp_UNHEALTHY,
+				Hidden: true,
 			},
 		}
 		protoScripts = []*agentproto.WorkspaceAgentScript{

@@ -9,12 +9,10 @@ const meta: Meta<typeof Paywall> = {
 export default meta;
 type Story = StoryObj<typeof Paywall>;
 
-const Example: Story = {
+export const Premium: Story = {
 	args: {
 		message: "Black Lotus",
 		description:
 			"Adds 3 mana of any single color of your choice to your mana pool, then is discarded. Tapping this artifact can be played as an interrupt.",
 	},
 };
-
-export { Example as Paywall };

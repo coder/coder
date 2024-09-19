@@ -1,0 +1,15 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations settings
+
+  Manage organization settings.
+
+  Aliases: setting
+
+SUBCOMMANDS:
+    set     Update specified organization setting.
+    show    Outputs specified organization setting.
+
+———
+Run `coder --help` for a list of global options.

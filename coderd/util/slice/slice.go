@@ -62,6 +62,20 @@ func Overlap[T comparable](a []T, b []T) bool {
 	})
 }
 
+func UniqueFunc[T any](a []T, equal func(a, b T) bool) []T {
+	cpy := make([]T, 0, len(a))
+
+	for _, v := range a {
+		if ContainsCompare(cpy, v, equal) {
+			continue
+		}
+
+		cpy = append(cpy, v)
+	}
+
+	return cpy
+}
+
 // Unique returns a new slice with all duplicate elements removed.
 func Unique[T comparable](a []T) []T {
 	cpy := make([]T, 0, len(a))
@@ -109,7 +123,7 @@ func Descending[T constraints.Ordered](a, b T) int {
 }
 
 // SymmetricDifference returns the elements that need to be added and removed
-// to get from set 'a' to set 'b'.
+// to get from set 'a' to set 'b'. Note that duplicates are ignored in sets.
 // In classical set theory notation, SymmetricDifference returns
 // all elements of {add} and {remove} together. It is more useful to
 // return them as their own slices.
@@ -117,7 +131,7 @@ func Descending[T constraints.Ordered](a, b T) int {
 // Example:
 //
 //	a := []int{1, 3, 4}
-//	b := []int{1, 2}
+//	b := []int{1, 2, 2, 2}
 //	add, remove := SymmetricDifference(a, b)
 //	fmt.Println(add)    // [2]
 //	fmt.Println(remove) // [3, 4]
@@ -127,6 +141,8 @@ func SymmetricDifference[T comparable](a, b []T) (add []T, remove []T) {
 }
 
 func SymmetricDifferenceFunc[T any](a, b []T, equal func(a, b T) bool) (add []T, remove []T) {
+	// Ignore all duplicates
+	a, b = UniqueFunc(a, equal), UniqueFunc(b, equal)
 	return DifferenceFunc(b, a, equal), DifferenceFunc(a, b, equal)
 }
 

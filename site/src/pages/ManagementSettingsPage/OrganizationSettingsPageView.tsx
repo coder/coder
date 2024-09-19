@@ -187,8 +187,8 @@ const styles = {
 		borderColor: theme.roles.danger.outline,
 		color: theme.roles.danger.text,
 
-		"&:not(.MuiLoadingButton-loading)": {
-			color: theme.roles.danger.fill.text,
+		"&.MuiLoadingButton-loading": {
+			color: theme.roles.danger.disabled.text,
 		},
 
 		"&:hover:not(:disabled)": {

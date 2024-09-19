@@ -220,6 +220,12 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 		(n) => n.severity === "warning",
 	);
 
+	// We have to avoid rendering out a div at all if there is no content so
+	// that we don't introduce additional gaps via the parent flex container
+	if (infoNotifications.length === 0 && warningNotifications.length === 0) {
+		return null;
+	}
+
 	return (
 		<div css={styles.notificationsGroup}>
 			{infoNotifications.length > 0 && (

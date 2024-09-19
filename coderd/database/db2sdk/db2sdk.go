@@ -208,17 +208,19 @@ func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []c
 	})
 }
 
-func Group(group database.Group, members []database.GroupMember, totalMemberCount int) codersdk.Group {
+func Group(row database.GetGroupsRow, members []database.GroupMember, totalMemberCount int) codersdk.Group {
 	return codersdk.Group{
-		ID:               group.ID,
-		Name:             group.Name,
-		DisplayName:      group.DisplayName,
-		OrganizationID:   group.OrganizationID,
-		AvatarURL:        group.AvatarURL,
-		Members:          ReducedUsersFromGroupMembers(members),
-		TotalMemberCount: totalMemberCount,
-		QuotaAllowance:   int(group.QuotaAllowance),
-		Source:           codersdk.GroupSource(group.Source),
+		ID:                      row.Group.ID,
+		Name:                    row.Group.Name,
+		DisplayName:             row.Group.DisplayName,
+		OrganizationID:          row.Group.OrganizationID,
+		AvatarURL:               row.Group.AvatarURL,
+		Members:                 ReducedUsersFromGroupMembers(members),
+		TotalMemberCount:        totalMemberCount,
+		QuotaAllowance:          int(row.Group.QuotaAllowance),
+		Source:                  codersdk.GroupSource(row.Group.Source),
+		OrganizationName:        row.OrganizationName,
+		OrganizationDisplayName: row.OrganizationDisplayName,
 	}
 }
 
@@ -515,6 +517,7 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 				Threshold: dbApp.HealthcheckThreshold,
 			},
 			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
+			Hidden: dbApp.Hidden,
 		})
 	}
 	return apps
@@ -530,11 +533,36 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 		Tags:           dbDaemon.Tags,
 		Version:        dbDaemon.Version,
 		APIVersion:     dbDaemon.APIVersion,
+		KeyID:          dbDaemon.KeyID,
 	}
 	for _, provisionerType := range dbDaemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
 	}
 	return result
+}
+
+func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemons []database.ProvisionerDaemon) []codersdk.ProvisionerDaemon {
+	results := []codersdk.ProvisionerDaemon{}
+
+	for _, daemon := range daemons {
+		// Daemon never connected, skip.
+		if !daemon.LastSeenAt.Valid {
+			continue
+		}
+		// Daemon has gone away, skip.
+		if now.Sub(daemon.LastSeenAt.Time) > staleInterval {
+			continue
+		}
+
+		results = append(results, ProvisionerDaemon(daemon))
+	}
+
+	// Ensure stable order for display and for tests
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Name < results[j].Name
+	})
+
+	return results
 }
 
 func SlimRole(role rbac.Role) codersdk.SlimRole {

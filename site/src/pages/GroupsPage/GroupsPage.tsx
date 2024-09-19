@@ -1,5 +1,5 @@
 import { getErrorMessage } from "api/errors";
-import { groups } from "api/queries/groups";
+import { groupsByOrganization } from "api/queries/groups";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -12,7 +12,7 @@ import GroupsPageView from "./GroupsPageView";
 export const GroupsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
-	const groupsQuery = useQuery(groups("default"));
+	const groupsQuery = useQuery(groupsByOrganization("default"));
 
 	useEffect(() => {
 		if (groupsQuery.error) {

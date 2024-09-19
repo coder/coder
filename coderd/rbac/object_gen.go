@@ -55,6 +55,16 @@ var (
 		Type: "audit_log",
 	}
 
+	// ResourceCryptoKey
+	// Valid Actions
+	//  - "ActionCreate" :: create crypto keys
+	//  - "ActionDelete" :: delete crypto keys
+	//  - "ActionRead" :: read crypto keys
+	//  - "ActionUpdate" :: update crypto keys
+	ResourceCryptoKey = Object{
+		Type: "crypto_key",
+	}
+
 	// ResourceDebugInfo
 	// Valid Actions
 	//  - "ActionRead" :: access to debug routes
@@ -100,6 +110,14 @@ var (
 	//  - "ActionRead" :: read group members
 	ResourceGroupMember = Object{
 		Type: "group_member",
+	}
+
+	// ResourceIdpsyncSettings
+	// Valid Actions
+	//  - "ActionRead" :: read IdP sync settings
+	//  - "ActionUpdate" :: update IdP sync settings
+	ResourceIdpsyncSettings = Object{
+		Type: "idpsync_settings",
 	}
 
 	// ResourceLicense
@@ -291,12 +309,14 @@ func AllResources() []Objecter {
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
 		ResourceAuditLog,
+		ResourceCryptoKey,
 		ResourceDebugInfo,
 		ResourceDeploymentConfig,
 		ResourceDeploymentStats,
 		ResourceFile,
 		ResourceGroup,
 		ResourceGroupMember,
+		ResourceIdpsyncSettings,
 		ResourceLicense,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,

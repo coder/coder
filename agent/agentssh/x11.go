@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -22,61 +23,69 @@ import (
 	"cdr.dev/slog"
 )
 
+const (
+	// X11StartPort is the starting port for X11 forwarding, this is the
+	// port used for "DISPLAY=localhost:0".
+	X11StartPort = 6000
+	// X11DefaultDisplayOffset is the default offset for X11 forwarding.
+	X11DefaultDisplayOffset = 10
+)
+
 // x11Callback is called when the client requests X11 forwarding.
-// It adds an Xauthority entry to the Xauthority file.
-func (s *Server) x11Callback(ctx ssh.Context, x11 ssh.X11) bool {
-	hostname, err := os.Hostname()
-	if err != nil {
-		s.logger.Warn(ctx, "failed to get hostname", slog.Error(err))
-		s.metrics.x11HandlerErrors.WithLabelValues("hostname").Add(1)
-		return false
-	}
-
-	err = s.fs.MkdirAll(s.config.X11SocketDir, 0o700)
-	if err != nil {
-		s.logger.Warn(ctx, "failed to make the x11 socket dir", slog.F("dir", s.config.X11SocketDir), slog.Error(err))
-		s.metrics.x11HandlerErrors.WithLabelValues("socker_dir").Add(1)
-		return false
-	}
-
-	err = addXauthEntry(ctx, s.fs, hostname, strconv.Itoa(int(x11.ScreenNumber)), x11.AuthProtocol, x11.AuthCookie)
-	if err != nil {
-		s.logger.Warn(ctx, "failed to add Xauthority entry", slog.Error(err))
-		s.metrics.x11HandlerErrors.WithLabelValues("xauthority").Add(1)
-		return false
-	}
+func (*Server) x11Callback(_ ssh.Context, _ ssh.X11) bool {
+	// Always allow.
 	return true
 }
 
 // x11Handler is called when a session has requested X11 forwarding.
 // It listens for X11 connections and forwards them to the client.
-func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
+func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) (displayNumber int, handled bool) {
 	serverConn, valid := ctx.Value(ssh.ContextKeyConn).(*gossh.ServerConn)
 	if !valid {
 		s.logger.Warn(ctx, "failed to get server connection")
-		return false
+		return -1, false
 	}
-	// We want to overwrite the socket so that subsequent connections will succeed.
-	socketPath := filepath.Join(s.config.X11SocketDir, fmt.Sprintf("X%d", x11.ScreenNumber))
-	err := os.Remove(socketPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		s.logger.Warn(ctx, "failed to remove existing X11 socket", slog.Error(err))
-		return false
-	}
-	listener, err := net.Listen("unix", socketPath)
+
+	hostname, err := os.Hostname()
 	if err != nil {
-		s.logger.Warn(ctx, "failed to listen for X11", slog.Error(err))
-		return false
+		s.logger.Warn(ctx, "failed to get hostname", slog.Error(err))
+		s.metrics.x11HandlerErrors.WithLabelValues("hostname").Add(1)
+		return -1, false
 	}
-	s.trackListener(listener, true)
+
+	ln, display, err := createX11Listener(ctx, *s.config.X11DisplayOffset)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to create X11 listener", slog.Error(err))
+		s.metrics.x11HandlerErrors.WithLabelValues("listen").Add(1)
+		return -1, false
+	}
+	s.trackListener(ln, true)
+	defer func() {
+		if !handled {
+			s.trackListener(ln, false)
+			_ = ln.Close()
+		}
+	}()
+
+	err = addXauthEntry(ctx, s.fs, hostname, strconv.Itoa(display), x11.AuthProtocol, x11.AuthCookie)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to add Xauthority entry", slog.Error(err))
+		s.metrics.x11HandlerErrors.WithLabelValues("xauthority").Add(1)
+		return -1, false
+	}
 
 	go func() {
-		defer listener.Close()
-		defer s.trackListener(listener, false)
-		handledFirstConnection := false
+		// Don't leave the listener open after the session is gone.
+		<-ctx.Done()
+		_ = ln.Close()
+	}()
+
+	go func() {
+		defer ln.Close()
+		defer s.trackListener(ln, false)
 
 		for {
-			conn, err := listener.Accept()
+			conn, err := ln.Accept()
 			if err != nil {
 				if errors.Is(err, net.ErrClosed) {
 					return
@@ -84,40 +93,66 @@ func (s *Server) x11Handler(ctx ssh.Context, x11 ssh.X11) bool {
 				s.logger.Warn(ctx, "failed to accept X11 connection", slog.Error(err))
 				return
 			}
-			if x11.SingleConnection && handledFirstConnection {
-				s.logger.Warn(ctx, "X11 connection rejected because single connection is enabled")
+			if x11.SingleConnection {
+				s.logger.Debug(ctx, "single connection requested, closing X11 listener")
+				_ = ln.Close()
+			}
+
+			tcpConn, ok := conn.(*net.TCPConn)
+			if !ok {
+				s.logger.Warn(ctx, fmt.Sprintf("failed to cast connection to TCPConn. got: %T", conn))
 				_ = conn.Close()
 				continue
 			}
-			handledFirstConnection = true
-
-			unixConn, ok := conn.(*net.UnixConn)
+			tcpAddr, ok := tcpConn.LocalAddr().(*net.TCPAddr)
 			if !ok {
-				s.logger.Warn(ctx, fmt.Sprintf("failed to cast connection to UnixConn. got: %T", conn))
-				return
-			}
-			unixAddr, ok := unixConn.LocalAddr().(*net.UnixAddr)
-			if !ok {
-				s.logger.Warn(ctx, fmt.Sprintf("failed to cast local address to UnixAddr. got: %T", unixConn.LocalAddr()))
-				return
+				s.logger.Warn(ctx, fmt.Sprintf("failed to cast local address to TCPAddr. got: %T", tcpConn.LocalAddr()))
+				_ = conn.Close()
+				continue
 			}
 
 			channel, reqs, err := serverConn.OpenChannel("x11", gossh.Marshal(struct {
 				OriginatorAddress string
 				OriginatorPort    uint32
 			}{
-				OriginatorAddress: unixAddr.Name,
-				OriginatorPort:    0,
+				OriginatorAddress: tcpAddr.IP.String(),
+				OriginatorPort:    uint32(tcpAddr.Port),
 			}))
 			if err != nil {
 				s.logger.Warn(ctx, "failed to open X11 channel", slog.Error(err))
-				return
+				_ = conn.Close()
+				continue
 			}
 			go gossh.DiscardRequests(reqs)
-			go Bicopy(ctx, conn, channel)
+
+			if !s.trackConn(ln, conn, true) {
+				s.logger.Warn(ctx, "failed to track X11 connection")
+				_ = conn.Close()
+				continue
+			}
+			go func() {
+				defer s.trackConn(ln, conn, false)
+				Bicopy(ctx, conn, channel)
+			}()
 		}
 	}()
-	return true
+
+	return display, true
+}
+
+// createX11Listener creates a listener for X11 forwarding, it will use
+// the next available port starting from X11StartPort and displayOffset.
+func createX11Listener(ctx context.Context, displayOffset int) (ln net.Listener, display int, err error) {
+	var lc net.ListenConfig
+	// Look for an open port to listen on.
+	for port := X11StartPort + displayOffset; port < math.MaxUint16; port++ {
+		ln, err = lc.Listen(ctx, "tcp", fmt.Sprintf("localhost:%d", port))
+		if err == nil {
+			display = port - X11StartPort
+			return ln, display, nil
+		}
+	}
+	return nil, -1, xerrors.Errorf("failed to find open port for X11 listener: %w", err)
 }
 
 // addXauthEntry adds an Xauthority entry to the Xauthority file.

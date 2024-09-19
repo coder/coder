@@ -60,9 +60,13 @@ func (r *RootCmd) create() *serpent.Command {
 				workspaceName, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Specify a name for your workspace:",
 					Validate: func(workspaceName string) error {
-						_, err = client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
+						err = codersdk.NameValid(workspaceName)
+						if err != nil {
+							return xerrors.Errorf("workspace name %q is invalid: %w", workspaceName, err)
+						}
+						_, err = client.WorkspaceByOwnerAndName(inv.Context(), workspaceOwner, workspaceName, codersdk.WorkspaceOptions{})
 						if err == nil {
-							return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
+							return xerrors.Errorf("a workspace already exists named %q", workspaceName)
 						}
 						return nil
 					},
@@ -71,10 +75,13 @@ func (r *RootCmd) create() *serpent.Command {
 					return err
 				}
 			}
-
+			err = codersdk.NameValid(workspaceName)
+			if err != nil {
+				return xerrors.Errorf("workspace name %q is invalid: %w", workspaceName, err)
+			}
 			_, err = client.WorkspaceByOwnerAndName(inv.Context(), workspaceOwner, workspaceName, codersdk.WorkspaceOptions{})
 			if err == nil {
-				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
+				return xerrors.Errorf("a workspace already exists named %q", workspaceName)
 			}
 
 			var sourceWorkspace codersdk.Workspace

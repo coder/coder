@@ -275,6 +275,20 @@ const OrganizationSettingsNavigation: FC<
 								Roles
 							</SidebarNavSubItem>
 						)}
+					{organization.permissions.viewProvisioners && (
+						<SidebarNavSubItem
+							href={urlForSubpage(organization.name, "provisioners")}
+						>
+							Provisioners
+						</SidebarNavSubItem>
+					)}
+					{organization.permissions.editMembers && (
+						<SidebarNavSubItem
+							href={urlForSubpage(organization.name, "idp-sync")}
+						>
+							IdP Sync
+						</SidebarNavSubItem>
+					)}
 				</Stack>
 			)}
 		</>

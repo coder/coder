@@ -8,7 +8,9 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
+import type { GroupsByUserId } from "api/queries/groups";
 import type {
+	Group,
 	OrganizationMemberWithUserData,
 	SlimRole,
 	User,
@@ -27,6 +29,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
@@ -39,13 +42,18 @@ interface OrganizationMembersPageViewProps {
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
 	me: User;
-	members: OrganizationMemberWithUserData[] | undefined;
+	members: Array<OrganizationMemberTableEntry> | undefined;
+	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
 	updateMemberRoles: (
 		member: OrganizationMemberWithUserData,
 		newRoles: string[],
 	) => Promise<void>;
+}
+
+interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
+	groups: readonly Group[] | undefined;
 }
 
 export const OrganizationMembersPageView: FC<

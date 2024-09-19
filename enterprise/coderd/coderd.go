@@ -16,8 +16,10 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	agplportsharing "github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/enterprise/coderd/portsharing"
 
 	"golang.org/x/xerrors"
@@ -109,6 +111,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	options.Database = cryptDB
+
+	if options.IDPSync == nil {
+		options.IDPSync = enidpsync.NewSync(options.Logger, options.RuntimeConfig, options.Entitlements, idpsync.FromDeploymentValues(options.DeploymentValues))
+	}
+
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
@@ -138,8 +145,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 		return c.Subject, c.Trial, nil
 	}
-	api.AGPL.Options.SetUserGroups = api.setUserGroups
-	api.AGPL.Options.SetUserSiteRoles = api.setUserSiteRoles
 	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
 		// If the user can read the workspace proxy resource, return that.
 		// If not, always default to the regions.
@@ -287,6 +292,19 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Route("/organizations/{organization}/settings", func(r chi.Router) {
+				r.Get("/idpsync/groups", api.groupIDPSyncSettings)
+				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
+				r.Get("/idpsync/roles", api.roleIDPSyncSettings)
+				r.Patch("/idpsync/roles", api.patchRoleIDPSyncSettings)
+			})
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
 				// Intentionally using ExtractUser instead of ExtractMember.
 				// It is possible for a member to be removed from an org, in which
 				// case their orphaned workspaces still exist. We only need
@@ -321,6 +339,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Get("/", api.provisionerKeys)
 			r.Post("/", api.postProvisionerKey)
+			r.Get("/daemons", api.provisionerKeyDaemons)
 			r.Route("/{provisionerkey}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractProvisionerKeyParam(options.Database),
@@ -573,26 +592,10 @@ type API struct {
 // This header is used by the CLI to display warnings to the user without having
 // to make additional requests!
 func (api *API) writeEntitlementWarningsHeader(a rbac.Subject, header http.Header) {
-	roles, err := a.Roles.Expand()
+	err := api.AGPL.HTTPAuth.Authorizer.Authorize(api.ctx, a, policy.ActionRead, rbac.ResourceDeploymentConfig)
 	if err != nil {
 		return
 	}
-	nonMemberRoles := 0
-	for _, role := range roles {
-		// The member role is implied, and not assignable.
-		// If there is no display name, then the role is also unassigned.
-		// This is not the ideal logic, but works for now.
-		if role.Identifier == rbac.RoleMember() || (role.DisplayName == "") {
-			continue
-		}
-		nonMemberRoles++
-	}
-	if nonMemberRoles == 0 {
-		// Don't show entitlement warnings if the user
-		// has no roles. This is a normal user!
-		return
-	}
-
 	api.Entitlements.WriteEntitlementWarningHeaders(header)
 }
 

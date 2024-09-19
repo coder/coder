@@ -339,6 +339,67 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type CryptoKeyFeature string
+
+const (
+	CryptoKeyFeatureWorkspaceApps CryptoKeyFeature = "workspace_apps"
+	CryptoKeyFeatureOidcConvert   CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+)
+
+func (e *CryptoKeyFeature) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CryptoKeyFeature(s)
+	case string:
+		*e = CryptoKeyFeature(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CryptoKeyFeature: %T", src)
+	}
+	return nil
+}
+
+type NullCryptoKeyFeature struct {
+	CryptoKeyFeature CryptoKeyFeature `json:"crypto_key_feature"`
+	Valid            bool             `json:"valid"` // Valid is true if CryptoKeyFeature is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCryptoKeyFeature) Scan(value interface{}) error {
+	if value == nil {
+		ns.CryptoKeyFeature, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CryptoKeyFeature.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCryptoKeyFeature) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CryptoKeyFeature), nil
+}
+
+func (e CryptoKeyFeature) Valid() bool {
+	switch e {
+	case CryptoKeyFeatureWorkspaceApps,
+		CryptoKeyFeatureOidcConvert,
+		CryptoKeyFeatureTailnetResume:
+		return true
+	}
+	return false
+}
+
+func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
+	return []CryptoKeyFeature{
+		CryptoKeyFeatureWorkspaceApps,
+		CryptoKeyFeatureOidcConvert,
+		CryptoKeyFeatureTailnetResume,
+	}
+}
+
 type DisplayApp string
 
 const (
@@ -2043,6 +2104,15 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+type CryptoKey struct {
+	Feature     CryptoKeyFeature `db:"feature" json:"feature"`
+	Sequence    int32            `db:"sequence" json:"sequence"`
+	Secret      sql.NullString   `db:"secret" json:"secret"`
+	SecretKeyID sql.NullString   `db:"secret_key_id" json:"secret_key_id"`
+	StartsAt    time.Time        `db:"starts_at" json:"starts_at"`
+	DeletesAt   sql.NullTime     `db:"deletes_at" json:"deletes_at"`
+}
+
 // Custom roles allow dynamic roles expanded at runtime
 type CustomRole struct {
 	Name            string                `db:"name" json:"name"`
@@ -2192,6 +2262,12 @@ type NotificationPreference struct {
 	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Log of generated reports for users.
+type NotificationReportGeneratorLog struct {
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+	LastGeneratedAt        time.Time `db:"last_generated_at" json:"last_generated_at"`
+}
+
 // Templates from which to create notification messages.
 type NotificationTemplate struct {
 	ID            uuid.UUID      `db:"id" json:"id"`
@@ -2311,6 +2387,7 @@ type ProvisionerDaemon struct {
 	// The API version of the provisioner daemon
 	APIVersion     string    `db:"api_version" json:"api_version"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	KeyID          uuid.UUID `db:"key_id" json:"key_id"`
 }
 
 type ProvisionerJob struct {
@@ -2823,6 +2900,7 @@ type WorkspaceAgentStat struct {
 	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	Usage                       bool            `db:"usage" json:"usage"`
 }
 
 type WorkspaceApp struct {
@@ -2843,6 +2921,8 @@ type WorkspaceApp struct {
 	External             bool               `db:"external" json:"external"`
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	// Determines if the app is not shown in user interfaces.
+	Hidden bool `db:"hidden" json:"hidden"`
 }
 
 // A record of workspace app usage statistics

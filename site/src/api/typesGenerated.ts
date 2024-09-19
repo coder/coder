@@ -48,6 +48,7 @@ export interface AppHostResponse {
 export interface AppearanceConfig {
 	readonly application_name: string;
 	readonly logo_url: string;
+	readonly docs_url: string;
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: Readonly<Array<BannerConfig>>;
 	readonly support_links?: Readonly<Array<LinkConfig>>;
@@ -623,12 +624,25 @@ export interface Group {
 	readonly avatar_url: string;
 	readonly quota_allowance: number;
 	readonly source: GroupSource;
+	readonly organization_name: string;
+	readonly organization_display_name: string;
 }
 
 // From codersdk/groups.go
 export interface GroupArguments {
 	readonly Organization: string;
 	readonly HasMember: string;
+	readonly GroupIDs: Readonly<Array<string>>;
+}
+
+// From codersdk/idpsync.go
+export interface GroupSyncSettings {
+	readonly field: string;
+	readonly mapping: Record<string, Readonly<Array<string>>>;
+	// external type "regexp.Regexp", using "unknown"
+	readonly regex_filter?: unknown;
+	readonly auto_create_missing_groups: boolean;
+	readonly legacy_group_name_mapping?: Record<string, string>;
 }
 
 // From codersdk/workspaceapps.go
@@ -879,6 +893,9 @@ export interface OIDCConfig {
 	readonly email_field: string;
 	readonly auth_url_params: Record<string, string>;
 	readonly ignore_user_info: boolean;
+	readonly organization_field: string;
+	readonly organization_mapping: Record<string, Readonly<Array<string>>>;
+	readonly organization_assign_default: boolean;
 	readonly group_auto_create: boolean;
 	readonly group_regex_filter: string;
 	readonly group_allow_list: string[];
@@ -1000,6 +1017,7 @@ export interface ProvisionerConfig {
 export interface ProvisionerDaemon {
 	readonly id: string;
 	readonly organization_id: string;
+	readonly key_id: string;
 	readonly created_at: string;
 	readonly last_seen_at?: string;
 	readonly name: string;
@@ -1043,6 +1061,23 @@ export interface ProvisionerKey {
 	readonly organization: string;
 	readonly name: string;
 	readonly tags: Record<string, string>;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerKeyDaemons {
+	readonly key: ProvisionerKey;
+	readonly daemons: Readonly<Array<ProvisionerDaemon>>;
+}
+
+// From codersdk/workspaces.go
+export interface ProvisionerTiming {
+	readonly job_id: string;
+	readonly started_at: string;
+	readonly ended_at: string;
+	readonly stage: string;
+	readonly source: string;
+	readonly action: string;
+	readonly resource: string;
 }
 
 // From codersdk/workspaceproxy.go
@@ -1130,6 +1165,12 @@ export interface Role {
 	readonly user_permissions: Readonly<Array<Permission>>;
 }
 
+// From codersdk/idpsync.go
+export interface RoleSyncSettings {
+	readonly field: string;
+	readonly mapping: Record<string, Readonly<Array<string>>>;
+}
+
 // From codersdk/deployment.go
 export interface SSHConfig {
 	readonly DeploymentName: string;
@@ -1168,6 +1209,7 @@ export interface SessionCountDeploymentStats {
 export interface SessionLifetime {
 	readonly disable_expiry_refresh?: boolean;
 	readonly default_duration: number;
+	readonly default_token_lifetime?: number;
 	readonly max_token_lifetime?: number;
 }
 
@@ -1869,6 +1911,7 @@ export interface WorkspaceApp {
 	readonly sharing_level: WorkspaceAppSharingLevel;
 	readonly healthcheck: Healthcheck;
 	readonly health: WorkspaceAppHealth;
+	readonly hidden: boolean;
 }
 
 // From codersdk/workspacebuilds.go
@@ -1994,6 +2037,11 @@ export interface WorkspaceResourceMetadata {
 }
 
 // From codersdk/workspaces.go
+export interface WorkspaceTimings {
+	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
+}
+
+// From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
 	readonly q?: string;
 }
@@ -2109,8 +2157,8 @@ export type RBACAction = "application_connect" | "assign" | "create" | "delete" 
 export const RBACActions: RBACAction[] = ["application_connect", "assign", "create", "delete", "read", "read_personal", "ssh", "start", "stop", "update", "update_personal", "use", "view_insights"]
 
 // From codersdk/rbacresources_gen.go
-export type RBACResource = "*" | "api_key" | "assign_org_role" | "assign_role" | "audit_log" | "debug_info" | "deployment_config" | "deployment_stats" | "file" | "group" | "group_member" | "license" | "notification_preference" | "notification_template" | "oauth2_app" | "oauth2_app_code_token" | "oauth2_app_secret" | "organization" | "organization_member" | "provisioner_daemon" | "provisioner_keys" | "replicas" | "system" | "tailnet_coordinator" | "template" | "user" | "workspace" | "workspace_dormant" | "workspace_proxy"
-export const RBACResources: RBACResource[] = ["*", "api_key", "assign_org_role", "assign_role", "audit_log", "debug_info", "deployment_config", "deployment_stats", "file", "group", "group_member", "license", "notification_preference", "notification_template", "oauth2_app", "oauth2_app_code_token", "oauth2_app_secret", "organization", "organization_member", "provisioner_daemon", "provisioner_keys", "replicas", "system", "tailnet_coordinator", "template", "user", "workspace", "workspace_dormant", "workspace_proxy"]
+export type RBACResource = "*" | "api_key" | "assign_org_role" | "assign_role" | "audit_log" | "crypto_key" | "debug_info" | "deployment_config" | "deployment_stats" | "file" | "group" | "group_member" | "idpsync_settings" | "license" | "notification_preference" | "notification_template" | "oauth2_app" | "oauth2_app_code_token" | "oauth2_app_secret" | "organization" | "organization_member" | "provisioner_daemon" | "provisioner_keys" | "replicas" | "system" | "tailnet_coordinator" | "template" | "user" | "workspace" | "workspace_dormant" | "workspace_proxy"
+export const RBACResources: RBACResource[] = ["*", "api_key", "assign_org_role", "assign_role", "audit_log", "crypto_key", "debug_info", "deployment_config", "deployment_stats", "file", "group", "group_member", "idpsync_settings", "license", "notification_preference", "notification_template", "oauth2_app", "oauth2_app_code_token", "oauth2_app_secret", "organization", "organization_member", "provisioner_daemon", "provisioner_keys", "replicas", "system", "tailnet_coordinator", "template", "user", "workspace", "workspace_dormant", "workspace_proxy"]
 
 // From codersdk/audit.go
 export type ResourceType = "api_key" | "convert_login" | "custom_role" | "git_ssh_key" | "group" | "health_settings" | "license" | "notifications_settings" | "oauth2_provider_app" | "oauth2_provider_app_secret" | "organization" | "template" | "template_version" | "user" | "workspace" | "workspace_build" | "workspace_proxy"

@@ -9,12 +9,14 @@ const (
 	ResourceAssignOrgRole          RBACResource = "assign_org_role"
 	ResourceAssignRole             RBACResource = "assign_role"
 	ResourceAuditLog               RBACResource = "audit_log"
+	ResourceCryptoKey              RBACResource = "crypto_key"
 	ResourceDebugInfo              RBACResource = "debug_info"
 	ResourceDeploymentConfig       RBACResource = "deployment_config"
 	ResourceDeploymentStats        RBACResource = "deployment_stats"
 	ResourceFile                   RBACResource = "file"
 	ResourceGroup                  RBACResource = "group"
 	ResourceGroupMember            RBACResource = "group_member"
+	ResourceIdpsyncSettings        RBACResource = "idpsync_settings"
 	ResourceLicense                RBACResource = "license"
 	ResourceNotificationPreference RBACResource = "notification_preference"
 	ResourceNotificationTemplate   RBACResource = "notification_template"
@@ -61,12 +63,14 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceAssignOrgRole:          {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAssignRole:             {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAuditLog:               {ActionCreate, ActionRead},
+	ResourceCryptoKey:              {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:              {ActionRead},
 	ResourceDeploymentConfig:       {ActionRead, ActionUpdate},
 	ResourceDeploymentStats:        {ActionRead},
 	ResourceFile:                   {ActionCreate, ActionRead},
 	ResourceGroup:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceGroupMember:            {ActionRead},
+	ResourceIdpsyncSettings:        {ActionRead, ActionUpdate},
 	ResourceLicense:                {ActionCreate, ActionDelete, ActionRead},
 	ResourceNotificationPreference: {ActionRead, ActionUpdate},
 	ResourceNotificationTemplate:   {ActionRead, ActionUpdate},

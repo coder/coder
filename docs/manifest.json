@@ -328,6 +328,11 @@
 					"title": "Remote Desktops",
 					"description": "Learn how to use Remote Desktops with Coder",
 					"path": "./ides/remote-desktops.md"
+				},
+				{
+					"title": "VSCode Extensions",
+					"description": "Learn how to use extensions in VSCode with Coder",
+					"path": "./ides/vscode-extensions.md"
 				}
 			]
 		},
@@ -346,6 +351,11 @@
 					"title": "STUN and NAT",
 					"description": "Learn how Coder establishes direct connections",
 					"path": "./networking/stun.md"
+				},
+				{
+					"title": "Troubleshooting",
+					"description": "Troubleshoot networking issues in Coder",
+					"path": "./networking/troubleshooting.md"
 				}
 			]
 		},
@@ -501,6 +511,12 @@
 					"description": "Learn how to monitor the health of your Coder deployment",
 					"path": "./admin/healthcheck.md",
 					"icon_path": "./images/icons/health.svg"
+				},
+				{
+					"title": "Notifications",
+					"description": "Learn how to configure notifications",
+					"path": "./admin/notifications.md",
+					"icon_path": "./images/icons/info.svg"
 				}
 			]
 		},
@@ -792,6 +808,96 @@
 							"path": "reference/cli/open_vscode.md"
 						},
 						{
+							"title": "organizations",
+							"description": "Organization related commands",
+							"path": "reference/cli/organizations.md"
+						},
+						{
+							"title": "organizations create",
+							"description": "Create a new organization.",
+							"path": "reference/cli/organizations_create.md"
+						},
+						{
+							"title": "organizations members",
+							"description": "Manage organization members",
+							"path": "reference/cli/organizations_members.md"
+						},
+						{
+							"title": "organizations members add",
+							"description": "Add a new member to the current organization",
+							"path": "reference/cli/organizations_members_add.md"
+						},
+						{
+							"title": "organizations members edit-roles",
+							"description": "Edit organization member's roles",
+							"path": "reference/cli/organizations_members_edit-roles.md"
+						},
+						{
+							"title": "organizations members list",
+							"description": "List all organization members",
+							"path": "reference/cli/organizations_members_list.md"
+						},
+						{
+							"title": "organizations members remove",
+							"description": "Remove a new member to the current organization",
+							"path": "reference/cli/organizations_members_remove.md"
+						},
+						{
+							"title": "organizations roles",
+							"description": "Manage organization roles.",
+							"path": "reference/cli/organizations_roles.md"
+						},
+						{
+							"title": "organizations roles edit",
+							"description": "Edit an organization custom role",
+							"path": "reference/cli/organizations_roles_edit.md"
+						},
+						{
+							"title": "organizations roles show",
+							"description": "Show role(s)",
+							"path": "reference/cli/organizations_roles_show.md"
+						},
+						{
+							"title": "organizations settings",
+							"description": "Manage organization settings.",
+							"path": "reference/cli/organizations_settings.md"
+						},
+						{
+							"title": "organizations settings set",
+							"description": "Update specified organization setting.",
+							"path": "reference/cli/organizations_settings_set.md"
+						},
+						{
+							"title": "organizations settings set group-sync",
+							"description": "Group sync settings to sync groups from an IdP.",
+							"path": "reference/cli/organizations_settings_set_group-sync.md"
+						},
+						{
+							"title": "organizations settings set role-sync",
+							"description": "Role sync settings to sync organization roles from an IdP.",
+							"path": "reference/cli/organizations_settings_set_role-sync.md"
+						},
+						{
+							"title": "organizations settings show",
+							"description": "Outputs specified organization setting.",
+							"path": "reference/cli/organizations_settings_show.md"
+						},
+						{
+							"title": "organizations settings show group-sync",
+							"description": "Group sync settings to sync groups from an IdP.",
+							"path": "reference/cli/organizations_settings_show_group-sync.md"
+						},
+						{
+							"title": "organizations settings show role-sync",
+							"description": "Role sync settings to sync organization roles from an IdP.",
+							"path": "reference/cli/organizations_settings_show_role-sync.md"
+						},
+						{
+							"title": "organizations show",
+							"description": "Show the organization. Using \"selected\" will show the selected organization from the \"--org\" flag. Using \"me\" will show all organizations you are a member of.",
+							"path": "reference/cli/organizations_show.md"
+						},
+						{
 							"title": "ping",
 							"description": "Ping a workspace",
 							"path": "reference/cli/ping.md"
@@ -805,6 +911,26 @@
 							"title": "provisionerd",
 							"description": "Manage provisioner daemons",
 							"path": "reference/cli/provisionerd.md"
+						},
+						{
+							"title": "provisionerd keys",
+							"description": "Manage provisioner keys",
+							"path": "reference/cli/provisionerd_keys.md"
+						},
+						{
+							"title": "provisionerd keys create",
+							"description": "Create a new provisioner key",
+							"path": "reference/cli/provisionerd_keys_create.md"
+						},
+						{
+							"title": "provisionerd keys delete",
+							"description": "Delete a provisioner key",
+							"path": "reference/cli/provisionerd_keys_delete.md"
+						},
+						{
+							"title": "provisionerd keys list",
+							"description": "List provisioner keys in an organization",
+							"path": "reference/cli/provisionerd_keys_list.md"
 						},
 						{
 							"title": "provisionerd start",

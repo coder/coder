@@ -3,10 +3,19 @@ import userEvent from "@testing-library/user-event";
 import * as apiModule from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
-import { http, HttpResponse } from "msw";
 import {
+	DashboardContext,
+	type DashboardProvider,
+} from "modules/dashboard/DashboardProvider";
+import { http, HttpResponse } from "msw";
+import type { FC } from "react";
+import { type Location, useLocation } from "react-router-dom";
+import {
+	MockAppearanceConfig,
 	MockDeploymentConfig,
+	MockEntitlements,
 	MockFailedWorkspace,
+	MockOrganization,
 	MockOutdatedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
@@ -18,14 +27,22 @@ import {
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
 } from "testHelpers/entities";
-import { renderWithAuth } from "testHelpers/renderHelpers";
+import {
+	type RenderWithAuthOptions,
+	renderWithAuth,
+} from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
 const { API, MissingBuildParameters } = apiModule;
 
+type RenderWorkspacePageOptions = Omit<RenderWithAuthOptions, "route" | "path">;
+
 // Renders the workspace page and waits for it be loaded
-const renderWorkspacePage = async (workspace: Workspace) => {
+const renderWorkspacePage = async (
+	workspace: Workspace,
+	options: RenderWorkspacePageOptions = {},
+) => {
 	jest.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	jest.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
 	jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
@@ -40,6 +57,7 @@ const renderWorkspacePage = async (workspace: Workspace) => {
 		});
 
 	renderWithAuth(<WorkspacePage />, {
+		...options,
 		route: `/@${workspace.owner_name}/${workspace.name}`,
 		path: "/:username/:workspace",
 	});
@@ -524,6 +542,71 @@ describe("WorkspacePage", () => {
 				workspace.latest_build.template_version_id,
 				"debug",
 				[{ name: parameter.name, value: "some-value" }],
+			);
+		});
+	});
+
+	describe("Navigation to other pages", () => {
+		it("Shows a quota link when quota budget is greater than 0. Link navigates user to /workspaces route with the URL params populated with the corresponding organization", async () => {
+			jest.spyOn(API, "getWorkspaceQuota").mockResolvedValueOnce({
+				budget: 25,
+				credits_consumed: 2,
+			});
+
+			const MockDashboardProvider: typeof DashboardProvider = ({
+				children,
+			}) => (
+				<DashboardContext.Provider
+					value={{
+						appearance: MockAppearanceConfig,
+						entitlements: MockEntitlements,
+						experiments: [],
+						organizations: [MockOrganization],
+						showOrganizations: true,
+					}}
+				>
+					{children}
+				</DashboardContext.Provider>
+			);
+
+			let destinationLocation!: Location;
+			const MockWorkspacesPage: FC = () => {
+				destinationLocation = useLocation();
+				return null;
+			};
+
+			const workspace: Workspace = {
+				...MockWorkspace,
+				organization_name: MockOrganization.name,
+			};
+
+			await renderWorkspacePage(workspace, {
+				mockAuthProviders: {
+					DashboardProvider: MockDashboardProvider,
+				},
+				extraRoutes: [
+					{
+						path: "/workspaces",
+						element: <MockWorkspacesPage />,
+					},
+				],
+			});
+
+			const quotaLink = await screen.findByRole<HTMLAnchorElement>("link", {
+				name: /\d+ credits of \d+/i,
+			});
+
+			const orgName = encodeURIComponent(MockOrganization.name);
+			expect(
+				quotaLink.href.endsWith(`/workspaces?filter=organization:${orgName}`),
+			).toBe(true);
+
+			const user = userEvent.setup();
+			await user.click(quotaLink);
+
+			expect(destinationLocation.pathname).toBe("/workspaces");
+			expect(destinationLocation.search).toBe(
+				`?filter=organization:${orgName}`,
 			);
 		});
 	});
