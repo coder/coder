@@ -57,7 +57,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	const provisionerVersion = allProvisionersAreSameVersion
 		? firstProvisioner.version
 		: null;
-	let provisionerCount =
+	const provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
@@ -85,12 +85,10 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 			: warnings === 1
 				? "1 warning"
 				: `${warnings} warnings`;
-	if (hasWarning) {
-		provisionerCount =
-			provisionersWithWarnings === 1
-				? "1 provisioner"
-				: `${provisionersWithWarnings} provisioners`;
-	}
+	const provisionersWithWarningsCount =
+		provisionersWithWarnings === 1
+			? "1 provisioner"
+			: `${provisionersWithWarnings} provisioners`;
 
 	return (
 		<div
@@ -245,7 +243,8 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 				}}
 			>
 				<span>
-					{warningsCount} from {provisionerCount}
+					{warningsCount} from{" "}
+					{hasWarning ? provisionersWithWarningsCount : provisionerCount}
 				</span>
 				<Button
 					variant="text"
