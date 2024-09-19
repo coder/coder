@@ -118,12 +118,14 @@ func TestTimeout(t *testing.T) {
 
 func TestScriptReportsTiming(t *testing.T) {
 	t.Parallel()
+
 	ctx := testutil.Context(t, testutil.WaitShort)
 	fLogger := newFakeScriptLogger()
 	runner := setup(t, func(uuid2 uuid.UUID) agentscripts.ScriptLogger {
 		return fLogger
 	})
 	defer runner.Close()
+
 	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		DisplayName: "say-hello",
@@ -134,10 +136,13 @@ func TestScriptReportsTiming(t *testing.T) {
 	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
 		return true
 	}))
+
 	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
 	require.Equal(t, "hello", log.Output)
+
 	timings := aAPI.GetTimings()
 	require.Equal(t, len(timings), 1)
+
 	timing := timings[0]
 	require.Equal(t, timing.DisplayName, "say-hello")
 	require.Equal(t, timing.ExitCode, int32(0))
