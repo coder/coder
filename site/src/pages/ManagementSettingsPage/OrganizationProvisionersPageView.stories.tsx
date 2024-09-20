@@ -38,6 +38,10 @@ export const Provisioners: Story = {
 				],
 			},
 			{
+				key: MockProvisionerPskKey,
+				daemons: [MockProvisioner, MockProvisioner2],
+			},
+			{
 				key: { ...MockProvisionerKey, id: "ジャイデン", name: "ジャイデン" },
 				daemons: [MockProvisioner, MockProvisioner2],
 			},
@@ -53,18 +57,22 @@ export const Provisioners: Story = {
 				],
 			},
 			{
-				key: { ...MockProvisionerKey, id: "ケイラ", name: "ケイラ" },
-				daemons: [
-					{
-						...MockProvisioner,
-						tags: {
-							...MockProvisioner.tags,
-							都市: "ユタ",
-							きっぷ: "yes",
-							ちいさい: "no",
-						},
+				key: {
+					...MockProvisionerKey,
+					id: "ケイラ",
+					name: "ケイラ",
+					tags: {
+						...MockProvisioner.tags,
+						都市: "ユタ",
+						きっぷ: "yes",
+						ちいさい: "no",
 					},
-				],
+				},
+				daemons: Array.from({ length: 117 }, (_, i) => ({
+					...MockProvisioner,
+					id: `ケイラ-${i}`,
+					name: `ケイラ-${i}`,
+				})),
 			},
 		],
 	},
