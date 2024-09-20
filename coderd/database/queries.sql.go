@@ -11802,7 +11802,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 	return err
 }
 
-const insertWorkspaceAgentScriptTimings = `-- name: InsertWorkspaceAgentScriptTimings :one
+const insertWorkspaceAgentScriptTimings = `-- name: InsertWorkspaceAgentScriptTimings :exec
 INSERT INTO
     workspace_agent_script_timings (
         script_id,
@@ -11814,7 +11814,7 @@ INSERT INTO
         timed_out
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7) RETURNING script_id, display_name, started_at, ended_at, exit_code, stage, timed_out
+    ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type InsertWorkspaceAgentScriptTimingsParams struct {
@@ -11827,8 +11827,8 @@ type InsertWorkspaceAgentScriptTimingsParams struct {
 	TimedOut    bool                            `db:"timed_out" json:"timed_out"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) (WorkspaceAgentScriptTiming, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentScriptTimings,
+func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceAgentScriptTimings,
 		arg.ScriptID,
 		arg.DisplayName,
 		arg.StartedAt,
@@ -11837,17 +11837,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg 
 		arg.Stage,
 		arg.TimedOut,
 	)
-	var i WorkspaceAgentScriptTiming
-	err := row.Scan(
-		&i.ScriptID,
-		&i.DisplayName,
-		&i.StartedAt,
-		&i.EndedAt,
-		&i.ExitCode,
-		&i.Stage,
-		&i.TimedOut,
-	)
-	return i, err
+	return err
 }
 
 const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec

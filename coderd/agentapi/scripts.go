@@ -32,7 +32,7 @@ func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.Worksp
 		stage = database.WorkspaceAgentScriptTimingStageCron
 	}
 
-	_, err = s.Database.InsertWorkspaceAgentScriptTimings(ctx, database.InsertWorkspaceAgentScriptTimingsParams{
+	err = s.Database.InsertWorkspaceAgentScriptTimings(ctx, database.InsertWorkspaceAgentScriptTimingsParams{
 		ScriptID:    scriptID,
 		Stage:       stage,
 		DisplayName: req.Timing.DisplayName,

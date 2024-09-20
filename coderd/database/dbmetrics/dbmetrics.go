@@ -1929,11 +1929,11 @@ func (m metricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg data
 	return err
 }
 
-func (m metricsStore) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
+func (m metricsStore) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) error {
 	start := time.Now()
-	r0, r1 := m.s.InsertWorkspaceAgentScriptTimings(ctx, arg)
+	err := m.s.InsertWorkspaceAgentScriptTimings(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentScriptTimings").Observe(time.Since(start).Seconds())
-	return r0, r1
+	return err
 }
 
 func (m metricsStore) InsertWorkspaceAgentScripts(ctx context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {

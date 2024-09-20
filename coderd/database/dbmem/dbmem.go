@@ -7827,29 +7827,28 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
+func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return database.WorkspaceAgentScriptTiming{}, err
+		return err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	//nolint:gosimple // Stop linter suggesting 'arg' should be of type database.WorkspaceAgentScriptTiming
-	scriptTiming := database.WorkspaceAgentScriptTiming{
-		ScriptID:    arg.ScriptID,
-		StartedAt:   arg.StartedAt,
-		EndedAt:     arg.EndedAt,
-		ExitCode:    arg.ExitCode,
-		DisplayName: arg.DisplayName,
-		Stage:       arg.Stage,
-		TimedOut:    arg.TimedOut,
-	}
+	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings,
+		database.WorkspaceAgentScriptTiming{
+			ScriptID:    arg.ScriptID,
+			StartedAt:   arg.StartedAt,
+			EndedAt:     arg.EndedAt,
+			ExitCode:    arg.ExitCode,
+			DisplayName: arg.DisplayName,
+			Stage:       arg.Stage,
+			TimedOut:    arg.TimedOut,
+		},
+	)
 
-	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings, scriptTiming)
-
-	return scriptTiming, nil
+	return nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {

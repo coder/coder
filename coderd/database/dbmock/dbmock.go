@@ -4065,12 +4065,11 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(arg0, arg1 any) *g
 }
 
 // InsertWorkspaceAgentScriptTimings mocks base method.
-func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
+func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspaceAgentScriptTimings", arg0, arg1)
-	ret0, _ := ret[0].(database.WorkspaceAgentScriptTiming)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // InsertWorkspaceAgentScriptTimings indicates an expected call of InsertWorkspaceAgentScriptTimings.

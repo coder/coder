@@ -288,7 +288,7 @@ WHERE
 	)
 ;
 
--- name: InsertWorkspaceAgentScriptTimings :one
+-- name: InsertWorkspaceAgentScriptTimings :exec
 INSERT INTO
     workspace_agent_script_timings (
         script_id,
@@ -300,4 +300,4 @@ INSERT INTO
         timed_out
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+    ($1, $2, $3, $4, $5, $6, $7);
