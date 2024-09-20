@@ -143,33 +143,13 @@ const roles: Roles = {
 		},
 	},
 	preview: {
-		background: colors.sky[50],
-		outline: colors.sky[700],
-		text: colors.sky[700],
+		background: colors.violet[50],
+		outline: colors.violet[500],
+		text: colors.violet[950],
 		fill: {
-			solid: colors.sky[600],
-			outline: colors.sky[700],
+			solid: colors.violet[600],
+			outline: colors.violet[600],
 			text: colors.white,
-		},
-		hover: {
-			background: colors.zinc[50],
-			outline: colors.sky[700],
-			text: colors.sky[700],
-			fill: {
-				outline: colors.sky[500],
-				solid: colors.sky[500],
-				text: colors.white,
-			},
-		},
-		disabled: {
-			background: colors.sky[50],
-			outline: colors.sky[800],
-			text: colors.sky[200],
-			fill: {
-				solid: colors.sky[800],
-				outline: colors.sky[800],
-				text: colors.white,
-			},
 		},
 	},
 };

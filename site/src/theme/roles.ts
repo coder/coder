@@ -36,7 +36,7 @@ export interface Roles {
 	/** This isn't quite ready for prime-time, but you're welcome to look around!
 	 * Preview features, experiments, unstable, etc.
 	 */
-	preview: InteractiveRole;
+	preview: Role;
 }
 
 /**
