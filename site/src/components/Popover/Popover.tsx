@@ -73,7 +73,7 @@ export const Popover: FC<PopoverProps> = (props) => {
 	useEffect(() => {
 		const closeOnTabSwitch = () => setUncontrolledOpen(false);
 		window.addEventListener("blur", closeOnTabSwitch);
-		return () => window.addEventListener("blur", closeOnTabSwitch);
+		return () => window.removeEventListener("blur", closeOnTabSwitch);
 	}, []);
 
 	const value: PopoverContextValue = {
