@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Business from "@mui/icons-material/Business";
-import Person from "@mui/icons-material/Person";
-import Sell from "@mui/icons-material/Sell";
+import BusinessIcon from "@mui/icons-material/Business";
+import PersonIcon from "@mui/icons-material/Person";
+import TagIcon from "@mui/icons-material/Sell";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -166,14 +166,18 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 							<Pill
 								size="lg"
 								icon={
-									daemonScope === "organization" ? <Business /> : <Person />
+									daemonScope === "organization" ? (
+										<BusinessIcon />
+									) : (
+										<PersonIcon />
+									)
 								}
 							>
 								<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
 							</Pill>
 						</Tooltip>
 					) : (
-						<Pill size="lg" icon={<Sell />}>
+						<Pill size="lg" icon={<TagIcon />}>
 							Multiple tags
 						</Pill>
 					)}
@@ -332,7 +336,8 @@ interface PskProvisionerTagsProps {
 
 const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
 	const daemonScope = tags.scope || "organization";
-	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
+	const iconScope =
+		daemonScope === "organization" ? <BusinessIcon /> : <PersonIcon />;
 
 	const extraTags = Object.entries(tags).filter(
 		([tag]) => tag !== "scope" && tag !== "owner",
