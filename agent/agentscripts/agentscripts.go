@@ -352,7 +352,6 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 					TimedOut:    errors.Is(err, ErrTimeout),
 				},
 			})
-
 			if err != nil {
 				logger.Error(ctx, fmt.Sprintf("reporting script completed: %s", err.Error()))
 			}
