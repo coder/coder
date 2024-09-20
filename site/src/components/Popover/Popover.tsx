@@ -13,6 +13,7 @@ import {
 	cloneElement,
 	createContext,
 	useContext,
+	useEffect,
 	useId,
 	useRef,
 	useState,
@@ -65,6 +66,15 @@ export const Popover: FC<PopoverProps> = (props) => {
 	const hookId = useId();
 	const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
 	const triggerRef: TriggerRef = useRef(null);
+
+	// This doesn't guarantee that we'll always close any popovers when the
+	// user switches tabs when the component is being controlled, but this is
+	// basically the most we can do from this component
+	useEffect(() => {
+		const closeOnTabSwitch = () => setUncontrolledOpen(false);
+		window.addEventListener("blur", closeOnTabSwitch);
+		return () => window.addEventListener("blur", closeOnTabSwitch);
+	}, []);
 
 	const value: PopoverContextValue = {
 		triggerRef,
