@@ -172,6 +172,7 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 		RunOnStop:        protoScript.RunOnStop,
 		StartBlocksLogin: protoScript.StartBlocksLogin,
 		Timeout:          protoScript.Timeout.AsDuration(),
+		DisplayName:      protoScript.DisplayName,
 	}, nil
 }
 
@@ -185,6 +186,7 @@ func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScrip
 		RunOnStop:        s.RunOnStop,
 		StartBlocksLogin: s.StartBlocksLogin,
 		Timeout:          durationpb.New(s.Timeout),
+		DisplayName:      s.DisplayName,
 	}
 }
 
