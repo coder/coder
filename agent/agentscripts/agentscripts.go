@@ -314,9 +314,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
 	cmd.Stderr = io.MultiWriter(fileWriter, errW)
 
-	start := time.Now()
+	start := time.Now().UTC()
 	defer func() {
-		end := time.Now()
+		end := time.Now().UTC()
 		execTime := end.Sub(start)
 		exitCode := 0
 		if err != nil {
