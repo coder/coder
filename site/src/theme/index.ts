@@ -22,7 +22,7 @@ export interface Theme extends Omit<MuiTheme, "palette"> {
 	/** Theme properties that we're testing out but haven't committed to. */
 	experimental: NewTheme;
 
-	//** Theme colors related to marketing */
+	/** Theme colors related to marketing */
 	branding: Branding;
 
 	monaco: monaco.editor.IStandaloneThemeData;

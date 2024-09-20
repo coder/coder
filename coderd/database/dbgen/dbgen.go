@@ -803,6 +803,7 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		SessionCountReconnectingPTY: []int64{takeFirst(orig.SessionCountReconnectingPTY, 0)},
 		SessionCountSSH:             []int64{takeFirst(orig.SessionCountSSH, 0)},
 		ConnectionMedianLatencyMS:   []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
+		Usage:                       []bool{takeFirst(orig.Usage, false)},
 	}
 	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
@@ -825,6 +826,7 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		SessionCountJetBrains:       params.SessionCountJetBrains[0],
 		SessionCountReconnectingPTY: params.SessionCountReconnectingPTY[0],
 		SessionCountSSH:             params.SessionCountSSH[0],
+		Usage:                       params.Usage[0],
 	}
 }
 
@@ -900,7 +902,11 @@ func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) databas
 
 	seed.Feature = takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceApps)
 
-	if !seed.Secret.Valid {
+	// An empty string for the secret is interpreted as
+	// a caller wanting a new secret to be generated.
+	// To generate a key with a NULL secret set Valid=false
+	// and String to a non-empty string.
+	if seed.Secret.String == "" {
 		secret, err := newCryptoKeySecret(seed.Feature)
 		require.NoError(t, err, "generate secret")
 		seed.Secret = sql.NullString{

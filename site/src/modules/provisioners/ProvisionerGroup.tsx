@@ -20,6 +20,7 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
@@ -31,7 +32,7 @@ interface ProvisionerGroupProps {
 	readonly buildInfo?: BuildInfoResponse;
 	readonly keyName?: string;
 	readonly type: ProvisionerGroupType;
-	readonly provisioners: ProvisionerDaemon[];
+	readonly provisioners: readonly ProvisionerDaemon[];
 }
 
 export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
@@ -40,36 +41,65 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	type,
 	provisioners,
 }) => {
-	const [provisioner] = provisioners;
 	const theme = useTheme();
 
 	const [showDetails, setShowDetails] = useState(false);
 
-	const daemonScope = provisioner.tags.scope || "organization";
-	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
+	const firstProvisioner = provisioners[0];
+	if (!firstProvisioner) {
+		return null;
+	}
 
-	const provisionerVersion = provisioner.version;
+	const daemonScope = firstProvisioner.tags.scope || "organization";
 	const allProvisionersAreSameVersion = provisioners.every(
-		(provisioner) => provisioner.version === provisionerVersion,
+		(it) => it.version === firstProvisioner.version,
 	);
-	const upToDate =
-		allProvisionersAreSameVersion && buildInfo?.version === provisioner.version;
+	const provisionerVersion = allProvisionersAreSameVersion
+		? firstProvisioner.version
+		: null;
 	const provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
-
-	const extraTags = Object.entries(provisioner.tags).filter(
+	const extraTags = Object.entries(firstProvisioner.tags).filter(
 		([key]) => key !== "scope" && key !== "owner",
 	);
 
+	let warnings = 0;
+	let provisionersWithWarnings = 0;
+	const provisionersWithWarningInfo = provisioners.map((it) => {
+		const outOfDate = Boolean(buildInfo) && it.version !== buildInfo?.version;
+		const warningCount = outOfDate ? 1 : 0;
+		warnings += warningCount;
+		if (warnings > 0) {
+			provisionersWithWarnings++;
+		}
+
+		return { ...it, warningCount, outOfDate };
+	});
+
+	const hasWarning = warnings > 0;
+	const warningsCount =
+		warnings === 0
+			? "No warnings"
+			: warnings === 1
+				? "1 warning"
+				: `${warnings} warnings`;
+	const provisionersWithWarningsCount =
+		provisionersWithWarnings === 1
+			? "1 provisioner"
+			: `${provisionersWithWarnings} provisioners`;
+
 	return (
 		<div
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				fontSize: 14,
-			}}
+			css={[
+				{
+					borderRadius: 8,
+					border: `1px solid ${theme.palette.divider}`,
+					fontSize: 14,
+				},
+				hasWarning && styles.warningBorder,
+			]}
 		>
 			<header
 				css={{
@@ -80,48 +110,39 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					gap: 24,
 				}}
 			>
-				<div
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: 24,
-						objectFit: "fill",
-					}}
-				>
-					{type === "builtin" && (
-						<div css={{ lineHeight: "160%" }}>
-							<BuiltinProvisionerTitle />
-							<span css={{ color: theme.palette.text.secondary }}>
-								{provisionerCount} &mdash; Built-in
-							</span>
-						</div>
-					)}
-					{type === "psk" && (
-						<div css={{ lineHeight: "160%" }}>
-							<PskProvisionerTitle />
-							<span css={{ color: theme.palette.text.secondary }}>
-								{provisionerCount} &mdash;{" "}
-								{allProvisionersAreSameVersion ? (
-									<code>{provisionerVersion}</code>
-								) : (
-									<span>Multiple versions</span>
-								)}
-							</span>
-						</div>
-					)}
-					{type === "key" && (
-						<div css={{ lineHeight: "160%" }}>
+				<div css={{ display: "flex", alignItems: "center", gap: 16 }}>
+					<StatusIndicator color={hasWarning ? "warning" : "success"} />
+					<div
+						css={{
+							display: "flex",
+							flexDirection: "column",
+							lineHeight: 1.5,
+						}}
+					>
+						{type === "builtin" && (
+							<>
+								<BuiltinProvisionerTitle />
+								<span css={{ color: theme.palette.text.secondary }}>
+									{provisionerCount} &mdash; Built-in
+								</span>
+							</>
+						)}
+
+						{type === "psk" && <PskProvisionerTitle />}
+						{type === "key" && (
 							<h4 css={styles.groupTitle}>Key group &ndash; {keyName}</h4>
+						)}
+						{type !== "builtin" && (
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
-								{allProvisionersAreSameVersion ? (
+								{provisionerVersion ? (
 									<code>{provisionerVersion}</code>
 								) : (
 									<span>Multiple versions</span>
 								)}
 							</span>
-						</div>
-					)}
+						)}
+					</div>
 				</div>
 				<div
 					css={{
@@ -133,7 +154,10 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					}}
 				>
 					<Tooltip title="Scope">
-						<Pill size="lg" icon={iconScope}>
+						<Pill
+							size="lg"
+							icon={daemonScope === "organization" ? <Business /> : <Person />}
+						>
 							<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
 						</Pill>
 					</Tooltip>
@@ -153,16 +177,19 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						flexWrap: "wrap",
 					}}
 				>
-					{provisioners.map((provisioner) => (
+					{provisionersWithWarningInfo.map((provisioner) => (
 						<div
 							key={provisioner.id}
-							css={{
-								borderRadius: 8,
-								border: `1px solid ${theme.palette.divider}`,
-								fontSize: 14,
-								padding: "14px 18px",
-								width: 375,
-							}}
+							css={[
+								{
+									borderRadius: 8,
+									border: `1px solid ${theme.palette.divider}`,
+									fontSize: 14,
+									padding: "14px 18px",
+									width: 375,
+								},
+								provisioner.warningCount > 0 && styles.warningBorder,
+							]}
 						>
 							<Stack
 								direction="row"
@@ -215,7 +242,10 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					color: theme.palette.text.secondary,
 				}}
 			>
-				<span>No warnings from {provisionerCount}</span>
+				<span>
+					{warningsCount} from{" "}
+					{hasWarning ? provisionersWithWarningsCount : provisionerCount}
+				</span>
 				<Button
 					variant="text"
 					css={{
@@ -379,6 +409,10 @@ const PskProvisionerTitle: FC = () => {
 };
 
 const styles = {
+	warningBorder: (theme) => ({
+		borderColor: theme.roles.warning.fill.outline,
+	}),
+
 	groupTitle: {
 		fontWeight: 500,
 		margin: 0,
@@ -389,7 +423,7 @@ const styles = {
 		marginBottom: 0,
 		color: theme.palette.text.primary,
 		fontSize: 14,
-		lineHeight: "150%",
+		lineHeight: 1.5,
 		fontWeight: 600,
 	}),
 

@@ -128,6 +128,19 @@ export const provisionerDaemons = (organization: string) => {
 	};
 };
 
+export const getProvisionerDaemonGroupsKey = (organization: string) => [
+	"organization",
+	organization,
+	"provisionerDaemons",
+];
+
+export const provisionerDaemonGroups = (organization: string) => {
+	return {
+		queryKey: getProvisionerDaemonGroupsKey(organization),
+		queryFn: () => API.getProvisionerDaemonGroupsByOrganization(organization),
+	};
+};
+
 /**
  * Fetch permissions for a single organization.
  *

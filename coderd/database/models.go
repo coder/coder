@@ -2880,6 +2880,7 @@ type WorkspaceAgentScript struct {
 	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
 	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
 }
 
 type WorkspaceAgentStat struct {
@@ -2900,6 +2901,7 @@ type WorkspaceAgentStat struct {
 	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	Usage                       bool            `db:"usage" json:"usage"`
 }
 
 type WorkspaceApp struct {

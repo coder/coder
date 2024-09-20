@@ -193,6 +193,7 @@ type WorkspaceAgentScript struct {
 	RunOnStop        bool          `json:"run_on_stop"`
 	StartBlocksLogin bool          `json:"start_blocks_login"`
 	Timeout          time.Duration `json:"timeout"`
+	DisplayName      string        `json:"display_name"`
 }
 
 type WorkspaceAgentHealth struct {

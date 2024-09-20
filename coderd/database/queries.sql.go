@@ -12050,7 +12050,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, usage, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1
 )
@@ -12071,6 +12071,88 @@ type GetDeploymentWorkspaceAgentStatsRow struct {
 func (q *sqlQuerier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentStats, createdAt)
 	var i GetDeploymentWorkspaceAgentStatsRow
+	err := row.Scan(
+		&i.WorkspaceRxBytes,
+		&i.WorkspaceTxBytes,
+		&i.WorkspaceConnectionLatency50,
+		&i.WorkspaceConnectionLatency95,
+		&i.SessionCountVSCode,
+		&i.SessionCountSSH,
+		&i.SessionCountJetBrains,
+		&i.SessionCountReconnectingPTY,
+	)
+	return i, err
+}
+
+const getDeploymentWorkspaceAgentUsageStats = `-- name: GetDeploymentWorkspaceAgentUsageStats :one
+WITH agent_stats AS (
+	SELECT
+		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
+		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
+		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+	 FROM workspace_agent_stats
+	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
+),
+minute_buckets AS (
+	SELECT
+		agent_id,
+		date_trunc('minute', created_at) AS minute_bucket,
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+	FROM
+		workspace_agent_stats
+	WHERE
+		created_at >= $1
+		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
+		AND usage = true
+	GROUP BY
+		agent_id,
+		minute_bucket
+),
+latest_buckets AS (
+	SELECT DISTINCT ON (agent_id)
+		agent_id,
+		minute_bucket,
+		session_count_vscode,
+		session_count_jetbrains,
+		session_count_reconnecting_pty,
+		session_count_ssh
+	FROM
+		minute_buckets
+	ORDER BY
+		agent_id,
+		minute_bucket DESC
+),
+latest_agent_stats AS (
+    SELECT
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+    FROM
+        latest_buckets
+)
+SELECT workspace_rx_bytes, workspace_tx_bytes, workspace_connection_latency_50, workspace_connection_latency_95, session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty FROM agent_stats, latest_agent_stats
+`
+
+type GetDeploymentWorkspaceAgentUsageStatsRow struct {
+	WorkspaceRxBytes             int64   `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
+	WorkspaceTxBytes             int64   `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	WorkspaceConnectionLatency50 float64 `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64 `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	SessionCountVSCode           int64   `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH              int64   `db:"session_count_ssh" json:"session_count_ssh"`
+	SessionCountJetBrains        int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY  int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+}
+
+func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentWorkspaceAgentUsageStats, createdAt)
+	var i GetDeploymentWorkspaceAgentUsageStatsRow
 	err := row.Scan(
 		&i.WorkspaceRxBytes,
 		&i.WorkspaceTxBytes,
@@ -12155,7 +12237,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, usage, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
 	) AS a WHERE a.rn = 1 GROUP BY a.user_id, a.agent_id, a.workspace_id, a.template_id
 )
@@ -12238,7 +12320,7 @@ WITH agent_stats AS (
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
 		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
 	 FROM (
-		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
+		SELECT id, created_at, user_id, agent_id, workspace_id, template_id, connections_by_proto, connection_count, rx_packets, rx_bytes, tx_packets, tx_bytes, connection_median_latency_ms, session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, usage, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats
 		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
 		WHERE created_at > $1 AND connection_median_latency_ms > 0
@@ -12319,6 +12401,243 @@ func (q *sqlQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, create
 	return items, nil
 }
 
+const getWorkspaceAgentUsageStats = `-- name: GetWorkspaceAgentUsageStats :many
+WITH agent_stats AS (
+	SELECT
+		user_id,
+		agent_id,
+		workspace_id,
+		template_id,
+		MIN(created_at)::timestamptz AS aggregated_from,
+		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
+		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
+		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+	FROM workspace_agent_stats
+	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
+	GROUP BY user_id, agent_id, workspace_id, template_id
+),
+minute_buckets AS (
+	SELECT
+		agent_id,
+		date_trunc('minute', created_at) AS minute_bucket,
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+	FROM
+		workspace_agent_stats
+	WHERE
+		created_at >= $1
+		AND created_at < date_trunc('minute', now())  -- Exclude current partial minute
+		AND usage = true
+	GROUP BY
+		agent_id,
+		minute_bucket,
+		user_id,
+		agent_id,
+		workspace_id,
+		template_id
+),
+latest_buckets AS (
+	SELECT DISTINCT ON (agent_id)
+		agent_id,
+		session_count_vscode,
+		session_count_ssh,
+		session_count_jetbrains,
+		session_count_reconnecting_pty
+	FROM
+		minute_buckets
+	ORDER BY
+		agent_id,
+		minute_bucket DESC
+)
+SELECT user_id,
+agent_stats.agent_id,
+workspace_id,
+template_id,
+aggregated_from,
+workspace_rx_bytes,
+workspace_tx_bytes,
+workspace_connection_latency_50,
+workspace_connection_latency_95,
+coalesce(latest_buckets.agent_id,agent_stats.agent_id) AS agent_id,
+coalesce(session_count_vscode, 0)::bigint AS session_count_vscode,
+coalesce(session_count_ssh, 0)::bigint AS session_count_ssh,
+coalesce(session_count_jetbrains, 0)::bigint AS session_count_jetbrains,
+coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty
+FROM agent_stats LEFT JOIN latest_buckets ON agent_stats.agent_id = latest_buckets.agent_id
+`
+
+type GetWorkspaceAgentUsageStatsRow struct {
+	UserID                       uuid.UUID `db:"user_id" json:"user_id"`
+	AgentID                      uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID                  uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	TemplateID                   uuid.UUID `db:"template_id" json:"template_id"`
+	AggregatedFrom               time.Time `db:"aggregated_from" json:"aggregated_from"`
+	WorkspaceRxBytes             int64     `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
+	WorkspaceTxBytes             int64     `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
+	WorkspaceConnectionLatency50 float64   `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64   `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	AgentID_2                    uuid.UUID `db:"agent_id_2" json:"agent_id_2"`
+	SessionCountVSCode           int64     `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
+	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+}
+
+// `minute_buckets` could return 0 rows if there are no usage stats since `created_at`.
+func (q *sqlQuerier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStats, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceAgentUsageStatsRow
+	for rows.Next() {
+		var i GetWorkspaceAgentUsageStatsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.AgentID,
+			&i.WorkspaceID,
+			&i.TemplateID,
+			&i.AggregatedFrom,
+			&i.WorkspaceRxBytes,
+			&i.WorkspaceTxBytes,
+			&i.WorkspaceConnectionLatency50,
+			&i.WorkspaceConnectionLatency95,
+			&i.AgentID_2,
+			&i.SessionCountVSCode,
+			&i.SessionCountSSH,
+			&i.SessionCountJetBrains,
+			&i.SessionCountReconnectingPTY,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceAgentUsageStatsAndLabels = `-- name: GetWorkspaceAgentUsageStatsAndLabels :many
+WITH agent_stats AS (
+	SELECT
+		user_id,
+		agent_id,
+		workspace_id,
+		coalesce(SUM(rx_bytes), 0)::bigint AS rx_bytes,
+		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes
+	FROM workspace_agent_stats
+	WHERE workspace_agent_stats.created_at > $1
+	GROUP BY user_id, agent_id, workspace_id
+), latest_agent_stats AS (
+	SELECT
+		agent_id,
+		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
+		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
+		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(connection_count), 0)::bigint AS connection_count
+	FROM workspace_agent_stats
+	-- We only want the latest stats, but those stats might be
+	-- spread across multiple rows.
+	WHERE usage = true AND created_at > now() - '1 minute'::interval
+	GROUP BY user_id, agent_id, workspace_id
+), latest_agent_latencies AS (
+	SELECT
+		agent_id,
+		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
+	FROM workspace_agent_stats
+	GROUP BY user_id, agent_id, workspace_id
+)
+SELECT
+	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
+	coalesce(session_count_vscode, 0)::bigint AS session_count_vscode,
+	coalesce(session_count_ssh, 0)::bigint AS session_count_ssh,
+	coalesce(session_count_jetbrains, 0)::bigint AS session_count_jetbrains,
+	coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty,
+	coalesce(connection_count, 0)::bigint AS connection_count,
+	connection_median_latency_ms
+FROM
+	agent_stats
+LEFT JOIN
+	latest_agent_stats
+ON
+	agent_stats.agent_id = latest_agent_stats.agent_id
+JOIN
+	latest_agent_latencies
+ON
+	agent_stats.agent_id = latest_agent_latencies.agent_id
+JOIN
+	users
+ON
+	users.id = agent_stats.user_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.id = agent_stats.agent_id
+JOIN
+	workspaces
+ON
+	workspaces.id = agent_stats.workspace_id
+`
+
+type GetWorkspaceAgentUsageStatsAndLabelsRow struct {
+	Username                    string  `db:"username" json:"username"`
+	AgentName                   string  `db:"agent_name" json:"agent_name"`
+	WorkspaceName               string  `db:"workspace_name" json:"workspace_name"`
+	RxBytes                     int64   `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes                     int64   `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          int64   `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountSSH             int64   `db:"session_count_ssh" json:"session_count_ssh"`
+	SessionCountJetBrains       int64   `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64   `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	ConnectionCount             int64   `db:"connection_count" json:"connection_count"`
+	ConnectionMedianLatencyMS   float64 `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentUsageStatsAndLabels, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceAgentUsageStatsAndLabelsRow
+	for rows.Next() {
+		var i GetWorkspaceAgentUsageStatsAndLabelsRow
+		if err := rows.Scan(
+			&i.Username,
+			&i.AgentName,
+			&i.WorkspaceName,
+			&i.RxBytes,
+			&i.TxBytes,
+			&i.SessionCountVSCode,
+			&i.SessionCountSSH,
+			&i.SessionCountJetBrains,
+			&i.SessionCountReconnectingPTY,
+			&i.ConnectionCount,
+			&i.ConnectionMedianLatencyMS,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspaceAgentStats = `-- name: InsertWorkspaceAgentStats :exec
 INSERT INTO
 	workspace_agent_stats (
@@ -12338,7 +12657,8 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
-		connection_median_latency_ms
+		connection_median_latency_ms,
+		usage
 	)
 SELECT
 	unnest($1 :: uuid[]) AS id,
@@ -12357,7 +12677,8 @@ SELECT
 	unnest($14 :: bigint[]) AS session_count_jetbrains,
 	unnest($15 :: bigint[]) AS session_count_reconnecting_pty,
 	unnest($16 :: bigint[]) AS session_count_ssh,
-	unnest($17 :: double precision[]) AS connection_median_latency_ms
+	unnest($17 :: double precision[]) AS connection_median_latency_ms,
+	unnest($18 :: boolean[]) AS usage
 `
 
 type InsertWorkspaceAgentStatsParams struct {
@@ -12378,6 +12699,7 @@ type InsertWorkspaceAgentStatsParams struct {
 	SessionCountReconnectingPTY []int64         `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             []int64         `db:"session_count_ssh" json:"session_count_ssh"`
 	ConnectionMedianLatencyMS   []float64       `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+	Usage                       []bool          `db:"usage" json:"usage"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error {
@@ -12399,6 +12721,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 		pq.Array(arg.SessionCountReconnectingPTY),
 		pq.Array(arg.SessionCountSSH),
 		pq.Array(arg.ConnectionMedianLatencyMS),
+		pq.Array(arg.Usage),
 	)
 	return err
 }
@@ -15169,7 +15492,7 @@ func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.C
 }
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
@@ -15192,6 +15515,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 			&i.RunOnStart,
 			&i.RunOnStop,
 			&i.TimeoutSeconds,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -15208,7 +15532,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 
 const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
 INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
+	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name)
 SELECT
 	$1 :: uuid AS workspace_agent_id,
 	$2 :: timestamptz AS created_at,
@@ -15219,8 +15543,9 @@ SELECT
 	unnest($7 :: boolean [ ]) AS start_blocks_login,
 	unnest($8 :: boolean [ ]) AS run_on_start,
 	unnest($9 :: boolean [ ]) AS run_on_stop,
-	unnest($10 :: integer [ ]) AS timeout_seconds
-RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds
+	unnest($10 :: integer [ ]) AS timeout_seconds,
+	unnest($11 :: text [ ]) AS display_name
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds, workspace_agent_scripts.display_name
 `
 
 type InsertWorkspaceAgentScriptsParams struct {
@@ -15234,6 +15559,7 @@ type InsertWorkspaceAgentScriptsParams struct {
 	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
 	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
 	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      []string    `db:"display_name" json:"display_name"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
@@ -15248,6 +15574,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 		pq.Array(arg.RunOnStart),
 		pq.Array(arg.RunOnStop),
 		pq.Array(arg.TimeoutSeconds),
+		pq.Array(arg.DisplayName),
 	)
 	if err != nil {
 		return nil, err
@@ -15267,6 +15594,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 			&i.RunOnStart,
 			&i.RunOnStop,
 			&i.TimeoutSeconds,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}

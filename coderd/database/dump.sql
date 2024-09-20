@@ -1365,7 +1365,8 @@ CREATE TABLE workspace_agent_scripts (
     start_blocks_login boolean NOT NULL,
     run_on_start boolean NOT NULL,
     run_on_stop boolean NOT NULL,
-    timeout_seconds integer NOT NULL
+    timeout_seconds integer NOT NULL,
+    display_name text NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
@@ -1394,7 +1395,8 @@ CREATE TABLE workspace_agent_stats (
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL
+    session_count_ssh bigint DEFAULT 0 NOT NULL,
+    usage boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspace_agents (

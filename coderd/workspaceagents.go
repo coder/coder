@@ -977,6 +977,7 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 			RunOnStop:        dbScript.RunOnStop,
 			StartBlocksLogin: dbScript.StartBlocksLogin,
 			Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
+			DisplayName:      dbScript.DisplayName,
 		})
 	}
 	return scripts
