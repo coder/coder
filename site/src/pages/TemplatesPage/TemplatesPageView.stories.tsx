@@ -12,6 +12,7 @@ import { TemplatesPageView } from "./TemplatesPageView";
 
 const meta: Meta<typeof TemplatesPageView> = {
 	title: "pages/TemplatesPage",
+	decorators: [withDashboardProvider],
 	parameters: { chromatic: chromaticWithTablet },
 	component: TemplatesPageView,
 	args: {
