@@ -67,9 +67,9 @@ export const Popover: FC<PopoverProps> = (props) => {
 	const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
 	const triggerRef: TriggerRef = useRef(null);
 
-	// This doesn't guarantee that we'll always close any popovers when the
-	// user switches tabs when the component is being controlled, but this is
-	// basically the most we can do from this component
+	// Helps makes sure that popovers close properly when the user switches to
+	// a different tab. This won't help with controlled instances of the
+	// component, but this is basically the most we can do from here
 	useEffect(() => {
 		const closeOnTabSwitch = () => setUncontrolledOpen(false);
 		window.addEventListener("blur", closeOnTabSwitch);
