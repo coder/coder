@@ -144,9 +144,10 @@ module "jetbrains_gateway" {
 }
 
 module "filebrowser" {
-  source   = "registry.coder.com/modules/filebrowser/coder"
-  version  = "1.0.18"
-  agent_id = coder_agent.dev.id
+  source     = "registry.coder.com/modules/filebrowser/coder"
+  version    = "1.0.18"
+  agent_id   = coder_agent.dev.id
+  agent_name = "dev"
 }
 
 module "coder-login" {
