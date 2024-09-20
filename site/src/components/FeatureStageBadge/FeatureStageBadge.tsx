@@ -31,18 +31,18 @@ const styles = {
 		padding: "4px 8px",
 		lineHeight: 1,
 		whiteSpace: "nowrap",
-		border: `1px solid ${theme.roles.preview.outline}`,
-		color: theme.roles.preview.text,
-		backgroundColor: theme.roles.preview.background,
+		border: `1px solid ${theme.branding.featureStage.border}`,
+		color: theme.branding.featureStage.text,
+		backgroundColor: theme.branding.featureStage.background,
 		borderRadius: "6px",
 		transition:
 			"color 0.2s ease-in-out, border-color 0.2s ease-in-out, background-color 0.2s ease-in-out",
 	}),
 
 	badgeHover: (theme) => ({
-		color: theme.roles.preview.hover.text,
-		borderColor: theme.roles.preview.hover.outline,
-		backgroundColor: theme.roles.preview.hover.background,
+		color: theme.branding.featureStage.hover.text,
+		borderColor: theme.branding.featureStage.hover.border,
+		backgroundColor: theme.branding.featureStage.hover.background,
 	}),
 
 	badgeLargeText: {
