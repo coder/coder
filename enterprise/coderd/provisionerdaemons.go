@@ -366,7 +366,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		srvCtx,
 		api.AccessURL,
 		daemon.ID,
-		orgID,
+		authRes.orgID,
 		logger,
 		provisioners,
 		tags,
