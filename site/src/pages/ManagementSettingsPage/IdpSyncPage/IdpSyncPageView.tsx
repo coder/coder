@@ -10,7 +10,7 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type {
-	OIDCConfig,
+	Group,
 	GroupSyncSettings,
 	RoleSyncSettings,
 } from "api/typesGenerated";
@@ -26,20 +26,32 @@ import {
 import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
+import { PillList } from "./PillList";
 
 export type IdpSyncPageViewProps = {
-	oidcConfig: OIDCConfig | undefined;
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
+	groups: Group[] | undefined;
 };
 
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
-	oidcConfig,
 	groupSyncSettings,
 	roleSyncSettings,
+	groups,
 }) => {
-	const theme = useTheme();
-	const { user_role_field } = oidcConfig || {};
+	// const theme = useTheme();
+
+	const groupsMap = new Map<string, string>();
+	if (groups) {
+		for (const group of groups) {
+			groupsMap.set(group.id, group.display_name || group.name);
+		}
+	}
+
+	const getGroupNames = (groupIds: readonly string[]) => {
+		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
+	};
+
 	return (
 		<>
 			<ChooseOne>
@@ -67,13 +79,13 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									fieldText={
 										typeof groupSyncSettings?.regex_filter === "string"
 											? groupSyncSettings?.regex_filter
-											: ""
+											: "none"
 									}
 								/>
 								<IdpField
 									name={"Auto Create"}
 									fieldText={String(
-										groupSyncSettings?.auto_create_missing_groups,
+										groupSyncSettings?.auto_create_missing_groups || "n/a",
 									)}
 								/>
 							</Stack>
@@ -83,7 +95,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 							<Stack direction={"row"} alignItems={"center"} spacing={3}>
 								<IdpField
 									name={"Sync Field"}
-									fieldText={user_role_field}
+									fieldText={roleSyncSettings?.field}
 									showStatusIndicator
 								/>
 							</Stack>
@@ -91,38 +103,38 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					</Stack>
 					<Stack spacing={6}>
 						<IdpMappingTable
-							type="Role"
+							type="Group"
 							isEmpty={Boolean(
-								!oidcConfig?.user_role_mapping ||
-									Object.entries(oidcConfig?.user_role_mapping).length === 0,
+								!groupSyncSettings?.mapping ||
+									Object.entries(groupSyncSettings?.mapping).length === 0,
 							)}
 						>
-							{oidcConfig?.user_role_mapping &&
-								Object.entries(oidcConfig.user_role_mapping)
+							{groupSyncSettings?.mapping &&
+								Object.entries(groupSyncSettings.mapping)
+									.sort()
+									.map(([idpGroup, groups]) => (
+										<GroupRow
+											key={idpGroup}
+											idpGroup={idpGroup}
+											coderGroup={getGroupNames(groups)}
+										/>
+									))}
+						</IdpMappingTable>
+						<IdpMappingTable
+							type="Role"
+							isEmpty={Boolean(
+								!roleSyncSettings?.mapping ||
+									Object.entries(roleSyncSettings?.mapping).length === 0,
+							)}
+						>
+							{roleSyncSettings?.mapping &&
+								Object.entries(roleSyncSettings.mapping)
 									.sort()
 									.map(([idpRole, roles]) => (
 										<RoleRow
 											key={idpRole}
 											idpRole={idpRole}
 											coderRoles={roles}
-										/>
-									))}
-						</IdpMappingTable>
-						<IdpMappingTable
-							type="Group"
-							isEmpty={Boolean(
-								!oidcConfig?.group_mapping ||
-									Object.entries(oidcConfig?.group_mapping).length === 0,
-							)}
-						>
-							{oidcConfig?.user_role_mapping &&
-								Object.entries(oidcConfig.group_mapping)
-									.sort()
-									.map(([idpGroup, group]) => (
-										<GroupRow
-											key={idpGroup}
-											idpGroup={idpGroup}
-											coderGroup={group}
 										/>
 									))}
 						</IdpMappingTable>
@@ -226,28 +238,32 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 
 interface GroupRowProps {
 	idpGroup: string;
-	coderGroup: string;
+	coderGroup: readonly string[];
 }
 
 const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
 	return (
 		<TableRow data-testid={`group-${idpGroup}`}>
 			<TableCell>{idpGroup}</TableCell>
-			<TableCell>{coderGroup}</TableCell>
+			<TableCell>
+				<PillList roles={coderGroup} />
+			</TableCell>
 		</TableRow>
 	);
 };
 
 interface RoleRowProps {
 	idpRole: string;
-	coderRoles: ReadonlyArray<string>;
+	coderRoles: readonly string[];
 }
 
 const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles }) => {
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
 			<TableCell>{idpRole}</TableCell>
-			<TableCell>coderRoles Placeholder</TableCell>
+			<TableCell>
+				<PillList roles={coderRoles} />
+			</TableCell>
 		</TableRow>
 	);
 };

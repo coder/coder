@@ -1,57 +1,27 @@
 import AddIcon from "@mui/icons-material/AddOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
+import { groupsByOrganization } from "api/queries/groups";
+import {
+	groupIdpSyncSettings,
+	organizationsPermissions,
+	roleIdpSyncSettings,
+} from "api/queries/organizations";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
-import {
-	organizationsPermissions,
-	groupIdpSyncSettings,
-	roleIdpSyncSettings,
-} from "api/queries/organizations";
-import { useQuery } from "react-query";
-import { useOrganizationSettings } from "../ManagementSettingsLayout";
-import { Loader } from "components/Loader/Loader";
-import { EmptyState } from "components/EmptyState/EmptyState";
-
-const mockOIDCConfig = {
-	allow_signups: true,
-	client_id: "test",
-	client_secret: "test",
-	client_key_file: "test",
-	client_cert_file: "test",
-	email_domain: [],
-	issuer_url: "test",
-	scopes: [],
-	ignore_email_verified: true,
-	username_field: "",
-	name_field: "",
-	email_field: "",
-	auth_url_params: {},
-	ignore_user_info: true,
-	organization_field: "",
-	organization_mapping: {},
-	organization_assign_default: true,
-	group_auto_create: false,
-	group_regex_filter: "^Coder-.*$",
-	group_allow_list: [],
-	groups_field: "groups",
-	group_mapping: { group1: "developers", group2: "admin", group3: "auditors" },
-	user_role_field: "roles",
-	user_role_mapping: { role1: ["role1", "role2"] },
-	user_roles_default: [],
-	sign_in_text: "",
-	icon_url: "",
-	signups_disabled_text: "string",
-	skip_issuer_checks: true,
-};
 
 export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
@@ -64,6 +34,7 @@ export const IdpSyncPage: FC = () => {
 	// 	organization: string;
 	// };
 	const { organizations } = useOrganizationSettings();
+
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(
 		organizationsPermissions(organizations?.map((o) => o.id)),
@@ -71,9 +42,12 @@ export const IdpSyncPage: FC = () => {
 	const groupIdpSyncSettingsQuery = useQuery(
 		groupIdpSyncSettings(organizationName),
 	);
+
+	const groupsQuery = useQuery(groupsByOrganization(organizationName));
 	const roleIdpSyncSettingsQuery = useQuery(
 		roleIdpSyncSettings(organizationName),
 	);
+
 	// const permissions = permissionsQuery.data;
 
 	if (!organization) {
@@ -121,9 +95,9 @@ export const IdpSyncPage: FC = () => {
 			</Stack>
 
 			<IdpSyncPageView
-				oidcConfig={mockOIDCConfig}
 				groupSyncSettings={groupIdpSyncSettingsQuery.data}
 				roleSyncSettings={roleIdpSyncSettingsQuery.data}
+				groups={groupsQuery.data}
 			/>
 		</>
 	);
