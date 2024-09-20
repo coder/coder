@@ -1,31 +1,26 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { MoreHorizOutlined } from "@mui/icons-material";
 import type { FC } from "react";
-import type { Timing } from "./timings";
 
-const blocksPadding = 8;
-const blocksSpacing = 4;
+const sidePadding = 8;
+const spaceBetweenBlocks = 4;
 const moreIconSize = 18;
+const blockSize = 20;
 
 type TimingBlocksProps = {
-	timings: Timing[];
-	stageSize: number;
-	blockSize: number;
+	count: number;
+	size: number;
 };
 
-export const TimingBlocks: FC<TimingBlocksProps> = ({
-	timings,
-	stageSize,
-	blockSize,
-}) => {
-	const spacingBetweenBlocks = (timings.length - 1) * blocksSpacing;
-	const freeSize = stageSize - blocksPadding * 2;
-	const necessarySize = blockSize * timings.length + spacingBetweenBlocks;
+export const TimingBlocks: FC<TimingBlocksProps> = ({ count, size }) => {
+	const totalSpaceBetweenBlocks = (count - 1) * spaceBetweenBlocks;
+	const freeSize = size - sidePadding * 2;
+	const necessarySize = blockSize * count + totalSpaceBetweenBlocks;
 	const hasSpacing = necessarySize <= freeSize;
 	const nOfPossibleBlocks = Math.floor(
-		(freeSize - moreIconSize - spacingBetweenBlocks) / blockSize,
+		(freeSize - moreIconSize - totalSpaceBetweenBlocks) / blockSize,
 	);
-	const nOfBlocks = hasSpacing ? timings.length : nOfPossibleBlocks;
+	const nOfBlocks = hasSpacing ? count : nOfPossibleBlocks;
 
 	return (
 		<div css={styles.blocks}>
@@ -47,8 +42,8 @@ const styles = {
 		display: "flex",
 		width: "100%",
 		height: "100%",
-		padding: blocksPadding,
-		gap: blocksSpacing,
+		padding: sidePadding,
+		gap: spaceBetweenBlocks,
 		alignItems: "center",
 	},
 	block: {

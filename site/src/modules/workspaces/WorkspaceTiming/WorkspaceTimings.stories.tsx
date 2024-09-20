@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { WorkspaceTimingChart } from "./WorkspaceTimingChart";
+import { WorkspaceTimings } from "./WorkspaceTimings";
 import { WorkspaceTimingsResponse } from "./storybookData";
 
-const meta: Meta<typeof WorkspaceTimingChart> = {
-	title: "modules/workspaces/WorkspaceTimingChart",
-	component: WorkspaceTimingChart,
+const meta: Meta<typeof WorkspaceTimings> = {
+	title: "modules/workspaces/WorkspaceTimings",
+	component: WorkspaceTimings,
 	args: {
 		provisionerTimings: WorkspaceTimingsResponse.provisioner_timings,
 	},
@@ -28,6 +28,6 @@ const meta: Meta<typeof WorkspaceTimingChart> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof WorkspaceTimingChart>;
+type Story = StoryObj<typeof WorkspaceTimings>;
 
 export const Default: Story = {};

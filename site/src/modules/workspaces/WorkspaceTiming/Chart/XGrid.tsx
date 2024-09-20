@@ -1,16 +1,12 @@
 import type { FC, HTMLProps } from "react";
 import type { Interpolation, Theme } from "@emotion/react";
+import { columnWidth } from "./constants";
 
 type XGridProps = HTMLProps<HTMLDivElement> & {
 	columns: number;
-	columnWidth: number;
 };
 
-export const XGrid: FC<XGridProps> = ({
-	columns,
-	columnWidth,
-	...htmlProps
-}) => {
+export const XGrid: FC<XGridProps> = ({ columns, ...htmlProps }) => {
 	return (
 		<div css={styles.grid} role="presentation" {...htmlProps}>
 			{[...Array(columns).keys()].map((key) => (
@@ -31,6 +27,10 @@ const styles = {
 		display: "flex",
 		width: "100%",
 		height: "100%",
+		position: "absolute",
+		top: 0,
+		left: 0,
+		zIndex: -1,
 	},
 	column: (theme) => ({
 		flexShrink: 0,

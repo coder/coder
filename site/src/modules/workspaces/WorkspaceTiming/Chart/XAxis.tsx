@@ -1,24 +1,20 @@
-import type { FC, HTMLProps } from "react";
-import { Label } from "./Label";
+import type { FC, HTMLProps, ReactNode } from "react";
 import type { Interpolation, Theme } from "@emotion/react";
+import { columnWidth, contentSidePadding, XAxisHeight } from "./constants";
 
 type XValuesProps = HTMLProps<HTMLDivElement> & {
-	values: string[];
-	columnWidth: number;
+	labels: ReactNode[];
 };
 
-export const XValues: FC<XValuesProps> = ({
-	values,
-	columnWidth,
-	...htmlProps
-}) => {
+export const XAxis: FC<XValuesProps> = ({ labels, ...htmlProps }) => {
 	return (
 		<div css={styles.row} {...htmlProps}>
-			{values.map((v) => (
+			{labels.map((l, i) => (
 				<div
-					key={v}
+					// biome-ignore lint/suspicious/noArrayIndexKey: we are iterating over a ReactNode so we don't have another prop to use as key
+					key={i}
 					css={[
-						styles.cell,
+						styles.label,
 						{
 							// To centralize the labels between columns, we need to:
 							// 1. Set the label width to twice the column width.
@@ -32,7 +28,7 @@ export const XValues: FC<XValuesProps> = ({
 						},
 					]}
 				>
-					<Label color="secondary">{v}</Label>
+					{l}
 				</div>
 			))}
 		</div>
@@ -40,13 +36,24 @@ export const XValues: FC<XValuesProps> = ({
 };
 
 const styles = {
-	row: {
+	row: (theme) => ({
 		display: "flex",
 		width: "fit-content",
-	},
-	cell: {
+		alignItems: "center",
+		borderBottom: `1px solid ${theme.palette.divider}`,
+		height: XAxisHeight,
+		padding: `0px ${contentSidePadding}px`,
+		minWidth: "100%",
+		flexShrink: 0,
+		position: "sticky",
+		top: 0,
+		zIndex: 1,
+		backgroundColor: theme.palette.background.default,
+	}),
+	label: (theme) => ({
 		display: "flex",
 		justifyContent: "center",
 		flexShrink: 0,
-	},
+		color: theme.palette.text.secondary,
+	}),
 } satisfies Record<string, Interpolation<Theme>>;
