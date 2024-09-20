@@ -179,8 +179,10 @@ func (r *Runner) StartCron() {
 	}
 }
 
+// ExecuteOption describes what scripts we want to execute.
 type ExecuteOption int
 
+// ExecuteOption enums.
 const (
 	ExecuteAllScripts ExecuteOption = iota
 	ExecuteStartScripts
