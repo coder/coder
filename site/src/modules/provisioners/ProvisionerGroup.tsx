@@ -190,7 +190,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						padding: "0 24px 24px",
 						display: "grid",
 						gap: 12,
-						gridTemplateColumns: "repeat(auto-fill, minmax(375px, 1fr))",
+						gridTemplateColumns: "repeat(auto-fill, minmax(385px, 1fr))",
 					}}
 				>
 					{provisionersWithWarningInfo.map((provisioner) => (
