@@ -12,7 +12,6 @@ SELECT
 	unnest(@run_on_start :: boolean [ ]) AS run_on_start,
 	unnest(@run_on_stop :: boolean [ ]) AS run_on_stop,
 	unnest(@timeout_seconds :: integer [ ]) AS timeout_seconds,
-	unnest(@display_name :: text [ ]) AS display_name,
 	unnest(@id :: uuid [ ]) AS id
 RETURNING workspace_agent_scripts.*;
 

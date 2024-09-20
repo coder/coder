@@ -2942,7 +2942,6 @@ type WorkspaceAgentScript struct {
 	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
 	ID               uuid.UUID `db:"id" json:"id"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
 }
 
 type WorkspaceAgentScriptTiming struct {

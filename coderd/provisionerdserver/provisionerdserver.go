@@ -1865,7 +1865,6 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			StartBlocksLogin: scriptStartBlocksLogin,
 			RunOnStart:       scriptRunOnStart,
 			RunOnStop:        scriptRunOnStop,
-			DisplayName:      scriptDisplayName,
 			ID:               scriptIDs,
 		})
 		if err != nil {

@@ -970,7 +970,6 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 	for _, dbScript := range dbScripts {
 		scripts = append(scripts, codersdk.WorkspaceAgentScript{
 			ID:               dbScript.ID,
-			DisplayName:      dbScript.DisplayName,
 			LogPath:          dbScript.LogPath,
 			LogSourceID:      dbScript.LogSourceID,
 			Script:           dbScript.Script,

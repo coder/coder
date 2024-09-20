@@ -53,7 +53,6 @@ message WorkspaceAgentScript {
 	bool run_on_stop = 6;
 	bool start_blocks_login = 7;
 	google.protobuf.Duration timeout = 8;
-	string display_name = 9;
 	bytes id = 10;
 }
 

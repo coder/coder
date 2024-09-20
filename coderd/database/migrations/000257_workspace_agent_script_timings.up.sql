@@ -1,5 +1,4 @@
 ALTER TABLE workspace_agent_scripts ADD COLUMN id           uuid UNIQUE NOT NULL DEFAULT gen_random_uuid();
-ALTER TABLE workspace_agent_scripts ADD COLUMN display_name text        NOT NULL DEFAULT '';
 
 CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
     'start',

@@ -7867,7 +7867,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg databas
 			LogSourceID:      source,
 			WorkspaceAgentID: arg.WorkspaceAgentID,
 			ID:               arg.ID[index],
-			DisplayName:      arg.DisplayName[index],
 			LogPath:          arg.LogPath[index],
 			Script:           arg.Script[index],
 			Cron:             arg.Cron[index],

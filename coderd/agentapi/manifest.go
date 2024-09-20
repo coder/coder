@@ -179,7 +179,6 @@ func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentprot
 func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.WorkspaceAgentScript {
 	return &agentproto.WorkspaceAgentScript{
 		Id:               script.ID[:],
-		DisplayName:      script.DisplayName,
 		LogSourceId:      script.LogSourceID[:],
 		LogPath:          script.LogPath,
 		Script:           script.Script,
