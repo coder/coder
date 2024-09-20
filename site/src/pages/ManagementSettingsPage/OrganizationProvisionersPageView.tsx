@@ -26,6 +26,12 @@ export const OrganizationProvisionersPageView: FC<
 > = ({ buildInfo, provisioners }) => {
 	const isEmpty = provisioners.every((group) => group.daemons.length === 0);
 
+	const provisionerGroupsCount = provisioners.length;
+	const provisionersCount = provisioners.reduce(
+		(a, group) => a + group.daemons.length,
+		0,
+	);
+
 	return (
 		<div>
 			<Stack
@@ -45,23 +51,34 @@ export const OrganizationProvisionersPageView: FC<
 					Create a provisioner
 				</Button>
 			</Stack>
-
+			{isEmpty ? (
+				<EmptyState
+					message="No provisioners"
+					description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
+					cta={
+						<Button
+							endIcon={<OpenInNewIcon />}
+							target="_blank"
+							href={docs("/admin/provisioners")}
+						>
+							Show me how to create a provisioner
+						</Button>
+					}
+				/>
+			) : (
+				<div
+					css={(theme) => ({
+						margin: 0,
+						fontSize: 12,
+						paddingBottom: 18,
+						color: theme.palette.text.secondary,
+					})}
+				>
+					Showing {provisionerGroupsCount} groups and {provisionersCount}{" "}
+					provisioners
+				</div>
+			)}
 			<Stack spacing={4.5}>
-				{isEmpty && (
-					<EmptyState
-						message="No provisioners"
-						description="A provisioner is required before you can create templates and workspaces. You can connect your first provisioner by following our documentation."
-						cta={
-							<Button
-								endIcon={<OpenInNewIcon />}
-								target="_blank"
-								href={docs("/admin/provisioners")}
-							>
-								Show me how to create a provisioner
-							</Button>
-						}
-					/>
-				)}
 				{provisioners.map((group) => {
 					const type = getGroupType(group.key);
 
@@ -78,6 +95,7 @@ export const OrganizationProvisionersPageView: FC<
 							key={group.key.id}
 							buildInfo={buildInfo}
 							keyName={group.key.name}
+							keyTags={group.key.tags}
 							type={type}
 							provisioners={group.daemons}
 						/>

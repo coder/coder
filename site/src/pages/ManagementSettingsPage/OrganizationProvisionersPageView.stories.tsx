@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { screen, userEvent } from "@storybook/test";
 import {
 	MockBuildInfo,
 	MockProvisioner,
@@ -38,7 +39,11 @@ export const Provisioners: Story = {
 				],
 			},
 			{
-				key: { ...MockProvisionerKey, id: "ジャイデン", name: "ジャイデン" },
+				key: MockProvisionerPskKey,
+				daemons: [MockProvisioner, MockProvisioner2],
+			},
+			{
+				key: { ...MockProvisionerKey, id: "ジェイデン", name: "ジェイデン" },
 				daemons: [MockProvisioner, MockProvisioner2],
 			},
 			{
@@ -53,20 +58,49 @@ export const Provisioners: Story = {
 				],
 			},
 			{
-				key: { ...MockProvisionerKey, id: "ケイラ", name: "ケイラ" },
-				daemons: [
-					{
-						...MockProvisioner,
-						tags: {
-							...MockProvisioner.tags,
-							都市: "ユタ",
-							きっぷ: "yes",
-							ちいさい: "no",
-						},
+				key: {
+					...MockProvisionerKey,
+					id: "ケイラ",
+					name: "ケイラ",
+					tags: {
+						...MockProvisioner.tags,
+						都市: "ユタ",
+						きっぷ: "yes",
+						ちいさい: "no",
 					},
-				],
+				},
+				daemons: Array.from({ length: 117 }, (_, i) => ({
+					...MockProvisioner,
+					id: `ケイラ-${i}`,
+					name: `ケイラ-${i}`,
+				})),
 			},
 		],
+	},
+	play: async ({ step }) => {
+		await step("open all details", async () => {
+			const expandButtons = await screen.findAllByRole("button", {
+				name: "Show provisioner details",
+			});
+			for (const it of expandButtons) {
+				await userEvent.click(it);
+			}
+		});
+
+		await step("close uninteresting/large details", async () => {
+			const collapseButtons = await screen.findAllByRole("button", {
+				name: "Hide provisioner details",
+			});
+
+			await userEvent.click(collapseButtons[2]);
+			await userEvent.click(collapseButtons[3]);
+			await userEvent.click(collapseButtons[5]);
+		});
+
+		await step("show version popover", async () => {
+			const outOfDate = await screen.findByText("Out of date");
+			await userEvent.hover(outOfDate);
+		});
 	},
 };
 

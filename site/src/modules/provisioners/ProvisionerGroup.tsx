@@ -1,6 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Business from "@mui/icons-material/Business";
-import Person from "@mui/icons-material/Person";
+import BusinessIcon from "@mui/icons-material/Business";
+import PersonIcon from "@mui/icons-material/Person";
+import TagIcon from "@mui/icons-material/Sell";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -21,6 +22,7 @@ import {
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+import isEqual from "lodash/isEqual";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
@@ -30,7 +32,8 @@ type ProvisionerGroupType = "builtin" | "psk" | "key";
 
 interface ProvisionerGroupProps {
 	readonly buildInfo?: BuildInfoResponse;
-	readonly keyName?: string;
+	readonly keyName: string;
+	readonly keyTags: Record<string, string>;
 	readonly type: ProvisionerGroupType;
 	readonly provisioners: readonly ProvisionerDaemon[];
 }
@@ -38,6 +41,7 @@ interface ProvisionerGroupProps {
 export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	buildInfo,
 	keyName,
+	keyTags,
 	type,
 	provisioners,
 }) => {
@@ -61,7 +65,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
-	const extraTags = Object.entries(firstProvisioner.tags).filter(
+	const extraTags = Object.entries(keyTags).filter(
 		([key]) => key !== "scope" && key !== "owner",
 	);
 
@@ -89,6 +93,10 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		provisionersWithWarnings === 1
 			? "1 provisioner"
 			: `${provisionersWithWarnings} provisioners`;
+
+	const hasMultipleTagVariants =
+		type === "psk" &&
+		provisioners.some((it) => !isEqual(it.tags, { scope: "organization" }));
 
 	return (
 		<div
@@ -153,14 +161,26 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						justifyContent: "right",
 					}}
 				>
-					<Tooltip title="Scope">
-						<Pill
-							size="lg"
-							icon={daemonScope === "organization" ? <Business /> : <Person />}
-						>
-							<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
+					{!hasMultipleTagVariants ? (
+						<Tooltip title="Scope">
+							<Pill
+								size="lg"
+								icon={
+									daemonScope === "organization" ? (
+										<BusinessIcon />
+									) : (
+										<PersonIcon />
+									)
+								}
+							>
+								<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
+							</Pill>
+						</Tooltip>
+					) : (
+						<Pill size="lg" icon={<TagIcon />}>
+							Multiple tags
 						</Pill>
-					</Tooltip>
+					)}
 					{type === "key" &&
 						extraTags.map(([key, value]) => (
 							<ProvisionerTag key={key} tagName={key} tagValue={value} />
@@ -172,9 +192,9 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 				<div
 					css={{
 						padding: "0 24px 24px",
-						display: "flex",
+						display: "grid",
 						gap: 12,
-						flexWrap: "wrap",
+						gridTemplateColumns: "repeat(auto-fill, minmax(385px, 1fr))",
 					}}
 				>
 					{provisionersWithWarningInfo.map((provisioner) => (
@@ -186,7 +206,6 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 									border: `1px solid ${theme.palette.divider}`,
 									fontSize: 14,
 									padding: "14px 18px",
-									width: 375,
 								},
 								provisioner.warningCount > 0 && styles.warningBorder,
 							]}
@@ -222,7 +241,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 										)}
 									</span>
 								</div>
-								{type === "psk" && (
+								{hasMultipleTagVariants && (
 									<PskProvisionerTags tags={provisioner.tags} />
 								)}
 							</Stack>
@@ -317,7 +336,8 @@ interface PskProvisionerTagsProps {
 
 const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
 	const daemonScope = tags.scope || "organization";
-	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
+	const iconScope =
+		daemonScope === "organization" ? <BusinessIcon /> : <PersonIcon />;
 
 	const extraTags = Object.entries(tags).filter(
 		([tag]) => tag !== "scope" && tag !== "owner",
@@ -343,6 +363,7 @@ const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
 				css={{
 					"& .MuiPaper-root": {
 						padding: 20,
+						minWidth: "unset",
 						maxWidth: 340,
 						width: "fit-content",
 					},
