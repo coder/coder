@@ -15,6 +15,60 @@ const featureStageBadgeTypes = {
 	experimental: "experimental",
 } as const satisfies Record<string, ReactNode>;
 
+type FeatureStageBadgeProps = Readonly<
+	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
+		contentType: keyof typeof featureStageBadgeTypes;
+		size?: "sm" | "md" | "lg";
+	}
+>;
+
+export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
+	contentType,
+	size = "md",
+	...delegatedProps
+}) => {
+	return (
+		<Popover mode="hover">
+			<PopoverTrigger>
+				{({ isOpen }) => (
+					<span
+						css={[
+							styles.badge,
+							size === "sm" && styles.badgeSmallText,
+							size === "lg" && styles.badgeLargeText,
+							isOpen && styles.badgeHover,
+						]}
+						{...delegatedProps}
+					>
+						<span style={visuallyHidden}> (This is a</span>
+						{featureStageBadgeTypes[contentType]}
+						<span style={visuallyHidden}> feature)</span>
+					</span>
+				)}
+			</PopoverTrigger>
+
+			<HelpTooltipContent
+				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+				transformOrigin={{ vertical: "top", horizontal: "center" }}
+			>
+				<p css={styles.tooltipDescription}>
+					This feature has not yet reached general availability (GA).
+				</p>
+
+				<Link
+					href={docs("/contributing/feature-stages")}
+					target="_blank"
+					rel="noreferrer"
+					css={styles.tooltipLink}
+				>
+					Learn about feature stages
+					<span style={visuallyHidden}> (link opens in new tab)</span>
+				</Link>
+			</HelpTooltipContent>
+		</Popover>
+	);
+};
+
 const styles = {
 	badge: (theme) => ({
 		// Base type is based on a span so that the element can be placed inside
@@ -77,57 +131,3 @@ const styles = {
 		lineHeight: 1.2,
 	},
 } as const satisfies Record<string, Interpolation<Theme>>;
-
-type FeatureStageBadgeProps = Readonly<
-	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
-		contentType: keyof typeof featureStageBadgeTypes;
-		size?: "sm" | "md" | "lg";
-	}
->;
-
-export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
-	contentType,
-	size = "md",
-	...delegatedProps
-}) => {
-	return (
-		<Popover mode="hover">
-			<PopoverTrigger>
-				{({ isOpen }) => (
-					<span
-						css={[
-							styles.badge,
-							size === "sm" && styles.badgeSmallText,
-							size === "lg" && styles.badgeLargeText,
-							isOpen && styles.badgeHover,
-						]}
-						{...delegatedProps}
-					>
-						<span style={visuallyHidden}> (This is a</span>
-						{featureStageBadgeTypes[contentType]}
-						<span style={visuallyHidden}> feature)</span>
-					</span>
-				)}
-			</PopoverTrigger>
-
-			<HelpTooltipContent
-				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-				transformOrigin={{ vertical: "top", horizontal: "center" }}
-			>
-				<p css={styles.tooltipDescription}>
-					This feature has not yet reached general availability (GA).
-				</p>
-
-				<Link
-					href={docs("/contributing/feature-stages")}
-					target="_blank"
-					rel="noreferrer"
-					css={styles.tooltipLink}
-				>
-					Learn about feature stages
-					<span style={visuallyHidden}> (link opens in new tab)</span>
-				</Link>
-			</HelpTooltipContent>
-		</Popover>
-	);
-};
