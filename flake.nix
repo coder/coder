@@ -49,8 +49,7 @@
             owner = "protocolbuffers";
             repo = "protobuf-go";
             rev = rev;
-            # This should be updated whenever rev changes!
-            # To update, set to "", run nix-shell, insert new hash
+            # Updated with ./scripts/update-flake.sh`.
             sha256 = "sha256-GTZQ40uoi62Im2F4YvlZWiSNNJ4fEAkRojYa0EYz9HU=";
           };
           subPackages = [ "cmd/protoc-gen-go" ];
@@ -139,7 +138,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-KyMqZxav64rbybUUFoBsOlB6XH7y8aQ7ekaYm0QD4Ew=";
+            vendorHash = "sha256-biJ4rUJ0lmWqUQLAg0QqyIAaLuZ7e//+loWJIefnrNw=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
