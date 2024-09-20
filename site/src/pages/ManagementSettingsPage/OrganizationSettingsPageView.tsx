@@ -69,9 +69,7 @@ export const OrganizationSettingsPageView: FC<
 		<div>
 			<SettingsHeader
 				title="Settings"
-				badges={
-					<FeatureStageBadge type="beta" variant="interactive" size="lg" />
-				}
+				badges={<FeatureStageBadge contentType="beta" size="lg" />}
 			/>
 
 			{Boolean(error) && !isApiValidationError(error) && (

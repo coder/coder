@@ -63,9 +63,7 @@ export const OrganizationMembersPageView: FC<
 		<div>
 			<SettingsHeader
 				title="Members"
-				badges={
-					<FeatureStageBadge type="beta" size="lg" variant="interactive" />
-				}
+				badges={<FeatureStageBadge contentType="beta" size="lg" />}
 			/>
 
 			<Stack>

@@ -74,9 +74,7 @@ export const IdpSyncPage: FC = () => {
 					title="IdP Sync"
 					description="Group and role sync mappings (configured outside Coder)."
 					tooltip={<IdpSyncHelpTooltip />}
-					badges={
-						<FeatureStageBadge type="beta" size="lg" variant="interactive" />
-					}
+					badges={<FeatureStageBadge contentType="beta" size="lg" />}
 				/>
 				<Stack direction="row" spacing={2}>
 					<Button

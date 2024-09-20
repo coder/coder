@@ -22,10 +22,13 @@ type TriggerMode = "hover" | "click";
 
 type TriggerRef = RefObject<HTMLElement>;
 
-type TriggerElement = ReactElement<{
-	ref: TriggerRef;
-	onClick?: () => void;
-}>;
+// Have to append ReactNode type to satisfy React's cloneElement function. It
+// has absolutely no bearing on what happens at runtime
+type TriggerElement = ReactNode &
+	ReactElement<{
+		ref: TriggerRef;
+		onClick?: () => void;
+	}>;
 
 type PopoverContextValue = {
 	id: string;
@@ -88,33 +91,47 @@ export const usePopover = () => {
 	return context;
 };
 
-export const PopoverTrigger = (
-	props: HTMLAttributes<HTMLElement> & {
-		children: TriggerElement;
-	},
-) => {
+type PopoverTriggerRenderProps = Readonly<{
+	isOpen: boolean;
+}>;
+
+type PopoverTriggerProps = Readonly<
+	Omit<HTMLAttributes<HTMLElement>, "children"> & {
+		children:
+			| TriggerElement
+			| ((props: PopoverTriggerRenderProps) => TriggerElement);
+	}
+>;
+
+export const PopoverTrigger: FC<PopoverTriggerProps> = (props) => {
 	const popover = usePopover();
-	const { children, ...elementProps } = props;
+	const { children, onClick, onPointerEnter, onPointerLeave, ...elementProps } =
+		props;
 
 	const clickProps = {
 		onClick: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(true);
-			elementProps.onClick?.(event);
+			onClick?.(event);
 		},
 	};
 
 	const hoverProps = {
 		onPointerEnter: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(true);
-			elementProps.onPointerEnter?.(event);
+			onPointerEnter?.(event);
 		},
 		onPointerLeave: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(false);
-			elementProps.onPointerLeave?.(event);
+			onPointerLeave?.(event);
 		},
 	};
 
-	return cloneElement(props.children, {
+	const evaluatedChildren =
+		typeof children === "function"
+			? children({ isOpen: popover.open })
+			: children;
+
+	return cloneElement(evaluatedChildren, {
 		...elementProps,
 		...(popover.mode === "click" ? clickProps : hoverProps),
 		"aria-haspopup": true,

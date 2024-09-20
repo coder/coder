@@ -32,9 +32,7 @@ export const OrganizationProvisionersPageView: FC<
 			>
 				<SettingsHeader
 					title="Provisioners"
-					badges={
-						<FeatureStageBadge type="beta" variant="interactive" size="lg" />
-					}
+					badges={<FeatureStageBadge contentType="beta" size="lg" />}
 				/>
 				<Button
 					endIcon={<OpenInNewIcon />}

@@ -3,13 +3,7 @@ import Link from "@mui/material/Link";
 import { visuallyHidden } from "@mui/utils";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
-import {
-	type FC,
-	type HTMLAttributes,
-	type ReactNode,
-	useEffect,
-	useState,
-} from "react";
+import type { FC, HTMLAttributes, ReactNode } from "react";
 import { docs } from "utils/docs";
 
 /**
@@ -29,7 +23,7 @@ const styles = {
 		display: "block",
 		maxWidth: "fit-content",
 
-		// Base style assumes that small badges will be the default
+		// Base style assumes that medium badges will be the default
 		fontSize: "0.75rem",
 
 		cursor: "default",
@@ -55,7 +49,7 @@ const styles = {
 		fontSize: "1rem",
 	},
 
-	badgeExtraSmallText: {
+	badgeSmallText: {
 		// Have to beef up font weight so that the letters still maintain the
 		// same relative thickness as all our other main UI text
 		fontWeight: 500,
@@ -86,83 +80,39 @@ const styles = {
 
 type FeatureStageBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
-		type: keyof typeof featureStageBadgeTypes;
-		size?: "xs" | "sm" | "lg";
-		variant: "interactive" | "static";
+		contentType: keyof typeof featureStageBadgeTypes;
+		size?: "sm" | "md" | "lg";
 	}
 >;
 
 export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
-	type,
-	size = "sm",
-	variant = "interactive",
-	onPointerEnter,
-	onPointerLeave,
+	contentType,
+	size = "md",
 	...delegatedProps
 }) => {
-	// Not a big fan of having two hover variables, but we need to make sure the
-	// badge maintains its hover styling while the mouse is inside the tooltip.
-	// If we had one variable, we could have race conditions based on how events
-	// decide to bubble (especially with custom event handlers)
-	const [isBadgeHovering, setIsBadgeHovering] = useState(false);
-	const [isTooltipHovering, setIsTooltipHovering] = useState(false);
-
-	useEffect(() => {
-		const onWindowBlur = () => {
-			setIsBadgeHovering(false);
-			setIsTooltipHovering(false);
-		};
-
-		window.addEventListener("blur", onWindowBlur);
-		return () => window.removeEventListener("blur", onWindowBlur);
-	}, []);
-
-	const featureType = featureStageBadgeTypes[type];
-	const showBadgeHoverStyle =
-		variant === "interactive" && (isBadgeHovering || isTooltipHovering);
-
-	const coreContent = (
-		<span
-			css={[
-				styles.badge,
-				size === "xs" && styles.badgeExtraSmallText,
-				size === "lg" && styles.badgeLargeText,
-				showBadgeHoverStyle && styles.badgeHover,
-			]}
-			onPointerEnter={variant === "interactive" ? undefined : onPointerEnter}
-			onPointerLeave={variant === "interactive" ? undefined : onPointerLeave}
-			{...delegatedProps}
-		>
-			<span style={visuallyHidden}> (This is a</span>
-			{featureType}
-			<span style={visuallyHidden}> feature)</span>
-		</span>
-	);
-
-	if (variant !== "interactive") {
-		return coreContent;
-	}
-
 	return (
 		<Popover mode="hover">
-			<PopoverTrigger
-				onPointerEnter={(event) => {
-					setIsBadgeHovering(true);
-					onPointerEnter?.(event);
-				}}
-				onPointerLeave={(event) => {
-					setIsBadgeHovering(false);
-					onPointerLeave?.(event);
-				}}
-			>
-				{coreContent}
+			<PopoverTrigger>
+				{({ isOpen }) => (
+					<span
+						css={[
+							styles.badge,
+							size === "sm" && styles.badgeSmallText,
+							size === "lg" && styles.badgeLargeText,
+							isOpen && styles.badgeHover,
+						]}
+						{...delegatedProps}
+					>
+						<span style={visuallyHidden}> (This is a</span>
+						{featureStageBadgeTypes[contentType]}
+						<span style={visuallyHidden}> feature)</span>
+					</span>
+				)}
 			</PopoverTrigger>
 
 			<HelpTooltipContent
 				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
 				transformOrigin={{ vertical: "top", horizontal: "center" }}
-				onPointerEnter={() => setIsTooltipHovering(true)}
-				onPointerLeave={() => setIsTooltipHovering(false)}
 			>
 				<p css={styles.tooltipDescription}>
 					This feature has not yet reached general availability (GA).
