@@ -138,7 +138,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-biJ4rUJ0lmWqUQLAg0QqyIAaLuZ7e//+loWJIefnrNw=";
+            vendorHash = "sha256-QKgwsJaESo3/7Q5+Fntl2uK6idkn8BT6EAHO8IYlMJQ=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
@@ -172,6 +172,7 @@
           '';
         };
         packages = {
+          proto_gen_go = proto_gen_go_1_30;  
           all = pkgs.buildEnv {
             name = "all-packages";
             paths = devShellPackages;

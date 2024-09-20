@@ -32,7 +32,7 @@ sed -i "s#\(vendorHash = \"\)[^\"]*#\1${HASH}#" ./flake.nix
 
 # Update protoc-gen-go sha256
 echo "Updating protoc-gen-go sha256..."
-PROTOC_GEN_GO_REV=$(grep -A 20 'pkgs.buildGoModule rec' flake.nix | grep -A 10 'repo = "protobuf-go"' | grep 'rev = "v' | sed 's/.*rev = "\(.*\)".*/\1/')
+PROTOC_GEN_GO_REV=$(nix eval --extra-experimental-features nix-command --extra-experimental-features flakes --raw .#proto_gen_go.rev)
 echo "protoc-gen-go version: $PROTOC_GEN_GO_REV"
 PROTOC_GEN_GO_SHA256=$(nix-prefetch-git https://github.com/protocolbuffers/protobuf-go --rev "$PROTOC_GEN_GO_REV" | jq -r .hash)
 sed -i "s#\(sha256 = \"\)[^\"]*#\1${PROTOC_GEN_GO_SHA256}#" ./flake.nix
