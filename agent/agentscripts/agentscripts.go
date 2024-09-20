@@ -25,6 +25,7 @@ import (
 
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -314,9 +315,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
 	cmd.Stderr = io.MultiWriter(fileWriter, errW)
 
-	start := time.Now().UTC()
+	start := dbtime.Now()
 	defer func() {
-		end := time.Now().UTC()
+		end := dbtime.Now()
 		execTime := end.Sub(start)
 		exitCode := 0
 		if err != nil {
