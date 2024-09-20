@@ -2636,7 +2636,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertWorkspaceAgentScriptTimingsParams{
 			ScriptID: uuid.New(),
 			Stage:    database.WorkspaceAgentScriptTimingStageStart,
-		}).Asserts( /* rbac.ResourceSystem, policy.ActionCreate */ )
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceAgentScripts", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentScriptsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
