@@ -1366,7 +1366,7 @@ CREATE TABLE workspace_agent_scripts (
     run_on_start boolean NOT NULL,
     run_on_stop boolean NOT NULL,
     timeout_seconds integer NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL
+    display_name text NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
