@@ -1363,7 +1363,6 @@ CREATE TABLE workspace_agent_port_share (
 
 CREATE TABLE workspace_agent_script_timings (
     script_id uuid NOT NULL,
-    display_name text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     ended_at timestamp with time zone NOT NULL,
     exit_code integer NOT NULL,
@@ -1874,6 +1873,9 @@ ALTER TABLE ONLY workspace_agent_metadata
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_pkey PRIMARY KEY (workspace_id, agent_name, port);
+
+ALTER TABLE ONLY workspace_agent_script_timings
+    ADD CONSTRAINT workspace_agent_script_timings_script_id_started_at_key UNIQUE (script_id, started_at);
 
 ALTER TABLE ONLY workspace_agent_scripts
     ADD CONSTRAINT workspace_agent_scripts_id_key UNIQUE (id);

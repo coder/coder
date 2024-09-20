@@ -275,18 +275,17 @@ message WorkspaceAgentScriptCompletedResponse {
 
 message Timing {
     bytes script_id = 1;
-    string display_name = 2;
-    google.protobuf.Timestamp start = 3;
-    google.protobuf.Timestamp end = 4;
-    int32 exit_code = 5;
+    google.protobuf.Timestamp start = 2;
+    google.protobuf.Timestamp end = 3;
+    int32 exit_code = 4;
 
     enum Stage {
         START = 0;
         STOP = 1;
         CRON = 2;
 	}
-    Stage stage = 6;
-    bool timed_out = 7;
+    Stage stage = 5;
+    bool timed_out = 6;
 }
 
 service Agent {

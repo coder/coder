@@ -11806,7 +11806,6 @@ const insertWorkspaceAgentScriptTimings = `-- name: InsertWorkspaceAgentScriptTi
 INSERT INTO
     workspace_agent_script_timings (
         script_id,
-        display_name,
         started_at,
         ended_at,
         exit_code,
@@ -11814,23 +11813,21 @@ INSERT INTO
         timed_out
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7)
+    ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertWorkspaceAgentScriptTimingsParams struct {
-	ScriptID    uuid.UUID                       `db:"script_id" json:"script_id"`
-	DisplayName string                          `db:"display_name" json:"display_name"`
-	StartedAt   time.Time                       `db:"started_at" json:"started_at"`
-	EndedAt     time.Time                       `db:"ended_at" json:"ended_at"`
-	ExitCode    int32                           `db:"exit_code" json:"exit_code"`
-	Stage       WorkspaceAgentScriptTimingStage `db:"stage" json:"stage"`
-	TimedOut    bool                            `db:"timed_out" json:"timed_out"`
+	ScriptID  uuid.UUID                       `db:"script_id" json:"script_id"`
+	StartedAt time.Time                       `db:"started_at" json:"started_at"`
+	EndedAt   time.Time                       `db:"ended_at" json:"ended_at"`
+	ExitCode  int32                           `db:"exit_code" json:"exit_code"`
+	Stage     WorkspaceAgentScriptTimingStage `db:"stage" json:"stage"`
+	TimedOut  bool                            `db:"timed_out" json:"timed_out"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) error {
 	_, err := q.db.ExecContext(ctx, insertWorkspaceAgentScriptTimings,
 		arg.ScriptID,
-		arg.DisplayName,
 		arg.StartedAt,
 		arg.EndedAt,
 		arg.ExitCode,

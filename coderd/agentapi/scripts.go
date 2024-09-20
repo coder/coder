@@ -8,6 +8,7 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 type ScriptsAPI struct {
@@ -32,14 +33,15 @@ func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.Worksp
 		stage = database.WorkspaceAgentScriptTimingStageCron
 	}
 
+	//nolint:gocritic // We need permissions to write to the DB here and we are in the context of the agent.
+	ctx = dbauthz.AsProvisionerd(ctx)
 	err = s.Database.InsertWorkspaceAgentScriptTimings(ctx, database.InsertWorkspaceAgentScriptTimingsParams{
-		ScriptID:    scriptID,
-		Stage:       stage,
-		DisplayName: req.Timing.DisplayName,
-		StartedAt:   req.Timing.Start.AsTime(),
-		EndedAt:     req.Timing.End.AsTime(),
-		ExitCode:    req.Timing.ExitCode,
-		TimedOut:    req.Timing.TimedOut,
+		ScriptID:  scriptID,
+		Stage:     stage,
+		StartedAt: req.Timing.Start.AsTime(),
+		EndedAt:   req.Timing.End.AsTime(),
+		ExitCode:  req.Timing.ExitCode,
+		TimedOut:  req.Timing.TimedOut,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert workspace agent script timings into database: %w", err)

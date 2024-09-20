@@ -350,13 +350,12 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 
 		_, err = r.scriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
 			Timing: &proto.Timing{
-				ScriptId:    script.ID[:],
-				DisplayName: script.DisplayName,
-				Start:       timestamppb.New(start),
-				End:         timestamppb.New(end),
-				ExitCode:    int32(exitCode),
-				Stage:       stage,
-				TimedOut:    errors.Is(err, ErrTimeout),
+				ScriptId: script.ID[:],
+				Start:    timestamppb.New(start),
+				End:      timestamppb.New(end),
+				ExitCode: int32(exitCode),
+				Stage:    stage,
+				TimedOut: errors.Is(err, ErrTimeout),
 			},
 		})
 		if err != nil {

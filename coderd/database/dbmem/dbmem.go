@@ -7837,14 +7837,14 @@ func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg d
 	defer q.mutex.Unlock()
 
 	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings,
+		//nolint:gosimple // Stop the linter complaining about changing the type of `arg`.
 		database.WorkspaceAgentScriptTiming{
-			ScriptID:    arg.ScriptID,
-			StartedAt:   arg.StartedAt,
-			EndedAt:     arg.EndedAt,
-			ExitCode:    arg.ExitCode,
-			DisplayName: arg.DisplayName,
-			Stage:       arg.Stage,
-			TimedOut:    arg.TimedOut,
+			ScriptID:  arg.ScriptID,
+			StartedAt: arg.StartedAt,
+			EndedAt:   arg.EndedAt,
+			ExitCode:  arg.ExitCode,
+			Stage:     arg.Stage,
+			TimedOut:  arg.TimedOut,
 		},
 	)
 

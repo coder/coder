@@ -292,7 +292,6 @@ WHERE
 INSERT INTO
     workspace_agent_script_timings (
         script_id,
-        display_name,
         started_at,
         ended_at,
         exit_code,
@@ -300,4 +299,4 @@ INSERT INTO
         timed_out
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6, $7);
+    ($1, $2, $3, $4, $5, $6);
