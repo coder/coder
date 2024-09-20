@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { screen, userEvent } from "@storybook/test";
 import {
 	MockBuildInfo,
 	MockProvisioner,
@@ -75,6 +76,31 @@ export const Provisioners: Story = {
 				})),
 			},
 		],
+	},
+	play: async ({ step }) => {
+		await step("open all details", async () => {
+			const expandButtons = await screen.findAllByText(
+				"Show provisioner details",
+			);
+			for (const it of expandButtons) {
+				await userEvent.click(it);
+			}
+		});
+
+		await step("close uninteresting/large details", async () => {
+			const collapseButtons = await screen.findAllByText(
+				"Hide provisioner details",
+			);
+
+			await userEvent.click(collapseButtons[2]);
+			await userEvent.click(collapseButtons[3]);
+			await userEvent.click(collapseButtons[5]);
+		});
+
+		await step("show version popover", async () => {
+			const outOfDate = await screen.findByText("Out of date");
+			await userEvent.hover(outOfDate);
+		});
 	},
 };
 
