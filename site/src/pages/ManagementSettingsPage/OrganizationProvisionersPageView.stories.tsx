@@ -79,18 +79,18 @@ export const Provisioners: Story = {
 	},
 	play: async ({ step }) => {
 		await step("open all details", async () => {
-			const expandButtons = await screen.findAllByText(
-				"Show provisioner details",
-			);
+			const expandButtons = await screen.findAllByRole("button", {
+				name: "Show provisioner details",
+			});
 			for (const it of expandButtons) {
 				await userEvent.click(it);
 			}
 		});
 
 		await step("close uninteresting/large details", async () => {
-			const collapseButtons = await screen.findAllByText(
-				"Hide provisioner details",
-			);
+			const collapseButtons = await screen.findAllByRole("button", {
+				name: "Hide provisioner details",
+			});
 
 			await userEvent.click(collapseButtons[2]);
 			await userEvent.click(collapseButtons[3]);
