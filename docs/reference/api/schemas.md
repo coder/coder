@@ -6454,6 +6454,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"scripts": [
 							{
 								"cron": "string",
+								"display_name": "string",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,
@@ -6633,6 +6634,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 	"scripts": [
 		{
 			"cron": "string",
+			"display_name": "string",
 			"log_path": "string",
 			"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 			"run_on_start": true,
@@ -6901,6 +6903,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
 	"cron": "string",
+	"display_name": "string",
 	"log_path": "string",
 	"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 	"run_on_start": true,
@@ -6916,6 +6919,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name                 | Type    | Required | Restrictions | Description |
 | -------------------- | ------- | -------- | ------------ | ----------- |
 | `cron`               | string  | false    |              |             |
+| `display_name`       | string  | false    |              |             |
 | `log_path`           | string  | false    |              |             |
 | `log_source_id`      | string  | false    |              |             |
 | `run_on_start`       | boolean | false    |              |             |
@@ -7144,6 +7148,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 					"scripts": [
 						{
 							"cron": "string",
+							"display_name": "string",
 							"log_path": "string",
 							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 							"run_on_start": true,
@@ -7479,6 +7484,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"scripts": [
 				{
 					"cron": "string",
+					"display_name": "string",
 					"log_path": "string",
 					"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 					"run_on_start": true,
@@ -7739,6 +7745,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 								"scripts": [
 									{
 										"cron": "string",
+										"display_name": "string",
 										"log_path": "string",
 										"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 										"run_on_start": true,

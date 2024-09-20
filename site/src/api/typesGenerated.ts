@@ -1895,6 +1895,7 @@ export interface WorkspaceAgentScript {
 	readonly run_on_stop: boolean;
 	readonly start_blocks_login: boolean;
 	readonly timeout: number;
+	readonly display_name: string;
 }
 
 // From codersdk/workspaceapps.go
