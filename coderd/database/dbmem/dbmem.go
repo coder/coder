@@ -7838,13 +7838,13 @@ func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg d
 
 	//nolint:gosimple // Stop linter suggesting 'arg' should be of type database.WorkspaceAgentScriptTiming
 	scriptTiming := database.WorkspaceAgentScriptTiming{
-		ScriptID:     arg.ScriptID,
-		StartedAt:    arg.StartedAt,
-		EndedAt:      arg.EndedAt,
-		ExitCode:     arg.ExitCode,
-		DisplayName:  arg.DisplayName,
-		RanOnStart:   arg.RanOnStart,
-		BlockedLogin: arg.BlockedLogin,
+		ScriptID:    arg.ScriptID,
+		StartedAt:   arg.StartedAt,
+		EndedAt:     arg.EndedAt,
+		ExitCode:    arg.ExitCode,
+		DisplayName: arg.DisplayName,
+		Stage:       arg.Stage,
+		TimedOut:    arg.TimedOut,
 	}
 
 	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings, scriptTiming)

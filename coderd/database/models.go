@@ -1881,6 +1881,67 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+type WorkspaceAgentScriptTimingStage string
+
+const (
+	WorkspaceAgentScriptTimingStageStart WorkspaceAgentScriptTimingStage = "start"
+	WorkspaceAgentScriptTimingStageStop  WorkspaceAgentScriptTimingStage = "stop"
+	WorkspaceAgentScriptTimingStageCron  WorkspaceAgentScriptTimingStage = "cron"
+)
+
+func (e *WorkspaceAgentScriptTimingStage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentScriptTimingStage(s)
+	case string:
+		*e = WorkspaceAgentScriptTimingStage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentScriptTimingStage: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentScriptTimingStage struct {
+	WorkspaceAgentScriptTimingStage WorkspaceAgentScriptTimingStage `json:"workspace_agent_script_timing_stage"`
+	Valid                           bool                            `json:"valid"` // Valid is true if WorkspaceAgentScriptTimingStage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentScriptTimingStage) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentScriptTimingStage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentScriptTimingStage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentScriptTimingStage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentScriptTimingStage), nil
+}
+
+func (e WorkspaceAgentScriptTimingStage) Valid() bool {
+	switch e {
+	case WorkspaceAgentScriptTimingStageStart,
+		WorkspaceAgentScriptTimingStageStop,
+		WorkspaceAgentScriptTimingStageCron:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStage {
+	return []WorkspaceAgentScriptTimingStage{
+		WorkspaceAgentScriptTimingStageStart,
+		WorkspaceAgentScriptTimingStageStop,
+		WorkspaceAgentScriptTimingStageCron,
+	}
+}
+
 type WorkspaceAgentSubsystem string
 
 const (
@@ -2885,13 +2946,13 @@ type WorkspaceAgentScript struct {
 }
 
 type WorkspaceAgentScriptTiming struct {
-	ScriptID     uuid.UUID `db:"script_id" json:"script_id"`
-	DisplayName  string    `db:"display_name" json:"display_name"`
-	StartedAt    time.Time `db:"started_at" json:"started_at"`
-	EndedAt      time.Time `db:"ended_at" json:"ended_at"`
-	ExitCode     int32     `db:"exit_code" json:"exit_code"`
-	RanOnStart   bool      `db:"ran_on_start" json:"ran_on_start"`
-	BlockedLogin bool      `db:"blocked_login" json:"blocked_login"`
+	ScriptID    uuid.UUID                       `db:"script_id" json:"script_id"`
+	DisplayName string                          `db:"display_name" json:"display_name"`
+	StartedAt   time.Time                       `db:"started_at" json:"started_at"`
+	EndedAt     time.Time                       `db:"ended_at" json:"ended_at"`
+	ExitCode    int32                           `db:"exit_code" json:"exit_code"`
+	Stage       WorkspaceAgentScriptTimingStage `db:"stage" json:"stage"`
+	TimedOut    bool                            `db:"timed_out" json:"timed_out"`
 }
 
 type WorkspaceAgentStat struct {

@@ -23,14 +23,24 @@ func (s *ScriptsAPI) ScriptCompleted(ctx context.Context, req *agentproto.Worksp
 		return nil, xerrors.Errorf("script id from bytes: %w", err)
 	}
 
+	var stage database.WorkspaceAgentScriptTimingStage
+	switch req.Timing.Stage {
+	case agentproto.Timing_START:
+		stage = database.WorkspaceAgentScriptTimingStageStart
+	case agentproto.Timing_STOP:
+		stage = database.WorkspaceAgentScriptTimingStageStop
+	case agentproto.Timing_CRON:
+		stage = database.WorkspaceAgentScriptTimingStageCron
+	}
+
 	_, err = s.Database.InsertWorkspaceAgentScriptTimings(ctx, database.InsertWorkspaceAgentScriptTimingsParams{
-		ScriptID:     scriptID,
-		DisplayName:  req.Timing.DisplayName,
-		StartedAt:    req.Timing.Start.AsTime(),
-		EndedAt:      req.Timing.End.AsTime(),
-		ExitCode:     req.Timing.ExitCode,
-		RanOnStart:   req.Timing.RanOnStart,
-		BlockedLogin: req.Timing.BlockedLogin,
+		ScriptID:    scriptID,
+		Stage:       stage,
+		DisplayName: req.Timing.DisplayName,
+		StartedAt:   req.Timing.Start.AsTime(),
+		EndedAt:     req.Timing.End.AsTime(),
+		ExitCode:    req.Timing.ExitCode,
+		TimedOut:    req.Timing.TimedOut,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert workspace agent script timings into database: %w", err)

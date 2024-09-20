@@ -41,9 +41,7 @@ func TestExecuteBasic(t *testing.T) {
 		Script:      "echo hello",
 	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
-	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
-		return true
-	}))
+	require.NoError(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts))
 	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
 	require.Equal(t, "hello", log.Output)
 }
@@ -73,9 +71,7 @@ func TestEnv(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	done := testutil.Go(t, func() {
-		err := runner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
-			return true
-		})
+		err := runner.Execute(ctx, agentscripts.ExecuteAllScripts)
 		assert.NoError(t, err)
 	})
 	defer func() {
@@ -113,7 +109,7 @@ func TestTimeout(t *testing.T) {
 		Timeout:     time.Millisecond,
 	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
-	require.ErrorIs(t, runner.Execute(context.Background(), nil), agentscripts.ErrTimeout)
+	require.ErrorIs(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts), agentscripts.ErrTimeout)
 }
 
 func TestScriptReportsTiming(t *testing.T) {
@@ -133,9 +129,7 @@ func TestScriptReportsTiming(t *testing.T) {
 		Script:      "echo hello",
 	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
-	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
-		return true
-	}))
+	require.NoError(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts))
 
 	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
 	require.Equal(t, "hello", log.Output)

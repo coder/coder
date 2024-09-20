@@ -141,7 +141,7 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 		}
 		script := script
 		_, err := r.cron.AddFunc(script.Cron, func() {
-			err := r.trackRun(r.cronCtx, script)
+			err := r.trackRun(r.cronCtx, script, ExecuteCronScripts)
 			if err != nil {
 				r.Logger.Warn(context.Background(), "run agent script on schedule", slog.Error(err))
 			}
@@ -178,22 +178,31 @@ func (r *Runner) StartCron() {
 	}
 }
 
+type ExecuteOption int
+
+const (
+	ExecuteAllScripts ExecuteOption = iota
+	ExecuteStartScripts
+	ExecuteStopScripts
+	ExecuteCronScripts
+)
+
 // Execute runs a set of scripts according to a filter.
-func (r *Runner) Execute(ctx context.Context, filter func(script codersdk.WorkspaceAgentScript) bool) error {
-	if filter == nil {
-		// Execute em' all!
-		filter = func(script codersdk.WorkspaceAgentScript) bool {
-			return true
-		}
-	}
+func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 	var eg errgroup.Group
 	for _, script := range r.scripts {
-		if !filter(script) {
+		runScript := (option == ExecuteStartScripts && script.RunOnStart) ||
+			(option == ExecuteStopScripts && script.RunOnStop) ||
+			(option == ExecuteCronScripts && script.Cron != "") ||
+			option == ExecuteAllScripts
+
+		if !runScript {
 			continue
 		}
+
 		script := script
 		eg.Go(func() error {
-			err := r.trackRun(ctx, script)
+			err := r.trackRun(ctx, script, option)
 			if err != nil {
 				return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
 			}
@@ -204,8 +213,8 @@ func (r *Runner) Execute(ctx context.Context, filter func(script codersdk.Worksp
 }
 
 // trackRun wraps "run" with metrics.
-func (r *Runner) trackRun(ctx context.Context, script codersdk.WorkspaceAgentScript) error {
-	err := r.run(ctx, script)
+func (r *Runner) trackRun(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) error {
+	err := r.run(ctx, script, option)
 	if err != nil {
 		r.scriptsExecuted.WithLabelValues("false").Add(1)
 	} else {
@@ -218,7 +227,7 @@ func (r *Runner) trackRun(ctx context.Context, script codersdk.WorkspaceAgentScr
 // If the timeout is exceeded, the process is sent an interrupt signal.
 // If the process does not exit after a few seconds, it is forcefully killed.
 // This function immediately returns after a timeout, and does not wait for the process to exit.
-func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) error {
+func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) error {
 	logPath := script.LogPath
 	if logPath == "" {
 		logPath = fmt.Sprintf("coder-script-%s.log", script.LogSourceID)
@@ -321,15 +330,25 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 			logger.Info(ctx, fmt.Sprintf("%s script completed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
 		}
 
+		var stage proto.Timing_Stage
+		switch option {
+		case ExecuteStartScripts:
+			stage = proto.Timing_START
+		case ExecuteStopScripts:
+			stage = proto.Timing_STOP
+		case ExecuteCronScripts:
+			stage = proto.Timing_CRON
+		}
+
 		_, err = r.scriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
 			Timing: &proto.Timing{
-				ScriptId:     script.ID[:],
-				DisplayName:  script.DisplayName,
-				Start:        timestamppb.New(start),
-				End:          timestamppb.New(end),
-				ExitCode:     int32(exitCode),
-				RanOnStart:   script.RunOnStart,
-				BlockedLogin: script.StartBlocksLogin,
+				ScriptId:    script.ID[:],
+				DisplayName: script.DisplayName,
+				Start:       timestamppb.New(start),
+				End:         timestamppb.New(end),
+				ExitCode:    int32(exitCode),
+				Stage:       stage,
+				TimedOut:    errors.Is(err, ErrTimeout),
 			},
 		})
 

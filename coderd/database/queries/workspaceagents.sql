@@ -296,8 +296,8 @@ INSERT INTO
         started_at,
         ended_at,
         exit_code,
-        ran_on_start,
-        blocked_login
+        stage,
+        timed_out
     )
 VALUES
     ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
