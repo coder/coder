@@ -71,3 +71,6 @@ result
 
 # pnpm
 .pnpm-store/
+
+# docs
+docs/combined_docs.md
