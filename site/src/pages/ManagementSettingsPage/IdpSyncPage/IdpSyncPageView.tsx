@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { useTheme } from "@emotion/react";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -39,8 +38,6 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	roleSyncSettings,
 	groups,
 }) => {
-	// const theme = useTheme();
-
 	const groupsMap = new Map<string, string>();
 	if (groups) {
 		for (const group of groups) {
@@ -101,6 +98,29 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 							</Stack>
 						</fieldset>
 					</Stack>
+					{groupSyncSettings?.mapping && roleSyncSettings?.mapping && (
+						<div
+							css={(theme) => ({
+								margin: 0,
+								fontSize: 13,
+								paddingBottom: 14,
+								color: theme.palette.text.secondary,
+								"& strong": {
+									color: theme.palette.text.primary,
+								},
+							})}
+						>
+							Showing{" "}
+							<strong>
+								{Object.entries(groupSyncSettings?.mapping).length}
+							</strong>{" "}
+							groups and{" "}
+							<strong>
+								{Object.entries(roleSyncSettings?.mapping).length}
+							</strong>{" "}
+							provisioners
+						</div>
+					)}
 					<Stack spacing={6}>
 						<IdpMappingTable
 							type="Group"

@@ -269,6 +269,13 @@ export const organizationsPermissions = (
 					},
 					action: "read",
 				},
+				viewIdpSyncSettings: {
+					object: {
+						resource_type: "idpsync_settings",
+						organization_id: organizationId,
+					},
+					action: "read",
+				},
 			});
 
 			// The endpoint takes a flat array, so to avoid collisions prepend each

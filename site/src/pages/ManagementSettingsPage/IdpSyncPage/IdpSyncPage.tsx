@@ -7,6 +7,7 @@ import {
 	organizationsPermissions,
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
@@ -27,12 +28,6 @@ export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-
-	// feature visibility and permissions to be implemented when integrating with backend
-	// const feats = useFeatureVisibility();
-	// const { organization: organizationName } = useParams() as {
-	// 	organization: string;
-	// };
 	const { organizations } = useOrganizationSettings();
 
 	const organization = organizations?.find((o) => o.name === organizationName);
@@ -48,8 +43,6 @@ export const IdpSyncPage: FC = () => {
 		roleIdpSyncSettings(organizationName),
 	);
 
-	// const permissions = permissionsQuery.data;
-
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
@@ -60,6 +53,19 @@ export const IdpSyncPage: FC = () => {
 		roleIdpSyncSettingsQuery.isLoading
 	) {
 		return <Loader />;
+	}
+
+	const error =
+		groupIdpSyncSettingsQuery.error ||
+		roleIdpSyncSettingsQuery.error ||
+		groupsQuery.error;
+	if (
+		error ||
+		!groupIdpSyncSettingsQuery.data ||
+		!roleIdpSyncSettingsQuery.data ||
+		!groupsQuery.data
+	) {
+		return <ErrorAlert error={error} />;
 	}
 
 	return (
