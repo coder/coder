@@ -896,6 +896,7 @@ export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	script: "echo 'hello world'",
 	start_blocks_login: false,
 	timeout: 0,
+	display_name: "Say Hello",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {

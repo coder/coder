@@ -115,6 +115,7 @@ func TestManifest(t *testing.T) {
 				RunOnStop:        true,
 				StartBlocksLogin: true,
 				Timeout:          time.Second,
+				DisplayName:      "foo",
 			},
 			{
 				ID:               uuid.New(),
@@ -126,6 +127,7 @@ func TestManifest(t *testing.T) {
 				RunOnStop:        true,
 				StartBlocksLogin: true,
 				Timeout:          time.Second * 4,
+				DisplayName:      "bar",
 			},
 		},
 	}

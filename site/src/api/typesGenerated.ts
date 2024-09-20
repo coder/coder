@@ -1888,7 +1888,6 @@ export interface WorkspaceAgentPortShares {
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentScript {
 	readonly id: string;
-	readonly display_name: string;
 	readonly log_source_id: string;
 	readonly log_path: string;
 	readonly script: string;
@@ -1897,6 +1896,7 @@ export interface WorkspaceAgentScript {
 	readonly run_on_stop: boolean;
 	readonly start_blocks_login: boolean;
 	readonly timeout: number;
+	readonly display_name: string;
 }
 
 // From codersdk/workspaceapps.go

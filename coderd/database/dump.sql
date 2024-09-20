@@ -1382,6 +1382,7 @@ CREATE TABLE workspace_agent_scripts (
     run_on_start boolean NOT NULL,
     run_on_stop boolean NOT NULL,
     timeout_seconds integer NOT NULL,
+    display_name text NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
@@ -2294,4 +2295,3 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
-

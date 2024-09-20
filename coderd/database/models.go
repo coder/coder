@@ -2941,6 +2941,7 @@ type WorkspaceAgentScript struct {
 	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
 	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
