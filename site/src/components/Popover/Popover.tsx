@@ -1,16 +1,19 @@
 import MuiPopover, {
 	type PopoverProps as MuiPopoverProps,
-	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
+	// biome-ignore lint/nursery/noRestrictedImports: This is the base component that our custom popover is based on
 } from "@mui/material/Popover";
 import {
 	type FC,
 	type HTMLAttributes,
+	type PointerEvent,
+	type PointerEventHandler,
 	type ReactElement,
 	type ReactNode,
 	type RefObject,
 	cloneElement,
 	createContext,
 	useContext,
+	useEffect,
 	useId,
 	useRef,
 	useState,
@@ -20,10 +23,13 @@ type TriggerMode = "hover" | "click";
 
 type TriggerRef = RefObject<HTMLElement>;
 
-type TriggerElement = ReactElement<{
-	ref: TriggerRef;
-	onClick?: () => void;
-}>;
+// Have to append ReactNode type to satisfy React's cloneElement function. It
+// has absolutely no bearing on what happens at runtime
+type TriggerElement = ReactNode &
+	ReactElement<{
+		ref: TriggerRef;
+		onClick?: () => void;
+	}>;
 
 type PopoverContextValue = {
 	id: string;
@@ -61,6 +67,15 @@ export const Popover: FC<PopoverProps> = (props) => {
 	const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
 	const triggerRef: TriggerRef = useRef(null);
 
+	// Helps makes sure that popovers close properly when the user switches to
+	// a different tab. This won't help with controlled instances of the
+	// component, but this is basically the most we can do from here
+	useEffect(() => {
+		const closeOnTabSwitch = () => setUncontrolledOpen(false);
+		window.addEventListener("blur", closeOnTabSwitch);
+		return () => window.removeEventListener("blur", closeOnTabSwitch);
+	}, []);
+
 	const value: PopoverContextValue = {
 		triggerRef,
 		id: `${hookId}-popover`,
@@ -86,30 +101,47 @@ export const usePopover = () => {
 	return context;
 };
 
-export const PopoverTrigger = (
-	props: HTMLAttributes<HTMLElement> & {
-		children: TriggerElement;
-	},
-) => {
+type PopoverTriggerRenderProps = Readonly<{
+	isOpen: boolean;
+}>;
+
+type PopoverTriggerProps = Readonly<
+	Omit<HTMLAttributes<HTMLElement>, "children"> & {
+		children:
+			| TriggerElement
+			| ((props: PopoverTriggerRenderProps) => TriggerElement);
+	}
+>;
+
+export const PopoverTrigger: FC<PopoverTriggerProps> = (props) => {
 	const popover = usePopover();
-	const { children, ...elementProps } = props;
+	const { children, onClick, onPointerEnter, onPointerLeave, ...elementProps } =
+		props;
 
 	const clickProps = {
-		onClick: () => {
+		onClick: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(true);
+			onClick?.(event);
 		},
 	};
 
 	const hoverProps = {
-		onPointerEnter: () => {
+		onPointerEnter: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(true);
+			onPointerEnter?.(event);
 		},
-		onPointerLeave: () => {
+		onPointerLeave: (event: PointerEvent<HTMLElement>) => {
 			popover.setOpen(false);
+			onPointerLeave?.(event);
 		},
 	};
 
-	return cloneElement(props.children, {
+	const evaluatedChildren =
+		typeof children === "function"
+			? children({ isOpen: popover.open })
+			: children;
+
+	return cloneElement(evaluatedChildren, {
 		...elementProps,
 		...(popover.mode === "click" ? clickProps : hoverProps),
 		"aria-haspopup": true,
@@ -130,6 +162,8 @@ export type PopoverContentProps = Omit<
 
 export const PopoverContent: FC<PopoverContentProps> = ({
 	horizontal = "left",
+	onPointerEnter,
+	onPointerLeave,
 	...popoverProps
 }) => {
 	const popover = usePopover();
@@ -152,7 +186,7 @@ export const PopoverContent: FC<PopoverContentProps> = ({
 				},
 			}}
 			{...horizontalProps(horizontal)}
-			{...modeProps(popover)}
+			{...modeProps(popover, onPointerEnter, onPointerLeave)}
 			{...popoverProps}
 			id={popover.id}
 			open={popover.open}
@@ -162,14 +196,20 @@ export const PopoverContent: FC<PopoverContentProps> = ({
 	);
 };
 
-const modeProps = (popover: PopoverContextValue) => {
+const modeProps = (
+	popover: PopoverContextValue,
+	externalOnPointerEnter: PointerEventHandler<HTMLDivElement> | undefined,
+	externalOnPointerLeave: PointerEventHandler<HTMLDivElement> | undefined,
+) => {
 	if (popover.mode === "hover") {
 		return {
-			onPointerEnter: () => {
+			onPointerEnter: (event: PointerEvent<HTMLDivElement>) => {
 				popover.setOpen(true);
+				externalOnPointerEnter?.(event);
 			},
-			onPointerLeave: () => {
+			onPointerLeave: (event: PointerEvent<HTMLDivElement>) => {
 				popover.setOpen(false);
+				externalOnPointerLeave?.(event);
 			},
 		};
 	}

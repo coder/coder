@@ -6,7 +6,8 @@ import type {
 	ProvisionerKeyDaemons,
 } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
 import type { FC } from "react";
@@ -17,7 +18,7 @@ interface OrganizationProvisionersPageViewProps {
 	buildInfo?: BuildInfoResponse;
 
 	/** Groups of provisioners, along with their key information */
-	provisioners: ProvisionerKeyDaemons[];
+	provisioners: readonly ProvisionerKeyDaemons[];
 }
 
 export const OrganizationProvisionersPageView: FC<
@@ -33,21 +34,23 @@ export const OrganizationProvisionersPageView: FC<
 
 	return (
 		<div>
-			<PageHeader
-				// The deployment settings layout already has padding.
-				css={{ paddingTop: 0, paddingBottom: 12 }}
-				actions={
-					<Button
-						endIcon={<OpenInNewIcon />}
-						target="_blank"
-						href={docs("/admin/provisioners")}
-					>
-						Create a provisioner
-					</Button>
-				}
+			<Stack
+				alignItems="baseline"
+				direction="row"
+				justifyContent="space-between"
 			>
-				<PageHeaderTitle>Provisioners</PageHeaderTitle>
-			</PageHeader>
+				<SettingsHeader
+					title="Provisioners"
+					badges={<FeatureStageBadge contentType="beta" size="lg" />}
+				/>
+				<Button
+					endIcon={<OpenInNewIcon />}
+					target="_blank"
+					href={docs("/admin/provisioners")}
+				>
+					Create a provisioner
+				</Button>
+			</Stack>
 			{isEmpty ? (
 				<EmptyState
 					message="No provisioners"

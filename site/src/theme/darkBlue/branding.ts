@@ -1,7 +1,7 @@
 import type { Branding } from "../branding";
 import colors from "../tailwindColors";
 
-export default {
+export const branding: Branding = {
 	enterprise: {
 		background: colors.blue[950],
 		divider: colors.blue[900],
@@ -14,4 +14,20 @@ export default {
 		border: colors.violet[400],
 		text: colors.violet[50],
 	},
-} satisfies Branding;
+
+	featureStage: {
+		background: colors.sky[900],
+		divider: colors.sky[800],
+		border: colors.sky[400],
+		text: colors.sky[400],
+
+		hover: {
+			background: colors.gray[900],
+			divider: colors.gray[800],
+			border: colors.sky[400],
+			text: colors.sky[400],
+		},
+	},
+};
+
+export default branding;

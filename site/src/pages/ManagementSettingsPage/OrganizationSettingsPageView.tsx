@@ -8,6 +8,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -66,7 +67,10 @@ export const OrganizationSettingsPageView: FC<
 
 	return (
 		<div>
-			<SettingsHeader title="Settings" />
+			<SettingsHeader
+				title="Settings"
+				badges={<FeatureStageBadge contentType="beta" size="lg" />}
+			/>
 
 			{Boolean(error) && !isApiValidationError(error) && (
 				<div css={{ marginBottom: 32 }}>
