@@ -39,7 +39,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240702054557-aa558fbe5374
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20240920101701-ddd4a72e1b56
 
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
