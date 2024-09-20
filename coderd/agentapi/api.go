@@ -154,7 +154,6 @@ func New(opts Options) *API {
 	}
 
 	api.ScriptsAPI = &ScriptsAPI{
-		AgentID:  opts.AgentID,
 		Database: opts.Database,
 	}
 

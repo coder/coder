@@ -11,7 +11,6 @@ import (
 )
 
 type ScriptsAPI struct {
-	AgentID  uuid.UUID
 	Database database.Store
 }
 
