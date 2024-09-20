@@ -40,7 +40,7 @@ const UsersPage: FC = () => {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const searchParamsResult = useSearchParams();
-	const { entitlements, experiments } = useDashboard();
+	const { entitlements, showOrganizations } = useDashboard();
 	const [searchParams] = searchParamsResult;
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
@@ -102,8 +102,7 @@ const UsersPage: FC = () => {
 		authMethodsQuery.isLoading ||
 		groupsByUserIdQuery.isLoading;
 
-	const canViewOrganizations = experiments.includes("multi-organization");
-	if (canViewOrganizations && location.pathname !== "/deployment/users") {
+	if (showOrganizations && location.pathname !== "/deployment/users") {
 		return <Navigate to={`/deployment/users${location.search}`} replace />;
 	}
 
@@ -160,7 +159,7 @@ const UsersPage: FC = () => {
 					menus: { status: statusMenu },
 				}}
 				usersQuery={usersQuery}
-				canViewOrganizations={canViewOrganizations}
+				canViewOrganizations={showOrganizations}
 				canCreateUser={canCreateUser}
 			/>
 
