@@ -1,10 +1,8 @@
-import AddIcon from "@mui/icons-material/AddOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
 import { groupsByOrganization } from "api/queries/groups";
 import {
 	groupIdpSyncSettings,
-	organizationsPermissions,
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -13,11 +11,10 @@ import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadg
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQuery } from "react-query";
-import { Link as RouterLink, useParams } from "react-router-dom";
+import { useQueries } from "react-query";
+import { useParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
@@ -29,26 +26,23 @@ export const IdpSyncPage: FC = () => {
 		organization: string;
 	};
 	const { organizations } = useOrganizationSettings();
-
 	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(
-		organizationsPermissions(organizations?.map((o) => o.id)),
-	);
-	const groupIdpSyncSettingsQuery = useQuery(
-		groupIdpSyncSettings(organizationName),
-	);
-
-	const groupsQuery = useQuery(groupsByOrganization(organizationName));
-	const roleIdpSyncSettingsQuery = useQuery(
-		roleIdpSyncSettings(organizationName),
-	);
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
 
+	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery] =
+		useQueries({
+			queries: [
+				groupIdpSyncSettings(organizationName),
+				roleIdpSyncSettings(organizationName),
+				groupsByOrganization(organizationName),
+			],
+		});
+
 	if (
-		permissionsQuery.isLoading ||
+		groupsQuery.isLoading ||
 		groupIdpSyncSettingsQuery.isLoading ||
 		roleIdpSyncSettingsQuery.isLoading
 	) {
@@ -81,7 +75,7 @@ export const IdpSyncPage: FC = () => {
 			>
 				<SettingsHeader
 					title="IdP Sync"
-					description="Group and role sync mappings (configured outside Coder)."
+					description="Group and role sync mappings (configured using Coder CLI)."
 					tooltip={<IdpSyncHelpTooltip />}
 					badges={<FeatureStageBadge contentType="beta" size="lg" />}
 				/>
@@ -93,9 +87,6 @@ export const IdpSyncPage: FC = () => {
 						target="_blank"
 					>
 						Setup IdP Sync
-					</Button>
-					<Button component={RouterLink} startIcon={<AddIcon />} to="export">
-						Export Policy
 					</Button>
 				</Stack>
 			</Stack>
