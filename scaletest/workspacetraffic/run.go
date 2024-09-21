@@ -204,6 +204,10 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	}
 }
 
+func (r *Runner) GetBytesTransferred() (int64, int64) {
+	return r.cfg.ReadMetrics.GetTotal(), r.cfg.WriteMetrics.GetTotal()
+}
+
 // Cleanup does nothing, successfully.
 func (*Runner) Cleanup(context.Context, string, io.Writer) error {
 	return nil
