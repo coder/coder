@@ -75,12 +75,14 @@ type ConnMetrics interface {
 	AddError(float64)
 	ObserveLatency(float64)
 	AddTotal(float64)
+	GetTotal() int64
 }
 
 type connMetrics struct {
 	addError       func(float64)
 	observeLatency func(float64)
 	addTotal       func(float64)
+	total          int64
 }
 
 func (c *connMetrics) AddError(f float64) {
@@ -92,5 +94,10 @@ func (c *connMetrics) ObserveLatency(f float64) {
 }
 
 func (c *connMetrics) AddTotal(f float64) {
+	c.total += int64(f)
 	c.addTotal(f)
+}
+
+func (c *connMetrics) GetTotal() int64 {
+	return c.total
 }
