@@ -12,11 +12,16 @@ interface PillListProps {
 	roles: readonly string[];
 }
 
-export const PillList: FC<PillListProps> = ({ roles }) => {
+const UUID =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
 		<Stack direction="row" spacing={1}>
 			{roles.length > 0 ? (
-				<Pill css={styles.pill}>{roles[0]}</Pill>
+				<Pill css={UUID.test(roles[0]) ? styles.errorPill : styles.pill}>
+					{roles[0]}
+				</Pill>
 			) : (
 				<p>None</p>
 			)}
@@ -72,7 +77,10 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 				}}
 			>
 				{roles.map((role) => (
-					<Pill key={role} css={styles.pill}>
+					<Pill
+						key={role}
+						css={UUID.test(role) ? styles.errorPill : styles.pill}
+					>
 						{role}
 					</Pill>
 				))}
@@ -86,6 +94,12 @@ const styles = {
 		backgroundColor: theme.experimental.pillDefault.background,
 		borderColor: theme.experimental.pillDefault.outline,
 		color: theme.experimental.pillDefault.text,
+		width: "fit-content",
+	}),
+	errorPill: (theme) => ({
+		backgroundColor: theme.roles.error.background,
+		borderColor: theme.roles.error.outline,
+		color: theme.roles.error.text,
 		width: "fit-content",
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

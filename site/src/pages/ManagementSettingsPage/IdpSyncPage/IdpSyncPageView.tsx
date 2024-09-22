@@ -29,7 +29,7 @@ import { useSearchParams } from "react-router-dom";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
 import { ExportPolicyButton } from "./ExportPolicyButton";
-import { PillList } from "./PillList";
+import { IdpPillList } from "./IdpPillList";
 
 interface IdpSyncPageViewProps {
 	groupSyncSettings: GroupSyncSettings | undefined;
@@ -329,7 +329,7 @@ const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
 		<TableRow data-testid={`group-${idpGroup}`}>
 			<TableCell>{idpGroup}</TableCell>
 			<TableCell>
-				<PillList roles={coderGroup} />
+				<IdpPillList roles={coderGroup} />
 			</TableCell>
 		</TableRow>
 	);
@@ -345,7 +345,7 @@ const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles }) => {
 		<TableRow data-testid={`role-${idpRole}`}>
 			<TableCell>{idpRole}</TableCell>
 			<TableCell>
-				<PillList roles={coderRoles} />
+				<IdpPillList roles={coderRoles} />
 			</TableCell>
 		</TableRow>
 	);
