@@ -30,3 +30,11 @@ export const Default: Story = {
 		groups: [MockGroup, MockGroup2],
 	},
 };
+
+export const MissingGroups: Story = {
+	args: {
+		groupSyncSettings: MockGroupSyncSettings,
+		roleSyncSettings: MockRoleSyncSettings,
+		groups: [],
+	},
+};
