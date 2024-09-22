@@ -9,12 +9,14 @@ interface DownloadPolicyButtonProps {
 	policy: string | null;
 	type: "groups" | "roles";
 	organization: Organization;
+	download?: (file: Blob, filename: string) => void;
 }
 
 export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 	policy,
 	type,
 	organization,
+	download = saveAs,
 }) => {
 	const [isDownloading, setIsDownloading] = useState(false);
 
@@ -29,7 +31,7 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 						const file = new Blob([policy], {
 							type: "application/json",
 						});
-						saveAs(file, `${organization.name}_${type}-policy.json`);
+						download(file, `${organization.name}_${type}-policy.json`);
 					} catch (e) {
 						console.error(e);
 						displayError("Failed to export policy json");
