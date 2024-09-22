@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
@@ -12,6 +11,7 @@ import TableRow from "@mui/material/TableRow";
 import type {
 	Group,
 	GroupSyncSettings,
+	Organization,
 	RoleSyncSettings,
 } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
@@ -28,18 +28,21 @@ import type { FC } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
+import { ExportPolicyButton } from "./ExportPolicyButton";
 import { PillList } from "./PillList";
 
-export type IdpSyncPageViewProps = {
+interface IdpSyncPageViewProps {
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
 	groups: Group[] | undefined;
-};
+	organization: Organization;
+}
 
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	groupSyncSettings,
 	roleSyncSettings,
 	groups,
+	organization,
 }) => {
 	const [searchParams] = useSearchParams();
 	const groupsMap = new Map<string, string>();
@@ -62,6 +65,15 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		? Object.entries(roleSyncSettings.mapping).length
 		: 0;
 
+	const rolePolicy =
+		roleSyncSettings?.field && roleSyncSettings.mapping
+			? JSON.stringify(roleSyncSettings, null, 2)
+			: null;
+	const groupPolicy =
+		groupSyncSettings?.field && groupSyncSettings.mapping
+			? JSON.stringify(groupSyncSettings, null, 2)
+			: null;
+
 	return (
 		<>
 			<ChooseOne>
@@ -77,7 +89,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 						<Tabs
 							active={tab}
 							css={{
-								marginBottom: 24,
+								marginBottom: 20,
 							}}
 						>
 							<TabsList>
@@ -121,14 +133,11 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									css={styles.tableInfo}
 								>
 									<TableRowCount count={groupMappingCount} type="groups" />
-									<Button
-										component="a"
-										startIcon={<AddIcon />}
-										// to="export"
-										href={docs("/admin/auth#group-sync-enterprise")}
-									>
-										Export Policy
-									</Button>
+									<ExportPolicyButton
+										policy={groupPolicy}
+										organization={organization}
+										type="groups"
+									/>
 								</Stack>
 								<Stack spacing={6}>
 									<IdpMappingTable
@@ -164,14 +173,11 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									css={styles.tableInfo}
 								>
 									<TableRowCount count={roleMappingCount} type="roles" />
-									<Button
-										component="a"
-										startIcon={<AddIcon />}
-										// to="export"
-										href={docs("/admin/auth#group-sync-enterprise")}
-									>
-										Export Policy
-									</Button>
+									<ExportPolicyButton
+										policy={rolePolicy}
+										organization={organization}
+										type="roles"
+									/>
 								</Stack>
 								<IdpMappingTable
 									type="Role"
@@ -210,7 +216,7 @@ const IdpField: FC<IdpFieldProps> = ({
 }) => {
 	return (
 		<span css={{ display: "flex", alignItems: "center", gap: "16px" }}>
-			<p>{name}</p>
+			<p css={styles.fieldLabel}>{name}</p>
 			{fieldText ? (
 				<p css={styles.fieldText}>{fieldText}</p>
 			) : (
@@ -365,12 +371,16 @@ const TableLoader = () => {
 
 const styles = {
 	fieldText: (theme) => ({
-		color: theme.palette.text.secondary,
 		fontFamily: MONOSPACE_FONT_FAMILY,
+		whiteSpace: "nowrap",
+	}),
+	fieldLabel: (theme) => ({
+		color: theme.palette.text.secondary,
 	}),
 	fields: () => ({
-		marginBottom: 20,
+		marginBottom: 16,
 		marginLeft: 16,
+		fontSize: 14,
 	}),
 	tableInfo: () => ({
 		marginBottom: 16,

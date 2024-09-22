@@ -95,6 +95,7 @@ export const IdpSyncPage: FC = () => {
 				groupSyncSettings={groupIdpSyncSettingsQuery.data}
 				roleSyncSettings={roleIdpSyncSettingsQuery.data}
 				groups={groupsQuery.data}
+				organization={organization}
 			/>
 		</>
 	);
