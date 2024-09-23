@@ -575,10 +575,28 @@ export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	tags: { scope: "organization" },
 };
 
+export const MockProvisionerBuiltinKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000001",
+	name: "built-in",
+};
+
+export const MockProvisionerUserAuthKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000002",
+	name: "user-auth",
+};
+
+export const MockProvisionerPskKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000003",
+	name: "psk",
+};
+
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "test-provisioner",
-	key_id: "00000000-0000-0000-0000-000000000001",
+	key_id: MockProvisionerBuiltinKey.id,
 	organization_id: MockOrganization.id,
 	name: "Test Provisioner",
 	provisioners: ["echo"],
@@ -591,7 +609,7 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-user-auth-provisioner",
-	key_id: "00000000-0000-0000-0000-000000000002",
+	key_id: MockProvisionerUserAuthKey.id,
 	name: `${MockUser.name}'s provisioner`,
 	tags: { scope: "user" },
 };
@@ -599,7 +617,7 @@ export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
 export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-psk-provisioner",
-	key_id: "00000000-0000-0000-0000-000000000003",
+	key_id: MockProvisionerPskKey.id,
 	name: "Test psk provisioner",
 };
 
@@ -894,6 +912,7 @@ export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	script: "echo 'hello world'",
 	start_blocks_login: false,
 	timeout: 0,
+	display_name: "Say Hello",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {

@@ -158,7 +158,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						workspaceName={workspace.name}
 						templateIconUrl={workspace.template_icon}
 						rootTemplateUrl={templateLink}
-						templateVersionName={workspace.template_name}
+						templateVersionName={workspace.latest_build.template_version_name}
 						templateVersionDisplayName={workspace.template_display_name}
 						latestBuildVersionName={
 							workspace.latest_build.template_version_name

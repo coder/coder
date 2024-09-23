@@ -1,6 +1,7 @@
 import AddIcon from "@mui/icons-material/AddOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -73,6 +74,7 @@ export const IdpSyncPage: FC = () => {
 					title="IdP Sync"
 					description="Group and role sync mappings (configured outside Coder)."
 					tooltip={<IdpSyncHelpTooltip />}
+					badges={<FeatureStageBadge contentType="beta" size="lg" />}
 				/>
 				<Stack direction="row" spacing={2}>
 					<Button

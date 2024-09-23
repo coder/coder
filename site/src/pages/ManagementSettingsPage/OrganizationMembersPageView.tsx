@@ -18,6 +18,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	MoreMenu,
@@ -75,15 +76,18 @@ export const OrganizationMembersPageView: FC<
 
 	return (
 		<Stack spacing={4}>
-			<Breadcrumbs>
-				<Crumb>Organizations</Crumb>
-				<Crumb href={`/organizations/${organization}`}>
-					{organization || organization}
-				</Crumb>
-				<Crumb href={`/organizations/${organization}/members`} active>
-					Members
-				</Crumb>
-			</Breadcrumbs>
+			<Stack direction="row" spacing={1}>
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization || organization}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/members`} active>
+						Members
+					</Crumb>
+				</Breadcrumbs>
+				<FeatureStageBadge contentType="beta" size="lg" />
+			</Stack>
 			{Boolean(error) && <ErrorAlert error={error} />}
 
 			{canEditMembers && (

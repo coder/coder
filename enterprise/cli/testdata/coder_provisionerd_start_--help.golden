@@ -43,6 +43,7 @@ OPTIONS:
 
       --psk string, $CODER_PROVISIONER_DAEMON_PSK
           Pre-shared key to authenticate with Coder server.
+          DEPRECATED: Use --key instead.
 
   -t, --tag string-array, $CODER_PROVISIONERD_TAGS
           Tags to filter provisioner jobs by.
