@@ -57,10 +57,9 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		slog.F("payload", req),
 	)
 
-	if a.Experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
-		// while the experiment is enabled we will not report
-		// session stats from the agent. This is because it is
-		// being handled by the CLI and the postWorkspaceUsage route.
+	if !a.Experiments.Enabled(codersdk.ExperimentLegacyWorkspaceActivity) {
+		// when the legacy experiment is enabled we will continue to report
+		// session stats from the agent.
 		req.Stats.SessionCountSsh = 0
 		req.Stats.SessionCountJetbrains = 0
 		req.Stats.SessionCountVscode = 0

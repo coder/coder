@@ -1299,7 +1299,7 @@ func TestSSH(t *testing.T) {
 
 		type testCase struct {
 			name                   string
-			experiment             bool
+			legacyExperiment       bool
 			usageAppName           string
 			expectedCalls          int
 			expectedCountSSH       int
@@ -1308,45 +1308,40 @@ func TestSSH(t *testing.T) {
 		}
 		tcs := []testCase{
 			{
-				name: "NoExperiment",
+				name:             "NoExperiment",
+				legacyExperiment: true,
 			},
 			{
 				name:             "Empty",
-				experiment:       true,
 				expectedCalls:    1,
 				expectedCountSSH: 1,
 			},
 			{
 				name:             "SSH",
-				experiment:       true,
 				usageAppName:     "ssh",
 				expectedCalls:    1,
 				expectedCountSSH: 1,
 			},
 			{
 				name:                   "Jetbrains",
-				experiment:             true,
 				usageAppName:           "jetbrains",
 				expectedCalls:          1,
 				expectedCountJetbrains: 1,
 			},
 			{
 				name:                "Vscode",
-				experiment:          true,
 				usageAppName:        "vscode",
 				expectedCalls:       1,
 				expectedCountVscode: 1,
 			},
 			{
 				name:             "InvalidDefaultsToSSH",
-				experiment:       true,
 				usageAppName:     "invalid",
 				expectedCalls:    1,
 				expectedCountSSH: 1,
 			},
 			{
 				name:         "Disable",
-				experiment:   true,
 				usageAppName: "disable",
 			},
 		}
@@ -1357,8 +1352,8 @@ func TestSSH(t *testing.T) {
 				t.Parallel()
 
 				dv := coderdtest.DeploymentValues(t)
-				if tc.experiment {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+				if tc.legacyExperiment {
+					dv.Experiments = []string{string(codersdk.ExperimentLegacyWorkspaceActivity)}
 				}
 				batcher := &workspacestatstest.StatsBatcher{
 					LastStats: &agentproto.Stats{},

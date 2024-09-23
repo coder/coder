@@ -474,16 +474,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		if r.options.DeploymentConfig != nil && slices.Contains(r.options.DeploymentConfig.Experiments, string(codersdk.ExperimentWorkspaceUsage)) {
-			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, createdAfter)
-			if err != nil {
-				return xerrors.Errorf("get workspace agent stats: %w", err)
-			}
-			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
-			for _, stat := range agentStats {
-				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat)))
-			}
-		} else {
+		if r.options.DeploymentConfig != nil && slices.Contains(r.options.DeploymentConfig.Experiments, string(codersdk.ExperimentLegacyWorkspaceActivity)) {
 			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
 			if err != nil {
 				return xerrors.Errorf("get workspace agent stats: %w", err)
@@ -491,6 +482,15 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
 			for _, stat := range agentStats {
 				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(stat))
+			}
+		} else {
+			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, createdAfter)
+			if err != nil {
+				return xerrors.Errorf("get workspace agent stats: %w", err)
+			}
+			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
+			for _, stat := range agentStats {
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat)))
 			}
 		}
 		return nil

@@ -240,7 +240,7 @@ func enablePrometheus(
 
 	if vals.Prometheus.CollectAgentStats {
 		experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
-		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value(), experiments.Enabled(codersdk.ExperimentWorkspaceUsage))
+		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value(), !experiments.Enabled(codersdk.ExperimentLegacyWorkspaceActivity))
 		if err != nil {
 			return nil, xerrors.Errorf("register agent stats prometheus metric: %w", err)
 		}

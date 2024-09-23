@@ -2554,14 +2554,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                  |
-| ---------------------- |
-| `example`              |
-| `auto-fill-parameters` |
-| `multi-organization`   |
-| `custom-roles`         |
-| `notifications`        |
-| `workspace-usage`      |
+| Value                       |
+| --------------------------- |
+| `example`                   |
+| `auto-fill-parameters`      |
+| `multi-organization`        |
+| `custom-roles`              |
+| `notifications`             |
+| `legacy-workspace-activity` |
 
 ## codersdk.ExternalAuth
 

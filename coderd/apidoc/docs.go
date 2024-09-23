@@ -10283,15 +10283,15 @@ const docTemplate = `{
                 "multi-organization",
                 "custom-roles",
                 "notifications",
-                "workspace-usage"
+                "legacy-workspace-activity"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentCustomRoles": "Allows creating runtime custom roles.",
                 "ExperimentExample": "This isn't used for anything.",
+                "ExperimentLegacyWorkspaceActivity": "Disables the new workspace usage tracking.",
                 "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed.",
-                "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
-                "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
+                "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -10299,7 +10299,7 @@ const docTemplate = `{
                 "ExperimentMultiOrganization",
                 "ExperimentCustomRoles",
                 "ExperimentNotifications",
-                "ExperimentWorkspaceUsage"
+                "ExperimentLegacyWorkspaceActivity"
             ]
         },
         "codersdk.ExternalAuth": {

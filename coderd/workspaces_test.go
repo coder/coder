@@ -3345,11 +3345,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues: dv,
-		})
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		tmpDir := t.TempDir()
 		org := dbgen.Organization(t, db, database.Organization{})
