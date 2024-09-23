@@ -17,7 +17,7 @@ import {
 	contentSidePadding,
 	XAxisHeight,
 } from "./constants";
-import { Bar } from "./Bar";
+import { Bar, type BarColor } from "./Bar";
 
 // Data can be divided into sections. For example, display the provisioning
 // timings in one section and the scripting timings in another.
@@ -38,6 +38,7 @@ export type Timing = Duration & {
 	 * blocks.
 	 */
 	childrenCount: number;
+	color?: BarColor;
 };
 
 // Extracts the 'startedAt' and 'endedAt' date fields from the main Timing type.
@@ -84,21 +85,23 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 	return (
 		<div css={styles.chart}>
 			<YAxis>
-				{data.map((section) => (
-					<YAxisSection key={section.name}>
-						<YAxisCaption>{section.name}</YAxisCaption>
-						<YAxisLabels>
-							{section.timings.map((t) => (
-								<YAxisLabel
-									key={t.label}
-									id={`${encodeURIComponent(t.label)}-label`}
-								>
-									{t.label}
-								</YAxisLabel>
-							))}
-						</YAxisLabels>
-					</YAxisSection>
-				))}
+				{data.map((section) => {
+					return (
+						<YAxisSection key={section.name}>
+							<YAxisCaption>{section.name}</YAxisCaption>
+							<YAxisLabels>
+								{section.timings.map((t) => (
+									<YAxisLabel
+										key={t.label}
+										id={`${encodeURIComponent(t.label)}-label`}
+									>
+										{t.label}
+									</YAxisLabel>
+								))}
+							</YAxisLabels>
+						</YAxisSection>
+					);
+				})}
 			</YAxis>
 
 			<div css={styles.main}>
@@ -113,6 +116,7 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 									const size = calcSize(durationTime(t));
 									return (
 										<Bar
+											color={t.color}
 											key={t.label}
 											x={calcSize(offset)}
 											width={size}

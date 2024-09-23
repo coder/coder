@@ -1,11 +1,18 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { forwardRef, type HTMLProps, type ReactNode } from "react";
 
-type BarColor = "default" | "green";
+export type BarColor = {
+	border: string;
+	fill: string;
+};
 
-type BarProps = Omit<HTMLProps<HTMLDivElement>, "size"> & {
+type BarProps = Omit<HTMLProps<HTMLDivElement>, "size" | "color"> & {
 	width: number;
 	children?: ReactNode;
+	/**
+	 * Color scheme for the bar. If not passed the default gray color will be
+	 * used.
+	 */
 	color?: BarColor;
 	/**
 	 * Label to be displayed adjacent to the bar component.
@@ -18,10 +25,7 @@ type BarProps = Omit<HTMLProps<HTMLDivElement>, "size"> & {
 };
 
 export const Bar = forwardRef<HTMLDivElement, BarProps>(
-	(
-		{ color = "default", width, afterLabel, children, x, ...htmlProps },
-		ref,
-	) => {
+	({ color, width, afterLabel, children, x, ...htmlProps }, ref) => {
 		return (
 			<div
 				ref={ref}
@@ -30,7 +34,10 @@ export const Bar = forwardRef<HTMLDivElement, BarProps>(
 			>
 				<button
 					type="button"
-					css={[styles.bar, colorStyles[color], { width }]}
+					css={[
+						styles.bar,
+						{ width, backgroundColor: color?.fill, borderColor: color?.border },
+					]}
 					disabled={htmlProps.disabled}
 					aria-labelledby={htmlProps["aria-labelledby"]}
 				>
@@ -50,8 +57,10 @@ const styles = {
 		width: "fit-content",
 		gap: 8,
 	},
-	bar: {
-		border: "1px solid transparent",
+	bar: (theme) => ({
+		border: "1px solid",
+		borderColor: theme.palette.divider,
+		backgroundColor: theme.palette.background.default,
 		borderRadius: 8,
 		height: 32,
 		display: "flex",
@@ -67,17 +76,5 @@ const styles = {
 				borderColor: "#38BDF8",
 			},
 		},
-	},
+	}),
 } satisfies Record<string, Interpolation<Theme>>;
-
-const colorStyles = {
-	default: (theme) => ({
-		backgroundColor: theme.palette.background.default,
-		borderColor: theme.palette.divider,
-	}),
-	green: (theme) => ({
-		backgroundColor: theme.roles.success.background,
-		borderColor: theme.roles.success.outline,
-		color: theme.roles.success.text,
-	}),
-} satisfies Record<BarColor, Interpolation<Theme>>;

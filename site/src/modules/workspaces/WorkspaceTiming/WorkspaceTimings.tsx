@@ -7,14 +7,23 @@ import { YAxisSidePadding, YAxisWidth } from "./Chart/YAxis";
 import { SearchField } from "components/SearchField/SearchField";
 
 // TODO: Export provisioning stages from the BE to the generated types.
-// We control the stages to be displayed in the chart so we can set the correct
-// colors and labels.
-const provisioningStages = [
-	{ name: "init" },
-	{ name: "plan" },
-	{ name: "graph" },
-	{ name: "apply" },
-];
+const provisioningStages = ["init", "plan", "graph", "apply"];
+
+// TODO: Export actions from the BE to the generated types.
+const colorsByActions: Record<string, Timing["color"]> = {
+	create: {
+		fill: "#022C22",
+		border: "#BBF7D0",
+	},
+	delete: {
+		fill: "#422006",
+		border: "#FDBA74",
+	},
+	read: {
+		fill: "#082F49",
+		border: "#38BDF8",
+	},
+};
 
 // The advanced view is an expanded view of the stage, allowing the user to see
 // which resources within a stage are taking the most time. It supports resource
@@ -97,11 +106,11 @@ export const selectChartData = (
 		case "basic": {
 			const groupedTimingsByStage = provisioningStages.map((stage) => {
 				const durations = timings
-					.filter((t) => t.stage === stage.name)
+					.filter((t) => t.stage === stage)
 					.map(extractDuration);
 				const stageDuration = duration(durations);
 				const stageTiming: Timing = {
-					label: stage.name,
+					label: stage,
 					childrenCount: durations.length,
 					...stageDuration,
 				};
@@ -124,7 +133,8 @@ export const selectChartData = (
 				)
 				.map((t) => {
 					return {
-						label: t.resource,
+						label: `${t.resource}.${t.action}`,
+						color: colorsByActions[t.action],
 						childrenCount: 0, // Resource timings don't have inner timings
 						...extractDuration(t),
 					} as Timing;
