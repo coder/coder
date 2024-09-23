@@ -338,29 +338,31 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			return
 		}
 
-		var stage proto.Timing_Stage
-		switch option {
-		case ExecuteStartScripts:
-			stage = proto.Timing_START
-		case ExecuteStopScripts:
-			stage = proto.Timing_STOP
-		case ExecuteCronScripts:
-			stage = proto.Timing_CRON
-		}
+		go func() {
+			var stage proto.Timing_Stage
+			switch option {
+			case ExecuteStartScripts:
+				stage = proto.Timing_START
+			case ExecuteStopScripts:
+				stage = proto.Timing_STOP
+			case ExecuteCronScripts:
+				stage = proto.Timing_CRON
+			}
 
-		_, err = r.scriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
-			Timing: &proto.Timing{
-				ScriptId: script.ID[:],
-				Start:    timestamppb.New(start),
-				End:      timestamppb.New(end),
-				ExitCode: int32(exitCode),
-				Stage:    stage,
-				TimedOut: errors.Is(err, ErrTimeout),
-			},
-		})
-		if err != nil {
-			logger.Error(ctx, fmt.Sprintf("reporting script completed: %s", err.Error()))
-		}
+			_, err = r.scriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
+				Timing: &proto.Timing{
+					ScriptId: script.ID[:],
+					Start:    timestamppb.New(start),
+					End:      timestamppb.New(end),
+					ExitCode: int32(exitCode),
+					Stage:    stage,
+					TimedOut: errors.Is(err, ErrTimeout),
+				},
+			})
+			if err != nil {
+				logger.Error(ctx, fmt.Sprintf("reporting script completed: %s", err.Error()))
+			}
+		}()
 	}()
 
 	err = cmd.Start()
