@@ -112,6 +112,7 @@ export const selectChartData = (
 				const stageTiming: Timing = {
 					label: stage,
 					childrenCount: durations.length,
+					visible: true,
 					...stageDuration,
 				};
 				return stageTiming;
@@ -132,10 +133,18 @@ export const selectChartData = (
 						t.stage === view.selectedStage && t.resource.includes(view.filter),
 				)
 				.map((t) => {
+					const isCoderResource =
+						t.resource.startsWith("data.coder") ||
+						t.resource.startsWith("module.coder");
+
 					return {
 						label: `${t.resource}.${t.action}`,
 						color: colorsByActions[t.action],
-						childrenCount: 0, // Resource timings don't have inner timings
+						// We don't want to display coder resources. Those will always show
+						// up as super short values and don't have much value.
+						visible: !isCoderResource,
+						// Resource timings don't have inner timings
+						childrenCount: 0,
 						...extractDuration(t),
 					} as Timing;
 				});

@@ -38,6 +38,14 @@ export type Timing = Duration & {
 	 * blocks.
 	 */
 	childrenCount: number;
+	/**
+	 * Timings should always be included in duration and timeline calculations.
+	 * However, some timings, such as those for Coder resources, may not be
+	 * valuable or can be too spammy to present to the user. Therefore, we hide
+	 * these specific timings from the visualization while still including them in
+	 * the calculations.
+	 */
+	visible?: boolean;
 	color?: BarColor;
 };
 
@@ -90,14 +98,16 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 						<YAxisSection key={section.name}>
 							<YAxisCaption>{section.name}</YAxisCaption>
 							<YAxisLabels>
-								{section.timings.map((t) => (
-									<YAxisLabel
-										key={t.label}
-										id={`${encodeURIComponent(t.label)}-label`}
-									>
-										{t.label}
-									</YAxisLabel>
-								))}
+								{section.timings
+									.filter((t) => t.visible)
+									.map((t) => (
+										<YAxisLabel
+											key={t.label}
+											id={`${encodeURIComponent(t.label)}-label`}
+										>
+											{t.label}
+										</YAxisLabel>
+									))}
 							</YAxisLabels>
 						</YAxisSection>
 					);
@@ -110,33 +120,35 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 					{data.map((section) => {
 						return (
 							<div key={section.name} css={styles.bars}>
-								{section.timings.map((t) => {
-									const offset =
-										t.startedAt.getTime() - totalDuration.startedAt.getTime();
-									const size = calcSize(durationTime(t));
-									return (
-										<Bar
-											color={t.color}
-											key={t.label}
-											x={calcSize(offset)}
-											width={size}
-											afterLabel={formatTime(durationTime(t))}
-											aria-labelledby={`${t.label}-label`}
-											ref={applyBarHeightToLabel}
-											disabled={t.childrenCount <= 1}
-											onClick={() => {
-												if (t.childrenCount <= 1) {
-													return;
-												}
-												onBarClick(t.label, section.name);
-											}}
-										>
-											{t.childrenCount > 1 && (
-												<TimingBlocks size={size} count={t.childrenCount} />
-											)}
-										</Bar>
-									);
-								})}
+								{section.timings
+									.filter((t) => t.visible)
+									.map((t) => {
+										const offset =
+											t.startedAt.getTime() - totalDuration.startedAt.getTime();
+										const size = calcSize(durationTime(t));
+										return (
+											<Bar
+												color={t.color}
+												key={t.label}
+												x={calcSize(offset)}
+												width={size}
+												afterLabel={formatTime(durationTime(t))}
+												aria-labelledby={`${t.label}-label`}
+												ref={applyBarHeightToLabel}
+												disabled={t.childrenCount <= 1}
+												onClick={() => {
+													if (t.childrenCount <= 1) {
+														return;
+													}
+													onBarClick(t.label, section.name);
+												}}
+											>
+												{t.childrenCount > 1 && (
+													<TimingBlocks size={size} count={t.childrenCount} />
+												)}
+											</Bar>
+										);
+									})}
 							</div>
 						);
 					})}
