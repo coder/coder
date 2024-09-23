@@ -19,33 +19,11 @@ import {
 } from "./constants";
 import { Bar } from "./Bar";
 
-// When displaying the chart we must consider the time intervals to display the
-// data. For example, if the total time is 10 seconds, we should display the
-// data in 200ms intervals. However, if the total time is 1 minute, we should
-// display the data in 5 seconds intervals. To achieve this, we define the
-// dimensions object that contains the time intervals for the chart.
-const dimensions = {
-	small: 500,
-	default: 5_000,
-};
-
-export type ChartProps = {
-	data: DataSection[];
-	onBarClick: (label: string, section: string) => void;
-};
-
-// This chart can split data into sections. Eg. display the provisioning timings
-// in one section and the scripting time in another
+// Data can be divided into sections. For example, display the provisioning
+// timings in one section and the scripting timings in another.
 type DataSection = {
 	name: string;
 	timings: Timing[];
-};
-
-// Useful to perform chart operations without requiring additional information
-// such as labels or counts, which are only used for display purposes.
-export type Duration = {
-	startedAt: Date;
-	endedAt: Date;
 };
 
 export type Timing = Duration & {
@@ -59,31 +37,43 @@ export type Timing = Duration & {
 	 * clearly indicate to the user that the timing encompasses multiple time
 	 * blocks.
 	 */
-	count: number;
+	childrenCount: number;
+};
+
+// Extracts the 'startedAt' and 'endedAt' date fields from the main Timing type.
+// This is useful for performing chart operations without needing additional
+// information like labels or children count, which are only used for display
+// purposes.
+export type Duration = {
+	startedAt: Date;
+	endedAt: Date;
+};
+
+export type ChartProps = {
+	data: DataSection[];
+	onBarClick: (label: string, section: string) => void;
 };
 
 export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 	const totalDuration = duration(data.flatMap((d) => d.timings));
 	const totalTime = durationTime(totalDuration);
-	// Use smaller dimensions for the chart if the total time is less than 10
-	// seconds; otherwise, use default intervals.
-	const dimension = totalTime < 10_000 ? dimensions.small : dimensions.default;
 
-	// XAxis intervals
-	const intervalsCount = Math.ceil(totalTime / dimension);
-	const intervals = Array.from(
-		{ length: intervalsCount },
-		(_, i) => i * dimension + dimension,
+	// XAxis ticks
+	const tickSpacing = calcTickSpacing(totalTime);
+	const ticksCount = Math.ceil(totalTime / tickSpacing);
+	const ticks = Array.from(
+		{ length: ticksCount },
+		(_, i) => i * tickSpacing + tickSpacing,
 	);
 
-	// Helper function to convert time into pixel size, used for setting bar width
-	// and offset
+	// Helper function to convert the tick spacing into pixel size. This is used
+	// for setting the bar width and offset.
 	const calcSize = (time: number): number => {
-		return (columnWidth * time) / dimension;
+		return (columnWidth * time) / tickSpacing;
 	};
 
 	const formatTime = (time: number): string => {
-		if (dimension === dimensions.small) {
+		if (tickSpacing <= 1_000) {
 			return `${time.toLocaleString()}ms`;
 		}
 		return `${(time / 1_000).toLocaleString(undefined, {
@@ -112,7 +102,7 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 			</YAxis>
 
 			<div css={styles.main}>
-				<XAxis labels={intervals.map(formatTime)} />
+				<XAxis labels={ticks.map(formatTime)} />
 				<div css={styles.content}>
 					{data.map((section) => {
 						return (
@@ -129,16 +119,16 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 											afterLabel={formatTime(durationTime(t))}
 											aria-labelledby={`${t.label}-label`}
 											ref={applyBarHeightToLabel}
-											disabled={t.count <= 1}
+											disabled={t.childrenCount <= 1}
 											onClick={() => {
-												if (t.count <= 1) {
+												if (t.childrenCount <= 1) {
 													return;
 												}
 												onBarClick(t.label, section.name);
 											}}
 										>
-											{t.count > 1 && (
-												<TimingBlocks size={size} count={t.count} />
+											{t.childrenCount > 1 && (
+												<TimingBlocks size={size} count={t.childrenCount} />
 											)}
 										</Bar>
 									);
@@ -147,11 +137,28 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 						);
 					})}
 
-					<XGrid columns={intervals.length} />
+					<XGrid columns={ticks.length} />
 				</div>
 			</div>
 		</div>
 	);
+};
+
+// When displaying the chart we must consider the time intervals to display the
+// data. For example, if the total time is 10 seconds, we should display the
+// data in 200ms intervals. However, if the total time is 1 minute, we should
+// display the data in 5 seconds intervals. To achieve this, we define the
+// dimensions object that contains the time intervals for the chart.
+const tickSpacings = [100, 500, 5_000];
+
+const calcTickSpacing = (totalTime: number): number => {
+	const spacings = tickSpacings.slice().reverse();
+	for (const s of spacings) {
+		if (totalTime > s) {
+			return s;
+		}
+	}
+	return spacings[0];
 };
 
 // Ensures the sidebar label remains vertically aligned with its corresponding bar.

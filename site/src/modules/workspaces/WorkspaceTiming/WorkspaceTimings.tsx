@@ -102,7 +102,7 @@ export const selectChartData = (
 				const stageDuration = duration(durations);
 				const stageTiming: Timing = {
 					label: stage.name,
-					count: durations.length,
+					childrenCount: durations.length,
 					...stageDuration,
 				};
 				return stageTiming;
@@ -125,7 +125,7 @@ export const selectChartData = (
 				.map((t) => {
 					return {
 						label: t.resource,
-						count: 0, // Resource timings don't have inner timings
+						childrenCount: 0, // Resource timings don't have inner timings
 						...extractDuration(t),
 					} as Timing;
 				});
