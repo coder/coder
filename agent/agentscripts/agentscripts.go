@@ -338,6 +338,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			return
 		}
 
+		// We want to check this outside of the goroutine to avoid a race condition
+		timedOut := errors.Is(err, ErrTimeout)
+
 		err = r.trackCommandGoroutine(func() {
 			var stage proto.Timing_Stage
 			switch option {
@@ -353,14 +356,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			reportCtx, cancel := context.WithTimeout(context.Background(), reportTimeout)
 			defer cancel()
 
-			_, err = r.scriptCompleted(reportCtx, &proto.WorkspaceAgentScriptCompletedRequest{
+			_, err := r.scriptCompleted(reportCtx, &proto.WorkspaceAgentScriptCompletedRequest{
 				Timing: &proto.Timing{
 					ScriptId: script.ID[:],
 					Start:    timestamppb.New(start),
 					End:      timestamppb.New(end),
 					ExitCode: int32(exitCode),
 					Stage:    stage,
-					TimedOut: errors.Is(err, ErrTimeout),
+					TimedOut: timedOut,
 				},
 			})
 			if err != nil {
