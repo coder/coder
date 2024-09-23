@@ -19,13 +19,6 @@ import {
 } from "./constants";
 import { Bar, type BarColor } from "./Bar";
 
-// Data can be divided into sections. For example, display the provisioning
-// timings in one section and the scripting timings in another.
-type DataSection = {
-	name: string;
-	timings: Timing[];
-};
-
 export type Timing = Duration & {
 	/**
 	 * Label that will be displayed on the Y axis.
@@ -56,6 +49,13 @@ export type Timing = Duration & {
 export type Duration = {
 	startedAt: Date;
 	endedAt: Date;
+};
+
+// Data can be divided into sections. For example, display the provisioning
+// timings in one section and the scripting timings in another.
+type DataSection = {
+	name: string;
+	timings: Timing[];
 };
 
 export type ChartProps = {

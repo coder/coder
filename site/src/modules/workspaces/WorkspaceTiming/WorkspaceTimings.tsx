@@ -46,6 +46,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	provisionerTimings,
 }) => {
 	const [view, setView] = useState<TimingView>({ name: "basic" });
+	const data = selectChartData(view, provisionerTimings);
 
 	return (
 		<div css={styles.panelBody}>
@@ -80,11 +81,28 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 							}));
 						}}
 					/>
+
+					<ul css={styles.legends}>
+						{Object.entries(colorsByActions).map(([action, colors]) => (
+							<li key={action} css={styles.legend}>
+								<div
+									css={[
+										styles.legendSquare,
+										{
+											borderColor: colors?.border,
+											backgroundColor: colors?.fill,
+										},
+									]}
+								/>
+								{action}
+							</li>
+						))}
+					</ul>
 				</div>
 			)}
 
 			<Chart
-				data={selectChartData(view, provisionerTimings)}
+				data={data}
 				onBarClick={(stage, section) => {
 					setView({
 						name: "advanced",
@@ -98,10 +116,21 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	);
 };
 
+const selectActions = (timings: readonly ProvisionerTiming[]) => {
+	return [...new Set(timings.map((t) => t.action))];
+};
+
 export const selectChartData = (
 	view: TimingView,
 	timings: readonly ProvisionerTiming[],
 ) => {
+	const extractDuration = (t: ProvisionerTiming): Duration => {
+		return {
+			startedAt: new Date(t.started_at),
+			endedAt: new Date(t.ended_at),
+		};
+	};
+
 	switch (view.name) {
 		case "basic": {
 			const groupedTimingsByStage = provisioningStages.map((stage) => {
@@ -159,13 +188,6 @@ export const selectChartData = (
 	}
 };
 
-const extractDuration = (t: ProvisionerTiming): Duration => {
-	return {
-		startedAt: new Date(t.started_at),
-		endedAt: new Date(t.ended_at),
-	};
-};
-
 const styles = {
 	panelBody: {
 		display: "flex",
@@ -176,6 +198,7 @@ const styles = {
 		borderBottom: `1px solid ${theme.palette.divider}`,
 		fontSize: 12,
 		display: "flex",
+		flexAlign: "stretch",
 	}),
 	breadcrumbs: (theme) => ({
 		listStyle: "none",
@@ -211,6 +234,7 @@ const styles = {
 	}),
 	breadcrumbButton: (theme) => ({
 		background: "none",
+		padding: 0,
 		border: "none",
 		fontSize: "inherit",
 		color: "inherit",
@@ -221,7 +245,7 @@ const styles = {
 		},
 	}),
 	searchField: (theme) => ({
-		width: "100%",
+		flex: "1",
 
 		"& fieldset": {
 			border: 0,
@@ -233,5 +257,28 @@ const styles = {
 			height: "100%",
 			fontSize: 12,
 		},
+	}),
+	legends: {
+		listStyle: "none",
+		margin: 0,
+		padding: 0,
+		display: "flex",
+		alignItems: "center",
+		gap: 24,
+		paddingRight: YAxisSidePadding,
+	},
+	legend: {
+		fontWeight: 500,
+		display: "flex",
+		alignItems: "center",
+		gap: 8,
+		lineHeight: 1,
+	},
+	legendSquare: (theme) => ({
+		width: 18,
+		height: 18,
+		borderRadius: 4,
+		border: `1px solid ${theme.palette.divider}`,
+		backgroundColor: theme.palette.background.default,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
