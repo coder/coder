@@ -65,8 +65,8 @@ func TestPing(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatch("pong from " + workspace.Name)
 		pty.ExpectMatch("✔ received remote agent data from Coder networking coordinator")
+		pty.ExpectMatch("pong from " + workspace.Name)
 		pty.ExpectMatch("You are connected")
 		cancel()
 		<-cmdDone
