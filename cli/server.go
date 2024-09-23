@@ -32,6 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -483,8 +484,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			// A newline is added before for visibility in terminal output.
-			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", vals.AccessURL.String())
+			accessURL := vals.AccessURL.String()
+			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+				Border(lipgloss.DoubleBorder()).
+				Align(lipgloss.Center).
+				Padding(0, 3).
+				BorderForeground(lipgloss.Color("12")).
+				Render(fmt.Sprintf("View the Web UI:\n%s",
+					pretty.Sprint(cliui.DefaultStyles.Hyperlink, accessURL))))
+			_ = openURL(inv, accessURL)
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -1438,6 +1446,7 @@ func newProvisionerDaemon(
 
 	// Omit any duplicates
 	provisionerTypes = slice.Unique(provisionerTypes)
+	provisionerLogger := logger.Named(fmt.Sprintf("provisionerd-%s", name))
 
 	// Populate the connector with the supported types.
 	connector := provisionerd.LocalProvisioners{}
@@ -1494,7 +1503,7 @@ func newProvisionerDaemon(
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
 						Listener:      terraformServer,
-						Logger:        logger.Named("terraform"),
+						Logger:        provisionerLogger,
 						WorkDirectory: workDir,
 					},
 					CachePath: tfDir,
@@ -1519,7 +1528,7 @@ func newProvisionerDaemon(
 		// in provisionerdserver.go to learn more!
 		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, provisionerTypes)
 	}, &provisionerd.Options{
-		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
+		Logger:              provisionerLogger,
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Connector:           connector,

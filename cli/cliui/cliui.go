@@ -22,6 +22,7 @@ type Styles struct {
 	DateTimeStamp,
 	Error,
 	Field,
+	Hyperlink,
 	Keyword,
 	Placeholder,
 	Prompt,
@@ -148,6 +149,10 @@ func init() {
 			pretty.FgColor(white),
 			pretty.Wrap("> ", ""),
 			pretty.FgColor(brightBlue),
+		},
+		Hyperlink: pretty.Style{
+			pretty.FgColor(magenta),
+			pretty.Underline(),
 		},
 		Keyword: pretty.Style{
 			pretty.FgColor(green),

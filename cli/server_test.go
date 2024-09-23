@@ -221,7 +221,8 @@ func TestServer(t *testing.T) {
 		_ = waitAccessURL(t, cfg)
 
 		pty.ExpectMatch("this may cause unexpected problems when creating workspaces")
-		pty.ExpectMatch("View the Web UI: http://localhost:3000/")
+		pty.ExpectMatch("View the Web UI:")
+		pty.ExpectMatch("http://localhost:3000/")
 	})
 
 	// Validate that an https scheme is prepended to a remote access URL
@@ -244,7 +245,8 @@ func TestServer(t *testing.T) {
 		_ = waitAccessURL(t, cfg)
 
 		pty.ExpectMatch("this may cause unexpected problems when creating workspaces")
-		pty.ExpectMatch("View the Web UI: https://foobarbaz.mydomain")
+		pty.ExpectMatch("View the Web UI:")
+		pty.ExpectMatch("https://foobarbaz.mydomain")
 	})
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
@@ -262,7 +264,8 @@ func TestServer(t *testing.T) {
 		// Just wait for startup
 		_ = waitAccessURL(t, cfg)
 
-		pty.ExpectMatch("View the Web UI: https://google.com")
+		pty.ExpectMatch("View the Web UI:")
+		pty.ExpectMatch("https://google.com")
 	})
 
 	t.Run("NoSchemeAccessURL", func(t *testing.T) {
