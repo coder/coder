@@ -1,3 +1,4 @@
+DROP TYPE IF EXISTS workspace_agent_script_timing_status CASCADE;
 DROP TYPE IF EXISTS workspace_agent_script_timing_stage CASCADE;
 DROP TABLE IF EXISTS workspace_agent_script_timings;
 

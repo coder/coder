@@ -222,6 +222,13 @@ CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
     'cron'
 );
 
+CREATE TYPE workspace_agent_script_timing_status AS ENUM (
+    'ok',
+    'exit_failure',
+    'timed_out',
+    'pipes_left_open'
+);
+
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
     'envbox',
@@ -1367,7 +1374,7 @@ CREATE TABLE workspace_agent_script_timings (
     ended_at timestamp with time zone NOT NULL,
     exit_code integer NOT NULL,
     stage workspace_agent_script_timing_stage NOT NULL,
-    timed_out boolean NOT NULL
+    status workspace_agent_script_timing_status NOT NULL
 );
 
 CREATE TABLE workspace_agent_scripts (

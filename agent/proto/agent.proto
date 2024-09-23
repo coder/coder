@@ -285,7 +285,14 @@ message Timing {
         CRON = 2;
 	}
     Stage stage = 5;
-    bool timed_out = 6;
+
+    enum Status {
+        OK = 0;
+        EXIT_FAILURE = 1;
+        TIMED_OUT = 2;
+        PIPES_LEFT_OPEN = 3;
+    }
+    Status status = 6;
 }
 
 service Agent {

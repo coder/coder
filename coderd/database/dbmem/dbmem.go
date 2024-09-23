@@ -7844,7 +7844,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg d
 			EndedAt:   arg.EndedAt,
 			ExitCode:  arg.ExitCode,
 			Stage:     arg.Stage,
-			TimedOut:  arg.TimedOut,
+			Status:    arg.Status,
 		},
 	)
 

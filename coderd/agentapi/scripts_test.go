@@ -29,7 +29,7 @@ func TestScriptCompleted(t *testing.T) {
 				Stage:    agentproto.Timing_START,
 				Start:    timestamppb.New(dbtime.Now()),
 				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
-				TimedOut: false,
+				Status:   agentproto.Timing_OK,
 				ExitCode: 0,
 			},
 		},
@@ -39,7 +39,7 @@ func TestScriptCompleted(t *testing.T) {
 				Stage:    agentproto.Timing_STOP,
 				Start:    timestamppb.New(dbtime.Now()),
 				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
-				TimedOut: false,
+				Status:   agentproto.Timing_OK,
 				ExitCode: 0,
 			},
 		},
@@ -49,7 +49,7 @@ func TestScriptCompleted(t *testing.T) {
 				Stage:    agentproto.Timing_CRON,
 				Start:    timestamppb.New(dbtime.Now()),
 				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
-				TimedOut: false,
+				Status:   agentproto.Timing_OK,
 				ExitCode: 0,
 			},
 		},
@@ -59,7 +59,7 @@ func TestScriptCompleted(t *testing.T) {
 				Stage:    agentproto.Timing_START,
 				Start:    timestamppb.New(dbtime.Now()),
 				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
-				TimedOut: true,
+				Status:   agentproto.Timing_TIMED_OUT,
 				ExitCode: 255,
 			},
 		},
@@ -69,7 +69,7 @@ func TestScriptCompleted(t *testing.T) {
 				Stage:    agentproto.Timing_START,
 				Start:    timestamppb.New(dbtime.Now()),
 				End:      timestamppb.New(dbtime.Now().Add(time.Second)),
-				TimedOut: true,
+				Status:   agentproto.Timing_EXIT_FAILURE,
 				ExitCode: 1,
 			},
 		},
@@ -83,9 +83,9 @@ func TestScriptCompleted(t *testing.T) {
 		mDB.EXPECT().InsertWorkspaceAgentScriptTimings(gomock.Any(), database.InsertWorkspaceAgentScriptTimingsParams{
 			ScriptID:  tt.scriptID,
 			Stage:     protoScriptTimingStageToDatabase(tt.timing.Stage),
+			Status:    protoScriptTimingStatusToDatabase(tt.timing.Status),
 			StartedAt: tt.timing.Start.AsTime(),
 			EndedAt:   tt.timing.End.AsTime(),
-			TimedOut:  tt.timing.TimedOut,
 			ExitCode:  tt.timing.ExitCode,
 		})
 
@@ -107,4 +107,19 @@ func protoScriptTimingStageToDatabase(stage agentproto.Timing_Stage) database.Wo
 		dbStage = database.WorkspaceAgentScriptTimingStageCron
 	}
 	return dbStage
+}
+
+func protoScriptTimingStatusToDatabase(stage agentproto.Timing_Status) database.WorkspaceAgentScriptTimingStatus {
+	var dbStatus database.WorkspaceAgentScriptTimingStatus
+	switch stage {
+	case agentproto.Timing_OK:
+		dbStatus = database.WorkspaceAgentScriptTimingStatusOk
+	case agentproto.Timing_EXIT_FAILURE:
+		dbStatus = database.WorkspaceAgentScriptTimingStatusExitFailure
+	case agentproto.Timing_TIMED_OUT:
+		dbStatus = database.WorkspaceAgentScriptTimingStatusTimedOut
+	case agentproto.Timing_PIPES_LEFT_OPEN:
+		dbStatus = database.WorkspaceAgentScriptTimingStatusPipesLeftOpen
+	}
+	return dbStatus
 }

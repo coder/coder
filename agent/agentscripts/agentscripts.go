@@ -340,6 +340,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 
 		// We want to check this outside of the goroutine to avoid a race condition
 		timedOut := errors.Is(err, ErrTimeout)
+		pipesLeftOpen := errors.Is(err, ErrOutputPipesOpen)
 
 		err = r.trackCommandGoroutine(func() {
 			var stage proto.Timing_Stage
@@ -350,6 +351,18 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 				stage = proto.Timing_STOP
 			case ExecuteCronScripts:
 				stage = proto.Timing_CRON
+			}
+
+			var status proto.Timing_Status
+			switch {
+			case !timedOut && !pipesLeftOpen && exitCode == 0:
+				status = proto.Timing_OK
+			case !timedOut && !pipesLeftOpen && exitCode != 0:
+				status = proto.Timing_EXIT_FAILURE
+			case timedOut:
+				status = proto.Timing_TIMED_OUT
+			case pipesLeftOpen:
+				status = proto.Timing_PIPES_LEFT_OPEN
 			}
 
 			reportTimeout := 30 * time.Second
@@ -363,7 +376,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 					End:      timestamppb.New(end),
 					ExitCode: int32(exitCode),
 					Stage:    stage,
-					TimedOut: timedOut,
+					Status:   status,
 				},
 			})
 			if err != nil {

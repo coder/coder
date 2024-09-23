@@ -11810,19 +11810,19 @@ INSERT INTO
         ended_at,
         exit_code,
         stage,
-        timed_out
+        status
     )
 VALUES
     ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertWorkspaceAgentScriptTimingsParams struct {
-	ScriptID  uuid.UUID                       `db:"script_id" json:"script_id"`
-	StartedAt time.Time                       `db:"started_at" json:"started_at"`
-	EndedAt   time.Time                       `db:"ended_at" json:"ended_at"`
-	ExitCode  int32                           `db:"exit_code" json:"exit_code"`
-	Stage     WorkspaceAgentScriptTimingStage `db:"stage" json:"stage"`
-	TimedOut  bool                            `db:"timed_out" json:"timed_out"`
+	ScriptID  uuid.UUID                        `db:"script_id" json:"script_id"`
+	StartedAt time.Time                        `db:"started_at" json:"started_at"`
+	EndedAt   time.Time                        `db:"ended_at" json:"ended_at"`
+	ExitCode  int32                            `db:"exit_code" json:"exit_code"`
+	Stage     WorkspaceAgentScriptTimingStage  `db:"stage" json:"stage"`
+	Status    WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) error {
@@ -11832,7 +11832,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg 
 		arg.EndedAt,
 		arg.ExitCode,
 		arg.Stage,
-		arg.TimedOut,
+		arg.Status,
 	)
 	return err
 }
