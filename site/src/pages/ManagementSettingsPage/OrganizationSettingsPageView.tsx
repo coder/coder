@@ -68,14 +68,14 @@ export const OrganizationSettingsPageView: FC<
 
 	return (
 		<Stack spacing={4}>
-			<Stack direction="row" spacing={1}>
+			<Stack direction="row" spacing={2} alignItems="center">
 				<Breadcrumbs>
 					<Crumb>Organizations</Crumb>
 					<Crumb href={`/organizations/${organization.name}`} active>
 						{organization.display_name || organization.name}
 					</Crumb>
-					<FeatureStageBadge contentType="beta" size="lg" />
 				</Breadcrumbs>
+				<FeatureStageBadge contentType="beta" size="sm" />
 			</Stack>
 
 			{Boolean(error) && !isApiValidationError(error) && (

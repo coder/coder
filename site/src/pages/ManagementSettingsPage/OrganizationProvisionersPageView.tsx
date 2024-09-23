@@ -7,11 +7,12 @@ import type {
 } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import { useOrganizationSettings } from "./ManagementSettingsLayout";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 interface OrganizationProvisionersPageViewProps {
 	/** Info about the version of coderd */
@@ -24,6 +25,7 @@ interface OrganizationProvisionersPageViewProps {
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
 > = ({ buildInfo, provisioners }) => {
+	const { organization } = useOrganizationSettings();
 	const isEmpty = provisioners.every((group) => group.daemons.length === 0);
 
 	const provisionerGroupsCount = provisioners.length;
@@ -32,6 +34,8 @@ export const OrganizationProvisionersPageView: FC<
 		0,
 	);
 
+	if (!organization) return null;
+
 	return (
 		<div>
 			<Stack
@@ -39,10 +43,18 @@ export const OrganizationProvisionersPageView: FC<
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Provisioners"
-					badges={<FeatureStageBadge contentType="beta" size="lg" />}
-				/>
+				<Stack direction="row" spacing={2} alignItems="center">
+					<Breadcrumbs>
+						<Crumb>Organizations</Crumb>
+						<Crumb href={`/organizations/${organization}`}>
+							{organization.display_name || organization.name}
+						</Crumb>
+						<Crumb href={`/organizations/${organization}/groups`} active>
+							Groups
+						</Crumb>
+					</Breadcrumbs>
+					<FeatureStageBadge contentType="beta" size="sm" />
+				</Stack>
 				<Button
 					endIcon={<OpenInNewIcon />}
 					target="_blank"

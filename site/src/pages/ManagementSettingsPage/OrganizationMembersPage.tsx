@@ -48,8 +48,7 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
+	const { organization } = useOrganizationSettings();
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
 	const permissions = permissionsQuery.data;
@@ -69,6 +68,7 @@ const OrganizationMembersPage: FC = () => {
 			}
 			isAddingMember={addMemberMutation.isLoading}
 			isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
+			organization={organization!}
 			me={me}
 			members={members}
 			groupsByUserId={groupsByUserIdQuery.data}

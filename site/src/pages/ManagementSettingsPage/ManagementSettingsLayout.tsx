@@ -8,19 +8,27 @@ import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense } from "react";
 import { useQuery } from "react-query";
-import { Outlet } from "react-router-dom";
+import { Outlet, useParams } from "react-router-dom";
 import { DeploySettingsContext } from "../DeploySettingsPage/DeploySettingsLayout";
 import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsValue = Readonly<{
 	organizations: readonly Organization[];
-	organization: Organization;
+	organization?: Organization;
 }>;
 
 export const useOrganizationSettings = (): OrganizationSettingsValue => {
 	const { organizations } = useDashboard();
+	const { organization: orgName } = useParams() as {
+		organization?: string;
+	};
 
-	return { organizations, organization: organizations[0] };
+	const organization =
+		organizations && orgName
+			? organizations.find((org) => org.name === orgName)
+			: undefined;
+
+	return { organizations, organization };
 };
 
 /**

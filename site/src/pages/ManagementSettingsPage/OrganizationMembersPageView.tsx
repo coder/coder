@@ -11,6 +11,7 @@ import { getErrorMessage } from "api/errors";
 import type { GroupsByUserId } from "api/queries/groups";
 import type {
 	Group,
+	Organization,
 	OrganizationMemberWithUserData,
 	SlimRole,
 	User,
@@ -30,11 +31,9 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
-import { useParams } from "react-router-dom";
 
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
@@ -42,6 +41,7 @@ interface OrganizationMembersPageViewProps {
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
+	organization: Organization;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
@@ -65,28 +65,26 @@ export const OrganizationMembersPageView: FC<
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
+	organization,
 	me,
 	members,
 	addMember,
 	removeMember,
 	updateMemberRoles,
 }) => {
-	// TODO: Fix me
-	const { organization } = useParams() as { organization: string };
-
 	return (
 		<Stack spacing={4}>
-			<Stack direction="row" spacing={1}>
+			<Stack direction="row" spacing={2} alignItems="center">
 				<Breadcrumbs>
 					<Crumb>Organizations</Crumb>
 					<Crumb href={`/organizations/${organization}`}>
-						{organization || organization}
+						{organization.display_name || organization.name}
 					</Crumb>
 					<Crumb href={`/organizations/${organization}/members`} active>
 						Members
 					</Crumb>
 				</Breadcrumbs>
-				<FeatureStageBadge contentType="beta" size="lg" />
+				<FeatureStageBadge contentType="beta" size="sm" />
 			</Stack>
 			{Boolean(error) && <ErrorAlert error={error} />}
 
