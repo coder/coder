@@ -14,11 +14,13 @@ import { Sidebar } from "./Sidebar";
 
 type OrganizationSettingsValue = Readonly<{
 	organizations: readonly Organization[];
+	organization: Organization;
 }>;
 
 export const useOrganizationSettings = (): OrganizationSettingsValue => {
 	const { organizations } = useDashboard();
-	return { organizations };
+
+	return { organizations, organization: organizations[0] };
 };
 
 /**
