@@ -31,9 +31,9 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	);
 };
 
-type OverflowPillProps = {
+interface OverflowPillProps {
 	roles: string[];
-};
+}
 
 const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 	const theme = useTheme();

@@ -142,7 +142,7 @@ export const provisionerDaemonGroups = (organization: string) => {
 };
 
 export const getGroupIdpSyncSettingsKey = (organization: string) => [
-	"organization",
+	"organizations",
 	organization,
 	"groupIdpSyncSettings",
 ];
@@ -155,7 +155,7 @@ export const groupIdpSyncSettings = (organization: string) => {
 };
 
 export const getRoleIdpSyncSettingsKey = (organization: string) => [
-	"organization",
+	"organizations",
 	organization,
 	"roleIdpSyncSettings",
 ];

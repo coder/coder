@@ -28,10 +28,6 @@ export const IdpSyncPage: FC = () => {
 	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 
-	if (!organization) {
-		return <EmptyState message="Organization not found" />;
-	}
-
 	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery] =
 		useQueries({
 			queries: [
@@ -40,6 +36,10 @@ export const IdpSyncPage: FC = () => {
 				groupsByOrganization(organizationName),
 			],
 		});
+
+	if (!organization) {
+		return <EmptyState message="Organization not found" />;
+	}
 
 	if (
 		groupsQuery.isLoading ||
@@ -60,6 +60,13 @@ export const IdpSyncPage: FC = () => {
 		!groupsQuery.data
 	) {
 		return <ErrorAlert error={error} />;
+	}
+
+	const groupsMap = new Map<string, string>();
+	if (groupsQuery.data) {
+		for (const group of groupsQuery.data) {
+			groupsMap.set(group.id, group.display_name || group.name);
+		}
 	}
 
 	return (
@@ -95,6 +102,7 @@ export const IdpSyncPage: FC = () => {
 				groupSyncSettings={groupIdpSyncSettingsQuery.data}
 				roleSyncSettings={roleIdpSyncSettingsQuery.data}
 				groups={groupsQuery.data}
+				groupsMap={groupsMap}
 				organization={organization}
 			/>
 		</>

@@ -11,7 +11,7 @@ const meta: Meta<typeof ExportPolicyButton> = {
 	title: "modules/resources/ExportPolicyButton",
 	component: ExportPolicyButton,
 	args: {
-		policy: JSON.stringify(MockGroupSyncSettings, null, 2),
+		syncSettings: MockGroupSyncSettings,
 		type: "groups",
 		organization: MockOrganization,
 	},
@@ -24,7 +24,7 @@ export const Default: Story = {};
 
 export const ClickExportGroupPolicy: Story = {
 	args: {
-		policy: JSON.stringify(MockGroupSyncSettings, null, 2),
+		syncSettings: MockGroupSyncSettings,
 		type: "groups",
 		organization: MockOrganization,
 		download: fn(),
@@ -47,7 +47,7 @@ export const ClickExportGroupPolicy: Story = {
 
 export const ClickExportRolePolicy: Story = {
 	args: {
-		policy: JSON.stringify(MockRoleSyncSettings, null, 2),
+		syncSettings: MockRoleSyncSettings,
 		type: "roles",
 		organization: MockOrganization,
 		download: fn(),

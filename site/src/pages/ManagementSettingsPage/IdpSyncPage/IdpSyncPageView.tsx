@@ -35,6 +35,7 @@ interface IdpSyncPageViewProps {
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
 	groups: Group[] | undefined;
+	groupsMap: Map<string, string>;
 	organization: Organization;
 }
 
@@ -42,15 +43,10 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	groupSyncSettings,
 	roleSyncSettings,
 	groups,
+	groupsMap,
 	organization,
 }) => {
 	const [searchParams] = useSearchParams();
-	const groupsMap = new Map<string, string>();
-	if (groups) {
-		for (const group of groups) {
-			groupsMap.set(group.id, group.display_name || group.name);
-		}
-	}
 
 	const getGroupNames = (groupIds: readonly string[]) => {
 		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
@@ -65,15 +61,6 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		? Object.entries(roleSyncSettings.mapping).length
 		: 0;
 
-	const rolePolicy =
-		roleSyncSettings?.field && roleSyncSettings.mapping
-			? JSON.stringify(roleSyncSettings, null, 2)
-			: null;
-	const groupPolicy =
-		groupSyncSettings?.field && groupSyncSettings.mapping
-			? JSON.stringify(groupSyncSettings, null, 2)
-			: null;
-
 	return (
 		<>
 			<ChooseOne>
@@ -85,13 +72,8 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					/>
 				</Cond>
 				<Cond>
-					<>
-						<Tabs
-							active={tab}
-							css={{
-								marginBottom: 20,
-							}}
-						>
+					<Stack spacing={2}>
+						<Tabs active={tab}>
 							<TabsList>
 								<TabLink to="?tab=groups" value="groups">
 									Group Sync Settings
@@ -108,13 +90,13 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 										<IdpField
 											name={"Sync Field"}
 											fieldText={groupSyncSettings?.field}
-											showStatusIndicator
+											showDisabled
 										/>
 										<IdpField
 											name={"Regex Filter"}
 											fieldText={
 												typeof groupSyncSettings?.regex_filter === "string"
-													? groupSyncSettings?.regex_filter
+													? groupSyncSettings.regex_filter
 													: "none"
 											}
 										/>
@@ -134,7 +116,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								>
 									<TableRowCount count={groupMappingCount} type="groups" />
 									<ExportPolicyButton
-										policy={groupPolicy}
+										syncSettings={groupSyncSettings}
 										organization={organization}
 										type="groups"
 									/>
@@ -163,7 +145,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									<IdpField
 										name={"Sync Field"}
 										fieldText={roleSyncSettings?.field}
-										showStatusIndicator
+										showDisabled
 									/>
 								</div>
 								<Stack
@@ -174,7 +156,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								>
 									<TableRowCount count={roleMappingCount} type="roles" />
 									<ExportPolicyButton
-										policy={rolePolicy}
+										syncSettings={roleSyncSettings}
 										organization={organization}
 										type="roles"
 									/>
@@ -196,7 +178,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								</IdpMappingTable>
 							</>
 						)}
-					</>
+					</Stack>
 				</Cond>
 			</ChooseOne>
 		</>
@@ -206,21 +188,27 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 interface IdpFieldProps {
 	name: string;
 	fieldText: string | undefined;
-	showStatusIndicator?: boolean;
+	showDisabled?: boolean;
 }
 
 const IdpField: FC<IdpFieldProps> = ({
 	name,
 	fieldText,
-	showStatusIndicator = false,
+	showDisabled = false,
 }) => {
 	return (
-		<span css={{ display: "flex", alignItems: "center", gap: "16px" }}>
+		<span
+			css={{
+				display: "flex",
+				alignItems: "center",
+				gap: "16px",
+			}}
+		>
 			<p css={styles.fieldLabel}>{name}</p>
 			{fieldText ? (
 				<p css={styles.fieldText}>{fieldText}</p>
 			) : (
-				showStatusIndicator && (
+				showDisabled && (
 					<div
 						css={{
 							display: "flex",
@@ -373,12 +361,12 @@ const styles = {
 	fieldText: (theme) => ({
 		fontFamily: MONOSPACE_FONT_FAMILY,
 		whiteSpace: "nowrap",
+		paddingBottom: ".02rem",
 	}),
 	fieldLabel: (theme) => ({
 		color: theme.palette.text.secondary,
 	}),
 	fields: () => ({
-		marginBottom: 16,
 		marginLeft: 16,
 		fontSize: 14,
 	}),
