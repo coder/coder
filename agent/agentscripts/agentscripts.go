@@ -338,7 +338,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			return
 		}
 
-		r.trackCommandGoroutine(func() {
+		err = r.trackCommandGoroutine(func() {
 			var stage proto.Timing_Stage
 			switch option {
 			case ExecuteStartScripts:
@@ -367,6 +367,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 				logger.Error(ctx, fmt.Sprintf("reporting script completed: %s", err.Error()))
 			}
 		})
+		if err != nil {
+			logger.Error(ctx, fmt.Sprintf("reporting script completed: track command goroutine: %s", err.Error()))
+		}
 	}()
 
 	err = cmd.Start()
