@@ -1,5 +1,10 @@
 import type { ProvisionerTiming } from "api/typesGenerated";
-import { Chart, type Duration, type Timing, duration } from "./Chart/Chart";
+import {
+	Chart,
+	type Duration,
+	type Timing,
+	combineDurations,
+} from "./Chart/Chart";
 import { useState, type FC } from "react";
 import type { Interpolation, Theme } from "@emotion/react";
 import ChevronRight from "@mui/icons-material/ChevronRight";
@@ -101,17 +106,33 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				</div>
 			)}
 
-			<Chart
-				data={data}
-				onBarClick={(stage, section) => {
-					setView({
-						name: "advanced",
-						selectedStage: stage,
-						parentSection: section,
-						filter: "",
-					});
-				}}
-			/>
+			{data.flatMap((section) => section.timings).length > 0 ? (
+				<Chart
+					data={data}
+					onBarClick={(stage, section) => {
+						setView({
+							name: "advanced",
+							selectedStage: stage,
+							parentSection: section,
+							filter: "",
+						});
+					}}
+				/>
+			) : (
+				<div
+					css={{
+						width: "100%",
+						height: "100%",
+						display: "flex",
+						justifyContent: "center",
+						alignItems: "center",
+					}}
+				>
+					{view.name === "basic"
+						? "No data found"
+						: `No resource found for "${view.filter}"`}
+				</div>
+			)}
 		</div>
 	);
 };
@@ -137,7 +158,7 @@ export const selectChartData = (
 				const durations = timings
 					.filter((t) => t.stage === stage)
 					.map(extractDuration);
-				const stageDuration = duration(durations);
+				const stageDuration = combineDurations(durations);
 				const stageTiming: Timing = {
 					label: stage,
 					childrenCount: durations.length,

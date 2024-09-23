@@ -64,7 +64,7 @@ export type ChartProps = {
 };
 
 export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
-	const totalDuration = duration(data.flatMap((d) => d.timings));
+	const totalDuration = combineDurations(data.flatMap((d) => d.timings));
 	const totalTime = durationTime(totalDuration);
 
 	// XAxis ticks
@@ -205,7 +205,14 @@ const durationTime = (duration: Duration): number => {
 
 // Combine multiple durations into a single duration by using the initial start
 // time and the final end time.
-export const duration = (durations: readonly Duration[]): Duration => {
+export const combineDurations = (durations: readonly Duration[]): Duration => {
+	// If there are no durations, return a duration with the same start and end
+	// times. This prevents the chart from breaking when calculating the start and
+	// end times from an empty array.
+	if (durations.length === 0) {
+		return { startedAt: new Date(), endedAt: new Date() };
+	}
+
 	const sortedDurations = durations
 		.slice()
 		.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
