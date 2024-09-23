@@ -1,17 +1,12 @@
 import type { ProvisionerTiming } from "api/typesGenerated";
-import {
-	Chart,
-	type Duration,
-	type ChartProps,
-	type Timing,
-	duration,
-} from "./Chart/Chart";
+import { Chart, type Duration, type Timing, duration } from "./Chart/Chart";
 import { useState, type FC } from "react";
 import type { Interpolation, Theme } from "@emotion/react";
 import ChevronRight from "@mui/icons-material/ChevronRight";
 import { YAxisSidePadding, YAxisWidth } from "./Chart/YAxis";
 import { SearchField } from "components/SearchField/SearchField";
 
+// TODO: Export provisioning stages from the BE to the generated types.
 // We control the stages to be displayed in the chart so we can set the correct
 // colors and labels.
 const provisioningStages = [
@@ -21,65 +16,31 @@ const provisioningStages = [
 	{ name: "apply" },
 ];
 
+// The advanced view is an expanded view of the stage, allowing the user to see
+// which resources within a stage are taking the most time. It supports resource
+// filtering and displays bars with different colors representing various states
+// such as created, deleted, etc.
+type TimingView =
+	| { name: "basic" }
+	| {
+			name: "advanced";
+			selectedStage: string;
+			parentSection: string;
+			filter: string;
+	  };
+
 type WorkspaceTimingsProps = {
 	provisionerTimings: readonly ProvisionerTiming[];
 };
 
-type TimingView =
-	| { type: "basic" }
-	// The advanced view enables users to filter results based on the XAxis label
-	| { type: "advanced"; selectedStage: string; parentSection: string };
-
 export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	provisionerTimings,
 }) => {
-	const [view, setView] = useState<TimingView>({ type: "basic" });
-	let data: ChartProps["data"] = [];
-
-	if (view.type === "basic") {
-		data = [
-			{
-				name: "provisioning",
-				timings: provisioningStages.map((stage) => {
-					// Get all the timing durations for a stage
-					const durations = provisionerTimings
-						.filter((t) => t.stage === stage.name)
-						.map(extractDuration);
-					const stageDuration = duration(durations);
-
-					// Mount the timing data that is required by the chart
-					const stageTiming: Timing = {
-						label: stage.name,
-						count: durations.length,
-						...stageDuration,
-					};
-					return stageTiming;
-				}),
-			},
-		];
-	}
-
-	if (view.type === "advanced") {
-		data = [
-			{
-				name: `${view.selectedStage} stage`,
-				timings: provisionerTimings
-					.filter((t) => t.stage === view.selectedStage)
-					.map((t) => {
-						console.log("-> RESOURCE", t);
-						return {
-							label: t.resource,
-							count: 0, // Resource timings don't have inner timings
-							...extractDuration(t),
-						} as Timing;
-					}),
-			},
-		];
-	}
+	const [view, setView] = useState<TimingView>({ name: "basic" });
 
 	return (
 		<div css={styles.panelBody}>
-			{view.type === "advanced" && (
+			{view.name === "advanced" && (
 				<div css={styles.toolbar}>
 					<ul css={styles.breadcrumbs}>
 						<li>
@@ -87,7 +48,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 								type="button"
 								css={styles.breadcrumbButton}
 								onClick={() => {
-									setView({ type: "basic" });
+									setView({ name: "basic" });
 								}}
 							>
 								{view.parentSection}
@@ -101,24 +62,82 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 
 					<SearchField
 						css={styles.searchField}
+						value={view.filter}
 						placeholder="Filter results..."
-						onChange={(q: string) => {}}
+						onChange={(q: string) => {
+							setView((v) => ({
+								...v,
+								filter: q,
+							}));
+						}}
 					/>
 				</div>
 			)}
 
 			<Chart
-				data={data}
+				data={selectChartData(view, provisionerTimings)}
 				onBarClick={(stage, section) => {
 					setView({
-						type: "advanced",
+						name: "advanced",
 						selectedStage: stage,
 						parentSection: section,
+						filter: "",
 					});
 				}}
 			/>
 		</div>
 	);
+};
+
+export const selectChartData = (
+	view: TimingView,
+	timings: readonly ProvisionerTiming[],
+) => {
+	switch (view.name) {
+		case "basic": {
+			const groupedTimingsByStage = provisioningStages.map((stage) => {
+				const durations = timings
+					.filter((t) => t.stage === stage.name)
+					.map(extractDuration);
+				const stageDuration = duration(durations);
+				const stageTiming: Timing = {
+					label: stage.name,
+					count: durations.length,
+					...stageDuration,
+				};
+				return stageTiming;
+			});
+
+			return [
+				{
+					name: "provisioning",
+					timings: groupedTimingsByStage,
+				},
+			];
+		}
+
+		case "advanced": {
+			const selectedStageTimings = timings
+				.filter(
+					(t) =>
+						t.stage === view.selectedStage && t.resource.includes(view.filter),
+				)
+				.map((t) => {
+					return {
+						label: t.resource,
+						count: 0, // Resource timings don't have inner timings
+						...extractDuration(t),
+					} as Timing;
+				});
+
+			return [
+				{
+					name: `${view.selectedStage} stage`,
+					timings: selectedStageTimings,
+				},
+			];
+		}
+	}
 };
 
 const extractDuration = (t: ProvisionerTiming): Duration => {
@@ -148,6 +167,7 @@ const styles = {
 		alignItems: "center",
 		gap: 4,
 		lineHeight: 1,
+		flexShrink: 0,
 
 		"& li": {
 			display: "block",
@@ -182,6 +202,8 @@ const styles = {
 		},
 	}),
 	searchField: (theme) => ({
+		width: "100%",
+
 		"& fieldset": {
 			border: 0,
 			borderRadius: 0,
