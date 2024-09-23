@@ -120,7 +120,6 @@ func TestScriptReportsTiming(t *testing.T) {
 	runner := setup(t, func(uuid2 uuid.UUID) agentscripts.ScriptLogger {
 		return fLogger
 	})
-	defer runner.Close()
 
 	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
@@ -129,7 +128,8 @@ func TestScriptReportsTiming(t *testing.T) {
 		Script:      "echo hello",
 	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
-	require.NoError(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts))
+	require.NoError(t, runner.Execute(ctx, agentscripts.ExecuteAllScripts))
+	runner.Close()
 
 	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
 	require.Equal(t, "hello", log.Output)

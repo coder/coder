@@ -338,7 +338,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			return
 		}
 
-		go func() {
+		r.trackCommandGoroutine(func() {
 			var stage proto.Timing_Stage
 			switch option {
 			case ExecuteStartScripts:
@@ -349,7 +349,11 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 				stage = proto.Timing_CRON
 			}
 
-			_, err = r.scriptCompleted(ctx, &proto.WorkspaceAgentScriptCompletedRequest{
+			reportTimeout := 30 * time.Second
+			reportCtx, cancel := context.WithTimeout(context.Background(), reportTimeout)
+			defer cancel()
+
+			_, err = r.scriptCompleted(reportCtx, &proto.WorkspaceAgentScriptCompletedRequest{
 				Timing: &proto.Timing{
 					ScriptId: script.ID[:],
 					Start:    timestamppb.New(start),
@@ -362,7 +366,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			if err != nil {
 				logger.Error(ctx, fmt.Sprintf("reporting script completed: %s", err.Error()))
 			}
-		}()
+		})
 	}()
 
 	err = cmd.Start()
