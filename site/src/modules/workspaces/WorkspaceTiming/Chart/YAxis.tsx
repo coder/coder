@@ -5,6 +5,8 @@ import { barsSpacing, XAxisHeight } from "./constants";
 // Predicting the caption height is necessary to add appropriate spacing to the
 // grouped bars, ensuring alignment with the sidebar labels.
 export const YAxisCaptionHeight = 20;
+export const YAxisWidth = 200;
+export const YAxisSidePadding = 16;
 
 export const YAxis: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return <div css={styles.root} {...props} />;
@@ -23,14 +25,18 @@ export const YAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
 };
 
 export const YAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
-	return <li {...props} css={styles.label} />;
+	return (
+		<li {...props} css={styles.label}>
+			<span>{props.children}</span>
+		</li>
+	);
 };
 
 const styles = {
 	root: {
-		width: 200,
+		width: YAxisWidth,
 		flexShrink: 0,
-		padding: 16,
+		padding: YAxisSidePadding,
 		paddingTop: XAxisHeight,
 	},
 	caption: (theme) => ({
@@ -51,10 +57,15 @@ const styles = {
 		textAlign: "right",
 	},
 	label: {
-		display: "block",
-		maxWidth: "100%",
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-		whiteSpace: "nowrap",
+		display: "flex",
+		alignItems: "center",
+
+		"& > *": {
+			display: "block",
+			width: "100%",
+			overflow: "hidden",
+			textOverflow: "ellipsis",
+			whiteSpace: "nowrap",
+		},
 	},
 } satisfies Record<string, Interpolation<Theme>>;

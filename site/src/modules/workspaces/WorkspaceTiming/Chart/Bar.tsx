@@ -56,6 +56,7 @@ const styles = {
 		height: 32,
 		display: "flex",
 		padding: 0,
+		minWidth: 8,
 
 		"&:not(:disabled)": {
 			cursor: "pointer",

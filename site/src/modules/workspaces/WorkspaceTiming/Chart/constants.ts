@@ -19,7 +19,3 @@ export const contentSidePadding = 4;
  */
 export const columnWidth = 130;
 
-/**
- * Time interval used to calculate the XAxis dimension.
- */
-export const intervalDimension = 5;

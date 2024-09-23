@@ -15,10 +15,19 @@ import {
 	barsSpacing,
 	columnWidth,
 	contentSidePadding,
-	intervalDimension,
 	XAxisHeight,
 } from "./constants";
 import { Bar } from "./Bar";
+
+// When displaying the chart we must consider the time intervals to display the
+// data. For example, if the total time is 10 seconds, we should display the
+// data in 200ms intervals. However, if the total time is 1 minute, we should
+// display the data in 5 seconds intervals. To achieve this, we define the
+// dimensions object that contains the time intervals for the chart.
+const dimensions = {
+	small: 500,
+	default: 5_000,
+};
 
 export type ChartProps = {
 	data: DataSection[];
@@ -54,8 +63,33 @@ export type Timing = Duration & {
 };
 
 export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
-	const totalDuration = calcTotalDuration(data.flatMap((d) => d.timings));
-	const intervals = createIntervals(totalDuration, intervalDimension);
+	const totalDuration = duration(data.flatMap((d) => d.timings));
+	const totalTime = durationTime(totalDuration);
+	// Use smaller dimensions for the chart if the total time is less than 10
+	// seconds; otherwise, use default intervals.
+	const dimension = totalTime < 10_000 ? dimensions.small : dimensions.default;
+
+	// XAxis intervals
+	const intervalsCount = Math.ceil(totalTime / dimension);
+	const intervals = Array.from(
+		{ length: intervalsCount },
+		(_, i) => i * dimension + dimension,
+	);
+
+	// Helper function to convert time into pixel size, used for setting bar width
+	// and offset
+	const calcSize = (time: number): number => {
+		return (columnWidth * time) / dimension;
+	};
+
+	const formatTime = (time: number): string => {
+		if (dimension === dimensions.small) {
+			return `${time.toLocaleString()}ms`;
+		}
+		return `${(time / 1_000).toLocaleString(undefined, {
+			maximumFractionDigits: 2,
+		})}s`;
+	};
 
 	return (
 		<div css={styles.chart}>
@@ -65,7 +99,10 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 						<YAxisCaption>{section.name}</YAxisCaption>
 						<YAxisLabels>
 							{section.timings.map((t) => (
-								<YAxisLabel key={t.label} id={`${t.label}-label`}>
+								<YAxisLabel
+									key={t.label}
+									id={`${encodeURIComponent(t.label)}-label`}
+								>
 									{t.label}
 								</YAxisLabel>
 							))}
@@ -75,28 +112,28 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 			</YAxis>
 
 			<div css={styles.main}>
-				<XAxis labels={intervals.map(formatAsTimer)} />
+				<XAxis labels={intervals.map(formatTime)} />
 				<div css={styles.content}>
 					{data.map((section) => {
 						return (
 							<div key={section.name} css={styles.bars}>
 								{section.timings.map((t) => {
-									// The time this timing started relative to the initial timing
-									const offset = diffInSeconds(
-										t.startedAt,
-										totalDuration.startedAt,
-									);
-									const size = secondsToPixel(durationToSeconds(t));
+									const offset =
+										t.startedAt.getTime() - totalDuration.startedAt.getTime();
+									const size = calcSize(durationTime(t));
 									return (
 										<Bar
 											key={t.label}
-											x={secondsToPixel(offset)}
+											x={calcSize(offset)}
 											width={size}
-											afterLabel={`${durationToSeconds(t).toFixed(2)}s`}
+											afterLabel={formatTime(durationTime(t))}
 											aria-labelledby={`${t.label}-label`}
 											ref={applyBarHeightToLabel}
 											disabled={t.count <= 1}
 											onClick={() => {
+												if (t.count <= 1) {
+													return;
+												}
 												onBarClick(t.label, section.name);
 											}}
 										>
@@ -130,41 +167,22 @@ const applyBarHeightToLabel = (bar: HTMLDivElement | null) => {
 	// #coder_metadata.container_info[0]) will fail because it is not a valid
 	// selector. To handle this, we need to query by the id attribute and escape
 	// it with quotes.
-	const label = document.querySelector<HTMLSpanElement>(`[id="${labelId}"]`);
+	const label = document.querySelector<HTMLSpanElement>(
+		`[id="${encodeURIComponent(labelId)}"]`,
+	);
 	if (!label) {
 		return;
 	}
 	label.style.height = `${bar.clientHeight}px`;
 };
 
-// Format a number in seconds to 00:00:00 format
-const formatAsTimer = (seconds: number): string => {
-	const hours = Math.floor(seconds / 3600);
-	const minutes = Math.floor((seconds % 3600) / 60);
-	const remainingSeconds = seconds % 60;
-
-	return `${hours.toString().padStart(2, "0")}:${minutes
-		.toString()
-		.padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
-};
-
-const durationToSeconds = (duration: Duration): number => {
-	return (duration.endedAt.getTime() - duration.startedAt.getTime()) / 1000;
-};
-
-// Create the intervals to be used in the XAxis
-const createIntervals = (duration: Duration, range: number): number[] => {
-	const intervals = Math.ceil(durationToSeconds(duration) / range);
-	return Array.from({ length: intervals }, (_, i) => i * range + range);
-};
-
-const secondsToPixel = (seconds: number): number => {
-	return (columnWidth * seconds) / intervalDimension;
+const durationTime = (duration: Duration): number => {
+	return duration.endedAt.getTime() - duration.startedAt.getTime();
 };
 
 // Combine multiple durations into a single duration by using the initial start
 // time and the final end time.
-export const calcTotalDuration = (durations: readonly Duration[]): Duration => {
+export const duration = (durations: readonly Duration[]): Duration => {
 	const sortedDurations = durations
 		.slice()
 		.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
@@ -175,10 +193,6 @@ export const calcTotalDuration = (durations: readonly Duration[]): Duration => {
 		.sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime());
 	const end = sortedEndDurations[sortedEndDurations.length - 1].endedAt;
 	return { startedAt: start, endedAt: end };
-};
-
-const diffInSeconds = (b: Date, a: Date): number => {
-	return (b.getTime() - a.getTime()) / 1000;
 };
 
 const styles = {
@@ -216,6 +230,8 @@ const styles = {
 		flexDirection: "column",
 		flex: 1,
 		borderLeft: `1px solid ${theme.palette.divider}`,
+		height: "fit-content",
+		minHeight: "100%",
 	}),
 	content: {
 		flex: 1,
