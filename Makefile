@@ -395,6 +395,7 @@ fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/prettier
 .PHONY: fmt
 
 fmt/go:
+	go mod tidy
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET)"
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code

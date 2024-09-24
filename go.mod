@@ -203,6 +203,7 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
+	github.com/charmbracelet/lipgloss v0.13.0
 	github.com/coder/serpent v0.8.0
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/emersion/go-smtp v0.21.2
@@ -287,9 +288,6 @@ require (
 	github.com/bep/godartsass/v2 v2.1.0 // indirect
 	github.com/bep/golibsass v1.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	// In later at least v0.7.1, lipgloss changes its terminal detection
-	// which breaks most of our CLI golden files tests.
-	github.com/charmbracelet/lipgloss v0.13.0 // indirect
 	github.com/chromedp/sysutil v1.0.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
