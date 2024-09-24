@@ -1881,6 +1881,133 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+// What stage the script was ran in.
+type WorkspaceAgentScriptTimingStage string
+
+const (
+	WorkspaceAgentScriptTimingStageStart WorkspaceAgentScriptTimingStage = "start"
+	WorkspaceAgentScriptTimingStageStop  WorkspaceAgentScriptTimingStage = "stop"
+	WorkspaceAgentScriptTimingStageCron  WorkspaceAgentScriptTimingStage = "cron"
+)
+
+func (e *WorkspaceAgentScriptTimingStage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentScriptTimingStage(s)
+	case string:
+		*e = WorkspaceAgentScriptTimingStage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentScriptTimingStage: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentScriptTimingStage struct {
+	WorkspaceAgentScriptTimingStage WorkspaceAgentScriptTimingStage `json:"workspace_agent_script_timing_stage"`
+	Valid                           bool                            `json:"valid"` // Valid is true if WorkspaceAgentScriptTimingStage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentScriptTimingStage) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentScriptTimingStage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentScriptTimingStage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentScriptTimingStage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentScriptTimingStage), nil
+}
+
+func (e WorkspaceAgentScriptTimingStage) Valid() bool {
+	switch e {
+	case WorkspaceAgentScriptTimingStageStart,
+		WorkspaceAgentScriptTimingStageStop,
+		WorkspaceAgentScriptTimingStageCron:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStage {
+	return []WorkspaceAgentScriptTimingStage{
+		WorkspaceAgentScriptTimingStageStart,
+		WorkspaceAgentScriptTimingStageStop,
+		WorkspaceAgentScriptTimingStageCron,
+	}
+}
+
+// What the exit status of the script is.
+type WorkspaceAgentScriptTimingStatus string
+
+const (
+	WorkspaceAgentScriptTimingStatusOk            WorkspaceAgentScriptTimingStatus = "ok"
+	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
+	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
+	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+)
+
+func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentScriptTimingStatus(s)
+	case string:
+		*e = WorkspaceAgentScriptTimingStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentScriptTimingStatus: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentScriptTimingStatus struct {
+	WorkspaceAgentScriptTimingStatus WorkspaceAgentScriptTimingStatus `json:"workspace_agent_script_timing_status"`
+	Valid                            bool                             `json:"valid"` // Valid is true if WorkspaceAgentScriptTimingStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentScriptTimingStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentScriptTimingStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentScriptTimingStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentScriptTimingStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentScriptTimingStatus), nil
+}
+
+func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
+	switch e {
+	case WorkspaceAgentScriptTimingStatusOk,
+		WorkspaceAgentScriptTimingStatusExitFailure,
+		WorkspaceAgentScriptTimingStatusTimedOut,
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingStatus {
+	return []WorkspaceAgentScriptTimingStatus{
+		WorkspaceAgentScriptTimingStatusOk,
+		WorkspaceAgentScriptTimingStatusExitFailure,
+		WorkspaceAgentScriptTimingStatusTimedOut,
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+	}
+}
+
 type WorkspaceAgentSubsystem string
 
 const (
@@ -2881,6 +3008,16 @@ type WorkspaceAgentScript struct {
 	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
 	DisplayName      string    `db:"display_name" json:"display_name"`
+	ID               uuid.UUID `db:"id" json:"id"`
+}
+
+type WorkspaceAgentScriptTiming struct {
+	ScriptID  uuid.UUID                        `db:"script_id" json:"script_id"`
+	StartedAt time.Time                        `db:"started_at" json:"started_at"`
+	EndedAt   time.Time                        `db:"ended_at" json:"ended_at"`
+	ExitCode  int32                            `db:"exit_code" json:"exit_code"`
+	Stage     WorkspaceAgentScriptTimingStage  `db:"stage" json:"stage"`
+	Status    WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
 
 type WorkspaceAgentStat struct {
