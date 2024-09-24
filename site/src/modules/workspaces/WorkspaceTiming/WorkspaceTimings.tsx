@@ -106,33 +106,35 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				</div>
 			)}
 
-			{data.flatMap((section) => section.timings).length > 0 ? (
-				<Chart
-					data={data}
-					onBarClick={(stage, section) => {
-						setView({
-							name: "advanced",
-							selectedStage: stage,
-							parentSection: section,
-							filter: "",
-						});
-					}}
-				/>
-			) : (
-				<div
-					css={{
-						width: "100%",
-						height: "100%",
-						display: "flex",
-						justifyContent: "center",
-						alignItems: "center",
-					}}
-				>
-					{view.name === "basic"
-						? "No data found"
-						: `No resource found for "${view.filter}"`}
-				</div>
-			)}
+			<div css={styles.chartWrapper}>
+				{data.flatMap((section) => section.timings).length > 0 ? (
+					<Chart
+						data={data}
+						onBarClick={(stage, section) => {
+							setView({
+								name: "advanced",
+								selectedStage: stage,
+								parentSection: section,
+								filter: "",
+							});
+						}}
+					/>
+				) : (
+					<div
+						css={{
+							width: "100%",
+							height: "100%",
+							display: "flex",
+							justifyContent: "center",
+							alignItems: "center",
+						}}
+					>
+						{view.name === "basic"
+							? "No data found"
+							: `No resource found for "${view.filter}"`}
+					</div>
+				)}
+			</div>
 		</div>
 	);
 };
@@ -211,6 +213,10 @@ const styles = {
 		display: "flex",
 		flexDirection: "column",
 		height: "100%",
+	},
+	chartWrapper: {
+		flex: 1,
+		overflow: "auto",
 	},
 	toolbar: (theme) => ({
 		borderBottom: `1px solid ${theme.palette.divider}`,
