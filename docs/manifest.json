@@ -402,7 +402,7 @@
 					"title": "Organizations",
 					"description": "Learn how to manage organizations",
 					"path": "./admin/organizations.md",
-					"icon_path": "./images/icons/group.svg",
+					"icon_path": "./images/icons/orgs.svg",
 					"state": "enterprise"
 				},
 				{
