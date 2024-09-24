@@ -17,6 +17,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
+	"github.com/briandowns/spinner"
+
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -101,6 +103,11 @@ func (r *RootCmd) ping() *serpent.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
+			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+			spin.Writer = inv.Stderr
+			spin.Suffix = pretty.Sprint(cliui.DefaultStyles.Keyword, " Collecting diagnostics...")
+			spin.Start()
+
 			notifyCtx, notifyCancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer notifyCancel()
 
@@ -139,7 +146,6 @@ func (r *RootCmd) ping() *serpent.Command {
 			diagCtx, diagCancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer diagCancel()
 			diags := conn.GetPeerDiagnostics()
-			cliui.PeerDiagnostics(inv.Stderr, diags)
 
 			// Silent ping to determine whether we should show diags
 			_, didP2p, _, _ := conn.Ping(ctx)
@@ -185,6 +191,8 @@ func (r *RootCmd) ping() *serpent.Command {
 				}
 			}
 
+			spin.Stop()
+			cliui.PeerDiagnostics(inv.Stderr, diags)
 			connDiags.Write(inv.Stderr)
 			results := &pingSummary{
 				Workspace: workspaceName,
