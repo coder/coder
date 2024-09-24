@@ -849,6 +849,44 @@ func (q *sqlQuerier) GetCryptoKeys(ctx context.Context) ([]CryptoKey, error) {
 	return items, nil
 }
 
+const getCryptoKeysByFeature = `-- name: GetCryptoKeysByFeature :many
+SELECT feature, sequence, secret, secret_key_id, starts_at, deletes_at
+FROM crypto_keys
+WHERE feature = $1
+AND secret IS NOT NULL
+ORDER BY sequence DESC
+`
+
+func (q *sqlQuerier) GetCryptoKeysByFeature(ctx context.Context, feature CryptoKeyFeature) ([]CryptoKey, error) {
+	rows, err := q.db.QueryContext(ctx, getCryptoKeysByFeature, feature)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CryptoKey
+	for rows.Next() {
+		var i CryptoKey
+		if err := rows.Scan(
+			&i.Feature,
+			&i.Sequence,
+			&i.Secret,
+			&i.SecretKeyID,
+			&i.StartsAt,
+			&i.DeletesAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLatestCryptoKeyByFeature = `-- name: GetLatestCryptoKeyByFeature :one
 SELECT feature, sequence, secret, secret_key_id, starts_at, deletes_at
 FROM crypto_keys

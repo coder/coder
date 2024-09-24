@@ -2429,6 +2429,23 @@ func (q *FakeQuerier) GetCryptoKeys(_ context.Context) ([]database.CryptoKey, er
 	return keys, nil
 }
 
+func (q *FakeQuerier) GetCryptoKeysByFeature(_ context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.CryptoKey, 0)
+	for _, key := range q.cryptoKeys {
+		if key.Feature == feature {
+			keys = append(keys, key)
+		}
+	}
+	// We want to return the highest sequence number first.
+	slices.SortFunc(keys, func(i, j database.CryptoKey) int {
+		return int(j.Sequence - i.Sequence)
+	})
+	return keys, nil
+}
+
 func (q *FakeQuerier) GetDBCryptKeys(_ context.Context) ([]database.DBCryptKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

@@ -710,6 +710,20 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
+func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	keys, err := api.Database.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, wsproxysdk.CryptoKeysResponse{
+		CryptoKeys: fromDBCryptoKeys(keys),
+	})
+}
+
 // @Summary Deregister workspace proxy
 // @ID deregister-workspace-proxy
 // @Security CoderSessionToken
@@ -966,4 +980,18 @@ func (w *workspaceProxiesFetchUpdater) Fetch(ctx context.Context) (codersdk.Regi
 
 func (w *workspaceProxiesFetchUpdater) Update(ctx context.Context) error {
 	return w.updateFunc(ctx)
+}
+
+func fromDBCryptoKeys(keys []database.CryptoKey) []wsproxysdk.CryptoKey {
+	wskeys := make([]wsproxysdk.CryptoKey, 0, len(keys))
+	for _, key := range keys {
+		wskeys = append(wskeys, wsproxysdk.CryptoKey{
+			Feature:   wsproxysdk.CryptoKeyFeature(key.Feature),
+			Secret:    key.Secret.String,
+			DeletesAt: key.DeletesAt.Time,
+			Sequence:  key.Sequence,
+			StartsAt:  key.StartsAt,
+		})
+	}
+	return wskeys
 }
