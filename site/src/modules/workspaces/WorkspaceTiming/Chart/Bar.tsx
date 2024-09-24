@@ -72,7 +72,6 @@ const styles = {
 
 			"&:focus, &:hover, &:active": {
 				outline: "none",
-				background: "#082F49",
 				borderColor: "#38BDF8",
 			},
 		},

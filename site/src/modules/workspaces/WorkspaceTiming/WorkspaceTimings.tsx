@@ -137,10 +137,6 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	);
 };
 
-const selectActions = (timings: readonly ProvisionerTiming[]) => {
-	return [...new Set(timings.map((t) => t.action))];
-};
-
 export const selectChartData = (
 	view: TimingView,
 	timings: readonly ProvisionerTiming[],
@@ -185,6 +181,7 @@ export const selectChartData = (
 				.map((t) => {
 					const isCoderResource =
 						t.resource.startsWith("data.coder") ||
+						t.resource.startsWith("coder_") ||
 						t.resource.startsWith("module.coder");
 
 					return {
