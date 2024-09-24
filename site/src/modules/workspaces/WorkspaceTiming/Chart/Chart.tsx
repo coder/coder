@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { XGrid } from "./XGrid";
 import { XAxis } from "./XAxis";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { TimingBlocks } from "./TimingBlocks";
 import {
 	YAxis,
@@ -40,6 +40,7 @@ export type Timing = Duration & {
 	 */
 	visible?: boolean;
 	color?: BarColor;
+	tooltip?: ReactNode;
 };
 
 // Extracts the 'startedAt' and 'endedAt' date fields from the main Timing type.
@@ -128,6 +129,7 @@ export const Chart: FC<ChartProps> = ({ data, onBarClick }) => {
 										const size = calcSize(durationTime(t));
 										return (
 											<Bar
+												tooltip={t.tooltip}
 												color={t.color}
 												key={t.label}
 												x={calcSize(offset)}

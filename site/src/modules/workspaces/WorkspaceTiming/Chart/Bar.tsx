@@ -1,4 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
+import { css } from "@emotion/css";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import Tooltip from "@mui/material/Tooltip";
 import { forwardRef, type HTMLProps, type ReactNode } from "react";
 
 export type BarColor = {
@@ -22,21 +24,30 @@ type BarProps = Omit<HTMLProps<HTMLDivElement>, "size" | "color"> & {
 	 * The X position of the bar component.
 	 */
 	x?: number;
+	/**
+	 * The tooltip content for the bar.
+	 */
+	tooltip?: ReactNode;
 };
 
 export const Bar = forwardRef<HTMLDivElement, BarProps>(
-	({ color, width, afterLabel, children, x, ...htmlProps }, ref) => {
-		return (
+	({ color, width, afterLabel, children, x, tooltip, ...htmlProps }, ref) => {
+		const theme = useTheme();
+		const row = (
 			<div
 				ref={ref}
-				css={[styles.root, { transform: `translateX(${x}px)` }]}
+				css={[styles.row, { transform: `translateX(${x}px)` }]}
 				{...htmlProps}
 			>
 				<button
 					type="button"
 					css={[
 						styles.bar,
-						{ width, backgroundColor: color?.fill, borderColor: color?.border },
+						{
+							width,
+							backgroundColor: color?.fill,
+							borderColor: color?.border,
+						},
 					]}
 					disabled={htmlProps.disabled}
 					aria-labelledby={htmlProps["aria-labelledby"]}
@@ -46,16 +57,37 @@ export const Bar = forwardRef<HTMLDivElement, BarProps>(
 				{afterLabel}
 			</div>
 		);
+
+		if (tooltip) {
+			return (
+				<Tooltip
+					placement="top-start"
+					classes={{
+						tooltip: css({
+							backgroundColor: theme.palette.background.default,
+							border: `1px solid ${theme.palette.divider}`,
+							width: 220,
+						}),
+					}}
+					title={tooltip}
+				>
+					{row}
+				</Tooltip>
+			);
+		}
+
+		return row;
 	},
 );
 
 const styles = {
-	root: {
+	row: {
 		// Stack children horizontally for adjacent labels
 		display: "flex",
 		alignItems: "center",
 		width: "fit-content",
 		gap: 8,
+		cursor: "pointer",
 	},
 	bar: (theme) => ({
 		border: "1px solid",

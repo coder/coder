@@ -10,6 +10,8 @@ import type { Interpolation, Theme } from "@emotion/react";
 import ChevronRight from "@mui/icons-material/ChevronRight";
 import { YAxisSidePadding, YAxisWidth } from "./Chart/YAxis";
 import { SearchField } from "components/SearchField/SearchField";
+import { Link } from "react-router-dom";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 
 // TODO: Export provisioning stages from the BE to the generated types.
 const provisioningStages = ["init", "plan", "graph", "apply"];
@@ -194,6 +196,7 @@ export const selectChartData = (
 						visible: !isCoderResource,
 						// Resource timings don't have inner timings
 						childrenCount: 0,
+						tooltip: <ProvisionerTooltip timing={t} />,
 						...extractDuration(t),
 					} as Timing;
 				});
@@ -206,6 +209,19 @@ export const selectChartData = (
 			];
 		}
 	}
+};
+
+const ProvisionerTooltip: FC<{ timing: ProvisionerTiming }> = ({ timing }) => {
+	return (
+		<div css={styles.tooltip}>
+			<span>{timing.source}</span>
+			<span css={styles.tooltipResource}>{timing.resource}</span>
+			<Link to="" css={styles.tooltipLink}>
+				<OpenInNewOutlined />
+				view template
+			</Link>
+		</div>
+	);
 };
 
 const styles = {
@@ -304,5 +320,39 @@ const styles = {
 		borderRadius: 4,
 		border: `1px solid ${theme.palette.divider}`,
 		backgroundColor: theme.palette.background.default,
+	}),
+	tooltip: (theme) => ({
+		display: "flex",
+		flexDirection: "column",
+		fontWeight: 500,
+		fontSize: 12,
+		color: theme.palette.text.secondary,
+	}),
+	tooltipResource: (theme) => ({
+		color: theme.palette.text.primary,
+		fontWeight: 600,
+		marginTop: 4,
+		display: "block",
+		maxWidth: "100%",
+		overflow: "hidden",
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
+	}),
+	tooltipLink: (theme) => ({
+		color: "inherit",
+		textDecoration: "none",
+		display: "flex",
+		alignItems: "center",
+		gap: 4,
+		marginTop: 8,
+
+		"&:hover": {
+			color: theme.palette.text.primary,
+		},
+
+		"& svg": {
+			width: 12,
+			height: 12,
+		},
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
