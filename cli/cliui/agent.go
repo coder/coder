@@ -406,12 +406,6 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 		}
 	}
 
-	if d.PingP2P {
-		general = append(general, "✔ You are connected directly (p2p)")
-	} else {
-		general = append(general, fmt.Sprintf("❗ You are connected via a DERP relay, not directly (p2p)\n%s#common-problems-with-direct-connections", d.TroubleshootingURL))
-	}
-
 	if d.PingP2P && !d.Verbose {
 		return general, client, agent
 	}

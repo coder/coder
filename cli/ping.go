@@ -62,8 +62,7 @@ func (s *pingSummary) addResult(r *ipnstate.PingResult) {
 }
 
 // Write finalizes the summary and writes it
-func (s *pingSummary) Write(wsname string, w io.Writer) {
-	s.Workspace = wsname
+func (s *pingSummary) Write(w io.Writer) {
 	if s.Successful > 0 {
 		s.Avg = ptr.Ref(time.Duration(s.latencySum / float64(s.Successful) * float64(time.Second)))
 	}
@@ -140,7 +139,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			diagCtx, diagCancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer diagCancel()
 			diags := conn.GetPeerDiagnostics()
-			cliui.PeerDiagnostics(inv.Stdout, diags)
+			cliui.PeerDiagnostics(inv.Stderr, diags)
 
 			// Silent ping to determine whether we should show diags
 			_, didP2p, _, _ := conn.Ping(ctx)
@@ -186,8 +185,10 @@ func (r *RootCmd) ping() *serpent.Command {
 				}
 			}
 
-			connDiags.Write(inv.Stdout)
-			results := &pingSummary{}
+			connDiags.Write(inv.Stderr)
+			results := &pingSummary{
+				Workspace: workspaceName,
+			}
 			n := 0
 			start := time.Now()
 		pingLoop:
@@ -266,7 +267,13 @@ func (r *RootCmd) ping() *serpent.Command {
 				}
 			}
 
-			results.Write(workspaceName, inv.Stdout)
+			if didP2p {
+				_, _ = fmt.Fprintf(inv.Stderr, "✔ You are connected directly (p2p)\n")
+			} else {
+				_, _ = fmt.Fprintf(inv.Stderr, "❗ You are connected via a DERP relay, not directly (p2p)\n%s#common-problems-with-direct-connections\n", connDiags.TroubleshootingURL)
+			}
+
+			results.Write(inv.Stdout)
 
 			return nil
 		},

@@ -33,11 +33,13 @@ func TestBuildSummary(t *testing.T) {
 			},
 		}
 
-		actual := pingSummary{}
+		actual := pingSummary{
+			Workspace: "test",
+		}
 		for _, r := range input {
 			actual.addResult(r)
 		}
-		actual.Write("test", io.Discard)
+		actual.Write(io.Discard)
 		require.Equal(t, time.Duration(0.1*float64(time.Second)), *actual.Min)
 		require.Equal(t, time.Duration(0.2*float64(time.Second)), *actual.Avg)
 		require.Equal(t, time.Duration(0.3*float64(time.Second)), *actual.Max)
@@ -53,11 +55,13 @@ func TestBuildSummary(t *testing.T) {
 			},
 		}
 
-		actual := &pingSummary{}
+		actual := &pingSummary{
+			Workspace: "test",
+		}
 		for _, r := range input {
 			actual.addResult(r)
 		}
-		actual.Write("test", io.Discard)
+		actual.Write(io.Discard)
 		require.Equal(t, actual.Successful, 1)
 		require.Equal(t, time.Duration(0.2*float64(time.Second)), *actual.Min)
 		require.Equal(t, time.Duration(0.2*float64(time.Second)), *actual.Avg)
@@ -90,11 +94,13 @@ func TestBuildSummary(t *testing.T) {
 			m2:         0,
 		}
 
-		actual := &pingSummary{}
+		actual := &pingSummary{
+			Workspace: "test",
+		}
 		for _, r := range input {
 			actual.addResult(r)
 		}
-		actual.Write("test", io.Discard)
+		actual.Write(io.Discard)
 		require.Equal(t, expected, actual)
 	})
 }
