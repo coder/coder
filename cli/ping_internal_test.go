@@ -1,13 +1,12 @@
 package cli
 
 import (
+	"io"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"tailscale.com/ipn/ipnstate"
-
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func TestBuildSummary(t *testing.T) {
@@ -34,18 +33,36 @@ func TestBuildSummary(t *testing.T) {
 			},
 		}
 
-		expected := &pingSummary{
-			Workspace:  "test",
-			Total:      4,
-			Successful: 3,
-			Min:        ptr.Ref(time.Duration(0.1 * float64(time.Second))),
-			Avg:        ptr.Ref(time.Duration(0.2 * float64(time.Second))),
-			Max:        ptr.Ref(time.Duration(0.3 * float64(time.Second))),
-			StdDev:     ptr.Ref(time.Duration(0.081649658 * float64(time.Second))),
+		actual := pingSummary{}
+		for _, r := range input {
+			actual.addResult(r)
+		}
+		actual.Write("test", io.Discard)
+		require.Equal(t, time.Duration(0.1*float64(time.Second)), *actual.Min)
+		require.Equal(t, time.Duration(0.2*float64(time.Second)), *actual.Avg)
+		require.Equal(t, time.Duration(0.3*float64(time.Second)), *actual.Max)
+		require.Equal(t, time.Duration(0.009999999*float64(time.Second)), *actual.Variance)
+		require.Equal(t, actual.Successful, 3)
+	})
+
+	t.Run("One", func(t *testing.T) {
+		t.Parallel()
+		input := []*ipnstate.PingResult{
+			{
+				LatencySeconds: 0.2,
+			},
 		}
 
-		actual := buildSummary("test", input)
-		require.Equal(t, expected, actual)
+		actual := &pingSummary{}
+		for _, r := range input {
+			actual.addResult(r)
+		}
+		actual.Write("test", io.Discard)
+		require.Equal(t, actual.Successful, 1)
+		require.Equal(t, time.Duration(0.2*float64(time.Second)), *actual.Min)
+		require.Equal(t, time.Duration(0.2*float64(time.Second)), *actual.Avg)
+		require.Equal(t, time.Duration(0.2*float64(time.Second)), *actual.Max)
+		require.Nil(t, actual.Variance)
 	})
 
 	t.Run("NoLatency", func(t *testing.T) {
@@ -67,10 +84,17 @@ func TestBuildSummary(t *testing.T) {
 			Min:        nil,
 			Avg:        nil,
 			Max:        nil,
-			StdDev:     nil,
+			Variance:   nil,
+			latencySum: 0,
+			runningAvg: 0,
+			m2:         0,
 		}
 
-		actual := buildSummary("test", input)
+		actual := &pingSummary{}
+		for _, r := range input {
+			actual.addResult(r)
+		}
+		actual.Write("test", io.Discard)
 		require.Equal(t, expected, actual)
 	})
 }

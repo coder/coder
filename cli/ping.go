@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -36,48 +35,42 @@ type pingSummary struct {
 	Min        *time.Duration `table:"min"`
 	Avg        *time.Duration `table:"avg"`
 	Max        *time.Duration `table:"max"`
-	StdDev     *time.Duration `table:"stddev"`
+	Variance   *time.Duration `table:"variance"`
+	latencySum float64
+	runningAvg float64
+	m2         float64
 }
 
-func buildSummary(wsname string, r []*ipnstate.PingResult) *pingSummary {
-	out := pingSummary{
-		Workspace: wsname,
+func (s *pingSummary) addResult(r *ipnstate.PingResult) {
+	s.Total++
+	if r == nil || r.Err != "" {
+		return
 	}
-	totalLatency := 0.0
-	latencies := make([]float64, 0, len(r))
-	for _, pong := range r {
-		out.Total++
-		if pong.Err == "" {
-			out.Successful++
-			latencies = append(latencies, pong.LatencySeconds)
-			totalLatency += pong.LatencySeconds
-		}
+	s.Successful++
+	if s.Min == nil || r.LatencySeconds < s.Min.Seconds() {
+		s.Min = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
-	if out.Successful > 0 {
-		minLatency := latencies[0]
-		maxLatency := latencies[0]
-		varianceSum := 0.0
-		avgLatency := totalLatency / float64(out.Successful)
-		for _, l := range latencies {
-			if l < minLatency {
-				minLatency = l
-			}
-			if l > maxLatency {
-				maxLatency = l
-			}
-			varianceSum += (l - avgLatency) * (l - avgLatency)
-		}
-		stddev := math.Sqrt(varianceSum / float64(out.Successful))
-		out.StdDev = ptr.Ref(time.Duration(stddev * float64(time.Second)))
-		out.Avg = ptr.Ref(time.Duration(avgLatency * float64(time.Second)))
-		out.Max = ptr.Ref(time.Duration(maxLatency * float64(time.Second)))
-		out.Min = ptr.Ref(time.Duration(minLatency * float64(time.Second)))
+	if s.Max == nil || r.LatencySeconds > s.Min.Seconds() {
+		s.Max = ptr.Ref(time.Duration(r.LatencySeconds * float64(time.Second)))
 	}
-	return &out
+	s.latencySum += r.LatencySeconds
+
+	d := r.LatencySeconds - s.runningAvg
+	s.runningAvg += d / float64(s.Successful)
+	d2 := r.LatencySeconds - s.runningAvg
+	s.m2 += d * d2
 }
 
-func (p *pingSummary) Write(w io.Writer) {
-	out, err := cliui.DisplayTable([]*pingSummary{p}, "", nil)
+// Write finalizes the summary and writes it
+func (s *pingSummary) Write(wsname string, w io.Writer) {
+	s.Workspace = wsname
+	if s.Successful > 0 {
+		s.Avg = ptr.Ref(time.Duration(s.latencySum / float64(s.Successful) * float64(time.Second)))
+	}
+	if s.Successful > 1 {
+		s.Variance = ptr.Ref(time.Duration((s.m2 / float64(s.Successful-1)) * float64(time.Second)))
+	}
+	out, err := cliui.DisplayTable([]*pingSummary{s}, "", nil)
 	if err != nil {
 		_, _ = fmt.Fprintf(w, "Failed to display ping summary: %v\n", err)
 		return
@@ -194,10 +187,9 @@ func (r *RootCmd) ping() *serpent.Command {
 			}
 
 			connDiags.Write(inv.Stdout)
-
+			results := &pingSummary{}
 			n := 0
 			start := time.Now()
-			results := make([]*ipnstate.PingResult, 0)
 		pingLoop:
 			for {
 				if n > 0 {
@@ -208,7 +200,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				ctx, cancel := context.WithTimeout(ctx, pingTimeout)
 				dur, p2p, pong, err := conn.Ping(ctx)
 				cancel()
-				results = append(results, pong)
+				results.addResult(pong)
 				if err != nil {
 					if xerrors.Is(err, context.DeadlineExceeded) {
 						_, _ = fmt.Fprintf(inv.Stdout, "ping to %q timed out \n", workspaceName)
@@ -274,14 +266,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				}
 			}
 
-			if didP2p {
-				_, _ = fmt.Fprintf(inv.Stdout, "✔ You are connected directly (p2p)\n")
-			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "❗ You are connected via a DERP relay, not directly (p2p)\n%s#common-problems-with-direct-connections\n", connDiags.TroubleshootingURL)
-			}
-
-			summary := buildSummary(workspaceName, results)
-			summary.Write(inv.Stdout)
+			results.Write(workspaceName, inv.Stdout)
 
 			return nil
 		},
