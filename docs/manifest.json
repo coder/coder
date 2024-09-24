@@ -516,7 +516,14 @@
 					"title": "Notifications",
 					"description": "Learn how to configure notifications",
 					"path": "./admin/notifications.md",
-					"icon_path": "./images/icons/info.svg"
+					"icon_path": "./images/icons/info.svg",
+					"children": [
+						{
+							"title": "Microsoft Teams Notifications",
+							"description": "Learn how to setup Microsoft Teams notifications",
+							"path": "./admin/notifications/teams.md"
+						}
+					]
 				}
 			]
 		},
