@@ -724,7 +724,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 // @Success 200 {object} wsproxysdk.CryptoKeysResponse
 // @Router /workspaceproxies/me/crypto-keys [get]
 // @x-apidocgen {"skip": true}
-
 func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

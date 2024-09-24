@@ -9768,6 +9768,66 @@ _None_
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
 
+## wsproxysdk.CryptoKey
+
+```json
+{
+	"deletes_at": "string",
+	"feature": "workspace_apps",
+	"secret": "string",
+	"sequence": 0,
+	"starts_at": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                       | Required | Restrictions | Description |
+| ------------ | ---------------------------------------------------------- | -------- | ------------ | ----------- |
+| `deletes_at` | string                                                     | false    |              |             |
+| `feature`    | [wsproxysdk.CryptoKeyFeature](#wsproxysdkcryptokeyfeature) | false    |              |             |
+| `secret`     | string                                                     | false    |              |             |
+| `sequence`   | integer                                                    | false    |              |             |
+| `starts_at`  | string                                                     | false    |              |             |
+
+## wsproxysdk.CryptoKeyFeature
+
+```json
+"workspace_apps"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value            |
+| ---------------- |
+| `workspace_apps` |
+| `oidc_convert`   |
+| `tailnet_resume` |
+
+## wsproxysdk.CryptoKeysResponse
+
+```json
+{
+	"crypto_keys": [
+		{
+			"deletes_at": "string",
+			"feature": "workspace_apps",
+			"secret": "string",
+			"sequence": 0,
+			"starts_at": "string"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name          | Type                                                  | Required | Restrictions | Description |
+| ------------- | ----------------------------------------------------- | -------- | ------------ | ----------- |
+| `crypto_keys` | array of [wsproxysdk.CryptoKey](#wsproxysdkcryptokey) | false    |              |             |
+
 ## wsproxysdk.DeregisterWorkspaceProxyRequest
 
 ```json
