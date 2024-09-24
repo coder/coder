@@ -42,7 +42,6 @@ interface IdpSyncPageViewProps {
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	groupSyncSettings,
 	roleSyncSettings,
-	groups,
 	groupsMap,
 	organization,
 }) => {
