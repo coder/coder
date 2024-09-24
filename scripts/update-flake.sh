@@ -6,14 +6,14 @@ set -eu
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 check_and_install() {
-    if ! command -v "$1" &> /dev/null; then
-        echo "$1 is not installed. Attempting to install..."
-        if ! nix-env -iA nixpkgs."$1"; then
-            echo "Failed to install $1. Please install it manually and try again."
-            exit 1
-        fi
-        echo "$1 has been installed successfully."
-    fi
+	if ! command -v "$1" &>/dev/null; then
+		echo "$1 is not installed. Attempting to install..."
+		if ! nix-env -iA nixpkgs."$1"; then
+			echo "Failed to install $1. Please install it manually and try again."
+			exit 1
+		fi
+		echo "$1 has been installed successfully."
+	fi
 }
 
 check_and_install jq
