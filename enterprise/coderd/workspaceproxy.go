@@ -987,10 +987,10 @@ func fromDBCryptoKeys(keys []database.CryptoKey) []wsproxysdk.CryptoKey {
 	for _, key := range keys {
 		wskeys = append(wskeys, wsproxysdk.CryptoKey{
 			Feature:   wsproxysdk.CryptoKeyFeature(key.Feature),
-			Secret:    key.Secret.String,
-			DeletesAt: key.DeletesAt.Time,
 			Sequence:  key.Sequence,
-			StartsAt:  key.StartsAt,
+			StartsAt:  key.StartsAt.UTC(),
+			DeletesAt: key.DeletesAt.Time.UTC(),
+			Secret:    key.Secret.String,
 		})
 	}
 	return wskeys

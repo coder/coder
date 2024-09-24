@@ -234,7 +234,6 @@ func (c CryptoKey) Invalid(now time.Time) bool {
 }
 
 type RegisterWorkspaceProxyResponse struct {
-	Keys                []CryptoKey      `json:"keys"`
 	AppSecurityKey      string           `json:"app_security_key"`
 	DERPMeshKey         string           `json:"derp_mesh_key"`
 	DERPRegionID        int32            `json:"derp_region_id"`
@@ -364,6 +363,7 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 			failedAttempts = 0
 			ticker         = time.NewTicker(l.opts.Interval)
 		)
+
 		for {
 			var respCh chan RegisterWorkspaceProxyResponse
 			select {
@@ -400,6 +400,12 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 				continue
 			}
 			failedAttempts = 0
+
+			// Check for consistency.
+			if originalRes.AppSecurityKey != resp.AppSecurityKey {
+				l.failureFn(xerrors.New("app security key has changed, proxy must be restarted"))
+				return
+			}
 
 			if originalRes.DERPMeshKey != resp.DERPMeshKey {
 				l.failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
