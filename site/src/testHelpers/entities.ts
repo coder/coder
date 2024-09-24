@@ -2613,6 +2613,19 @@ export const MockGroupSyncSettings: TypesGen.GroupSyncSettings = {
 	auto_create_missing_groups: false,
 };
 
+export const MockGroupSyncSettings2: TypesGen.GroupSyncSettings = {
+	field: "group-test",
+	mapping: {
+		"idp-group-1": [
+			"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+			"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e3",
+		],
+		"idp-group-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce2"],
+	},
+	regex_filter: "@[a-zA-Z0-9_]+",
+	auto_create_missing_groups: false,
+};
+
 export const MockRoleSyncSettings: TypesGen.RoleSyncSettings = {
 	field: "role-test",
 	mapping: {
