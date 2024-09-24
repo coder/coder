@@ -695,14 +695,7 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 func initAppearance(client *codersdk.Client, outConfig *codersdk.AppearanceConfig) serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {
-			var err error
-			cfg, err := client.Appearance(inv.Context())
-			if err != nil {
-				var sdkErr *codersdk.Error
-				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
-					return err
-				}
-			}
+			cfg, _ := client.Appearance(inv.Context())
 			if cfg.DocsURL == "" {
 				cfg.DocsURL = codersdk.DefaultDocsURL()
 			}
