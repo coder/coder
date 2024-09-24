@@ -8,7 +8,7 @@ their infrastructure on a staging environment before upgrading a production
 deployment.
 
 We support three releases of Coder concurrently. We release
-[mainline](https://github.com/coder/coder/releases/tag/v2.13.0) as the bleeding
+[mainline](https://github.com/coder/coder/releases/tag/v2.15.0) as the bleeding
 edge of Coder with our latest features and
 [stable](https://github.com/coder/coder/releases/latest) for production
 deployments with a lower tolerance for fault. We field our mainline releases
