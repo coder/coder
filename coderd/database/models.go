@@ -1881,6 +1881,7 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+// What stage the script was ran in.
 type WorkspaceAgentScriptTimingStage string
 
 const (
@@ -1942,6 +1943,7 @@ func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStag
 	}
 }
 
+// What the exit status of the script is.
 type WorkspaceAgentScriptTimingStatus string
 
 const (

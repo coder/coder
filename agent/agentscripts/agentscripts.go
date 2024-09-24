@@ -355,14 +355,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 
 			var status proto.Timing_Status
 			switch {
-			case !timedOut && !pipesLeftOpen && exitCode == 0:
-				status = proto.Timing_OK
-			case !timedOut && !pipesLeftOpen && exitCode != 0:
-				status = proto.Timing_EXIT_FAILURE
 			case timedOut:
 				status = proto.Timing_TIMED_OUT
 			case pipesLeftOpen:
 				status = proto.Timing_PIPES_LEFT_OPEN
+			case exitCode != 0:
+				status = proto.Timing_EXIT_FAILURE
+			default:
+				status = proto.Timing_OK
 			}
 
 			reportTimeout := 30 * time.Second

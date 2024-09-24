@@ -222,12 +222,16 @@ CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
     'cron'
 );
 
+COMMENT ON TYPE workspace_agent_script_timing_stage IS 'What stage the script was ran in.';
+
 CREATE TYPE workspace_agent_script_timing_status AS ENUM (
     'ok',
     'exit_failure',
     'timed_out',
     'pipes_left_open'
 );
+
+COMMENT ON TYPE workspace_agent_script_timing_status IS 'What the exit status of the script is.';
 
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
