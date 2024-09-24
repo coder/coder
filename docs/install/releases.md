@@ -7,12 +7,13 @@ We recommend enterprise customers test the compatibility of new releases with
 their infrastructure on a staging environment before upgrading a production
 deployment.
 
-We support two release channels:
-[mainline](https://github.com/coder/coder/releases/tag/v2.13.0) for the bleeding
-edge version of Coder and
-[stable](https://github.com/coder/coder/releases/latest) for those with lower
-tolerance for fault. We field our mainline releases publicly for one month
-before promoting them to stable.
+We support three releases of Coder concurrently. We release
+[mainline](https://github.com/coder/coder/releases/tag/v2.13.0) as the bleeding
+edge of Coder with our latest features and
+[stable](https://github.com/coder/coder/releases/latest) for production
+deployments with a lower tolerance for fault. We field our mainline releases
+publicly for one month before promoting them to stable. The version prior to
+stable receives patches only for security issues or CVEs.
 
 ### Mainline releases
 
@@ -25,10 +26,14 @@ before promoting them to stable.
 
 - Safest upgrade/installation path
 - May not include the latest features
-- Security vulnerabilities and major bugfixes are supported
+- All bugfixes and security patches are supported
 
-> Note: We support major security vulnerabilities (CVEs) for the past three
-> versions of Coder.
+### Security Supported
+
+- In-product security vulnerabilities and CVEs are supported
+
+> For more information on feature rollout, see our
+> [feature stages documentation](../contributing/feature-stages.md).
 
 ## Installing stable
 
