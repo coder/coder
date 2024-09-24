@@ -2435,7 +2435,7 @@ func (q *FakeQuerier) GetCryptoKeysByFeature(_ context.Context, feature database
 
 	keys := make([]database.CryptoKey, 0)
 	for _, key := range q.cryptoKeys {
-		if key.Feature == feature {
+		if key.Feature == feature && key.Secret.Valid {
 			keys = append(keys, key)
 		}
 	}
