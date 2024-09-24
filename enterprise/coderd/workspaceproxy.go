@@ -710,6 +710,21 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
+// workspaceProxyCryptoKeys is used to fetch signing keys for the workspace proxy.
+//
+// This is called periodically by the proxy in the background (every 10m per
+// replica) to ensure that the proxy has the latest signing keys.
+//
+// @Summary Fetch workspace proxy signing keys
+// @ID get-workspace-proxy-crypto-keys
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} wsproxysdk.CryptoKeysResponse
+// @Router /workspaceproxies/me/crypto-keys [get]
+// @x-apidocgen {"skip": true}
+
 func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
