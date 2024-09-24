@@ -29,12 +29,12 @@ import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
 import { PermissionPillsList } from "./PermissionPillsList";
 
-export type CustomRolesPageViewProps = {
+interface CustomRolesPageViewProps {
 	roles: Role[] | undefined;
 	onDeleteRole: (role: Role) => void;
 	canAssignOrgRole: boolean;
 	isCustomRolesEnabled: boolean;
-};
+}
 
 export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	roles,

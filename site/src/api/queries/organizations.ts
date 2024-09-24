@@ -141,6 +141,32 @@ export const provisionerDaemonGroups = (organization: string) => {
 	};
 };
 
+export const getGroupIdpSyncSettingsKey = (organization: string) => [
+	"organizations",
+	organization,
+	"groupIdpSyncSettings",
+];
+
+export const groupIdpSyncSettings = (organization: string) => {
+	return {
+		queryKey: getGroupIdpSyncSettingsKey(organization),
+		queryFn: () => API.getGroupIdpSyncSettingsByOrganization(organization),
+	};
+};
+
+export const getRoleIdpSyncSettingsKey = (organization: string) => [
+	"organizations",
+	organization,
+	"roleIdpSyncSettings",
+];
+
+export const roleIdpSyncSettings = (organization: string) => {
+	return {
+		queryKey: getRoleIdpSyncSettingsKey(organization),
+		queryFn: () => API.getRoleIdpSyncSettingsByOrganization(organization),
+	};
+};
+
 /**
  * Fetch permissions for a single organization.
  *
@@ -239,6 +265,13 @@ export const organizationsPermissions = (
 				viewProvisioners: {
 					object: {
 						resource_type: "provisioner_daemon",
+						organization_id: organizationId,
+					},
+					action: "read",
+				},
+				viewIdpSyncSettings: {
+					object: {
+						resource_type: "idpsync_settings",
 						organization_id: organizationId,
 					},
 					action: "read",
