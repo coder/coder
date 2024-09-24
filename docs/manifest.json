@@ -410,7 +410,10 @@
 					"description": "Learn how to use the role based access control against templates",
 					"path": "./admin/rbac.md",
 					"icon_path": "./images/icons/rbac.svg",
-					"state": "enterprise"
+					"state": [
+						"enterprise",
+						"beta"
+					]
 				},
 				{
 					"title": "Configuration",
