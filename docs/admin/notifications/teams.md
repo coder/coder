@@ -123,6 +123,11 @@ The process of setting up a Teams workflow consists of three key steps:
     }
     ```
 
+    _Notice_: The Coder `actions` format differs from the `ActionSet` schema, so
+    its properties need to be modified: include `Action.OpenUrl` type, rename
+    `label` to `title`. Unfortunately, there is no straightforward solution for
+    `for-each` pattern.
+
     Feel free to customize the payload to modify the logo, notification title,
     or body content to suit your needs.
 
