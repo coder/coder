@@ -99,3 +99,9 @@ Now, users in the data platform organization will see the templates related to
 their organization. Users can be in multiple organizations.
 
 ![Workspace List](../images/admin/organizations/workspace-list.png)
+
+## Beta
+
+Organizations is in beta. If you encounter any issues, please
+[file an issue](https://github.com/coder/coder/issues/new) or contact your
+account team.
