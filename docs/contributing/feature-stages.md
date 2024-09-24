@@ -3,17 +3,6 @@
 Some Coder features are released in feature stages before they are generally
 available.
 
-For more information about a specific feature, please contact _X_.
-
-## Alpha features
-
-Alpha features are enabled in all Coder deployments but the feature is subject
-to change, or even be removed. Breaking changes may not be documented in the
-changelog. In most cases, features will only stay in alpha for 1 month.
-
-We recommend using [GitHub issues](https://github.com/coder/coder/issues) to
-leave feedback and get support for alpha features.
-
 ## Early access (EA) features
 
 Early access features are neither feature-complete nor stable. We do not
@@ -24,14 +13,15 @@ accessible but not easy to find.
 
 ### Early access support expectation
 
-Support for early access features is available through _X_.
+We recommend using [GitHub issues](https://github.com/coder/coder/issues) to
+leave feedback and get support for early access features.
 
 ## Experimental features
 
 These features are disabled by default, and not recommended for use in
 production as they may cause performance or stability issues. In most cases,
 experimental features are complete, but require further internal testing and
-will only stay in the experimental stage for one or two weeks.
+will stay in the experimental stage for one month.
 
 Coder may make significant changes to experiments or revert features to a
 feature flag at any time.
