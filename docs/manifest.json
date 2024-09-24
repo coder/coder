@@ -1,5 +1,7 @@
 {
-	"versions": ["main"],
+	"versions": [
+		"main"
+	],
 	"routes": [
 		{
 			"title": "About",
@@ -397,8 +399,15 @@
 					"state": "enterprise"
 				},
 				{
-					"title": "RBAC",
-					"description": "Learn how to use the role based access control",
+					"title": "Organizations",
+					"description": "Learn how to manage organizations",
+					"path": "./admin/organizations.md",
+					"icon_path": "./images/icons/group.svg",
+					"state": "enterprise"
+				},
+				{
+					"title": "Template RBAC",
+					"description": "Learn how to use the role based access control against templates",
 					"path": "./admin/rbac.md",
 					"icon_path": "./images/icons/rbac.svg",
 					"state": "enterprise"
@@ -1324,11 +1333,6 @@
 					"title": "Cloning Git Repositories",
 					"description": "Automatically clone Git repositories into your workspace",
 					"path": "./guides/cloning-git-repositories.md"
-				},
-				{
-					"title": "Using Organizations",
-					"description": "Learn how to use our (early access) Organizations functionality",
-					"path": "./guides/using-organizations.md"
 				}
 			]
 		}
