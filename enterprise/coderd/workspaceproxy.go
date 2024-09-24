@@ -715,10 +715,9 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 // This is called periodically by the proxy in the background (every 10m per
 // replica) to ensure that the proxy has the latest signing keys.
 //
-// @Summary Fetch workspace proxy signing keys
+// @Summary Get workspace proxy crypto keys
 // @ID get-workspace-proxy-crypto-keys
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {object} wsproxysdk.CryptoKeysResponse

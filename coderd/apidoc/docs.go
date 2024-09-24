@@ -7547,16 +7547,13 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Fetch workspace proxy signing keys",
+                "summary": "Get workspace proxy crypto keys",
                 "operationId": "get-workspace-proxy-crypto-keys",
                 "responses": {
                     "200": {
