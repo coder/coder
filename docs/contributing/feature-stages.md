@@ -1,6 +1,7 @@
 # Feature stages
 
-Some Coder features are released in feature stages before they are generally available.
+Some Coder features are released in feature stages before they are generally
+available.
 
 For more information about a specific feature, please contact _X_.
 
@@ -15,8 +16,8 @@ leave feedback and get support for alpha features.
 
 ## Early access (EA) features
 
-Early access features are neither feature-complete nor stable.
-We do not recommend using EA features in production deployments.
+Early access features are neither feature-complete nor stable. We do not
+recommend using EA features in production deployments.
 
 Coder releases EA features behind an “unsafe” experiment, where they’re
 accessible but not easy to find.
@@ -28,16 +29,15 @@ Support for early access features is available through _X_.
 ## Experimental features
 
 These features are disabled by default, and not recommended for use in
-production as they may cause performance or stability issues.
-In most cases, experimental features are complete, but require further
-internal testing and will only stay in the experimental stage for one or
-two weeks.
+production as they may cause performance or stability issues. In most cases,
+experimental features are complete, but require further internal testing and
+will only stay in the experimental stage for one or two weeks.
 
 Coder may make significant changes to experiments or revert features to a
 feature flag at any time.
 
-If you plan to activate an experimental feature, we suggest that you use
-a staging deployment.
+If you plan to activate an experimental feature, we suggest that you use a
+staging deployment.
 
 You can opt-out of an experiment after you've enabled it.
 
@@ -70,7 +70,8 @@ Support for experimental features is available through _X_.
 
 Beta features are open to the public, but are tagged with a `Beta` label.
 
-They’re subject to minor changes and may contain bugs, but are generally ready for use.
+They’re subject to minor changes and may contain bugs, but are generally ready
+for use.
 
 ### Beta features support expectation
 
