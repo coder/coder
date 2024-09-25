@@ -6,7 +6,6 @@ import type {
 	ProvisionerKeyDaemons,
 } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
@@ -39,10 +38,7 @@ export const OrganizationProvisionersPageView: FC<
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Provisioners"
-					badges={<FeatureStageBadge contentType="beta" size="lg" />}
-				/>
+				<SettingsHeader title="Provisioners" />
 				<Button
 					endIcon={<OpenInNewIcon />}
 					target="_blank"
