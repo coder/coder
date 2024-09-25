@@ -17,7 +17,7 @@ IDEs are supported for remote development:
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
 a JetBrains IDE without even downloading one.
-[See JetBrains' website to learn about and Gateway.](https://www.jetbrains.com/remote-development/gateway/)
+[See JetBrains's website to learn about and Gateway.](https://www.jetbrains.com/remote-development/gateway/)
 
 Gateway can connect to a Coder workspace by using Coder's Gateway plugin or
 manually setting up an SSH connection.
@@ -28,38 +28,41 @@ manually setting up an SSH connection.
 > [create a GitHub issue](https://github.com/coder/coder/issues) or share in
 > [our Discord channel](https://discord.gg/coder).
 
-1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
-1. Open Gateway and click the Coder icon to install the Coder plugin.
-1. Click the "Coder" icon under Install More Providers at the bottom of the
-   Gateway home screen
-1. Click "Connect to Coder" at the top of the Gateway home screen to launch the
-   plugin
+1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html) and open the application.
+1. Under **Install More Providers**, find the Coder icon and click **Install** to install the Coder plugin.
+1. After Gateway installs the plugin, it will appear in the **Run the IDE Remotely** section.
+
+   Click **Connect to Coder** to launch the plugin:
 
    ![Gateway Connect to Coder](../../images/gateway/plugin-connect-to-coder.png)
 
-1. Enter your Coder deployment's Access Url and click "Connect" then paste the
-   Session Token and click "OK"
+1. Enter your Coder deployment's [Access Url](../../admin/configure.md#access-url) and click **Connect**.
+
+   Gateway opens your Coder deployment's `cli-auth` page with a session token. Click the copy button, paste the session token in the Gateway **Session Token** window, then click **OK**:
 
    ![Gateway Session Token](../../images/gateway/plugin-session-token.png)
 
-1. Click the "+" icon to open a browser and go to the templates page in your
-   Coder deployment to create a workspace
+1. To create a new workspace:
 
-1. If a workspace already exists but is stopped, click the green arrow to start
-   the workspace
+   Click the <kbd>+</kbd> icon to open a browser and go to the templates page in your Coder deployment to create a workspace.
 
-1. Once the workspace status says Running, click "Select IDE and Project"
+1. If a workspace already exists but is stopped, select the workspace from the list, then click the green arrow to start the workspace.
+
+1. When the workspace status is **Running**, click **Select IDE and Project**:
 
    ![Gateway IDE List](../../images/gateway/plugin-select-ide.png)
 
 1. Select the JetBrains IDE for your project and the project directory then
-   click "Start IDE and connect"
+   click **Start IDE and connect**:
+
    ![Gateway Select IDE](../../images/gateway/plugin-ide-list.png)
+
+	Gateway connects using the IDE you selected:
 
    ![Gateway IDE Opened](../../images/gateway/gateway-intellij-opened.png)
 
-> Note the JetBrains IDE is remotely installed into
-> `~/.cache/JetBrains/RemoteDev/dist`
+	> Note the JetBrains IDE is remotely installed into
+	> `~/.cache/JetBrains/RemoteDev/dist`
 
 ### Update a Coder plugin version
 
