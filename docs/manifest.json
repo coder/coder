@@ -521,7 +521,8 @@
 						{
 							"title": "Microsoft Teams Notifications",
 							"description": "Learn how to setup Microsoft Teams notifications",
-							"path": "./admin/notifications/teams.md"
+							"path": "./admin/notifications/teams.md",
+							"state": "beta"
 						}
 					]
 				}
