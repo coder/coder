@@ -7,15 +7,15 @@ import type { Organization } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
+import { Paywall } from "components/Paywall/Paywall";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
+import { docs } from "utils/docs";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { Paywall } from "components/Paywall/Paywall";
-import { docs } from "utils/docs";
 
 const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
