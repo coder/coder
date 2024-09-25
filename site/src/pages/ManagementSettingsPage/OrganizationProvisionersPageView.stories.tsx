@@ -9,6 +9,7 @@ import {
 	MockProvisionerPskKey,
 	MockProvisionerWithTags,
 	MockUserProvisioner,
+	mockApiError,
 } from "testHelpers/entities";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
@@ -110,5 +111,20 @@ export const Provisioners: Story = {
 export const Empty: Story = {
 	args: {
 		provisioners: [],
+	},
+};
+
+export const WithError: Story = {
+	args: {
+		error: mockApiError({
+			message: "Fern is mad",
+			detail: "Frieren slept in and didn't get groceries",
+		}),
+	},
+};
+
+export const Paywall: Story = {
+	args: {
+		showPaywall: true,
 	},
 };
