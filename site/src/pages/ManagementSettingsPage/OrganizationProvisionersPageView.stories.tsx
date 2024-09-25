@@ -44,7 +44,10 @@ export const Provisioners: Story = {
 			},
 			{
 				key: { ...MockProvisionerKey, id: "ジェイデン", name: "ジェイデン" },
-				daemons: [MockProvisioner, MockProvisioner2],
+				daemons: [
+					MockProvisioner,
+					{ ...MockProvisioner2, tags: { scope: "organization", owner: "" } },
+				],
 			},
 			{
 				key: { ...MockProvisionerKey, id: "ベン", name: "ベン" },
