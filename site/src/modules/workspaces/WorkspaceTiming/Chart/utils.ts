@@ -60,30 +60,9 @@ export const formatTime = (time: number, scale: number): string => {
 	})}s`;
 };
 
-// Helper function to convert the tick spacing into pixel size. This is used
-// for setting the bar width and offset.
-export const calcSize = (
-	time: number,
-	scale: number,
-	columnWidth: number,
-): number => {
-	return (columnWidth * time) / scale;
-};
-
-export const calcBarSizeAndOffset = (
+export const calcOffset = (
 	timing: BaseTiming,
 	generalTiming: BaseTiming,
-	scale: number,
-	columnWidth: number,
-) => {
-	const offset = calcSize(
-		timing.startedAt.getTime() - generalTiming.startedAt.getTime(),
-		scale,
-		columnWidth,
-	);
-	const size = calcSize(calcDuration(timing), scale, columnWidth);
-	return {
-		size,
-		offset,
-	};
+): number => {
+	return timing.startedAt.getTime() - generalTiming.startedAt.getTime();
 };

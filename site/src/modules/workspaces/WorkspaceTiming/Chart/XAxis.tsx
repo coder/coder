@@ -1,10 +1,16 @@
-import type { FC, HTMLProps } from "react";
+import {
+	useLayoutEffect,
+	useRef,
+	useState,
+	type FC,
+	type HTMLProps,
+} from "react";
 import type { Interpolation, Theme } from "@emotion/react";
 import { YAxisCaptionHeight } from "./YAxis";
 import { formatTime } from "./utils";
-import { XAxisLabelsHeight, XAxisRowsGap } from "./constants";
+import { CSSVars, XAxisLabelsHeight, XAxisRowsGap } from "./constants";
 
-export const XAxisWidth = 130;
+export const XAxisMinWidth = 130;
 export const XAxisSidePadding = 16;
 
 type XAxisProps = HTMLProps<HTMLDivElement> & {
@@ -13,13 +19,28 @@ type XAxisProps = HTMLProps<HTMLDivElement> & {
 };
 
 export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
+	const rootRef = useRef<HTMLDivElement>(null);
+
+	// 	The X axis should occupy all available space. If there is extra space,
+	// 	increase the column width accordingly. Use a CSS variable to propagate the
+	// 	value to the child components.
+	useLayoutEffect(() => {
+		const rootEl = rootRef.current;
+		if (!rootEl) {
+			return;
+		}
+		// We always add one extra column to the grid to ensure that the last column
+		// is fully visible.
+		const avgWidth = rootEl.clientWidth / (ticks.length + 1);
+		avgWidth > XAxisMinWidth ? avgWidth : XAxisMinWidth;
+		rootEl.style.setProperty(CSSVars.xAxisWidth, `${avgWidth}px`);
+	}, [ticks]);
+
 	return (
-		<div css={styles.root} {...htmlProps}>
+		<div css={styles.root} {...htmlProps} ref={rootRef}>
 			<XAxisLabels>
 				{ticks.map((tick) => (
-					<XAxisLabel key={tick} width={XAxisWidth}>
-						{formatTime(tick, scale)}
-					</XAxisLabel>
+					<XAxisLabel key={tick}>{formatTime(tick, scale)}</XAxisLabel>
 				))}
 			</XAxisLabels>
 			{htmlProps.children}
@@ -32,11 +53,7 @@ export const XAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
 	return <ul css={styles.labels} {...props} />;
 };
 
-type XAxisLabelProps = HTMLProps<HTMLLIElement> & {
-	width: number;
-};
-
-export const XAxisLabel: FC<XAxisLabelProps> = ({ width, ...htmlProps }) => {
+export const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
 	return (
 		<li
 			css={[
@@ -47,13 +64,13 @@ export const XAxisLabel: FC<XAxisLabelProps> = ({ width, ...htmlProps }) => {
 					// 2. Shift the label to the left by half of the column width.
 					// Note: This adjustment is not applied to the first element,
 					// as the 0 label/value is not displayed in the chart.
-					width: width * 2,
+					width: `calc(var(${CSSVars.xAxisWidth}) * 2)`,
 					"&:not(:first-child)": {
-						marginLeft: -width,
+						marginLeft: `calc(-1 * var(${CSSVars.xAxisWidth}))`,
 					},
 				},
 			]}
-			{...htmlProps}
+			{...props}
 		/>
 	);
 };
@@ -108,7 +125,10 @@ export const XGrid: FC<XGridProps> = ({ columns, ...htmlProps }) => {
 	return (
 		<div css={styles.grid} role="presentation" {...htmlProps}>
 			{[...Array(columns).keys()].map((key) => (
-				<div key={key} css={[styles.column, { width: XAxisWidth }]} />
+				<div
+					key={key}
+					css={[styles.column, { width: `var(${CSSVars.xAxisWidth})` }]}
+				/>
 			))}
 		</div>
 	);
@@ -138,7 +158,7 @@ const styles = {
 		alignItems: "center",
 		borderBottom: `1px solid ${theme.palette.divider}`,
 		height: XAxisLabelsHeight,
-		padding: `0px ${XAxisSidePadding}px`,
+		padding: 0,
 		minWidth: "100%",
 		flexShrink: 0,
 		position: "sticky",

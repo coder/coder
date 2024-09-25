@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { type ButtonHTMLAttributes, forwardRef, type HTMLProps } from "react";
+import { CSSVars } from "./constants";
 
 export type BarColors = {
 	stroke: string;
@@ -8,9 +9,10 @@ export type BarColors = {
 
 type BaseBarProps<T> = Omit<T, "size" | "color"> & {
 	/**
-	 * The width of the bar component.
+	 * Scale used to determine the width based on the given value.
 	 */
-	size: number;
+	scale: number;
+	value: number;
 	/**
 	 * The X position of the bar component.
 	 */
@@ -25,21 +27,10 @@ type BaseBarProps<T> = Omit<T, "size" | "color"> & {
 type BarProps = BaseBarProps<HTMLProps<HTMLDivElement>>;
 
 export const Bar = forwardRef<HTMLDivElement, BarProps>(
-	({ colors, size, children, offset, ...htmlProps }, ref) => {
+	({ colors, scale, value, offset, ...htmlProps }, ref) => {
 		return (
-			<div css={barCss({ colors, size, offset })} {...htmlProps} ref={ref} />
-		);
-	},
-);
-
-type ClickableBarProps = BaseBarProps<ButtonHTMLAttributes<HTMLButtonElement>>;
-
-export const ClickableBar = forwardRef<HTMLButtonElement, ClickableBarProps>(
-	({ colors, size, offset, ...htmlProps }, ref) => {
-		return (
-			<button
-				type="button"
-				css={[...barCss({ colors, size, offset }), styles.clickable]}
+			<div
+				css={barCss({ colors, scale, value, offset })}
 				{...htmlProps}
 				ref={ref}
 			/>
@@ -47,14 +38,34 @@ export const ClickableBar = forwardRef<HTMLButtonElement, ClickableBarProps>(
 	},
 );
 
-export const barCss = ({ size, colors, offset }: BaseBarProps<unknown>) => {
+type ClickableBarProps = BaseBarProps<ButtonHTMLAttributes<HTMLButtonElement>>;
+
+export const ClickableBar = forwardRef<HTMLButtonElement, ClickableBarProps>(
+	({ colors, scale, value, offset, ...htmlProps }, ref) => {
+		return (
+			<button
+				type="button"
+				css={[...barCss({ colors, scale, value, offset }), styles.clickable]}
+				{...htmlProps}
+				ref={ref}
+			/>
+		);
+	},
+);
+
+export const barCss = ({
+	scale,
+	value,
+	colors,
+	offset,
+}: BaseBarProps<unknown>) => {
 	return [
 		styles.bar,
 		{
-			width: size,
+			width: `calc((var(${CSSVars.xAxisWidth}) * ${value}) / ${scale})`,
 			backgroundColor: colors?.fill,
 			borderColor: colors?.stroke,
-			marginLeft: offset,
+			marginLeft: `calc((var(${CSSVars.xAxisWidth}) * ${offset}) / ${scale})`,
 		},
 	];
 };

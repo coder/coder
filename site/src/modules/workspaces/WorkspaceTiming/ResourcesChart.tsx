@@ -3,7 +3,7 @@ import {
 	XAxisRow,
 	XAxisRows,
 	XAxisSections,
-	XAxisWidth,
+	XAxisMinWidth,
 } from "./Chart/XAxis";
 import { useState, type FC } from "react";
 import {
@@ -15,8 +15,8 @@ import {
 } from "./Chart/YAxis";
 import { Bar } from "./Chart/Bar";
 import {
-	calcBarSizeAndOffset,
 	calcDuration,
+	calcOffset,
 	combineTimings,
 	formatTime,
 	makeTicks,
@@ -137,12 +137,9 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 									<XAxisRow key={t.name} yAxisLabelId={t.name}>
 										<ResourceTooltip timing={t}>
 											<Bar
-												{...calcBarSizeAndOffset(
-													t,
-													generalTiming,
-													scale,
-													XAxisWidth,
-												)}
+												value={calcDuration(t)}
+												offset={calcOffset(t, generalTiming)}
+												scale={scale}
 												colors={legendsByAction[t.action].colors}
 											/>
 										</ResourceTooltip>

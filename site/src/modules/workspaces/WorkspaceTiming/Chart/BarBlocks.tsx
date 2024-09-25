@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { MoreHorizOutlined } from "@mui/icons-material";
-import type { FC } from "react";
+import { useLayoutEffect, useRef, useState, type FC } from "react";
 
 const sidePadding = 8;
 const spaceBetweenBlocks = 4;
@@ -9,21 +9,35 @@ const blockSize = 20;
 
 type BarBlocksProps = {
 	count: number;
-	barSize: number;
 };
 
-export const BarBlocks: FC<BarBlocksProps> = ({ count, barSize }) => {
+export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
+	const [parentWidth, setParentWidth] = useState<number>();
+	const blocksRef = useRef<HTMLDivElement>(null);
+
+	useLayoutEffect(() => {
+		if (!blocksRef.current || parentWidth) {
+			return;
+		}
+		const parentEl = blocksRef.current.parentElement;
+		if (!parentEl) {
+			throw new Error("BarBlocks must be a child of a Bar");
+		}
+		setParentWidth(parentEl.clientWidth);
+	}, [parentWidth]);
+
 	const totalSpaceBetweenBlocks = (count - 1) * spaceBetweenBlocks;
-	const freeSize = barSize - sidePadding * 2;
+	const freeSize = parentWidth ? parentWidth - sidePadding * 2 : 0;
 	const necessarySize = blockSize * count + totalSpaceBetweenBlocks;
 	const hasSpacing = necessarySize <= freeSize;
 	const nOfPossibleBlocks = Math.floor(
-		(freeSize - moreIconSize - totalSpaceBetweenBlocks) / blockSize,
+		(freeSize - moreIconSize) / (blockSize + spaceBetweenBlocks),
 	);
 	const nOfBlocks = hasSpacing ? count : nOfPossibleBlocks;
+	console.log("POSSIBLE ->", count, nOfPossibleBlocks);
 
 	return (
-		<div css={styles.blocks}>
+		<div ref={blocksRef} css={styles.blocks}>
 			{Array.from({ length: nOfBlocks }).map((_, i) => (
 				// biome-ignore lint/suspicious/noArrayIndexKey: we are using the index as a key here because the blocks are not expected to be reordered
 				<div key={i} css={styles.block} style={{ minWidth: blockSize }} />

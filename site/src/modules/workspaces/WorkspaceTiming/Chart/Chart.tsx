@@ -9,12 +9,12 @@ import React from "react";
 import type { BarColors } from "./Bar";
 import { YAxisSidePadding, YAxisWidth } from "./YAxis";
 
-export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <div css={styles.content} {...props} />;
-};
-
 export const Chart = (props: HTMLProps<HTMLDivElement>) => {
 	return <div css={styles.chart} {...props} />;
+};
+
+export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
+	return <div css={styles.content} {...props} />;
 };
 
 export const ChartToolbar = (props: HTMLProps<HTMLDivElement>) => {

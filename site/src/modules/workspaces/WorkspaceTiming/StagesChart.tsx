@@ -3,7 +3,7 @@ import {
 	XAxisRow,
 	XAxisRows,
 	XAxisSections,
-	XAxisWidth,
+	XAxisMinWidth,
 } from "./Chart/XAxis";
 import type { FC } from "react";
 import {
@@ -15,8 +15,8 @@ import {
 } from "./Chart/YAxis";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import {
-	calcBarSizeAndOffset,
 	calcDuration,
+	calcOffset,
 	combineTimings,
 	formatTime,
 	makeTicks,
@@ -112,29 +112,25 @@ export const StagesChart: FC<StagesChartProps> = ({
 							return (
 								<XAxisRows key={category}>
 									{timingsInCategory.map((t) => {
-										const barSizeAndOffset = calcBarSizeAndOffset(
-											t,
-											generalTiming,
-											scale,
-											XAxisWidth,
-										);
+										const value = calcDuration(t);
+										const offset = calcOffset(t, generalTiming);
+
 										return (
 											<XAxisRow key={t.name} yAxisLabelId={t.name}>
 												{/** We only want to expand stages with more than one resource */}
 												{t.resources > 1 ? (
 													<ClickableBar
-														{...barSizeAndOffset}
+														scale={scale}
+														value={value}
+														offset={offset}
 														onClick={() => {
 															onSelectStage(t, category);
 														}}
 													>
-														<BarBlocks
-															count={t.resources}
-															barSize={barSizeAndOffset.size}
-														/>
+														<BarBlocks count={t.resources} />
 													</ClickableBar>
 												) : (
-													<Bar {...barSizeAndOffset} />
+													<Bar scale={scale} value={value} offset={offset} />
 												)}
 												{formatTime(calcDuration(t), scale)}
 											</XAxisRow>
