@@ -3,23 +3,26 @@ import {
 	organizationsPermissions,
 	provisionerDaemonGroups,
 } from "api/queries/organizations";
-import type { Organization, ProvisionerDaemon } from "api/typesGenerated";
+import type { Organization } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import NotFoundPage from "pages/404Page/404Page";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { Paywall } from "components/Paywall/Paywall";
+import { docs } from "utils/docs";
 
 const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
 	const { organizations } = useOrganizationSettings();
+	const { entitlements } = useDashboard();
 
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
@@ -31,6 +34,16 @@ const OrganizationProvisionersPage: FC = () => {
 		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
 	const provisionersQuery = useQuery(provisionerDaemonGroups(organizationName));
+
+	if (!entitlements.features.multiple_organizations.enabled) {
+		return (
+			<Paywall
+				message="Provisioners"
+				description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
+				documentationLink={docs("/")}
+			/>
+		);
+	}
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -45,18 +58,6 @@ const OrganizationProvisionersPage: FC = () => {
 	const error = permissionsQuery.error || provisionersQuery.error;
 	if (error || !permissions || !provisioners) {
 		return <ErrorAlert error={error} />;
-	}
-
-	// The user may not be able to edit this org but they can still see it because
-	// they can edit members, etc.  In this case they will be shown a read-only
-	// summary page instead of the settings form.
-	// Similarly, if the feature is not entitled then the user will not be able to
-	// edit the organization.
-	if (!permissions[organization.id]?.viewProvisioners) {
-		// This probably doesn't work with the layout................fix this pls
-		// Kayla, hey, yes you, you gotta fix this.
-		// Don't scroll past this. It's important. Fix it!!!
-		return <NotFoundPage />;
 	}
 
 	return (
