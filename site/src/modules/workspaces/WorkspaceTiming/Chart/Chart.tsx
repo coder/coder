@@ -104,14 +104,16 @@ const styles = {
 		display: "flex",
 		flexDirection: "column",
 	},
-	content: {
+	content: (theme) => ({
 		display: "flex",
 		alignItems: "stretch",
 		fontSize: 12,
 		fontWeight: 500,
 		overflow: "auto",
 		flex: 1,
-	},
+		scrollbarColor: `${theme.palette.divider} ${theme.palette.background.default}`,
+		scrollbarWidth: "thin",
+	}),
 	toolbar: (theme) => ({
 		borderBottom: `1px solid ${theme.palette.divider}`,
 		fontSize: 12,
