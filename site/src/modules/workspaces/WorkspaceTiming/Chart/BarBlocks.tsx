@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
-import { type FC, useLayoutEffect, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 
 const sidePadding = 8;
 const spaceBetweenBlocks = 4;
@@ -15,7 +15,7 @@ export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
 	const [parentWidth, setParentWidth] = useState<number>();
 	const blocksRef = useRef<HTMLDivElement>(null);
 
-	useLayoutEffect(() => {
+	useEffect(() => {
 		if (!blocksRef.current || parentWidth) {
 			return;
 		}
@@ -23,7 +23,6 @@ export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
 		if (!parentEl) {
 			throw new Error("BarBlocks must be a child of a Bar");
 		}
-		console.log("HOOK", parentEl, parentEl.clientWidth, parentEl.offsetWidth);
 		setParentWidth(parentEl.clientWidth);
 	}, [parentWidth]);
 
@@ -35,7 +34,6 @@ export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
 		(freeSize - moreIconSize) / (blockSize + spaceBetweenBlocks),
 	);
 	const nOfBlocks = hasSpacing ? count : nOfPossibleBlocks;
-	console.log("->", nOfBlocks, parentWidth, freeSize);
 
 	return (
 		<div ref={blocksRef} css={styles.blocks}>
