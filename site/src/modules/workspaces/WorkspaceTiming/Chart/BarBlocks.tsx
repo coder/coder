@@ -37,8 +37,9 @@ export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
 
 	return (
 		<div ref={blocksRef} css={styles.blocks}>
-			{Array.from({ length: nOfBlocks }, (_, i) => i + 1).map((n) => (
-				<div key={n} css={styles.block} style={{ minWidth: blockSize }} />
+			{Array.from({ length: nOfBlocks }).map((_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
+				<div key={i} css={styles.block} style={{ minWidth: blockSize }} />
 			))}
 			{!hasSpacing && (
 				<div css={styles.extraBlock}>
