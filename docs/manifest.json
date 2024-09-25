@@ -533,12 +533,6 @@
 			]
 		},
 		{
-			"title": "Enterprise",
-			"description": "Learn how to enable Enterprise features",
-			"path": "./enterprise.md",
-			"icon_path": "./images/icons/group.svg"
-		},
-		{
 			"title": "Contributing",
 			"description": "Learn how to contribute to Coder",
 			"path": "./CONTRIBUTING.md",

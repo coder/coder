@@ -93,7 +93,3 @@ For CLI, use,
 export CODER_SUPPORT_LINKS='[{"name": "Hello GitHub", "target": "https://github.com/coder/coder", "icon": "bug"}, {"name": "Hello Slack", "target": "https://codercom.slack.com/archives/C014JH42DBJ", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/slack.svg"}, {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/discord.svg"}, {"name": "Hello Foobar", "target": "https://discord.gg/coder", "icon": "/emojis/1f3e1.png"}]'
 coder-server
 ```
-
-## Up next
-
-- [Enterprise](../enterprise.md)
