@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { screen, userEvent } from "@storybook/test";
 import {
+	mockApiError,
 	MockBuildInfo,
 	MockProvisioner,
 	MockProvisioner2,
@@ -107,5 +108,20 @@ export const Provisioners: Story = {
 export const Empty: Story = {
 	args: {
 		provisioners: [],
+	},
+};
+
+export const WithError: Story = {
+	args: {
+		error: mockApiError({
+			message: "Serie doesn't like you",
+			detail: "She thinks your favorite spell is lame",
+		}),
+	},
+};
+
+export const Paywall: Story = {
+	args: {
+		showPaywall: true,
 	},
 };

@@ -30,40 +30,18 @@ const OrganizationProvisionersPage: FC = () => {
 	const organization = organizations
 		? getOrganizationByName(organizations, organizationName)
 		: undefined;
-	const permissionsQuery = useQuery(
-		organizationsPermissions(organizations?.map((o) => o.id)),
-	);
 	const provisionersQuery = useQuery(provisionerDaemonGroups(organizationName));
-
-	if (!entitlements.features.multiple_organizations.enabled) {
-		return (
-			<Paywall
-				message="Provisioners"
-				description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-				documentationLink={docs("/")}
-			/>
-		);
-	}
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	if (permissionsQuery.isLoading || provisionersQuery.isLoading) {
-		return <Loader />;
-	}
-
-	const permissions = permissionsQuery.data;
-	const provisioners = provisionersQuery.data;
-	const error = permissionsQuery.error || provisionersQuery.error;
-	if (error || !permissions || !provisioners) {
-		return <ErrorAlert error={error} />;
-	}
-
 	return (
 		<OrganizationProvisionersPageView
+			showPaywall={!entitlements.features.multiple_organizations.enabled}
+			error={provisionersQuery.error}
 			buildInfo={buildInfoQuery.data}
-			provisioners={provisioners}
+			provisioners={provisionersQuery.data}
 		/>
 	);
 };
