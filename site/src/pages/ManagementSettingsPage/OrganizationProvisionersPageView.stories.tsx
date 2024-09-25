@@ -117,8 +117,8 @@ export const Empty: Story = {
 export const WithError: Story = {
 	args: {
 		error: mockApiError({
-			message: "Serie doesn't like you",
-			detail: "She thinks your favorite spell is lame",
+			message: "Fern is mad",
+			detail: "Frieren slept in and didn't get groceries",
 		}),
 	},
 };
