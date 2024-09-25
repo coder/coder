@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { MoreHorizOutlined } from "@mui/icons-material";
-import { useLayoutEffect, useRef, useState, type FC } from "react";
+import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
+import { type FC, useLayoutEffect, useRef, useState } from "react";
 
 const sidePadding = 8;
 const spaceBetweenBlocks = 4;
@@ -34,12 +34,10 @@ export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
 		(freeSize - moreIconSize) / (blockSize + spaceBetweenBlocks),
 	);
 	const nOfBlocks = hasSpacing ? count : nOfPossibleBlocks;
-	console.log("POSSIBLE ->", count, nOfPossibleBlocks);
 
 	return (
 		<div ref={blocksRef} css={styles.blocks}>
-			{Array.from({ length: nOfBlocks }).map((_, i) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: we are using the index as a key here because the blocks are not expected to be reordered
+			{Array.from(Array(nOfBlocks).keys()).map((i) => (
 				<div key={i} css={styles.block} style={{ minWidth: blockSize }} />
 			))}
 			{!hasSpacing && (

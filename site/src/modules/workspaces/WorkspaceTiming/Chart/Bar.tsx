@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { type ButtonHTMLAttributes, forwardRef, type HTMLProps } from "react";
+import { type ButtonHTMLAttributes, type HTMLProps, forwardRef } from "react";
 import { CSSVars } from "./constants";
 
 export type BarColors = {

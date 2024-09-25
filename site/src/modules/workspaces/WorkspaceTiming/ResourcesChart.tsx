@@ -1,27 +1,10 @@
-import {
-	XAxis,
-	XAxisRow,
-	XAxisRows,
-	XAxisSections,
-	XAxisMinWidth,
-} from "./Chart/XAxis";
-import { useState, type FC } from "react";
-import {
-	YAxis,
-	YAxisCaption,
-	YAxisLabel,
-	YAxisLabels,
-	YAxisSection,
-} from "./Chart/YAxis";
+import { css } from "@emotion/css";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
+import { type FC, useState } from "react";
+import { Link } from "react-router-dom";
 import { Bar } from "./Chart/Bar";
-import {
-	calcDuration,
-	calcOffset,
-	combineTimings,
-	formatTime,
-	makeTicks,
-	type BaseTiming,
-} from "./Chart/utils";
 import {
 	Chart,
 	ChartBreadcrumbs,
@@ -31,11 +14,28 @@ import {
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
-import { css } from "@emotion/css";
-import { Link } from "react-router-dom";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import {
+	XAxis,
+	XAxisMinWidth,
+	XAxisRow,
+	XAxisRows,
+	XAxisSections,
+} from "./Chart/XAxis";
+import {
+	YAxis,
+	YAxisCaption,
+	YAxisLabel,
+	YAxisLabels,
+	YAxisSection,
+} from "./Chart/YAxis";
+import {
+	type BaseTiming,
+	calcDuration,
+	calcOffset,
+	combineTimings,
+	formatTime,
+	makeTicks,
+} from "./Chart/utils";
 
 const legendsByAction: Record<string, ChartLegend> = {
 	"state refresh": {

@@ -1,14 +1,14 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import {
+	type FC,
+	type HTMLProps,
 	useLayoutEffect,
 	useRef,
 	useState,
-	type FC,
-	type HTMLProps,
 } from "react";
-import type { Interpolation, Theme } from "@emotion/react";
 import { YAxisCaptionHeight } from "./YAxis";
-import { formatTime } from "./utils";
 import { CSSVars, XAxisLabelsHeight, XAxisRowsGap } from "./constants";
+import { formatTime } from "./utils";
 
 export const XAxisMinWidth = 130;
 export const XAxisSidePadding = 16;

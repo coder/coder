@@ -1,9 +1,9 @@
-import type { ProvisionerTiming } from "api/typesGenerated";
-import { useState, type FC } from "react";
 import type { Interpolation, Theme } from "@emotion/react";
-import { stages, StagesChart } from "./StagesChart";
+import type { ProvisionerTiming } from "api/typesGenerated";
+import { type FC, useState } from "react";
 import { type BaseTiming, combineTimings } from "./Chart/utils";
 import { ResourcesChart } from "./ResourcesChart";
+import { StagesChart, stages } from "./StagesChart";
 
 type TimingView =
 	| { name: "stages" }

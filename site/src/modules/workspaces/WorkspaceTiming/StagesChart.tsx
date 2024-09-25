@@ -1,11 +1,18 @@
+import { css } from "@emotion/css";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
+import type { FC, PropsWithChildren } from "react";
+import { Bar, ClickableBar } from "./Chart/Bar";
+import { BarBlocks } from "./Chart/BarBlocks";
+import { Chart, ChartContent } from "./Chart/Chart";
 import {
 	XAxis,
+	XAxisMinWidth,
 	XAxisRow,
 	XAxisRows,
 	XAxisSections,
-	XAxisMinWidth,
 } from "./Chart/XAxis";
-import type { FC, PropsWithChildren } from "react";
 import {
 	YAxis,
 	YAxisCaption,
@@ -13,21 +20,14 @@ import {
 	YAxisLabels,
 	YAxisSection,
 } from "./Chart/YAxis";
-import { Bar, ClickableBar } from "./Chart/Bar";
 import {
+	type BaseTiming,
 	calcDuration,
 	calcOffset,
 	combineTimings,
 	formatTime,
 	makeTicks,
-	type BaseTiming,
 } from "./Chart/utils";
-import { Chart, ChartContent } from "./Chart/Chart";
-import { BarBlocks } from "./Chart/BarBlocks";
-import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
-import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
-import { css } from "@emotion/css";
 
 // TODO: Add "workspace boot" when scripting timings are done.
 const stageCategories = ["provisioning"] as const;
