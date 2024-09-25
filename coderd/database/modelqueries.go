@@ -364,6 +364,9 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.ThemePreference,
 			&i.Name,
 			&i.GithubComUserID,
+			&i.HashedOneTimePasscode,
+			&i.OneTimePasscodeExpiresAt,
+			&i.MustResetPassword,
 			&i.Count,
 		); err != nil {
 			return nil, err
