@@ -10,7 +10,6 @@ interface HeaderProps {
 	secondary?: boolean;
 	docsHref?: string;
 	tooltip?: ReactNode;
-	badges?: ReactNode;
 }
 
 export const SettingsHeader: FC<HeaderProps> = ({
@@ -19,38 +18,34 @@ export const SettingsHeader: FC<HeaderProps> = ({
 	docsHref,
 	secondary,
 	tooltip,
-	badges,
 }) => {
 	const theme = useTheme();
 
 	return (
 		<Stack alignItems="baseline" direction="row" justifyContent="space-between">
 			<div css={{ maxWidth: 420, marginBottom: 24 }}>
-				<Stack direction="row" spacing={2} alignItems="center">
-					<Stack direction="row" spacing={1} alignItems="center">
-						<h1
-							css={[
-								{
-									fontSize: 32,
-									fontWeight: 700,
-									display: "flex",
-									alignItems: "baseline",
-									lineHeight: "initial",
-									margin: 0,
-									marginBottom: 4,
-									gap: 8,
-								},
-								secondary && {
-									fontSize: 24,
-									fontWeight: 500,
-								},
-							]}
-						>
-							{title}
-						</h1>
-						{tooltip}
-					</Stack>
-					{badges}
+				<Stack direction="row" spacing={1} alignItems="center">
+					<h1
+						css={[
+							{
+								fontSize: 32,
+								fontWeight: 700,
+								display: "flex",
+								alignItems: "baseline",
+								lineHeight: "initial",
+								margin: 0,
+								marginBottom: 4,
+								gap: 8,
+							},
+							secondary && {
+								fontSize: 24,
+								fontWeight: 500,
+							},
+						]}
+					>
+						{title}
+					</h1>
+					{tooltip}
 				</Stack>
 
 				{description && (

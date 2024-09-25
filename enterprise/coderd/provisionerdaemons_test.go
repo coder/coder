@@ -739,7 +739,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
 		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -753,6 +753,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		})
 		org := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, org.ID, rbac.ScopedRoleOrgAdmin(org.ID))
+		outsideOrg, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 		res, err := orgAdmin.CreateProvisionerKey(context.Background(), org.ID, codersdk.CreateProvisionerKeyRequest{
 			Name: "my-key",
@@ -800,5 +801,9 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		assert.Equal(t, buildinfo.Version(), pkDaemons[0].Daemons[0].Version)
 		assert.Equal(t, proto.CurrentVersion.String(), pkDaemons[0].Daemons[0].APIVersion)
 		assert.Equal(t, keys[0].ID, pkDaemons[0].Daemons[0].KeyID)
+
+		// Verify user outside the org cannot read the provisioners
+		_, err = outsideOrg.ListProvisionerKeyDaemons(ctx, org.ID)
+		require.Error(t, err)
 	})
 }

@@ -7,7 +7,6 @@ import {
 } from "api/queries/organizations";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
@@ -84,7 +83,6 @@ export const IdpSyncPage: FC = () => {
 					title="IdP Sync"
 					description="Group and role sync mappings (configured using Coder CLI)."
 					tooltip={<IdpSyncHelpTooltip />}
-					badges={<FeatureStageBadge contentType="beta" size="lg" />}
 				/>
 				<Stack direction="row" spacing={2}>
 					<Button

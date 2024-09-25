@@ -7,7 +7,6 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
@@ -40,10 +39,7 @@ export const OrganizationProvisionersPageView: FC<
 				direction="row"
 				justifyContent="space-between"
 			>
-				<SettingsHeader
-					title="Provisioners"
-					badges={<FeatureStageBadge contentType="beta" size="lg" />}
-				/>
+				<SettingsHeader title="Provisioners" />
 				{!showPaywall && (
 					<Button
 						endIcon={<OpenInNewIcon />}

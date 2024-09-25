@@ -22,7 +22,6 @@ import {
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
-import isEqual from "lodash/isEqual";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
@@ -36,6 +35,15 @@ interface ProvisionerGroupProps {
 	readonly keyTags: Record<string, string>;
 	readonly type: ProvisionerGroupType;
 	readonly provisioners: readonly ProvisionerDaemon[];
+}
+
+function isSimpleTagSet(tags: Record<string, string>) {
+	const numberOfExtraTags = Object.keys(tags).filter(
+		(key) => key !== "scope" && key !== "owner",
+	).length;
+	return (
+		numberOfExtraTags === 0 && tags.scope === "organization" && !tags.owner
+	);
 }
 
 export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
@@ -95,8 +103,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 			: `${provisionersWithWarnings} provisioners`;
 
 	const hasMultipleTagVariants =
-		type === "psk" &&
-		provisioners.some((it) => !isEqual(it.tags, { scope: "organization" }));
+		type === "psk" && provisioners.some((it) => !isSimpleTagSet(it.tags));
 
 	return (
 		<div
