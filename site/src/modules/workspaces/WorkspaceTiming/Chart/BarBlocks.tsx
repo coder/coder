@@ -7,14 +7,14 @@ const spaceBetweenBlocks = 4;
 const moreIconSize = 18;
 const blockSize = 20;
 
-type TimingBlocksProps = {
+type BarBlocksProps = {
 	count: number;
-	size: number;
+	barSize: number;
 };
 
-export const TimingBlocks: FC<TimingBlocksProps> = ({ count, size }) => {
+export const BarBlocks: FC<BarBlocksProps> = ({ count, barSize }) => {
 	const totalSpaceBetweenBlocks = (count - 1) * spaceBetweenBlocks;
-	const freeSize = size - sidePadding * 2;
+	const freeSize = barSize - sidePadding * 2;
 	const necessarySize = blockSize * count + totalSpaceBetweenBlocks;
 	const hasSpacing = necessarySize <= freeSize;
 	const nOfPossibleBlocks = Math.floor(
