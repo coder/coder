@@ -3,13 +3,13 @@
 Some Coder features are released in feature stages before they are generally
 available.
 
-## Early access (EA) features
+## Early access features
 
 Early access features are neither feature-complete nor stable. We do not
-recommend using EA features in production deployments.
+recommend using early access features in production deployments.
 
-Coder releases EA features behind an “unsafe” experiment, where they’re
-accessible but not easy to find.
+Coder releases early access features behind an “unsafe” experiment, where
+they’re accessible but not easy to find.
 
 ### Early access support expectation
 
@@ -66,3 +66,7 @@ for use.
 ### Beta features support expectation
 
 Support for beta features is available through _X_.
+
+## General Availability (GA)
+
+All other features have been tested, are stable, and are enabled by default.
