@@ -28,25 +28,33 @@ manually setting up an SSH connection.
 > [create a GitHub issue](https://github.com/coder/coder/issues) or share in
 > [our Discord channel](https://discord.gg/coder).
 
-1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html) and open the application.
-1. Under **Install More Providers**, find the Coder icon and click **Install** to install the Coder plugin.
-1. After Gateway installs the plugin, it will appear in the **Run the IDE Remotely** section.
+1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
+   and open the application.
+1. Under **Install More Providers**, find the Coder icon and click **Install**
+   to install the Coder plugin.
+1. After Gateway installs the plugin, it will appear in the **Run the IDE
+   Remotely** section.
 
    Click **Connect to Coder** to launch the plugin:
 
    ![Gateway Connect to Coder](../../images/gateway/plugin-connect-to-coder.png)
 
-1. Enter your Coder deployment's [Access Url](../../admin/configure.md#access-url) and click **Connect**.
+1. Enter your Coder deployment's
+   [Access Url](../../admin/configure.md#access-url) and click **Connect**.
 
-   Gateway opens your Coder deployment's `cli-auth` page with a session token. Click the copy button, paste the session token in the Gateway **Session Token** window, then click **OK**:
+   Gateway opens your Coder deployment's `cli-auth` page with a session token.
+   Click the copy button, paste the session token in the Gateway **Session
+   Token** window, then click **OK**:
 
    ![Gateway Session Token](../../images/gateway/plugin-session-token.png)
 
 1. To create a new workspace:
 
-   Click the <kbd>+</kbd> icon to open a browser and go to the templates page in your Coder deployment to create a workspace.
+   Click the <kbd>+</kbd> icon to open a browser and go to the templates page in
+   your Coder deployment to create a workspace.
 
-1. If a workspace already exists but is stopped, select the workspace from the list, then click the green arrow to start the workspace.
+1. If a workspace already exists but is stopped, select the workspace from the
+   list, then click the green arrow to start the workspace.
 
 1. When the workspace status is **Running**, click **Select IDE and Project**:
 
@@ -57,12 +65,12 @@ manually setting up an SSH connection.
 
    ![Gateway Select IDE](../../images/gateway/plugin-ide-list.png)
 
-	Gateway connects using the IDE you selected:
+   Gateway connects using the IDE you selected:
 
    ![Gateway IDE Opened](../../images/gateway/gateway-intellij-opened.png)
 
-	> Note the JetBrains IDE is remotely installed into
-	> `~/.cache/JetBrains/RemoteDev/dist`
+   > Note the JetBrains IDE is remotely installed into
+   > `~/.cache/JetBrains/RemoteDev/dist`
 
 ### Update a Coder plugin version
 
@@ -152,7 +160,8 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
 1. For the Username, enter your workspace username.
 
-1. For the Authentication Type, select **OpenSSH config and authentication agent**.
+1. For the Authentication Type, select **OpenSSH config and authentication
+   agent**.
 
 1. Make sure the checkbox for **Parse config file ~/.ssh/config** is checked.
 
