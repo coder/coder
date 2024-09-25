@@ -136,15 +136,15 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
 1. Click **New Connection**:
 
-   ![Gateway Home](../images/gateway/gateway-home.png)
+   ![Gateway Home](../../images/gateway/gateway-home.png)
 
 1. In the resulting dialog, click the gear icon to the right of **Connection**:
 
-   ![Gateway New Connection](../images/gateway/gateway-new-connection.png)
+   ![Gateway New Connection](../../images/gateway/gateway-new-connection.png)
 
 1. Click <kbd>+</kbd> to add a new SSH connection:
 
-   ![Gateway Add Connection](../images/gateway/gateway-add-ssh-configuration.png)
+   ![Gateway Add Connection](../../images/gateway/gateway-add-ssh-configuration.png)
 
 1. For the Host, enter `coder.<workspace name>`
 
@@ -160,27 +160,27 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
 1. Click **OK**:
 
-   ![Gateway SSH Configuration](../images/gateway/gateway-create-ssh-configuration.png)
+   ![Gateway SSH Configuration](../../images/gateway/gateway-create-ssh-configuration.png)
 
 1. Select the connection you just added:
 
-   ![Gateway Welcome](../images/gateway/gateway-welcome.png)
+   ![Gateway Welcome](../../images/gateway/gateway-welcome.png)
 
 1. Click **Check Connection and Continue**:
 
-   ![Gateway Continue](../images/gateway/gateway-continue.png)
+   ![Gateway Continue](../../images/gateway/gateway-continue.png)
 
 1. Select the JetBrains IDE for your project and the project directory. SSH into
    your server to create a directory or check out code if you haven't already.
 
-   ![Gateway Choose IDE](../images/gateway/gateway-choose-ide.png)
+   ![Gateway Choose IDE](../../images/gateway/gateway-choose-ide.png)
 
    > Note the JetBrains IDE is remotely installed into
    > `~/. cache/JetBrains/RemoteDev/dist`
 
 1. Click **Download and Start IDE** to connect.
 
-   ![Gateway IDE Opened](../images/gateway/gateway-intellij-opened.png)
+   ![Gateway IDE Opened](../../images/gateway/gateway-intellij-opened.png)
 
 ## Using an existing JetBrains installation in the workspace
 
@@ -338,7 +338,7 @@ HKEY_LOCAL_MACHINE registry
 Additionally, create a string for each setting with its appropriate value in
 `SOFTWARE\JetBrains\RemoteDev`:
 
-![Alt text](../images/gateway/JetBrains-offline-windows.png)
+![Alt text](../../images/gateway/jetbrains-offline-windows.png)
 
 ### 5. Setup SSH connection with JetBrains Gateway
 
@@ -351,7 +351,7 @@ Instead of downloading from jetbrains.com, we will point Gateway to our server
 endpoint. Select `Installation options...` and select `Use download link`. Note
 that the URL must explicitly reference the archive file:
 
-![Offline Gateway](../images/gateway/offline-gateway.png)
+![Offline Gateway](../../images/gateway/offline-gateway.png)
 
 Click `Download IDE and Connect`. Gateway should now download the backend and
 clients from the server into your remote workspace and local machine,
