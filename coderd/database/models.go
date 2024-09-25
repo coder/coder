@@ -2869,6 +2869,12 @@ type User struct {
 	Name string `db:"name" json:"name"`
 	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
 	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
+	// A hash of the one-time-passcode given to the user.
+	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
+	// The time when the one-time-passcode expires.
+	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	// Determines if the user should be forced to change their password.
+	MustResetPassword bool `db:"must_reset_password" json:"must_reset_password"`
 }
 
 type UserLink struct {

@@ -663,7 +663,11 @@ CREATE TABLE users (
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
     theme_preference text DEFAULT ''::text NOT NULL,
     name text DEFAULT ''::text NOT NULL,
-    github_com_user_id bigint
+    github_com_user_id bigint,
+    hashed_one_time_passcode bytea,
+    one_time_passcode_expires_at timestamp with time zone,
+    must_reset_password boolean DEFAULT false NOT NULL,
+    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
@@ -673,6 +677,12 @@ COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
 COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
+
+COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
+
+COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.must_reset_password IS 'Determines if the user should be forced to change their password.';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
