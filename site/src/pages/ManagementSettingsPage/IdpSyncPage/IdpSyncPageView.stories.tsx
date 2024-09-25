@@ -4,8 +4,8 @@ import {
 	MockGroup2,
 	MockGroupSyncSettings,
 	MockGroupSyncSettings2,
-	MockRoleSyncSettings,
 	MockOrganization,
+	MockRoleSyncSettings,
 } from "testHelpers/entities";
 import { IdpSyncPageView } from "./IdpSyncPageView";
 
