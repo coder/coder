@@ -5,7 +5,7 @@ import {
 	XAxisSections,
 	XAxisMinWidth,
 } from "./Chart/XAxis";
-import type { FC } from "react";
+import type { FC, PropsWithChildren } from "react";
 import {
 	YAxis,
 	YAxisCaption,
@@ -24,31 +24,58 @@ import {
 } from "./Chart/utils";
 import { Chart, ChartContent } from "./Chart/Chart";
 import { BarBlocks } from "./Chart/BarBlocks";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
+import { css } from "@emotion/css";
 
 // TODO: Add "workspace boot" when scripting timings are done.
 const stageCategories = ["provisioning"] as const;
 
 type StageCategory = (typeof stageCategories)[number];
 
-type Stage = { name: string; category: StageCategory };
+type Stage = {
+	name: string;
+	category: StageCategory;
+	tooltip: { title: string; description: string };
+};
 
 // TODO: Export provisioning stages from the BE to the generated types.
 export const stages: Stage[] = [
 	{
 		name: "init",
 		category: "provisioning",
+		tooltip: {
+			title: "Terraform initialization",
+			description: "Download providers & modules.",
+		},
 	},
 	{
 		name: "plan",
 		category: "provisioning",
+		tooltip: {
+			title: "Terraform plan",
+			description:
+				"Compare state of desired vs actual resources and compute changes to be made.",
+		},
 	},
 	{
 		name: "graph",
 		category: "provisioning",
+		tooltip: {
+			title: "Terraform graph",
+			description:
+				"List all resources in plan, used to update coderd database.",
+		},
 	},
 	{
 		name: "apply",
 		category: "provisioning",
+		tooltip: {
+			title: "Terraform apply",
+			description:
+				"Execute terraform plan to create/modify/delete resources into desired states.",
+		},
 	},
 ];
 
@@ -94,7 +121,12 @@ export const StagesChart: FC<StagesChartProps> = ({
 								<YAxisLabels>
 									{stagesInCategory.map((stage) => (
 										<YAxisLabel key={stage.name} id={stage.name}>
-											{stage.name}
+											<span css={styles.stageLabel}>
+												{stage.name}
+												<StageInfoTooltip {...stage.tooltip}>
+													<InfoOutlined css={styles.info} />
+												</StageInfoTooltip>
+											</span>
 										</YAxisLabel>
 									))}
 								</YAxisLabels>
@@ -145,3 +177,62 @@ export const StagesChart: FC<StagesChartProps> = ({
 		</Chart>
 	);
 };
+
+type StageInfoTooltipProps = TooltipProps & {
+	title: string;
+	description: string;
+};
+
+const StageInfoTooltip: FC<StageInfoTooltipProps> = ({
+	title,
+	description,
+	children,
+}) => {
+	const theme = useTheme();
+
+	return (
+		<Tooltip
+			classes={{
+				tooltip: css({
+					backgroundColor: theme.palette.background.default,
+					border: `1px solid ${theme.palette.divider}`,
+					width: 220,
+				}),
+			}}
+			title={
+				<div css={styles.tooltipTitle}>
+					<span css={styles.infoStageName}>{title}</span>
+					<span>{description}</span>
+				</div>
+			}
+		>
+			{children}
+		</Tooltip>
+	);
+};
+
+const styles = {
+	stageLabel: {
+		display: "flex",
+		alignItems: "center",
+		gap: 2,
+		justifyContent: "flex-end",
+	},
+	info: (theme) => ({
+		width: 12,
+		height: 12,
+		color: theme.palette.text.secondary,
+		cursor: "pointer",
+	}),
+	tooltipTitle: (theme) => ({
+		display: "flex",
+		flexDirection: "column",
+		fontWeight: 500,
+		fontSize: 12,
+		color: theme.palette.text.secondary,
+		gap: 4,
+	}),
+	infoStageName: (theme) => ({
+		color: theme.palette.text.primary,
+	}),
+} satisfies Record<string, Interpolation<Theme>>;
