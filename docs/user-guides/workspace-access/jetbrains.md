@@ -69,8 +69,8 @@ manually setting up an SSH connection.
 1. Click the gear icon at the bottom left of the Gateway home screen and then
    "Settings"
 
-1. In the Marketplace tab within Plugins, type Coder and if a newer plugin
-   release is available, click "Update" and "OK"
+1. In the **Marketplace** tab within Plugins, enter Coder and if a newer plugin
+   release is available, click **Update** then **OK**:
 
    ![Gateway Settings and Marketplace](../../images/gateway/plugin-settings-marketplace.png)
 
@@ -128,21 +128,21 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 > This is in lieu of using Coder's Gateway plugin which automatically performs
 > these steps.
 
-1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
+1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html).
 
-1. [Configure the `coder` CLI](../ides.md#ssh-configuration)
+1. [Configure the `coder` CLI](../ides.md#ssh-configuration).
 
-1. Open Gateway, make sure "SSH" is selected under "Remote Development"
+1. Open Gateway, make sure **SSH** is selected under **Remote Development**.
 
-1. Click "New Connection"
+1. Click **New Connection**:
 
    ![Gateway Home](../images/gateway/gateway-home.png)
 
-1. In the resulting dialog, click the gear icon to the right of "Connection:"
+1. In the resulting dialog, click the gear icon to the right of **Connection**:
 
    ![Gateway New Connection](../images/gateway/gateway-new-connection.png)
 
-1. Hit the "+" button to add a new SSH connection
+1. Click <kbd>+</kbd> to add a new SSH connection:
 
    ![Gateway Add Connection](../images/gateway/gateway-add-ssh-configuration.png)
 
@@ -150,23 +150,23 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
 1. For the Port, enter `22` (this is ignored by Coder)
 
-1. For the Username, enter your workspace username
+1. For the Username, enter your workspace username.
 
-1. For the Authentication Type, select "OpenSSH config and authentication agent"
+1. For the Authentication Type, select **OpenSSH config and authentication agent**.
 
-1. Make sure the checkbox for "Parse config file ~/.ssh/config" is checked.
+1. Make sure the checkbox for **Parse config file ~/.ssh/config** is checked.
 
-1. Click "Test Connection" to validate these settings.
+1. Click **Test Connection** to validate these settings.
 
-1. Click "OK"
+1. Click **OK**:
 
    ![Gateway SSH Configuration](../images/gateway/gateway-create-ssh-configuration.png)
 
-1. Select the connection you just added
+1. Select the connection you just added:
 
    ![Gateway Welcome](../images/gateway/gateway-welcome.png)
 
-1. Click "Check Connection and Continue"
+1. Click **Check Connection and Continue**:
 
    ![Gateway Continue](../images/gateway/gateway-continue.png)
 
@@ -178,7 +178,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
    > Note the JetBrains IDE is remotely installed into
    > `~/. cache/JetBrains/RemoteDev/dist`
 
-1. Click "Download and Start IDE" to connect.
+1. Click **Download and Start IDE** to connect.
 
    ![Gateway IDE Opened](../images/gateway/gateway-intellij-opened.png)
 
