@@ -666,7 +666,8 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
-    must_reset_password boolean DEFAULT false NOT NULL
+    must_reset_password boolean DEFAULT false NOT NULL,
+    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
