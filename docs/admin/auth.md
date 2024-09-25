@@ -227,7 +227,7 @@ your Coder deployment:
 CODER_DISABLE_PASSWORD_AUTH=true
 ```
 
-## SCIM (enterprise)
+## SCIM (enterprise) (premium)
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are
@@ -249,7 +249,7 @@ CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
 
-## Group Sync (enterprise)
+## Group Sync (enterprise) (premium)
 
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder.
@@ -326,7 +326,7 @@ Users who are not in a matching group will see the following error:
 
 ![Unauthorized group error](../images/admin/group-allowlist.png)
 
-## Role sync (enterprise)
+## Role sync (enterprise) (premium)
 
 If your OpenID Connect provider supports roles claims, you can configure Coder
 to synchronize roles in your auth provider to deployment-wide roles within

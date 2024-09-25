@@ -10,7 +10,7 @@ Coder offers these user roles in the community edition:
 |                                                       | Auditor | User Admin | Template Admin | Owner |
 | ----------------------------------------------------- | ------- | ---------- | -------------- | ----- |
 | Add and remove Users                                  |         | ✅         |                | ✅    |
-| Manage groups (enterprise)                            |         | ✅         |                | ✅    |
+| Manage groups (premium )                              |         | ✅         |                | ✅    |
 | Change User roles                                     |         |            |                | ✅    |
 | Manage **ALL** Templates                              |         |            | ✅             | ✅    |
 | View **ALL** Workspaces                               |         |            | ✅             | ✅    |

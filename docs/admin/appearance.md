@@ -1,4 +1,4 @@
-# Appearance (enterprise)
+# Appearance (enterprise) (premium)
 
 Customize the look of your Coder deployment to meet your enterprise
 requirements.

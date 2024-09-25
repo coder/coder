@@ -1,4 +1,4 @@
-# Organizations (Enterprise)
+# Organizations (Enterprise) (Premium)
 
 > Note: Organizations requires a [Premium license](./licensing.md). For more
 > details, [contact your account team](https://coder.com/contact).
