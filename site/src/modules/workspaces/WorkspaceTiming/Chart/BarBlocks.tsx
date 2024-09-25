@@ -23,6 +23,7 @@ export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
 		if (!parentEl) {
 			throw new Error("BarBlocks must be a child of a Bar");
 		}
+		console.log("HOOK", parentEl, parentEl.clientWidth, parentEl.offsetWidth);
 		setParentWidth(parentEl.clientWidth);
 	}, [parentWidth]);
 
