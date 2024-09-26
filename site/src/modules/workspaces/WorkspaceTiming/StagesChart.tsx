@@ -203,6 +203,7 @@ const StageInfoTooltip: FC<StageInfoTooltipProps> = ({
 					backgroundColor: theme.palette.background.default,
 					border: `1px solid ${theme.palette.divider}`,
 					width: 220,
+					borderRadius: 8,
 				}),
 			}}
 			title={

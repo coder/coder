@@ -182,6 +182,7 @@ const ResourceTooltip: FC<ResourceTooltipProps> = ({ timing, ...props }) => {
 					backgroundColor: theme.palette.background.default,
 					border: `1px solid ${theme.palette.divider}`,
 					width: 220,
+					borderRadius: 8,
 				}),
 			}}
 			title={
