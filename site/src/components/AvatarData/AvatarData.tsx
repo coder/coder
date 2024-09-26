@@ -8,19 +8,34 @@ export interface AvatarDataProps {
 	subtitle?: ReactNode;
 	src?: string;
 	avatar?: React.ReactNode;
+
+	/**
+	 * Useful for when you need to pass in a ReactNode for the title of the
+	 * component.
+	 *
+	 * MUI will try to take any string titles and turn them into the first
+	 * character, but if you pass in a ReactNode, MUI can't do that, because it
+	 * has no way to reliably grab the text content during renders.
+	 *
+	 * Tried writing some layout effect/JSX parsing logic to do the extraction,
+	 * but it added complexity and render overhead, and wasn't reliable enough
+	 */
+	fallbackLetter?: string;
 }
 
 export const AvatarData: FC<AvatarDataProps> = ({
 	title,
 	subtitle,
 	src,
+	fallbackLetter,
 	avatar,
 }) => {
 	const theme = useTheme();
-
-	if (!avatar) {
-		avatar = <Avatar src={src}>{title}</Avatar>;
-	}
+	avatar ??= (
+		<Avatar background src={src}>
+			{typeof title === "string" ? title : (fallbackLetter?.slice(0, 1) ?? "-")}
+		</Avatar>
+	);
 
 	return (
 		<Stack

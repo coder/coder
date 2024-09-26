@@ -1,3 +1,5 @@
+import type { ReactFragment, ReactNode, ReactPortal } from "react";
+
 export const getApplicationName = (): string => {
 	const c = document.head
 		.querySelector("meta[name=application-name]")
@@ -14,3 +16,18 @@ export const getLogoURL = (): string => {
 		?.getAttribute("content");
 	return c && !c.startsWith("{{ .") ? c : "";
 };
+
+/**
+ * Exposes an easy way to determine if a given URL is for an emoji hosted on
+ * the Coder deployment.
+ *
+ * Helps when you need to style emojis differently (i.e., not adding rounding to
+ * the container so that the emoji doesn't get cut off).
+ */
+export function isEmojiUrl(url: string | undefined): boolean {
+	if (!url) {
+		return false;
+	}
+
+	return url.startsWith("/emojis/");
+}

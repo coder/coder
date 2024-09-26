@@ -30,6 +30,7 @@ import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 import type { WorkspacePermissions } from "./permissions";
+import { isEmojiUrl } from "utils/appearance";
 
 export type WorkspaceError =
 	| "getBuildsError"
@@ -344,7 +345,12 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					subtitle="Organization"
 					avatar={
 						orgIconUrl && (
-							<ExternalAvatar src={orgIconUrl} variant="square" fitImage />
+							<ExternalAvatar
+								src={orgIconUrl}
+								title={orgName}
+								variant={isEmojiUrl(orgIconUrl) ? "square" : "circular"}
+								fitImage
+							/>
 						)
 					}
 				/>
@@ -405,7 +411,12 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						</Link>
 					}
 					avatar={
-						<ExternalAvatar src={templateIconUrl} variant="square" fitImage />
+						<ExternalAvatar
+							src={templateIconUrl}
+							title={workspaceName}
+							variant={isEmojiUrl(templateIconUrl) ? "square" : "circular"}
+							fitImage
+						/>
 					}
 				/>
 			</HelpTooltipContent>
