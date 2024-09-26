@@ -89,14 +89,14 @@ data "coder_parameter" "instance_type" {
 }
 
 data "coder_parameter" "root_volume_size_gb" {
-  name = "root_volume_size_gb"
+  name         = "root_volume_size_gb"
   display_name = "Root Volume Size (GB)"
-  description = "How large should the root volume for the instance be?"
-  default = 30
-  type = "number"
-  mutable = true
+  description  = "How large should the root volume for the instance be?"
+  default      = 30
+  type         = "number"
+  mutable      = true
   validation {
-    min = 1
+    min       = 1
     monotonic = "increasing"
   }
 }
