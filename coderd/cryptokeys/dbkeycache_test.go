@@ -30,7 +30,7 @@ func TestDBKeyCache(t *testing.T) {
 			logger = slogtest.Make(t, nil)
 		)
 
-		_, err := cryptokeys.NewDBKeyCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, withClock(clock))
+		_, err := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
 		require.NoError(t, err)
 	})
 
@@ -57,7 +57,7 @@ func TestDBKeyCache(t *testing.T) {
 				StartsAt: clock.Now().UTC(),
 			})
 
-			k, err := cryptokeys.NewDBKeyCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, withClock(clock))
+			k, err := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
 			require.NoError(t, err)
 
 			got, err := k.Version(ctx, key.Sequence)
@@ -85,7 +85,7 @@ func TestDBKeyCache(t *testing.T) {
 				StartsAt: clock.Now().UTC(),
 			})
 
-			k, err := cryptokeys.NewDBKeyCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, withClock(clock))
+			k, err := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
 			require.NoError(t, err)
 
 			key := dbgen.CryptoKey(t, db, database.CryptoKey{
@@ -132,7 +132,7 @@ func TestDBKeyCache(t *testing.T) {
 			StartsAt: clock.Now().UTC(),
 		})
 
-		k, err := cryptokeys.NewDBKeyCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, withClock(clock))
+		k, err := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
 		require.NoError(t, err)
 
 		got, err := k.Latest(ctx)
@@ -169,7 +169,7 @@ func TestDBKeyCache(t *testing.T) {
 			},
 		})
 		trap := clock.Trap().TickerFunc()
-		k, err := cryptokeys.NewDBKeyCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, withClock(clock))
+		k, err := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
 		require.NoError(t, err)
 
 		// Should be able to fetch the expiring key since it's still valid.
@@ -207,10 +207,4 @@ func TestDBKeyCache(t *testing.T) {
 		_, err = k.Version(ctx, expiringKey.Sequence)
 		require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
 	})
-}
-
-func withClock(clock quartz.Clock) func(*cryptokeys.DBKeyCache) {
-	return func(d *cryptokeys.DBKeyCache) {
-		d.Clock = clock
-	}
 }
