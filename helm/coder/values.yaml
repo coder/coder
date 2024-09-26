@@ -113,6 +113,8 @@ coder:
     annotations: {}
     # coder.serviceAccount.name -- The service account name
     name: coder
+    # coder.serviceAccount.name -- Whether to create the service account or use existing service account
+    creat: true
 
   # coder.securityContext -- Fields related to the container's security
   # context (as opposed to the pod). Some fields are also present in the pod
