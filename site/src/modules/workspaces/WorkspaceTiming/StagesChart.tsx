@@ -120,7 +120,10 @@ export const StagesChart: FC<StagesChartProps> = ({
 								<YAxisCaption>{c}</YAxisCaption>
 								<YAxisLabels>
 									{stagesInCategory.map((stage) => (
-										<YAxisLabel key={stage.name} id={stage.name}>
+										<YAxisLabel
+											key={stage.name}
+											id={encodeURIComponent(stage.name)}
+										>
 											<span css={styles.stageLabel}>
 												{stage.name}
 												<StageInfoTooltip {...stage.tooltip}>
@@ -148,7 +151,10 @@ export const StagesChart: FC<StagesChartProps> = ({
 										const offset = calcOffset(t, generalTiming);
 
 										return (
-											<XAxisRow key={t.name} yAxisLabelId={t.name}>
+											<XAxisRow
+												key={t.name}
+												yAxisLabelId={encodeURIComponent(t.name)}
+											>
 												{/** We only want to expand stages with more than one resource */}
 												{t.resources > 1 ? (
 													<ClickableBar
@@ -164,7 +170,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 												) : (
 													<Bar scale={scale} value={value} offset={offset} />
 												)}
-												{formatTime(calcDuration(t), scale)}
+												{formatTime(calcDuration(t))}
 											</XAxisRow>
 										);
 									})}

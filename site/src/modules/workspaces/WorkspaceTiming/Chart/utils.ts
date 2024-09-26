@@ -51,13 +51,8 @@ export const makeTicks = (time: number) => {
 	return [ticks, scale] as const;
 };
 
-export const formatTime = (time: number, scale: number): string => {
-	if (scale <= 1_000) {
-		return `${time.toLocaleString()}ms`;
-	}
-	return `${(time / 1_000).toLocaleString(undefined, {
-		maximumFractionDigits: 2,
-	})}s`;
+export const formatTime = (time: number): string => {
+	return `${time.toLocaleString()}ms`;
 };
 
 export const calcOffset = (

@@ -1,11 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import {
-	type FC,
-	type HTMLProps,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type HTMLProps, useLayoutEffect, useRef } from "react";
 import { YAxisCaptionHeight } from "./YAxis";
 import { CSSVars, XAxisLabelsHeight, XAxisRowsGap } from "./constants";
 import { formatTime } from "./utils";
@@ -40,7 +34,7 @@ export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 		<div css={styles.root} {...htmlProps} ref={rootRef}>
 			<XAxisLabels>
 				{ticks.map((tick) => (
-					<XAxisLabel key={tick}>{formatTime(tick, scale)}</XAxisLabel>
+					<XAxisLabel key={tick}>{formatTime(tick)}</XAxisLabel>
 				))}
 			</XAxisLabels>
 			{htmlProps.children}
@@ -92,16 +86,14 @@ export const XAxisRow: FC<XAxisRowProps> = ({ yAxisLabelId, ...htmlProps }) => {
 		if (!rowEl) {
 			return;
 		}
-
 		// Selecting a label with special characters (e.g.,
 		// #coder_metadata.container_info[0]) will fail because it is not a valid
 		// selector. To handle this, we need to query by the id attribute and escape
 		// it with quotes.
-		const yAxisLabel = document.querySelector<HTMLSpanElement>(
-			`[id="${encodeURIComponent(yAxisLabelId)}"]`,
-		);
+		const selector = `[id="${encodeURIComponent(yAxisLabelId)}"]`;
+		const yAxisLabel = document.querySelector<HTMLSpanElement>(selector);
 		if (!yAxisLabel) {
-			console.warn(`Y-axis label with id ${yAxisLabelId} not found.`);
+			console.warn(`Y-axis label with selector ${selector} not found.`);
 			return;
 		}
 		yAxisLabel.style.height = `${rowEl.clientHeight}px`;

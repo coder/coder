@@ -121,7 +121,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 						<YAxisCaption>{stage} stage</YAxisCaption>
 						<YAxisLabels>
 							{visibleTimings.map((t) => (
-								<YAxisLabel key={t.name} id={t.name}>
+								<YAxisLabel key={t.name} id={encodeURIComponent(t.name)}>
 									{t.name}
 								</YAxisLabel>
 							))}
@@ -134,7 +134,10 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 						<XAxisRows>
 							{visibleTimings.map((t) => {
 								return (
-									<XAxisRow key={t.name} yAxisLabelId={t.name}>
+									<XAxisRow
+										key={t.name}
+										yAxisLabelId={encodeURIComponent(t.name)}
+									>
 										<ResourceTooltip timing={t}>
 											<Bar
 												value={calcDuration(t)}
@@ -143,7 +146,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 												colors={legendsByAction[t.action].colors}
 											/>
 										</ResourceTooltip>
-										{formatTime(calcDuration(t), scale)}
+										{formatTime(calcDuration(t))}
 									</XAxisRow>
 								);
 							})}

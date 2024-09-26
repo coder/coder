@@ -24,9 +24,13 @@ export const YAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
 	return <ul css={styles.labels} {...props} />;
 };
 
-export const YAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
+type YAxisLabelProps = Omit<HTMLProps<HTMLLIElement>, "id"> & {
+	id: string;
+};
+
+export const YAxisLabel: FC<YAxisLabelProps> = ({ id, ...props }) => {
 	return (
-		<li {...props} css={styles.label}>
+		<li {...props} css={styles.label} id={encodeURIComponent(id)}>
 			<span>{props.children}</span>
 		</li>
 	);
