@@ -60,6 +60,15 @@ Deprecated and ignored.
 
 Pre-shared key to authenticate with Coder server.
 
+### --key
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_KEY</code> |
+
+Provisioner key to authenticate with Coder server.
+
 ### --name
 
 |             |                                             |
