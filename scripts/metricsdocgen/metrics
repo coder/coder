@@ -707,6 +707,9 @@ coderd_provisionerd_job_timings_seconds_count{provisioner="terraform",status="su
 # HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
 # TYPE coderd_provisionerd_jobs_current gauge
 coderd_provisionerd_jobs_current{provisioner="terraform"} 0
+# HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner.
+# TYPE coderd_workspace_latest_build_status gauge
+coderd_workspace_latest_build_status{status="failed",template_name="docker",template_version="sweet_gould9",workspace_owner="admin",workspace_transition="stop"} 1
 # HELP coderd_workspace_builds_total The number of workspaces started, updated, or deleted.
 # TYPE coderd_workspace_builds_total counter
 coderd_workspace_builds_total{action="START",owner_email="admin@coder.com",status="failed",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
