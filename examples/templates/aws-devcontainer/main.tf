@@ -343,5 +343,6 @@ resource "coder_metadata" "info" {
 module "code-server" {
   count    = data.coder_workspace.me.start_count
   source   = "https://registry.coder.com/modules/code-server"
+  version  = "1.0.18"
   agent_id = coder_agent.dev[0].id
 }

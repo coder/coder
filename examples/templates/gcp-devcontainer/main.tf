@@ -312,7 +312,7 @@ resource "coder_agent" "dev" {
 module "code-server" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.17"
+  version  = "1.0.18"
   agent_id = coder_agent.dev[0].id
 }
 
