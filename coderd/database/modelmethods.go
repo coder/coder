@@ -1,6 +1,7 @@
 package database
 
 import (
+	"encoding/hex"
 	"sort"
 	"strconv"
 	"time"
@@ -450,4 +451,21 @@ func (r GetAuthorizationUserRolesRow) RoleNames() ([]rbac.RoleIdentifier, error)
 
 func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
 	return k.StartsAt.Add(keyDuration).UTC()
+}
+
+func (k CryptoKey) DecodeString() ([]byte, error) {
+	return hex.DecodeString(k.Secret.String)
+}
+
+func (k CryptoKey) IsActive(now time.Time) bool {
+	now = now.UTC()
+	isAfterStart := !k.StartsAt.IsZero() && !now.Before(k.StartsAt.UTC())
+	return isAfterStart && !k.IsInvalid(now)
+}
+
+func (k CryptoKey) IsInvalid(now time.Time) bool {
+	now = now.UTC()
+	isDeleted := !k.Secret.Valid
+	isPastDeletion := k.DeletesAt.Valid && !now.Before(k.DeletesAt.Time.UTC())
+	return isDeleted || isPastDeletion
 }
