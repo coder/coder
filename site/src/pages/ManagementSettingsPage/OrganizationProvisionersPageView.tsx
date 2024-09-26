@@ -6,6 +6,7 @@ import type {
 	ProvisionerKeyDaemons,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
@@ -15,7 +16,6 @@ import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
-import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 interface OrganizationProvisionersPageViewProps {
 	/** Determines if the paywall will be shown or not */

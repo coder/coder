@@ -4,10 +4,10 @@ import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect } from "react";
@@ -17,7 +17,6 @@ import { Link as RouterLink } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import GroupsPageView from "./GroupsPageView";
-import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 export const GroupsPage: FC = () => {
 	const feats = useFeatureVisibility();
