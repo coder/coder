@@ -31,6 +31,7 @@ func (r *RootCmd) provisionerd() *serpent.Command {
 		Children: []*serpent.Command{
 			r.provisionerDaemonStart(),
 		},
+		Hidden: true,
 	}
 
 	return cmd
