@@ -1517,10 +1517,12 @@ func TestAgent_Lifecycle(t *testing.T) {
 			agentsdk.Manifest{
 				DERPMap: derpMap,
 				Scripts: []codersdk.WorkspaceAgentScript{{
+					ID:         uuid.New(),
 					LogPath:    "coder-startup-script.log",
 					Script:     "echo 1",
 					RunOnStart: true,
 				}, {
+					ID:        uuid.New(),
 					LogPath:   "coder-shutdown-script.log",
 					Script:    "echo " + expected,
 					RunOnStop: true,

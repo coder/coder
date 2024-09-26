@@ -41,7 +41,9 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 						{...delegatedProps}
 					>
 						<span style={visuallyHidden}> (This is a</span>
-						{featureStageBadgeTypes[contentType]}
+						<span css={styles.badgeLabel}>
+							{featureStageBadgeTypes[contentType]}
+						</span>
 						<span style={visuallyHidden}> feature)</span>
 					</span>
 				)}
@@ -99,6 +101,13 @@ const styles = {
 		borderColor: theme.branding.featureStage.hover.border,
 		backgroundColor: theme.branding.featureStage.hover.background,
 	}),
+
+	badgeLabel: {
+		// Have to set display mode to anything other than inline, or else the
+		// CSS capitalization algorithm won't capitalize the element
+		display: "inline-block",
+		textTransform: "capitalize",
+	},
 
 	badgeLargeText: {
 		fontSize: "1rem",

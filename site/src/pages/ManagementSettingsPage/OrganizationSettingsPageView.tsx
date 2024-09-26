@@ -8,7 +8,6 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -68,15 +67,12 @@ export const OrganizationSettingsPageView: FC<
 
 	return (
 		<Stack spacing={4}>
-			<Stack direction="row" spacing={2} alignItems="center">
-				<Breadcrumbs>
-					<Crumb>Organizations</Crumb>
-					<Crumb href={`/organizations/${organization.name}`} active>
-						{organization.display_name || organization.name}
-					</Crumb>
-				</Breadcrumbs>
-				<FeatureStageBadge contentType="beta" size="sm" />
-			</Stack>
+			<Breadcrumbs>
+				<Crumb>Organizations</Crumb>
+				<Crumb href={`/organizations/${organization.name}`} active>
+					{organization.display_name || organization.name}
+				</Crumb>
+			</Breadcrumbs>
 
 			{Boolean(error) && !isApiValidationError(error) && (
 				<div>

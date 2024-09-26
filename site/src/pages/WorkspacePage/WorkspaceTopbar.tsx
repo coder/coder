@@ -297,11 +297,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
 				transformOrigin={{ vertical: "top", horizontal: "center" }}
 			>
-				<AvatarData
-					title={ownerName}
-					subtitle="Owner"
-					avatar={ownerAvatarUrl}
-				/>
+				<AvatarData title={ownerName} subtitle="Owner" src={ownerAvatarUrl} />
 			</HelpTooltipContent>
 		</Popover>
 	);

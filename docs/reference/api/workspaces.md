@@ -168,6 +168,7 @@ of the template will be used.
 							{
 								"cron": "string",
 								"display_name": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,
@@ -385,6 +386,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 							{
 								"cron": "string",
 								"display_name": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,
@@ -626,6 +628,7 @@ of the template will be used.
 							{
 								"cron": "string",
 								"display_name": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,
@@ -842,6 +845,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 									{
 										"cron": "string",
 										"display_name": "string",
+										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 										"log_path": "string",
 										"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 										"run_on_start": true,
@@ -1060,6 +1064,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 							{
 								"cron": "string",
 								"display_name": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,
@@ -1393,6 +1398,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 							{
 								"cron": "string",
 								"display_name": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,

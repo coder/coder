@@ -5,8 +5,11 @@ import type {
 	ProvisionerKey,
 	ProvisionerKeyDaemons,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { Loader } from "components/Loader/Loader";
+import { Paywall } from "components/Paywall/Paywall";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
 import type { FC } from "react";
@@ -15,17 +18,64 @@ import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 interface OrganizationProvisionersPageViewProps {
+	/** Determines if the paywall will be shown or not */
+	showPaywall?: boolean;
+
+	/** An error to display instead of the page content */
+	error?: unknown;
+
 	/** Info about the version of coderd */
 	buildInfo?: BuildInfoResponse;
 
 	/** Groups of provisioners, along with their key information */
-	provisioners: readonly ProvisionerKeyDaemons[];
+	provisioners?: readonly ProvisionerKeyDaemons[];
 }
 
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
-> = ({ buildInfo, provisioners }) => {
+> = ({ showPaywall, error, buildInfo, provisioners }) => {
+	return (
+		<div>
+			<Stack
+				alignItems="baseline"
+				direction="row"
+				justifyContent="space-between"
+			>
+				<SettingsHeader title="Provisioners" />
+				{!showPaywall && (
+					<Button
+						endIcon={<OpenInNewIcon />}
+						target="_blank"
+						href={docs("/admin/provisioners")}
+					>
+						Create a provisioner
+					</Button>
+				)}
+			</Stack>
+			{showPaywall ? (
+				<Paywall
+					message="Provisioners"
+					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
+					documentationLink={docs("/")}
+				/>
+			) : error ? (
+				<ErrorAlert error={error} />
+			) : !buildInfo || !provisioners ? (
+				<Loader />
+			) : (
+				<ViewContent buildInfo={buildInfo} provisioners={provisioners} />
+			)}
+		</div>
+	);
+};
+
+type ViewContentProps = Required<
+	Pick<OrganizationProvisionersPageViewProps, "buildInfo" | "provisioners">
+>;
+
+const ViewContent: FC<ViewContentProps> = ({ buildInfo, provisioners }) => {
 	const { organization } = useOrganizationSettings();
+
 	const isEmpty = provisioners.every((group) => group.daemons.length === 0);
 
 	const provisionerGroupsCount = provisioners.length;
@@ -37,24 +87,21 @@ export const OrganizationProvisionersPageView: FC<
 	if (!organization) return null;
 
 	return (
-		<div>
+		<>
 			<Stack
 				alignItems="baseline"
 				direction="row"
 				justifyContent="space-between"
 			>
-				<Stack direction="row" spacing={2} alignItems="center">
-					<Breadcrumbs>
-						<Crumb>Organizations</Crumb>
-						<Crumb href={`/organizations/${organization}`}>
-							{organization.display_name || organization.name}
-						</Crumb>
-						<Crumb href={`/organizations/${organization}/groups`} active>
-							Groups
-						</Crumb>
-					</Breadcrumbs>
-					<FeatureStageBadge contentType="beta" size="sm" />
-				</Stack>
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/groups`} active>
+						Groups
+					</Crumb>
+				</Breadcrumbs>
 				<Button
 					endIcon={<OpenInNewIcon />}
 					target="_blank"
@@ -114,7 +161,7 @@ export const OrganizationProvisionersPageView: FC<
 					);
 				})}
 			</Stack>
-		</div>
+		</>
 	);
 };
 

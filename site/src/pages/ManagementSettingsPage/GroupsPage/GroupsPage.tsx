@@ -5,7 +5,6 @@ import { groupsByOrganization } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
@@ -65,18 +64,15 @@ export const GroupsPage: FC = () => {
 				justifyContent="space-between"
 				css={{ paddingBottom: 32 }}
 			>
-				<Stack direction="row" spacing={2} alignItems="center">
-					<Breadcrumbs>
-						<Crumb>Organizations</Crumb>
-						<Crumb href={`/organizations/${organization}`}>
-							{organization.display_name || organization.name}
-						</Crumb>
-						<Crumb href={`/organizations/${organization}/groups`} active>
-							Groups
-						</Crumb>
-					</Breadcrumbs>
-					<FeatureStageBadge contentType="beta" size="sm" />
-				</Stack>
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/groups`} active>
+						Groups
+					</Crumb>
+				</Breadcrumbs>
 				{permissions.createGroup && feats.template_rbac && (
 					<Button component={RouterLink} startIcon={<GroupAdd />} to="create">
 						Create group

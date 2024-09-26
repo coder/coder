@@ -6,8 +6,9 @@ USAGE:
   Ping a workspace
 
 OPTIONS:
-  -n, --num int (default: 10)
-          Specifies the number of pings to perform.
+  -n, --num int
+          Specifies the number of pings to perform. By default, pings will
+          continue until interrupted.
 
   -t, --timeout duration (default: 5s)
           Specifies how long to wait for a ping to complete.

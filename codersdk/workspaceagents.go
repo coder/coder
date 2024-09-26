@@ -185,6 +185,7 @@ type WorkspaceAgentLogSource struct {
 }
 
 type WorkspaceAgentScript struct {
+	ID               uuid.UUID     `json:"id" format:"uuid"`
 	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
 	LogPath          string        `json:"log_path"`
 	Script           string        `json:"script"`

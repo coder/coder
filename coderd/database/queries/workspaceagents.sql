@@ -287,3 +287,16 @@ WHERE
 			workspace_id = workspace_build_with_user.workspace_id
 	)
 ;
+
+-- name: InsertWorkspaceAgentScriptTimings :exec
+INSERT INTO
+    workspace_agent_script_timings (
+        script_id,
+        started_at,
+        ended_at,
+        exit_code,
+        stage,
+        status
+    )
+VALUES
+    ($1, $2, $3, $4, $5, $6);
