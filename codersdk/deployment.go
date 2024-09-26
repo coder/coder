@@ -3115,9 +3115,9 @@ const (
 type CryptoKey struct {
 	Feature   CryptoKeyFeature `json:"feature"`
 	Secret    string           `json:"secret"`
-	DeletesAt time.Time        `json:"deletes_at"`
+	DeletesAt time.Time        `json:"deletes_at" format:"date-time"`
 	Sequence  int32            `json:"sequence"`
-	StartsAt  time.Time        `json:"starts_at"`
+	StartsAt  time.Time        `json:"starts_at" format:"date-time"`
 }
 
 func (c CryptoKey) CanSign(now time.Time) bool {
