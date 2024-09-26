@@ -17,7 +17,6 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	MoreMenu,
@@ -61,11 +60,7 @@ export const OrganizationMembersPageView: FC<
 > = (props) => {
 	return (
 		<div>
-			<SettingsHeader
-				title="Members"
-				badges={<FeatureStageBadge contentType="beta" size="lg" />}
-			/>
-
+			<SettingsHeader title="Members" />
 			<Stack>
 				{Boolean(props.error) && <ErrorAlert error={props.error} />}
 

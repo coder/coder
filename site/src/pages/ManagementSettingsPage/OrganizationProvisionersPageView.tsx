@@ -5,8 +5,10 @@ import type {
 	ProvisionerKey,
 	ProvisionerKeyDaemons,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { Loader } from "components/Loader/Loader";
+import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
@@ -14,16 +16,62 @@ import type { FC } from "react";
 import { docs } from "utils/docs";
 
 interface OrganizationProvisionersPageViewProps {
+	/** Determines if the paywall will be shown or not */
+	showPaywall?: boolean;
+
+	/** An error to display instead of the page content */
+	error?: unknown;
+
 	/** Info about the version of coderd */
 	buildInfo?: BuildInfoResponse;
 
 	/** Groups of provisioners, along with their key information */
-	provisioners: readonly ProvisionerKeyDaemons[];
+	provisioners?: readonly ProvisionerKeyDaemons[];
 }
 
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
-> = ({ buildInfo, provisioners }) => {
+> = ({ showPaywall, error, buildInfo, provisioners }) => {
+	return (
+		<div>
+			<Stack
+				alignItems="baseline"
+				direction="row"
+				justifyContent="space-between"
+			>
+				<SettingsHeader title="Provisioners" />
+				{!showPaywall && (
+					<Button
+						endIcon={<OpenInNewIcon />}
+						target="_blank"
+						href={docs("/admin/provisioners")}
+					>
+						Create a provisioner
+					</Button>
+				)}
+			</Stack>
+			{showPaywall ? (
+				<Paywall
+					message="Provisioners"
+					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
+					documentationLink={docs("/")}
+				/>
+			) : error ? (
+				<ErrorAlert error={error} />
+			) : !buildInfo || !provisioners ? (
+				<Loader />
+			) : (
+				<ViewContent buildInfo={buildInfo} provisioners={provisioners} />
+			)}
+		</div>
+	);
+};
+
+type ViewContentProps = Required<
+	Pick<OrganizationProvisionersPageViewProps, "buildInfo" | "provisioners">
+>;
+
+const ViewContent: FC<ViewContentProps> = ({ buildInfo, provisioners }) => {
 	const isEmpty = provisioners.every((group) => group.daemons.length === 0);
 
 	const provisionerGroupsCount = provisioners.length;
@@ -33,24 +81,7 @@ export const OrganizationProvisionersPageView: FC<
 	);
 
 	return (
-		<div>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
-				<SettingsHeader
-					title="Provisioners"
-					badges={<FeatureStageBadge contentType="beta" size="lg" />}
-				/>
-				<Button
-					endIcon={<OpenInNewIcon />}
-					target="_blank"
-					href={docs("/admin/provisioners")}
-				>
-					Create a provisioner
-				</Button>
-			</Stack>
+		<>
 			{isEmpty ? (
 				<EmptyState
 					message="No provisioners"
@@ -102,7 +133,7 @@ export const OrganizationProvisionersPageView: FC<
 					);
 				})}
 			</Stack>
-		</div>
+		</>
 	);
 };
 
