@@ -25,6 +25,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
@@ -51,15 +52,17 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
+import { useOrganizationSettings } from "../ManagementSettingsLayout";
 
 export const GroupPage: FC = () => {
-	const { organization = "default", groupName } = useParams() as {
-		organization?: string;
+	const { organization } = useOrganizationSettings();
+	const { organization: organizationName, groupName } = useParams() as {
+		organization: string;
 		groupName: string;
 	};
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const groupQuery = useQuery(group(organization, groupName));
+	const groupQuery = useQuery(group(organizationName, groupName));
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery(
 		groupData ? groupPermissions(groupData.id) : { enabled: false },
@@ -95,6 +98,12 @@ export const GroupPage: FC = () => {
 	}
 	const groupId = groupData.id;
 
+	if (!organization || !groupQuery.data) {
+		return <EmptyState message="Group not found" />;
+	}
+
+	const groupDisplayName = groupQuery.data.display_name || groupQuery.data.name;
+
 	return (
 		<>
 			{helmet}
@@ -103,11 +112,23 @@ export const GroupPage: FC = () => {
 				alignItems="baseline"
 				direction="row"
 				justifyContent="space-between"
+				css={{ paddingBottom: 32 }}
 			>
-				<SettingsHeader
-					title={groupData?.display_name || groupData?.name}
-					description="Manage members for this group."
-				/>
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organizationName}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organizationName}/groups`}>
+						Groups
+					</Crumb>
+					<Crumb
+						href={`/organizations/${organizationName}/groups/${groupName}`}
+						active
+					>
+						{groupDisplayName}
+					</Crumb>
+				</Breadcrumbs>
 				{canUpdateGroup && (
 					<Stack direction="row" spacing={2}>
 						<Button

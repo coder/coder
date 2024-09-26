@@ -2,6 +2,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Button from "@mui/material/Button";
 import type {
 	BuildInfoResponse,
+	Organization,
 	ProvisionerKey,
 	ProvisionerKeyDaemons,
 } from "api/typesGenerated";
@@ -18,6 +19,8 @@ import { docs } from "utils/docs";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 interface OrganizationProvisionersPageViewProps {
+	organization: Organization;
+
 	/** Determines if the paywall will be shown or not */
 	showPaywall?: boolean;
 
@@ -33,15 +36,24 @@ interface OrganizationProvisionersPageViewProps {
 
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
-> = ({ showPaywall, error, buildInfo, provisioners }) => {
+> = ({ organization, showPaywall, error, buildInfo, provisioners }) => {
 	return (
-		<div>
+		<Stack>
 			<Stack
 				alignItems="baseline"
 				direction="row"
 				justifyContent="space-between"
+				css={{ paddingBottom: 32 }}
 			>
-				<SettingsHeader title="Provisioners" />
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/members`} active>
+						Members
+					</Crumb>
+				</Breadcrumbs>
 				{!showPaywall && (
 					<Button
 						endIcon={<OpenInNewIcon />}
@@ -65,7 +77,7 @@ export const OrganizationProvisionersPageView: FC<
 			) : (
 				<ViewContent buildInfo={buildInfo} provisioners={provisioners} />
 			)}
-		</div>
+		</Stack>
 	);
 };
 

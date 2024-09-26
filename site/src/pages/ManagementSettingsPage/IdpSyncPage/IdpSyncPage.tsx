@@ -20,6 +20,7 @@ import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
@@ -65,12 +66,17 @@ export const IdpSyncPage: FC = () => {
 				alignItems="baseline"
 				direction="row"
 				justifyContent="space-between"
+				css={{ paddingBottom: 32 }}
 			>
-				<SettingsHeader
-					title="IdP Sync"
-					description="Group and role sync mappings (configured using Coder CLI)."
-					tooltip={<IdpSyncHelpTooltip />}
-				/>
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/idp-sync`} active>
+						IdP Sync
+					</Crumb>
+				</Breadcrumbs>
 				<Button
 					startIcon={<LaunchOutlined />}
 					component="a"

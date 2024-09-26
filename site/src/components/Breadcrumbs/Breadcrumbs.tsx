@@ -1,3 +1,4 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
 import Link from "@mui/material/Link";
 import type { FC, ReactNode } from "react";
@@ -5,11 +6,21 @@ import { Link as RouterLink } from "react-router-dom";
 
 interface BreadcrumbsProps {
 	children?: ReactNode;
+	className?: string;
 }
 
-export const Breadcrumbs: FC<BreadcrumbsProps> = ({ children }) => {
+export const Breadcrumbs: FC<BreadcrumbsProps> = ({ children, className }) => {
 	return (
-		<div css={{ display: "flex", flexDirection: "row", gap: 10, fontSize: 14 }}>
+		<div
+			className={className}
+			css={{
+				display: "flex",
+				alignItems: "center",
+				flexDirection: "row",
+				gap: 10,
+				fontSize: 14,
+			}}
+		>
 			{children}
 		</div>
 	);
@@ -23,19 +34,8 @@ interface CrumbProps {
 
 export const Crumb: FC<CrumbProps> = ({ active, href, children }) => {
 	return (
-		<div
-			css={{
-				display: "flex",
-				flexDirection: "row",
-				gap: 10,
-				alignItems: "center",
-				fontWeight: 600,
-				"&:first-of-type .chevron": {
-					display: "none",
-				},
-			}}
-		>
-			<div className="chevron" css={{ display: "inline-block", paddingTop: 3 }}>
+		<div css={styles.crumb}>
+			<div className="chevron">
 				<KeyboardDoubleArrowRightIcon css={{ width: 14, height: 14 }} />
 			</div>
 			{href && !active ? (
@@ -49,13 +49,22 @@ export const Crumb: FC<CrumbProps> = ({ active, href, children }) => {
 	);
 };
 
-/* <Breadcrumbs>
-	<Crumb href="/wibble">Wibble</Crumb>
-	<Crumb href="/wibble/wobble">Wobble</Crumb>
-</Breadcrumbs>;
+const styles = {
+	crumb: {
+		display: "flex",
+		alignItems: "center",
+		flexDirection: "row",
+		gap: 10,
+		fontWeight: 600,
 
+		"&:first-of-type .chevron": {
+			display: "none",
+		},
 
-<Breadcrumbs breadcrumbs={[
-	{ href: "/wibble", children: "Wibble" },
-	{ href: "/wibble/wobble", children: "Wobble" },
-]} />; */
+		"& .chevron": {
+			display: "inline-block",
+			paddingTop: 3,
+			height: "fit-content",
+		},
+	},
+} satisfies Record<string, Interpolation<Theme>>;

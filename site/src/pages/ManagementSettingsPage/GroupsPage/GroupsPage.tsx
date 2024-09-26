@@ -80,7 +80,6 @@ export const GroupsPage: FC = () => {
 			</Stack>
 
 			<GroupsPageView
-				organization={organization}
 				groups={groupsQuery.data}
 				canCreateGroup={permissions.createGroup}
 				isTemplateRBACEnabled={feats.template_rbac}

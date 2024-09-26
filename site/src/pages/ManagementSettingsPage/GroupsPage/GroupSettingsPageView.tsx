@@ -18,6 +18,9 @@ import {
 } from "utils/formUtils";
 import { isEveryoneGroup } from "utils/groups";
 import * as Yup from "yup";
+import { useOrganizationSettings } from "../ManagementSettingsLayout";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 type FormData = {
 	name: string;
@@ -138,19 +141,42 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
 	isLoading,
 	isUpdating,
 }) => {
+	const { organization } = useOrganizationSettings();
+
 	if (isLoading) {
 		return <Loader />;
 	}
 
+	if (!organization || !group) {
+		return <EmptyState message="Group not found" />;
+	}
+
+	console.log(group);
+
 	return (
 		<>
-			<ResourcePageHeader
-				displayName={group!.display_name}
-				name={group!.name}
-				css={{ paddingTop: 8 }}
-			/>
+			<Breadcrumbs css={{ paddingBottom: 32 }}>
+				<Crumb>Organizations</Crumb>
+				<Crumb href={`/organizations/${organization.name}`}>
+					{organization.display_name || organization.name}
+				</Crumb>
+				<Crumb href={`/organizations/${organization.name}/groups`}>
+					Groups
+				</Crumb>
+				<Crumb
+					href={`/organizations/${organization.name}/groups/${group.name}`}
+				>
+					{group.display_name || group.name}
+				</Crumb>
+				<Crumb
+					href={`/organizations/${organization.name}/groups/${group.name}/settings`}
+					active
+				>
+					Settings
+				</Crumb>
+			</Breadcrumbs>
 			<UpdateGroupForm
-				group={group!}
+				group={group}
 				onCancel={onCancel}
 				errors={formErrors}
 				isLoading={isUpdating}

@@ -38,6 +38,7 @@ const OrganizationProvisionersPage: FC = () => {
 
 	return (
 		<OrganizationProvisionersPageView
+			organization={organization}
 			showPaywall={!entitlements.features.multiple_organizations.enabled}
 			error={provisionersQuery.error}
 			buildInfo={buildInfoQuery.data}
