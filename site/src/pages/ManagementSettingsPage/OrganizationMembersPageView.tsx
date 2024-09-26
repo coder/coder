@@ -8,7 +8,9 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
+import type { GroupsByUserId } from "api/queries/groups";
 import type {
+	Group,
 	OrganizationMemberWithUserData,
 	SlimRole,
 	User,
@@ -27,6 +29,7 @@ import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
@@ -38,7 +41,8 @@ interface OrganizationMembersPageViewProps {
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
 	me: User;
-	members: OrganizationMemberWithUserData[] | undefined;
+	members: Array<OrganizationMemberTableEntry> | undefined;
+	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
 	updateMemberRoles: (
@@ -47,13 +51,16 @@ interface OrganizationMembersPageViewProps {
 	) => Promise<void>;
 }
 
+interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
+	groups: readonly Group[] | undefined;
+}
+
 export const OrganizationMembersPageView: FC<
 	OrganizationMembersPageViewProps
 > = (props) => {
 	return (
 		<div>
 			<SettingsHeader title="Members" />
-
 			<Stack>
 				{Boolean(props.error) && <ErrorAlert error={props.error} />}
 
@@ -68,14 +75,20 @@ export const OrganizationMembersPageView: FC<
 					<Table>
 						<TableHead>
 							<TableRow>
-								<TableCell width="50%">User</TableCell>
-								<TableCell width="49%">
+								<TableCell width="33%">User</TableCell>
+								<TableCell width="33%">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Roles</span>
 										<TableColumnHelpTooltip variant="roles" />
 									</Stack>
 								</TableCell>
-								<TableCell width="1%"></TableCell>
+								<TableCell width="33%">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Groups</span>
+										<TableColumnHelpTooltip variant="groups" />
+									</Stack>
+								</TableCell>
+								<TableCell width="1%" />
 							</TableRow>
 						</TableHead>
 						<TableBody>
@@ -111,6 +124,7 @@ export const OrganizationMembersPageView: FC<
 											}
 										}}
 									/>
+									<UserGroupsCell userGroups={member.groups} />
 									<TableCell>
 										{member.user_id !== props.me.id && props.canEditMembers && (
 											<MoreMenu>

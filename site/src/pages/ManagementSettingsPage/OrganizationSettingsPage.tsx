@@ -4,6 +4,7 @@ import {
 	updateOrganization,
 } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -42,15 +43,19 @@ const OrganizationSettingsPage: FC = () => {
 		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
 
-	const permissions = permissionsQuery.data;
-	if (!organizations || !permissions) {
+	if (permissionsQuery.isLoading) {
 		return <Loader />;
+	}
+
+	const permissions = permissionsQuery.data;
+	if (permissionsQuery.error || !permissions) {
+		return <ErrorAlert error={permissionsQuery.error} />;
 	}
 
 	// Redirect /organizations => /organizations/default-org, or if they cannot edit
 	// the default org, then the first org they can edit, if any.
 	if (!organizationName) {
-		const editableOrg = organizations
+		const editableOrg = [...organizations]
 			.sort((a, b) => {
 				// Prefer default org (it may not be first).
 				// JavaScript will happily subtract booleans, but use numbers to keep
@@ -107,5 +112,9 @@ const OrganizationSettingsPage: FC = () => {
 
 export default OrganizationSettingsPage;
 
-const getOrganizationByName = (organizations: Organization[], name: string) =>
-	organizations.find((org) => org.name === name);
+const getOrganizationByName = (
+	organizations: readonly Organization[],
+	name: string,
+) => {
+	return organizations.find((org) => org.name === name);
+};

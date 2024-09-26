@@ -5,6 +5,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -12,8 +13,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -45,6 +49,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// updateGoldenFiles is a flag that can be set to update golden files.
+var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
@@ -693,7 +700,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceDeleted",
 			id:   notifications.TemplateWorkspaceDeleted,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":      "bobby-workspace",
 					"reason":    "autodeleted due to dormancy",
@@ -705,7 +712,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceAutobuildFailed",
 			id:   notifications.TemplateWorkspaceAutobuildFailed,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":   "bobby-workspace",
 					"reason": "autostart",
@@ -716,7 +723,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceDormant",
 			id:   notifications.TemplateWorkspaceDormant,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "breached the template's threshold for inactivity",
@@ -730,7 +737,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceAutoUpdated",
 			id:   notifications.TemplateWorkspaceAutoUpdated,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_version_name":    "1.0",
@@ -742,7 +749,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceMarkedForDeletion",
 			id:   notifications.TemplateWorkspaceMarkedForDeletion,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "template updated to new dormancy policy",
@@ -755,7 +762,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"created_account_name": "bobby",
 				},
@@ -765,7 +772,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountDeleted",
 			id:   notifications.TemplateUserAccountDeleted,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"deleted_account_name": "bobby",
 				},
@@ -775,7 +782,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountSuspended",
 			id:   notifications.TemplateUserAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"suspended_account_name": "bobby",
 				},
@@ -785,7 +792,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountActivated",
 			id:   notifications.TemplateUserAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"activated_account_name": "bobby",
 				},
@@ -795,7 +802,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateYourAccountSuspended",
 			id:   notifications.TemplateYourAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"suspended_account_name": "bobby",
 				},
@@ -805,7 +812,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateYourAccountActivated",
 			id:   notifications.TemplateYourAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"activated_account_name": "bobby",
 				},
@@ -815,7 +822,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateTemplateDeleted",
 			id:   notifications.TemplateTemplateDeleted,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":      "bobby-template",
 					"initiator": "rob",
@@ -826,7 +833,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceManualBuildFailed",
 			id:   notifications.TemplateWorkspaceManualBuildFailed,
 			payload: types.MessagePayload{
-				UserName: "bobby",
+				UserName: "Bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
@@ -834,6 +841,57 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 					"initiator":                "joe",
 					"workspace_owner_username": "mrbobby",
 					"workspace_build_number":   "3",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceBuildsFailedReport",
+			id:   notifications.TemplateWorkspaceBuildsFailedReport,
+			payload: types.MessagePayload{
+				UserName: "Bobby",
+				Labels: map[string]string{
+					"template_name":         "bobby-first-template",
+					"template_display_name": "Bobby First Template",
+				},
+				// We need to use floats as `json.Unmarshal` unmarshal numbers in `map[string]any` to floats.
+				Data: map[string]any{
+					"failed_builds":    4.0,
+					"total_builds":     55.0,
+					"report_frequency": "week",
+					"template_versions": []map[string]any{
+						{
+							"template_version_name": "bobby-template-version-1",
+							"failed_count":          3.0,
+							"failed_builds": []map[string]any{
+								{
+									"workspace_owner_username": "mtojek",
+									"workspace_name":           "workspace-1",
+									"build_number":             1234.0,
+								},
+								{
+									"workspace_owner_username": "johndoe",
+									"workspace_name":           "my-workspace-3",
+									"build_number":             5678.0,
+								},
+								{
+									"workspace_owner_username": "jack",
+									"workspace_name":           "workwork",
+									"build_number":             774.0,
+								},
+							},
+						},
+						{
+							"template_version_name": "bobby-template-version-2",
+							"failed_count":          1.0,
+							"failed_builds": []map[string]any{
+								{
+									"workspace_owner_username": "ben",
+									"workspace_name":           "cool-workspace",
+									"build_number":             8888.0,
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -869,14 +927,36 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				Scan(&titleTmpl, &bodyTmpl)
 			require.NoError(t, err, "failed to query body template for template:", tc.id)
 
-			title, err := render.GoTemplate(titleTmpl, tc.payload, nil)
+			title, err := render.GoTemplate(titleTmpl, tc.payload, defaultHelpers())
 			require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
 			require.NoError(t, err, "failed to render notification title template")
 			require.NotEmpty(t, title, "title should not be empty")
 
-			body, err := render.GoTemplate(bodyTmpl, tc.payload, nil)
+			body, err := render.GoTemplate(bodyTmpl, tc.payload, defaultHelpers())
 			require.NoError(t, err, "failed to render notification body template")
 			require.NotEmpty(t, body, "body should not be empty")
+
+			partialName := strings.Split(t.Name(), "/")[1]
+			bodyGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-body.md.golden")
+			titleGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-title.md.golden")
+
+			if *updateGoldenFiles {
+				err = os.MkdirAll(filepath.Dir(bodyGoldenFile), 0o755)
+				require.NoError(t, err, "want no error creating golden file directory")
+				err = os.WriteFile(bodyGoldenFile, []byte(body), 0o600)
+				require.NoError(t, err, "want no error writing body golden file")
+				err = os.WriteFile(titleGoldenFile, []byte(title), 0o600)
+				require.NoError(t, err, "want no error writing title golden file")
+				return
+			}
+
+			wantBody, err := os.ReadFile(bodyGoldenFile)
+			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
+			wantTitle, err := os.ReadFile(titleGoldenFile)
+			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
+
+			require.Equal(t, string(wantBody), body, "body should be equal")
+			require.Equal(t, string(wantTitle), title, "title should be equal")
 		})
 	}
 }

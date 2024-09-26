@@ -247,9 +247,15 @@ const OrganizationCustomRolesPage = lazy(
 	() =>
 		import("./pages/ManagementSettingsPage/CustomRolesPage/CustomRolesPage"),
 );
+const OrganizationIdPSyncPage = lazy(
+	() => import("./pages/ManagementSettingsPage/IdpSyncPage/IdpSyncPage"),
+);
 const CreateEditRolePage = lazy(
 	() =>
 		import("./pages/ManagementSettingsPage/CustomRolesPage/CreateEditRolePage"),
+);
+const OrganizationProvisionersPage = lazy(
+	() => import("./pages/ManagementSettingsPage/OrganizationProvisionersPage"),
 );
 const TemplateEmbedPage = lazy(
 	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -399,6 +405,11 @@ export const router = createBrowserRouter(
 								<Route path="create" element={<CreateEditRolePage />} />
 								<Route path=":roleName" element={<CreateEditRolePage />} />
 							</Route>
+							<Route
+								path="provisioners"
+								element={<OrganizationProvisionersPage />}
+							/>
+							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
 						</Route>
 					</Route>
 

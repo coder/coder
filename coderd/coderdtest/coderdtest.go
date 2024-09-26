@@ -67,6 +67,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/unhanger"
@@ -254,6 +255,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
 	accessControlStore.Store(&acs)
 
+	runtimeManager := runtimeconfig.NewManager()
 	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore)
 
 	// Some routes expect a deployment ID, so just make sure one exists.
@@ -482,6 +484,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AppHostnameRegex:               appHostnameRegex,
 			Logger:                         *options.Logger,
 			CacheDir:                       t.TempDir(),
+			RuntimeConfig:                  runtimeManager,
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
@@ -1140,7 +1143,7 @@ func MustWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID)
 
 // RequestExternalAuthCallback makes a request with the proper OAuth2 state cookie
 // to the external auth callback endpoint.
-func RequestExternalAuthCallback(t testing.TB, providerID string, client *codersdk.Client) *http.Response {
+func RequestExternalAuthCallback(t testing.TB, providerID string, client *codersdk.Client, opts ...func(*http.Request)) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -1157,6 +1160,9 @@ func RequestExternalAuthCallback(t testing.TB, providerID string, client *coders
 		Name:  codersdk.SessionTokenCookie,
 		Value: client.SessionToken(),
 	})
+	for _, opt := range opts {
+		opt(req)
+	}
 	res, err := client.HTTPClient.Do(req)
 	require.NoError(t, err)
 	t.Cleanup(func() {

@@ -391,6 +391,7 @@
 		}
 	],
 	"application_name": "string",
+	"docs_url": "string",
 	"logo_url": "string",
 	"service_banner": {
 		"background_color": "string",
@@ -413,6 +414,7 @@
 | ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `docs_url`             | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 | `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
@@ -1902,6 +1904,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"secure_auth_cookie": true,
 		"session_lifetime": {
 			"default_duration": 0,
+			"default_token_lifetime": 0,
 			"disable_expiry_refresh": true,
 			"max_token_lifetime": 0
 		},
@@ -2328,6 +2331,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"secure_auth_cookie": true,
 	"session_lifetime": {
 		"default_duration": 0,
+		"default_token_lifetime": 0,
 		"disable_expiry_refresh": true,
 		"max_token_lifetime": 0
 	},
@@ -2894,6 +2898,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ------ |
 | `user` |
 | `oidc` |
+
+## codersdk.GroupSyncSettings
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
+### Properties
+
+| Name                         | Type                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                            |
+| ---------------------------- | ------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto_create_missing_groups` | boolean                        | false    |              | Auto create missing groups controls whether groups returned by the OIDC provider are automatically created in Coder if they are missing.                                                                                                                                               |
+| `field`                      | string                         | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider.                                                                                                            |
+| `legacy_group_name_mapping`  | object                         | false    |              | Legacy group name mapping is deprecated. It remaps an IDP group name to a Coder group name. Since configuration is now done at runtime, group IDs are used to account for group renames. For legacy configurations, this config option has to remain. Deprecated: Use Mapping instead. |
+| » `[any property]`           | string                         | false    |              |                                                                                                                                                                                                                                                                                        |
+| `mapping`                    | object                         | false    |              | Mapping maps from an OIDC group --> Coder group ID                                                                                                                                                                                                                                     |
+| » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
+| `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
 
 ## codersdk.Healthcheck
 
@@ -3988,6 +4022,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"api_version": "string",
 	"created_at": "2019-08-24T14:15:22Z",
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 	"last_seen_at": "2019-08-24T14:15:22Z",
 	"name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -4007,6 +4042,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `api_version`      | string          | false    |              |             |
 | `created_at`       | string          | false    |              |             |
 | `id`               | string          | false    |              |             |
+| `key_id`           | string          | false    |              |             |
 | `last_seen_at`     | string          | false    |              |             |
 | `name`             | string          | false    |              |             |
 | `organization_id`  | string          | false    |              |             |
@@ -4149,6 +4185,47 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `tags`             | object | false    |              |             |
 | » `[any property]` | string | false    |              |             |
 
+## codersdk.ProvisionerKeyDaemons
+
+```json
+{
+	"daemons": [
+		{
+			"api_version": "string",
+			"created_at": "2019-08-24T14:15:22Z",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
+			"last_seen_at": "2019-08-24T14:15:22Z",
+			"name": "string",
+			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+			"provisioners": ["string"],
+			"tags": {
+				"property1": "string",
+				"property2": "string"
+			},
+			"version": "string"
+		}
+	],
+	"key": {
+		"created_at": "2019-08-24T14:15:22Z",
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"name": "string",
+		"organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+		"tags": {
+			"property1": "string",
+			"property2": "string"
+		}
+	}
+}
+```
+
+### Properties
+
+| Name      | Type                                                              | Required | Restrictions | Description |
+| --------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `daemons` | array of [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
+| `key`     | [codersdk.ProvisionerKey](#codersdkprovisionerkey)                | false    |              |             |
+
 ## codersdk.ProvisionerLogLevel
 
 ```json
@@ -4176,6 +4253,32 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value  |
 | ------ |
 | `file` |
+
+## codersdk.ProvisionerTiming
+
+```json
+{
+	"action": "string",
+	"ended_at": "2019-08-24T14:15:22Z",
+	"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+	"resource": "string",
+	"source": "string",
+	"stage": "string",
+	"started_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `action`     | string | false    |              |             |
+| `ended_at`   | string | false    |              |             |
+| `job_id`     | string | false    |              |             |
+| `resource`   | string | false    |              |             |
+| `source`     | string | false    |              |             |
+| `stage`      | string | false    |              |             |
+| `started_at` | string | false    |              |             |
 
 ## codersdk.ProxyHealthReport
 
@@ -4285,12 +4388,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `assign_org_role`         |
 | `assign_role`             |
 | `audit_log`               |
+| `crypto_key`              |
 | `debug_info`              |
 | `deployment_config`       |
 | `deployment_stats`        |
 | `file`                    |
 | `group`                   |
 | `group_member`            |
+| `idpsync_settings`        |
 | `license`                 |
 | `notification_preference` |
 | `notification_template`   |
@@ -4590,6 +4695,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 | `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 
+## codersdk.RoleSyncSettings
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	}
+}
+```
+
+### Properties
+
+| Name               | Type            | Required | Restrictions | Description                                                                                                                                                                 |
+| ------------------ | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `field`            | string          | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider. |
+| `mapping`          | object          | false    |              | Mapping maps from an OIDC group --> Coder organization role                                                                                                                 |
+| » `[any property]` | array of string | false    |              |                                                                                                                                                                             |
+
 ## codersdk.SSHConfig
 
 ```json
@@ -4651,6 +4776,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
 	"default_duration": 0,
+	"default_token_lifetime": 0,
 	"disable_expiry_refresh": true,
 	"max_token_lifetime": 0
 }
@@ -4660,7 +4786,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Name                     | Type    | Required | Restrictions | Description                                                                                                                                                                        |
 | ------------------------ | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default_duration`       | integer | false    |              | Default duration is for api keys, not tokens.                                                                                                                                      |
+| `default_duration`       | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
+| `default_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
 | `disable_expiry_refresh` | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
 | `max_token_lifetime`     | integer | false    |              |                                                                                                                                                                                    |
 
@@ -6269,6 +6396,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 									"threshold": 0,
 									"url": "string"
 								},
+								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"sharing_level": "owner",
@@ -6326,6 +6454,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"scripts": [
 							{
 								"cron": "string",
+								"display_name": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,
@@ -6447,6 +6577,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"threshold": 0,
 				"url": "string"
 			},
+			"hidden": true,
 			"icon": "string",
 			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 			"sharing_level": "owner",
@@ -6504,6 +6635,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 	"scripts": [
 		{
 			"cron": "string",
+			"display_name": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 			"log_path": "string",
 			"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 			"run_on_start": true,
@@ -6772,6 +6905,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
 	"cron": "string",
+	"display_name": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"log_path": "string",
 	"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 	"run_on_start": true,
@@ -6787,6 +6922,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name                 | Type    | Required | Restrictions | Description |
 | -------------------- | ------- | -------- | ------------ | ----------- |
 | `cron`               | string  | false    |              |             |
+| `display_name`       | string  | false    |              |             |
+| `id`                 | string  | false    |              |             |
 | `log_path`           | string  | false    |              |             |
 | `log_source_id`      | string  | false    |              |             |
 | `run_on_start`       | boolean | false    |              |             |
@@ -6840,6 +6977,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"threshold": 0,
 		"url": "string"
 	},
+	"hidden": true,
 	"icon": "string",
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"sharing_level": "owner",
@@ -6859,6 +6997,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `external`       | boolean                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
 | `health`         | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
 | `healthcheck`    | [codersdk.Healthcheck](#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
+| `hidden`         | boolean                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `icon`           | string                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `id`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `sharing_level`  | [codersdk.WorkspaceAppSharingLevel](#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
@@ -6955,6 +7094,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 								"threshold": 0,
 								"url": "string"
 							},
+							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"sharing_level": "owner",
@@ -7012,6 +7152,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 					"scripts": [
 						{
 							"cron": "string",
+							"display_name": "string",
+							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"log_path": "string",
 							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 							"run_on_start": true,
@@ -7289,6 +7431,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"threshold": 0,
 						"url": "string"
 					},
+					"hidden": true,
 					"icon": "string",
 					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 					"sharing_level": "owner",
@@ -7346,6 +7489,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"scripts": [
 				{
 					"cron": "string",
+					"display_name": "string",
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 					"log_path": "string",
 					"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 					"run_on_start": true,
@@ -7448,6 +7593,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `deleting`  |
 | `deleted`   |
 
+## codersdk.WorkspaceTimings
+
+```json
+{
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                              | Required | Restrictions | Description |
+| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `provisioner_timings` | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
+
 ## codersdk.WorkspaceTransition
 
 ```json
@@ -7524,6 +7693,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 										"external": true,
 										"health": "disabled",
 										"healthcheck": {},
+										"hidden": true,
 										"icon": "string",
 										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 										"sharing_level": "owner",
@@ -7581,6 +7751,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 								"scripts": [
 									{
 										"cron": "string",
+										"display_name": "string",
+										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 										"log_path": "string",
 										"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 										"run_on_start": true,
@@ -8527,6 +8699,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 					"api_version": "string",
 					"created_at": "2019-08-24T14:15:22Z",
 					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 					"last_seen_at": "2019-08-24T14:15:22Z",
 					"name": "string",
 					"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -8646,6 +8819,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"api_version": "string",
 				"created_at": "2019-08-24T14:15:22Z",
 				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+				"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 				"last_seen_at": "2019-08-24T14:15:22Z",
 				"name": "string",
 				"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -8700,6 +8874,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"api_version": "string",
 		"created_at": "2019-08-24T14:15:22Z",
 		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
 		"last_seen_at": "2019-08-24T14:15:22Z",
 		"name": "string",
 		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -8937,6 +9112,7 @@ _None_
 ```json
 {
 	"access_token": "string",
+	"expires_in": 0,
 	"expiry": "string",
 	"refresh_token": "string",
 	"token_type": "string"
@@ -8945,13 +9121,24 @@ _None_
 
 ### Properties
 
-| Name                                                                                                                                                    | Type   | Required | Restrictions | Description                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `access_token`                                                                                                                                          | string | false    |              | Access token is the token that authorizes and authenticates the requests.                                                   |
-| `expiry`                                                                                                                                                | string | false    |              | Expiry is the optional expiration time of the access token.                                                                 |
+| Name                                                                                                                                                    | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_token`                                                                                                                                          | string  | false    |              | Access token is the token that authorizes and authenticates the requests.                                                                                                                                                                                                   |
+| `expires_in`                                                                                                                                            | integer | false    |              | Expires in is the OAuth2 wire format "expires_in" field, which specifies how many seconds later the token expires, relative to an unknown time base approximately around "now". It is the application's responsibility to populate `Expiry` from `ExpiresIn` when required. |
+| `expiry`                                                                                                                                                | string  | false    |              | Expiry is the optional expiration time of the access token.                                                                                                                                                                                                                 |
 | If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used. |
-| `refresh_token`                                                                                                                                         | string | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires. |
-| `token_type`                                                                                                                                            | string | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                              |
+| `refresh_token`                                                                                                                                         | string  | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires.                                                                                                                                                 |
+| `token_type`                                                                                                                                            | string  | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                                                                                                                                                                              |
+
+## regexp.Regexp
+
+```json
+{}
+```
+
+### Properties
+
+_None_
 
 ## serpent.Annotations
 

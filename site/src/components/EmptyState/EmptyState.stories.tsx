@@ -13,11 +13,17 @@ const meta: Meta<typeof EmptyState> = {
 export default meta;
 type Story = StoryObj<typeof EmptyState>;
 
-const Example: Story = {
+export const Example: Story = {
 	args: {
 		description: "It is easy, just click the button below",
 		cta: <Button>Create workspace</Button>,
 	},
 };
 
-export { Example as EmptyState };
+export const Compact: Story = {
+	args: {
+		description: "It is easy, just click the button below",
+		cta: <Button>Create workspace</Button>,
+		isCompact: true,
+	},
+};

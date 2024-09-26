@@ -32,6 +32,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>logout</code>](./logout.md)                 | Unauthenticate your local session                                                                     |
 | [<code>netcheck</code>](./netcheck.md)             | Print network debug information for DERP and STUN                                                     |
 | [<code>notifications</code>](./notifications.md)   | Manage Coder notifications                                                                            |
+| [<code>organizations</code>](./organizations.md)   | Organization related commands                                                                         |
 | [<code>port-forward</code>](./port-forward.md)     | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R". |
 | [<code>publickey</code>](./publickey.md)           | Output your Coder public key used for Git operations                                                  |
 | [<code>reset-password</code>](./reset-password.md) | Directly connect to the database to reset a user's password                                           |

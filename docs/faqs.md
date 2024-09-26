@@ -358,11 +358,9 @@ code-server picks up and points the developer to.
 Another option is to use Microsoft's code-server - which is like Coder's, but it
 can connect to Microsoft's extension marketplace so Copilot and chat can be
 retrieved there.
-[See a sample template here](https://github.com/sharkymark/v2-templates/blob/main/src/vs-code-server/main.tf).
 
 Another option is to use VS Code Desktop (local) and that connects to
 Microsoft's marketplace.
-https://github.com/sharkymark/v2-templates/blob/main/src/vs-code-server/main.tf
 
 > Note: these are example templates with no SLAs on them and are not guaranteed
 > for long-term support.

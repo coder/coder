@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -74,6 +75,9 @@ type GroupArguments struct {
 	Organization string
 	// HasMember can be a user uuid or username
 	HasMember string
+	// GroupIDs is a list of group UUIDs to filter by.
+	// If not set, all groups will be returned.
+	GroupIDs []uuid.UUID
 }
 
 func (c *Client) Groups(ctx context.Context, args GroupArguments) ([]Group, error) {
@@ -83,6 +87,13 @@ func (c *Client) Groups(ctx context.Context, args GroupArguments) ([]Group, erro
 	}
 	if args.HasMember != "" {
 		qp.Set("has_member", args.HasMember)
+	}
+	if len(args.GroupIDs) > 0 {
+		idStrs := make([]string, 0, len(args.GroupIDs))
+		for _, id := range args.GroupIDs {
+			idStrs = append(idStrs, id.String())
+		}
+		qp.Set("group_ids", strings.Join(idStrs, ","))
 	}
 
 	res, err := c.Request(ctx, http.MethodGet,

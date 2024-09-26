@@ -32,6 +32,12 @@ export const RBACResourceActions: Partial<
     create: "create new audit log entries",
     read: "read audit logs",
   },
+  crypto_key: {
+    create: "create crypto keys",
+    delete: "delete crypto keys",
+    read: "read crypto keys",
+    update: "update crypto keys",
+  },
   debug_info: {
     read: "access to debug routes",
   },
@@ -54,6 +60,10 @@ export const RBACResourceActions: Partial<
   },
   group_member: {
     read: "read group members",
+  },
+  idpsync_settings: {
+    read: "read IdP sync settings",
+    update: "update IdP sync settings",
   },
   license: {
     create: "create a license",

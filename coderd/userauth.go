@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,7 +19,6 @@ import (
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -602,7 +600,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ghName := ghUser.GetName()
-	normName := httpapi.NormalizeRealUsername(ghName)
+	normName := codersdk.NormalizeRealUsername(ghName)
 
 	// If we have a nil GitHub ID, that is a big problem. That would mean we link
 	// this user and all other users with this bug to the same uuid.
@@ -659,6 +657,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		AvatarURL:    ghUser.GetAvatarURL(),
 		Name:         normName,
 		DebugContext: OauthDebugContext{},
+		GroupSync: idpsync.GroupParams{
+			SyncEnabled: false,
+		},
 		OrganizationSync: idpsync.OrganizationParams{
 			SyncEnabled:    false,
 			IncludeDefault: true,
@@ -707,9 +708,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		http.SetCookie(rw, cookie)
 	}
 
-	if redirect == "" {
-		redirect = "/"
-	}
+	redirect = uriFromURL(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 }
 
@@ -741,48 +740,12 @@ type OIDCConfig struct {
 	// support the userinfo endpoint, or if the userinfo endpoint causes
 	// undesirable behavior.
 	IgnoreUserInfo bool
-
-	// TODO: Move all idp fields into the IDPSync struct
-	// GroupField selects the claim field to be used as the created user's
-	// groups. If the group field is the empty string, then no group updates
-	// will ever come from the OIDC provider.
-	GroupField string
-	// CreateMissingGroups controls whether groups returned by the OIDC provider
-	// are automatically created in Coder if they are missing.
-	CreateMissingGroups bool
-	// GroupFilter is a regular expression that filters the groups returned by
-	// the OIDC provider. Any group not matched by this regex will be ignored.
-	// If the group filter is nil, then no group filtering will occur.
-	GroupFilter *regexp.Regexp
-	// GroupAllowList is a list of groups that are allowed to log in.
-	// If the list length is 0, then the allow list will not be applied and
-	// this feature is disabled.
-	GroupAllowList map[string]bool
-	// GroupMapping controls how groups returned by the OIDC provider get mapped
-	// to groups within Coder.
-	// map[oidcGroupName]coderGroupName
-	GroupMapping map[string]string
-	// UserRoleField selects the claim field to be used as the created user's
-	// roles. If the field is the empty string, then no role updates
-	// will ever come from the OIDC provider.
-	UserRoleField string
-	// UserRoleMapping controls how groups returned by the OIDC provider get mapped
-	// to roles within Coder.
-	// map[oidcRoleName][]coderRoleName
-	UserRoleMapping map[string][]string
-	// UserRolesDefault is the default set of roles to assign to a user if role sync
-	// is enabled.
-	UserRolesDefault []string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
 	IconURL string
 	// SignupsDisabledText is the text do display on the static error page.
 	SignupsDisabledText string
-}
-
-func (cfg OIDCConfig) RoleSyncEnabled() bool {
-	return cfg.UserRoleField != ""
 }
 
 // @Summary OpenID Connect Callback
@@ -951,7 +914,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
-	usernameValid := httpapi.NameValid(username)
+	usernameValid := codersdk.NameValid(username)
 	if usernameValid != nil {
 		// If no username is provided, we can default to use the email address.
 		// This will be converted in the from function below, so it's safe
@@ -959,7 +922,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		if username == "" {
 			username = email
 		}
-		username = httpapi.UsernameFrom(username)
+		username = codersdk.UsernameFrom(username)
 	}
 
 	if len(api.OIDCConfig.EmailDomain) > 0 {
@@ -994,7 +957,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	nameRaw, ok := mergedClaims[api.OIDCConfig.NameField]
 	if ok {
 		name, _ = nameRaw.(string)
-		name = httpapi.NormalizeRealUsername(name)
+		name = codersdk.NormalizeRealUsername(name)
 	}
 
 	var picture string
@@ -1004,17 +967,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
-	usingGroups, groups, groupErr := api.oidcGroups(ctx, mergedClaims)
-	if groupErr != nil {
-		groupErr.Write(rw, r)
-		return
-	}
-
-	roles, roleErr := api.oidcRoles(ctx, mergedClaims)
-	if roleErr != nil {
-		roleErr.Write(rw, r)
-		return
-	}
 
 	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
 	if err != nil {
@@ -1032,6 +984,18 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	groupSync, groupSyncErr := api.IDPSync.ParseGroupClaims(ctx, mergedClaims)
+	if groupSyncErr != nil {
+		groupSyncErr.Write(rw, r)
+		return
+	}
+
+	roleSync, roleSyncErr := api.IDPSync.ParseRoleClaims(ctx, mergedClaims)
+	if roleSyncErr != nil {
+		roleSyncErr.Write(rw, r)
+		return
+	}
+
 	// If a new user is authenticating for the first time
 	// the audit action is 'register', not 'login'
 	if user.ID == uuid.Nil {
@@ -1039,23 +1003,19 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := (&oauthLoginParams{
-		User:                user,
-		Link:                link,
-		State:               state,
-		LinkedID:            oidcLinkedID(idToken),
-		LoginType:           database.LoginTypeOIDC,
-		AllowSignups:        api.OIDCConfig.AllowSignups,
-		Email:               email,
-		Username:            username,
-		Name:                name,
-		AvatarURL:           picture,
-		UsingRoles:          api.OIDCConfig.RoleSyncEnabled(),
-		Roles:               roles,
-		UsingGroups:         usingGroups,
-		Groups:              groups,
-		OrganizationSync:    orgSync,
-		CreateMissingGroups: api.OIDCConfig.CreateMissingGroups,
-		GroupFilter:         api.OIDCConfig.GroupFilter,
+		User:             user,
+		Link:             link,
+		State:            state,
+		LinkedID:         oidcLinkedID(idToken),
+		LoginType:        database.LoginTypeOIDC,
+		AllowSignups:     api.OIDCConfig.AllowSignups,
+		Email:            email,
+		Username:         username,
+		Name:             name,
+		AvatarURL:        picture,
+		OrganizationSync: orgSync,
+		GroupSync:        groupSync,
+		RoleSync:         roleSync,
 		DebugContext: OauthDebugContext{
 			IDTokenClaims:  idtokenClaims,
 			UserInfoClaims: userInfoClaims,
@@ -1085,138 +1045,10 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	redirect := state.Redirect
-	if redirect == "" {
-		redirect = "/"
-	}
+	// Strip the host if it exists on the URL to prevent
+	// any nefarious redirects.
+	redirect = uriFromURL(redirect)
 	http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
-}
-
-// oidcGroups returns the groups for the user from the OIDC claims.
-func (api *API) oidcGroups(ctx context.Context, mergedClaims map[string]interface{}) (bool, []string, *idpsync.HTTPError) {
-	logger := api.Logger.Named(userAuthLoggerName)
-	usingGroups := false
-	var groups []string
-
-	// If the GroupField is the empty string, then groups from OIDC are not used.
-	// This is so we can support manual group assignment.
-	if api.OIDCConfig.GroupField != "" {
-		// If the allow list is empty, then the user is allowed to log in.
-		// Otherwise, they must belong to at least 1 group in the allow list.
-		inAllowList := len(api.OIDCConfig.GroupAllowList) == 0
-
-		usingGroups = true
-		groupsRaw, ok := mergedClaims[api.OIDCConfig.GroupField]
-		if ok {
-			parsedGroups, err := idpsync.ParseStringSliceClaim(groupsRaw)
-			if err != nil {
-				api.Logger.Debug(ctx, "groups field was an unknown type in oidc claims",
-					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
-					slog.Error(err),
-				)
-				return false, nil, &idpsync.HTTPError{
-					Code:             http.StatusBadRequest,
-					Msg:              "Failed to sync groups from OIDC claims",
-					Detail:           err.Error(),
-					RenderStaticPage: false,
-				}
-			}
-
-			api.Logger.Debug(ctx, "groups returned in oidc claims",
-				slog.F("len", len(parsedGroups)),
-				slog.F("groups", parsedGroups),
-			)
-
-			for _, group := range parsedGroups {
-				if mappedGroup, ok := api.OIDCConfig.GroupMapping[group]; ok {
-					group = mappedGroup
-				}
-				if _, ok := api.OIDCConfig.GroupAllowList[group]; ok {
-					inAllowList = true
-				}
-				groups = append(groups, group)
-			}
-		}
-
-		if !inAllowList {
-			logger.Debug(ctx, "oidc group claim not in allow list, rejecting login",
-				slog.F("allow_list_count", len(api.OIDCConfig.GroupAllowList)),
-				slog.F("user_group_count", len(groups)),
-			)
-			detail := "Ask an administrator to add one of your groups to the whitelist"
-			if len(groups) == 0 {
-				detail = "You are currently not a member of any groups! Ask an administrator to add you to an authorized group to login."
-			}
-			return usingGroups, groups, &idpsync.HTTPError{
-				Code:             http.StatusForbidden,
-				Msg:              "Not a member of an allowed group",
-				Detail:           detail,
-				RenderStaticPage: true,
-			}
-		}
-	}
-
-	// This conditional is purely to warn the user they might have misconfigured their OIDC
-	// configuration.
-	if _, groupClaimExists := mergedClaims["groups"]; !usingGroups && groupClaimExists {
-		logger.Debug(ctx, "claim 'groups' was returned, but 'oidc-group-field' is not set, check your coder oidc settings")
-	}
-
-	return usingGroups, groups, nil
-}
-
-// oidcRoles returns the roles for the user from the OIDC claims.
-// If the function returns false, then the caller should return early.
-// All writes to the response writer are handled by this function.
-// It would be preferred to just return an error, however this function
-// decorates returned errors with the appropriate HTTP status codes and details
-// that are hard to carry in a standard `error` without more work.
-func (api *API) oidcRoles(ctx context.Context, mergedClaims map[string]interface{}) ([]string, *idpsync.HTTPError) {
-	roles := api.OIDCConfig.UserRolesDefault
-	if !api.OIDCConfig.RoleSyncEnabled() {
-		return roles, nil
-	}
-
-	rolesRow, ok := mergedClaims[api.OIDCConfig.UserRoleField]
-	if !ok {
-		// If no claim is provided than we can assume the user is just
-		// a member. This is because there is no way to tell the difference
-		// between []string{} and nil for OIDC claims. IDPs omit claims
-		// if they are empty ([]string{}).
-		// Use []interface{}{} so the next typecast works.
-		rolesRow = []interface{}{}
-	}
-
-	parsedRoles, err := idpsync.ParseStringSliceClaim(rolesRow)
-	if err != nil {
-		api.Logger.Error(ctx, "oidc claims user roles field was an unknown type",
-			slog.F("type", fmt.Sprintf("%T", rolesRow)),
-			slog.Error(err),
-		)
-		return nil, &idpsync.HTTPError{
-			Code:             http.StatusInternalServerError,
-			Msg:              "Login disabled until OIDC config is fixed",
-			Detail:           fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
-			RenderStaticPage: false,
-		}
-	}
-
-	api.Logger.Debug(ctx, "roles returned in oidc claims",
-		slog.F("len", len(parsedRoles)),
-		slog.F("roles", parsedRoles),
-	)
-	for _, role := range parsedRoles {
-		if mappedRoles, ok := api.OIDCConfig.UserRoleMapping[role]; ok {
-			if len(mappedRoles) == 0 {
-				continue
-			}
-			// Mapped roles are added to the list of roles
-			roles = append(roles, mappedRoles...)
-			continue
-		}
-
-		roles = append(roles, role)
-	}
-	return roles, nil
 }
 
 // claimFields returns the sorted list of fields in the claims map.
@@ -1278,18 +1110,8 @@ type oauthLoginParams struct {
 	AvatarURL    string
 	// OrganizationSync has the organizations that the user will be assigned to.
 	OrganizationSync idpsync.OrganizationParams
-	// Is UsingGroups is true, then the user will be assigned
-	// to the Groups provided.
-	UsingGroups         bool
-	CreateMissingGroups bool
-	// These are the group names from the IDP. Internally, they will map to
-	// some organization groups.
-	Groups      []string
-	GroupFilter *regexp.Regexp
-	// Is UsingRoles is true, then the user will be assigned
-	// the roles provided.
-	UsingRoles bool
-	Roles      []string
+	GroupSync        idpsync.GroupParams
+	RoleSync         idpsync.RoleParams
 
 	DebugContext OauthDebugContext
 
@@ -1389,7 +1211,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				for i := 0; i < 10; i++ {
 					alternate := fmt.Sprintf("%s-%s", original, namesgenerator.GetRandomName(1))
 
-					params.Username = httpapi.UsernameFrom(alternate)
+					params.Username = codersdk.UsernameFrom(alternate)
 
 					//nolint:gocritic
 					_, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
@@ -1491,86 +1313,17 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			return xerrors.Errorf("sync organizations: %w", err)
 		}
 
-		// Ensure groups are correct.
-		// This places all groups into the default organization.
-		// To go multi-org, we need to add a mapping feature here to know which
-		// groups go to which orgs.
-		if params.UsingGroups {
-			filtered := params.Groups
-			if params.GroupFilter != nil {
-				filtered = make([]string, 0, len(params.Groups))
-				for _, group := range params.Groups {
-					if params.GroupFilter.MatchString(group) {
-						filtered = append(filtered, group)
-					}
-				}
-			}
-
-			//nolint:gocritic // No user present in the context.
-			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
-			if err != nil {
-				// If there is no default org, then we can't assign groups.
-				// By default, we assume all groups belong to the default org.
-				return xerrors.Errorf("get default organization: %w", err)
-			}
-
-			//nolint:gocritic // No user present in the context.
-			memberships, err := tx.OrganizationMembers(dbauthz.AsSystemRestricted(ctx), database.OrganizationMembersParams{
-				UserID:         user.ID,
-				OrganizationID: uuid.Nil,
-			})
-			if err != nil {
-				return xerrors.Errorf("get organization memberships: %w", err)
-			}
-
-			// If the user is not in the default organization, then we can't assign groups.
-			// A user cannot be in groups to an org they are not a member of.
-			if !slices.ContainsFunc(memberships, func(member database.OrganizationMembersRow) bool {
-				return member.OrganizationMember.OrganizationID == defaultOrganization.ID
-			}) {
-				return xerrors.Errorf("user %s is not a member of the default organization, cannot assign to groups in the org", user.ID)
-			}
-
-			//nolint:gocritic
-			err = api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, map[uuid.UUID][]string{
-				defaultOrganization.ID: filtered,
-			}, params.CreateMissingGroups)
-			if err != nil {
-				return xerrors.Errorf("set user groups: %w", err)
-			}
+		// Group sync needs to occur after org sync, since a user can join an org,
+		// then have their groups sync to said org.
+		err = api.IDPSync.SyncGroups(ctx, tx, user, params.GroupSync)
+		if err != nil {
+			return xerrors.Errorf("sync groups: %w", err)
 		}
 
-		// Ensure roles are correct.
-		if params.UsingRoles {
-			ignored := make([]string, 0)
-			filtered := make([]string, 0, len(params.Roles))
-			for _, role := range params.Roles {
-				// TODO: This only supports mapping deployment wide roles. Organization scoped roles
-				// are unsupported.
-				if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: role}); err == nil {
-					filtered = append(filtered, role)
-				} else {
-					ignored = append(ignored, role)
-				}
-			}
-
-			//nolint:gocritic
-			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, filtered)
-			if err != nil {
-				return &idpsync.HTTPError{
-					Code:             http.StatusBadRequest,
-					Msg:              "Invalid roles through OIDC claims",
-					Detail:           fmt.Sprintf("Error from role assignment attempt: %s", err.Error()),
-					RenderStaticPage: true,
-				}
-			}
-			if len(ignored) > 0 {
-				logger.Debug(ctx, "OIDC roles ignored in assignment",
-					slog.F("ignored", ignored),
-					slog.F("assigned", filtered),
-					slog.F("user_id", user.ID),
-				)
-			}
+		// Role sync needs to occur after org sync.
+		err = api.IDPSync.SyncRoles(ctx, tx, user, params.RoleSync)
+		if err != nil {
+			return xerrors.Errorf("sync roles: %w", err)
 		}
 
 		needsUpdate := false
@@ -1687,7 +1440,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 	var claims OAuthConvertStateClaims
-	token, err := jwt.ParseWithClaims(jwtCookie.Value, &claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(jwtCookie.Value, &claims, func(_ *jwt.Token) (interface{}, error) {
 		return api.OAuthSigningKey[:], nil
 	})
 	if xerrors.Is(err, jwt.ErrSignatureInvalid) || !token.Valid {

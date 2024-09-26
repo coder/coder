@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
+	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
@@ -48,6 +49,8 @@ const (
 var (
 	workspacePollInterval   = time.Minute
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
+	// gracefulShutdownTimeout is the timeout, per item in the stack of things to close
+	gracefulShutdownTimeout = 2 * time.Second
 )
 
 func (r *RootCmd) ssh() *serpent.Command {
@@ -64,6 +67,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		env              []string
 		usageApp         string
 		disableAutostart bool
+		appearanceConfig codersdk.AppearanceConfig
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -73,6 +77,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
+			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) (retErr error) {
 			// Before dialing the SSH server over TCP, capture Interrupt signals
@@ -153,7 +158,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				// log HTTP requests
 				client.SetLogger(logger)
 			}
-			stack := newCloserStack(ctx, logger)
+			stack := newCloserStack(ctx, logger, quartz.NewReal())
 			defer stack.close(nil)
 
 			for _, remoteForward := range remoteForwards {
@@ -227,9 +232,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
-				Fetch:     client.WorkspaceAgent,
-				FetchLogs: client.WorkspaceAgentLogsAfter,
-				Wait:      wait,
+				FetchInterval: 0,
+				Fetch:         client.WorkspaceAgent,
+				FetchLogs:     client.WorkspaceAgentLogsAfter,
+				Wait:          wait,
+				DocsURL:       appearanceConfig.DocsURL,
 			})
 			if err != nil {
 				if xerrors.Is(err, context.Canceled) {
@@ -649,9 +656,9 @@ func getWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		// It's possible for a workspace build to fail due to the template requiring starting
 		// workspaces with the active version.
 		_, _ = fmt.Fprintf(inv.Stderr, "Workspace was stopped, starting workspace to allow connecting to %q...\n", workspace.Name)
-		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceStart)
+		_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceStart)
 		if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
-			_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, WorkspaceUpdate)
+			_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{}, buildFlags{}, WorkspaceUpdate)
 			if err != nil {
 				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, xerrors.Errorf("start workspace with active template version: %w", err)
 			}
@@ -936,11 +943,18 @@ type closerStack struct {
 	closed  bool
 	logger  slog.Logger
 	err     error
-	wg      sync.WaitGroup
+	allDone chan struct{}
+
+	// for testing
+	clock quartz.Clock
 }
 
-func newCloserStack(ctx context.Context, logger slog.Logger) *closerStack {
-	cs := &closerStack{logger: logger}
+func newCloserStack(ctx context.Context, logger slog.Logger, clock quartz.Clock) *closerStack {
+	cs := &closerStack{
+		logger:  logger,
+		allDone: make(chan struct{}),
+		clock:   clock,
+	}
 	go cs.closeAfterContext(ctx)
 	return cs
 }
@@ -954,20 +968,58 @@ func (c *closerStack) close(err error) {
 	c.Lock()
 	if c.closed {
 		c.Unlock()
-		c.wg.Wait()
+		<-c.allDone
 		return
 	}
 	c.closed = true
 	c.err = err
-	c.wg.Add(1)
-	defer c.wg.Done()
 	c.Unlock()
+	defer close(c.allDone)
+	if len(c.closers) == 0 {
+		return
+	}
 
-	for i := len(c.closers) - 1; i >= 0; i-- {
-		cwn := c.closers[i]
-		cErr := cwn.closer.Close()
-		c.logger.Debug(context.Background(),
-			"closed item from stack", slog.F("name", cwn.name), slog.Error(cErr))
+	// We are going to work down the stack in order.  If things close quickly, we trigger the
+	// closers serially, in order. `done` is a channel that indicates the nth closer is done
+	// closing, and we should trigger the (n-1) closer.  However, if things take too long we don't
+	// want to wait, so we also start a ticker that works down the stack and sends on `done` as
+	// well.
+	next := len(c.closers) - 1
+	// here we make the buffer 2x the number of closers because we could write once for it being
+	// actually done and once via the countdown for each closer
+	done := make(chan int, len(c.closers)*2)
+	startNext := func() {
+		go func(i int) {
+			defer func() { done <- i }()
+			cwn := c.closers[i]
+			cErr := cwn.closer.Close()
+			c.logger.Debug(context.Background(),
+				"closed item from stack", slog.F("name", cwn.name), slog.Error(cErr))
+		}(next)
+		next--
+	}
+	done <- len(c.closers) // kick us off right away
+
+	// start a ticking countdown in case we hang/don't close quickly
+	countdown := len(c.closers) - 1
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c.clock.TickerFunc(ctx, gracefulShutdownTimeout, func() error {
+		if countdown < 0 {
+			return nil
+		}
+		done <- countdown
+		countdown--
+		return nil
+	}, "closerStack")
+
+	for n := range done { // the nth closer is done
+		if n == 0 {
+			return
+		}
+		if n-1 == next {
+			startNext()
+		}
 	}
 }
 

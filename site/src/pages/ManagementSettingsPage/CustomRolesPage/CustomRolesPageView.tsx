@@ -19,6 +19,7 @@ import {
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { Paywall } from "components/Paywall/Paywall";
+import { Stack } from "components/Stack/Stack";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -26,13 +27,14 @@ import {
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
+import { PermissionPillsList } from "./PermissionPillsList";
 
-export type CustomRolesPageViewProps = {
+interface CustomRolesPageViewProps {
 	roles: Role[] | undefined;
 	onDeleteRole: (role: Role) => void;
 	canAssignOrgRole: boolean;
 	isCustomRolesEnabled: boolean;
-};
+}
 
 export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	roles,
@@ -42,77 +44,75 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 }) => {
 	const isLoading = roles === undefined;
 	const isEmpty = Boolean(roles && roles.length === 0);
-
 	return (
-		<>
-			<ChooseOne>
-				<Cond condition={!isCustomRolesEnabled}>
-					<Paywall
-						message="Custom Roles"
-						description="Create custom roles to assign a specific set of permissions to a user. You need an Enterprise license to use this feature."
-						documentationLink={docs("/admin/groups")}
-					/>
-				</Cond>
-				<Cond>
-					<TableContainer>
-						<Table>
-							<TableHead>
+		<Stack spacing={4}>
+			{!isCustomRolesEnabled && (
+				<Paywall
+					message="Custom Roles"
+					description="Create custom roles to grant users a tailored set of granular permissions."
+					documentationLink={docs("/admin/groups")}
+				/>
+			)}
+			<TableContainer>
+				<Table>
+					<TableHead>
+						<TableRow>
+							<TableCell width="40%">Name</TableCell>
+							<TableCell width="59%">Permissions</TableCell>
+							<TableCell width="1%" />
+						</TableRow>
+					</TableHead>
+					<TableBody>
+						<ChooseOne>
+							<Cond condition={isLoading}>
+								<TableLoader />
+							</Cond>
+
+							<Cond condition={isEmpty}>
 								<TableRow>
-									<TableCell width="50%">Name</TableCell>
-									<TableCell width="49%">Permissions</TableCell>
-									<TableCell width="1%" />
+									<TableCell colSpan={999}>
+										<EmptyState
+											message="No custom roles yet"
+											description={
+												canAssignOrgRole && isCustomRolesEnabled
+													? "Create your first custom role"
+													: !isCustomRolesEnabled
+														? "Upgrade to a premium license to create a custom role"
+														: "You don't have permission to create a custom role"
+											}
+											cta={
+												canAssignOrgRole &&
+												isCustomRolesEnabled && (
+													<Button
+														component={RouterLink}
+														to="create"
+														startIcon={<AddOutlined />}
+														variant="contained"
+													>
+														Create custom role
+													</Button>
+												)
+											}
+										/>
+									</TableCell>
 								</TableRow>
-							</TableHead>
-							<TableBody>
-								<ChooseOne>
-									<Cond condition={isLoading}>
-										<TableLoader />
-									</Cond>
+							</Cond>
 
-									<Cond condition={isEmpty}>
-										<TableRow>
-											<TableCell colSpan={999}>
-												<EmptyState
-													message="No custom roles yet"
-													description={
-														canAssignOrgRole
-															? "Create your first custom role"
-															: "You don't have permission to create a custom role"
-													}
-													cta={
-														canAssignOrgRole && (
-															<Button
-																component={RouterLink}
-																to="create"
-																startIcon={<AddOutlined />}
-																variant="contained"
-															>
-																Create custom role
-															</Button>
-														)
-													}
-												/>
-											</TableCell>
-										</TableRow>
-									</Cond>
-
-									<Cond>
-										{roles?.map((role) => (
-											<RoleRow
-												key={role.name}
-												role={role}
-												canAssignOrgRole={canAssignOrgRole}
-												onDelete={() => onDeleteRole(role)}
-											/>
-										))}
-									</Cond>
-								</ChooseOne>
-							</TableBody>
-						</Table>
-					</TableContainer>
-				</Cond>
-			</ChooseOne>
-		</>
+							<Cond>
+								{roles?.map((role) => (
+									<RoleRow
+										key={role.name}
+										role={role}
+										canAssignOrgRole={canAssignOrgRole}
+										onDelete={() => onDeleteRole(role)}
+									/>
+								))}
+							</Cond>
+						</ChooseOne>
+					</TableBody>
+				</Table>
+			</TableContainer>
+		</Stack>
 	);
 };
 
@@ -129,8 +129,8 @@ const RoleRow: FC<RoleRowProps> = ({ role, onDelete, canAssignOrgRole }) => {
 		<TableRow data-testid={`role-${role.name}`}>
 			<TableCell>{role.display_name || role.name}</TableCell>
 
-			<TableCell css={styles.secondary}>
-				{role.organization_permissions.length}
+			<TableCell>
+				<PermissionPillsList permissions={role.organization_permissions} />
 			</TableCell>
 
 			<TableCell>

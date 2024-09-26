@@ -212,7 +212,7 @@ func (r *RootCmd) login() *serpent.Command {
 				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
-					if !isTTY(inv) {
+					if !isTTYIn(inv) {
 						return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 					}
 
@@ -416,6 +416,9 @@ func isWSL() (bool, error) {
 
 // openURL opens the provided URL via user's default browser
 func openURL(inv *serpent.Invocation, urlToOpen string) error {
+	if !isTTYOut(inv) {
+		return xerrors.New("skipping browser open in non-interactive mode")
+	}
 	noOpen, err := inv.ParsedFlags().GetBool(varNoOpen)
 	if err != nil {
 		panic(err)

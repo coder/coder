@@ -1,8 +1,10 @@
 import { API } from "api/api";
 
+export const deploymentConfigQueryKey = ["deployment", "config"];
+
 export const deploymentConfig = () => {
 	return {
-		queryKey: ["deployment", "config"],
+		queryKey: deploymentConfigQueryKey,
 		queryFn: API.getDeploymentConfig,
 	};
 };

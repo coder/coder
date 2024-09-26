@@ -1162,7 +1162,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = user
 
-	if user.LoginType == database.LoginTypeOIDC && api.OIDCConfig.RoleSyncEnabled() {
+	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.SiteRoleSyncEnabled() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot modify roles for OIDC users when role sync is enabled.",
 			Detail:  "'User Role Field' is set in the OIDC configuration. All role changes must come from the oidc identity provider.",
@@ -1287,7 +1287,7 @@ type CreateUserRequest struct {
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
 	// Ensure the username is valid. It's the caller's responsibility to ensure
 	// the username is valid and unique.
-	if usernameValid := httpapi.NameValid(req.Username); usernameValid != nil {
+	if usernameValid := codersdk.NameValid(req.Username); usernameValid != nil {
 		return database.User{}, xerrors.Errorf("invalid username %q: %w", req.Username, usernameValid)
 	}
 
@@ -1299,7 +1299,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			ID:             uuid.New(),
 			Email:          req.Email,
 			Username:       req.Username,
-			Name:           httpapi.NormalizeRealUsername(req.Name),
+			Name:           codersdk.NormalizeRealUsername(req.Name),
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			HashedPassword: []byte{},

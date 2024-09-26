@@ -185,6 +185,7 @@ type WorkspaceAgentLogSource struct {
 }
 
 type WorkspaceAgentScript struct {
+	ID               uuid.UUID     `json:"id" format:"uuid"`
 	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
 	LogPath          string        `json:"log_path"`
 	Script           string        `json:"script"`
@@ -193,6 +194,7 @@ type WorkspaceAgentScript struct {
 	RunOnStop        bool          `json:"run_on_stop"`
 	StartBlocksLogin bool          `json:"start_blocks_login"`
 	Timeout          time.Duration `json:"timeout"`
+	DisplayName      string        `json:"display_name"`
 }
 
 type WorkspaceAgentHealth struct {

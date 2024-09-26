@@ -65,7 +65,7 @@ func newConnIO(coordContext context.Context,
 		coordCtx:  coordContext,
 		peerCtx:   peerCtx,
 		cancel:    cancel,
-		logger:    logger.With(slog.F("name", name)),
+		logger:    logger.With(slog.F("name", name), slog.F("peer_id", id)),
 		requests:  requests,
 		responses: responses,
 		bindings:  bindings,
@@ -135,6 +135,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	c.logger.Debug(c.peerCtx, "got request")
 	err := c.auth.Authorize(req)
 	if err != nil {
+		c.logger.Warn(c.peerCtx, "unauthorized request", slog.Error(err))
 		return xerrors.Errorf("authorize request: %w", err)
 	}
 

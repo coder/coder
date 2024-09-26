@@ -339,6 +339,67 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type CryptoKeyFeature string
+
+const (
+	CryptoKeyFeatureWorkspaceApps CryptoKeyFeature = "workspace_apps"
+	CryptoKeyFeatureOidcConvert   CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+)
+
+func (e *CryptoKeyFeature) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CryptoKeyFeature(s)
+	case string:
+		*e = CryptoKeyFeature(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CryptoKeyFeature: %T", src)
+	}
+	return nil
+}
+
+type NullCryptoKeyFeature struct {
+	CryptoKeyFeature CryptoKeyFeature `json:"crypto_key_feature"`
+	Valid            bool             `json:"valid"` // Valid is true if CryptoKeyFeature is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCryptoKeyFeature) Scan(value interface{}) error {
+	if value == nil {
+		ns.CryptoKeyFeature, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CryptoKeyFeature.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCryptoKeyFeature) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CryptoKeyFeature), nil
+}
+
+func (e CryptoKeyFeature) Valid() bool {
+	switch e {
+	case CryptoKeyFeatureWorkspaceApps,
+		CryptoKeyFeatureOidcConvert,
+		CryptoKeyFeatureTailnetResume:
+		return true
+	}
+	return false
+}
+
+func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
+	return []CryptoKeyFeature{
+		CryptoKeyFeatureWorkspaceApps,
+		CryptoKeyFeatureOidcConvert,
+		CryptoKeyFeatureTailnetResume,
+	}
+}
+
 type DisplayApp string
 
 const (
@@ -1820,6 +1881,133 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+// What stage the script was ran in.
+type WorkspaceAgentScriptTimingStage string
+
+const (
+	WorkspaceAgentScriptTimingStageStart WorkspaceAgentScriptTimingStage = "start"
+	WorkspaceAgentScriptTimingStageStop  WorkspaceAgentScriptTimingStage = "stop"
+	WorkspaceAgentScriptTimingStageCron  WorkspaceAgentScriptTimingStage = "cron"
+)
+
+func (e *WorkspaceAgentScriptTimingStage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentScriptTimingStage(s)
+	case string:
+		*e = WorkspaceAgentScriptTimingStage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentScriptTimingStage: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentScriptTimingStage struct {
+	WorkspaceAgentScriptTimingStage WorkspaceAgentScriptTimingStage `json:"workspace_agent_script_timing_stage"`
+	Valid                           bool                            `json:"valid"` // Valid is true if WorkspaceAgentScriptTimingStage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentScriptTimingStage) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentScriptTimingStage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentScriptTimingStage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentScriptTimingStage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentScriptTimingStage), nil
+}
+
+func (e WorkspaceAgentScriptTimingStage) Valid() bool {
+	switch e {
+	case WorkspaceAgentScriptTimingStageStart,
+		WorkspaceAgentScriptTimingStageStop,
+		WorkspaceAgentScriptTimingStageCron:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStage {
+	return []WorkspaceAgentScriptTimingStage{
+		WorkspaceAgentScriptTimingStageStart,
+		WorkspaceAgentScriptTimingStageStop,
+		WorkspaceAgentScriptTimingStageCron,
+	}
+}
+
+// What the exit status of the script is.
+type WorkspaceAgentScriptTimingStatus string
+
+const (
+	WorkspaceAgentScriptTimingStatusOk            WorkspaceAgentScriptTimingStatus = "ok"
+	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
+	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
+	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+)
+
+func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentScriptTimingStatus(s)
+	case string:
+		*e = WorkspaceAgentScriptTimingStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentScriptTimingStatus: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentScriptTimingStatus struct {
+	WorkspaceAgentScriptTimingStatus WorkspaceAgentScriptTimingStatus `json:"workspace_agent_script_timing_status"`
+	Valid                            bool                             `json:"valid"` // Valid is true if WorkspaceAgentScriptTimingStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentScriptTimingStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentScriptTimingStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentScriptTimingStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentScriptTimingStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentScriptTimingStatus), nil
+}
+
+func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
+	switch e {
+	case WorkspaceAgentScriptTimingStatusOk,
+		WorkspaceAgentScriptTimingStatusExitFailure,
+		WorkspaceAgentScriptTimingStatusTimedOut,
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingStatus {
+	return []WorkspaceAgentScriptTimingStatus{
+		WorkspaceAgentScriptTimingStatusOk,
+		WorkspaceAgentScriptTimingStatusExitFailure,
+		WorkspaceAgentScriptTimingStatusTimedOut,
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+	}
+}
+
 type WorkspaceAgentSubsystem string
 
 const (
@@ -2043,6 +2231,15 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+type CryptoKey struct {
+	Feature     CryptoKeyFeature `db:"feature" json:"feature"`
+	Sequence    int32            `db:"sequence" json:"sequence"`
+	Secret      sql.NullString   `db:"secret" json:"secret"`
+	SecretKeyID sql.NullString   `db:"secret_key_id" json:"secret_key_id"`
+	StartsAt    time.Time        `db:"starts_at" json:"starts_at"`
+	DeletesAt   sql.NullTime     `db:"deletes_at" json:"deletes_at"`
+}
+
 // Custom roles allow dynamic roles expanded at runtime
 type CustomRole struct {
 	Name            string                `db:"name" json:"name"`
@@ -2192,6 +2389,12 @@ type NotificationPreference struct {
 	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Log of generated reports for users.
+type NotificationReportGeneratorLog struct {
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+	LastGeneratedAt        time.Time `db:"last_generated_at" json:"last_generated_at"`
+}
+
 // Templates from which to create notification messages.
 type NotificationTemplate struct {
 	ID            uuid.UUID      `db:"id" json:"id"`
@@ -2311,6 +2514,7 @@ type ProvisionerDaemon struct {
 	// The API version of the provisioner daemon
 	APIVersion     string    `db:"api_version" json:"api_version"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	KeyID          uuid.UUID `db:"key_id" json:"key_id"`
 }
 
 type ProvisionerJob struct {
@@ -2665,6 +2869,12 @@ type User struct {
 	Name string `db:"name" json:"name"`
 	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
 	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
+	// A hash of the one-time-passcode given to the user.
+	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
+	// The time when the one-time-passcode expires.
+	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	// Determines if the user should be forced to change their password.
+	MustResetPassword bool `db:"must_reset_password" json:"must_reset_password"`
 }
 
 type UserLink struct {
@@ -2803,6 +3013,17 @@ type WorkspaceAgentScript struct {
 	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
 	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	ID               uuid.UUID `db:"id" json:"id"`
+}
+
+type WorkspaceAgentScriptTiming struct {
+	ScriptID  uuid.UUID                        `db:"script_id" json:"script_id"`
+	StartedAt time.Time                        `db:"started_at" json:"started_at"`
+	EndedAt   time.Time                        `db:"ended_at" json:"ended_at"`
+	ExitCode  int32                            `db:"exit_code" json:"exit_code"`
+	Stage     WorkspaceAgentScriptTimingStage  `db:"stage" json:"stage"`
+	Status    WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
 
 type WorkspaceAgentStat struct {
@@ -2823,6 +3044,7 @@ type WorkspaceAgentStat struct {
 	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	Usage                       bool            `db:"usage" json:"usage"`
 }
 
 type WorkspaceApp struct {
@@ -2843,6 +3065,8 @@ type WorkspaceApp struct {
 	External             bool               `db:"external" json:"external"`
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	// Determines if the app is not shown in user interfaces.
+	Hidden bool `db:"hidden" json:"hidden"`
 }
 
 // A record of workspace app usage statistics

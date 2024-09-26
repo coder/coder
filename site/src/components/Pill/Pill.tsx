@@ -14,6 +14,7 @@ import type { ThemeRole } from "theme/roles";
 export type PillProps = HTMLAttributes<HTMLDivElement> & {
 	icon?: ReactNode;
 	type?: ThemeRole;
+	size?: "md" | "lg";
 };
 
 const themeStyles = (type: ThemeRole) => (theme: Theme) => {
@@ -30,13 +31,25 @@ const PILL_ICON_SPACING = (PILL_HEIGHT - PILL_ICON_SIZE) / 2;
 
 export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
 	(props, ref) => {
-		const { icon, type = "inactive", children, ...divProps } = props;
+		const {
+			icon,
+			type = "inactive",
+			children,
+			size = "md",
+			...divProps
+		} = props;
 		const typeStyles = useMemo(() => themeStyles(type), [type]);
 
 		return (
 			<div
 				ref={ref}
-				css={[styles.pill, icon && styles.pillWithIcon, typeStyles]}
+				css={[
+					styles.pill,
+					icon && size === "md" && styles.pillWithIcon,
+					size === "lg" && styles.pillLg,
+					icon && size === "lg" && styles.pillLgWithIcon,
+					typeStyles,
+				]}
 				{...divProps}
 			>
 				{icon}
@@ -78,6 +91,15 @@ const styles = {
 
 	pillWithIcon: {
 		paddingLeft: PILL_ICON_SPACING,
+	},
+
+	pillLg: {
+		gap: PILL_ICON_SPACING * 2,
+		padding: "14px 16px",
+	},
+
+	pillLgWithIcon: {
+		paddingLeft: PILL_ICON_SPACING * 2,
 	},
 
 	spinner: (theme) => ({

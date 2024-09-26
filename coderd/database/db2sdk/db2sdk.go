@@ -517,6 +517,7 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 				Threshold: dbApp.HealthcheckThreshold,
 			},
 			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
+			Hidden: dbApp.Hidden,
 		})
 	}
 	return apps
@@ -532,11 +533,36 @@ func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.Provisioner
 		Tags:           dbDaemon.Tags,
 		Version:        dbDaemon.Version,
 		APIVersion:     dbDaemon.APIVersion,
+		KeyID:          dbDaemon.KeyID,
 	}
 	for _, provisionerType := range dbDaemon.Provisioners {
 		result.Provisioners = append(result.Provisioners, codersdk.ProvisionerType(provisionerType))
 	}
 	return result
+}
+
+func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemons []database.ProvisionerDaemon) []codersdk.ProvisionerDaemon {
+	results := []codersdk.ProvisionerDaemon{}
+
+	for _, daemon := range daemons {
+		// Daemon never connected, skip.
+		if !daemon.LastSeenAt.Valid {
+			continue
+		}
+		// Daemon has gone away, skip.
+		if now.Sub(daemon.LastSeenAt.Time) > staleInterval {
+			continue
+		}
+
+		results = append(results, ProvisionerDaemon(daemon))
+	}
+
+	// Ensure stable order for display and for tests
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Name < results[j].Name
+	})
+
+	return results
 }
 
 func SlimRole(role rbac.Role) codersdk.SlimRole {

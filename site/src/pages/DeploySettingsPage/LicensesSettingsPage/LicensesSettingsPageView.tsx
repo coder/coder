@@ -57,7 +57,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 			>
 				<SettingsHeader
 					title="Licenses"
-					description="Manage licenses to unlock Enterprise features."
+					description="Manage licenses to unlock Premium features."
 				/>
 
 				<Stack direction="row" spacing={2}>

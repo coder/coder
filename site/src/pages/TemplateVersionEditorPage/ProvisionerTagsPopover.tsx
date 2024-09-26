@@ -13,7 +13,7 @@ import {
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
-import { ProvisionerTag } from "pages/HealthPage/ProvisionerDaemonsPage";
+import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import { type FC, Fragment } from "react";
 import { docs } from "utils/docs";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";

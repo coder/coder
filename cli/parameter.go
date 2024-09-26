@@ -127,3 +127,21 @@ func parseParameterMapFile(parameterFile string) (map[string]string, error) {
 	}
 	return parameterMap, nil
 }
+
+// buildFlags contains options relating to troubleshooting provisioner jobs.
+type buildFlags struct {
+	provisionerLogDebug bool
+}
+
+func (bf *buildFlags) cliOptions() []serpent.Option {
+	return []serpent.Option{
+		{
+			Flag: "provisioner-log-debug",
+			Description: `Sets the provisioner log level to debug.
+This will print additional information about the build process.
+This is useful for troubleshooting build issues.`,
+			Value:  serpent.BoolOf(&bf.provisionerLogDebug),
+			Hidden: true,
+		},
+	}
+}

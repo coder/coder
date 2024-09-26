@@ -531,9 +531,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceProvisionerDaemon.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				// This should be fixed when multi-org goes live
-				true:  {setOtherOrg, owner, templateAdmin, setOrgNotMe, memberMe, orgMemberMe, userAdmin},
-				false: {},
+				true:  {owner, templateAdmin, setOrgNotMe, orgMemberMe},
+				false: {setOtherOrg, memberMe, userAdmin},
 			},
 		},
 		{
@@ -699,6 +698,29 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, orgAdmin, otherOrgAdmin, orgMemberMe},
 				false: {
+					memberMe, userAdmin, templateAdmin,
+					orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "CryptoKeys",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionRead},
+			Resource: rbac.ResourceCryptoKey,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name:     "IDPSyncSettings",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceIdpsyncSettings.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin},
+				false: {
+					orgMemberMe, otherOrgAdmin,
 					memberMe, userAdmin, templateAdmin,
 					orgAuditor, orgUserAdmin, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,

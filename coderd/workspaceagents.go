@@ -864,6 +864,8 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 			})
 			return
 		}
+		api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
+			slog.F("peer_id", peerID.String()))
 	}
 
 	api.WebsocketWaitMutex.Lock()
@@ -967,6 +969,7 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 	scripts := make([]codersdk.WorkspaceAgentScript, 0)
 	for _, dbScript := range dbScripts {
 		scripts = append(scripts, codersdk.WorkspaceAgentScript{
+			ID:               dbScript.ID,
 			LogPath:          dbScript.LogPath,
 			LogSourceID:      dbScript.LogSourceID,
 			Script:           dbScript.Script,
@@ -975,6 +978,7 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 			RunOnStop:        dbScript.RunOnStop,
 			StartBlocksLogin: dbScript.StartBlocksLogin,
 			Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
+			DisplayName:      dbScript.DisplayName,
 		})
 	}
 	return scripts

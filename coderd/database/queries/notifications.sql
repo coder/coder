@@ -1,6 +1,7 @@
 -- name: FetchNewMessageMetadata :one
 -- This is used to build up the notification_message's JSON payload.
 SELECT nt.name                                                    AS notification_name,
+       nt.id                                                      AS notification_template_id,
        nt.actions                                                 AS actions,
        nt.method                                                  AS custom_method,
        u.id                                                       AS user_id,
@@ -173,3 +174,18 @@ SELECT *
 FROM notification_templates
 WHERE kind = @kind::notification_template_kind
 ORDER BY name ASC;
+
+-- name: GetNotificationReportGeneratorLogByTemplate :one
+-- Fetch the notification report generator log indicating recent activity.
+SELECT
+	*
+FROM
+	notification_report_generator_logs
+WHERE
+	notification_template_id = @template_id::uuid;
+
+-- name: UpsertNotificationReportGeneratorLog :exec
+-- Insert or update notification report generator logs with recent activity.
+INSERT INTO notification_report_generator_logs (notification_template_id, last_generated_at) VALUES (@notification_template_id, @last_generated_at)
+ON CONFLICT (notification_template_id) DO UPDATE set last_generated_at = EXCLUDED.last_generated_at
+WHERE notification_report_generator_logs.notification_template_id = EXCLUDED.notification_template_id;

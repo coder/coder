@@ -14,6 +14,7 @@ import (
 	rpprof "runtime/pprof"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -29,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy"
+	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -202,8 +204,14 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			headerTransport.Transport = httpClient.Transport
 			httpClient.Transport = headerTransport
 
-			// A newline is added before for visibility in terminal output.
-			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())
+			accessURL := cfg.AccessURL.String()
+			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+				Border(lipgloss.DoubleBorder()).
+				Align(lipgloss.Center).
+				Padding(0, 3).
+				BorderForeground(lipgloss.Color("12")).
+				Render(fmt.Sprintf("View the Web UI:\n%s",
+					pretty.Sprint(cliui.DefaultStyles.Hyperlink, accessURL))))
 
 			var appHostnameRegex *regexp.Regexp
 			appHostname := cfg.WildcardAccessURL.String()

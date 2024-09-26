@@ -31,11 +31,9 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 };
 
 export const DeploySettingsLayout: FC = () => {
-	const { experiments } = useDashboard();
+	const { showOrganizations } = useDashboard();
 
-	const canViewOrganizations = experiments.includes("multi-organization");
-
-	return canViewOrganizations ? (
+	return showOrganizations ? (
 		<ManagementSettingsLayout />
 	) : (
 		<DeploySettingsLayoutInner />
