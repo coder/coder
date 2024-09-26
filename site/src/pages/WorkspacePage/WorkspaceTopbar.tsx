@@ -25,12 +25,12 @@ import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/Wo
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
+import { isEmojiUrl } from "utils/appearance";
 import { displayDormantDeletion } from "utils/dormant";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 import type { WorkspacePermissions } from "./permissions";
-import { isEmojiUrl } from "utils/appearance";
 
 export type WorkspaceError =
 	| "getBuildsError"
@@ -353,6 +353,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 							/>
 						)
 					}
+					imgFallbackText={orgName}
 				/>
 			</HelpTooltipContent>
 		</Popover>
@@ -418,6 +419,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							fitImage
 						/>
 					}
+					imgFallbackText={templateVersionDisplayName}
 				/>
 			</HelpTooltipContent>
 		</Popover>

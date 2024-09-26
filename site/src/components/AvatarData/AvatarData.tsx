@@ -20,20 +20,20 @@ export interface AvatarDataProps {
 	 * Tried writing some layout effect/JSX parsing logic to do the extraction,
 	 * but it added complexity and render overhead, and wasn't reliable enough
 	 */
-	fallbackLetter?: string;
+	imgFallbackText?: string;
 }
 
 export const AvatarData: FC<AvatarDataProps> = ({
 	title,
 	subtitle,
 	src,
-	fallbackLetter,
+	imgFallbackText,
 	avatar,
 }) => {
 	const theme = useTheme();
 	avatar ??= (
 		<Avatar background src={src}>
-			{typeof title === "string" ? title : (fallbackLetter?.slice(0, 1) ?? "-")}
+			{typeof title === "string" ? title : (imgFallbackText ?? "-")}
 		</Avatar>
 	);
 
