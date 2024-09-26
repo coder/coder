@@ -5,6 +5,7 @@ import {
 	groupIdpSyncSettings,
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
@@ -20,7 +21,6 @@ import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
-import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {

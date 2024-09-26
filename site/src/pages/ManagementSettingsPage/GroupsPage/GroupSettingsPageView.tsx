@@ -1,5 +1,7 @@
 import TextField from "@mui/material/TextField";
 import type { Group } from "api/typesGenerated";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import {
 	FormFields,
 	FormFooter,
@@ -19,8 +21,6 @@ import {
 import { isEveryoneGroup } from "utils/groups";
 import * as Yup from "yup";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 type FormData = {
 	name: string;
@@ -150,8 +150,6 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
 	if (!organization || !group) {
 		return <EmptyState message="Group not found" />;
 	}
-
-	console.log(group);
 
 	return (
 		<>
