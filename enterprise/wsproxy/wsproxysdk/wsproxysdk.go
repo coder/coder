@@ -220,17 +220,17 @@ type CryptoKey struct {
 	StartsAt  time.Time        `json:"starts_at"`
 }
 
-func (c CryptoKey) Active(now time.Time) bool {
+func (c CryptoKey) CanSign(now time.Time) bool {
 	now = now.UTC()
 	isAfterStartsAt := !c.StartsAt.IsZero() && !now.Before(c.StartsAt)
-	return isAfterStartsAt && !c.Invalid(now)
+	return isAfterStartsAt && c.CanVerify(now)
 }
 
-func (c CryptoKey) Invalid(now time.Time) bool {
+func (c CryptoKey) CanVerify(now time.Time) bool {
 	now = now.UTC()
-	noSecret := c.Secret == ""
-	afterDelete := !c.DeletesAt.IsZero() && !now.Before(c.DeletesAt.UTC())
-	return noSecret || afterDelete
+	hasSecret := c.Secret != ""
+	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
+	return hasSecret && beforeDelete
 }
 
 type RegisterWorkspaceProxyResponse struct {
