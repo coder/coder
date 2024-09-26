@@ -1,5 +1,7 @@
 ---
+{{- if .Values.coder.serviceAccount.create }}
 {{ include "libcoder.serviceaccount" (list . "coder.serviceaccount") }}
+{{- end }}
 
 ---
 {{ include "libcoder.deployment" (list . "coder.deployment") }}
