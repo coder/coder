@@ -23,23 +23,33 @@ for (const group of [MockGroup, MockGroup2]) {
 	groupsMap.set(group.id, group.display_name || group.name);
 }
 
-export const NotEnabled: Story = {
+export const Empty: Story = {
 	args: {
-		groupSyncSettings: undefined,
-		roleSyncSettings: undefined,
+		groupSyncSettings: {
+			field: "",
+			mapping: {},
+			regex_filter: "",
+			auto_create_missing_groups: false,
+		},
+		roleSyncSettings: {
+			field: "",
+			mapping: {},
+		},
+		groups: [],
 		groupsMap: undefined,
 		organization: MockOrganization,
-		isIdpSyncEnabled: false,
+		error: undefined,
 	},
 };
 
-export const Empty: Story = {
+export const HasError: Story = {
 	args: {
-		groupSyncSettings: undefined,
-		roleSyncSettings: undefined,
-		groupsMap: undefined,
+		groupSyncSettings: MockGroupSyncSettings,
+		roleSyncSettings: MockRoleSyncSettings,
+		groups: [MockGroup, MockGroup2],
+		groupsMap,
 		organization: MockOrganization,
-		isIdpSyncEnabled: true,
+		error: "This is a test error",
 	},
 };
 
@@ -47,9 +57,10 @@ export const Default: Story = {
 	args: {
 		groupSyncSettings: MockGroupSyncSettings,
 		roleSyncSettings: MockRoleSyncSettings,
+		groups: [MockGroup, MockGroup2],
 		groupsMap,
 		organization: MockOrganization,
-		isIdpSyncEnabled: true,
+		error: undefined,
 	},
 };
 
@@ -57,8 +68,9 @@ export const MissingGroups: Story = {
 	args: {
 		groupSyncSettings: MockGroupSyncSettings2,
 		roleSyncSettings: MockRoleSyncSettings,
+		groups: [MockGroup, MockGroup2],
 		groupsMap,
 		organization: MockOrganization,
-		isIdpSyncEnabled: true,
+		error: undefined,
 	},
 };
