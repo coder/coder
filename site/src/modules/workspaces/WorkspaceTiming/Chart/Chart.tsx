@@ -5,7 +5,7 @@ import {
 	type SearchFieldProps,
 } from "components/SearchField/SearchField";
 import type { FC, HTMLProps } from "react";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import type { BarColors } from "./Bar";
 import { YAxisSidePadding, YAxisWidth } from "./YAxis";
 
@@ -14,7 +14,35 @@ export const Chart = (props: HTMLProps<HTMLDivElement>) => {
 };
 
 export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <div css={styles.content} {...props} />;
+	const contentRef = useRef<HTMLDivElement>(null);
+
+	// Display a scroll mask when the content is scrollable and update its
+	// position on scroll. Remove the mask when the scroll reaches the bottom to
+	// ensure the last item is visible.
+	useEffect(() => {
+		const contentEl = contentRef.current;
+		if (!contentEl) return;
+
+		const hasScroll = contentEl.scrollHeight > contentEl.clientHeight;
+		contentEl.style.setProperty("--scroll-mask-opacity", hasScroll ? "1" : "0");
+
+		const handler = () => {
+			if (!hasScroll) {
+				return;
+			}
+			contentEl.style.setProperty("--scroll-top", `${contentEl.scrollTop}px`);
+			const isBottom =
+				contentEl.scrollTop + contentEl.clientHeight >= contentEl.scrollHeight;
+			contentEl.style.setProperty(
+				"--scroll-mask-opacity",
+				isBottom ? "0" : "1",
+			);
+		};
+		contentEl.addEventListener("scroll", handler);
+		return () => contentEl.removeEventListener("scroll", handler);
+	}, []);
+
+	return <div css={styles.content} {...props} ref={contentRef} />;
 };
 
 export const ChartToolbar = (props: HTMLProps<HTMLDivElement>) => {
@@ -113,6 +141,20 @@ const styles = {
 		flex: 1,
 		scrollbarColor: `${theme.palette.divider} ${theme.palette.background.default}`,
 		scrollbarWidth: "thin",
+		position: "relative",
+
+		"&:before": {
+			content: "''",
+			position: "absolute",
+			bottom: "calc(-1 * var(--scroll-top, 0px))",
+			width: "100%",
+			height: 100,
+			background: `linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, ${theme.palette.background.default} 81.93%)`,
+			opacity: "var(--scroll-mask-opacity)",
+			zIndex: 1,
+			transition: "opacity 0.2s",
+			pointerEvents: "none",
+		},
 	}),
 	toolbar: (theme) => ({
 		borderBottom: `1px solid ${theme.palette.divider}`,

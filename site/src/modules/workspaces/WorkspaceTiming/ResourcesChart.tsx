@@ -14,13 +14,7 @@ import {
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
-import {
-	XAxis,
-	XAxisMinWidth,
-	XAxisRow,
-	XAxisRows,
-	XAxisSections,
-} from "./Chart/XAxis";
+import { XAxis, XAxisRow, XAxisRows, XAxisSections } from "./Chart/XAxis";
 import {
 	YAxis,
 	YAxisCaption,
