@@ -146,8 +146,8 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 }
 
 type provisionerKeyListItem struct {
-	Name      string    `json:"name" table:"name,default_sort"`
 	CreatedAt time.Time `json:"created_at" table:"created at" format:"date-time"`
+	Name      string    `json:"name" table:"name,default_sort"`
 	Tags      string    `json:"tags" table:"tags"`
 }
 

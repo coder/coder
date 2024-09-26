@@ -20,11 +20,18 @@ func (r *RootCmd) provisionerDaemons() *serpent.Command {
 }
 
 // The provisionerd command group is deprecated and hidden but kept around
-// for backwards compatibility.
+// for backwards compatibility with the start command.
 func (r *RootCmd) provisionerd() *serpent.Command {
-	cmd := r.provisionerDaemons()
-	cmd.Use = "provisionerd"
-	cmd.Hidden = true
+	cmd := &serpent.Command{
+		Use:   "provisionerd",
+		Short: "Manage provisioner daemons",
+		Handler: func(inv *serpent.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
+		Children: []*serpent.Command{
+			r.provisionerDaemonStart(),
+		},
+	}
 
 	return cmd
 }
