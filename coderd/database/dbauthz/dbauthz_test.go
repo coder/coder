@@ -2302,6 +2302,10 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 			DeletesAt: sql.NullTime{Time: time.Now(), Valid: true},
 		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
 	}))
+	s.Run("GetCryptoKeysByFeature", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.CryptoKeyFeatureWorkspaceApps).
+			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestSystemFunctions() {

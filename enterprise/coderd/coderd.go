@@ -243,6 +243,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Post("/app-stats", api.workspaceProxyReportAppStats)
 				r.Post("/register", api.workspaceProxyRegister)
 				r.Post("/deregister", api.workspaceProxyDeregister)
+				r.Get("/crypto-keys", api.workspaceProxyCryptoKeys)
 			})
 			r.Route("/{workspaceproxy}", func(r chi.Router) {
 				r.Use(
