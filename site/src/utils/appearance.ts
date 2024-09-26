@@ -1,5 +1,3 @@
-import type { ReactFragment, ReactNode, ReactPortal } from "react";
-
 export const getApplicationName = (): string => {
 	const c = document.head
 		.querySelector("meta[name=application-name]")
