@@ -17,7 +17,7 @@ IDEs are supported for remote development:
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
 a JetBrains IDE without even downloading one.
-[See JetBrains' website to learn about and Gateway.](https://www.jetbrains.com/remote-development/gateway/)
+Visit the [JetBrains website](https://www.jetbrains.com/remote-development/gateway/) to learn more about Gateway.]
 
 Gateway can connect to a Coder workspace by using Coder's Gateway plugin or
 manually setting up an SSH connection.
@@ -29,45 +29,56 @@ manually setting up an SSH connection.
 > [our Discord channel](https://discord.gg/coder).
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
-1. Open Gateway and click the Coder icon to install the Coder plugin.
-1. Click the "Coder" icon under Install More Providers at the bottom of the
-   Gateway home screen
-1. Click "Connect to Coder" at the top of the Gateway home screen to launch the
-   plugin
+   and open the application.
+1. Under **Install More Providers**, find the Coder icon and click **Install**
+   to install the Coder plugin.
+1. After Gateway installs the plugin, it will appear in the **Run the IDE
+   Remotely** section.
+
+   Click **Connect to Coder** to launch the plugin:
 
    ![Gateway Connect to Coder](../../images/gateway/plugin-connect-to-coder.png)
 
-1. Enter your Coder deployment's Access Url and click "Connect" then paste the
-   Session Token and click "OK"
+1. Enter your Coder deployment's
+   [Access Url](../../admin/configure.md#access-url) and click **Connect**.
+
+   Gateway opens your Coder deployment's `cli-auth` page with a session token.
+   Click the copy button, paste the session token in the Gateway **Session
+   Token** window, then click **OK**:
 
    ![Gateway Session Token](../../images/gateway/plugin-session-token.png)
 
-1. Click the "+" icon to open a browser and go to the templates page in your
-   Coder deployment to create a workspace
+1. To create a new workspace:
 
-1. If a workspace already exists but is stopped, click the green arrow to start
-   the workspace
+   Click the <kbd>+</kbd> icon to open a browser and go to the templates page in
+   your Coder deployment to create a workspace.
 
-1. Once the workspace status says Running, click "Select IDE and Project"
+1. If a workspace already exists but is stopped, select the workspace from the
+   list, then click the green arrow to start the workspace.
+
+1. When the workspace status is **Running**, click **Select IDE and Project**:
 
    ![Gateway IDE List](../../images/gateway/plugin-select-ide.png)
 
 1. Select the JetBrains IDE for your project and the project directory then
-   click "Start IDE and connect"
+   click **Start IDE and connect**:
+
    ![Gateway Select IDE](../../images/gateway/plugin-ide-list.png)
+
+   Gateway connects using the IDE you selected:
 
    ![Gateway IDE Opened](../../images/gateway/gateway-intellij-opened.png)
 
-> Note the JetBrains IDE is remotely installed into
-> `~/.cache/JetBrains/RemoteDev/dist`
+   > Note the JetBrains IDE is remotely installed into
+   > `~/.cache/JetBrains/RemoteDev/dist`
 
 ### Update a Coder plugin version
 
 1. Click the gear icon at the bottom left of the Gateway home screen and then
    "Settings"
 
-1. In the Marketplace tab within Plugins, type Coder and if a newer plugin
-   release is available, click "Update" and "OK"
+1. In the **Marketplace** tab within Plugins, enter Coder and if a newer plugin
+   release is available, click **Update** then **OK**:
 
    ![Gateway Settings and Marketplace](../../images/gateway/plugin-settings-marketplace.png)
 
@@ -125,59 +136,60 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 > This is in lieu of using Coder's Gateway plugin which automatically performs
 > these steps.
 
-1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
+1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html).
 
-1. [Configure the `coder` CLI](../ides.md#ssh-configuration)
+1. [Configure the `coder` CLI](../ides.md#ssh-configuration).
 
-1. Open Gateway, make sure "SSH" is selected under "Remote Development"
+1. Open Gateway, make sure **SSH** is selected under **Remote Development**.
 
-1. Click "New Connection"
+1. Click **New Connection**:
 
-   ![Gateway Home](../images/gateway/gateway-home.png)
+   ![Gateway Home](../../images/gateway/gateway-home.png)
 
-1. In the resulting dialog, click the gear icon to the right of "Connection:"
+1. In the resulting dialog, click the gear icon to the right of **Connection**:
 
-   ![Gateway New Connection](../images/gateway/gateway-new-connection.png)
+   ![Gateway New Connection](../../images/gateway/gateway-new-connection.png)
 
-1. Hit the "+" button to add a new SSH connection
+1. Click <kbd>+</kbd> to add a new SSH connection:
 
-   ![Gateway Add Connection](../images/gateway/gateway-add-ssh-configuration.png)
+   ![Gateway Add Connection](../../images/gateway/gateway-add-ssh-configuration.png)
 
 1. For the Host, enter `coder.<workspace name>`
 
 1. For the Port, enter `22` (this is ignored by Coder)
 
-1. For the Username, enter your workspace username
+1. For the Username, enter your workspace username.
 
-1. For the Authentication Type, select "OpenSSH config and authentication agent"
+1. For the Authentication Type, select **OpenSSH config and authentication
+   agent**.
 
-1. Make sure the checkbox for "Parse config file ~/.ssh/config" is checked.
+1. Make sure the checkbox for **Parse config file ~/.ssh/config** is checked.
 
-1. Click "Test Connection" to validate these settings.
+1. Click **Test Connection** to validate these settings.
 
-1. Click "OK"
+1. Click **OK**:
 
-   ![Gateway SSH Configuration](../images/gateway/gateway-create-ssh-configuration.png)
+   ![Gateway SSH Configuration](../../images/gateway/gateway-create-ssh-configuration.png)
 
-1. Select the connection you just added
+1. Select the connection you just added:
 
-   ![Gateway Welcome](../images/gateway/gateway-welcome.png)
+   ![Gateway Welcome](../../images/gateway/gateway-welcome.png)
 
-1. Click "Check Connection and Continue"
+1. Click **Check Connection and Continue**:
 
-   ![Gateway Continue](../images/gateway/gateway-continue.png)
+   ![Gateway Continue](../../images/gateway/gateway-continue.png)
 
 1. Select the JetBrains IDE for your project and the project directory. SSH into
    your server to create a directory or check out code if you haven't already.
 
-   ![Gateway Choose IDE](../images/gateway/gateway-choose-ide.png)
+   ![Gateway Choose IDE](../../images/gateway/gateway-choose-ide.png)
 
    > Note the JetBrains IDE is remotely installed into
    > `~/. cache/JetBrains/RemoteDev/dist`
 
-1. Click "Download and Start IDE" to connect.
+1. Click **Download and Start IDE** to connect.
 
-   ![Gateway IDE Opened](../images/gateway/gateway-intellij-opened.png)
+   ![Gateway IDE Opened](../../images/gateway/gateway-intellij-opened.png)
 
 ## Using an existing JetBrains installation in the workspace
 
@@ -335,7 +347,7 @@ HKEY_LOCAL_MACHINE registry
 Additionally, create a string for each setting with its appropriate value in
 `SOFTWARE\JetBrains\RemoteDev`:
 
-![Alt text](../images/gateway/JetBrains-offline-windows.png)
+![Alt text](../../images/gateway/jetbrains-offline-windows.png)
 
 ### 5. Setup SSH connection with JetBrains Gateway
 
@@ -348,7 +360,7 @@ Instead of downloading from jetbrains.com, we will point Gateway to our server
 endpoint. Select `Installation options...` and select `Use download link`. Note
 that the URL must explicitly reference the archive file:
 
-![Offline Gateway](../images/gateway/offline-gateway.png)
+![Offline Gateway](../../images/gateway/offline-gateway.png)
 
 Click `Download IDE and Connect`. Gateway should now download the backend and
 clients from the server into your remote workspace and local machine,
