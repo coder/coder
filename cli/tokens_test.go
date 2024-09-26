@@ -17,7 +17,10 @@ import (
 func TestTokens(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
+	adminUser := coderdtest.CreateFirstUser(t, client)
+
+	secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, client, adminUser.OrganizationID)
+	_, thirdUser := coderdtest.CreateAnotherUser(t, client, adminUser.OrganizationID)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancelFunc()
@@ -42,8 +45,39 @@ func TestTokens(t *testing.T) {
 	require.NotEmpty(t, res)
 	id := res[:10]
 
+	// Test creating a token for second user from first user's (admin) session
+	inv, root = clitest.New(t, "tokens", "create", "--name", "token-two", "--user", secondUser.ID.String())
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	// Test should succeed in creating token for second user
+	require.NoError(t, err)
+	res = buf.String()
+	require.NotEmpty(t, res)
+	secondTokenID := res[:10]
+
+	// Test listing tokens from the first user's (admin) session
 	inv, root = clitest.New(t, "tokens", "ls")
 	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	res = buf.String()
+	require.NotEmpty(t, res)
+	// Result should only contain the token created for the admin user
+	require.Contains(t, res, "ID")
+	require.Contains(t, res, "EXPIRES AT")
+	require.Contains(t, res, "CREATED AT")
+	require.Contains(t, res, "LAST USED")
+	require.Contains(t, res, id)
+	// Result should not contain the token created for the second user
+	require.NotContains(t, res, secondTokenID)
+
+	// Test listing tokens from the second user's session
+	inv, root = clitest.New(t, "tokens", "ls")
+	clitest.SetupConfig(t, secondUserClient, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
 	err = inv.WithContext(ctx).Run()
@@ -54,7 +88,17 @@ func TestTokens(t *testing.T) {
 	require.Contains(t, res, "EXPIRES AT")
 	require.Contains(t, res, "CREATED AT")
 	require.Contains(t, res, "LAST USED")
-	require.Contains(t, res, id)
+	// Result should contain the token created for the second user
+	require.Contains(t, res, secondTokenID)
+
+	// Test creating a token for third user from second user's (non-admin) session
+	inv, root = clitest.New(t, "tokens", "create", "--name", "token-two", "--user", thirdUser.ID.String())
+	clitest.SetupConfig(t, secondUserClient, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	// User (non-admin) should not be able to create a token for another user
+	require.Error(t, err)
 
 	inv, root = clitest.New(t, "tokens", "ls", "--output=json")
 	clitest.SetupConfig(t, client, root)
