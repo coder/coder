@@ -457,15 +457,15 @@ func (k CryptoKey) DecodeString() ([]byte, error) {
 	return hex.DecodeString(k.Secret.String)
 }
 
-func (k CryptoKey) IsActive(now time.Time) bool {
+func (k CryptoKey) CanSign(now time.Time) bool {
 	now = now.UTC()
 	isAfterStart := !k.StartsAt.IsZero() && !now.Before(k.StartsAt.UTC())
-	return isAfterStart && !k.IsInvalid(now)
+	return isAfterStart && k.CanVerify(now)
 }
 
-func (k CryptoKey) IsInvalid(now time.Time) bool {
+func (k CryptoKey) CanVerify(now time.Time) bool {
 	now = now.UTC()
-	isDeleted := !k.Secret.Valid
-	isPastDeletion := k.DeletesAt.Valid && !now.Before(k.DeletesAt.Time.UTC())
-	return isDeleted || isPastDeletion
+	hasSecret := k.Secret.Valid
+	isBeforeDeletion := !k.DeletesAt.Valid || now.Before(k.DeletesAt.Time.UTC())
+	return hasSecret && isBeforeDeletion
 }

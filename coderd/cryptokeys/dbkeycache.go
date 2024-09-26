@@ -10,6 +10,8 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -59,17 +61,17 @@ func NewDBCache(ctx context.Context, logger slog.Logger, db database.Store, feat
 }
 
 // Version returns the CryptoKey with the given sequence number, provided that
-// it is not deleted or has breached its deletion date.
-func (d *DBCache) Version(ctx context.Context, sequence int32) (database.CryptoKey, error) {
+// it is neither deleted nor has breached its deletion date.
+func (d *DBCache) Version(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
 	now := d.clock.Now().UTC()
 	d.cacheMu.RLock()
 	key, ok := d.cache[sequence]
 	d.cacheMu.RUnlock()
 	if ok {
-		if key.IsInvalid(now) {
-			return database.CryptoKey{}, ErrKeyNotFound
+		if !key.CanVerify(now) {
+			return codersdk.CryptoKey{}, ErrKeyInvalid
 		}
-		return key, nil
+		return db2sdk.CryptoKey(key), nil
 	}
 
 	d.cacheMu.Lock()
@@ -77,7 +79,7 @@ func (d *DBCache) Version(ctx context.Context, sequence int32) (database.CryptoK
 
 	key, ok = d.cache[sequence]
 	if ok {
-		return key, nil
+		return db2sdk.CryptoKey(key), nil
 	}
 
 	key, err := d.db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
@@ -85,58 +87,62 @@ func (d *DBCache) Version(ctx context.Context, sequence int32) (database.CryptoK
 		Sequence: sequence,
 	})
 	if xerrors.Is(err, sql.ErrNoRows) {
-		return database.CryptoKey{}, ErrKeyNotFound
+		return codersdk.CryptoKey{}, ErrKeyNotFound
 	}
 	if err != nil {
-		return database.CryptoKey{}, err
+		return codersdk.CryptoKey{}, err
 	}
 
-	if key.IsInvalid(now) {
-		return database.CryptoKey{}, ErrKeyInvalid
+	if !key.CanVerify(now) {
+		return codersdk.CryptoKey{}, ErrKeyInvalid
 	}
 
-	if key.IsActive(now) && key.Sequence > d.latestKey.Sequence {
+	// If this key is valid for signing then mark it as the latest key.
+	if key.CanSign(now) && key.Sequence > d.latestKey.Sequence {
 		d.latestKey = key
 	}
 
 	d.cache[sequence] = key
 
-	return key, nil
+	return db2sdk.CryptoKey(key), nil
 }
 
-func (d *DBCache) Latest(ctx context.Context) (database.CryptoKey, error) {
+// Latest returns the latest valid key for signing. A valid key is one that is
+// both past its start time and before its deletion time.
+func (d *DBCache) Latest(ctx context.Context) (codersdk.CryptoKey, error) {
 	d.cacheMu.RLock()
 	latest := d.latestKey
 	d.cacheMu.RUnlock()
 
 	now := d.clock.Now().UTC()
-	if latest.IsActive(now) {
-		return latest, nil
+	if latest.CanSign(now) {
+		return checkKey(latest, now)
 	}
 
 	d.cacheMu.Lock()
 	defer d.cacheMu.Unlock()
 
-	if latest.IsActive(now) {
-		return latest, nil
+	if latest.CanSign(now) {
+		return checkKey(latest, now)
 	}
 
+	// Refetch all keys for this feature so we can find the latest valid key.
 	cache, latest, err := d.newCache(ctx)
 	if err != nil {
-		return database.CryptoKey{}, xerrors.Errorf("new cache: %w", err)
+		return codersdk.CryptoKey{}, xerrors.Errorf("new cache: %w", err)
 	}
 
 	if len(cache) == 0 {
-		return database.CryptoKey{}, ErrKeyNotFound
+		return codersdk.CryptoKey{}, ErrKeyNotFound
 	}
 
-	if !latest.IsActive(now) {
-		return database.CryptoKey{}, ErrKeyInvalid
+	if !latest.CanSign(now) {
+		return codersdk.CryptoKey{}, ErrKeyInvalid
 	}
 
 	d.cache, d.latestKey = cache, latest
 
-	return d.latestKey, nil
+	return checkKey(latest, now)
 }
 
 func (d *DBCache) refresh(ctx context.Context) {
@@ -154,30 +160,29 @@ func (d *DBCache) refresh(ctx context.Context) {
 	})
 }
 
+// newCache fetches all keys for the given feature and determines the latest key.
 func (d *DBCache) newCache(ctx context.Context) (map[int32]database.CryptoKey, database.CryptoKey, error) {
 	now := d.clock.Now().UTC()
 	keys, err := d.db.GetCryptoKeysByFeature(ctx, d.feature)
 	if err != nil {
 		return nil, database.CryptoKey{}, xerrors.Errorf("get crypto keys by feature: %w", err)
 	}
-	cache := toMap(keys)
+	cache := make(map[int32]database.CryptoKey)
 	var latest database.CryptoKey
-	// Keys are returned in order from highest sequence to lowest.
 	for _, key := range keys {
-		if !key.IsActive(now) {
-			continue
+		cache[key.Sequence] = key
+		if key.CanSign(now) && key.Sequence > latest.Sequence {
+			latest = key
 		}
-		latest = key
-		break
 	}
 
 	return cache, latest, nil
 }
 
-func toMap(keys []database.CryptoKey) map[int32]database.CryptoKey {
-	m := make(map[int32]database.CryptoKey)
-	for _, key := range keys {
-		m[key.Sequence] = key
+func checkKey(key database.CryptoKey, now time.Time) (codersdk.CryptoKey, error) {
+	if !key.CanVerify(now) {
+		return codersdk.CryptoKey{}, ErrKeyInvalid
 	}
-	return m
+
+	return db2sdk.CryptoKey(key), nil
 }

@@ -995,9 +995,9 @@ func TestGetCryptoKeys(t *testing.T) {
 	})
 }
 
-func fromDBCryptoKeys(key database.CryptoKey) wsproxysdk.CryptoKey {
-	return wsproxysdk.CryptoKey{
-		Feature:   wsproxysdk.CryptoKeyFeature(key.Feature),
+func fromDBCryptoKeys(key database.CryptoKey) codersdk.CryptoKey {
+	return codersdk.CryptoKey{
+		Feature:   codersdk.CryptoKeyFeature(key.Feature),
 		Sequence:  key.Sequence,
 		StartsAt:  key.StartsAt.UTC(),
 		DeletesAt: key.DeletesAt.Time.UTC(),

@@ -659,3 +659,17 @@ func Organization(organization database.Organization) codersdk.Organization {
 		IsDefault:   organization.IsDefault,
 	}
 }
+
+func CryptoKeys(keys []database.CryptoKey) []codersdk.CryptoKey {
+	return List(keys, CryptoKey)
+}
+
+func CryptoKey(key database.CryptoKey) codersdk.CryptoKey {
+	return codersdk.CryptoKey{
+		Feature:   codersdk.CryptoKeyFeature(key.Feature),
+		Sequence:  key.Sequence,
+		StartsAt:  key.StartsAt.UTC(),
+		DeletesAt: key.DeletesAt.Time.UTC(),
+		Secret:    key.Secret.String,
+	}
+}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/testutil"
@@ -62,7 +63,7 @@ func TestDBKeyCache(t *testing.T) {
 
 			got, err := k.Version(ctx, key.Sequence)
 			require.NoError(t, err)
-			require.Equal(t, key, got)
+			require.Equal(t, db2sdk.CryptoKey(key), got)
 		})
 
 		t.Run("MissesCache", func(t *testing.T) {
@@ -100,7 +101,7 @@ func TestDBKeyCache(t *testing.T) {
 
 			got, err := k.Version(ctx, key.Sequence)
 			require.NoError(t, err)
-			require.Equal(t, key, got)
+			require.Equal(t, db2sdk.CryptoKey(key), got)
 		})
 	})
 
@@ -137,7 +138,7 @@ func TestDBKeyCache(t *testing.T) {
 
 		got, err := k.Latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, expectedKey, got)
+		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
 	})
 
 	t.Run("CacheRefreshes", func(t *testing.T) {
@@ -168,6 +169,13 @@ func TestDBKeyCache(t *testing.T) {
 				Valid: true,
 			},
 		})
+
+		wrongFeature := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureOidcConvert,
+			Sequence: 30,
+			StartsAt: clock.Now().UTC(),
+		})
+
 		trap := clock.Trap().TickerFunc()
 		k, err := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
 		require.NoError(t, err)
@@ -175,7 +183,10 @@ func TestDBKeyCache(t *testing.T) {
 		// Should be able to fetch the expiring key since it's still valid.
 		got, err := k.Version(ctx, expiringKey.Sequence)
 		require.NoError(t, err)
-		require.Equal(t, expiringKey, got)
+		require.Equal(t, db2sdk.CryptoKey(expiringKey), got)
+
+		_, err = k.Version(ctx, wrongFeature.Sequence)
+		require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
 
 		newLatest := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
@@ -190,7 +201,7 @@ func TestDBKeyCache(t *testing.T) {
 		// The latest key should not be the one we just generated.
 		got, err = k.Latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, latest, got)
+		require.Equal(t, db2sdk.CryptoKey(latest), got)
 
 		// Wait for the ticker to fire and the cache to refresh.
 		trap.MustWait(ctx).Release()
@@ -200,11 +211,14 @@ func TestDBKeyCache(t *testing.T) {
 		// The latest key should be the one we just generated.
 		got, err = k.Latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, newLatest, got)
+		require.Equal(t, db2sdk.CryptoKey(newLatest), got)
 
-		// The expiring key should be gone.
-
+		// The expiring key should be invalid.
 		_, err = k.Version(ctx, expiringKey.Sequence)
+		require.ErrorIs(t, err, cryptokeys.ErrKeyInvalid)
+
+		// Sanity check that the wrong feature is still not found.
+		_, err = k.Version(ctx, wrongFeature.Sequence)
 		require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
 	})
 }

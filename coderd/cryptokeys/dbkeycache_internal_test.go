@@ -9,6 +9,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -49,7 +50,7 @@ func Test_Version(t *testing.T) {
 
 		got, err := k.Version(ctx, 32)
 		require.NoError(t, err)
-		require.Equal(t, expectedKey, got)
+		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
 	})
 
 	t.Run("MissesCache", func(t *testing.T) {
@@ -86,8 +87,8 @@ func Test_Version(t *testing.T) {
 
 		got, err := k.Version(ctx, 33)
 		require.NoError(t, err)
-		require.Equal(t, expectedKey, got)
-		require.Equal(t, expectedKey, k.latestKey)
+		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
+		require.Equal(t, db2sdk.CryptoKey(expectedKey), db2sdk.CryptoKey(k.latestKey))
 	})
 
 	t.Run("InvalidCachedKey", func(t *testing.T) {
@@ -123,7 +124,7 @@ func Test_Version(t *testing.T) {
 		}
 
 		_, err := k.Version(ctx, 32)
-		require.ErrorIs(t, err, ErrKeyNotFound)
+		require.ErrorIs(t, err, ErrKeyInvalid)
 	})
 
 	t.Run("InvalidDBKey", func(t *testing.T) {
@@ -196,7 +197,7 @@ func Test_Latest(t *testing.T) {
 
 		got, err := k.Latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, latestKey, got)
+		require.Equal(t, db2sdk.CryptoKey(latestKey), got)
 	})
 
 	t.Run("InvalidCachedKey", func(t *testing.T) {
@@ -242,7 +243,7 @@ func Test_Latest(t *testing.T) {
 
 		got, err := k.Latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, latestKey, got)
+		require.Equal(t, db2sdk.CryptoKey(latestKey), got)
 	})
 
 	t.Run("UsesActiveKey", func(t *testing.T) {
@@ -286,7 +287,7 @@ func Test_Latest(t *testing.T) {
 
 		got, err := k.Latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, activeKey, got)
+		require.Equal(t, db2sdk.CryptoKey(activeKey), got)
 	})
 
 	t.Run("NoValidKeys", func(t *testing.T) {

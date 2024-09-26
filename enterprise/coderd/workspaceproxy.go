@@ -995,11 +995,11 @@ func (w *workspaceProxiesFetchUpdater) Update(ctx context.Context) error {
 	return w.updateFunc(ctx)
 }
 
-func fromDBCryptoKeys(keys []database.CryptoKey) []wsproxysdk.CryptoKey {
-	wskeys := make([]wsproxysdk.CryptoKey, 0, len(keys))
+func fromDBCryptoKeys(keys []database.CryptoKey) []codersdk.CryptoKey {
+	wskeys := make([]codersdk.CryptoKey, 0, len(keys))
 	for _, key := range keys {
-		wskeys = append(wskeys, wsproxysdk.CryptoKey{
-			Feature:   wsproxysdk.CryptoKeyFeature(key.Feature),
+		wskeys = append(wskeys, codersdk.CryptoKey{
+			Feature:   codersdk.CryptoKeyFeature(key.Feature),
 			Sequence:  key.Sequence,
 			StartsAt:  key.StartsAt.UTC(),
 			DeletesAt: key.DeletesAt.Time.UTC(),
