@@ -56,7 +56,7 @@ A Coder parameter can have one of these types:
 
 - `string`
 - `bool`
-- `number`.
+- `number`
 - `list(string)`
 
 To specify a default value for a parameter with the `list(string)` type, use a
