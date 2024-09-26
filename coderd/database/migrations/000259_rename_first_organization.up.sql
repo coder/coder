@@ -1,8 +1,8 @@
 UPDATE
 	organizations
 SET
-	name = 'main',
-	display_name = 'Main'
+	name = 'coder',
+	display_name = 'Coder'
 WHERE
 	-- The old name was too long.
 	name = 'first-organization'
