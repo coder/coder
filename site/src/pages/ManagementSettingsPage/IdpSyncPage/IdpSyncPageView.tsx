@@ -14,8 +14,10 @@ import type {
 	Organization,
 	RoleSyncSettings,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import {
@@ -29,8 +31,6 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpPillList } from "./IdpPillList";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
 
 interface IdpSyncPageViewProps {
 	groupSyncSettings: GroupSyncSettings | undefined;

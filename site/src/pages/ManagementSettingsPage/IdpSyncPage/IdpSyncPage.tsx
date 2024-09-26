@@ -1,18 +1,17 @@
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
-import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import {
 	groupIdpSyncSettings,
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
+import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { type FC, useEffect } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
 import { useParams } from "react-router-dom";
@@ -21,9 +20,6 @@ import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Paywall } from "components/Paywall/Paywall";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 
 export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
@@ -46,14 +42,6 @@ export const IdpSyncPage: FC = () => {
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
-
-	// if (
-	// 	groupsQuery.isLoading ||
-	// 	groupIdpSyncSettingsQuery.isLoading ||
-	// 	roleIdpSyncSettingsQuery.isLoading
-	// ) {
-	// 	return <Loader />;
-	// }
 
 	const error =
 		groupIdpSyncSettingsQuery.error ||
