@@ -113,14 +113,14 @@ func (d *DBCache) Latest(ctx context.Context) (codersdk.CryptoKey, error) {
 
 	now := d.clock.Now().UTC()
 	if latest.CanSign(now) {
-		return checkKey(latest, now)
+		return db2sdk.CryptoKey(latest), nil
 	}
 
 	d.cacheMu.Lock()
 	defer d.cacheMu.Unlock()
 
 	if latest.CanSign(now) {
-		return checkKey(latest, now)
+		return db2sdk.CryptoKey(latest), nil
 	}
 
 	// Refetch all keys for this feature so we can find the latest valid key.
@@ -139,7 +139,7 @@ func (d *DBCache) Latest(ctx context.Context) (codersdk.CryptoKey, error) {
 
 	d.cache, d.latestKey = cache, latest
 
-	return checkKey(latest, now)
+	return db2sdk.CryptoKey(latest), nil
 }
 
 func (d *DBCache) refresh(ctx context.Context) {
