@@ -68,10 +68,7 @@ func (d *DBCache) Version(ctx context.Context, sequence int32) (codersdk.CryptoK
 	key, ok := d.cache[sequence]
 	d.cacheMu.RUnlock()
 	if ok {
-		if !key.CanVerify(now) {
-			return codersdk.CryptoKey{}, ErrKeyInvalid
-		}
-		return db2sdk.CryptoKey(key), nil
+		return checkKey(key, now)
 	}
 
 	d.cacheMu.Lock()
@@ -79,7 +76,7 @@ func (d *DBCache) Version(ctx context.Context, sequence int32) (codersdk.CryptoK
 
 	key, ok = d.cache[sequence]
 	if ok {
-		return db2sdk.CryptoKey(key), nil
+		return checkKey(key, now)
 	}
 
 	key, err := d.db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{

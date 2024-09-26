@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -918,14 +919,14 @@ func TestGetCryptoKeys(t *testing.T) {
 			StartsAt: now.Add(-time.Hour),
 			Sequence: 2,
 		})
-		key1 := fromDBCryptoKeys(expectedKey1)
+		key1 := db2sdk.CryptoKey(expectedKey1)
 
 		expectedKey2 := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			StartsAt: now,
 			Sequence: 3,
 		})
-		key2 := fromDBCryptoKeys(expectedKey2)
+		key2 := db2sdk.CryptoKey(expectedKey2)
 
 		// Create a deleted key.
 		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
@@ -993,14 +994,4 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
-}
-
-func fromDBCryptoKeys(key database.CryptoKey) codersdk.CryptoKey {
-	return codersdk.CryptoKey{
-		Feature:   codersdk.CryptoKeyFeature(key.Feature),
-		Sequence:  key.Sequence,
-		StartsAt:  key.StartsAt.UTC(),
-		DeletesAt: key.DeletesAt.Time.UTC(),
-		Secret:    key.Secret.String,
-	}
 }

@@ -17,6 +17,7 @@ import (
 	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -733,7 +734,7 @@ func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, wsproxysdk.CryptoKeysResponse{
-		CryptoKeys: fromDBCryptoKeys(keys),
+		CryptoKeys: db2sdk.CryptoKeys(keys),
 	})
 }
 
@@ -993,18 +994,4 @@ func (w *workspaceProxiesFetchUpdater) Fetch(ctx context.Context) (codersdk.Regi
 
 func (w *workspaceProxiesFetchUpdater) Update(ctx context.Context) error {
 	return w.updateFunc(ctx)
-}
-
-func fromDBCryptoKeys(keys []database.CryptoKey) []codersdk.CryptoKey {
-	wskeys := make([]codersdk.CryptoKey, 0, len(keys))
-	for _, key := range keys {
-		wskeys = append(wskeys, codersdk.CryptoKey{
-			Feature:   codersdk.CryptoKeyFeature(key.Feature),
-			Sequence:  key.Sequence,
-			StartsAt:  key.StartsAt.UTC(),
-			DeletesAt: key.DeletesAt.Time.UTC(),
-			Secret:    key.Secret.String,
-		})
-	}
-	return wskeys
 }
