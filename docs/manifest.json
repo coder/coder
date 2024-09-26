@@ -563,6 +563,12 @@
 			]
 		},
 		{
+			"title": "Licensing",
+			"description": "Learn how to enable Premium features",
+			"path": "./licensing.md",
+			"icon_path": "./images/icons/enterprise.svg"
+		},
+		{
 			"title": "Contributing",
 			"description": "Learn how to contribute to Coder",
 			"path": "./CONTRIBUTING.md",

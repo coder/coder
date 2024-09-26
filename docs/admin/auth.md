@@ -1,7 +1,5 @@
 # Authentication
 
-![OIDC with Coder Sequence Diagram](../images/oidc-sequence-diagram.svg).
-
 By default, Coder is accessible via password authentication. Coder does not
 recommend using password authentication in production, and recommends using an
 authentication provider with properly configured multi-factor authentication
@@ -252,33 +250,47 @@ CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ## Group Sync (enterprise) (premium)
 
 If your OpenID Connect provider supports group claims, you can configure Coder
-to synchronize groups in your auth provider to groups within Coder.
+to synchronize groups in your auth provider to groups within Coder. To enable
+group sync, ensure that the `groups` claim is being sent by your OpenID
+provider. This may involve requesting an additional
+[scope](../reference/cli/server.md#--oidc-scopes) or additional configuration on
+the OpenID provider side.
 
-To enable group sync, ensure that the `groups` claim is set by adding the
-correct scope to request. If group sync is enabled, the user's groups will be
-controlled by the OIDC provider. This means manual group additions/removals will
-be overwritten on the next login.
+If group sync is enabled, the user's groups will be controlled by the OIDC
+provider. This means manual group additions/removals will be overwritten on the
+next user login.
 
-```env
-# as an environment variable
-CODER_OIDC_SCOPES=openid,profile,email,groups
+There are two ways you can configure group sync:
+
+<div class="tabs">
+
+## Server Flags
+
+First, confirm that your OIDC provider is sending the `groups` claim by logging
+in with OIDC and visiting the following URL:
+
+```text
+https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
 ```
 
-```shell
-# as a flag
---oidc-scopes openid,profile,email,groups
-```
+You should see a field, followed by a list of the user's OIDC groups in the
+response. This is the
+[claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims) sent by
+the OIDC provider. See [Troubleshooting](#troubleshooting-grouprole-sync) to
+debug this.
 
-With the `groups` scope requested, we also need to map the `groups` claim name.
-Coder recommends using `groups` for the claim name. This step is necessary if
-your **scope's name** is something other than `groups`.
+> Depending on the OIDC provider, this claim may be named differently. Common
+> ones include `groups`, `memberOf`, and `roles`.
 
-```env
+Next configure the Coder server to read groups from the claim name with the
+[OIDC group field](../reference/cli/server.md#--oidc-group-field) server flag:
+
+```sh
 # as an environment variable
 CODER_OIDC_GROUP_FIELD=groups
 ```
 
-```shell
+```sh
 # as a flag
 --oidc-group-field groups
 ```
@@ -288,14 +300,16 @@ names in Coder and removed from groups that the user no longer belongs to.
 
 For cases when an OIDC provider only returns group IDs ([Azure AD][azure-gids])
 or you want to have different group names in Coder than in your OIDC provider,
-you can configure mapping between the two.
+you can configure mapping between the two with the
+[OIDC group mapping](../reference/cli/server.md#--oidc-group-mapping) server
+flag.
 
-```env
+```sh
 # as an environment variable
 CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
 ```
 
-```shell
+```sh
 # as a flag
 --oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
 ```
@@ -313,10 +327,16 @@ coder:
 From the example above, users that belong to the `myOIDCGroupID` group in your
 OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
-> **Note:** Groups are only updated on login.
-
 [azure-gids]:
 	https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
+
+## Runtime (Organizations)
+
+For deployments with multiple [organizations](./organizations.md), you can must
+configure group sync at the organization level. In future Coder versions, you
+will be able to configure this in the UI. For now, you can use CLI commands.
+
+</div>
 
 ### Group allowlist
 
