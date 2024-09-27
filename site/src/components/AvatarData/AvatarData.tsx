@@ -31,11 +31,13 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	avatar,
 }) => {
 	const theme = useTheme();
-	avatar ??= (
-		<Avatar background src={src}>
-			{title === undefined ? (imgFallbackText ?? "-") : title}
-		</Avatar>
-	);
+	if (!avatar) {
+		avatar = (
+			<Avatar background src={src}>
+				{title === undefined ? (imgFallbackText ?? "-") : title}
+			</Avatar>
+		);
+	}
 
 	return (
 		<Stack
