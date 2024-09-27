@@ -162,6 +162,7 @@ const DEFAULT_RESOURCES = [
 	"organization_member",
 	"provisioner_daemon",
 	"workspace",
+	"idpsync_settings",
 ];
 
 const resources = new Set(DEFAULT_RESOURCES);
