@@ -33,7 +33,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	const theme = useTheme();
 	avatar ??= (
 		<Avatar background src={src}>
-			{typeof title === "string" ? title : imgFallbackText ?? "-"}
+			{title === undefined ? (imgFallbackText ?? "-") : title}
 		</Avatar>
 	);
 
