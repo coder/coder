@@ -1211,6 +1211,36 @@ func TestUpdateUserPassword(t *testing.T) {
 		cerr := coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
+
+	t.Run("OnUpdateUserPasswordMustResetPasswordIsSetToFalse", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Unit test
+		err := db.UpdateUserMustResetPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserMustResetPasswordParams{
+			ID:                user.UserID,
+			MustResetPassword: true,
+		})
+		require.Nil(t, err)
+
+		//nolint:gocritic // Unit test
+		dbUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.UserID)
+		require.Nil(t, err)
+		require.True(t, dbUser.MustResetPassword)
+
+		err = client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
+			Password: "MyNewSecurePassword!",
+		})
+		require.Nil(t, err)
+
+		//nolint:gocritic // Unit test
+		dbUser, err = db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.UserID)
+		require.Nil(t, err)
+		require.False(t, dbUser.MustResetPassword)
+	})
 }
 
 // TestInitialRoles ensures the starting roles for the first user are correct.
