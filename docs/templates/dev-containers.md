@@ -44,7 +44,7 @@ iterate on their development environments.
   workspace.
 - [AWS EC2 (Devcontainer)](https://github.com/coder/coder/tree/main/examples/templates/aws-devcontainer)
   runs a development container inside a single EC2 instance. It also mounts the
-  Docker socket from the VM inside the container to enble Docker inside the
+  Docker socket from the VM inside the container to enable Docker inside the
   workspace.
 
 ![Devcontainer parameter screen](../images/templates/devcontainers.png)
