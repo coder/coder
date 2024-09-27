@@ -1207,6 +1207,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		err := client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
 			Password: coderdtest.FirstUserParams.Password,
 		})
+
 		require.Error(t, err)
 		cerr := coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())

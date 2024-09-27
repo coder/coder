@@ -10638,6 +10638,25 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 	return i, err
 }
 
+const updateUserMustResetPassword = `-- name: UpdateUserMustResetPassword :exec
+UPDATE
+    users
+SET
+    must_reset_password = $2
+WHERE
+    id = $1
+`
+
+type UpdateUserMustResetPasswordParams struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	MustResetPassword bool      `db:"must_reset_password" json:"must_reset_password"`
+}
+
+func (q *sqlQuerier) UpdateUserMustResetPassword(ctx context.Context, arg UpdateUserMustResetPasswordParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserMustResetPassword, arg.ID, arg.MustResetPassword)
+	return err
+}
+
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE
 	users

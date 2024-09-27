@@ -4935,6 +4935,20 @@ func (mr *MockStoreMockRecorder) UpdateUserLoginType(arg0, arg1 any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLoginType", reflect.TypeOf((*MockStore)(nil).UpdateUserLoginType), arg0, arg1)
 }
 
+// UpdateUserMustResetPassword mocks base method.
+func (m *MockStore) UpdateUserMustResetPassword(arg0 context.Context, arg1 database.UpdateUserMustResetPasswordParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserMustResetPassword", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateUserMustResetPassword indicates an expected call of UpdateUserMustResetPassword.
+func (mr *MockStoreMockRecorder) UpdateUserMustResetPassword(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserMustResetPassword", reflect.TypeOf((*MockStore)(nil).UpdateUserMustResetPassword), arg0, arg1)
+}
+
 // UpdateUserNotificationPreferences mocks base method.
 func (m *MockStore) UpdateUserNotificationPreferences(arg0 context.Context, arg1 database.UpdateUserNotificationPreferencesParams) (int64, error) {
 	m.ctrl.T.Helper()

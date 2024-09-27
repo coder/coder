@@ -9186,6 +9186,27 @@ func (q *FakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 	return database.User{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateUserMustResetPassword(_ context.Context, arg database.UpdateUserMustResetPasswordParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, u := range q.users {
+		if u.ID == arg.ID {
+			u.MustResetPassword = arg.MustResetPassword
+			q.users[i] = u
+
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateUserNotificationPreferences(_ context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

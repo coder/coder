@@ -2342,6 +2342,13 @@ func (m metricsStore) UpdateUserLoginType(ctx context.Context, arg database.Upda
 	return r0, r1
 }
 
+func (m metricsStore) UpdateUserMustResetPassword(ctx context.Context, arg database.UpdateUserMustResetPasswordParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateUserMustResetPassword(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserMustResetPassword").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserNotificationPreferences(ctx, arg)

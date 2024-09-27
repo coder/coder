@@ -1076,6 +1076,14 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("delete api keys by user ID: %w", err)
 		}
 
+		err = tx.UpdateUserMustResetPassword(ctx, database.UpdateUserMustResetPasswordParams{
+			ID:                user.ID,
+			MustResetPassword: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("update user must reset password: %w", err)
+		}
+
 		return nil
 	}, nil)
 	if err != nil {
