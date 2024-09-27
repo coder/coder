@@ -19,9 +19,6 @@ jest.spyOn(console, "error").mockImplementation(() => {});
 
 beforeEach(() => {
 	server.use(
-		http.get("/api/v2/experiments", () => {
-			return HttpResponse.json(["multi-organization"]);
-		}),
 		http.get("/api/v2/entitlements", () => {
 			return HttpResponse.json(MockEntitlementsWithMultiOrg);
 		}),
