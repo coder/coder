@@ -1,13 +1,13 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# provisionerd start
+# provisioner start
 
 Run a provisioner daemon
 
 ## Usage
 
 ```console
-coder provisionerd start [flags]
+coder provisioner start [flags]
 ```
 
 ## Options
@@ -59,6 +59,15 @@ Deprecated and ignored.
 | Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
 
 Pre-shared key to authenticate with Coder server.
+
+### --key
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_KEY</code> |
+
+Provisioner key to authenticate with Coder server.
 
 ### --name
 

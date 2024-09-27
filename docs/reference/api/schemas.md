@@ -4176,14 +4176,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `created_at`       | string | false    |              |             |
-| `id`               | string | false    |              |             |
-| `name`             | string | false    |              |             |
-| `organization`     | string | false    |              |             |
-| `tags`             | object | false    |              |             |
-| » `[any property]` | string | false    |              |             |
+| Name           | Type                                                       | Required | Restrictions | Description |
+| -------------- | ---------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`   | string                                                     | false    |              |             |
+| `id`           | string                                                     | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `organization` | string                                                     | false    |              |             |
+| `tags`         | [codersdk.ProvisionerKeyTags](#codersdkprovisionerkeytags) | false    |              |             |
 
 ## codersdk.ProvisionerKeyDaemons
 
@@ -4225,6 +4224,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | --------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `daemons` | array of [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `key`     | [codersdk.ProvisionerKey](#codersdkprovisionerkey)                | false    |              |             |
+
+## codersdk.ProvisionerKeyTags
+
+```json
+{
+	"property1": "string",
+	"property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.ProvisionerLogLevel
 

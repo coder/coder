@@ -11885,10 +11885,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "tags": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "$ref": "#/definitions/codersdk.ProvisionerKeyTags"
                 }
             }
         },
@@ -11904,6 +11901,12 @@ const docTemplate = `{
                 "key": {
                     "$ref": "#/definitions/codersdk.ProvisionerKey"
                 }
+            }
+        },
+        "codersdk.ProvisionerKeyTags": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
             }
         },
         "codersdk.ProvisionerLogLevel": {
