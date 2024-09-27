@@ -1,3 +1,4 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import { getErrorMessage } from "api/errors";
 import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
@@ -122,13 +123,13 @@ const OrganizationMembersPage: FC = () => {
 								<li>Remove the member from all groups in this organization</li>
 								<li>Remove all user role assignments</li>
 								<li>
-									Irreversibly orphan all their workspaces associated with this
+									Orphan all the member's workspaces associated with this
 									organization
 								</li>
 							</ul>
 						</p>
 
-						<p>
+						<p css={styles.test}>
 							Are you sure you want to remove{" "}
 							<strong>{memberToDelete?.username}</strong>?
 						</p>
@@ -138,5 +139,11 @@ const OrganizationMembersPage: FC = () => {
 		</>
 	);
 };
+
+const styles = {
+	test: {
+		paddingBottom: 20,
+	},
+} satisfies Record<string, Interpolation<Theme>>;
 
 export default OrganizationMembersPage;
