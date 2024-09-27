@@ -282,14 +282,13 @@ const OrganizationSettingsNavigation: FC<
 							Groups
 						</SidebarNavSubItem>
 					)}
-					{organization.permissions.assignOrgRole &&
-						experiments.includes("custom-roles") && (
-							<SidebarNavSubItem
-								href={urlForSubpage(organization.name, "roles")}
-							>
-								Roles
-							</SidebarNavSubItem>
-						)}
+					{organization.permissions.assignOrgRole && (
+						<SidebarNavSubItem
+							href={urlForSubpage(organization.name, "roles")}
+						>
+							Roles
+						</SidebarNavSubItem>
+					)}
 					{organization.permissions.viewProvisioners && (
 						<SidebarNavSubItem
 							href={urlForSubpage(organization.name, "provisioners")}
