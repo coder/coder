@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -8,7 +9,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Link from "@mui/material/Link";
 import type {
 	Group,
 	GroupSyncSettings,
@@ -18,6 +18,13 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipText,
+	HelpTooltipTitle,
+	HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
@@ -32,13 +39,6 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpPillList } from "./IdpPillList";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
 
 interface IdpSyncPageViewProps {
 	groupSyncSettings: GroupSyncSettings | undefined;
