@@ -4176,14 +4176,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `created_at`       | string | false    |              |             |
-| `id`               | string | false    |              |             |
-| `name`             | string | false    |              |             |
-| `organization`     | string | false    |              |             |
-| `tags`             | object | false    |              |             |
-| » `[any property]` | string | false    |              |             |
+| Name           | Type                                                       | Required | Restrictions | Description |
+| -------------- | ---------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`   | string                                                     | false    |              |             |
+| `id`           | string                                                     | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `organization` | string                                                     | false    |              |             |
+| `tags`         | [codersdk.ProvisionerKeyTags](#codersdkprovisionerkeytags) | false    |              |             |
 
 ## codersdk.ProvisionerKeyDaemons
 
@@ -4225,6 +4224,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | --------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `daemons` | array of [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `key`     | [codersdk.ProvisionerKey](#codersdkprovisionerkey)                | false    |              |             |
+
+## codersdk.ProvisionerKeyTags
+
+```json
+{
+	"property1": "string",
+	"property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.ProvisionerLogLevel
 
@@ -9767,6 +9781,66 @@ _None_
 | `derp_force_websockets`      | boolean                            | false    |              |             |
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
+
+## wsproxysdk.CryptoKey
+
+```json
+{
+	"deletes_at": "string",
+	"feature": "workspace_apps",
+	"secret": "string",
+	"sequence": 0,
+	"starts_at": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                       | Required | Restrictions | Description |
+| ------------ | ---------------------------------------------------------- | -------- | ------------ | ----------- |
+| `deletes_at` | string                                                     | false    |              |             |
+| `feature`    | [wsproxysdk.CryptoKeyFeature](#wsproxysdkcryptokeyfeature) | false    |              |             |
+| `secret`     | string                                                     | false    |              |             |
+| `sequence`   | integer                                                    | false    |              |             |
+| `starts_at`  | string                                                     | false    |              |             |
+
+## wsproxysdk.CryptoKeyFeature
+
+```json
+"workspace_apps"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value            |
+| ---------------- |
+| `workspace_apps` |
+| `oidc_convert`   |
+| `tailnet_resume` |
+
+## wsproxysdk.CryptoKeysResponse
+
+```json
+{
+	"crypto_keys": [
+		{
+			"deletes_at": "string",
+			"feature": "workspace_apps",
+			"secret": "string",
+			"sequence": 0,
+			"starts_at": "string"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name          | Type                                                  | Required | Restrictions | Description |
+| ------------- | ----------------------------------------------------- | -------- | ------------ | ----------- |
+| `crypto_keys` | array of [wsproxysdk.CryptoKey](#wsproxysdkcryptokey) | false    |              |             |
 
 ## wsproxysdk.DeregisterWorkspaceProxyRequest
 

@@ -89,6 +89,21 @@ Coder uses `aws_ec2_instance_state` to start and stop the VM. This example templ
 > **Note**
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
+## Caching
+
+To speed up your builds, you can use a container registry as a cache.
+When creating the template, set the parameter `cache_repo` to a valid Docker repository in the form `host.tld/path/to/repo`.
+
+See the [Envbuilder Terraform Provider Examples](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf/) for a more complete example of how the provider works.
+
+> [!NOTE] We recommend using a registry cache with authentication enabled.
+> To allow Envbuilder to authenticate with a registry cache hosted on ECR, specify an IAM instance
+> profile that has read and write access to the given registry. For more information, see the
+> [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html).
+>
+> Alternatively, you can specify the variable `cache_repo_docker_config_path`
+> with the path to a Docker config `.json` on disk containing valid credentials for the registry.
+
 ## code-server
 
 `code-server` is installed via the [`code-server`](https://registry.coder.com/modules/code-server) registry module. For a list of all modules and templates pplease check [Coder Registry](https://registry.coder.com).

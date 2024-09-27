@@ -346,9 +346,6 @@ across multiple regions and diverse cloud platforms.
 
 ### Dev Containers
 
-Note: _Dev containers_ are at early stage and considered experimental at the
-moment.
-
 This architecture enhances a Coder workspace with a
 [development container](https://containers.dev/) setup built using the
 [envbuilder](https://github.com/coder/envbuilder) project. Workspace users have

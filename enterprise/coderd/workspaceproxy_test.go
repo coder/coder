@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
@@ -886,4 +888,119 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		// The token is validated in the apptest suite, so we don't need to
 		// validate it here.
 	})
+}
+
+func TestGetCryptoKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		now := time.Now().UTC()
+
+		expectedKey1 := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now.Add(-time.Hour),
+			Sequence: 2,
+		})
+		key1 := fromDBCryptoKeys(expectedKey1)
+
+		expectedKey2 := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now,
+			Sequence: 3,
+		})
+		key2 := fromDBCryptoKeys(expectedKey2)
+
+		// Create a deleted key.
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now.Add(-time.Hour),
+			Secret: sql.NullString{
+				String: "secret1",
+				Valid:  false,
+			},
+			Sequence: 1,
+		})
+
+		// Create a key with different features.
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureTailnetResume,
+			StartsAt: now.Add(-time.Hour),
+			Sequence: 1,
+		})
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureOidcConvert,
+			StartsAt: now.Add(-time.Hour),
+			Sequence: 1,
+		})
+
+		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		keys, err := proxy.SDKClient.CryptoKeys(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, keys)
+		require.Equal(t, 2, len(keys.CryptoKeys))
+		require.Contains(t, keys.CryptoKeys, key1)
+		require.Contains(t, keys.CryptoKeys, key2)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		_ = coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		client := wsproxysdk.New(cclient.URL)
+		client.SetSessionToken(cclient.SessionToken())
+
+		_, err := client.CryptoKeys(ctx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+}
+
+func fromDBCryptoKeys(key database.CryptoKey) wsproxysdk.CryptoKey {
+	return wsproxysdk.CryptoKey{
+		Feature:   wsproxysdk.CryptoKeyFeature(key.Feature),
+		Sequence:  key.Sequence,
+		StartsAt:  key.StartsAt.UTC(),
+		DeletesAt: key.DeletesAt.Time.UTC(),
+		Secret:    key.Secret.String,
+	}
 }

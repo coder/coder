@@ -1609,15 +1609,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Status Code **200**
 
-| Name                | Type              | Required | Restrictions | Description |
-| ------------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]`      | array             | false    |              |             |
-| `» created_at`      | string(date-time) | false    |              |             |
-| `» id`              | string(uuid)      | false    |              |             |
-| `» name`            | string            | false    |              |             |
-| `» organization`    | string(uuid)      | false    |              |             |
-| `» tags`            | object            | false    |              |             |
-| `»» [any property]` | string            | false    |              |             |
+| Name                | Type                                                                 | Required | Restrictions | Description |
+| ------------------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]`      | array                                                                | false    |              |             |
+| `» created_at`      | string(date-time)                                                    | false    |              |             |
+| `» id`              | string(uuid)                                                         | false    |              |             |
+| `» name`            | string                                                               | false    |              |             |
+| `» organization`    | string(uuid)                                                         | false    |              |             |
+| `» tags`            | [codersdk.ProvisionerKeyTags](schemas.md#codersdkprovisionerkeytags) | false    |              |             |
+| `»» [any property]` | string                                                               | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1725,28 +1725,28 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Status Code **200**
 
-| Name                 | Type                                                         | Required | Restrictions | Description |
-| -------------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`       | array                                                        | false    |              |             |
-| `» daemons`          | array                                                        | false    |              |             |
-| `»» api_version`     | string                                                       | false    |              |             |
-| `»» created_at`      | string(date-time)                                            | false    |              |             |
-| `»» id`              | string(uuid)                                                 | false    |              |             |
-| `»» key_id`          | string(uuid)                                                 | false    |              |             |
-| `»» last_seen_at`    | string(date-time)                                            | false    |              |             |
-| `»» name`            | string                                                       | false    |              |             |
-| `»» organization_id` | string(uuid)                                                 | false    |              |             |
-| `»» provisioners`    | array                                                        | false    |              |             |
-| `»» tags`            | object                                                       | false    |              |             |
-| `»»» [any property]` | string                                                       | false    |              |             |
-| `»» version`         | string                                                       | false    |              |             |
-| `» key`              | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey) | false    |              |             |
-| `»» created_at`      | string(date-time)                                            | false    |              |             |
-| `»» id`              | string(uuid)                                                 | false    |              |             |
-| `»» name`            | string                                                       | false    |              |             |
-| `»» organization`    | string(uuid)                                                 | false    |              |             |
-| `»» tags`            | object                                                       | false    |              |             |
-| `»»» [any property]` | string                                                       | false    |              |             |
+| Name                 | Type                                                                 | Required | Restrictions | Description |
+| -------------------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `[array item]`       | array                                                                | false    |              |             |
+| `» daemons`          | array                                                                | false    |              |             |
+| `»» api_version`     | string                                                               | false    |              |             |
+| `»» created_at`      | string(date-time)                                                    | false    |              |             |
+| `»» id`              | string(uuid)                                                         | false    |              |             |
+| `»» key_id`          | string(uuid)                                                         | false    |              |             |
+| `»» last_seen_at`    | string(date-time)                                                    | false    |              |             |
+| `»» name`            | string                                                               | false    |              |             |
+| `»» organization_id` | string(uuid)                                                         | false    |              |             |
+| `»» provisioners`    | array                                                                | false    |              |             |
+| `»» tags`            | object                                                               | false    |              |             |
+| `»»» [any property]` | string                                                               | false    |              |             |
+| `»» version`         | string                                                               | false    |              |             |
+| `» key`              | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey)         | false    |              |             |
+| `»» created_at`      | string(date-time)                                                    | false    |              |             |
+| `»» id`              | string(uuid)                                                         | false    |              |             |
+| `»» name`            | string                                                               | false    |              |             |
+| `»» organization`    | string(uuid)                                                         | false    |              |             |
+| `»» tags`            | [codersdk.ProvisionerKeyTags](schemas.md#codersdkprovisionerkeytags) | false    |              |             |
+| `»»» [any property]` | string                                                               | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -66,7 +66,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>features</code>](./features.md)             | List Enterprise features                                                                              |
 | [<code>licenses</code>](./licenses.md)             | Add, delete, and list licenses                                                                        |
 | [<code>groups</code>](./groups.md)                 | Manage groups                                                                                         |
-| [<code>provisionerd</code>](./provisionerd.md)     | Manage provisioner daemons                                                                            |
+| [<code>provisioner</code>](./provisioner.md)       | Manage provisioner daemons                                                                            |
 
 ## Options
 

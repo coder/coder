@@ -4,6 +4,7 @@ import {
 	MockGroup2,
 	MockGroupSyncSettings,
 	MockGroupSyncSettings2,
+	MockOrganization,
 	MockRoleSyncSettings,
 } from "testHelpers/entities";
 import { IdpSyncPageView } from "./IdpSyncPageView";
@@ -24,9 +25,31 @@ for (const group of [MockGroup, MockGroup2]) {
 
 export const Empty: Story = {
 	args: {
-		groupSyncSettings: undefined,
-		roleSyncSettings: undefined,
+		groupSyncSettings: {
+			field: "",
+			mapping: {},
+			regex_filter: "",
+			auto_create_missing_groups: false,
+		},
+		roleSyncSettings: {
+			field: "",
+			mapping: {},
+		},
+		groups: [],
 		groupsMap: undefined,
+		organization: MockOrganization,
+		error: undefined,
+	},
+};
+
+export const HasError: Story = {
+	args: {
+		groupSyncSettings: MockGroupSyncSettings,
+		roleSyncSettings: MockRoleSyncSettings,
+		groups: [MockGroup, MockGroup2],
+		groupsMap,
+		organization: MockOrganization,
+		error: "This is a test error",
 	},
 };
 
@@ -34,7 +57,10 @@ export const Default: Story = {
 	args: {
 		groupSyncSettings: MockGroupSyncSettings,
 		roleSyncSettings: MockRoleSyncSettings,
+		groups: [MockGroup, MockGroup2],
 		groupsMap,
+		organization: MockOrganization,
+		error: undefined,
 	},
 };
 
@@ -42,6 +68,9 @@ export const MissingGroups: Story = {
 	args: {
 		groupSyncSettings: MockGroupSyncSettings2,
 		roleSyncSettings: MockRoleSyncSettings,
+		groups: [MockGroup, MockGroup2],
 		groupsMap,
+		organization: MockOrganization,
+		error: undefined,
 	},
 };
