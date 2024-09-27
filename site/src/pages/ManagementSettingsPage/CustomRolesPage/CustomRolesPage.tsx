@@ -31,10 +31,10 @@ export const CustomRolesPage: FC = () => {
 	const [roleToDelete, setRoleToDelete] = useState<Role>();
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const builtInRoles = organizationRolesQuery.data?.filter(
-		(role) => role.built_in === true,
+		(role) => role.built_in,
 	);
 	const customRoles = organizationRolesQuery.data?.filter(
-		(role) => role.built_in === false,
+		(role) => !role.built_in,
 	);
 	const permissions = permissionsQuery.data;
 
