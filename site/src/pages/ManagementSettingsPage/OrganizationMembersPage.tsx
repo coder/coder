@@ -117,9 +117,9 @@ const OrganizationMembersPage: FC = () => {
 				description={
 					<Stack>
 						<p>
-							Removing this member will also:
+							Removing this member will:
 							<ul>
-								<li>Remove them from all groups in this organization</li>
+								<li>Remove the member from all groups in this organization</li>
 								<li>Remove all user role assignments</li>
 								<li>
 									Irreversibly orphan all their workspaces associated with this
