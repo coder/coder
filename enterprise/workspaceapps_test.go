@@ -23,7 +23,6 @@ func TestWorkspaceApps(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
 			"*",
-			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		if opts.DisableSubdomainApps {
