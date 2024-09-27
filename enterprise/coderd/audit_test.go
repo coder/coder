@@ -21,7 +21,6 @@ func TestEnterpriseAuditLogs(t *testing.T) {
 
 		ctx := context.Background()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,

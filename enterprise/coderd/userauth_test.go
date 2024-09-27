@@ -1131,7 +1131,6 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 	if settings.DeploymentValues != nil {
 		settings.DeploymentValues(dv)
 	}
-	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	owner, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			OIDCConfig:       cfg,

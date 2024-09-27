@@ -26,10 +26,6 @@ func TestGetGroupSyncConfig(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentCustomRoles),
-			string(codersdk.ExperimentMultiOrganization),
-		}
 
 		owner, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -60,10 +56,6 @@ func TestGetGroupSyncConfig(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentCustomRoles),
-			string(codersdk.ExperimentMultiOrganization),
-		}
 		dv.OIDC.GroupField = "legacy-group"
 		dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile("legacy-filter"))
 		dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{
@@ -102,11 +94,6 @@ func TestPostGroupSyncConfig(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentCustomRoles),
-			string(codersdk.ExperimentMultiOrganization),
-		}
-
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -138,11 +125,6 @@ func TestPostGroupSyncConfig(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentCustomRoles),
-			string(codersdk.ExperimentMultiOrganization),
-		}
-
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -178,11 +160,6 @@ func TestGetRoleSyncConfig(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentCustomRoles),
-			string(codersdk.ExperimentMultiOrganization),
-		}
-
 		owner, _, _, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -221,11 +198,6 @@ func TestPostRoleSyncConfig(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentCustomRoles),
-			string(codersdk.ExperimentMultiOrganization),
-		}
-
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -257,11 +229,6 @@ func TestPostRoleSyncConfig(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentCustomRoles),
-			string(codersdk.ExperimentMultiOrganization),
-		}
-
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
