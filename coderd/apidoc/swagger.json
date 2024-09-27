@@ -10707,10 +10707,7 @@
 					"format": "uuid"
 				},
 				"tags": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
-					}
+					"$ref": "#/definitions/codersdk.ProvisionerKeyTags"
 				}
 			}
 		},
@@ -10726,6 +10723,12 @@
 				"key": {
 					"$ref": "#/definitions/codersdk.ProvisionerKey"
 				}
+			}
+		},
+		"codersdk.ProvisionerKeyTags": {
+			"type": "object",
+			"additionalProperties": {
+				"type": "string"
 			}
 		},
 		"codersdk.ProvisionerLogLevel": {
