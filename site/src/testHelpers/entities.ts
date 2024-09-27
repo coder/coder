@@ -318,19 +318,23 @@ export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
 	organization_id: MockOrganization.id,
 };
 
-export const MockOrganizationAuditorRole: TypesGen.Role = {
+export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	name: "organization-auditor",
 	display_name: "Organization Auditor",
+	assignable: true,
+	built_in: false,
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
 };
 
-export const MockRoleWithOrgPermissions: TypesGen.Role = {
+export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
 	organization_id: MockOrganization.id,
+	assignable: true,
+	built_in: false,
 	site_permissions: [],
 	organization_permissions: [
 		{
