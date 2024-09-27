@@ -418,7 +418,7 @@
 						{
 							"title": "Troubleshooting",
 							"description": "Troubleshoot networking issues in Coder",
-							"path": "./networking/troubleshooting.md"
+							"path": "./admin/networking/troubleshooting.md"
 						}
 					]
 				},
