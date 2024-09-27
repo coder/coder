@@ -34,7 +34,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	if (!avatar) {
 		avatar = (
 			<Avatar background src={src}>
-				{title === undefined ? (imgFallbackText ?? "-") : title}
+				{title ?? imgFallbackText ?? "-"}
 			</Avatar>
 		);
 	}
