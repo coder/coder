@@ -112,4 +112,6 @@ func TestUpdateRoleSync(t *testing.T) {
 		inv.Stdout = buf
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		require.JSONE
+		require.JSONEq(t, string(expectedData), buf.String())
+	})
+}
