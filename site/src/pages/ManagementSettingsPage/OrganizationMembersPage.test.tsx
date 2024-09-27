@@ -50,6 +50,9 @@ const removeMember = async () => {
 
 	const removeButton = screen.getByText(/Remove/);
 	await user.click(removeButton);
+
+	const dialog = await within(document.body).findByRole("dialog");
+	await user.click(within(dialog).getByRole("button", { name: "Remove" }));
 };
 
 const updateUserRole = async (role: SlimRole) => {
@@ -80,7 +83,7 @@ describe("OrganizationMembersPage", () => {
 			it("shows a success message", async () => {
 				await renderPage();
 				await removeMember();
-				await screen.findByText("Member removed successfully.");
+				await screen.findByText("User removed from organization successfully!");
 			});
 		});
 	});
