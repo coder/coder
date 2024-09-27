@@ -710,6 +710,33 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
 }
 
+// workspaceProxyCryptoKeys is used to fetch signing keys for the workspace proxy.
+//
+// This is called periodically by the proxy in the background (every 10m per
+// replica) to ensure that the proxy has the latest signing keys.
+//
+// @Summary Get workspace proxy crypto keys
+// @ID get-workspace-proxy-crypto-keys
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} wsproxysdk.CryptoKeysResponse
+// @Router /workspaceproxies/me/crypto-keys [get]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	keys, err := api.Database.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, wsproxysdk.CryptoKeysResponse{
+		CryptoKeys: fromDBCryptoKeys(keys),
+	})
+}
+
 // @Summary Deregister workspace proxy
 // @ID deregister-workspace-proxy
 // @Security CoderSessionToken
@@ -966,4 +993,18 @@ func (w *workspaceProxiesFetchUpdater) Fetch(ctx context.Context) (codersdk.Regi
 
 func (w *workspaceProxiesFetchUpdater) Update(ctx context.Context) error {
 	return w.updateFunc(ctx)
+}
+
+func fromDBCryptoKeys(keys []database.CryptoKey) []wsproxysdk.CryptoKey {
+	wskeys := make([]wsproxysdk.CryptoKey, 0, len(keys))
+	for _, key := range keys {
+		wskeys = append(wskeys, wsproxysdk.CryptoKey{
+			Feature:   wsproxysdk.CryptoKeyFeature(key.Feature),
+			Sequence:  key.Sequence,
+			StartsAt:  key.StartsAt.UTC(),
+			DeletesAt: key.DeletesAt.Time.UTC(),
+			Secret:    key.Secret.String,
+		})
+	}
+	return wskeys
 }

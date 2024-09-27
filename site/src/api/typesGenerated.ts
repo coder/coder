@@ -1060,7 +1060,7 @@ export interface ProvisionerKey {
 	readonly created_at: string;
 	readonly organization: string;
 	readonly name: string;
-	readonly tags: Record<string, string>;
+	readonly tags: ProvisionerKeyTags;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1068,6 +1068,9 @@ export interface ProvisionerKeyDaemons {
 	readonly key: ProvisionerKey;
 	readonly daemons: Readonly<Array<ProvisionerDaemon>>;
 }
+
+// From codersdk/provisionerdaemons.go
+export type ProvisionerKeyTags = Record<string, string>
 
 // From codersdk/workspaces.go
 export interface ProvisionerTiming {
@@ -2087,8 +2090,8 @@ export type Entitlement = "entitled" | "grace_period" | "not_entitled"
 export const Entitlements: Entitlement[] = ["entitled", "grace_period", "not_entitled"]
 
 // From codersdk/deployment.go
-export type Experiment = "auto-fill-parameters" | "custom-roles" | "example" | "multi-organization" | "notifications" | "workspace-usage"
-export const Experiments: Experiment[] = ["auto-fill-parameters", "custom-roles", "example", "multi-organization", "notifications", "workspace-usage"]
+export type Experiment = "auto-fill-parameters" | "example" | "notifications" | "workspace-usage"
+export const Experiments: Experiment[] = ["auto-fill-parameters", "example", "notifications", "workspace-usage"]
 
 // From codersdk/deployment.go
 export type FeatureName = "access_control" | "advanced_template_scheduling" | "appearance" | "audit_log" | "browser_only" | "control_shared_ports" | "custom_roles" | "external_provisioner_daemons" | "external_token_encryption" | "high_availability" | "multiple_external_auth" | "multiple_organizations" | "scim" | "template_rbac" | "user_limit" | "user_role_management" | "workspace_batch_actions" | "workspace_proxy"

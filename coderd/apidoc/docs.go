@@ -7540,6 +7540,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/crypto-keys": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxy crypto keys",
+                "operationId": "get-workspace-proxy-crypto-keys",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.CryptoKeysResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/me/deregister": {
             "post": {
                 "security": [
@@ -10280,24 +10308,18 @@ const docTemplate = `{
             "enum": [
                 "example",
                 "auto-fill-parameters",
-                "multi-organization",
-                "custom-roles",
                 "notifications",
                 "workspace-usage"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentCustomRoles": "Allows creating runtime custom roles.",
                 "ExperimentExample": "This isn't used for anything.",
-                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
-                "ExperimentMultiOrganization",
-                "ExperimentCustomRoles",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage"
             ]
@@ -11857,10 +11879,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "tags": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "$ref": "#/definitions/codersdk.ProvisionerKeyTags"
                 }
             }
         },
@@ -11876,6 +11895,12 @@ const docTemplate = `{
                 "key": {
                     "$ref": "#/definitions/codersdk.ProvisionerKey"
                 }
+            }
+        },
+        "codersdk.ProvisionerKeyTags": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
             }
         },
         "codersdk.ProvisionerLogLevel": {
@@ -15952,6 +15977,50 @@ const docTemplate = `{
                 },
                 "disable_direct_connections": {
                     "type": "boolean"
+                }
+            }
+        },
+        "wsproxysdk.CryptoKey": {
+            "type": "object",
+            "properties": {
+                "deletes_at": {
+                    "type": "string"
+                },
+                "feature": {
+                    "$ref": "#/definitions/wsproxysdk.CryptoKeyFeature"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "sequence": {
+                    "type": "integer"
+                },
+                "starts_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.CryptoKeyFeature": {
+            "type": "string",
+            "enum": [
+                "workspace_apps",
+                "oidc_convert",
+                "tailnet_resume"
+            ],
+            "x-enum-varnames": [
+                "CryptoKeyFeatureWorkspaceApp",
+                "CryptoKeyFeatureOIDCConvert",
+                "CryptoKeyFeatureTailnetResume"
+            ]
+        },
+        "wsproxysdk.CryptoKeysResponse": {
+            "type": "object",
+            "properties": {
+                "crypto_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/wsproxysdk.CryptoKey"
+                    }
                 }
             }
         },
