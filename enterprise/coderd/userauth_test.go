@@ -939,7 +939,6 @@ func TestEnterpriseUserLogin(t *testing.T) {
 	t.Run("CustomRole", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -985,13 +984,10 @@ func TestEnterpriseUserLogin(t *testing.T) {
 		// database directly to corrupt it.
 		rawDB, pubsub := dbtestutil.NewDB(t)
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-				Database:         rawDB,
-				Pubsub:           pubsub,
+				Database: rawDB,
+				Pubsub:   pubsub,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

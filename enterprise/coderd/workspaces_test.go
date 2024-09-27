@@ -50,11 +50,7 @@ func TestCreateWorkspace(t *testing.T) {
 	t.Run("NoTemplateAccess", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureTemplateRBAC:          1,
@@ -194,11 +190,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 	t.Run("NoTemplateAccess", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureTemplateRBAC:          1,
@@ -1482,11 +1474,9 @@ func TestResolveAutostart(t *testing.T) {
 func TestAdminViewAllWorkspaces(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
 	client, user := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			DeploymentValues:         dv,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{

@@ -279,7 +279,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				apiKeyMiddleware,
 				api.RequireFeatureMW(codersdk.FeatureCustomRoles),
-				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentCustomRoles),
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Post("/organizations/{organization}/members/roles", api.postOrgRoles)

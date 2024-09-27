@@ -249,12 +249,9 @@ func TestCreateFirstUser_Entitlements_Trial(t *testing.T) {
 // a custom role and assign it to an organization user.
 func TestAssignCustomOrgRoles(t *testing.T) {
 	t.Parallel()
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentValues:         dv,
 			IncludeProvisionerDaemon: true,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{

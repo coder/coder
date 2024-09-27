@@ -30,11 +30,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -69,11 +65,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 
 	t.Run("AnotherOrgByNameWithUser", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -222,11 +214,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 
 	t.Run("ScopeUserAnotherOrg", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -270,7 +258,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -278,9 +265,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 					codersdk.FeatureExternalProvisionerDaemons: 1,
 					codersdk.FeatureMultipleOrganizations:      1,
 				},
-			},
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 			},
 		})
 		// nolint:gocritic // test
@@ -315,7 +299,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -323,9 +306,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 					codersdk.FeatureExternalProvisionerDaemons: 1,
 					codersdk.FeatureMultipleOrganizations:      1,
 				},
-			},
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 			},
 		})
 		// nolint:gocritic // test
@@ -345,7 +325,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -353,9 +332,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 					codersdk.FeatureExternalProvisionerDaemons: 1,
 					codersdk.FeatureMultipleOrganizations:      1,
 				},
-			},
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 			},
 		})
 		// nolint:gocritic // test
@@ -375,7 +351,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -383,9 +358,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 					codersdk.FeatureExternalProvisionerDaemons: 1,
 					codersdk.FeatureMultipleOrganizations:      1,
 				},
-			},
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 			},
 		})
 		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
