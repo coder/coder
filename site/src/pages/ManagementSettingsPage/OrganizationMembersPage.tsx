@@ -113,6 +113,8 @@ const OrganizationMembersPage: FC = () => {
 						displayError(
 							getErrorMessage(error, "Failed to remove user from organization"),
 						);
+					} finally {
+						setMemberToDelete(undefined);
 					}
 				}}
 				description={
@@ -130,8 +132,7 @@ const OrganizationMembersPage: FC = () => {
 						</p>
 
 						<p css={styles.test}>
-							Are you sure you want to remove{" "}
-							<strong>{memberToDelete?.username}</strong>?
+							Are you sure you want to remove this member?
 						</p>
 					</Stack>
 				}
