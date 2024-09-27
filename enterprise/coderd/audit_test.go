@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -20,12 +19,7 @@ func TestEnterpriseAuditLogs(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,

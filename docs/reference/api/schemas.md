@@ -2558,8 +2558,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ---------------------- |
 | `example`              |
 | `auto-fill-parameters` |
-| `multi-organization`   |
-| `custom-roles`         |
 | `notifications`        |
 | `workspace-usage`      |
 
