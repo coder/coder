@@ -597,17 +597,16 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.NoError(t, err)
 
 		tcs := []struct {
-			name                      string
-			psk                       string
-			multiOrgFeatureEnabled    bool
-			multiOrgExperimentEnabled bool
-			insertParams              database.InsertProvisionerKeyParams
-			requestProvisionerKey     string
-			requestPSK                string
-			errStatusCode             int
+			name                   string
+			psk                    string
+			multiOrgFeatureEnabled bool
+			insertParams           database.InsertProvisionerKeyParams
+			requestProvisionerKey  string
+			requestPSK             string
+			errStatusCode          int
 		}{
 			{
-				name:       "MultiOrgDisabledPSKAuthOK",
+				name:       "PSKAuthOK",
 				psk:        "provisionersftw",
 				requestPSK: "provisionersftw",
 			},
@@ -618,58 +617,51 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				requestPSK:             "provisionersftw",
 			},
 			{
-				name:                      "MultiOrgFeatureDisabledPSKAuthOK",
-				multiOrgExperimentEnabled: true,
-				psk:                       "provisionersftw",
-				requestPSK:                "provisionersftw",
+				name:       "MultiOrgFeatureDisabledPSKAuthOK",
+				psk:        "provisionersftw",
+				requestPSK: "provisionersftw",
 			},
 			{
-				name:                      "MultiOrgEnabledPSKAuthOK",
-				psk:                       "provisionersftw",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				requestPSK:                "provisionersftw",
+				name:                   "MultiOrgEnabledPSKAuthOK",
+				psk:                    "provisionersftw",
+				multiOrgFeatureEnabled: true,
+				requestPSK:             "provisionersftw",
 			},
 			{
-				name:                      "MultiOrgEnabledKeyAuthOK",
-				psk:                       "provisionersftw",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				insertParams:              insertParams,
-				requestProvisionerKey:     token,
+				name:                   "MultiOrgEnabledKeyAuthOK",
+				psk:                    "provisionersftw",
+				multiOrgFeatureEnabled: true,
+				insertParams:           insertParams,
+				requestProvisionerKey:  token,
 			},
 			{
-				name:                      "MultiOrgEnabledPSKAuthDisabled",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				requestPSK:                "provisionersftw",
-				errStatusCode:             http.StatusUnauthorized,
+				name:                   "MultiOrgEnabledPSKAuthDisabled",
+				multiOrgFeatureEnabled: true,
+				requestPSK:             "provisionersftw",
+				errStatusCode:          http.StatusUnauthorized,
 			},
 			{
-				name:                      "InvalidKey",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				insertParams:              insertParams,
-				requestProvisionerKey:     "provisionersftw",
-				errStatusCode:             http.StatusBadRequest,
+				name:                   "InvalidKey",
+				multiOrgFeatureEnabled: true,
+				insertParams:           insertParams,
+				requestProvisionerKey:  "provisionersftw",
+				errStatusCode:          http.StatusBadRequest,
 			},
 			{
-				name:                      "KeyAndPSK",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				psk:                       "provisionersftw",
-				insertParams:              insertParams,
-				requestProvisionerKey:     token,
-				requestPSK:                "provisionersftw",
-				errStatusCode:             http.StatusUnauthorized,
+				name:                   "KeyAndPSK",
+				multiOrgFeatureEnabled: true,
+				psk:                    "provisionersftw",
+				insertParams:           insertParams,
+				requestProvisionerKey:  token,
+				requestPSK:             "provisionersftw",
+				errStatusCode:          http.StatusUnauthorized,
 			},
 			{
-				name:                      "None",
-				multiOrgFeatureEnabled:    true,
-				multiOrgExperimentEnabled: true,
-				psk:                       "provisionersftw",
-				insertParams:              insertParams,
-				errStatusCode:             http.StatusUnauthorized,
+				name:                   "None",
+				multiOrgFeatureEnabled: true,
+				psk:                    "provisionersftw",
+				insertParams:           insertParams,
+				errStatusCode:          http.StatusUnauthorized,
 			},
 		}
 
@@ -683,9 +675,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 					features[codersdk.FeatureMultipleOrganizations] = 1
 				}
 				dv := coderdtest.DeploymentValues(t)
-				if tc.multiOrgExperimentEnabled {
-					dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
-				}
 				client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 					LicenseOptions: &coderdenttest.LicenseOptions{
 						Features: features,
