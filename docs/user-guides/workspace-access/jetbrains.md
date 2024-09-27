@@ -16,8 +16,9 @@ IDEs are supported for remote development:
 ## JetBrains Gateway
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
-a JetBrains IDE without even downloading one.
-Visit the [JetBrains website](https://www.jetbrains.com/remote-development/gateway/) to learn more about Gateway.]
+a JetBrains IDE without even downloading one. Visit the
+[JetBrains website](https://www.jetbrains.com/remote-development/gateway/) to
+learn more about Gateway.]
 
 Gateway can connect to a Coder workspace by using Coder's Gateway plugin or
 manually setting up an SSH connection.
