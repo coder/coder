@@ -271,8 +271,7 @@
 				{
 					"title": "Dev Containers",
 					"description": "Use Dev Containers in workspaces",
-					"path": "./templates/dev-containers.md",
-					"state": "alpha"
+					"path": "./templates/dev-containers.md"
 				},
 				{
 					"title": "Troubleshooting templates",
