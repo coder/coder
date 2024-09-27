@@ -8,14 +8,17 @@ can enable automated notifications directly within a self-hosted
 in your Coder environment.
 
 Administrators can configure Coder to send notifications via an incoming webhook
-endpoint. These notifications appear as conversation with a custom Slack app.
+endpoint. These notifications will be delivered as Slack messages direct to the
+user. Routing is based on the user's email address, and this should be
+consistent between Slack and their Coder login.
 
 ## Requirements
 
 Before setting up Slack notifications, ensure that you have the following:
 
 - Administrator access to the Slack platform to create apps
-- Coder platform with notifications enabled
+- Coder platform with
+  [notifications enabled](../notifications#enable-experiment)
 
 ## Create Slack Application
 
@@ -24,8 +27,10 @@ To integrate Slack with Coder, follow these steps to create a Slack application:
 1. Go to the [Slack Apps](https://api.slack.com/apps) dashboard and create a new
    Slack App.
 
-2. Under "Basic Information," you'll find a "Signing Secret." Keep it safe for
-   verification if needed.
+2. Under "Basic Information," you'll find a "Signing Secret." The Slack
+   application uses it to
+   [verify requests](https://api.slack.com/authentication/verifying-requests-from-slack)
+   coming from Slack.
 
 3. Under "OAuth & Permissions", add the following OAuth scopes:
 
@@ -79,7 +84,7 @@ const app = new App({
 	receiver,
 });
 
-receiver.router.post("/webhook", async (req, res) => {
+receiver.router.post("/v1/webhook", async (req, res) => {
 	try {
 		if (!req.body) {
 			return res.status(400).send("Error: request body is missing");
@@ -197,7 +202,7 @@ export CODER_EXPERIMENTS=notifications
 Then, define the POST webhook endpoint matching the deployed Slack bot:
 
 ```bash
-export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=http://localhost:6000/webhook`
+export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=http://localhost:6000/v1/webhook`
 ```
 
 Finally, go to the **Notification Settings** in Coder and switch the notifier to
