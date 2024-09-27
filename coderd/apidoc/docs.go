@@ -5215,6 +5215,25 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/me/tailnet": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Coordinate multiple workspace agents",
+                "operationId": "coordinate-multiple-workspace-agents",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/users/oauth2/github/callback": {
             "get": {
                 "security": [
