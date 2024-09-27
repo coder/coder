@@ -1219,25 +1219,13 @@ func TestUpdateUserPassword(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Unit test
-		err := db.UpdateUserMustResetPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserMustResetPasswordParams{
-			ID:                user.UserID,
-			MustResetPassword: true,
-		})
-		require.Nil(t, err)
-
-		//nolint:gocritic // Unit test
-		dbUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.UserID)
-		require.Nil(t, err)
-		require.True(t, dbUser.MustResetPassword)
-
-		err = client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
+		err := client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
 			Password: "MyNewSecurePassword!",
 		})
 		require.Nil(t, err)
 
 		//nolint:gocritic // Unit test
-		dbUser, err = db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.UserID)
+		dbUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.UserID)
 		require.Nil(t, err)
 		require.False(t, dbUser.MustResetPassword)
 	})

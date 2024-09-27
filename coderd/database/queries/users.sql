@@ -117,7 +117,8 @@ RETURNING *;
 UPDATE
 	users
 SET
-	hashed_password = $2
+	hashed_password = $2,
+	must_reset_password = false
 WHERE
 	id = $1;
 
@@ -289,12 +290,3 @@ RETURNING id, email, last_seen_at;
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS;
-
--- name: UpdateUserMustResetPassword :exec
-UPDATE
-    users
-SET
-    must_reset_password = $2
-WHERE
-    id = $1
-;

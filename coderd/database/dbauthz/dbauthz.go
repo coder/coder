@@ -3677,20 +3677,6 @@ func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUs
 	return q.db.UpdateUserLoginType(ctx, arg)
 }
 
-func (q *querier) UpdateUserMustResetPassword(ctx context.Context, arg database.UpdateUserMustResetPasswordParams) error {
-	user, err := q.db.GetUserByID(ctx, arg.ID)
-	if err != nil {
-		return err
-	}
-
-	err = q.authorizeContext(ctx, policy.ActionUpdatePersonal, user)
-	if err != nil {
-		return err
-	}
-
-	return q.db.UpdateUserMustResetPassword(ctx, arg)
-}
-
 func (q *querier) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationPreference.WithOwner(arg.UserID.String())); err != nil {
 		return -1, err

@@ -1187,13 +1187,6 @@ func (s *MethodTestSuite) TestUser() {
 			ID: u.ID,
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns()
 	}))
-	s.Run("UpdateUserMustResetPassword", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.UpdateUserMustResetPasswordParams{
-			ID:                u.ID,
-			MustResetPassword: true,
-		}).Asserts(u, policy.ActionUpdatePersonal).Returns()
-	}))
 	s.Run("UpdateUserQuietHoursSchedule", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserQuietHoursScheduleParams{
