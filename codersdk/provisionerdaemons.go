@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -274,12 +275,22 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
 }
 
+type ProvisionerKeyTags map[string]string
+
+func (p ProvisionerKeyTags) String() string {
+	tags := []string{}
+	for key, value := range p {
+		tags = append(tags, fmt.Sprintf("%s=%s", key, value))
+	}
+	return strings.Join(tags, " ")
+}
+
 type ProvisionerKey struct {
-	ID             uuid.UUID         `json:"id" format:"uuid"`
-	CreatedAt      time.Time         `json:"created_at" format:"date-time"`
-	OrganizationID uuid.UUID         `json:"organization" format:"uuid"`
-	Name           string            `json:"name"`
-	Tags           map[string]string `json:"tags"`
+	ID             uuid.UUID          `json:"id" table:"-" format:"uuid"`
+	CreatedAt      time.Time          `json:"created_at" table:"created at" format:"date-time"`
+	OrganizationID uuid.UUID          `json:"organization" table:"-" format:"uuid"`
+	Name           string             `json:"name" table:"name,default_sort"`
+	Tags           ProvisionerKeyTags `json:"tags" table:"tags"`
 	// HashedSecret - never include the access token in the API response
 }
 

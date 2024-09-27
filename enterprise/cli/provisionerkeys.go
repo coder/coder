@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -96,7 +95,7 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 	var (
 		orgContext = agpl.NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]provisionerKeyListItem{}, nil),
+			cliui.TableFormat([]codersdk.ProvisionerKey{}, []string{"created at", "name", "tags"}),
 			cliui.JSONFormat(),
 		)
 	)
@@ -128,7 +127,7 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 				return nil
 			}
 
-			out, err := formatter.Format(inv.Context(), provisionerKeyList(keys))
+			out, err := formatter.Format(inv.Context(), keys)
 			if err != nil {
 				return xerrors.Errorf("display provisioner keys: %w", err)
 			}
@@ -143,29 +142,6 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 	orgContext.AttachOptions(cmd)
 
 	return cmd
-}
-
-type provisionerKeyListItem struct {
-	CreatedAt time.Time `json:"created_at" table:"created at" format:"date-time"`
-	Name      string    `json:"name" table:"name,default_sort"`
-	Tags      string    `json:"tags" table:"tags"`
-}
-
-func provisionerKeyList(items []codersdk.ProvisionerKey) []provisionerKeyListItem {
-	var out []provisionerKeyListItem
-	for _, item := range items {
-		tags := []string{}
-		for k, v := range item.Tags {
-			tags = append(tags, fmt.Sprintf("%s=%s", k, v))
-		}
-		out = append(out, provisionerKeyListItem{
-			Name:      item.Name,
-			CreatedAt: item.CreatedAt,
-			Tags:      strings.Join(tags, ", "),
-		})
-	}
-
-	return out
 }
 
 func (r *RootCmd) provisionerKeysDelete() *serpent.Command {
