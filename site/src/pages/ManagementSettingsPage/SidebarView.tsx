@@ -283,9 +283,7 @@ const OrganizationSettingsNavigation: FC<
 						</SidebarNavSubItem>
 					)}
 					{organization.permissions.assignOrgRole && (
-						<SidebarNavSubItem
-							href={urlForSubpage(organization.name, "roles")}
-						>
+						<SidebarNavSubItem href={urlForSubpage(organization.name, "roles")}>
 							Roles
 						</SidebarNavSubItem>
 					)}
