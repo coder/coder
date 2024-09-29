@@ -266,8 +266,8 @@ There are two ways you can configure group sync:
 
 ## Server Flags
 
-First, confirm that your OIDC provider is sending the `groups` claim by logging
-in with OIDC and visiting the following URL:
+First, confirm that your OIDC provider is sending a groups claim by logging in
+with OIDC and visiting the following URL:
 
 ```text
 https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
@@ -332,9 +332,88 @@ OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
 ## Runtime (Organizations)
 
-For deployments with multiple [organizations](./organizations.md), you can must
+> Note: You must have a Premium license with Organizations enabled to use this.
+> [Contact your account team](https://coder.com/contact) for more details
+
+For deployments with multiple [organizations](./organizations.md), you must
 configure group sync at the organization level. In future Coder versions, you
-will be able to configure this in the UI. For now, you can use CLI commands.
+will be able to configure this in the UI. For now, you must use CLI commands.
+
+First confirm you have the [Coder CLI](../install/index.md) installed and are
+logged in with a user who is an Owner or Organization Admin role. Next, confirm
+that your OIDC provider is sending a groups claim by logging in with OIDC and
+visiting the following URL:
+
+```text
+https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
+```
+
+You should see a field, followed by a list of the user's OIDC groups in the
+response. This is the
+[claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims) sent by
+the OIDC provider. See [Troubleshooting](#troubleshooting-grouprole-sync) to
+debug this.
+
+> Depending on the OIDC provider, this claim may be named differently. Common
+> ones include `groups`, `memberOf`, and `roles`.
+
+To fetch the current group sync settings for an organization, run the following:
+
+```sh
+coder organizations settings show group-sync \
+  --org <org-name> \
+  > group-sync.json
+```
+
+The default for an organization looks like this:
+
+```json
+{
+	"field": "",
+	"mapping": null,
+	"regex_filter": null,
+	"auto_create_missing_groups": false
+}
+```
+
+Below is an example that uses the `groups` claim and maps all groups prefixed by
+`coder-` into Coder:
+
+```json
+{
+	"field": "groups",
+	"mapping": null,
+	"regex_filter": "^coder-.*$",
+	"auto_create_missing_groups": true
+}
+```
+
+Here is another example which maps `coder-admins` from the identity provider to
+2 groups in Coder and `coder-users` to another group:
+
+```json
+{
+	"field": "groups",
+	"mapping": {
+		"coder-admins": ["Admins", "Platform Engineers"],
+		"coder-users": ["Developers"]
+	},
+	"regex_filter": null,
+	"auto_create_missing_groups": false
+}
+```
+
+To set these role sync settings, use the following command:
+
+```sh
+coder organizations settings set group-sync \
+  --org <org-name> \
+  < group-sync.json
+```
+
+Visit the Coder UI to confirm these changes:
+
+![IDP Sync](./)
 
 </div>
 

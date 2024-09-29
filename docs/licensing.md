@@ -1,8 +1,8 @@
 # Licensing
 
 Coder is free to use and includes some features that are only accessible with a
-paid license. See our [pricing page](https://coder.com/pricing) for a
-distinction.
+Premium or Enterprise license. See our [pricing page](https://coder.com/pricing)
+for more details.
 
 To try Premium features, you can [request a trial](https://coder.com/trial) or
 [contact sales](https://coder.com/contact).
