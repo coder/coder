@@ -21,12 +21,14 @@ are often benefits to running external provisioner daemons:
   [Scaling Coder](scaling/scale-utility.md#recent-scale-tests) for more details.
 
 Each provisioner runs a single
-[concurrent workspace build](scaling/scale-testing.md#control-plane-provisionerd).
+[concurrent workspace build](scaling/scale-testing.md#control-plane-provisioner).
 For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
 Provisioners are started with the
-[coder provisionerd start](../reference/cli/provisioner_start.md) command.
+[`coder provisioner start`](../reference/cli/provisioner_start.md) command in
+the [full Coder binary](https://github.com/coder/coder/releases). Keep reading
+to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
 
 ## Authentication
 
@@ -41,29 +43,13 @@ running for each organization.
 We recommend creating finely-scoped keys for provisioners. Keys are scoped to an
 organization.
 
-Provisioners can broadly be categorized by scope: `organization` or `user`. The
-scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#t---tag) when
-starting the provisioner daemon. Only users with at least the
-[Template Admin](../admin/users.md#roles) role or higher may create
-organization-scoped provisioner daemons.
+```sh
+coder provisioner keys create my-key \
+  --org default
 
-Successfully created provisioner key my-key! Save this authentication token, it
-will not be shown again.
+Successfully created provisioner key my-key! Save this authentication token, it will not be shown again.
 
-- [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are
-  always organization-scoped.
-- External provisioners started using a
-  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#psk) are always
-  organization-scoped.
-
-### Organization-Scoped Provisioners
-
-**Organization-scoped Provisioners** can pick up build jobs created by any user.
-These provisioners always have the implicit tags `scope=organization owner=""`.
-
-```shell
-coder provisionerd start --org <organization_name>
+<key omitted>
 ```
 
 Or, restrict the provisioner to jobs with specific tags
@@ -83,7 +69,7 @@ To start the provisioner:
 ```sh
 export CODER_URL=https://<your-coder-url>
 export CODER_PROVISIONER_DAEMON_KEY=<key>
-coder provisionerd start
+coder provisioner start
 ```
 
 Keep reading to see instructions for running provisioners on
@@ -97,14 +83,14 @@ via [automation](./automation.md).
 
 ```sh
 coder login https://<your-coder-url>
-coder provisionerd start
+coder provisioner start
 ```
 
 To start a provisioner with specific tags:
 
 ```sh
 coder login https://<your-coder-url>
-coder provisionerd start \
+coder provisioner start \
   --tag environment=kubernetes
 ```
 
@@ -123,7 +109,7 @@ on the Coder server.
 Next, start the provisioner:
 
 ```sh
-coder provisionerd start --psk <your-psk>
+coder provisioner start --psk <your-psk>
 ```
 
 </div>
@@ -146,7 +132,7 @@ For example:
 ```sh
 # Start a provisioner with the explicit tags
 # environment=on_prem and datacenter=chicago
-coder provisionerd start \
+coder provisioner start \
   --tag environment=on_prem \
   --tag datacenter=chicago
 
@@ -213,14 +199,14 @@ This is illustrated in the below table:
 > copy the output:
 >
 > ```
-> go test -v -count=1 ./coderd/provisionerdserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
+> go test -v -count=1 ./coderd/provisionerserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
 > ```
 
 ## Types of provisioners
 
 Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../reference/cli/provisionerd_start.md#t---tag) when
+[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#t---tag) when
 starting the provisioner daemon. Only users with at least the
 [Template Admin](../admin/users.md#roles) role or higher may create
 organization-scoped provisioner daemons.
@@ -230,7 +216,7 @@ There are two exceptions:
 - [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are
   always organization-scoped.
 - External provisioners started using a
-  [pre-shared key (PSK)](../reference/cli/provisionerd_start.md#psk) are always
+  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#psk) are always
   organization-scoped.
 
 ### Organization-Scoped Provisioners
@@ -239,14 +225,14 @@ There are two exceptions:
 These provisioners always have the implicit tags `scope=organization owner=""`.
 
 ```sh
-coder provisionerd start --org <organization_name>
+coder provisioner start --org <organization_name>
 ```
 
 If you omit the `--org` argument, the provisioner will be assigned to the
 default organization.
 
 ```sh
-coder provisionerd start
+coder provisioner start
 ```
 
 ### User-scoped Provisioners
@@ -257,7 +243,7 @@ run user provisioners, but they have no impact unless there exists at least one
 template with the `scope=user` provisioner tag.
 
 ```sh
-coder provisionerd start \
+coder provisioner start \
   --tag scope=user
 
 # In another terminal, create/push
@@ -281,7 +267,7 @@ will use in concert with the Helm chart for deploying the Coder server.
 1. Modify your Coder `values.yaml` to include
 
    ```yaml
-   provisionerDaemon:
+   provisioneraemon:
      pskSecretName: "coder-provisioner-psk"
    ```
 
@@ -304,7 +290,7 @@ will use in concert with the Helm chart for deploying the Coder server.
        - name: CODER_URL
          value: "https://coder.example.com"
      replicaCount: 10
-   provisionerDaemon:
+   provisioneraemon:
      pskSecretName: "coder-provisioner-psk"
      tags:
        location: auh
@@ -331,7 +317,7 @@ will use in concert with the Helm chart for deploying the Coder server.
 
    You can verify that your provisioner daemons have successfully connected to
    Coderd by looking for a debug log message that says
-   `provisionerd: successfully connected to coderd` from each Pod.
+   `provisioner: successfully connected to coderd` from each Pod.
 
 ## Example: Running an external provisioner on a VM
 
@@ -339,7 +325,7 @@ will use in concert with the Helm chart for deploying the Coder server.
 curl -L https://coder.com/install.sh | sh
 export CODER_URL=https://coder.example.com
 export CODER_SESSION_TOKEN=your_token
-coder provisionerd start
+coder provisioner start
 ```
 
 ## Example: Running an external provisioner via Docker
@@ -350,7 +336,7 @@ docker run --rm -it \
   -e CODER_SESSION_TOKEN=your_token \
   --entrypoint /opt/coder \
   ghcr.io/coder/coder:latest \
-  provisionerd start
+  provisioner start
 ```
 
 ## Disable built-in provisioners
