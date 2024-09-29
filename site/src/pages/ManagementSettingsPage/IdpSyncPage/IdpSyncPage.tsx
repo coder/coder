@@ -74,7 +74,7 @@ export const IdpSyncPage: FC = () => {
 				<Button
 					startIcon={<LaunchOutlined />}
 					component="a"
-					href={docs("/admin/auth#group-sync-enterprise")}
+					href={docs("/admin/auth#group-sync-enterprise-premium")}
 					target="_blank"
 				>
 					Setup IdP Sync
