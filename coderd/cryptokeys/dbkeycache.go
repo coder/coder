@@ -2,7 +2,6 @@ package cryptokeys
 
 import (
 	"context"
-	"database/sql"
 	"sync"
 	"time"
 
@@ -23,9 +22,10 @@ type DBCache struct {
 	clock   quartz.Clock
 
 	// The following are initialized by NewDBCache.
-	cacheMu   sync.RWMutex
-	cache     map[int32]database.CryptoKey
+	keysMu    sync.RWMutex
+	keys      map[int32]database.CryptoKey
 	latestKey database.CryptoKey
+	fetched   chan struct{}
 }
 
 type DBCacheOption func(*DBCache)
@@ -39,131 +39,118 @@ func WithDBCacheClock(clock quartz.Clock) DBCacheOption {
 // NewDBCache creates a new DBCache. It starts a background
 // process that periodically refreshes the cache. The context should
 // be canceled to stop the background process.
-func NewDBCache(ctx context.Context, logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*DBCache)) (*DBCache, error) {
+func NewDBCache(ctx context.Context, logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*DBCache)) *DBCache {
 	d := &DBCache{
 		db:      db,
 		feature: feature,
 		clock:   quartz.NewReal(),
 		logger:  logger,
+		fetched: make(chan struct{}),
 	}
+
 	for _, opt := range opts {
 		opt(d)
 	}
 
-	cache, latest, err := d.newCache(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("new cache: %w", err)
-	}
-	d.cache, d.latestKey = cache, latest
-
-	go d.refresh(ctx)
-	return d, nil
+	go d.clear(ctx)
+	return d
 }
 
-// Version returns the CryptoKey with the given sequence number, provided that
-// it is neither deleted nor has breached its deletion date.
-func (d *DBCache) Version(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
-	now := d.clock.Now().UTC()
-	d.cacheMu.RLock()
-	key, ok := d.cache[sequence]
-	d.cacheMu.RUnlock()
+// Verifying returns the CryptoKey with the given sequence number, provided that
+// it is neither deleted nor has breached its deletion date. It should only be
+// used for verifying or decrypting payloads. To sign/encrypt call Signing.
+func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
+	now := d.clock.Now()
+	d.keysMu.RLock()
+	key, ok := d.keys[sequence]
+	d.keysMu.RUnlock()
 	if ok {
 		return checkKey(key, now)
 	}
 
-	d.cacheMu.Lock()
-	defer d.cacheMu.Unlock()
+	d.keysMu.Lock()
+	defer d.keysMu.Unlock()
 
-	key, ok = d.cache[sequence]
+	key, ok = d.keys[sequence]
 	if ok {
 		return checkKey(key, now)
 	}
 
-	key, err := d.db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-		Feature:  d.feature,
-		Sequence: sequence,
-	})
-	if xerrors.Is(err, sql.ErrNoRows) {
-		return codersdk.CryptoKey{}, ErrKeyNotFound
-	}
-	if err != nil {
-		return codersdk.CryptoKey{}, err
-	}
-
-	if !key.CanVerify(now) {
-		return codersdk.CryptoKey{}, ErrKeyInvalid
-	}
-
-	// If this key is valid for signing then mark it as the latest key.
-	if key.CanSign(now) && key.Sequence > d.latestKey.Sequence {
-		d.latestKey = key
-	}
-
-	d.cache[sequence] = key
-
-	return db2sdk.CryptoKey(key), nil
-}
-
-// Latest returns the latest valid key for signing. A valid key is one that is
-// both past its start time and before its deletion time.
-func (d *DBCache) Latest(ctx context.Context) (codersdk.CryptoKey, error) {
-	d.cacheMu.RLock()
-	latest := d.latestKey
-	d.cacheMu.RUnlock()
-
-	now := d.clock.Now().UTC()
-	if latest.CanSign(now) {
-		return db2sdk.CryptoKey(latest), nil
-	}
-
-	d.cacheMu.Lock()
-	defer d.cacheMu.Unlock()
-
-	if latest.CanSign(now) {
-		return db2sdk.CryptoKey(latest), nil
-	}
-
-	// Refetch all keys for this feature so we can find the latest valid key.
-	cache, latest, err := d.newCache(ctx)
+	cache, latest, err := d.fetch(ctx)
 	if err != nil {
 		return codersdk.CryptoKey{}, xerrors.Errorf("new cache: %w", err)
 	}
+	d.keys, d.latestKey = cache, latest
 
-	if len(cache) == 0 {
+	key, ok = d.keys[sequence]
+	if !ok {
 		return codersdk.CryptoKey{}, ErrKeyNotFound
 	}
 
-	if !latest.CanSign(now) {
-		return codersdk.CryptoKey{}, ErrKeyInvalid
+	return checkKey(key, now)
+}
+
+// Signing returns the latest valid key for signing. A valid key is one that is
+// both past its start time and before its deletion time.
+func (d *DBCache) Signing(ctx context.Context) (codersdk.CryptoKey, error) {
+	d.keysMu.RLock()
+	latest := d.latestKey
+	d.keysMu.RUnlock()
+
+	now := d.clock.Now()
+	if latest.CanSign(now) {
+		return db2sdk.CryptoKey(latest), nil
 	}
 
-	d.cache, d.latestKey = cache, latest
+	d.keysMu.Lock()
+	defer d.keysMu.Unlock()
 
-	return db2sdk.CryptoKey(latest), nil
+	if d.latestKey.CanSign(now) {
+		return db2sdk.CryptoKey(d.latestKey), nil
+	}
+
+	// Refetch all keys for this feature so we can find the latest valid key.
+	cache, latest, err := d.fetch(ctx)
+	if err != nil {
+		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
+	}
+	d.keys, d.latestKey = cache, latest
+
+	return db2sdk.CryptoKey(d.latestKey), nil
 }
 
-func (d *DBCache) refresh(ctx context.Context) {
-	d.clock.TickerFunc(ctx, time.Minute*10, func() error {
-		cache, latest, err := d.newCache(ctx)
-		if err != nil {
-			d.logger.Error(ctx, "failed to refresh cache", slog.Error(err))
-			return nil
+func (d *DBCache) clear(ctx context.Context) {
+	for {
+		fired := make(chan struct{})
+		timer := d.clock.AfterFunc(time.Minute*10, func() {
+			defer close(fired)
+
+			// There's a small window where the timer fires as we're fetching
+			// keys that could result in us immediately invalidating the cache that we just populated.
+			d.keysMu.Lock()
+			defer d.keysMu.Unlock()
+			d.keys = nil
+			d.latestKey = database.CryptoKey{}
+		})
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-d.fetched:
+			timer.Stop()
+		case <-fired:
 		}
-		d.cacheMu.Lock()
-		defer d.cacheMu.Unlock()
-
-		d.cache, d.latestKey = cache, latest
-		return nil
-	})
+	}
 }
 
-// newCache fetches all keys for the given feature and determines the latest key.
-func (d *DBCache) newCache(ctx context.Context) (map[int32]database.CryptoKey, database.CryptoKey, error) {
-	now := d.clock.Now().UTC()
+// fetch fetches all keys for the given feature and determines the latest key.
+func (d *DBCache) fetch(ctx context.Context) (map[int32]database.CryptoKey, database.CryptoKey, error) {
+	now := d.clock.Now()
 	keys, err := d.db.GetCryptoKeysByFeature(ctx, d.feature)
 	if err != nil {
 		return nil, database.CryptoKey{}, xerrors.Errorf("get crypto keys by feature: %w", err)
 	}
+
 	cache := make(map[int32]database.CryptoKey)
 	var latest database.CryptoKey
 	for _, key := range keys {
@@ -171,6 +158,20 @@ func (d *DBCache) newCache(ctx context.Context) (map[int32]database.CryptoKey, d
 		if key.CanSign(now) && key.Sequence > latest.Sequence {
 			latest = key
 		}
+	}
+
+	if len(cache) == 0 {
+		return nil, database.CryptoKey{}, ErrKeyNotFound
+	}
+
+	if !latest.CanSign(now) {
+		return nil, database.CryptoKey{}, ErrKeyInvalid
+	}
+
+	select {
+	case <-ctx.Done():
+		return nil, database.CryptoKey{}, ctx.Err()
+	case d.fetched <- struct{}{}:
 	}
 
 	return cache, latest, nil

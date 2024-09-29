@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -15,7 +17,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func Test_Version(t *testing.T) {
+func Test_Verifying(t *testing.T) {
 	t.Parallel()
 
 	t.Run("HitsCache", func(t *testing.T) {
@@ -44,11 +46,11 @@ func Test_Version(t *testing.T) {
 		k := &DBCache{
 			db:      mockDB,
 			feature: database.CryptoKeyFeatureWorkspaceApps,
-			cache:   cache,
+			keys:    cache,
 			clock:   clock,
 		}
 
-		got, err := k.Version(ctx, 32)
+		got, err := k.Verifying(ctx, 32)
 		require.NoError(t, err)
 		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
 	})
@@ -61,31 +63,24 @@ func Test_Version(t *testing.T) {
 			mockDB = dbmock.NewMockStore(ctrl)
 			clock  = quartz.NewMock(t)
 			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
 		)
 
 		expectedKey := database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 33,
+			StartsAt: clock.Now().UTC(),
 			Secret: sql.NullString{
 				String: "secret",
 				Valid:  true,
 			},
-			StartsAt: clock.Now().UTC(),
 		}
 
-		mockDB.EXPECT().GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
-			Sequence: 33,
-		}).Return(expectedKey, nil)
+		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{expectedKey}, nil)
 
-		k := &DBCache{
-			db:      mockDB,
-			feature: database.CryptoKeyFeatureWorkspaceApps,
-			cache:   map[int32]database.CryptoKey{},
-			clock:   clock,
-		}
+		k := NewDBCache(ctx, logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 
-		got, err := k.Version(ctx, 33)
+		got, err := k.Verifying(ctx, 33)
 		require.NoError(t, err)
 		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
 		require.Equal(t, db2sdk.CryptoKey(expectedKey), db2sdk.CryptoKey(k.latestKey))
@@ -119,11 +114,11 @@ func Test_Version(t *testing.T) {
 		k := &DBCache{
 			db:      mockDB,
 			feature: database.CryptoKeyFeatureWorkspaceApps,
-			cache:   cache,
+			keys:    cache,
 			clock:   clock,
 		}
 
-		_, err := k.Version(ctx, 32)
+		_, err := k.Verifying(ctx, 32)
 		require.ErrorIs(t, err, ErrKeyInvalid)
 	})
 
@@ -149,24 +144,21 @@ func Test_Version(t *testing.T) {
 				Valid: true,
 			},
 		}
-		mockDB.EXPECT().GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
-			Sequence: 32,
-		}).Return(invalidKey, nil)
+		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{invalidKey}, nil)
 
 		k := &DBCache{
 			db:      mockDB,
 			feature: database.CryptoKeyFeatureWorkspaceApps,
-			cache:   map[int32]database.CryptoKey{},
+			keys:    map[int32]database.CryptoKey{},
 			clock:   clock,
 		}
 
-		_, err := k.Version(ctx, 32)
+		_, err := k.Verifying(ctx, 32)
 		require.ErrorIs(t, err, ErrKeyInvalid)
 	})
 }
 
-func Test_Latest(t *testing.T) {
+func Test_Signing(t *testing.T) {
 	t.Parallel()
 
 	t.Run("HitsCache", func(t *testing.T) {
@@ -177,6 +169,7 @@ func Test_Latest(t *testing.T) {
 			mockDB = dbmock.NewMockStore(ctrl)
 			clock  = quartz.NewMock(t)
 			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
 		)
 
 		latestKey := database.CryptoKey{
@@ -188,14 +181,10 @@ func Test_Latest(t *testing.T) {
 			},
 			StartsAt: clock.Now().UTC(),
 		}
-		k := &DBCache{
-			db:        mockDB,
-			feature:   database.CryptoKeyFeatureWorkspaceApps,
-			clock:     clock,
-			latestKey: latestKey,
-		}
+		k := NewDBCache(ctx, logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k.latestKey = latestKey
 
-		got, err := k.Latest(ctx)
+		got, err := k.Signing(ctx)
 		require.NoError(t, err)
 		require.Equal(t, db2sdk.CryptoKey(latestKey), got)
 	})
@@ -208,6 +197,7 @@ func Test_Latest(t *testing.T) {
 			mockDB = dbmock.NewMockStore(ctrl)
 			clock  = quartz.NewMock(t)
 			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
 		)
 
 		latestKey := database.CryptoKey{
@@ -220,28 +210,26 @@ func Test_Latest(t *testing.T) {
 			StartsAt: clock.Now().UTC(),
 		}
 
-		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{latestKey}, nil)
-
-		k := &DBCache{
-			db:      mockDB,
-			feature: database.CryptoKeyFeatureWorkspaceApps,
-			clock:   clock,
-			latestKey: database.CryptoKey{
-				Feature:  database.CryptoKeyFeatureWorkspaceApps,
-				Sequence: 32,
-				Secret: sql.NullString{
-					String: "secret",
-					Valid:  true,
-				},
-				StartsAt: clock.Now().UTC().Add(-time.Hour),
-				DeletesAt: sql.NullTime{
-					Time:  clock.Now().UTC(),
-					Valid: true,
-				},
+		invalidKey := database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 32,
+			Secret: sql.NullString{
+				String: "secret",
+				Valid:  true,
+			},
+			StartsAt: clock.Now().UTC().Add(-time.Hour),
+			DeletesAt: sql.NullTime{
+				Time:  clock.Now().UTC(),
+				Valid: true,
 			},
 		}
 
-		got, err := k.Latest(ctx)
+		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{latestKey}, nil)
+
+		k := NewDBCache(ctx, logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k.latestKey = invalidKey
+
+		got, err := k.Signing(ctx)
 		require.NoError(t, err)
 		require.Equal(t, db2sdk.CryptoKey(latestKey), got)
 	})
@@ -254,6 +242,7 @@ func Test_Latest(t *testing.T) {
 			mockDB = dbmock.NewMockStore(ctrl)
 			clock  = quartz.NewMock(t)
 			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
 		)
 
 		inactiveKey := database.CryptoKey{
@@ -278,14 +267,9 @@ func Test_Latest(t *testing.T) {
 
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{inactiveKey, activeKey}, nil)
 
-		k := &DBCache{
-			db:      mockDB,
-			feature: database.CryptoKeyFeatureWorkspaceApps,
-			clock:   clock,
-			cache:   map[int32]database.CryptoKey{},
-		}
+		k := NewDBCache(ctx, logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 
-		got, err := k.Latest(ctx)
+		got, err := k.Signing(ctx)
 		require.NoError(t, err)
 		require.Equal(t, db2sdk.CryptoKey(activeKey), got)
 	})
@@ -298,6 +282,7 @@ func Test_Latest(t *testing.T) {
 			mockDB = dbmock.NewMockStore(ctrl)
 			clock  = quartz.NewMock(t)
 			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
 		)
 
 		inactiveKey := database.CryptoKey{
@@ -326,14 +311,99 @@ func Test_Latest(t *testing.T) {
 
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{inactiveKey, invalidKey}, nil)
 
-		k := &DBCache{
-			db:      mockDB,
-			feature: database.CryptoKeyFeatureWorkspaceApps,
-			clock:   clock,
-			cache:   map[int32]database.CryptoKey{},
+		k := NewDBCache(ctx, logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+
+		_, err := k.Signing(ctx)
+		require.ErrorIs(t, err, ErrKeyInvalid)
+	})
+}
+
+func Test_clear(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InvalidatesCache", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctrl   = gomock.NewController(t)
+			mockDB = dbmock.NewMockStore(ctrl)
+			clock  = quartz.NewMock(t)
+			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
+		)
+
+		trap := clock.Trap().AfterFunc()
+
+		k := NewDBCache(ctx, logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k.latestKey = database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 32,
+			Secret: sql.NullString{
+				String: "secret",
+				Valid:  true,
+			},
+		}
+		k.keys = map[int32]database.CryptoKey{
+			32: {
+				Feature:  database.CryptoKeyFeatureWorkspaceApps,
+				Sequence: 32,
+				Secret: sql.NullString{
+					String: "secret",
+					Valid:  true,
+				},
+			},
+		}
+		trap.MustWait(ctx).Release()
+		_, wait := clock.AdvanceNext()
+		wait.MustWait(ctx)
+		require.Len(t, k.keys, 0)
+		require.Equal(t, database.CryptoKey{}, k.latestKey)
+	})
+
+	t.Run("ResetsTimer", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctrl   = gomock.NewController(t)
+			mockDB = dbmock.NewMockStore(ctrl)
+			clock  = quartz.NewMock(t)
+			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
+		)
+
+		trap := clock.Trap().AfterFunc()
+
+		k := NewDBCache(ctx, logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+
+		key := database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 32,
+			Secret: sql.NullString{
+				String: "secret",
+				Valid:  true,
+			},
+			StartsAt: clock.Now(),
 		}
 
-		_, err := k.Latest(ctx)
-		require.ErrorIs(t, err, ErrKeyInvalid)
+		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{key}, nil)
+
+		trap.MustWait(ctx).Release()
+
+		// Advance it five minutes so that we can test that the
+		// time is reset and doesn't fire after another five minute and doesn't fire after another five minutes.
+		clock.Advance(time.Minute * 5)
+
+		latest, err := k.Signing(ctx)
+		require.NoError(t, err)
+		require.Equal(t, db2sdk.CryptoKey(key), latest)
+
+		trap.MustWait(ctx).Release()
+		// Advancing the clock now should require 10 minutes
+		// before the timer fires again.
+		dur, wait := clock.AdvanceNext()
+		wait.MustWait(ctx)
+		require.Equal(t, time.Minute*10, dur)
+		require.Len(t, k.keys, 0)
+		require.Equal(t, database.CryptoKey{}, k.latestKey)
 	})
 }

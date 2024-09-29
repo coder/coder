@@ -14,6 +14,6 @@ var ErrKeyInvalid = xerrors.New("key is invalid for use")
 
 // Keycache provides an abstraction for fetching signing keys.
 type Keycache interface {
-	Latest(ctx context.Context) (codersdk.CryptoKey, error)
-	Version(ctx context.Context, sequence int32) (codersdk.CryptoKey, error)
+	Signing(ctx context.Context) (codersdk.CryptoKey, error)
+	Verifying(ctx context.Context, sequence int32) (codersdk.CryptoKey, error)
 }

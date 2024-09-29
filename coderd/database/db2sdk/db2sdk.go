@@ -668,8 +668,8 @@ func CryptoKey(key database.CryptoKey) codersdk.CryptoKey {
 	return codersdk.CryptoKey{
 		Feature:   codersdk.CryptoKeyFeature(key.Feature),
 		Sequence:  key.Sequence,
-		StartsAt:  key.StartsAt.UTC(),
-		DeletesAt: key.DeletesAt.Time.UTC(),
+		StartsAt:  key.StartsAt,
+		DeletesAt: key.DeletesAt.Time,
 		Secret:    key.Secret.String,
 	}
 }

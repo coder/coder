@@ -458,14 +458,12 @@ func (k CryptoKey) DecodeString() ([]byte, error) {
 }
 
 func (k CryptoKey) CanSign(now time.Time) bool {
-	now = now.UTC()
-	isAfterStart := !k.StartsAt.IsZero() && !now.Before(k.StartsAt.UTC())
+	isAfterStart := !k.StartsAt.IsZero() && !now.Before(k.StartsAt)
 	return isAfterStart && k.CanVerify(now)
 }
 
 func (k CryptoKey) CanVerify(now time.Time) bool {
-	now = now.UTC()
 	hasSecret := k.Secret.Valid
-	isBeforeDeletion := !k.DeletesAt.Valid || now.Before(k.DeletesAt.Time.UTC())
+	isBeforeDeletion := !k.DeletesAt.Valid || now.Before(k.DeletesAt.Time)
 	return hasSecret && isBeforeDeletion
 }
