@@ -1,6 +1,6 @@
 # Organizations (Enterprise) (Premium)
 
-> Note: Organizations requires a [Premium license](./licensing.md). For more
+> Note: Organizations requires a [Premium license](../licensing.md). For more
 > details, [contact your account team](https://coder.com/contact).
 
 Organizations can be used to segment and isolate resources inside a Coder
