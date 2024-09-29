@@ -276,8 +276,8 @@ https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
 You should see a field in either `id_token_claims`, `user_info_claims` or both
 followed by a list of the user's OIDC groups in the response. This is the
 [claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims) sent by
-the OIDC provider. See [Troubleshooting](#troubleshooting-grouprole-sync) to
-debug this.
+the OIDC provider. See
+[Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
 
 > Depending on the OIDC provider, this claim may be named differently. Common
 > ones include `groups`, `memberOf`, and `roles`.
@@ -351,8 +351,8 @@ https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
 You should see a field in either `id_token_claims`, `user_info_claims` or both
 followed by a list of the user's OIDC groups in the response. This is the
 [claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims) sent by
-the OIDC provider. See [Troubleshooting](#troubleshooting-grouprole-sync) to
-debug this.
+the OIDC provider. See
+[Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
 
 > Depending on the OIDC provider, this claim may be named differently. Common
 > ones include `groups`, `memberOf`, and `roles`.
@@ -435,8 +435,7 @@ Users who are not in a matching group will see the following error:
 ## Role sync (enterprise) (premium)
 
 If your OpenID Connect provider supports roles claims, you can configure Coder
-to synchronize roles in your auth provider to deployment-wide roles within
-Coder.
+to synchronize roles in your auth provider to roles within Coder.
 
 There are two ways you can configure group sync:
 
@@ -454,8 +453,8 @@ https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
 You should see a field in either `id_token_claims`, `user_info_claims` or both
 followed by a list of the user's OIDC roles in the response. This is the
 [claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims) sent by
-the OIDC provider. See [Troubleshooting](#troubleshooting-grouprole-sync) to
-debug this.
+the OIDC provider. See
+[Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
 
 > Depending on the OIDC provider, this claim may be named differently.
 
@@ -496,8 +495,8 @@ https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
 You should see a field in either `id_token_claims`, `user_info_claims` or both
 followed by a list of the user's OIDC roles in the response. This is the
 [claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims) sent by
-the OIDC provider. See [Troubleshooting](#troubleshooting-grouprole-sync) to
-debug this.
+the OIDC provider. See
+[Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
 
 > Depending on the OIDC provider, this claim may be named differently.
 
@@ -550,7 +549,60 @@ Visit the Coder UI to confirm these changes:
 
 </div>
 
-## Troubleshooting group/role sync
+## Organization Sync (Premium)
+
+If your OpenID Connect provider supports groups/role claims, you can configure
+Coder to synchronize roles in your auth provider to organizations within Coder.
+
+First, confirm that your OIDC provider is sending a groups claim by logging in
+with OIDC and visiting the following URL:
+
+```text
+https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
+```
+
+You should see a field in either `id_token_claims`, `user_info_claims` or both
+followed by a list of the user's OIDC groups in the response. This is the
+[claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims) sent by
+the OIDC provider. See
+[Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
+
+> Depending on the OIDC provider, this claim may be named differently. Common
+> ones include `groups`, `memberOf`, and `roles`.
+
+Next configure the Coder server to read groups from the claim name with the
+[OIDC organization field](../reference/cli/server.md#--oidc-organization-field)
+server flag:
+
+```sh
+# as an environment variable
+CODER_OIDC_ORGANIZATION_FIELD=groups
+```
+
+Next, fetch the corresponding organization IDs using the following endpoint:
+
+```text
+https://[coder.example.com]/api/v2/organizations
+```
+
+Set the following in your Coder server [configuration](./configure.md).
+
+```env
+CODER_OIDC_ORGANIZATION_MAPPING='{"data-scientists":["d8d9daef-e273-49ff-a832-11fe2b2d4ab1", "70be0908-61b5-4fb5-aba4-4dfb3a6c5787"]}'
+```
+
+> One claim value from your identity provider can be mapped to many
+> organizations in Coder (e.g. the example above maps to 2 organizations in
+> Coder.)
+
+By default, all users are assigned to the default (first) organization. You can
+disable that with:
+
+```env
+CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT=false
+```
+
+## Troubleshooting group/role/organization sync
 
 Some common issues when enabling group/role sync.
 
