@@ -520,7 +520,7 @@ The default for an organization looks like this:
 
 Below is an example that uses the `roles` claim and maps `coder-admins` from the
 IDP as an `Organization Admin` and also maps to a custom `provisioner-admin`
-role:
+role.
 
 ```json
 {
@@ -531,6 +531,10 @@ role:
 	}
 }
 ```
+
+> Note: Be sure to use the `name` field for each role, not the display name. Use
+> `organization-admin`, `organization-user-admin`, `organization-auditor` for
+> the built in roles.
 
 To set these role sync settings, use the following command:
 
