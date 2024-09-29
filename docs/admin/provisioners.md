@@ -26,9 +26,7 @@ For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
 Provisioners are started with the
-[`coder provisionerd start`](../reference/cli/provisionerd_start.md) command in
-the [full Coder binary](https://github.com/coder/coder/releases). Keep reading
-to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
+[coder provisionerd start](../reference/cli/provisioner_start.md) command.
 
 ## Authentication
 
@@ -43,13 +41,29 @@ running for each organization.
 We recommend creating finely-scoped keys for provisioners. Keys are scoped to an
 organization.
 
-```sh
-coder provisioner keys create my-key \
-  --org default
+Provisioners can broadly be categorized by scope: `organization` or `user`. The
+scope of a provisioner can be specified with
+[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#t---tag) when
+starting the provisioner daemon. Only users with at least the
+[Template Admin](../admin/users.md#roles) role or higher may create
+organization-scoped provisioner daemons.
 
-Successfully created provisioner key my-key! Save this authentication token, it will not be shown again.
+Successfully created provisioner key my-key! Save this authentication token, it
+will not be shown again.
 
-<key omitted>
+- [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are
+  always organization-scoped.
+- External provisioners started using a
+  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#psk) are always
+  organization-scoped.
+
+### Organization-Scoped Provisioners
+
+**Organization-scoped Provisioners** can pick up build jobs created by any user.
+These provisioners always have the implicit tags `scope=organization owner=""`.
+
+```shell
+coder provisionerd start --org <organization_name>
 ```
 
 Or, restrict the provisioner to jobs with specific tags

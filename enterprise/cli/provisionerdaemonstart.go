@@ -270,7 +270,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		Env:         "CODER_PROVISIONER_DAEMON_KEY",
 		Description: "Provisioner key to authenticate with Coder server.",
 		Value:       serpent.StringOf(&provisionerKey),
-		Hidden:      true,
 	}
 	cmd.Options = serpent.OptionSet{
 		{

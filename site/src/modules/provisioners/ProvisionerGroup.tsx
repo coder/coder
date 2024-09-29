@@ -22,7 +22,6 @@ import {
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
-import isEqual from "lodash/isEqual";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
@@ -31,11 +30,20 @@ import { ProvisionerTag } from "./ProvisionerTag";
 type ProvisionerGroupType = "builtin" | "psk" | "key";
 
 interface ProvisionerGroupProps {
-	readonly buildInfo?: BuildInfoResponse;
+	readonly buildInfo: BuildInfoResponse;
 	readonly keyName: string;
 	readonly keyTags: Record<string, string>;
 	readonly type: ProvisionerGroupType;
 	readonly provisioners: readonly ProvisionerDaemon[];
+}
+
+function isSimpleTagSet(tags: Record<string, string>) {
+	const numberOfExtraTags = Object.keys(tags).filter(
+		(key) => key !== "scope" && key !== "owner",
+	).length;
+	return (
+		numberOfExtraTags === 0 && tags.scope === "organization" && !tags.owner
+	);
 }
 
 export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
@@ -72,7 +80,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	let warnings = 0;
 	let provisionersWithWarnings = 0;
 	const provisionersWithWarningInfo = provisioners.map((it) => {
-		const outOfDate = Boolean(buildInfo) && it.version !== buildInfo?.version;
+		const outOfDate = it.version !== buildInfo.version;
 		const warningCount = outOfDate ? 1 : 0;
 		warnings += warningCount;
 		if (warnings > 0) {
@@ -95,8 +103,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 			: `${provisionersWithWarnings} provisioners`;
 
 	const hasMultipleTagVariants =
-		type === "psk" &&
-		provisioners.some((it) => !isEqual(it.tags, { scope: "organization" }));
+		type === "psk" && provisioners.some((it) => !isSimpleTagSet(it.tags));
 
 	return (
 		<div
@@ -285,7 +292,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 };
 
 interface ProvisionerVersionPopoverProps {
-	buildInfo?: BuildInfoResponse;
+	buildInfo: BuildInfoResponse;
 	provisioner: ProvisionerDaemon;
 }
 
@@ -297,11 +304,9 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span>
-					{buildInfo
-						? provisioner.version === buildInfo.version
-							? "Up to date"
-							: "Out of date"
-						: provisioner.version}
+					{provisioner.version === buildInfo.version
+						? "Up to date"
+						: "Out of date"}
 				</span>
 			</PopoverTrigger>
 			<PopoverContent
@@ -317,7 +322,7 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 				<p css={styles.text}>{provisioner.version}</p>
 				<h4 css={styles.versionPopoverTitle}>Protocol version</h4>
 				<p css={styles.text}>{provisioner.api_version}</p>
-				{provisioner.api_version !== buildInfo?.provisioner_api_version && (
+				{provisioner.api_version !== buildInfo.provisioner_api_version && (
 					<p css={[styles.text, { fontSize: 13 }]}>
 						This provisioner is out of date. You may experience issues when
 						using a provisioner version that doesn’t match your Coder

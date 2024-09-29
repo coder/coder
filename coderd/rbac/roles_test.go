@@ -531,9 +531,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceProvisionerDaemon.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				// This should be fixed when multi-org goes live
-				true:  {setOtherOrg, owner, templateAdmin, setOrgNotMe, memberMe, orgMemberMe, userAdmin},
-				false: {},
+				true:  {owner, templateAdmin, setOrgNotMe, orgMemberMe},
+				false: {setOtherOrg, memberMe, userAdmin},
 			},
 		},
 		{
@@ -719,11 +718,11 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceIdpsyncSettings.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, orgAdmin},
+				true: {owner, orgAdmin, orgUserAdmin},
 				false: {
 					orgMemberMe, otherOrgAdmin,
 					memberMe, userAdmin, templateAdmin,
-					orgAuditor, orgUserAdmin, orgTemplateAdmin,
+					orgAuditor, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 				},
 			},

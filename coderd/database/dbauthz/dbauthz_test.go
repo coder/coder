@@ -2302,6 +2302,10 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 			DeletesAt: sql.NullTime{Time: time.Now(), Valid: true},
 		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
 	}))
+	s.Run("GetCryptoKeysByFeature", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.CryptoKeyFeatureWorkspaceApps).
+			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestSystemFunctions() {
@@ -2631,6 +2635,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("InsertWorkspaceAppStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAppStatsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertWorkspaceAgentScriptTimings", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceAgentScriptTimingsParams{
+			ScriptID: uuid.New(),
+			Stage:    database.WorkspaceAgentScriptTimingStageStart,
+			Status:   database.WorkspaceAgentScriptTimingStatusOk,
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceAgentScripts", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentScriptsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)

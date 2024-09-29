@@ -204,7 +204,7 @@ func convertProvisionerKeys(dbKeys []database.ProvisionerKey) []codersdk.Provisi
 			CreatedAt:      dbKey.CreatedAt,
 			OrganizationID: dbKey.OrganizationID,
 			Name:           dbKey.Name,
-			Tags:           dbKey.Tags,
+			Tags:           codersdk.ProvisionerKeyTags(dbKey.Tags),
 			// HashedSecret - never include the access token in the API response
 		})
 	}

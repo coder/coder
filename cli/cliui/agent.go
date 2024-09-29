@@ -370,6 +370,9 @@ func (d ConnDiags) Write(w io.Writer) {
 	for _, msg := range general {
 		_, _ = fmt.Fprintln(w, msg)
 	}
+	if len(general) > 0 {
+		_, _ = fmt.Fprintln(w, "")
+	}
 	if len(client) > 0 {
 		_, _ = fmt.Fprint(w, "Possible client-side issues with direct connection:\n\n")
 		for _, msg := range client {
@@ -385,12 +388,6 @@ func (d ConnDiags) Write(w io.Writer) {
 }
 
 func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
-	if d.PingP2P {
-		general = append(general, "✔ You are connected directly (p2p)")
-	} else {
-		general = append(general, "❗ You are connected via a DERP relay, not directly (p2p)")
-	}
-
 	if d.AgentNetcheck != nil {
 		for _, msg := range d.AgentNetcheck.Interfaces.Warnings {
 			agent = append(agent, msg.Message)
@@ -461,5 +458,6 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 		agent = append(agent,
 			fmt.Sprintf("Agent IP address is within an AWS range (AWS uses hard NAT)\n   %s#endpoint-dependent-nat-hard-nat", d.TroubleshootingURL))
 	}
+
 	return general, client, agent
 }

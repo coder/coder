@@ -92,8 +92,8 @@ func New() database.Store {
 	// Always start with a default org. Matching migration 198.
 	defaultOrg, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          uuid.New(),
-		Name:        "first-organization",
-		DisplayName: "first-organization",
+		Name:        "coder",
+		DisplayName: "Coder",
 		Description: "Builtin default organization.",
 		Icon:        "",
 		CreatedAt:   dbtime.Now(),
@@ -222,6 +222,7 @@ type data struct {
 	workspaceAgentLogs              []database.WorkspaceAgentLog
 	workspaceAgentLogSources        []database.WorkspaceAgentLogSource
 	workspaceAgentPortShares        []database.WorkspaceAgentPortShare
+	workspaceAgentScriptTimings     []database.WorkspaceAgentScriptTiming
 	workspaceAgentScripts           []database.WorkspaceAgentScript
 	workspaceAgentStats             []database.WorkspaceAgentStat
 	workspaceApps                   []database.WorkspaceApp
@@ -2425,6 +2426,23 @@ func (q *FakeQuerier) GetCryptoKeys(_ context.Context) ([]database.CryptoKey, er
 			keys = append(keys, key)
 		}
 	}
+	return keys, nil
+}
+
+func (q *FakeQuerier) GetCryptoKeysByFeature(_ context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.CryptoKey, 0)
+	for _, key := range q.cryptoKeys {
+		if key.Feature == feature && key.Secret.Valid {
+			keys = append(keys, key)
+		}
+	}
+	// We want to return the highest sequence number first.
+	slices.SortFunc(keys, func(i, j database.CryptoKey) int {
+		return int(j.Sequence - i.Sequence)
+	})
 	return keys, nil
 }
 
@@ -7826,6 +7844,30 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings,
+		//nolint:gosimple // Stop the linter complaining about changing the type of `arg`.
+		database.WorkspaceAgentScriptTiming{
+			ScriptID:  arg.ScriptID,
+			StartedAt: arg.StartedAt,
+			EndedAt:   arg.EndedAt,
+			ExitCode:  arg.ExitCode,
+			Stage:     arg.Stage,
+			Status:    arg.Status,
+		},
+	)
+
+	return nil
+}
+
 func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -7840,6 +7882,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg databas
 		script := database.WorkspaceAgentScript{
 			LogSourceID:      source,
 			WorkspaceAgentID: arg.WorkspaceAgentID,
+			ID:               arg.ID[index],
 			LogPath:          arg.LogPath[index],
 			Script:           arg.Script[index],
 			Cron:             arg.Cron[index],
