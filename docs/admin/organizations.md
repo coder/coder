@@ -33,6 +33,9 @@ groups, and workspaces. Each organization must have at least one
 [provisioner](./provisioners.md) as the built-in provisioner only applies to the
 default organization.
 
+You can configure [group/role/organization sync](./auth.md) from your identity
+provider to avoid manually assigning users to organizations.
+
 ## Creating an organization
 
 ### Prerequisites
