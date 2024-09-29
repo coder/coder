@@ -69,7 +69,7 @@ export const CreateOrganizationPageView: FC<
 			<div>
 				<SettingsHeader
 					title="New Organization"
-					description="Organize your deployment into multiple platform teams."
+					description="Organize your deployment into multiple platform teams with unique provisioners, templates, groups, and members."
 				/>
 
 				{Boolean(error) && !isApiValidationError(error) && (
