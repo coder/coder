@@ -167,19 +167,6 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						justifyContent: "right",
 					}}
 				>
-					{/* {type !== "userAuth" && 						
-						<Tooltip title="Scope">
-							<Pill
-								size="lg"
-								icon={<BusinessIcon />}
-							>
-								<span css={{ textTransform: "capitalize" }}>{"organization"}</span>
-							</Pill>
-						</Tooltip>}
-					{type === "key" &&
-						extraTags.map(([key, value]) => (
-							<ProvisionerTag key={key} tagName={key} tagValue={value} />
-						))} */}
 				</div>
 			</header>
 
