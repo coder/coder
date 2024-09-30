@@ -47,7 +47,7 @@ iterate on their development environments.
   Docker socket from the VM inside the container to enable Docker inside the
   workspace.
 
-![Devcontainer parameter screen](../images/templates/devcontainers.png)
+![Devcontainer parameter screen](../../../images/templates/devcontainers.png)
 
 Your template can prompt the user for a repo URL with
 [Parameters](./parameters.md).

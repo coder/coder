@@ -227,7 +227,7 @@ You can limit which groups from your identity provider can log in to Coder with
 [CODER_OIDC_ALLOWED_GROUPS](https://coder.com/docs/reference/cli/server#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
-![Unauthorized group error](../images/admin/group-allowlist.png)
+![Unauthorized group error](../../images/admin/group-allowlist.png)
 
 ## Role sync (enterprise)
 

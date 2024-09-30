@@ -7,7 +7,7 @@
 
 The common way to use remote desktops with Coder is through VNC.
 
-![VNC Desktop in Coder](../images/vnc-desktop.png)
+![VNC Desktop in Coder](../../images/vnc-desktop.png)
 
 Workspace requirements:
 
