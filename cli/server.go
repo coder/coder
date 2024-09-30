@@ -492,7 +492,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				BorderForeground(lipgloss.Color("12")).
 				Render(fmt.Sprintf("View the Web UI:\n%s",
 					pretty.Sprint(cliui.DefaultStyles.Hyperlink, accessURL))))
-			_ = openURL(inv, accessURL)
+			if buildinfo.HasSite() {
+				_ = openURL(inv, accessURL)
+			}
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
