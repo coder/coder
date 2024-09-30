@@ -39,7 +39,7 @@ modify the inactivity timeout duration with the
 [inactivity bump](#inactivity-timeout) template setting. Coder checks for active
 connections in the IDE, SSH, Port Forwarding, and coder_app.
 
-![Autostop UI](./images/autostop.png)
+![Autostop UI](../images/autostop.png)
 
 ## Inactivity timeout
 
@@ -50,7 +50,7 @@ for your workspace.
 ## Autostop requirement (enterprise)
 
 Enterprise template admins may enforce a required stop for workspaces to apply
-updates or undergo maintenanence. These stops ignore any active connections or
+updates or undergo maintenance. These stops ignore any active connections or
 inactivity bumps. Rather than being specified with a CRON, admins set a
 frequency for updates, either in **days** or **weeks**. Workspaces will apply
 the template autostop requirement on the given day **in the user's timezone**
@@ -65,7 +65,7 @@ User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly
 stopped due to the policy at the **start** of the user's quiet hours.
 
-![User schedule settings](../../images/user-quiet-hours.png)
+![User schedule settings](../images/user-quiet-hours.png)
 
 ## Scheduling configuration examples
 

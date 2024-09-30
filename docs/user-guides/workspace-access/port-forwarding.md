@@ -94,7 +94,7 @@ Valid `share` values include `owner` - private to the user, `authenticated` -
 accessible by any user authenticated to the Coder deployment, and `public` -
 accessible by users outside of the Coder deployment.
 
-![Port forwarding from an app in the UI](../images/networking/portforwarddashboard.png)
+![Port forwarding from an app in the UI](../../images/networking/portforwarddashboard.png)
 
 ## Accessing workspace ports
 
@@ -103,7 +103,7 @@ to specify an arbitrary port. Coder will also detect if apps inside the
 workspace are listening on ports, and list them below the port input (this is
 only supported on Windows and Linux workspace agents).
 
-![Port forwarding in the UI](../images/networking/listeningports.png)
+![Port forwarding in the UI](../../images/networking/listeningports.png)
 
 ### Sharing ports
 
