@@ -153,7 +153,9 @@ func (m *Manager) Run(ctx context.Context) {
 // events, creating a notifier, and publishing bulk dispatch result updates to the store.
 func (m *Manager) loop(ctx context.Context) error {
 	defer func() {
-		close(m.done)
+		if m.notifier != nil {
+			close(m.done)
+		}
 		m.log.Info(context.Background(), "notification manager stopped")
 	}()
 
