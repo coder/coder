@@ -14,8 +14,8 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
 	canEditOrganization,
-	useOrganizationSettings,
-} from "./ManagementSettingsLayout";
+	useManagementSettings,
+} from "modules/management/ManagementSettingsLayout";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
 
@@ -23,7 +23,7 @@ const OrganizationSettingsPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization?: string;
 	};
-	const { organizations } = useOrganizationSettings();
+	const { organizations } = useManagementSettings();
 	const feats = useFeatureVisibility();
 
 	const navigate = useNavigate();

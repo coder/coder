@@ -17,7 +17,7 @@ import { useQueries } from "react-query";
 import { useParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import { useOrganizationSettings } from "../ManagementSettingsLayout";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
 
@@ -27,7 +27,7 @@ export const IdpSyncPage: FC = () => {
 	};
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
-	const { organizations } = useOrganizationSettings();
+	const { organizations } = useManagementSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 
 	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery] =

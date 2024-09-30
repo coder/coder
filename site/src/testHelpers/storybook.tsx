@@ -7,7 +7,7 @@ import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
-import { DeploySettingsContext } from "pages/DeploySettingsPage/DeploySettingsLayout";
+import { ManagementSettingsContext } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import {
@@ -126,9 +126,12 @@ export const withGlobalSnackbar = (Story: FC) => (
 	</>
 );
 
-export const withDeploySettings = (Story: FC, { parameters }: StoryContext) => {
+export const withManagementSettingsProvider = (
+	Story: FC,
+	{ parameters }: StoryContext,
+) => {
 	return (
-		<DeploySettingsContext.Provider
+		<ManagementSettingsContext.Provider
 			value={{
 				deploymentValues: {
 					config: parameters.deploymentValues ?? {},
@@ -137,6 +140,6 @@ export const withDeploySettings = (Story: FC, { parameters }: StoryContext) => {
 			}}
 		>
 			<Story />
-		</DeploySettingsContext.Provider>
+		</ManagementSettingsContext.Provider>
 	);
 };

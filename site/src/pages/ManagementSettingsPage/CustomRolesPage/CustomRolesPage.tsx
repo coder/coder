@@ -13,7 +13,7 @@ import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { useOrganizationSettings } from "../ManagementSettingsLayout";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import CustomRolesPageView from "./CustomRolesPageView";
 
 export const CustomRolesPage: FC = () => {
@@ -22,7 +22,7 @@ export const CustomRolesPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { organizations } = useOrganizationSettings();
+	const { organizations } = useManagementSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 	const deleteRoleMutation = useMutation(
