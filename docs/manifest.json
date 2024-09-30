@@ -271,8 +271,7 @@
 				{
 					"title": "Dev Containers",
 					"description": "Use Dev Containers in workspaces",
-					"path": "./templates/dev-containers.md",
-					"state": "alpha"
+					"path": "./templates/dev-containers.md"
 				},
 				{
 					"title": "Troubleshooting templates",
@@ -518,6 +517,12 @@
 					"path": "./admin/notifications.md",
 					"icon_path": "./images/icons/info.svg",
 					"children": [
+						{
+							"title": "Slack Notifications",
+							"description": "Learn how to setup Slack notifications",
+							"path": "./admin/notifications/slack.md",
+							"state": "beta"
+						},
 						{
 							"title": "Microsoft Teams Notifications",
 							"description": "Learn how to setup Microsoft Teams notifications",
@@ -916,34 +921,34 @@
 							"path": "reference/cli/port-forward.md"
 						},
 						{
-							"title": "provisionerd",
+							"title": "provisioner",
 							"description": "Manage provisioner daemons",
-							"path": "reference/cli/provisionerd.md"
+							"path": "reference/cli/provisioner.md"
 						},
 						{
-							"title": "provisionerd keys",
+							"title": "provisioner keys",
 							"description": "Manage provisioner keys",
-							"path": "reference/cli/provisionerd_keys.md"
+							"path": "reference/cli/provisioner_keys.md"
 						},
 						{
-							"title": "provisionerd keys create",
+							"title": "provisioner keys create",
 							"description": "Create a new provisioner key",
-							"path": "reference/cli/provisionerd_keys_create.md"
+							"path": "reference/cli/provisioner_keys_create.md"
 						},
 						{
-							"title": "provisionerd keys delete",
+							"title": "provisioner keys delete",
 							"description": "Delete a provisioner key",
-							"path": "reference/cli/provisionerd_keys_delete.md"
+							"path": "reference/cli/provisioner_keys_delete.md"
 						},
 						{
-							"title": "provisionerd keys list",
+							"title": "provisioner keys list",
 							"description": "List provisioner keys in an organization",
-							"path": "reference/cli/provisionerd_keys_list.md"
+							"path": "reference/cli/provisioner_keys_list.md"
 						},
 						{
-							"title": "provisionerd start",
+							"title": "provisioner start",
 							"description": "Run a provisioner daemon",
-							"path": "reference/cli/provisionerd_start.md"
+							"path": "reference/cli/provisioner_start.md"
 						},
 						{
 							"title": "publickey",

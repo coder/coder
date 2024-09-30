@@ -88,6 +88,19 @@ data "coder_parameter" "instance_type" {
   }
 }
 
+data "coder_parameter" "root_volume_size_gb" {
+  name         = "root_volume_size_gb"
+  display_name = "Root Volume Size (GB)"
+  description  = "How large should the root volume for the instance be?"
+  default      = 30
+  type         = "number"
+  mutable      = true
+  validation {
+    min       = 1
+    monotonic = "increasing"
+  }
+}
+
 data "coder_parameter" "fallback_image" {
   default      = "codercom/enterprise-base:ubuntu"
   description  = "This image runs if the devcontainer fails to build."
@@ -197,6 +210,11 @@ locals {
     shell: /bin/bash
     ssh_authorized_keys:
     - "${data.coder_parameter.ssh_pubkey.value}"
+  # Automatically grow the partition
+  growpart:
+    mode: auto
+    devices: ['/']
+    ignore_growroot_disabled: false
 
   --//
   Content-Type: text/x-shellscript; charset="us-ascii"
@@ -268,7 +286,7 @@ resource "aws_instance" "vm" {
   instance_type        = data.coder_parameter.instance_type.value
   iam_instance_profile = try(data.aws_iam_instance_profile.vm_instance_profile[0].name, null)
   root_block_device {
-    volume_size = 30
+    volume_size = data.coder_parameter.root_volume_size_gb.value
   }
 
   user_data = local.user_data
@@ -342,7 +360,7 @@ resource "coder_metadata" "info" {
 
 module "code-server" {
   count    = data.coder_workspace.me.start_count
-  source   = "https://registry.coder.com/modules/code-server"
+  source   = "registry.coder.com/modules/code-server/coder"
   version  = "1.0.18"
   agent_id = coder_agent.dev[0].id
 }

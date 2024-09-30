@@ -45,7 +45,7 @@ interface OrganizationMembersPageViewProps {
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
-	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
+	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
 		member: OrganizationMemberWithUserData,
 		newRoles: string[],

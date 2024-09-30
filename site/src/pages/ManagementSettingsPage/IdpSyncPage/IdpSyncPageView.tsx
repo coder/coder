@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -17,6 +18,13 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipText,
+	HelpTooltipTitle,
+	HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
@@ -60,6 +68,9 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	const groupMappingCount = groupSyncSettings?.mapping
 		? Object.entries(groupSyncSettings.mapping).length
 		: 0;
+	const legacyGroupMappingCount = groupSyncSettings?.legacy_group_name_mapping
+		? Object.entries(groupSyncSettings.legacy_group_name_mapping).length
+		: 0;
 	const roleMappingCount = roleSyncSettings?.mapping
 		? Object.entries(roleSyncSettings.mapping).length
 		: 0;
@@ -88,14 +99,14 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 				{tab === "groups" ? (
 					<>
 						<div css={styles.fields}>
-							<Stack direction={"row"} alignItems={"center"} spacing={6}>
+							<Stack direction="row" alignItems="center" spacing={6}>
 								<IdpField
-									name={"Sync Field"}
+									name="Sync Field"
 									fieldText={groupSyncSettings?.field}
 									showDisabled
 								/>
 								<IdpField
-									name={"Regex Filter"}
+									name="Regex Filter"
 									fieldText={
 										typeof groupSyncSettings?.regex_filter === "string"
 											? groupSyncSettings.regex_filter
@@ -103,7 +114,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}
 								/>
 								<IdpField
-									name={"Auto Create"}
+									name="Auto Create"
 									fieldText={
 										groupSyncSettings?.field
 											? String(groupSyncSettings?.auto_create_missing_groups)
@@ -126,10 +137,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 							/>
 						</Stack>
 						<Stack spacing={6}>
-							<IdpMappingTable
-								type="Group"
-								isEmpty={Boolean(groupMappingCount === 0)}
-							>
+							<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
 								{groupSyncSettings?.mapping &&
 									Object.entries(groupSyncSettings.mapping)
 										.sort()
@@ -141,13 +149,32 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 											/>
 										))}
 							</IdpMappingTable>
+							{groupSyncSettings?.legacy_group_name_mapping && (
+								<section>
+									<LegacyGroupSyncHeader />
+									<IdpMappingTable
+										type="Group"
+										isEmpty={legacyGroupMappingCount === 0}
+									>
+										{Object.entries(groupSyncSettings.legacy_group_name_mapping)
+											.sort()
+											.map(([idpGroup, groupId]) => (
+												<GroupRow
+													key={idpGroup}
+													idpGroup={idpGroup}
+													coderGroup={getGroupNames([groupId])}
+												/>
+											))}
+									</IdpMappingTable>
+								</section>
+							)}
 						</Stack>
 					</>
 				) : (
 					<>
 						<div css={styles.fields}>
 							<IdpField
-								name={"Sync Field"}
+								name="Sync Field"
 								fieldText={roleSyncSettings?.field}
 								showDisabled
 							/>
@@ -165,10 +192,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								type="roles"
 							/>
 						</Stack>
-						<IdpMappingTable
-							type="Role"
-							isEmpty={Boolean(roleMappingCount === 0)}
-						>
+						<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
 							{roleSyncSettings?.mapping &&
 								Object.entries(roleSyncSettings.mapping)
 									.sort()
@@ -268,7 +292,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 			<Table>
 				<TableHead>
 					<TableRow>
-						<TableCell width="45%">Idp {type}</TableCell>
+						<TableCell width="45%">IdP {type}</TableCell>
 						<TableCell width="55%">Coder {type}</TableCell>
 					</TableRow>
 				</TableHead>
@@ -359,12 +383,43 @@ const TableLoader = () => {
 	);
 };
 
+const LegacyGroupSyncHeader: FC = () => {
+	return (
+		<h4
+			css={{
+				fontSize: 20,
+				fontWeight: 500,
+			}}
+		>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>Legacy Group Sync Settings</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>Legacy Group Sync Settings</HelpTooltipTitle>
+						<HelpTooltipText>
+							These settings were configured using environment variables, and
+							only apply to the default organization. It is now recommended to
+							configure IdP sync via the CLI, which enables sync to be
+							configured for any organization, and for those settings to be
+							persisted without manually setting environment variables.{" "}
+							<Link href={docs("/admin/auth#group-sync-enterprise")}>
+								Learn more&hellip;
+							</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
 const styles = {
-	fieldText: (theme) => ({
+	fieldText: {
 		fontFamily: MONOSPACE_FONT_FAMILY,
 		whiteSpace: "nowrap",
 		paddingBottom: ".02rem",
-	}),
+	},
 	fieldLabel: (theme) => ({
 		color: theme.palette.text.secondary,
 	}),

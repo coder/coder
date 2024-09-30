@@ -99,7 +99,7 @@ export const OrganizationSettingsPageView: FC<
 								onChange={onChangeTrimmed(form)}
 								autoFocus
 								fullWidth
-								label="Name"
+								label="Slug"
 							/>
 							<TextField
 								{...getFieldHelpers("display_name")}

@@ -318,19 +318,23 @@ export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
 	organization_id: MockOrganization.id,
 };
 
-export const MockOrganizationAuditorRole: TypesGen.Role = {
+export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	name: "organization-auditor",
 	display_name: "Organization Auditor",
+	assignable: true,
+	built_in: false,
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
 };
 
-export const MockRoleWithOrgPermissions: TypesGen.Role = {
+export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
 	organization_id: MockOrganization.id,
+	assignable: true,
+	built_in: false,
 	site_permissions: [],
 	organization_permissions: [
 		{
@@ -2612,6 +2616,15 @@ export const MockGroupSyncSettings: TypesGen.GroupSyncSettings = {
 	},
 	regex_filter: "@[a-zA-Z0-9_]+",
 	auto_create_missing_groups: false,
+};
+
+export const MockLegacyMappingGroupSyncSettings: TypesGen.GroupSyncSettings = {
+	...MockGroupSyncSettings,
+	mapping: {},
+	legacy_group_name_mapping: {
+		"idp-group-1": "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+		"idp-group-2": "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+	},
 };
 
 export const MockGroupSyncSettings2: TypesGen.GroupSyncSettings = {

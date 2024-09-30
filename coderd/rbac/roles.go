@@ -460,6 +460,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 						ResourceGroup.Type:              ResourceGroup.AvailableActions(),
 						ResourceGroupMember.Type:        ResourceGroupMember.AvailableActions(),
+						ResourceIdpsyncSettings.Type:    {policy.ActionRead, policy.ActionUpdate},
 					}),
 				},
 				User: []Permission{},

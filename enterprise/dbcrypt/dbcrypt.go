@@ -321,6 +321,21 @@ func (db *dbCrypt) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.Up
 	return key, nil
 }
 
+func (db *dbCrypt) GetCryptoKeysByFeature(ctx context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
+	keys, err := db.Store.GetCryptoKeysByFeature(ctx, feature)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range keys {
+		if err := db.decryptField(&keys[i].Secret.String, keys[i].SecretKeyID); err != nil {
+			return nil, err
+		}
+	}
+
+	return keys, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {

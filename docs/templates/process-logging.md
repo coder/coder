@@ -191,9 +191,9 @@ would like to add workspace process logging to, follow these steps:
            "--init-address", "127.0.0.1:56123",
            "--label", "workspace_id=${data.coder_workspace.me.id}",
            "--label", "workspace_name=${data.coder_workspace.me.name}",
-           "--label", "user_id=${data.coder_workspace.me.owner_id}",
-           "--label", "username=${data.coder_workspace.me.owner}",
-           "--label", "user_email=${data.coder_workspace.me.owner_email}",
+           "--label", "user_id=${data.coder_workspace_owner.me.id}",
+           "--label", "username=${data.coder_workspace_owner.me.name}",
+           "--label", "user_email=${data.coder_workspace_owner.me.email}",
          ]
          security_context {
            // exectrace must be started as root so it can attach probes into the
