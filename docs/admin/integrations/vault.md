@@ -21,8 +21,8 @@ will show you how to use these modules to integrate HashiCorp Vault with Coder.
 
 [`vault-github`](https://registry.coder.com/modules/vault-github) is a terraform
 module that allows you to authenticate with Vault using a GitHub token. This
-modules uses the existing GitHub [external authentication]() to get the token
-and authenticate with Vault. TODO: Add link to external auth
+modules uses the existing GitHub [external authentication](../external-auth.md)
+to get the token and authenticate with Vault.
 
 To use this module, you need to add the following code to your terraform
 configuration:

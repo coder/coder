@@ -118,7 +118,7 @@ Workspaces and templates can pull artifacts from an artifact manager, such as
 JFrog Artifactory. This can be configured on the infrastructure level, or in
 some cases within Coder:
 
-- Tutorial: [JFrog Artifactory and Coder](#TODO)
+- Tutorial: [JFrog Artifactory and Coder](../integrations/jfrog-artifactory.md)
 
 ### Container Registry (Optional)
 

@@ -57,8 +57,3 @@ resources or a missing image. You can install
 events to the Coder UI.
 
 ![Kubernetes logs in Coder dashboard](../../images/admin/monitoring/logstream-kube.png)
-
-## Support Bundle
-
-TODO. Unsure if this should go on a separate page, or the root since we have the
-tutorial.

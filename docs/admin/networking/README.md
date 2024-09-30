@@ -1,7 +1,5 @@
 # Networking
 
-<!-- TODO: Link -->
-
 Coder's network topology has three types of nodes: workspaces, coder servers,
 and users.
 
