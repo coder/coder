@@ -943,6 +943,33 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("write config url: %w", err)
 			}
 
+			// Manage notifications.
+			cfg := options.DeploymentValues.Notifications
+			metrics := notifications.NewMetrics(options.PrometheusRegistry)
+			helpers := templateHelpers(options)
+
+			// The enqueuer is responsible for enqueueing notifications to the given store.
+			enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+			}
+			options.NotificationsEnqueuer = enqueuer
+
+			// The notification manager is responsible for:
+			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+			//   - keeping the store updated with status updates
+			notificationsManager, err := notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+			}
+
+			// nolint:gocritic // TODO: create own role.
+			notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
+
+			// Run report generator to distribute periodic reports.
+			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+			defer notificationReportGenerator.Close()
+
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to
 			// avoid leaving dangling goroutines waiting for the
@@ -998,33 +1025,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			)
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
-
-			// Manage notifications.
-			cfg := options.DeploymentValues.Notifications
-			metrics := notifications.NewMetrics(options.PrometheusRegistry)
-			helpers := templateHelpers(options)
-
-			// The enqueuer is responsible for enqueueing notifications to the given store.
-			enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
-			if err != nil {
-				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
-			}
-			options.NotificationsEnqueuer = enqueuer
-
-			// The notification manager is responsible for:
-			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
-			//   - keeping the store updated with status updates
-			notificationsManager, err := notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
-			if err != nil {
-				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
-			}
-
-			// nolint:gocritic // TODO: create own role.
-			notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
-
-			// Run report generator to distribute periodic reports.
-			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-			defer notificationReportGenerator.Close()
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
