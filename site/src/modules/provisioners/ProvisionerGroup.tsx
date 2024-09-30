@@ -62,6 +62,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		return null;
 	}
 
+	const daemonScope = firstProvisioner.tags.scope || "organization";
 	const allProvisionersAreSameVersion = provisioners.every(
 		(it) => it.version === firstProvisioner.version,
 	);
@@ -72,6 +73,9 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
+	const extraTags = Object.entries(keyTags).filter(
+		([key]) => key !== "scope" && key !== "owner",
+	);
 
 	let warnings = 0;
 	let provisionersWithWarnings = 0;
@@ -135,6 +139,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 								</span>
 							</>
 						)}
+
 						{type === "userAuth" && <UserAuthProvisionerTitle />}
 
 						{type === "psk" && <PskProvisionerTitle />}
@@ -162,10 +167,19 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						justifyContent: "right",
 					}}
 				>
+					{/* {type !== "userAuth" && 						
+						<Tooltip title="Scope">
+							<Pill
+								size="lg"
+								icon={<BusinessIcon />}
+							>
+								<span css={{ textTransform: "capitalize" }}>{"organization"}</span>
+							</Pill>
+						</Tooltip>}
 					{type === "key" &&
-						Object.entries(keyTags).map(([key, value]) => (
+						extraTags.map(([key, value]) => (
 							<ProvisionerTag key={key} tagName={key} tagValue={value} />
-						))}
+						))} */}
 				</div>
 			</header>
 
@@ -222,7 +236,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 										)}
 									</span>
 								</div>
-								<PskProvisionerTags tags={provisioner.tags} />
+								<ProvisionerTags tags={provisioner.tags} />
 							</Stack>
 						</div>
 					))}
@@ -307,11 +321,11 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 	);
 };
 
-interface PskProvisionerTagsProps {
+interface ProvisionerTagsProps {
 	tags: Record<string, string>;
 }
 
-const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
+const ProvisionerTags: FC<ProvisionerTagsProps> = ({ tags }) => {
 	const daemonScope = tags.scope || "organization";
 	const iconScope =
 		daemonScope === "organization" ? <BusinessIcon /> : <PersonIcon />;
