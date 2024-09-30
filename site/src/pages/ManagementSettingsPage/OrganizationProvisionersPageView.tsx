@@ -113,13 +113,13 @@ const ViewContent: FC<ViewContentProps> = ({ buildInfo, provisioners }) => {
 				{provisioners.map((group) => {
 					const type = getGroupType(group.key);
 
-					// We intentionally hide user-authenticated provisioners for now
-					// because there are 1. some grouping issues on the backend and 2. we
-					// should ideally group them by the user who authenticated them, and
-					// not just lump them all together.
-					if (type === "userAuth") {
-						return null;
-					}
+					// // We intentionally hide user-authenticated provisioners for now
+					// // because there are 1. some grouping issues on the backend and 2. we
+					// // should ideally group them by the user who authenticated them, and
+					// // not just lump them all together.
+					// if (type === "userAuth") {
+					// 	return null;
+					// }
 
 					return (
 						<ProvisionerGroup

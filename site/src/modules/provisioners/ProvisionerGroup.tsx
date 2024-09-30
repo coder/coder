@@ -27,7 +27,7 @@ import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import { ProvisionerTag } from "./ProvisionerTag";
 
-type ProvisionerGroupType = "builtin" | "psk" | "key";
+type ProvisionerGroupType = "builtin" | "userAuth" | "psk" | "key";
 
 interface ProvisionerGroupProps {
 	readonly buildInfo: BuildInfoResponse;
@@ -62,7 +62,6 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		return null;
 	}
 
-	const daemonScope = firstProvisioner.tags.scope || "organization";
 	const allProvisionersAreSameVersion = provisioners.every(
 		(it) => it.version === firstProvisioner.version,
 	);
@@ -73,9 +72,6 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
-	const extraTags = Object.entries(keyTags).filter(
-		([key]) => key !== "scope" && key !== "owner",
-	);
 
 	let warnings = 0;
 	let provisionersWithWarnings = 0;
@@ -101,9 +97,6 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 		provisionersWithWarnings === 1
 			? "1 provisioner"
 			: `${provisionersWithWarnings} provisioners`;
-
-	const hasMultipleTagVariants =
-		type === "psk" && provisioners.some((it) => !isSimpleTagSet(it.tags));
 
 	return (
 		<div
@@ -142,6 +135,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 								</span>
 							</>
 						)}
+						{type === "userAuth" && <UserAuthProvisionerTitle />}
 
 						{type === "psk" && <PskProvisionerTitle />}
 						{type === "key" && (
@@ -168,28 +162,8 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						justifyContent: "right",
 					}}
 				>
-					{!hasMultipleTagVariants ? (
-						<Tooltip title="Scope">
-							<Pill
-								size="lg"
-								icon={
-									daemonScope === "organization" ? (
-										<BusinessIcon />
-									) : (
-										<PersonIcon />
-									)
-								}
-							>
-								<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
-							</Pill>
-						</Tooltip>
-					) : (
-						<Pill size="lg" icon={<TagIcon />}>
-							Multiple tags
-						</Pill>
-					)}
 					{type === "key" &&
-						extraTags.map(([key, value]) => (
+						Object.entries(keyTags).map(([key, value]) => (
 							<ProvisionerTag key={key} tagName={key} tagValue={value} />
 						))}
 				</div>
@@ -248,9 +222,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 										)}
 									</span>
 								</div>
-								{hasMultipleTagVariants && (
-									<PskProvisionerTags tags={provisioner.tags} />
-								)}
+								<PskProvisionerTags tags={provisioner.tags} />
 							</Stack>
 						</div>
 					))}
@@ -405,6 +377,27 @@ const BuiltinProvisionerTitle: FC = () => {
 							These provisioners are running as part of a coderd instance.
 							Built-in provisioners are only available for the default
 							organization. <Link href={docs("/")}>Learn more&hellip;</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
+const UserAuthProvisionerTitle: FC = () => {
+	return (
+		<h4 css={styles.groupTitle}>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>User provisioners</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>User provisioners</HelpTooltipTitle>
+						<HelpTooltipText>
+							These provisioners all use user session authentication. User
+							provisioners can be scoped to the user or organization.{" "}
+							<Link href={docs("/")}>Learn more&hellip;</Link>
 						</HelpTooltipText>
 					</HelpTooltipContent>
 				</HelpTooltip>
