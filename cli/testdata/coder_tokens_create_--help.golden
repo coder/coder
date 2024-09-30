@@ -12,5 +12,9 @@ OPTIONS:
   -n, --name string, $CODER_TOKEN_NAME
           Specify a human-readable name.
 
+  -u, --user string, $CODER_TOKEN_USER
+          Specify the user to create the token for (Only works if logged in user
+          is admin).
+
 ———
 Run `coder --help` for a list of global options.
