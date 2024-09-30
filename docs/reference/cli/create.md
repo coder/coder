@@ -29,6 +29,15 @@ coder create [flags] [name]
 
 Specify a template name.
 
+### --template-version
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>string</code>                    |
+| Environment | <code>$CODER_TEMPLATE_VERSION</code> |
+
+Specify a template version name.
+
 ### --start-at
 
 |             |                                        |
