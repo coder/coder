@@ -106,28 +106,12 @@ func TestUserLogin(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
-	// Password auth should fail if the user is made without password login.
-	t.Run("DisableLoginDeprecatedField", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-			r.Password = ""
-			r.DisableLogin = true
-		})
-
-		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
-			Password: "SomeSecurePassword!",
-		})
-		require.Error(t, err)
-	})
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = ""
 			r.UserLoginType = codersdk.LoginTypeNone
 		})
@@ -370,11 +354,25 @@ func TestUserOAuth2Github(t *testing.T) {
 		})
 		numLogs := len(auditor.AuditLogs())
 
-		resp := oauth2Callback(t, client)
+		// Validate that attempting to redirect away from the
+		// site does not work.
+		maliciousHost := "https://malicious.com"
+		expectedPath := "/my/path"
+		resp := oauth2Callback(t, client, func(req *http.Request) {
+			// Add the cookie to bypass the parsing in httpmw/oauth2.go
+			req.AddCookie(&http.Cookie{
+				Name:  codersdk.OAuth2RedirectCookie,
+				Value: maliciousHost + expectedPath,
+			})
+		})
 		numLogs++ // add an audit log for login
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
+		redirect, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, expectedPath, redirect.Path)
+		require.Equal(t, client.URL.Host, redirect.Host)
+		require.NotContains(t, redirect.String(), maliciousHost)
 		client.SetSessionToken(authCookieValue(resp.Cookies()))
 		user, err := client.User(context.Background(), "me")
 		require.NoError(t, err)
@@ -382,6 +380,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, "Kylium Carbonate", user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
@@ -435,6 +434,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, strings.Repeat("a", 128), user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.NotEqual(t, auditor.AuditLogs()[numLogs-1].UserID, uuid.Nil)
@@ -490,6 +490,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "kyle", user.Username)
 		require.Equal(t, "Kylium Carbonate", user.Name)
 		require.Equal(t, "/hello-world", user.AvatarURL)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -552,6 +553,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "mathias@coder.com", user.Email)
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -614,6 +616,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.Equal(t, "mathias@coder.com", user.Email)
 		require.Equal(t, "mathias", user.Username)
 		require.Equal(t, "Mathias Mathias", user.Name)
+		require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		require.Len(t, auditor.AuditLogs(), numLogs)
@@ -1286,6 +1289,7 @@ func TestUserOIDC(t *testing.T) {
 				require.Len(t, auditor.AuditLogs(), numLogs)
 				require.NotEqual(t, uuid.Nil, auditor.AuditLogs()[numLogs-1].UserID)
 				require.Equal(t, database.AuditActionRegister, auditor.AuditLogs()[numLogs-1].Action)
+				require.Equal(t, 1, len(user.OrganizationIDs), "in the default org")
 			}
 		})
 	}
@@ -1446,6 +1450,59 @@ func TestUserOIDC(t *testing.T) {
 		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{})
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
+
+	t.Run("StripRedirectHost", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		expectedRedirect := "/foo/bar?hello=world&bar=baz"
+		redirectURL := "https://malicious" + expectedRedirect
+
+		callbackPath := fmt.Sprintf("/api/v2/users/oidc/callback?redirect=%s", url.QueryEscape(redirectURL))
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+			oidctest.WithCallbackPath(callbackPath),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+
+		client.HTTPClient.Transport = http.DefaultTransport
+
+		client.HTTPClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		claims := jwt.MapClaims{
+			"email":          "user@example.com",
+			"email_verified": true,
+		}
+
+		// Perform the login
+		loginClient, resp := fake.LoginWithClient(t, client, claims)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		// Get the location from the response
+		location, err := resp.Location()
+		require.NoError(t, err)
+
+		// Check that the redirect URL has been stripped of its malicious host
+		require.Equal(t, expectedRedirect, location.RequestURI())
+		require.Equal(t, client.URL.Host, location.Host)
+		require.NotContains(t, location.String(), "malicious")
+
+		// Verify the user was created
+		user, err := loginClient.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, "user@example.com", user.Email)
+	})
 }
 
 func TestUserLogout(t *testing.T) {
@@ -1470,11 +1527,11 @@ func TestUserLogout(t *testing.T) {
 		//nolint:gosec
 		password = "SomeSecurePassword123!"
 	)
-	newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-		Email:          email,
-		Username:       username,
-		Password:       password,
-		OrganizationID: firstUser.OrganizationID,
+	newUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		Email:           email,
+		Username:        username,
+		Password:        password,
+		OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
 	})
 	require.NoError(t, err)
 
@@ -1597,7 +1654,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
 }
 
-func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
+func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Request)) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -1607,6 +1664,9 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
+	for _, opt := range opts {
+		opt(req)
+	}
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.OAuth2StateCookie,
 		Value: state,

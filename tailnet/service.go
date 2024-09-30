@@ -21,6 +21,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+var ErrUnsupportedVersion = xerrors.New("unsupported version")
+
 type streamIDContextKey struct{}
 
 // StreamID identifies the caller of the CoordinateTailnet RPC.  We store this
@@ -43,10 +45,11 @@ type ClientServiceOptions struct {
 	DERPMapUpdateFrequency  time.Duration
 	DERPMapFn               func() *tailcfg.DERPMap
 	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
+	ResumeTokenProvider     ResumeTokenProvider
 }
 
 // ClientService is a tailnet coordination service that accepts a connection and version from a
-// tailnet client, and support versions 1.0 and 2.x of the Tailnet API protocol.
+// tailnet client, and support versions 2.x of the Tailnet API protocol.
 type ClientService struct {
 	Logger   slog.Logger
 	CoordPtr *atomic.Pointer[Coordinator]
@@ -66,6 +69,7 @@ func NewClientService(options ClientServiceOptions) (
 		DerpMapUpdateFrequency:  options.DERPMapUpdateFrequency,
 		DerpMapFn:               options.DERPMapFn,
 		NetworkTelemetryHandler: options.NetworkTelemetryHandler,
+		ResumeTokenProvider:     options.ResumeTokenProvider,
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	if err != nil {
@@ -92,9 +96,6 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 		return err
 	}
 	switch major {
-	case 1:
-		coord := *(s.CoordPtr.Load())
-		return coord.ServeClient(conn, id, agent)
 	case 2:
 		auth := ClientCoordinateeAuth{AgentID: agent}
 		streamID := StreamID{
@@ -105,7 +106,7 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 		return s.ServeConnV2(ctx, conn, streamID)
 	default:
 		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
-		return xerrors.New("unsupported version")
+		return ErrUnsupportedVersion
 	}
 }
 
@@ -117,6 +118,8 @@ func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID 
 		return xerrors.Errorf("yamux init failed: %w", err)
 	}
 	ctx = WithStreamID(ctx, streamID)
+	s.Logger.Debug(ctx, "serving dRPC tailnet v2 API session",
+		slog.F("peer_id", streamID.ID.String()))
 	return s.drpc.Serve(ctx, session)
 }
 
@@ -127,6 +130,7 @@ type DRPCService struct {
 	DerpMapUpdateFrequency  time.Duration
 	DerpMapFn               func() *tailcfg.DERPMap
 	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
+	ResumeTokenProvider     ResumeTokenProvider
 }
 
 func (s *DRPCService) PostTelemetry(_ context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
@@ -165,6 +169,19 @@ func (s *DRPCService) StreamDERPMaps(_ *proto.StreamDERPMapsRequest, stream prot
 		case <-ticker.C:
 		}
 	}
+}
+
+func (s *DRPCService) RefreshResumeToken(ctx context.Context, _ *proto.RefreshResumeTokenRequest) (*proto.RefreshResumeTokenResponse, error) {
+	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
+	if !ok {
+		return nil, xerrors.New("no Stream ID")
+	}
+
+	res, err := s.ResumeTokenProvider.GenerateResumeToken(streamID.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("generate resume token: %w", err)
+	}
+	return res, nil
 }
 
 func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) error {

@@ -37,6 +37,7 @@ func (a *agent) apiHandler() http.Handler {
 	}
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
 	r.Get("/api/v0/listening-ports", lp.handler)
+	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)

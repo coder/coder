@@ -44,6 +44,7 @@ func TestManifest(t *testing.T) {
 					Threshold: 55555666,
 				},
 				Health: codersdk.WorkspaceAppHealthHealthy,
+				Hidden: false,
 			},
 			{
 				ID:            uuid.New(),
@@ -62,6 +63,7 @@ func TestManifest(t *testing.T) {
 					Threshold: 22555666,
 				},
 				Health: codersdk.WorkspaceAppHealthInitializing,
+				Hidden: true,
 			},
 		},
 		DERPMap: &tailcfg.DERPMap{
@@ -104,6 +106,7 @@ func TestManifest(t *testing.T) {
 		},
 		Scripts: []codersdk.WorkspaceAgentScript{
 			{
+				ID:               uuid.New(),
 				LogSourceID:      uuid.New(),
 				LogPath:          "/var/log/script.log",
 				Script:           "script",
@@ -112,8 +115,10 @@ func TestManifest(t *testing.T) {
 				RunOnStop:        true,
 				StartBlocksLogin: true,
 				Timeout:          time.Second,
+				DisplayName:      "foo",
 			},
 			{
+				ID:               uuid.New(),
 				LogSourceID:      uuid.New(),
 				LogPath:          "/var/log/script2.log",
 				Script:           "script2",
@@ -122,6 +127,7 @@ func TestManifest(t *testing.T) {
 				RunOnStop:        true,
 				StartBlocksLogin: true,
 				Timeout:          time.Second * 4,
+				DisplayName:      "bar",
 			},
 		},
 	}

@@ -1,6 +1,5 @@
 import * as fs from "node:fs/promises";
 import type { Writable } from "node:stream";
-/* eslint-disable no-console -- Logging is sort of the whole point here */
 import type {
 	FullConfig,
 	FullResult,
@@ -23,19 +22,19 @@ class CoderReporter implements Reporter {
 
 	onBegin(config: FullConfig, suite: Suite) {
 		this.config = config;
-		console.log(`==> Running ${suite.allTests().length} tests`);
+		console.info(`==> Running ${suite.allTests().length} tests`);
 	}
 
 	onTestBegin(test: TestCase) {
 		this.testOutput.set(test.id, []);
-		console.log(`==> Starting test ${test.title}`);
+		console.info(`==> Starting test ${test.title}`);
 	}
 
 	onStdOut(chunk: string, test?: TestCase, _?: TestResult): void {
 		// If there's no associated test, just print it now
 		if (!test) {
 			for (const line of logLines(chunk)) {
-				console.log(`[stdout] ${line}`);
+				console.info(`[stdout] ${line}`);
 			}
 			return;
 		}
@@ -58,12 +57,12 @@ class CoderReporter implements Reporter {
 	async onTestEnd(test: TestCase, result: TestResult) {
 		try {
 			if (test.expectedStatus === "skipped") {
-				console.log(`==> Skipping test ${test.title}`);
+				console.info(`==> Skipping test ${test.title}`);
 				this.skippedCount++;
 				return;
 			}
 
-			console.log(`==> Finished test ${test.title}: ${result.status}`);
+			console.info(`==> Finished test ${test.title}: ${result.status}`);
 
 			if (result.status === "passed") {
 				this.passedCount++;
@@ -82,24 +81,24 @@ class CoderReporter implements Reporter {
 			const outputFile = `test-results/debug-pprof-goroutine-${fsTestTitle}.txt`;
 			await exportDebugPprof(outputFile);
 
-			console.log(`Data from pprof has been saved to ${outputFile}`);
-			console.log("==> Output");
+			console.info(`Data from pprof has been saved to ${outputFile}`);
+			console.info("==> Output");
 			const output = this.testOutput.get(test.id)!;
 			for (const [target, chunk] of output) {
 				target.write(`${chunk.replace(/\n$/g, "")}\n`);
 			}
 
 			if (result.errors.length > 0) {
-				console.log("==> Errors");
+				console.info("==> Errors");
 				for (const error of result.errors) {
 					reportError(error);
 				}
 			}
 
 			if (result.attachments.length > 0) {
-				console.log("==> Attachments");
+				console.info("==> Attachments");
 				for (const attachment of result.attachments) {
-					console.log(attachment);
+					console.info(attachment);
 				}
 			}
 		} finally {
@@ -108,26 +107,26 @@ class CoderReporter implements Reporter {
 	}
 
 	onEnd(result: FullResult) {
-		console.log(`==> Tests ${result.status}`);
+		console.info(`==> Tests ${result.status}`);
 		if (!enterpriseLicense) {
-			console.log(
+			console.info(
 				"==> Enterprise tests were skipped, because no license was provided",
 			);
 		}
-		console.log(`${this.passedCount} passed`);
+		console.info(`${this.passedCount} passed`);
 		if (this.skippedCount > 0) {
-			console.log(`${this.skippedCount} skipped`);
+			console.info(`${this.skippedCount} skipped`);
 		}
 		if (this.failedTests.length > 0) {
-			console.log(`${this.failedTests.length} failed`);
+			console.info(`${this.failedTests.length} failed`);
 			for (const test of this.failedTests) {
-				console.log(`  ${test.location.file} › ${test.title}`);
+				console.info(`  ${test.location.file} › ${test.title}`);
 			}
 		}
 		if (this.timedOutTests.length > 0) {
-			console.log(`${this.timedOutTests.length} timed out`);
+			console.info(`${this.timedOutTests.length} timed out`);
 			for (const test of this.timedOutTests) {
-				console.log(`  ${test.location.file} › ${test.title}`);
+				console.info(`  ${test.location.file} › ${test.title}`);
 			}
 		}
 	}
@@ -157,18 +156,17 @@ const exportDebugPprof = async (outputFile: string) => {
 
 const reportError = (error: TestError) => {
 	if (error.location) {
-		console.log(`${error.location.file}:${error.location.line}:`);
+		console.info(`${error.location.file}:${error.location.line}:`);
 	}
 	if (error.snippet) {
-		console.log(error.snippet);
+		console.info(error.snippet);
 	}
 
 	if (error.message) {
-		console.log(error.message);
+		console.info(error.message);
 	} else {
-		console.log(error);
+		console.info(error);
 	}
 };
 
-// eslint-disable-next-line no-unused-vars -- Playwright config uses it
 export default CoderReporter;

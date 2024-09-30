@@ -25,12 +25,14 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 | Name                                               | Purpose                                                                                               |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [<code>completion</code>](./completion.md)         | Install or update shell completion scripts for the detected or chosen shell.                          |
 | [<code>dotfiles</code>](./dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
 | [<code>external-auth</code>](./external-auth.md)   | Manage external authentication                                                                        |
 | [<code>login</code>](./login.md)                   | Authenticate with Coder deployment                                                                    |
 | [<code>logout</code>](./logout.md)                 | Unauthenticate your local session                                                                     |
 | [<code>netcheck</code>](./netcheck.md)             | Print network debug information for DERP and STUN                                                     |
 | [<code>notifications</code>](./notifications.md)   | Manage Coder notifications                                                                            |
+| [<code>organizations</code>](./organizations.md)   | Organization related commands                                                                         |
 | [<code>port-forward</code>](./port-forward.md)     | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R". |
 | [<code>publickey</code>](./publickey.md)           | Output your Coder public key used for Git operations                                                  |
 | [<code>reset-password</code>](./reset-password.md) | Directly connect to the database to reset a user's password                                           |
@@ -64,7 +66,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>features</code>](./features.md)             | List Enterprise features                                                                              |
 | [<code>licenses</code>](./licenses.md)             | Add, delete, and list licenses                                                                        |
 | [<code>groups</code>](./groups.md)                 | Manage groups                                                                                         |
-| [<code>provisionerd</code>](./provisionerd.md)     | Manage provisioner daemons                                                                            |
+| [<code>provisioner</code>](./provisioner.md)       | Manage provisioner daemons                                                                            |
 
 ## Options
 

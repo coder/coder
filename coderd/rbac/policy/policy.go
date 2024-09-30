@@ -274,4 +274,19 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update notification preferences"),
 		},
 	},
+	"crypto_key": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read crypto keys"),
+			ActionUpdate: actDef("update crypto keys"),
+			ActionDelete: actDef("delete crypto keys"),
+			ActionCreate: actDef("create crypto keys"),
+		},
+	},
+	// idpsync_settings should always be org scoped
+	"idpsync_settings": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read IdP sync settings"),
+			ActionUpdate: actDef("update IdP sync settings"),
+		},
+	},
 }

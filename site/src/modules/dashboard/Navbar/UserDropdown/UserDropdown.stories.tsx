@@ -31,7 +31,7 @@ const Example: Story = {
 		await step("click to open", async () => {
 			await userEvent.click(canvas.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByText(/v99\.999\.9999/i)).toBeInTheDocument(),
+				expect(screen.getByText(/v2\.\d+\.\d+/i)).toBeInTheDocument(),
 			);
 		});
 	},

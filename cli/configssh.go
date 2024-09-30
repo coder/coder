@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/cli/safeexec"
+	"github.com/natefinch/atomic"
 	"github.com/pkg/diff"
 	"github.com/pkg/diff/write"
 	"golang.org/x/exp/constraints"
@@ -524,7 +525,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 
 			if !bytes.Equal(configRaw, configModified) {
-				err = writeWithTempFileAndMove(sshConfigFile, bytes.NewReader(configModified))
+				err = atomic.WriteFile(sshConfigFile, bytes.NewReader(configModified))
 				if err != nil {
 					return xerrors.Errorf("write ssh config failed: %w", err)
 				}
@@ -756,50 +757,6 @@ func sshConfigSplitOnCoderSection(data []byte) (before, section []byte, after []
 	}
 
 	return data, nil, nil, nil
-}
-
-// writeWithTempFileAndMove writes to a temporary file in the same
-// directory as path and renames the temp file to the file provided in
-// path. This ensure we avoid trashing the file we are writing due to
-// unforeseen circumstance like filesystem full, command killed, etc.
-func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
-	dir := filepath.Dir(path)
-	name := filepath.Base(path)
-
-	// Ensure that e.g. the ~/.ssh directory exists.
-	if err = os.MkdirAll(dir, 0o700); err != nil {
-		return xerrors.Errorf("create directory: %w", err)
-	}
-
-	// Create a tempfile in the same directory for ensuring write
-	// operation does not fail.
-	f, err := os.CreateTemp(dir, fmt.Sprintf(".%s.", name))
-	if err != nil {
-		return xerrors.Errorf("create temp file failed: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			_ = os.Remove(f.Name()) // Cleanup in case a step failed.
-		}
-	}()
-
-	_, err = io.Copy(f, r)
-	if err != nil {
-		_ = f.Close()
-		return xerrors.Errorf("write temp file failed: %w", err)
-	}
-
-	err = f.Close()
-	if err != nil {
-		return xerrors.Errorf("close temp file failed: %w", err)
-	}
-
-	err = os.Rename(f.Name(), path)
-	if err != nil {
-		return xerrors.Errorf("rename temp file failed: %w", err)
-	}
-
-	return nil
 }
 
 // sshConfigExecEscape quotes the string if it contains spaces, as per

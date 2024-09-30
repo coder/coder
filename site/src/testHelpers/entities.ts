@@ -215,8 +215,9 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
+	provisioner_api_version: "1.1",
 	external_url: "file:///mock-url",
-	version: "v99.999.9999+c9cdf14",
+	version: "v2.99.99",
 	dashboard_url: "https:///mock-url",
 	workspace_proxy: false,
 	upgrade_message: "My custom upgrade message",
@@ -317,19 +318,23 @@ export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
 	organization_id: MockOrganization.id,
 };
 
-export const MockOrganizationAuditorRole: TypesGen.Role = {
+export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	name: "organization-auditor",
 	display_name: "Organization Auditor",
+	assignable: true,
+	built_in: false,
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
 };
 
-export const MockRoleWithOrgPermissions: TypesGen.Role = {
+export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
 	organization_id: MockOrganization.id,
+	assignable: true,
+	built_in: false,
 	site_permissions: [],
 	organization_permissions: [
 		{
@@ -386,6 +391,46 @@ export const MockRoleWithOrgPermissions: TypesGen.Role = {
 			negate: false,
 			resource_type: "audit_log",
 			action: "read",
+		},
+		{
+			negate: false,
+			resource_type: "group",
+			action: "create",
+		},
+		{
+			negate: false,
+			resource_type: "group",
+			action: "delete",
+		},
+		{
+			negate: false,
+			resource_type: "group",
+			action: "read",
+		},
+		{
+			negate: false,
+			resource_type: "group",
+			action: "update",
+		},
+		{
+			negate: false,
+			resource_type: "provisioner_daemon",
+			action: "create",
+		},
+	],
+	user_permissions: [],
+};
+
+export const MockRole2WithOrgPermissions: TypesGen.Role = {
+	name: "my-role-1",
+	display_name: "My Role 1",
+	organization_id: MockOrganization.id,
+	site_permissions: [],
+	organization_permissions: [
+		{
+			negate: false,
+			resource_type: "audit_log",
+			action: "create",
 		},
 	],
 	user_permissions: [],
@@ -494,26 +539,93 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		roles: [],
 	};
 
+export const MockProvisionerKey: TypesGen.ProvisionerKey = {
+	id: "test-provisioner-key",
+	organization: MockOrganization.id,
+	created_at: "2022-05-17T17:39:01.382927298Z",
+	name: "test-name",
+	tags: { scope: "organization" },
+};
+
+export const MockProvisionerBuiltinKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000001",
+	name: "built-in",
+};
+
+export const MockProvisionerUserAuthKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000002",
+	name: "user-auth",
+};
+
+export const MockProvisionerPskKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000003",
+	name: "psk",
+};
+
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "test-provisioner",
+	key_id: MockProvisionerBuiltinKey.id,
 	organization_id: MockOrganization.id,
 	name: "Test Provisioner",
 	provisioners: ["echo"],
 	tags: { scope: "organization" },
-	version: "v2.34.5",
-	api_version: "1.0",
+	version: MockBuildInfo.version,
+	api_version: MockBuildInfo.provisioner_api_version,
+	last_seen_at: new Date().toISOString(),
+};
+
+export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-user-auth-provisioner",
+	key_id: MockProvisionerUserAuthKey.id,
+	name: `${MockUser.name}'s provisioner`,
+	tags: { scope: "user" },
+};
+
+export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-psk-provisioner",
+	key_id: MockProvisionerPskKey.id,
+	name: "Test psk provisioner",
+};
+
+export const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-key-provisioner",
+	key_id: MockProvisionerKey.id,
+	organization_id: MockProvisionerKey.organization,
+	name: "Test key provisioner",
+	tags: MockProvisionerKey.tags,
+};
+
+export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-provisioner-2",
+	name: "Test Provisioner 2",
+	key_id: MockProvisionerKey.id,
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
-	created_at: "2022-05-17T17:39:01.382927298Z",
+	...MockProvisioner,
 	id: "test-user-provisioner",
-	organization_id: MockOrganization.id,
 	name: "Test User Provisioner",
-	provisioners: ["echo"],
 	tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
-	version: "v2.34.5",
-	api_version: "1.0",
+};
+
+export const MockProvisionerWithTags: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-provisioner-tags",
+	name: "Test Provisioner with tags",
+	tags: {
+		...MockProvisioner.tags,
+		都市: "ユタ",
+		きっぷ: "yes",
+		ちいさい: "no",
+	},
 };
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -752,6 +864,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 		interval: 0,
 		threshold: 0,
 	},
+	hidden: false,
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
@@ -763,6 +876,7 @@ export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
 };
 
 export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
+	id: "08eaca83-1221-4fad-b882-d1136981f54d",
 	log_source_id: MockWorkspaceAgentLogSource.id,
 	cron: "",
 	log_path: "",
@@ -771,6 +885,7 @@ export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	script: "echo 'hello world'",
 	start_blocks_login: false,
 	timeout: 0,
+	display_name: "Say Hello",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -785,7 +900,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	status: "connected",
 	updated_at: "",
 	version: MockBuildInfo.version,
-	api_version: "1.0",
+	api_version: MockBuildInfo.agent_api_version,
 	latency: {
 		"Coder Embedded DERP": {
 			latency_ms: 32.55,
@@ -2490,33 +2605,96 @@ export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	budget: 100,
 };
 
+export const MockGroupSyncSettings: TypesGen.GroupSyncSettings = {
+	field: "group-test",
+	mapping: {
+		"idp-group-1": [
+			"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+			"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+		],
+		"idp-group-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce0"],
+	},
+	regex_filter: "@[a-zA-Z0-9_]+",
+	auto_create_missing_groups: false,
+};
+
+export const MockLegacyMappingGroupSyncSettings: TypesGen.GroupSyncSettings = {
+	...MockGroupSyncSettings,
+	mapping: {},
+	legacy_group_name_mapping: {
+		"idp-group-1": "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+		"idp-group-2": "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+	},
+};
+
+export const MockGroupSyncSettings2: TypesGen.GroupSyncSettings = {
+	field: "group-test",
+	mapping: {
+		"idp-group-1": [
+			"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+			"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e3",
+		],
+		"idp-group-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce2"],
+	},
+	regex_filter: "@[a-zA-Z0-9_]+",
+	auto_create_missing_groups: false,
+};
+
+export const MockRoleSyncSettings: TypesGen.RoleSyncSettings = {
+	field: "role-test",
+	mapping: {
+		"idp-role-1": ["admin", "developer"],
+		"idp-role-2": ["auditor"],
+	},
+};
+
 export const MockGroup: TypesGen.Group = {
 	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
 	name: "Front-End",
 	display_name: "Front-End",
 	avatar_url: "https://example.com",
 	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
 	members: [MockUser, MockUser2],
 	quota_allowance: 5,
 	source: "user",
 	total_member_count: 2,
 };
 
-const everyOneGroup = (organizationId: string): TypesGen.Group => ({
-	id: organizationId,
+export const MockGroup2: TypesGen.Group = {
+	id: "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+	name: "developer",
+	display_name: "",
+	avatar_url: "https://example.com",
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
+	members: [MockUser, MockUser2],
+	quota_allowance: 5,
+	source: "user",
+	total_member_count: 2,
+};
+
+const MockEveryoneGroup: TypesGen.Group = {
+	// The "Everyone" group must have the same ID as a the organization it belongs
+	// to.
+	id: MockOrganization.id,
 	name: "Everyone",
 	display_name: "",
-	organization_id: organizationId,
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
 	members: [],
 	avatar_url: "",
 	quota_allowance: 0,
 	source: "user",
 	total_member_count: 0,
-});
+};
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
-		{ ...everyOneGroup(MockOrganization.id), role: "use" },
+		{ ...MockEveryoneGroup, role: "use" },
 		{ ...MockGroup, role: "admin" },
 	],
 	users: [{ ...MockUser, role: "use" }],
@@ -2584,6 +2762,7 @@ export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
 		enabled: false,
 	},
 	announcement_banners: [],
+	docs_url: "https://coder.com/docs/@main/",
 };
 
 export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {
@@ -3266,7 +3445,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					created_at: "2023-05-01T19:15:56.606593Z",
 					updated_at: "2023-12-05T14:13:36.647535Z",
 					deleted: false,
-					version: "v2.5.0-devel+5fad61102",
+					version: MockBuildInfo.version,
 				},
 				{
 					id: "9d786ce0-55b1-4ace-8acc-a4672ff8d41f",
@@ -3289,7 +3468,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					created_at: "2023-05-01T20:34:11.114005Z",
 					updated_at: "2023-12-05T14:13:45.941716Z",
 					deleted: false,
-					version: "v2.5.0-devel+5fad61102",
+					version: MockBuildInfo.version,
 				},
 				{
 					id: "2e209786-73b1-4838-ba78-e01c9334450a",
@@ -3312,7 +3491,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					created_at: "2023-05-01T20:41:02.76448Z",
 					updated_at: "2023-12-05T14:13:41.968568Z",
 					deleted: false,
-					version: "v2.5.0-devel+5fad61102",
+					version: MockBuildInfo.version,
 				},
 				{
 					id: "c272e80c-0cce-49d6-9782-1b5cf90398e8",
@@ -3383,7 +3562,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					created_at: "2023-12-01T09:21:15.996267Z",
 					updated_at: "2023-12-05T14:13:59.663174Z",
 					deleted: false,
-					version: "v2.5.0-devel+5fad61102",
+					version: MockBuildInfo.version,
 				},
 				{
 					id: "72649dc9-03c7-46a8-bc95-96775e93ddc1",
@@ -3406,7 +3585,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					created_at: "2023-12-01T09:23:44.505529Z",
 					updated_at: "2023-12-05T14:13:55.769058Z",
 					deleted: false,
-					version: "v2.5.0-devel+5fad61102",
+					version: MockBuildInfo.version,
 				},
 				{
 					id: "1f78398f-e5ae-4c38-aa89-30222181d443",
@@ -3429,7 +3608,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					created_at: "2023-12-01T09:36:00.231252Z",
 					updated_at: "2023-12-05T14:13:47.015031Z",
 					deleted: false,
-					version: "v2.5.0-devel+5fad61102",
+					version: MockBuildInfo.version,
 				},
 			],
 		},
@@ -3452,11 +3631,12 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "ok",
-					version: "v2.3.4-devel+abcd1234",
-					api_version: "1.0",
+					version: MockBuildInfo.version,
+					api_version: MockBuildInfo.provisioner_api_version,
 					provisioners: ["echo", "terraform"],
 					tags: {
 						owner: "",
@@ -3473,11 +3653,12 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "00000000-0000-0000-000000000000",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "user-scoped",
-					version: "v2.34-devel+abcd1234",
-					api_version: "1.0",
+					version: MockBuildInfo.version,
+					api_version: MockBuildInfo.provisioner_api_version,
 					provisioners: ["echo", "terraform"],
 					tags: {
 						owner: "12345678-1234-1234-1234-12345678abcd",
@@ -3494,6 +3675,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "unhappy",
@@ -3522,7 +3704,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 			},
 		],
 	},
-	coder_version: "v2.5.0-devel+5fad61102",
+	coder_version: MockBuildInfo.version,
 };
 
 export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
@@ -3650,6 +3832,7 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 				provisioner_daemon: {
 					id: "e455b582-ac04-4323-9ad6-ab71301fa006",
 					organization_id: MockOrganization.id,
+					key_id: MockProvisionerKey.id,
 					created_at: "2024-01-04T15:53:03.21563Z",
 					last_seen_at: "2024-01-04T16:05:03.967551Z",
 					name: "vvuurrkk-2",

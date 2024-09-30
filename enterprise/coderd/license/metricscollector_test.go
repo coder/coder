@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
@@ -25,14 +26,13 @@ func TestCollectLicenseMetrics(t *testing.T) {
 		actualUsers = 4
 		userLimit   = 7
 	)
-	sut.Entitlements.Store(&codersdk.Entitlements{
-		Features: map[codersdk.FeatureName]codersdk.Feature{
-			codersdk.FeatureUserLimit: {
-				Enabled: true,
-				Actual:  ptr.Int64(actualUsers),
-				Limit:   ptr.Int64(userLimit),
-			},
-		},
+	sut.Entitlements = entitlements.New()
+	sut.Entitlements.Update(func(entitlements *codersdk.Entitlements) {
+		entitlements.Features[codersdk.FeatureUserLimit] = codersdk.Feature{
+			Enabled: true,
+			Actual:  ptr.Int64(actualUsers),
+			Limit:   ptr.Int64(userLimit),
+		}
 	})
 
 	registry.Register(&sut)

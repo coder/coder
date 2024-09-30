@@ -214,6 +214,13 @@ func (m metricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	return r0
 }
 
+func (m metricsStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteCryptoKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteCryptoKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) DeleteCustomRole(ctx context.Context, arg database.DeleteCustomRoleParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteCustomRole(ctx, arg)
@@ -305,9 +312,9 @@ func (m metricsStore) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return r0
 }
 
-func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
+func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context, arg time.Time) error {
 	start := time.Now()
-	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx)
+	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
 	return r0
 }
@@ -345,6 +352,13 @@ func (m metricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt
 	err := m.s.DeleteReplicasUpdatedBefore(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("DeleteReplicasUpdatedBefore").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m metricsStore) DeleteRuntimeConfig(ctx context.Context, key string) error {
+	start := time.Now()
+	r0 := m.s.DeleteRuntimeConfig(ctx, key)
+	m.queryLatencies.WithLabelValues("DeleteRuntimeConfig").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
@@ -529,6 +543,34 @@ func (m metricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid
 	return row, err
 }
 
+func (m metricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
+	m.queryLatencies.WithLabelValues("GetCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCryptoKeyByFeatureAndSequence(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetCryptoKeyByFeatureAndSequence").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCryptoKeys(ctx)
+	m.queryLatencies.WithLabelValues("GetCryptoKeys").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetCryptoKeysByFeature(ctx context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCryptoKeysByFeature(ctx, feature)
+	m.queryLatencies.WithLabelValues("GetCryptoKeysByFeature").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDBCryptKeys(ctx)
@@ -578,6 +620,13 @@ func (m metricsStore) GetDeploymentWorkspaceAgentStats(ctx context.Context, crea
 	return row, err
 }
 
+func (m metricsStore) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDeploymentWorkspaceAgentUsageStats(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetDeploymentWorkspaceAgentUsageStats").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	start := time.Now()
 	row, err := m.s.GetDeploymentWorkspaceStats(ctx)
@@ -596,6 +645,13 @@ func (m metricsStore) GetExternalAuthLinksByUserID(ctx context.Context, userID u
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAuthLinksByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetExternalAuthLinksByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg database.GetFailedWorkspaceBuildsByTemplateIDParams) ([]database.GetFailedWorkspaceBuildsByTemplateIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFailedWorkspaceBuildsByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFailedWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -662,7 +718,7 @@ func (m metricsStore) GetGroupMembersCountByGroupID(ctx context.Context, groupID
 	return r0, r1
 }
 
-func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.Group, error) {
+func (m metricsStore) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroups").Observe(time.Since(start).Seconds())
@@ -695,6 +751,13 @@ func (m metricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	version, err := m.s.GetLastUpdateCheck(ctx)
 	m.queryLatencies.WithLabelValues("GetLastUpdateCheck").Observe(time.Since(start).Seconds())
 	return version, err
+}
+
+func (m metricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
+	m.queryLatencies.WithLabelValues("GetLatestCryptoKeyByFeature").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
@@ -743,6 +806,13 @@ func (m metricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg d
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetNotificationMessagesByStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetNotificationReportGeneratorLogByTemplate(ctx context.Context, arg uuid.UUID) (database.NotificationReportGeneratorLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationReportGeneratorLogByTemplate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetNotificationReportGeneratorLogByTemplate").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -858,9 +928,9 @@ func (m metricsStore) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []u
 	return organizations, err
 }
 
-func (m metricsStore) GetOrganizations(ctx context.Context) ([]database.Organization, error) {
+func (m metricsStore) GetOrganizations(ctx context.Context, args database.GetOrganizationsParams) ([]database.Organization, error) {
 	start := time.Now()
-	organizations, err := m.s.GetOrganizations(ctx)
+	organizations, err := m.s.GetOrganizations(ctx, args)
 	m.queryLatencies.WithLabelValues("GetOrganizations").Observe(time.Since(start).Seconds())
 	return organizations, err
 }
@@ -905,6 +975,13 @@ func (m metricsStore) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (
 	job, err := m.s.GetProvisionerJobByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetProvisionerJobByID").Observe(time.Since(start).Seconds())
 	return job, err
+}
+
+func (m metricsStore) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ProvisionerJobTiming, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobTimingsByJobID(ctx, jobID)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobTimingsByJobID").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
@@ -956,14 +1033,14 @@ func (m metricsStore) GetProvisionerLogsAfterID(ctx context.Context, arg databas
 	return logs, err
 }
 
-func (m metricsStore) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+func (m metricsStore) GetQuotaAllowanceForUser(ctx context.Context, userID database.GetQuotaAllowanceForUserParams) (int64, error) {
 	start := time.Now()
 	allowance, err := m.s.GetQuotaAllowanceForUser(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetQuotaAllowanceForUser").Observe(time.Since(start).Seconds())
 	return allowance, err
 }
 
-func (m metricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+func (m metricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID database.GetQuotaConsumedForUserParams) (int64, error) {
 	start := time.Now()
 	consumed, err := m.s.GetQuotaConsumedForUser(ctx, ownerID)
 	m.queryLatencies.WithLabelValues("GetQuotaConsumedForUser").Observe(time.Since(start).Seconds())
@@ -982,6 +1059,13 @@ func (m metricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedAt tim
 	replicas, err := m.s.GetReplicasUpdatedAfter(ctx, updatedAt)
 	m.queryLatencies.WithLabelValues("GetReplicasUpdatedAfter").Observe(time.Since(start).Seconds())
 	return replicas, err
+}
+
+func (m metricsStore) GetRuntimeConfig(ctx context.Context, key string) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetRuntimeConfig(ctx, key)
+	m.queryLatencies.WithLabelValues("GetRuntimeConfig").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
@@ -1341,6 +1425,20 @@ func (m metricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, creat
 	return stats, err
 }
 
+func (m metricsStore) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentUsageStats(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStats").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStatsAndLabels").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	start := time.Now()
 	agents, err := m.s.GetWorkspaceAgentsByResourceIDs(ctx, ids)
@@ -1416,6 +1514,13 @@ func (m metricsStore) GetWorkspaceBuildParameters(ctx context.Context, workspace
 	params, err := m.s.GetWorkspaceBuildParameters(ctx, workspaceBuildID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParameters").Observe(time.Since(start).Seconds())
 	return params, err
+}
+
+func (m metricsStore) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildStatsByTemplates(ctx, since)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildStatsByTemplates").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg database.GetWorkspaceBuildsByWorkspaceIDParams) ([]database.WorkspaceBuild, error) {
@@ -1572,6 +1677,13 @@ func (m metricsStore) InsertAuditLog(ctx context.Context, arg database.InsertAud
 	return log, err
 }
 
+func (m metricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
+	start := time.Now()
+	key, err := m.s.InsertCryptoKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCryptoKey").Observe(time.Since(start).Seconds())
+	return key, err
+}
+
 func (m metricsStore) InsertCustomRole(ctx context.Context, arg database.InsertCustomRoleParams) (database.CustomRole, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertCustomRole(ctx, arg)
@@ -1705,6 +1817,13 @@ func (m metricsStore) InsertProvisionerJobLogs(ctx context.Context, arg database
 	return logs, err
 }
 
+func (m metricsStore) InsertProvisionerJobTimings(ctx context.Context, arg database.InsertProvisionerJobTimingsParams) ([]database.ProvisionerJobTiming, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertProvisionerJobTimings(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertProvisionerJobTimings").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertProvisionerKey(ctx, arg)
@@ -1761,6 +1880,13 @@ func (m metricsStore) InsertUser(ctx context.Context, arg database.InsertUserPar
 	return user, err
 }
 
+func (m metricsStore) InsertUserGroupsByID(ctx context.Context, arg database.InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertUserGroupsByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUserGroupsByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
 	start := time.Now()
 	err := m.s.InsertUserGroupsByName(ctx, arg)
@@ -1807,6 +1933,13 @@ func (m metricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg data
 	start := time.Now()
 	err := m.s.InsertWorkspaceAgentMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
+	return err
+}
+
+func (m metricsStore) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) error {
+	start := time.Now()
+	err := m.s.InsertWorkspaceAgentScriptTimings(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentScriptTimings").Observe(time.Since(start).Seconds())
 	return err
 }
 
@@ -1880,6 +2013,13 @@ func (m metricsStore) ListProvisionerKeysByOrganization(ctx context.Context, org
 	return r0, r1
 }
 
+func (m metricsStore) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListProvisionerKeysByOrganizationExcludeReserved(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("ListProvisionerKeysByOrganizationExcludeReserved").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListWorkspaceAgentPortShares(ctx, workspaceID)
@@ -1915,6 +2055,13 @@ func (m metricsStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.U
 	return r0
 }
 
+func (m metricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
+	m.queryLatencies.WithLabelValues("RemoveUserFromGroups").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
@@ -1948,6 +2095,13 @@ func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateA
 	err := m.s.UpdateAPIKeyByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m metricsStore) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
+	start := time.Now()
+	key, err := m.s.UpdateCryptoKeyDeletesAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateCryptoKeyDeletesAt").Observe(time.Since(start).Seconds())
+	return key, err
 }
 
 func (m metricsStore) UpdateCustomRole(ctx context.Context, arg database.UpdateCustomRoleParams) (database.CustomRole, error) {
@@ -2377,6 +2531,13 @@ func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) e
 	return r0
 }
 
+func (m metricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertDefaultProxy(ctx, arg)
@@ -2412,6 +2573,13 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	return r0
 }
 
+func (m metricsStore) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertNotificationReportGeneratorLog(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertNotificationReportGeneratorLog").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpsertNotificationsSettings(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertNotificationsSettings(ctx, value)
@@ -2431,6 +2599,13 @@ func (m metricsStore) UpsertProvisionerDaemon(ctx context.Context, arg database.
 	r0, r1 := m.s.UpsertProvisionerDaemon(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertProvisionerDaemon").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) UpsertRuntimeConfig(ctx context.Context, arg database.UpsertRuntimeConfigParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertRuntimeConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertRuntimeConfig").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {

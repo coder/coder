@@ -19,9 +19,6 @@ jest.spyOn(console, "error").mockImplementation(() => {});
 
 beforeEach(() => {
 	server.use(
-		http.get("/api/v2/experiments", () => {
-			return HttpResponse.json(["multi-organization"]);
-		}),
 		http.get("/api/v2/entitlements", () => {
 			return HttpResponse.json(MockEntitlementsWithMultiOrg);
 		}),
@@ -53,6 +50,9 @@ const removeMember = async () => {
 
 	const removeButton = screen.getByText(/Remove/);
 	await user.click(removeButton);
+
+	const dialog = await within(document.body).findByRole("dialog");
+	await user.click(within(dialog).getByRole("button", { name: "Remove" }));
 };
 
 const updateUserRole = async (role: SlimRole) => {
@@ -64,7 +64,7 @@ const updateUserRole = async (role: SlimRole) => {
 	}
 
 	// Click on the "edit icon" to display the role options
-	const editButton = within(userRow).getByTitle("Edit user roles");
+	const editButton = within(userRow).getByLabelText("Edit user roles");
 	fireEvent.click(editButton);
 
 	// Click on the role option
@@ -83,7 +83,7 @@ describe("OrganizationMembersPage", () => {
 			it("shows a success message", async () => {
 				await renderPage();
 				await removeMember();
-				await screen.findByText("Member removed successfully.");
+				await screen.findByText("User removed from organization successfully!");
 			});
 		});
 	});

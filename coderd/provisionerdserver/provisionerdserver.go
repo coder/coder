@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -490,7 +491,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 		ownerGroupNames := []string{}
 		for _, group := range ownerGroups {
-			ownerGroupNames = append(ownerGroupNames, group.Name)
+			ownerGroupNames = append(ownerGroupNames, group.Group.Name)
 		}
 		err = s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
 		if err != nil {
@@ -1098,7 +1099,8 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
 	var reason string
 	if build.Reason.Valid() && build.Reason == database.BuildReasonInitiator {
-		return // failed workspace build initiated by a user should not notify
+		s.notifyWorkspaceManualBuildFailed(ctx, workspace, build)
+		return
 	}
 	reason = string(build.Reason)
 
@@ -1112,6 +1114,85 @@ func (s *server) notifyWorkspaceBuildFailed(ctx context.Context, workspace datab
 	); err != nil {
 		s.Logger.Warn(ctx, "failed to notify of failed workspace autobuild", slog.Error(err))
 	}
+}
+
+func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
+	templateAdmins, template, templateVersion, workspaceOwner, err := s.prepareForNotifyWorkspaceManualBuildFailed(ctx, workspace, build)
+	if err != nil {
+		s.Logger.Error(ctx, "unable to collect data for manual build failed notification", slog.Error(err))
+		return
+	}
+
+	for _, templateAdmin := range templateAdmins {
+		if _, err := s.NotificationsEnqueuer.Enqueue(ctx, templateAdmin.ID, notifications.TemplateWorkspaceManualBuildFailed,
+			map[string]string{
+				"name":                     workspace.Name,
+				"template_name":            template.Name,
+				"template_version_name":    templateVersion.Name,
+				"initiator":                build.InitiatorByUsername,
+				"workspace_owner_username": workspaceOwner.Username,
+				"workspace_build_number":   strconv.Itoa(int(build.BuildNumber)),
+			}, "provisionerdserver",
+			// Associate this notification with all the related entities.
+			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
+		); err != nil {
+			s.Logger.Warn(ctx, "failed to notify of failed workspace manual build", slog.Error(err))
+		}
+	}
+}
+
+// prepareForNotifyWorkspaceManualBuildFailed collects data required to build notifications for template admins.
+// The template `notifications.TemplateWorkspaceManualBuildFailed` is quite detailed as it requires information about the template,
+// template version, workspace, workspace build, etc.
+func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) ([]database.GetUsersRow,
+	database.Template, database.TemplateVersion, database.User, error,
+) {
+	users, err := s.Database.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin},
+	})
+	if err != nil {
+		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch template admins: %w", err)
+	}
+
+	usersByIDs := map[uuid.UUID]database.GetUsersRow{}
+	var userIDs []uuid.UUID
+	for _, user := range users {
+		usersByIDs[user.ID] = user
+		userIDs = append(userIDs, user.ID)
+	}
+
+	var templateAdmins []database.GetUsersRow
+	if len(userIDs) > 0 {
+		orgIDsByMemberIDs, err := s.Database.GetOrganizationIDsByMemberIDs(ctx, userIDs)
+		if err != nil {
+			return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch organization IDs by member IDs: %w", err)
+		}
+
+		for _, entry := range orgIDsByMemberIDs {
+			if slices.Contains(entry.OrganizationIDs, workspace.OrganizationID) {
+				templateAdmins = append(templateAdmins, usersByIDs[entry.UserID])
+			}
+		}
+	}
+	sort.Slice(templateAdmins, func(i, j int) bool {
+		return templateAdmins[i].Username < templateAdmins[j].Username
+	})
+
+	template, err := s.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch template: %w", err)
+	}
+
+	templateVersion, err := s.Database.GetTemplateVersionByID(ctx, build.TemplateVersionID)
+	if err != nil {
+		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch template version: %w", err)
+	}
+
+	workspaceOwner, err := s.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		return nil, database.Template{}, database.TemplateVersion{}, database.User{}, xerrors.Errorf("unable to fetch workspace owner: %w", err)
+	}
+	return templateAdmins, template, templateVersion, workspaceOwner, nil
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
@@ -1441,6 +1522,36 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			return nil, xerrors.Errorf("complete job: %w", err)
 		}
 
+		// Insert timings outside transaction since it is metadata.
+		// nolint:exhaustruct // The other fields are set further down.
+		params := database.InsertProvisionerJobTimingsParams{
+			JobID: jobID,
+		}
+		for _, t := range completed.GetWorkspaceBuild().GetTimings() {
+			if t.Start == nil || t.End == nil {
+				s.Logger.Warn(ctx, "timings entry has nil start or end time", slog.F("entry", t.String()))
+				continue
+			}
+
+			var stg database.ProvisionerJobTimingStage
+			if err := stg.Scan(t.Stage); err != nil {
+				s.Logger.Warn(ctx, "failed to parse timings stage, skipping", slog.F("value", t.Stage))
+				continue
+			}
+
+			params.Stage = append(params.Stage, stg)
+			params.Source = append(params.Source, t.Source)
+			params.Resource = append(params.Resource, t.Resource)
+			params.Action = append(params.Action, t.Action)
+			params.StartedAt = append(params.StartedAt, t.Start.AsTime())
+			params.EndedAt = append(params.EndedAt, t.End.AsTime())
+		}
+		_, err = s.Database.InsertProvisionerJobTimings(ctx, params)
+		if err != nil {
+			// Don't fail the transaction for non-critical data.
+			s.Logger.Warn(ctx, "failed to update provisioner job timings", slog.F("job_id", jobID), slog.Error(err))
+		}
+
 		// audit the outcome of the workspace build
 		if getWorkspaceError == nil {
 			// If the workspace has been deleted, notify the owner about it.
@@ -1707,6 +1818,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
 		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
+		scriptIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
+		scriptDisplayName := make([]string, 0, len(prAgent.Scripts))
 		scriptLogPaths := make([]string, 0, len(prAgent.Scripts))
 		scriptSources := make([]string, 0, len(prAgent.Scripts))
 		scriptCron := make([]string, 0, len(prAgent.Scripts))
@@ -1719,6 +1832,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			logSourceIDs = append(logSourceIDs, uuid.New())
 			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
 			logSourceIcons = append(logSourceIcons, script.Icon)
+			scriptIDs = append(scriptIDs, uuid.New())
+			scriptDisplayName = append(scriptDisplayName, script.DisplayName)
 			scriptLogPaths = append(scriptLogPaths, script.LogPath)
 			scriptSources = append(scriptSources, script.Script)
 			scriptCron = append(scriptCron, script.Cron)
@@ -1750,6 +1865,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			StartBlocksLogin: scriptStartBlocksLogin,
 			RunOnStart:       scriptRunOnStart,
 			RunOnStop:        scriptRunOnStop,
+			DisplayName:      scriptDisplayName,
+			ID:               scriptIDs,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent scripts: %w", err)
@@ -1807,6 +1924,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				HealthcheckThreshold: app.Healthcheck.Threshold,
 				Health:               health,
 				DisplayOrder:         int32(app.Order),
+				Hidden:               app.Hidden,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)
@@ -1846,7 +1964,7 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 		UserID:          user.ID,
 		LoginType:       user.LoginType,
 		TokenName:       workspaceSessionTokenName(workspace),
-		DefaultLifetime: s.DeploymentValues.Sessions.DefaultDuration.Value(),
+		DefaultLifetime: s.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LifetimeSeconds: int64(s.DeploymentValues.Sessions.MaximumTokenDuration.Value().Seconds()),
 	})
 	if err != nil {

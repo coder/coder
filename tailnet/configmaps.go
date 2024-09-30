@@ -147,14 +147,14 @@ func (c *configMaps) configLoop() {
 		if c.derpMapDirty {
 			derpMap := c.derpMapLocked()
 			actions = append(actions, func() {
-				c.logger.Info(context.Background(), "updating engine DERP map", slog.F("derp_map", (*derpMapStringer)(derpMap)))
+				c.logger.Debug(context.Background(), "updating engine DERP map", slog.F("derp_map", (*derpMapStringer)(derpMap)))
 				c.engine.SetDERPMap(derpMap)
 			})
 		}
 		if c.netmapDirty {
 			nm := c.netMapLocked()
 			actions = append(actions, func() {
-				c.logger.Info(context.Background(), "updating engine network map", slog.F("network_map", nm))
+				c.logger.Debug(context.Background(), "updating engine network map", slog.F("network_map", nm))
 				c.engine.SetNetworkMap(nm)
 				c.reconfig(nm)
 			})
@@ -162,7 +162,7 @@ func (c *configMaps) configLoop() {
 		if c.filterDirty {
 			f := c.filterLocked()
 			actions = append(actions, func() {
-				c.logger.Info(context.Background(), "updating engine filter", slog.F("filter", f))
+				c.logger.Debug(context.Background(), "updating engine filter", slog.F("filter", f))
 				c.engine.SetFilter(f)
 			})
 		}
@@ -239,6 +239,7 @@ func (c *configMaps) setTunnelDestination(id uuid.UUID) {
 		lc = &peerLifecycle{
 			peerID: id,
 		}
+		c.logger.Debug(context.Background(), "setting peer tunnel destination", slog.F("peer_id", id))
 		c.peers[id] = lc
 	}
 	lc.isDestination = true
@@ -606,6 +607,16 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 		return
 	}
 	d.LastWireguardHandshake = ps.LastHandshake
+}
+
+func (c *configMaps) knownPeerIDs() []uuid.UUID {
+	c.L.Lock()
+	defer c.L.Unlock()
+	out := make([]uuid.UUID, 0, len(c.peers))
+	for id := range c.peers {
+		out = append(out, id)
+	}
+	return out
 }
 
 func (c *configMaps) peerReadyForHandshakeTimeout(peerID uuid.UUID) {

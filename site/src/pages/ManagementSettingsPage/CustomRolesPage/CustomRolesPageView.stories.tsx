@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MockRoleWithOrgPermissions } from "testHelpers/entities";
+import {
+	MockOrganizationAuditorRole,
+	MockRoleWithOrgPermissions,
+} from "testHelpers/entities";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
 const meta: Meta<typeof CustomRolesPageView> = {
@@ -12,7 +15,17 @@ type Story = StoryObj<typeof CustomRolesPageView>;
 
 export const NotEnabled: Story = {
 	args: {
-		roles: [MockRoleWithOrgPermissions],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [MockRoleWithOrgPermissions],
+		canAssignOrgRole: true,
+		isCustomRolesEnabled: false,
+	},
+};
+
+export const NotEnabledEmptyTable: Story = {
+	args: {
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: false,
 	},
@@ -20,7 +33,17 @@ export const NotEnabled: Story = {
 
 export const Enabled: Story = {
 	args: {
-		roles: [MockRoleWithOrgPermissions],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [MockRoleWithOrgPermissions],
+		canAssignOrgRole: true,
+		isCustomRolesEnabled: true,
+	},
+};
+
+export const RoleWithoutPermissions: Story = {
+	args: {
+		builtInRoles: [MockOrganizationAuditorRole],
+		customRoles: [MockOrganizationAuditorRole],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: true,
 	},
@@ -28,29 +51,32 @@ export const Enabled: Story = {
 
 export const EmptyDisplayName: Story = {
 	args: {
-		roles: [
+		customRoles: [
 			{
 				...MockRoleWithOrgPermissions,
 				name: "my-custom-role",
 				display_name: "",
 			},
 		],
+		builtInRoles: [MockRoleWithOrgPermissions],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: true,
 	},
 };
 
-export const EmptyRoleWithoutPermission: Story = {
+export const EmptyTableUserWithoutPermission: Story = {
 	args: {
-		roles: [],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [],
 		canAssignOrgRole: false,
 		isCustomRolesEnabled: true,
 	},
 };
 
-export const EmptyRoleWithPermission: Story = {
+export const EmptyTableUserWithPermission: Story = {
 	args: {
-		roles: [],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: true,
 	},

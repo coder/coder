@@ -14,21 +14,21 @@ coder groups list [flags]
 
 ### -c, --column
 
-|         |                                                                   |
-| ------- | ----------------------------------------------------------------- |
-| Type    | <code>string-array</code>                                         |
-| Default | <code>name,display name,organization id,members,avatar url</code> |
+|         |                                                                         |
+| ------- | ----------------------------------------------------------------------- |
+| Type    | <code>[name\|display name\|organization id\|members\|avatar url]</code> |
+| Default | <code>name,display name,organization id,members,avatar url</code>       |
 
-Columns to display in table output. Available columns: name, display name, organization id, members, avatar url.
+Columns to display in table output.
 
 ### -o, --output
 
-|         |                     |
-| ------- | ------------------- |
-| Type    | <code>string</code> |
-| Default | <code>table</code>  |
+|         |                          |
+| ------- | ------------------------ |
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
 
-Output format. Available formats: table, json.
+Output format.
 
 ### -O, --org
 

@@ -266,7 +266,7 @@ func validOrganizationRoleRequest(ctx context.Context, req codersdk.CustomRoleRe
 		return false
 	}
 
-	if err := httpapi.NameValid(req.Name); err != nil {
+	if err := codersdk.NameValid(req.Name); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid role name",
 			Detail:  err.Error(),

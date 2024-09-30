@@ -144,3 +144,20 @@ WHERE
 	updated_at < $1
 	AND started_at IS NOT NULL
 	AND completed_at IS NULL;
+
+-- name: InsertProvisionerJobTimings :many
+INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
+SELECT
+    @job_id::uuid AS provisioner_job_id,
+    unnest(@started_at::timestamptz[]),
+    unnest(@ended_at::timestamptz[]),
+    unnest(@stage::provisioner_job_timing_stage[]),
+    unnest(@source::text[]),
+    unnest(@action::text[]),
+    unnest(@resource::text[])
+RETURNING *;
+
+-- name: GetProvisionerJobTimingsByJobID :many
+SELECT * FROM provisioner_job_timings
+WHERE job_id = $1
+ORDER BY started_at ASC;

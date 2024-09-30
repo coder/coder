@@ -2,62 +2,22 @@ package notifications_test
 
 import (
 	"context"
-	"database/sql"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/testutil"
 )
-
-func setup(t *testing.T) (context.Context, slog.Logger, database.Store) {
-	t.Helper()
-
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	t.Cleanup(closeFunc)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-	t.Cleanup(cancel)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-
-	sqlDB, err := sql.Open("postgres", connectionURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, sqlDB.Close())
-	})
-
-	// nolint:gocritic // unit tests.
-	return dbauthz.AsSystemRestricted(ctx), logger, database.New(sqlDB)
-}
-
-func setupInMemory(t *testing.T) (context.Context, slog.Logger, database.Store) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	t.Cleanup(cancel)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-
-	// nolint:gocritic // unit tests.
-	return dbauthz.AsSystemRestricted(ctx), logger, dbmem.New()
-}
 
 func defaultNotificationsConfig(method database.NotificationMethod) codersdk.NotificationsConfig {
 	return codersdk.NotificationsConfig{

@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -34,14 +35,13 @@ func TestExecuteBasic(t *testing.T) {
 		return fLogger
 	})
 	defer runner.Close()
+	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: uuid.New(),
 		Script:      "echo hello",
-	}})
+	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
-	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
-		return true
-	}))
+	require.NoError(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts))
 	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
 	require.Equal(t, "hello", log.Output)
 }
@@ -61,18 +61,17 @@ func TestEnv(t *testing.T) {
 			cmd.exe /c echo %CODER_SCRIPT_BIN_DIR%
 		`
 	}
+	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: id,
 		Script:      script,
-	}})
+	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	done := testutil.Go(t, func() {
-		err := runner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
-			return true
-		})
+		err := runner.Execute(ctx, agentscripts.ExecuteAllScripts)
 		assert.NoError(t, err)
 	})
 	defer func() {
@@ -103,13 +102,44 @@ func TestTimeout(t *testing.T) {
 	t.Parallel()
 	runner := setup(t, nil)
 	defer runner.Close()
+	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: uuid.New(),
 		Script:      "sleep infinity",
 		Timeout:     time.Millisecond,
-	}})
+	}}, aAPI.ScriptCompleted)
 	require.NoError(t, err)
-	require.ErrorIs(t, runner.Execute(context.Background(), nil), agentscripts.ErrTimeout)
+	require.ErrorIs(t, runner.Execute(context.Background(), agentscripts.ExecuteAllScripts), agentscripts.ErrTimeout)
+}
+
+func TestScriptReportsTiming(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	fLogger := newFakeScriptLogger()
+	runner := setup(t, func(uuid2 uuid.UUID) agentscripts.ScriptLogger {
+		return fLogger
+	})
+
+	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
+	err := runner.Init([]codersdk.WorkspaceAgentScript{{
+		DisplayName: "say-hello",
+		LogSourceID: uuid.New(),
+		Script:      "echo hello",
+	}}, aAPI.ScriptCompleted)
+	require.NoError(t, err)
+	require.NoError(t, runner.Execute(ctx, agentscripts.ExecuteAllScripts))
+	runner.Close()
+
+	log := testutil.RequireRecvCtx(ctx, t, fLogger.logs)
+	require.Equal(t, "hello", log.Output)
+
+	timings := aAPI.GetTimings()
+	require.Equal(t, 1, len(timings))
+
+	timing := timings[0]
+	require.Equal(t, int32(0), timing.ExitCode)
+	require.GreaterOrEqual(t, timing.End.AsTime(), timing.Start.AsTime())
 }
 
 // TestCronClose exists because cron.Run() can happen after cron.Close().

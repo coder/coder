@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,7 @@ const (
 type ProvisionerDaemon struct {
 	ID             uuid.UUID         `json:"id" format:"uuid"`
 	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
+	KeyID          uuid.UUID         `json:"key_id" format:"uuid"`
 	CreatedAt      time.Time         `json:"created_at" format:"date-time"`
 	LastSeenAt     NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
 	Name           string            `json:"name"`
@@ -273,13 +275,48 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
 }
 
+type ProvisionerKeyTags map[string]string
+
+func (p ProvisionerKeyTags) String() string {
+	tags := []string{}
+	for key, value := range p {
+		tags = append(tags, fmt.Sprintf("%s=%s", key, value))
+	}
+	return strings.Join(tags, " ")
+}
+
 type ProvisionerKey struct {
-	ID             uuid.UUID         `json:"id" table:"-" format:"uuid"`
-	CreatedAt      time.Time         `json:"created_at" table:"created_at" format:"date-time"`
-	OrganizationID uuid.UUID         `json:"organization" table:"organization_id" format:"uuid"`
-	Name           string            `json:"name" table:"name,default_sort"`
-	Tags           map[string]string `json:"tags" table:"tags"`
+	ID             uuid.UUID          `json:"id" table:"-" format:"uuid"`
+	CreatedAt      time.Time          `json:"created_at" table:"created at" format:"date-time"`
+	OrganizationID uuid.UUID          `json:"organization" table:"-" format:"uuid"`
+	Name           string             `json:"name" table:"name,default_sort"`
+	Tags           ProvisionerKeyTags `json:"tags" table:"tags"`
 	// HashedSecret - never include the access token in the API response
+}
+
+type ProvisionerKeyDaemons struct {
+	Key     ProvisionerKey      `json:"key"`
+	Daemons []ProvisionerDaemon `json:"daemons"`
+}
+
+const (
+	ProvisionerKeyIDBuiltIn  = "00000000-0000-0000-0000-000000000001"
+	ProvisionerKeyIDUserAuth = "00000000-0000-0000-0000-000000000002"
+	ProvisionerKeyIDPSK      = "00000000-0000-0000-0000-000000000003"
+)
+
+const (
+	ProvisionerKeyNameBuiltIn  = "built-in"
+	ProvisionerKeyNameUserAuth = "user-auth"
+	ProvisionerKeyNamePSK      = "psk"
+)
+
+func ReservedProvisionerKeyNames() []string {
+	return []string{
+		ProvisionerKeyNameBuiltIn,
+		ProvisionerKeyNameUserAuth,
+		ProvisionerKeyNamePSK,
+	}
 }
 
 type CreateProvisionerKeyRequest struct {
@@ -324,6 +361,24 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKey
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ListProvisionerKeyDaemons lists all provisioner keys with their associated daemons for an organization.
+func (c *Client) ListProvisionerKeyDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKeyDaemons, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys/daemons", organizationID.String()),
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ProvisionerKeyDaemons
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

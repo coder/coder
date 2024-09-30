@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/serpent"
 )
 
 type exclusion struct {
@@ -75,6 +76,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 			env:  true,
 		},
 		"Provisioner Daemon Pre-shared Key (PSK)": {
+			yaml: true,
+		},
+		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
 	}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -14,7 +15,9 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -23,11 +26,210 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // nolint:bodyclose
 func TestUserOIDC(t *testing.T) {
 	t.Parallel()
+
+	t.Run("OrganizationSync", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("SingleOrgDeployment", func(t *testing.T) {
+			t.Parallel()
+
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
+				},
+			})
+
+			claims := jwt.MapClaims{
+				"email": "alice@coder.com",
+			}
+
+			// Login a new client that signs up
+			client, resp := runner.Login(t, claims)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertOrganizations(t, "alice", true, nil)
+
+			// Force a refresh, and assert nothing has changes
+			runner.ForceRefresh(t, client, claims)
+			runner.AssertOrganizations(t, "alice", true, nil)
+		})
+
+		t.Run("MultiOrgNoSync", func(t *testing.T) {
+			t.Parallel()
+
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+				},
+			})
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			second, err := runner.AdminClient.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+				Name:        "second",
+				DisplayName: "",
+				Description: "",
+				Icon:        "",
+			})
+			require.NoError(t, err)
+
+			claims := jwt.MapClaims{
+				"email": "alice@coder.com",
+			}
+
+			// Login a new client that signs up
+			_, resp := runner.Login(t, claims)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertOrganizations(t, "alice", true, nil)
+
+			// Add alice to new org
+			_, err = runner.AdminClient.PostOrganizationMember(ctx, second.ID, "alice")
+			require.NoError(t, err)
+
+			// Log in again to refresh the sync. The user should not be removed
+			// from the second organization.
+			runner.Login(t, claims)
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{second.ID})
+		})
+
+		t.Run("MultiOrgWithDefault", func(t *testing.T) {
+			t.Parallel()
+
+			// Chicken and egg problem. Config is at startup, but orgs are
+			// created at runtime. We should add a runtime configuration of
+			// this.
+			second := uuid.New()
+			third := uuid.New()
+
+			// Given: 4 organizations: default, second, third, and fourth
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.OrganizationAssignDefault = true
+					dv.OIDC.OrganizationField = "organization"
+					dv.OIDC.OrganizationMapping = serpent.Struct[map[string][]uuid.UUID]{
+						Value: map[string][]uuid.UUID{
+							"second": {second},
+							"third":  {third},
+						},
+					}
+				},
+			})
+			dbgen.Organization(t, runner.API.Database, database.Organization{
+				ID: second,
+			})
+			dbgen.Organization(t, runner.API.Database, database.Organization{
+				ID: third,
+			})
+			fourth := dbgen.Organization(t, runner.API.Database, database.Organization{})
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			claims := jwt.MapClaims{
+				"email":        "alice@coder.com",
+				"organization": []string{"second", "third"},
+			}
+
+			// Then: a new user logs in with claims "second" and "third", they
+			// should belong to [default, second, third].
+			userClient, resp := runner.Login(t, claims)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{second, third})
+			user, err := userClient.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+
+			// When: they are manually added to the fourth organization, a new sync
+			// should remove them.
+			_, err = runner.AdminClient.PostOrganizationMember(ctx, fourth.ID, "alice")
+			require.ErrorContains(t, err, "Organization sync is enabled")
+
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{second, third})
+			// Go around the block to add the user to see if they are removed.
+			dbgen.OrganizationMember(t, runner.API.Database, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: fourth.ID,
+			})
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{second, third, fourth.ID})
+
+			// Then: Log in again will resync the orgs to their updated
+			// claims.
+			runner.Login(t, jwt.MapClaims{
+				"email":        "alice@coder.com",
+				"organization": []string{"third"},
+			})
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{third})
+		})
+
+		t.Run("MultiOrgWithoutDefault", func(t *testing.T) {
+			t.Parallel()
+
+			second := uuid.New()
+			third := uuid.New()
+
+			// Given: 4 organizations: default, second, third, and fourth
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.OrganizationAssignDefault = false
+					dv.OIDC.OrganizationField = "organization"
+					dv.OIDC.OrganizationMapping = serpent.Struct[map[string][]uuid.UUID]{
+						Value: map[string][]uuid.UUID{
+							"second": {second},
+							"third":  {third},
+						},
+					}
+				},
+			})
+			dbgen.Organization(t, runner.API.Database, database.Organization{
+				ID: second,
+			})
+			dbgen.Organization(t, runner.API.Database, database.Organization{
+				ID: third,
+			})
+			fourth := dbgen.Organization(t, runner.API.Database, database.Organization{})
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			claims := jwt.MapClaims{
+				"email":        "alice@coder.com",
+				"organization": []string{"second", "third"},
+			}
+
+			// Then: a new user logs in with claims "second" and "third", they
+			// should belong to [ second, third].
+			userClient, resp := runner.Login(t, claims)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertOrganizations(t, "alice", false, []uuid.UUID{second, third})
+			user, err := userClient.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+
+			// When: they are manually added to the fourth organization, a new sync
+			// should remove them.
+			dbgen.OrganizationMember(t, runner.API.Database, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: fourth.ID,
+			})
+			runner.AssertOrganizations(t, "alice", false, []uuid.UUID{second, third, fourth.ID})
+
+			// Then: Log in again will resync the orgs to their updated
+			// claims.
+			runner.Login(t, jwt.MapClaims{
+				"email":        "alice@coder.com",
+				"organization": []string{"third"},
+			})
+			runner.AssertOrganizations(t, "alice", false, []uuid.UUID{third})
+		})
+	})
+
 	t.Run("RoleSync", func(t *testing.T) {
 		t.Parallel()
 
@@ -39,7 +241,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
 				},
 			})
 
@@ -54,6 +258,8 @@ func TestUserOIDC(t *testing.T) {
 			// Force a refresh, and assert nothing has changes
 			runner.ForceRefresh(t, client, claims)
 			runner.AssertRoles(t, "alice", []string{})
+
+			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
 		// Some IDPs (ADFS) send the "string" type vs "[]string" if only
@@ -65,9 +271,13 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
-					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin().String()},
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
+					dv.OIDC.UserRoleMapping = serpent.Struct[map[string][]string]{
+						Value: map[string][]string{
+							oidcRoleName: {rbac.RoleTemplateAdmin().String()},
+						},
 					}
 				},
 			})
@@ -81,6 +291,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String()})
+			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
 		// A user has some roles, then on an oauth refresh will lose said
@@ -96,9 +307,13 @@ func TestUserOIDC(t *testing.T) {
 				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
-					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
+					dv.OIDC.UserRoleMapping = serpent.Struct[map[string][]string]{
+						Value: map[string][]string{
+							oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
+						},
 					}
 				},
 			})
@@ -118,6 +333,7 @@ func TestUserOIDC(t *testing.T) {
 				"roles": []string{"random"},
 			})
 			runner.AssertRoles(t, "alice", []string{})
+			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
 		// A user has some roles, then on another oauth login will lose said
@@ -130,9 +346,13 @@ func TestUserOIDC(t *testing.T) {
 				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()}},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
-					cfg.UserRoleMapping = map[string][]string{
-						oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
+					dv.OIDC.UserRoleMapping = serpent.Struct[map[string][]string]{
+						Value: map[string][]string{
+							oidcRoleName: {rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String()},
+						},
 					}
 				},
 			})
@@ -153,6 +373,7 @@ func TestUserOIDC(t *testing.T) {
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			runner.AssertRoles(t, "alice", []string{})
+			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
 		// All manual role updates should fail when role sync is enabled.
@@ -162,7 +383,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
 				},
 			})
 
@@ -197,7 +420,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
 				},
 			})
 
@@ -214,6 +439,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{groupName})
+			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
 		// Tests the group mapping feature.
@@ -227,8 +453,10 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
-					cfg.GroupMapping = map[string]string{oidcGroupName: coderGroupName}
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
+					dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{oidcGroupName: coderGroupName}}
 				},
 			})
 
@@ -245,6 +473,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{coderGroupName})
+			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
 		// User is in a group, then on an oauth refresh will lose said
@@ -261,7 +490,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
 				},
 			})
 
@@ -284,6 +515,7 @@ func TestUserOIDC(t *testing.T) {
 				"email": "alice@coder.com",
 			})
 			runner.AssertGroups(t, "alice", []string{})
+			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
 		t.Run("AddThenRemoveOnReAuth", func(t *testing.T) {
@@ -294,7 +526,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
 				},
 			})
 
@@ -318,6 +552,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{})
+			runner.AssertOrganizations(t, "alice", true, nil)
 		})
 
 		// Updating groups where the claimed group does not exist.
@@ -328,7 +563,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
 				},
 			})
 
@@ -350,8 +587,10 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
-					cfg.CreateMissingGroups = true
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
+					dv.OIDC.GroupAutoCreate = true
 				},
 			})
 
@@ -373,8 +612,10 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
-					cfg.CreateMissingGroups = true
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
+					dv.OIDC.GroupAutoCreate = true
 				},
 			})
 
@@ -397,8 +638,10 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.GroupField = groupClaim
-					cfg.GroupAllowList = map[string]bool{allowedGroup: true}
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = groupClaim
+					dv.OIDC.GroupAllowList = []string{allowedGroup}
 				},
 			})
 
@@ -428,7 +671,9 @@ func TestUserOIDC(t *testing.T) {
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.UserRoleField = "roles"
 				},
 			})
 
@@ -488,6 +733,7 @@ func TestGroupSync(t *testing.T) {
 	testCases := []struct {
 		name   string
 		modCfg func(cfg *coderd.OIDCConfig)
+		modDV  func(dv *codersdk.DeploymentValues)
 		// initialOrgGroups is initial groups in the org
 		initialOrgGroups []string
 		// initialUserGroups is initial groups for the user
@@ -509,10 +755,10 @@ func TestGroupSync(t *testing.T) {
 		},
 		{
 			name: "GroupSyncDisabled",
-			modCfg: func(cfg *coderd.OIDCConfig) {
+			modDV: func(dv *codersdk.DeploymentValues) {
 				// Disable group sync
-				cfg.GroupField = ""
-				cfg.GroupFilter = regexp.MustCompile(".*")
+				dv.OIDC.GroupField = ""
+				dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile(".*"))
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"b", "c", "d"},
@@ -523,10 +769,8 @@ func TestGroupSync(t *testing.T) {
 		{
 			// From a,c,b -> b,c,d
 			name: "ChangeUserGroups",
-			modCfg: func(cfg *coderd.OIDCConfig) {
-				cfg.GroupMapping = map[string]string{
-					"D": "d",
-				}
+			modDV: func(dv *codersdk.DeploymentValues) {
+				dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{"D": "d"}}
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -540,8 +784,8 @@ func TestGroupSync(t *testing.T) {
 		{
 			// From a,c,b -> []
 			name: "RemoveAllGroups",
-			modCfg: func(cfg *coderd.OIDCConfig) {
-				cfg.GroupFilter = regexp.MustCompile(".*")
+			modDV: func(dv *codersdk.DeploymentValues) {
+				dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile(".*"))
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -554,8 +798,8 @@ func TestGroupSync(t *testing.T) {
 		{
 			// From a,c,b -> b,c,d,e,f
 			name: "CreateMissingGroups",
-			modCfg: func(cfg *coderd.OIDCConfig) {
-				cfg.CreateMissingGroups = true
+			modDV: func(dv *codersdk.DeploymentValues) {
+				dv.OIDC.GroupAutoCreate = true
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -568,14 +812,11 @@ func TestGroupSync(t *testing.T) {
 		{
 			// From a,c,b -> b,c,d,e,f
 			name: "CreateMissingGroupsFilter",
-			modCfg: func(cfg *coderd.OIDCConfig) {
-				cfg.CreateMissingGroups = true
+			modDV: func(dv *codersdk.DeploymentValues) {
+				dv.OIDC.GroupAutoCreate = true
 				// Only single letter groups
-				cfg.GroupFilter = regexp.MustCompile("^[a-z]$")
-				cfg.GroupMapping = map[string]string{
-					// Does not match the filter, but does after being mapped!
-					"zebra": "z",
-				}
+				dv.OIDC.GroupRegexFilter = serpent.Regexp(*regexp.MustCompile("^[a-z]$"))
+				dv.OIDC.GroupMapping = serpent.Struct[map[string]string]{Value: map[string]string{"zebra": "z"}}
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
@@ -597,8 +838,15 @@ func TestGroupSync(t *testing.T) {
 			t.Parallel()
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
-					cfg.GroupField = "groups"
-					tc.modCfg(cfg)
+					if tc.modCfg != nil {
+						tc.modCfg(cfg)
+					}
+				},
+				DeploymentValues: func(dv *codersdk.DeploymentValues) {
+					dv.OIDC.GroupField = "groups"
+					if tc.modDV != nil {
+						tc.modDV(dv)
+					}
 				},
 			})
 
@@ -691,7 +939,6 @@ func TestEnterpriseUserLogin(t *testing.T) {
 	t.Run("CustomRole", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -717,7 +964,7 @@ func TestEnterpriseUserLogin(t *testing.T) {
 				Name:           customRole.Name,
 				OrganizationID: owner.OrganizationID,
 			},
-		}, func(r *codersdk.CreateUserRequest) {
+		}, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = "SomeSecurePassword!"
 			r.UserLoginType = codersdk.LoginTypePassword
 		})
@@ -737,13 +984,10 @@ func TestEnterpriseUserLogin(t *testing.T) {
 		// database directly to corrupt it.
 		rawDB, pubsub := dbtestutil.NewDB(t)
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-				Database:         rawDB,
-				Pubsub:           pubsub,
+				Database: rawDB,
+				Pubsub:   pubsub,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -752,7 +996,7 @@ func TestEnterpriseUserLogin(t *testing.T) {
 			},
 		})
 
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 			r.Password = "SomeSecurePassword!"
 			r.UserLoginType = codersdk.LoginTypePassword
 		})
@@ -795,8 +1039,31 @@ type oidcTestConfig struct {
 	Userinfo jwt.MapClaims
 
 	// Config allows modifying the Coderd OIDC configuration.
-	Config   func(cfg *coderd.OIDCConfig)
-	FakeOpts []oidctest.FakeIDPOpt
+	Config           func(cfg *coderd.OIDCConfig)
+	DeploymentValues func(dv *codersdk.DeploymentValues)
+	FakeOpts         []oidctest.FakeIDPOpt
+}
+
+func (r *oidcTestRunner) AssertOrganizations(t *testing.T, userIdent string, includeDefault bool, expected []uuid.UUID) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	userOrgs, err := r.AdminClient.OrganizationsByUser(ctx, userIdent)
+	require.NoError(t, err)
+
+	cpy := make([]uuid.UUID, 0, len(expected))
+	cpy = append(cpy, expected...)
+	hasDefault := false
+	userOrgIDs := db2sdk.List(userOrgs, func(o codersdk.Organization) uuid.UUID {
+		if o.IsDefault {
+			hasDefault = true
+			cpy = append(cpy, o.ID)
+		}
+		return o.ID
+	})
+
+	require.Equal(t, includeDefault, hasDefault, "expected default org")
+	require.ElementsMatch(t, cpy, userOrgIDs, "expected orgs")
 }
 
 func (r *oidcTestRunner) AssertRoles(t *testing.T, userIdent string, roles []string) {
@@ -856,14 +1123,20 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	cfg := fake.OIDCConfig(t, nil, settings.Config)
+	dv := coderdtest.DeploymentValues(t)
+	if settings.DeploymentValues != nil {
+		settings.DeploymentValues(dv)
+	}
 	owner, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			OIDCConfig: cfg,
+			OIDCConfig:       cfg,
+			DeploymentValues: dv,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
-				codersdk.FeatureUserRoleManagement: 1,
-				codersdk.FeatureTemplateRBAC:       1,
+				codersdk.FeatureUserRoleManagement:    1,
+				codersdk.FeatureTemplateRBAC:          1,
+				codersdk.FeatureMultipleOrganizations: 1,
 			},
 		},
 	})

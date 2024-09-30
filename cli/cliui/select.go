@@ -1,18 +1,53 @@
 package cliui
 
 import (
-	"errors"
 	"flag"
-	"io"
+	"fmt"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
+
+const defaultSelectModelHeight = 7
+
+type terminateMsg struct{}
+
+func installSignalHandler(p *tea.Program) func() {
+	ch := make(chan struct{})
+
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
+		defer func() {
+			signal.Stop(sig)
+			close(ch)
+		}()
+
+		for {
+			select {
+			case <-ch:
+				return
+
+			case <-sig:
+				p.Send(terminateMsg{})
+			}
+		}
+	}()
+
+	return func() {
+		ch <- struct{}{}
+	}
+}
 
 type SelectOptions struct {
 	Options []string
@@ -75,31 +110,193 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 		return opts.Options[0], nil
 	}
 
-	var defaultOption interface{}
-	if opts.Default != "" {
-		defaultOption = opts.Default
+	initialModel := selectModel{
+		search:     textinput.New(),
+		hideSearch: opts.HideSearch,
+		options:    opts.Options,
+		height:     opts.Size,
+		message:    opts.Message,
 	}
 
-	var value string
-	err := survey.AskOne(&survey.Select{
-		Options:  opts.Options,
-		Default:  defaultOption,
-		PageSize: opts.Size,
-		Message:  opts.Message,
-	}, &value, survey.WithIcons(func(is *survey.IconSet) {
-		is.Help.Text = "Type to search"
-		if opts.HideSearch {
-			is.Help.Text = ""
-		}
-	}), survey.WithStdio(fileReadWriter{
-		Reader: inv.Stdin,
-	}, fileReadWriter{
-		Writer: inv.Stdout,
-	}, inv.Stdout))
-	if errors.Is(err, terminal.InterruptErr) {
-		return value, Canceled
+	if initialModel.height == 0 {
+		initialModel.height = defaultSelectModelHeight
 	}
-	return value, err
+
+	initialModel.search.Prompt = ""
+	initialModel.search.Focus()
+
+	p := tea.NewProgram(
+		initialModel,
+		tea.WithoutSignalHandler(),
+		tea.WithContext(inv.Context()),
+		tea.WithInput(inv.Stdin),
+		tea.WithOutput(inv.Stdout),
+	)
+
+	closeSignalHandler := installSignalHandler(p)
+	defer closeSignalHandler()
+
+	m, err := p.Run()
+	if err != nil {
+		return "", err
+	}
+
+	model, ok := m.(selectModel)
+	if !ok {
+		return "", xerrors.New(fmt.Sprintf("unknown model found %T (%+v)", m, m))
+	}
+
+	if model.canceled {
+		return "", Canceled
+	}
+
+	return model.selected, nil
+}
+
+type selectModel struct {
+	search     textinput.Model
+	options    []string
+	cursor     int
+	height     int
+	message    string
+	selected   string
+	canceled   bool
+	hideSearch bool
+}
+
+func (selectModel) Init() tea.Cmd {
+	return nil
+}
+
+//nolint:revive // The linter complains about modifying 'm' but this is typical practice for bubbletea
+func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case terminateMsg:
+		m.canceled = true
+		return m, tea.Quit
+
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyCtrlC:
+			m.canceled = true
+			return m, tea.Quit
+
+		case tea.KeyEnter:
+			options := m.filteredOptions()
+			if len(options) != 0 {
+				m.selected = options[m.cursor]
+				return m, tea.Quit
+			}
+
+		case tea.KeyUp:
+			options := m.filteredOptions()
+			if m.cursor > 0 {
+				m.cursor--
+			} else {
+				m.cursor = len(options) - 1
+			}
+
+		case tea.KeyDown:
+			options := m.filteredOptions()
+			if m.cursor < len(options)-1 {
+				m.cursor++
+			} else {
+				m.cursor = 0
+			}
+		}
+	}
+
+	if !m.hideSearch {
+		oldSearch := m.search.Value()
+		m.search, cmd = m.search.Update(msg)
+
+		// If the search query has changed then we need to ensure
+		// the cursor is still pointing at a valid option.
+		if m.search.Value() != oldSearch {
+			options := m.filteredOptions()
+
+			if m.cursor > len(options)-1 {
+				m.cursor = max(0, len(options)-1)
+			}
+		}
+	}
+
+	return m, cmd
+}
+
+func (m selectModel) View() string {
+	var s strings.Builder
+
+	msg := pretty.Sprintf(pretty.Bold(), "? %s", m.message)
+
+	if m.selected != "" {
+		selected := pretty.Sprint(DefaultStyles.Keyword, m.selected)
+		_, _ = s.WriteString(fmt.Sprintf("%s %s\n", msg, selected))
+
+		return s.String()
+	}
+
+	if m.hideSearch {
+		_, _ = s.WriteString(fmt.Sprintf("%s [Use arrows to move]\n", msg))
+	} else {
+		_, _ = s.WriteString(fmt.Sprintf(
+			"%s %s[Use arrows to move, type to filter]\n",
+			msg,
+			m.search.View(),
+		))
+	}
+
+	options, start := m.viewableOptions()
+
+	for i, option := range options {
+		// Is this the currently selected option?
+		style := pretty.Wrap("  ", "")
+		if m.cursor == start+i {
+			style = pretty.Style{
+				pretty.Wrap("> ", ""),
+				DefaultStyles.Keyword,
+			}
+		}
+
+		_, _ = s.WriteString(pretty.Sprint(style, option))
+		_, _ = s.WriteString("\n")
+	}
+
+	return s.String()
+}
+
+func (m selectModel) viewableOptions() ([]string, int) {
+	options := m.filteredOptions()
+	halfHeight := m.height / 2
+	bottom := 0
+	top := len(options)
+
+	switch {
+	case m.cursor <= halfHeight:
+		top = min(top, m.height)
+	case m.cursor < top-halfHeight:
+		bottom = max(0, m.cursor-halfHeight)
+		top = min(top, m.cursor+halfHeight+1)
+	default:
+		bottom = max(0, top-m.height)
+	}
+
+	return options[bottom:top], bottom
+}
+
+func (m selectModel) filteredOptions() []string {
+	options := []string{}
+	for _, o := range m.options {
+		filter := strings.ToLower(m.search.Value())
+		option := strings.ToLower(o)
+
+		if strings.Contains(option, filter) {
+			options = append(options, o)
+		}
+	}
+	return options
 }
 
 type MultiSelectOptions struct {
@@ -114,35 +311,215 @@ func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, er
 		return opts.Defaults, nil
 	}
 
-	prompt := &survey.MultiSelect{
-		Options: opts.Options,
-		Default: opts.Defaults,
-		Message: opts.Message,
+	options := make([]*multiSelectOption, len(opts.Options))
+	for i, option := range opts.Options {
+		chosen := false
+		for _, d := range opts.Defaults {
+			if option == d {
+				chosen = true
+				break
+			}
+		}
+
+		options[i] = &multiSelectOption{
+			option: option,
+			chosen: chosen,
+		}
 	}
 
-	var values []string
-	err := survey.AskOne(prompt, &values, survey.WithStdio(fileReadWriter{
-		Reader: inv.Stdin,
-	}, fileReadWriter{
-		Writer: inv.Stdout,
-	}, inv.Stdout))
-	if errors.Is(err, terminal.InterruptErr) {
+	initialModel := multiSelectModel{
+		search:  textinput.New(),
+		options: options,
+		message: opts.Message,
+	}
+
+	initialModel.search.Prompt = ""
+	initialModel.search.Focus()
+
+	p := tea.NewProgram(
+		initialModel,
+		tea.WithoutSignalHandler(),
+		tea.WithContext(inv.Context()),
+		tea.WithInput(inv.Stdin),
+		tea.WithOutput(inv.Stdout),
+	)
+
+	closeSignalHandler := installSignalHandler(p)
+	defer closeSignalHandler()
+
+	m, err := p.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	model, ok := m.(multiSelectModel)
+	if !ok {
+		return nil, xerrors.New(fmt.Sprintf("unknown model found %T (%+v)", m, m))
+	}
+
+	if model.canceled {
 		return nil, Canceled
 	}
-	return values, err
+
+	return model.selectedOptions(), nil
 }
 
-type fileReadWriter struct {
-	io.Reader
-	io.Writer
+type multiSelectOption struct {
+	option string
+	chosen bool
 }
 
-func (f fileReadWriter) Fd() uintptr {
-	if file, ok := f.Reader.(*os.File); ok {
-		return file.Fd()
+type multiSelectModel struct {
+	search   textinput.Model
+	options  []*multiSelectOption
+	cursor   int
+	message  string
+	canceled bool
+	selected bool
+}
+
+func (multiSelectModel) Init() tea.Cmd {
+	return nil
+}
+
+//nolint:revive // For same reason as previous Update definition
+func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case terminateMsg:
+		m.canceled = true
+		return m, tea.Quit
+
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyCtrlC:
+			m.canceled = true
+			return m, tea.Quit
+
+		case tea.KeyEnter:
+			if len(m.options) != 0 {
+				m.selected = true
+				return m, tea.Quit
+			}
+
+		case tea.KeySpace:
+			options := m.filteredOptions()
+			if len(options) != 0 {
+				options[m.cursor].chosen = !options[m.cursor].chosen
+			}
+			// We back out early here otherwise a space will be inserted
+			// into the search field.
+			return m, nil
+
+		case tea.KeyUp:
+			options := m.filteredOptions()
+			if m.cursor > 0 {
+				m.cursor--
+			} else {
+				m.cursor = len(options) - 1
+			}
+
+		case tea.KeyDown:
+			options := m.filteredOptions()
+			if m.cursor < len(options)-1 {
+				m.cursor++
+			} else {
+				m.cursor = 0
+			}
+
+		case tea.KeyRight:
+			options := m.filteredOptions()
+			for _, option := range options {
+				option.chosen = true
+			}
+
+		case tea.KeyLeft:
+			options := m.filteredOptions()
+			for _, option := range options {
+				option.chosen = false
+			}
+		}
 	}
-	if file, ok := f.Writer.(*os.File); ok {
-		return file.Fd()
+
+	oldSearch := m.search.Value()
+	m.search, cmd = m.search.Update(msg)
+
+	// If the search query has changed then we need to ensure
+	// the cursor is still pointing at a valid option.
+	if m.search.Value() != oldSearch {
+		options := m.filteredOptions()
+		if m.cursor > len(options)-1 {
+			m.cursor = max(0, len(options)-1)
+		}
 	}
-	return 0
+
+	return m, cmd
+}
+
+func (m multiSelectModel) View() string {
+	var s strings.Builder
+
+	msg := pretty.Sprintf(pretty.Bold(), "? %s", m.message)
+
+	if m.selected {
+		selected := pretty.Sprint(DefaultStyles.Keyword, strings.Join(m.selectedOptions(), ", "))
+		_, _ = s.WriteString(fmt.Sprintf("%s %s\n", msg, selected))
+
+		return s.String()
+	}
+
+	_, _ = s.WriteString(fmt.Sprintf(
+		"%s %s[Use arrows to move, space to select, <right> to all, <left> to none, type to filter]\n",
+		msg,
+		m.search.View(),
+	))
+
+	for i, option := range m.filteredOptions() {
+		cursor := "  "
+		chosen := "[ ]"
+		o := option.option
+
+		if m.cursor == i {
+			cursor = pretty.Sprint(DefaultStyles.Keyword, "> ")
+			chosen = pretty.Sprint(DefaultStyles.Keyword, "[ ]")
+			o = pretty.Sprint(DefaultStyles.Keyword, o)
+		}
+
+		if option.chosen {
+			chosen = pretty.Sprint(DefaultStyles.Keyword, "[x]")
+		}
+
+		_, _ = s.WriteString(fmt.Sprintf(
+			"%s%s %s\n",
+			cursor,
+			chosen,
+			o,
+		))
+	}
+
+	return s.String()
+}
+
+func (m multiSelectModel) filteredOptions() []*multiSelectOption {
+	options := []*multiSelectOption{}
+	for _, o := range m.options {
+		filter := strings.ToLower(m.search.Value())
+		option := strings.ToLower(o.option)
+
+		if strings.Contains(option, filter) {
+			options = append(options, o)
+		}
+	}
+	return options
+}
+
+func (m multiSelectModel) selectedOptions() []string {
+	selected := []string{}
+	for _, o := range m.options {
+		if o.chosen {
+			selected = append(selected, o.option)
+		}
+	}
+	return selected
 }

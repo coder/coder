@@ -22,6 +22,7 @@ type Styles struct {
 	DateTimeStamp,
 	Error,
 	Field,
+	Hyperlink,
 	Keyword,
 	Placeholder,
 	Prompt,
@@ -37,17 +38,21 @@ var (
 )
 
 var (
-	Green   = Color("#04B575")
-	Red     = Color("#ED567A")
-	Fuchsia = Color("#EE6FF8")
-	Yellow  = Color("#ECFD65")
-	Blue    = Color("#5000ff")
+	// ANSI color codes
+	red           = Color("1")
+	green         = Color("2")
+	yellow        = Color("3")
+	magenta       = Color("5")
+	white         = Color("7")
+	brightBlue    = Color("12")
+	brightMagenta = Color("13")
 )
 
 // Color returns a color for the given string.
 func Color(s string) termenv.Color {
 	colorOnce.Do(func() {
-		color = termenv.NewOutput(os.Stdout).ColorProfile()
+		color = termenv.NewOutput(os.Stdout).EnvColorProfile()
+
 		if flag.Lookup("test.v") != nil {
 			// Use a consistent colorless profile in tests so that results
 			// are deterministic.
@@ -123,42 +128,49 @@ func init() {
 	DefaultStyles = Styles{
 		Code: pretty.Style{
 			ifTerm(pretty.XPad(1, 1)),
-			pretty.FgColor(Red),
-			pretty.BgColor(color.Color("#2c2c2c")),
+			pretty.FgColor(Color("#ED567A")),
+			pretty.BgColor(Color("#2C2C2C")),
 		},
 		DateTimeStamp: pretty.Style{
-			pretty.FgColor(color.Color("#7571F9")),
+			pretty.FgColor(brightBlue),
 		},
 		Error: pretty.Style{
-			pretty.FgColor(Red),
+			pretty.FgColor(red),
 		},
 		Field: pretty.Style{
 			pretty.XPad(1, 1),
-			pretty.FgColor(color.Color("#FFFFFF")),
-			pretty.BgColor(color.Color("#2b2a2a")),
+			pretty.FgColor(Color("#FFFFFF")),
+			pretty.BgColor(Color("#2B2A2A")),
+		},
+		Fuchsia: pretty.Style{
+			pretty.FgColor(brightMagenta),
+		},
+		FocusedPrompt: pretty.Style{
+			pretty.FgColor(white),
+			pretty.Wrap("> ", ""),
+			pretty.FgColor(brightBlue),
+		},
+		Hyperlink: pretty.Style{
+			pretty.FgColor(magenta),
+			pretty.Underline(),
 		},
 		Keyword: pretty.Style{
-			pretty.FgColor(Green),
+			pretty.FgColor(green),
 		},
 		Placeholder: pretty.Style{
-			pretty.FgColor(color.Color("#4d46b3")),
+			pretty.FgColor(magenta),
 		},
 		Prompt: pretty.Style{
-			pretty.FgColor(color.Color("#5C5C5C")),
-			pretty.Wrap("> ", ""),
+			pretty.FgColor(white),
+			pretty.Wrap("  ", ""),
 		},
 		Warn: pretty.Style{
-			pretty.FgColor(Yellow),
+			pretty.FgColor(yellow),
 		},
 		Wrap: pretty.Style{
 			pretty.LineWrap(80),
 		},
 	}
-
-	DefaultStyles.FocusedPrompt = append(
-		DefaultStyles.Prompt,
-		pretty.FgColor(Blue),
-	)
 }
 
 // ValidateNotEmpty is a helper function to disallow empty inputs!

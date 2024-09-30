@@ -52,6 +52,22 @@ func TestUnique(t *testing.T) {
 		slice.Unique([]string{
 			"a", "a", "a",
 		}))
+
+	require.ElementsMatch(t,
+		[]int{1, 2, 3, 4, 5},
+		slice.UniqueFunc([]int{
+			1, 2, 3, 4, 5, 1, 2, 3, 4, 5,
+		}, func(a, b int) bool {
+			return a == b
+		}))
+
+	require.ElementsMatch(t,
+		[]string{"a"},
+		slice.UniqueFunc([]string{
+			"a", "a", "a",
+		}, func(a, b string) bool {
+			return a == b
+		}))
 }
 
 func TestContains(t *testing.T) {
@@ -130,4 +146,115 @@ func TestOmit(t *testing.T) {
 	assert.Equal(t, []string{"a", "b", "f"},
 		slice.Omit([]string{"a", "b", "c", "d", "e", "f"}, "c", "d", "e"),
 	)
+}
+
+func TestSymmetricDifference(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Simple", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference([]int{1, 3, 4}, []int{1, 2})
+		require.ElementsMatch(t, []int{2}, add)
+		require.ElementsMatch(t, []int{3, 4}, remove)
+	})
+
+	t.Run("Large", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15},
+			[]int{1, 3, 7, 9, 11, 13, 17},
+		)
+		require.ElementsMatch(t, []int{7, 9, 17}, add)
+		require.ElementsMatch(t, []int{2, 4, 5, 10, 12, 14, 15}, remove)
+	})
+
+	t.Run("AddOnly", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{1, 2},
+			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9},
+		)
+		require.ElementsMatch(t, []int{3, 4, 5, 6, 7, 8, 9}, add)
+		require.ElementsMatch(t, []int{}, remove)
+	})
+
+	t.Run("RemoveOnly", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9},
+			[]int{1, 2},
+		)
+		require.ElementsMatch(t, []int{}, add)
+		require.ElementsMatch(t, []int{3, 4, 5, 6, 7, 8, 9}, remove)
+	})
+
+	t.Run("Equal", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9},
+			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9},
+		)
+		require.ElementsMatch(t, []int{}, add)
+		require.ElementsMatch(t, []int{}, remove)
+	})
+
+	t.Run("ToEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{1, 2, 3},
+			[]int{},
+		)
+		require.ElementsMatch(t, []int{}, add)
+		require.ElementsMatch(t, []int{1, 2, 3}, remove)
+	})
+
+	t.Run("ToNil", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{1, 2, 3},
+			nil,
+		)
+		require.ElementsMatch(t, []int{}, add)
+		require.ElementsMatch(t, []int{1, 2, 3}, remove)
+	})
+
+	t.Run("FromEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{},
+			[]int{1, 2, 3},
+		)
+		require.ElementsMatch(t, []int{1, 2, 3}, add)
+		require.ElementsMatch(t, []int{}, remove)
+	})
+
+	t.Run("FromNil", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			nil,
+			[]int{1, 2, 3},
+		)
+		require.ElementsMatch(t, []int{1, 2, 3}, add)
+		require.ElementsMatch(t, []int{}, remove)
+	})
+
+	t.Run("Duplicates", func(t *testing.T) {
+		t.Parallel()
+
+		add, remove := slice.SymmetricDifference(
+			[]int{5, 5, 5, 1, 1, 1, 3, 3, 3, 5, 5, 5},
+			[]int{2, 2, 2, 1, 1, 1, 2, 4, 4, 4, 5, 5, 5, 1, 1},
+		)
+		require.ElementsMatch(t, []int{2, 4}, add)
+		require.ElementsMatch(t, []int{3}, remove)
+	})
 }

@@ -1,11 +1,12 @@
 import { templates } from "api/queries/templates";
 import type { Workspace } from "api/typesGenerated";
+import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
-import { useFilter } from "components/Filter/filter";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { usePagination } from "hooks/usePagination";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -175,12 +176,24 @@ const useWorkspacesFilter = ({
 			filter.update({ ...filter.values, status: option?.value }),
 	});
 
+	const { showOrganizations } = useDashboard();
+	const organizationsMenu = useOrganizationsFilterMenu({
+		value: filter.values.organization,
+		onChange: (option) => {
+			filter.update({
+				...filter.values,
+				organization: option?.value,
+			});
+		},
+	});
+
 	return {
 		filter,
 		menus: {
 			user: canFilterByUser ? userMenu : undefined,
 			template: templateMenu,
 			status: statusMenu,
+			organizations: showOrganizations ? organizationsMenu : undefined,
 		},
 	};
 };

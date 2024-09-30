@@ -87,6 +87,7 @@ func TestGetManifest(t *testing.T) {
 				Subdomain:    false,
 				SharingLevel: database.AppSharingLevelPublic,
 				Health:       database.WorkspaceAppHealthDisabled,
+				Hidden:       false,
 			},
 			{
 				ID:                   uuid.New(),
@@ -102,10 +103,12 @@ func TestGetManifest(t *testing.T) {
 				HealthcheckUrl:       "http://localhost:4321/health",
 				HealthcheckInterval:  20,
 				HealthcheckThreshold: 5,
+				Hidden:               true,
 			},
 		}
 		scripts = []database.WorkspaceAgentScript{
 			{
+				ID:               uuid.New(),
 				WorkspaceAgentID: agent.ID,
 				LogSourceID:      uuid.New(),
 				LogPath:          "/cool/log/path/1",
@@ -117,6 +120,7 @@ func TestGetManifest(t *testing.T) {
 				TimeoutSeconds:   60,
 			},
 			{
+				ID:               uuid.New(),
 				WorkspaceAgentID: agent.ID,
 				LogSourceID:      uuid.New(),
 				LogPath:          "/cool/log/path/2",
@@ -182,6 +186,7 @@ func TestGetManifest(t *testing.T) {
 					Threshold: apps[0].HealthcheckThreshold,
 				},
 				Health: agentproto.WorkspaceApp_HEALTHY,
+				Hidden: false,
 			},
 			{
 				Id:            apps[1].ID[:],
@@ -200,6 +205,7 @@ func TestGetManifest(t *testing.T) {
 					Threshold: 0,
 				},
 				Health: agentproto.WorkspaceApp_DISABLED,
+				Hidden: false,
 			},
 			{
 				Id:            apps[2].ID[:],
@@ -218,10 +224,12 @@ func TestGetManifest(t *testing.T) {
 					Threshold: apps[2].HealthcheckThreshold,
 				},
 				Health: agentproto.WorkspaceApp_UNHEALTHY,
+				Hidden: true,
 			},
 		}
 		protoScripts = []*agentproto.WorkspaceAgentScript{
 			{
+				Id:               scripts[0].ID[:],
 				LogSourceId:      scripts[0].LogSourceID[:],
 				LogPath:          scripts[0].LogPath,
 				Script:           scripts[0].Script,
@@ -232,6 +240,7 @@ func TestGetManifest(t *testing.T) {
 				Timeout:          durationpb.New(time.Duration(scripts[0].TimeoutSeconds) * time.Second),
 			},
 			{
+				Id:               scripts[1].ID[:],
 				LogSourceId:      scripts[1].LogSourceID[:],
 				LogPath:          scripts[1].LogPath,
 				Script:           scripts[1].Script,

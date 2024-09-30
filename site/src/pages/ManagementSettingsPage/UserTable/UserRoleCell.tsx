@@ -170,8 +170,8 @@ const styles = {
 		borderColor: theme.roles.active.outline,
 	}),
 	ownerRoleBadge: (theme) => ({
-		backgroundColor: theme.roles.info.background,
-		borderColor: theme.roles.info.outline,
+		backgroundColor: theme.roles.notice.background,
+		borderColor: theme.roles.notice.outline,
 	}),
 	roleBadge: (theme) => ({
 		backgroundColor: theme.experimental.l2.background,

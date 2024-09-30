@@ -20,9 +20,9 @@ coder users show [flags] <username|user_id|'me'>
 
 ### -o, --output
 
-|         |                     |
-| ------- | ------------------- |
-| Type    | <code>string</code> |
-| Default | <code>table</code>  |
+|         |                          |
+| ------- | ------------------------ |
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
 
-Output format. Available formats: table, json.
+Output format.

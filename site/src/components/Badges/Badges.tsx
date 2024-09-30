@@ -112,9 +112,9 @@ export const EnterpriseBadge: FC = () => {
 			css={[
 				styles.badge,
 				(theme) => ({
-					backgroundColor: theme.roles.info.background,
-					border: `1px solid ${theme.roles.info.outline}`,
-					color: theme.roles.info.text,
+					backgroundColor: theme.branding.enterprise.background,
+					border: `1px solid ${theme.branding.enterprise.border}`,
+					color: theme.branding.enterprise.text,
 				}),
 			]}
 		>
@@ -129,9 +129,9 @@ export const PremiumBadge: FC = () => {
 			css={[
 				styles.badge,
 				(theme) => ({
-					backgroundColor: theme.roles.info.background,
-					border: `1px solid ${theme.roles.info.outline}`,
-					color: theme.roles.info.text,
+					backgroundColor: theme.branding.premium.background,
+					border: `1px solid ${theme.branding.premium.border}`,
+					color: theme.branding.premium.text,
 				}),
 			]}
 		>

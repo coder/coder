@@ -163,6 +163,7 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                                = r.Context()
+		portSharer                         = *api.PortSharer.Load()
 		createTemplate                     codersdk.CreateTemplateRequest
 		organization                       = httpmw.OrganizationParam(r)
 		apiKey                             = httpmw.APIKey(r)
@@ -309,6 +310,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		validErrs                            []codersdk.ValidationError
 		autostopRequirementDaysOfWeekParsed  uint8
 		autostartRequirementDaysOfWeekParsed uint8
+		maxPortShareLevel                    = database.AppSharingLevelOwner // default
 	)
 	if defaultTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
@@ -327,6 +329,14 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		autostartRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(autostartRequirementDaysOfWeek)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostart_requirement.days_of_week", Detail: err.Error()})
+		}
+	}
+	if createTemplate.MaxPortShareLevel != nil {
+		err = portSharer.ValidateTemplateMaxLevel(*createTemplate.MaxPortShareLevel)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_share_level", Detail: err.Error()})
+		} else {
+			maxPortShareLevel = database.AppSharingLevel(*createTemplate.MaxPortShareLevel)
 		}
 	}
 
@@ -386,7 +396,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			DisplayName:                  createTemplate.DisplayName,
 			Icon:                         createTemplate.Icon,
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
-			MaxPortSharingLevel:          database.AppSharingLevelOwner,
+			MaxPortSharingLevel:          maxPortShareLevel,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)

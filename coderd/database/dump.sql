@@ -36,6 +36,12 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE crypto_key_feature AS ENUM (
+    'workspace_apps',
+    'oidc_convert',
+    'tailnet_resume'
+);
+
 CREATE TYPE display_app AS ENUM (
     'vscode',
     'vscode_insiders',
@@ -136,6 +142,13 @@ CREATE TYPE provisioner_job_status AS ENUM (
 
 COMMENT ON TYPE provisioner_job_status IS 'Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.';
 
+CREATE TYPE provisioner_job_timing_stage AS ENUM (
+    'init',
+    'plan',
+    'graph',
+    'apply'
+);
+
 CREATE TYPE provisioner_job_type AS ENUM (
     'template_version_import',
     'workspace_build',
@@ -203,6 +216,23 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
+CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
+    'start',
+    'stop',
+    'cron'
+);
+
+COMMENT ON TYPE workspace_agent_script_timing_stage IS 'What stage the script was ran in.';
+
+CREATE TYPE workspace_agent_script_timing_status AS ENUM (
+    'ok',
+    'exit_failure',
+    'timed_out',
+    'pipes_left_open'
+);
+
+COMMENT ON TYPE workspace_agent_script_timing_status IS 'What the exit status of the script is.';
+
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
     'envbox',
@@ -222,6 +252,24 @@ CREATE TYPE workspace_transition AS ENUM (
     'stop',
     'delete'
 );
+
+CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.dedupe_hash := MD5(CONCAT_WS(':',
+                                     NEW.notification_template_id,
+                                     NEW.user_id,
+                                     NEW.method,
+                                     NEW.payload::text,
+                                     ARRAY_TO_STRING(NEW.targets, ','),
+                                     DATE_TRUNC('day', NEW.created_at AT TIME ZONE 'UTC')::text
+                           ));
+    RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being enqueued on the same day';
 
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
@@ -252,6 +300,25 @@ BEGIN
 		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION delete_group_members_on_org_member_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+	-- Remove the user from all groups associated with the same
+	-- organization as the organization_member being deleted.
+	DELETE FROM group_members
+	WHERE
+		user_id = OLD.user_id
+		AND group_id IN (
+			SELECT id
+			FROM groups
+			WHERE organization_id = OLD.organization_id
+		);
+	RETURN OLD;
 END;
 $$;
 
@@ -469,6 +536,15 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE crypto_keys (
+    feature crypto_key_feature NOT NULL,
+    sequence integer NOT NULL,
+    secret text,
+    secret_key_id text,
+    starts_at timestamp with time zone NOT NULL,
+    deletes_at timestamp with time zone
+);
+
 CREATE TABLE custom_roles (
     name text NOT NULL,
     display_name text NOT NULL,
@@ -587,7 +663,11 @@ CREATE TABLE users (
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
     theme_preference text DEFAULT ''::text NOT NULL,
     name text DEFAULT ''::text NOT NULL,
-    github_com_user_id bigint
+    github_com_user_id bigint,
+    hashed_one_time_passcode bytea,
+    one_time_passcode_expires_at timestamp with time zone,
+    must_reset_password boolean DEFAULT false NOT NULL,
+    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
@@ -597,6 +677,12 @@ COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
 COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
+
+COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
+
+COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.must_reset_password IS 'Determines if the user should be forced to change their password.';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -678,8 +764,11 @@ CREATE TABLE notification_messages (
     updated_at timestamp with time zone,
     leased_until timestamp with time zone,
     next_retry_after timestamp with time zone,
-    queued_seconds double precision
+    queued_seconds double precision,
+    dedupe_hash text
 );
+
+COMMENT ON COLUMN notification_messages.dedupe_hash IS 'Auto-generated by insert/update trigger, used to prevent duplicate notifications from being enqueued on the same day';
 
 CREATE TABLE notification_preferences (
     user_id uuid NOT NULL,
@@ -688,6 +777,13 @@ CREATE TABLE notification_preferences (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+CREATE TABLE notification_report_generator_logs (
+    notification_template_id uuid NOT NULL,
+    last_generated_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE notification_report_generator_logs IS 'Log of generated reports for users.';
 
 CREATE TABLE notification_templates (
     id uuid NOT NULL,
@@ -804,7 +900,8 @@ CREATE TABLE provisioner_daemons (
     last_seen_at timestamp with time zone,
     version text DEFAULT ''::text NOT NULL,
     api_version text DEFAULT '1.0'::text NOT NULL,
-    organization_id uuid NOT NULL
+    organization_id uuid NOT NULL,
+    key_id uuid NOT NULL
 );
 
 COMMENT ON COLUMN provisioner_daemons.api_version IS 'The API version of the provisioner daemon';
@@ -827,6 +924,33 @@ CREATE SEQUENCE provisioner_job_logs_id_seq
     CACHE 1;
 
 ALTER SEQUENCE provisioner_job_logs_id_seq OWNED BY provisioner_job_logs.id;
+
+CREATE VIEW provisioner_job_stats AS
+SELECT
+    NULL::uuid AS job_id,
+    NULL::provisioner_job_status AS job_status,
+    NULL::uuid AS workspace_id,
+    NULL::uuid AS worker_id,
+    NULL::text AS error,
+    NULL::text AS error_code,
+    NULL::timestamp with time zone AS updated_at,
+    NULL::double precision AS queued_secs,
+    NULL::double precision AS completion_secs,
+    NULL::double precision AS canceled_secs,
+    NULL::double precision AS init_secs,
+    NULL::double precision AS plan_secs,
+    NULL::double precision AS graph_secs,
+    NULL::double precision AS apply_secs;
+
+CREATE TABLE provisioner_job_timings (
+    job_id uuid NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone NOT NULL,
+    stage provisioner_job_timing_stage NOT NULL,
+    source text NOT NULL,
+    action text NOT NULL,
+    resource text NOT NULL
+);
 
 CREATE TABLE provisioner_jobs (
     id uuid NOT NULL,
@@ -1258,6 +1382,15 @@ CREATE TABLE workspace_agent_port_share (
     protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
 );
 
+CREATE TABLE workspace_agent_script_timings (
+    script_id uuid NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone NOT NULL,
+    exit_code integer NOT NULL,
+    stage workspace_agent_script_timing_stage NOT NULL,
+    status workspace_agent_script_timing_status NOT NULL
+);
+
 CREATE TABLE workspace_agent_scripts (
     workspace_agent_id uuid NOT NULL,
     log_source_id uuid NOT NULL,
@@ -1268,7 +1401,9 @@ CREATE TABLE workspace_agent_scripts (
     start_blocks_login boolean NOT NULL,
     run_on_start boolean NOT NULL,
     run_on_stop boolean NOT NULL,
-    timeout_seconds integer NOT NULL
+    timeout_seconds integer NOT NULL,
+    display_name text NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
@@ -1297,7 +1432,8 @@ CREATE TABLE workspace_agent_stats (
     session_count_vscode bigint DEFAULT 0 NOT NULL,
     session_count_jetbrains bigint DEFAULT 0 NOT NULL,
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
-    session_count_ssh bigint DEFAULT 0 NOT NULL
+    session_count_ssh bigint DEFAULT 0 NOT NULL,
+    usage boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -1418,10 +1554,13 @@ CREATE TABLE workspace_apps (
     sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
     slug text NOT NULL,
     external boolean DEFAULT false NOT NULL,
-    display_order integer DEFAULT 0 NOT NULL
+    display_order integer DEFAULT 0 NOT NULL,
+    hidden boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
+
+COMMENT ON COLUMN workspace_apps.hidden IS 'Determines if the app is not shown in user interfaces.';
 
 CREATE TABLE workspace_build_parameters (
     workspace_build_id uuid NOT NULL,
@@ -1582,6 +1721,9 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY crypto_keys
+    ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);
+
 ALTER TABLE ONLY custom_roles
     ADD CONSTRAINT custom_roles_unique_key UNIQUE (name, organization_id);
 
@@ -1629,6 +1771,9 @@ ALTER TABLE ONLY notification_messages
 
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (user_id, notification_template_id);
+
+ALTER TABLE ONLY notification_report_generator_logs
+    ADD CONSTRAINT notification_report_generator_logs_pkey PRIMARY KEY (notification_template_id);
 
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
@@ -1750,6 +1895,12 @@ ALTER TABLE ONLY workspace_agent_metadata
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_pkey PRIMARY KEY (workspace_id, agent_name, port);
 
+ALTER TABLE ONLY workspace_agent_script_timings
+    ADD CONSTRAINT workspace_agent_script_timings_script_id_started_at_key UNIQUE (script_id, started_at);
+
+ALTER TABLE ONLY workspace_agent_scripts
+    ADD CONSTRAINT workspace_agent_scripts_id_key UNIQUE (id);
+
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
 
@@ -1846,6 +1997,8 @@ CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted 
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
+CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
+
 CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btree (is_default) WHERE (is_default = true);
 
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
@@ -1892,6 +2045,58 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
+CREATE OR REPLACE VIEW provisioner_job_stats AS
+ SELECT pj.id AS job_id,
+    pj.job_status,
+    wb.workspace_id,
+    pj.worker_id,
+    pj.error,
+    pj.error_code,
+    pj.updated_at,
+    GREATEST(date_part('epoch'::text, (pj.started_at - pj.created_at)), (0)::double precision) AS queued_secs,
+    GREATEST(date_part('epoch'::text, (pj.completed_at - pj.started_at)), (0)::double precision) AS completion_secs,
+    GREATEST(date_part('epoch'::text, (pj.canceled_at - pj.started_at)), (0)::double precision) AS canceled_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'init'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'init'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS init_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'plan'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'plan'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS plan_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'graph'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'graph'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS graph_secs,
+    GREATEST(date_part('epoch'::text, (max(
+        CASE
+            WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN pjt.ended_at
+            ELSE NULL::timestamp with time zone
+        END) - min(
+        CASE
+            WHEN (pjt.stage = 'apply'::provisioner_job_timing_stage) THEN pjt.started_at
+            ELSE NULL::timestamp with time zone
+        END))), (0)::double precision) AS apply_secs
+   FROM ((provisioner_jobs pj
+     JOIN workspace_builds wb ON ((wb.job_id = pj.id)))
+     LEFT JOIN provisioner_job_timings pjt ON ((pjt.job_id = pj.id)))
+  GROUP BY pj.id, wb.workspace_id;
+
 CREATE TRIGGER inhibit_enqueue_if_disabled BEFORE INSERT ON notification_messages FOR EACH ROW EXECUTE FUNCTION inhibit_enqueue_if_disabled();
 
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
@@ -1910,6 +2115,8 @@ CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON ta
 
 CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
 
+CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
+
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
@@ -1918,8 +2125,13 @@ CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW
 
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
 
+CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY crypto_keys
+    ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
@@ -1982,10 +2194,16 @@ ALTER TABLE ONLY parameter_schemas
     ADD CONSTRAINT parameter_schemas_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_daemons
+    ADD CONSTRAINT provisioner_daemons_key_id_fkey FOREIGN KEY (key_id) REFERENCES provisioner_keys(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_daemons
     ADD CONSTRAINT provisioner_daemons_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_job_logs
     ADD CONSTRAINT provisioner_job_logs_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY provisioner_job_timings
+    ADD CONSTRAINT provisioner_job_timings_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
@@ -2049,6 +2267,9 @@ ALTER TABLE ONLY workspace_agent_metadata
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_script_timings
+    ADD CONSTRAINT workspace_agent_script_timings_script_id_fkey FOREIGN KEY (script_id) REFERENCES workspace_agent_scripts(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_scripts
     ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

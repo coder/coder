@@ -20,9 +20,9 @@ coder users suspend [flags] <username|user_id>
 
 ### -c, --column
 
-|         |                                               |
-| ------- | --------------------------------------------- |
-| Type    | <code>string-array</code>                     |
-| Default | <code>username,email,created_at,status</code> |
+|         |                                                    |
+| ------- | -------------------------------------------------- |
+| Type    | <code>[username\|email\|created at\|status]</code> |
+| Default | <code>username,email,created at,status</code>      |
 
 Specify a column to filter in the table.

@@ -3,6 +3,7 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -18,7 +19,7 @@ import (
 // @Router /organizations [get]
 func (api *API) organizations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	organizations, err := api.Database.GetOrganizations(ctx)
+	organizations, err := api.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return

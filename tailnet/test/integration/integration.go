@@ -181,6 +181,7 @@ func (o SimpleServerOptions) Router(t *testing.T, logger slog.Logger) *chi.Mux {
 			}
 		},
 		NetworkTelemetryHandler: func(batch []*tailnetproto.TelemetryEvent) {},
+		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
 
@@ -468,7 +469,9 @@ func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me
 
 	coordination := tailnet.NewRemoteCoordination(logger, coord, conn, peer.ID)
 	t.Cleanup(func() {
-		_ = coordination.Close()
+		cctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		_ = coordination.Close(cctx)
 	})
 
 	return conn

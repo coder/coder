@@ -20,7 +20,6 @@ func TestProvisionerKeys(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*10)
 	t.Cleanup(cancel)
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: dv,
@@ -63,6 +62,20 @@ func TestProvisionerKeys(t *testing.T) {
 	// outside org admin cannot delete a provisioner key
 	err = outsideOrgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, "key")
 	require.ErrorContains(t, err, "Resource not found")
+
+	// org admin cannot create reserved provisioner keys
+	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+		Name: codersdk.ProvisionerKeyNameBuiltIn,
+	})
+	require.ErrorContains(t, err, "reserved")
+	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+		Name: codersdk.ProvisionerKeyNameUserAuth,
+	})
+	require.ErrorContains(t, err, "reserved")
+	_, err = orgAdmin.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+		Name: codersdk.ProvisionerKeyNamePSK,
+	})
+	require.ErrorContains(t, err, "reserved")
 
 	// org admin can list provisioner keys and get an empty list
 	keys, err := orgAdmin.ListProvisionerKeys(ctx, owner.OrganizationID)
@@ -111,4 +124,12 @@ func TestProvisionerKeys(t *testing.T) {
 	// org admin cannot delete a provisioner key that doesn't exist
 	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, "key")
 	require.ErrorContains(t, err, "Resource not found")
+
+	// org admin cannot delete reserved provisioner keys
+	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, codersdk.ProvisionerKeyNameBuiltIn)
+	require.ErrorContains(t, err, "reserved")
+	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, codersdk.ProvisionerKeyNameUserAuth)
+	require.ErrorContains(t, err, "reserved")
+	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, codersdk.ProvisionerKeyNamePSK)
+	require.ErrorContains(t, err, "reserved")
 }

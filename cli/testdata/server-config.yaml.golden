@@ -7,8 +7,8 @@ networking:
   # (default: <unset>, type: string)
   wildcardAccessURL: ""
   # Specifies the custom docs URL.
-  # (default: <unset>, type: url)
-  docsURL:
+  # (default: https://coder.com/docs, type: url)
+  docsURL: https://coder.com/docs
   # Specifies whether to redirect requests that do not match the access URL host.
   # (default: <unset>, type: bool)
   redirectToAccessURL: false
@@ -319,6 +319,19 @@ oidc:
   # Ignore the userinfo endpoint and only use the ID token for user information.
   # (default: false, type: bool)
   ignoreUserInfo: false
+  # This field must be set if using the organization sync feature. Set to the claim
+  # to be used for organizations.
+  # (default: <unset>, type: string)
+  organizationField: ""
+  # If set to true, users will always be added to the default organization. If
+  # organization sync is enabled, then the default org is always added to the user's
+  # set of expectedorganizations.
+  # (default: true, type: bool)
+  organizationAssignDefault: true
+  # A map of OIDC claims and the organizations in Coder it should map to. This is
+  # required because organization IDs must be used within Coder.
+  # (default: {}, type: struct[map[string][]uuid.UUID])
+  organizationMapping: {}
   # This field must be set if using the group sync feature and the scope name is not
   # 'groups'. Set to the claim to be used for groups.
   # (default: <unset>, type: string)
@@ -410,6 +423,11 @@ experiments: []
 # performed once per day.
 # (default: false, type: bool)
 updateCheck: false
+# The default lifetime duration for API tokens. This value is used when creating a
+# token without specifying a duration, such as when authenticating the CLI or an
+# IDE plugin.
+# (default: 168h0m0s, type: duration)
+defaultTokenLifetime: 168h0m0s
 # Expose the swagger endpoint via /swagger.
 # (default: <unset>, type: bool)
 enableSwagger: false
@@ -529,9 +547,6 @@ notifications:
       # Username to use with PLAIN/LOGIN authentication.
       # (default: <unset>, type: string)
       username: ""
-      # Password to use with PLAIN/LOGIN authentication.
-      # (default: <unset>, type: string)
-      password: ""
       # File from which to load password for use with PLAIN/LOGIN authentication.
       # (default: <unset>, type: string)
       passwordFile: ""

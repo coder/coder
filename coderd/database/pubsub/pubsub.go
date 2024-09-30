@@ -3,6 +3,7 @@ package pubsub
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"io"
 	"net"
@@ -14,6 +15,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 
 	"cdr.dev/slog"
 )
@@ -410,7 +413,7 @@ func (d logDialer) DialContext(ctx context.Context, network, address string) (ne
 
 	logger := d.logger.With(slog.F("network", network), slog.F("address", address), slog.F("timeout_ms", timeoutMS))
 
-	logger.Info(ctx, "pubsub dialing postgres")
+	logger.Debug(ctx, "pubsub dialing postgres")
 	start := time.Now()
 	conn, err := d.d.DialContext(ctx, network, address)
 	if err != nil {
@@ -418,7 +421,7 @@ func (d logDialer) DialContext(ctx context.Context, network, address string) (ne
 		return nil, err
 	}
 	elapsed := time.Since(start)
-	logger.Info(ctx, "pubsub postgres TCP connection established", slog.F("elapsed_ms", elapsed.Milliseconds()))
+	logger.Debug(ctx, "pubsub postgres TCP connection established", slog.F("elapsed_ms", elapsed.Milliseconds()))
 	return conn, nil
 }
 
@@ -432,12 +435,38 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 			// pq.defaultDialer uses a zero net.Dialer as well.
 			d: net.Dialer{},
 		}
+		connector driver.Connector
+		err       error
 	)
+
+	// Create a custom connector if the database driver supports it.
+	connectorCreator, ok := p.db.Driver().(database.ConnectorCreator)
+	if ok {
+		connector, err = connectorCreator.Connector(connectURL)
+		if err != nil {
+			return xerrors.Errorf("create custom connector: %w", err)
+		}
+	} else {
+		// use the default pq connector otherwise
+		connector, err = pq.NewConnector(connectURL)
+		if err != nil {
+			return xerrors.Errorf("create pq connector: %w", err)
+		}
+	}
+
+	// Set the dialer if the connector supports it.
+	dc, ok := connector.(database.DialerConnector)
+	if !ok {
+		p.logger.Critical(ctx, "connector does not support setting log dialer, database connection debug logs will be missing")
+	} else {
+		dc.Dialer(dialer)
+	}
+
 	p.pgListener = pqListenerShim{
-		Listener: pq.NewDialListener(dialer, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
+		Listener: pq.NewConnectorListener(connector, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
 			switch t {
 			case pq.ListenerEventConnected:
-				p.logger.Info(ctx, "pubsub connected to postgres")
+				p.logger.Debug(ctx, "pubsub connected to postgres")
 				p.connected.Set(1.0)
 			case pq.ListenerEventDisconnected:
 				p.logger.Error(ctx, "pubsub disconnected from postgres", slog.Error(err))
@@ -583,22 +612,22 @@ func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
 }
 
 // New creates a new Pubsub implementation using a PostgreSQL connection.
-func New(startCtx context.Context, logger slog.Logger, database *sql.DB, connectURL string) (*PGPubsub, error) {
-	p := newWithoutListener(logger, database)
+func New(startCtx context.Context, logger slog.Logger, db *sql.DB, connectURL string) (*PGPubsub, error) {
+	p := newWithoutListener(logger, db)
 	if err := p.startListener(startCtx, connectURL); err != nil {
 		return nil, err
 	}
 	go p.listen()
-	logger.Info(startCtx, "pubsub has started")
+	logger.Debug(startCtx, "pubsub has started")
 	return p, nil
 }
 
 // newWithoutListener creates a new PGPubsub without creating the pqListener.
-func newWithoutListener(logger slog.Logger, database *sql.DB) *PGPubsub {
+func newWithoutListener(logger slog.Logger, db *sql.DB) *PGPubsub {
 	return &PGPubsub{
 		logger:          logger,
 		listenDone:      make(chan struct{}),
-		db:              database,
+		db:              db,
 		queues:          make(map[string]map[uuid.UUID]*msgQueue),
 		latencyMeasurer: NewLatencyMeasurer(logger.Named("latency-measurer")),
 

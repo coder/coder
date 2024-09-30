@@ -13,6 +13,8 @@ on:
       - opened
       - reopened
       - edited
+      # For jobs that don't run on draft PRs.
+      - ready_for_review
 
 # Only run one instance per PR to ensure in-order execution.
 concurrency: pr-${{ github.ref }}
@@ -34,7 +36,7 @@ jobs:
     steps:
       - name: cla
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
-        uses: contributor-assistant/github-action@v2.4.0
+        uses: contributor-assistant/github-action@v2.6.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # the below token should have repo scope and must be manually added by you in the repository's secret
@@ -52,7 +54,7 @@ jobs:
   release-labels:
     runs-on: ubuntu-latest
     # Skip tagging for draft PRs.
-    if: ${{ github.event_name == 'pull_request_target' && success() && !github.event.pull_request.draft }}
+    if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
     steps:
       - name: release-labels
         uses: actions/github-script@v7

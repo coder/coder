@@ -159,7 +159,7 @@ func TestPatchGroup(t *testing.T) {
 		const displayName = "foobar"
 		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name:           "hi",
+			Name:           "ff7dcee2-e7c4-4bc4-a9e4-84870770e4c5", // GUID should fit.
 			AvatarURL:      "https://example.com",
 			QuotaAllowance: 10,
 			DisplayName:    "",
@@ -168,14 +168,14 @@ func TestPatchGroup(t *testing.T) {
 		require.Equal(t, 10, group.QuotaAllowance)
 
 		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			Name:           "bye",
+			Name:           "ddd502d2-2984-4724-b5bf-1109a4d7462d", // GUID should fit.
 			AvatarURL:      ptr.Ref("https://google.com"),
 			QuotaAllowance: ptr.Ref(20),
 			DisplayName:    ptr.Ref(displayName),
 		})
 		require.NoError(t, err)
 		require.Equal(t, displayName, group.DisplayName)
-		require.Equal(t, "bye", group.Name)
+		require.Equal(t, "ddd502d2-2984-4724-b5bf-1109a4d7462d", group.Name)
 		require.Equal(t, "https://google.com", group.AvatarURL)
 		require.Equal(t, 20, group.QuotaAllowance)
 	})
@@ -757,11 +757,11 @@ func TestGroup(t *testing.T) {
 		require.Contains(t, group.Members, user2.ReducedUser)
 
 		// cannot explicitly set a dormant user status so must create a new user
-		anotherUser, err := userAdminClient.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "coder@coder.com",
-			Username:       "coder",
-			Password:       "SomeStrongPassword!",
-			OrganizationID: user.OrganizationID,
+		anotherUser, err := userAdminClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "coder@coder.com",
+			Username:        "coder",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{user.OrganizationID},
 		})
 		require.NoError(t, err)
 
@@ -777,6 +777,45 @@ func TestGroup(t *testing.T) {
 		require.Len(t, group.Members, 3)
 		require.Contains(t, group.Members, user1.ReducedUser)
 		require.Contains(t, group.Members, user2.ReducedUser)
+	})
+
+	t.Run("ByIDs", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		groupA, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "group-a",
+		})
+		require.NoError(t, err)
+
+		groupB, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "group-b",
+		})
+		require.NoError(t, err)
+
+		// group-c should be omitted from the filter
+		_, err = userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "group-c",
+		})
+		require.NoError(t, err)
+
+		found, err := userAdminClient.Groups(ctx, codersdk.GroupArguments{
+			GroupIDs: []uuid.UUID{groupA.ID, groupB.ID},
+		})
+		require.NoError(t, err)
+
+		foundIDs := db2sdk.List(found, func(g codersdk.Group) uuid.UUID {
+			return g.ID
+		})
+
+		require.ElementsMatch(t, []uuid.UUID{groupA.ID, groupB.ID}, foundIDs)
 	})
 
 	t.Run("everyoneGroupReturnsEmpty", func(t *testing.T) {

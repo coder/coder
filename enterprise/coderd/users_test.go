@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -250,12 +249,9 @@ func TestCreateFirstUser_Entitlements_Trial(t *testing.T) {
 // a custom role and assign it to an organization user.
 func TestAssignCustomOrgRoles(t *testing.T) {
 	t.Parallel()
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			DeploymentValues:         dv,
 			IncludeProvisionerDaemon: true,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -315,7 +311,6 @@ func TestGrantSiteRoles(t *testing.T) {
 	}
 
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	admin, first := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: dv,
@@ -486,8 +481,6 @@ func TestEnterprisePostUser(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -509,11 +502,11 @@ func TestEnterprisePostUser(t *testing.T) {
 			request.Name = "another"
 		})
 
-		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "some@domain.com",
-			Username:       "anotheruser",
-			Password:       "SomeSecurePassword!",
-			OrganizationID: org.ID,
+		_, err := notInOrg.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "some@domain.com",
+			Username:        "anotheruser",
+			Password:        "SomeSecurePassword!",
+			OrganizationIDs: []uuid.UUID{org.ID},
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -523,8 +516,6 @@ func TestEnterprisePostUser(t *testing.T) {
 	t.Run("OrganizationNoAccess", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -543,11 +534,11 @@ func TestEnterprisePostUser(t *testing.T) {
 
 		org := coderdenttest.CreateOrganization(t, other, coderdenttest.CreateOrganizationOptions{})
 
-		_, err := notInOrg.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "some@domain.com",
-			Username:       "anotheruser",
-			Password:       "SomeSecurePassword!",
-			OrganizationID: org.ID,
+		_, err := notInOrg.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "some@domain.com",
+			Username:        "anotheruser",
+			Password:        "SomeSecurePassword!",
+			OrganizationIDs: []uuid.UUID{org.ID},
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -557,9 +548,7 @@ func TestEnterprisePostUser(t *testing.T) {
 	t.Run("CreateWithoutOrg", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-
-		client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -578,14 +567,51 @@ func TestEnterprisePostUser(t *testing.T) {
 
 		// nolint:gocritic // intentional using the owner.
 		// Manually making a user with the request instead of the coderdtest util
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			Email:    "another@user.org",
 			Username: "someone-else",
 			Password: "SomeSecurePassword!",
 		})
+		require.ErrorContains(t, err, "No organization specified")
+	})
+
+	t.Run("MultipleOrganizations", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		// Add an extra org to assign member into
+		second := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+		third := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// nolint:gocritic // intentional using the owner.
+		// Manually making a user with the request instead of the coderdtest util
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:    "another@user.org",
+			Username: "someone-else",
+			Password: "SomeSecurePassword!",
+			OrganizationIDs: []uuid.UUID{
+				second.ID,
+				third.ID,
+			},
+		})
 		require.NoError(t, err)
 
-		require.Len(t, user.OrganizationIDs, 1)
-		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+		memberedOrgs, err := client.OrganizationsByUser(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Len(t, memberedOrgs, 2)
+		require.ElementsMatch(t, []uuid.UUID{second.ID, third.ID}, []uuid.UUID{memberedOrgs[0].ID, memberedOrgs[1].ID})
 	})
 }

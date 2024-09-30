@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/serpent"
@@ -44,6 +44,13 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			if username == "" {
 				username, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Username:",
+					Validate: func(username string) error {
+						err = codersdk.NameValid(username)
+						if err != nil {
+							return xerrors.Errorf("username %q is invalid: %w", username, err)
+						}
+						return nil
+					},
 				})
 				if err != nil {
 					return err
@@ -71,7 +78,7 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				if err != nil {
 					return err
 				}
-				name = httpapi.NormalizeRealUsername(rawName)
+				name = codersdk.NormalizeRealUsername(rawName)
 				if !strings.EqualFold(rawName, name) {
 					cliui.Warnf(inv.Stderr, "Normalized name to %q", name)
 				}
@@ -94,13 +101,13 @@ func (r *RootCmd) userCreate() *serpent.Command {
 				}
 			}
 
-			_, err = client.CreateUser(inv.Context(), codersdk.CreateUserRequest{
-				Email:          email,
-				Username:       username,
-				Name:           name,
-				Password:       password,
-				OrganizationID: organization.ID,
-				UserLoginType:  userLoginType,
+			_, err = client.CreateUserWithOrgs(inv.Context(), codersdk.CreateUserRequestWithOrgs{
+				Email:           email,
+				Username:        username,
+				Name:            name,
+				Password:        password,
+				OrganizationIDs: []uuid.UUID{organization.ID},
+				UserLoginType:   userLoginType,
 			})
 			if err != nil {
 				return err
@@ -144,7 +151,16 @@ Create a workspace  `+pretty.Sprint(cliui.DefaultStyles.Code, "coder create")+`!
 			Flag:          "username",
 			FlagShorthand: "u",
 			Description:   "Specifies a username for the new user.",
-			Value:         serpent.StringOf(&username),
+			Value: serpent.Validate(serpent.StringOf(&username), func(_username *serpent.String) error {
+				username := _username.String()
+				if username != "" {
+					err := codersdk.NameValid(username)
+					if err != nil {
+						return xerrors.Errorf("username %q is invalid: %w", username, err)
+					}
+				}
+				return nil
+			}),
 		},
 		{
 			Flag:          "full-name",

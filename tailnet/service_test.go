@@ -40,6 +40,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {
 			telemetryEvents <- batch
 		},
+		ResumeTokenProvider: tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
 
@@ -144,6 +145,7 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 		DERPMapUpdateFrequency:  0,
 		DERPMapFn:               nil,
 		NetworkTelemetryHandler: nil,
+		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
 
@@ -160,21 +162,8 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 		errCh <- err
 	}()
 
-	call := testutil.RequireRecvCtx(ctx, t, fCoord.ServeClientCalls)
-	require.NotNil(t, call)
-	require.Equal(t, call.ID, clientID)
-	require.Equal(t, call.Agent, agentID)
-	require.Equal(t, s, call.Conn)
-	expectedError := xerrors.New("test error")
-	select {
-	case call.ErrCh <- expectedError:
-	// ok!
-	case <-ctx.Done():
-		t.Fatalf("timeout sending error")
-	}
-
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
-	require.ErrorIs(t, err, expectedError)
+	require.ErrorIs(t, err, tailnet.ErrUnsupportedVersion)
 }
 
 func TestNetworkTelemetryBatcher(t *testing.T) {

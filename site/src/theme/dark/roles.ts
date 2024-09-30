@@ -1,7 +1,7 @@
 import type { Roles } from "../roles";
 import colors from "../tailwindColors";
 
-export default {
+const roles: Roles = {
 	danger: {
 		background: colors.orange[950],
 		outline: colors.orange[500],
@@ -53,22 +53,22 @@ export default {
 		},
 	},
 	notice: {
-		background: colors.yellow[950],
-		outline: colors.yellow[200],
-		text: colors.yellow[50],
-		fill: {
-			solid: colors.yellow[500],
-			outline: colors.yellow[500],
-			text: colors.white,
-		},
-	},
-	info: {
 		background: colors.blue[950],
 		outline: colors.blue[400],
 		text: colors.blue[50],
 		fill: {
 			solid: colors.blue[500],
 			outline: colors.blue[600],
+			text: colors.white,
+		},
+	},
+	info: {
+		background: colors.zinc[950],
+		outline: colors.zinc[400],
+		text: colors.zinc[50],
+		fill: {
+			solid: colors.zinc[500],
+			outline: colors.zinc[600],
 			text: colors.white,
 		},
 	},
@@ -152,4 +152,6 @@ export default {
 			text: colors.white,
 		},
 	},
-} satisfies Roles;
+};
+
+export default roles;

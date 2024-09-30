@@ -67,7 +67,6 @@ export const OrganizationSettingsPageView: FC<
 	return (
 		<div>
 			<SettingsHeader title="Settings" />
-
 			{Boolean(error) && !isApiValidationError(error) && (
 				<div css={{ marginBottom: 32 }}>
 					<ErrorAlert error={error} />
@@ -93,7 +92,7 @@ export const OrganizationSettingsPageView: FC<
 								onChange={onChangeTrimmed(form)}
 								autoFocus
 								fullWidth
-								label="Name"
+								label="Slug"
 							/>
 							<TextField
 								{...getFieldHelpers("display_name")}
@@ -181,8 +180,8 @@ const styles = {
 		borderColor: theme.roles.danger.outline,
 		color: theme.roles.danger.text,
 
-		"&:not(.MuiLoadingButton-loading)": {
-			color: theme.roles.danger.fill.text,
+		"&.MuiLoadingButton-loading": {
+			color: theme.roles.danger.disabled.text,
 		},
 
 		"&:hover:not(:disabled)": {

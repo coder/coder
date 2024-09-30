@@ -178,6 +178,7 @@ func dbAgentScriptsToProto(scripts []database.WorkspaceAgentScript) []*agentprot
 
 func dbAgentScriptToProto(script database.WorkspaceAgentScript) *agentproto.WorkspaceAgentScript {
 	return &agentproto.WorkspaceAgentScript{
+		Id:               script.ID[:],
 		LogSourceId:      script.LogSourceID[:],
 		LogPath:          script.LogPath,
 		Script:           script.Script,
@@ -229,5 +230,6 @@ func dbAppToProto(dbApp database.WorkspaceApp, agent database.WorkspaceAgent, ow
 			Threshold: dbApp.HealthcheckThreshold,
 		},
 		Health: agentproto.WorkspaceApp_Health(healthRaw),
+		Hidden: dbApp.Hidden,
 	}, nil
 }

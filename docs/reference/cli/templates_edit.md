@@ -70,17 +70,17 @@ Edit the template activity bump - workspaces created from this template will hav
 
 ### --autostart-requirement-weekdays
 
-|      |                           |
-| ---- | ------------------------- |
-| Type | <code>string-array</code> |
+|      |                                                                                    |
+| ---- | ---------------------------------------------------------------------------------- |
+| Type | <code>[monday\|tuesday\|wednesday\|thursday\|friday\|saturday\|sunday\|all]</code> |
 
 Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.
 
 ### --autostop-requirement-weekdays
 
-|      |                           |
-| ---- | ------------------------- |
-| Type | <code>string-array</code> |
+|      |                                                                                     |
+| ---- | ----------------------------------------------------------------------------------- |
+| Type | <code>[monday\|tuesday\|wednesday\|thursday\|friday\|saturday\|sunday\|none]</code> |
 
 Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
 
@@ -153,7 +153,7 @@ Allow users to customize the autostop TTL for workspaces on this template. This 
 | Type    | <code>bool</code>  |
 | Default | <code>false</code> |
 
-Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature.
+Requires workspace builds to use the active template version. This setting does not apply to template admins. This is an enterprise-only feature. See https://coder.com/docs/templates/general-settings#require-automatic-updates-enterprise for more details.
 
 ### --private
 

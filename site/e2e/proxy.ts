@@ -14,14 +14,12 @@ export const startWorkspaceProxy = async (
 		},
 	});
 	cp.stdout.on("data", (data: Buffer) => {
-		// eslint-disable-next-line no-console -- Log wsproxy activity
-		console.log(
+		console.info(
 			`[wsproxy] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
 		);
 	});
 	cp.stderr.on("data", (data: Buffer) => {
-		// eslint-disable-next-line no-console -- Log wsproxy activity
-		console.log(
+		console.info(
 			`[wsproxy] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
 		);
 	});

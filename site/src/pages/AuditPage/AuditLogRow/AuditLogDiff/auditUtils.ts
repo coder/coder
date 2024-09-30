@@ -11,15 +11,14 @@ interface GroupMember {
  * @returns a diff with the 'members' key flattened to be an array of user_ids
  */
 export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
+	const old = auditLogDiff.members?.old as GroupMember[] | undefined;
+	const new_ = auditLogDiff.members?.new as GroupMember[] | undefined;
+
 	return {
 		...auditLogDiff,
 		members: {
-			old: auditLogDiff.members?.old?.map(
-				(groupMember: GroupMember) => groupMember.user_id,
-			),
-			new: auditLogDiff.members?.new?.map(
-				(groupMember: GroupMember) => groupMember.user_id,
-			),
+			old: old?.map((groupMember) => groupMember.user_id),
+			new: new_?.map((groupMember) => groupMember.user_id),
 			secret: auditLogDiff.members?.secret,
 		},
 	};

@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -10,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -42,6 +44,14 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 	)
 	aReq.Old = database.AuditableOrganizationMember{}
 	defer commitAudit()
+
+	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.OrganizationSyncEnabled() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for this user.",
+			Detail:  fmt.Sprintf("User %s is an OIDC user and organization sync is enabled. Ask an administrator to resolve this in your external IDP.", user.ID),
+		})
+		return
+	}
 
 	member, err := api.Database.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 		OrganizationID: organization.ID,
@@ -105,19 +115,6 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
-
-	if organization.IsDefault {
-		// Multi-organizations is currently an experiment, which means it is feasible
-		// for a deployment to enable, then disable this. To maintain backwards
-		// compatibility, this safety is necessary.
-		// TODO: Remove this check when multi-organizations is fully supported.
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Removing members from the default organization is not supported.",
-			Detail:      "Multi-organizations is currently an experiment, and until it is fully supported, the default org should be protected.",
-			Validations: nil,
-		})
-		return
-	}
 
 	if member.UserID == apiKey.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "cannot remove self from an organization"})
@@ -206,9 +203,15 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
 
+	// Check if changing roles is allowed
+	if !api.allowChangingMemberRoles(ctx, rw, member, organization) {
+		return
+	}
+
 	if apiKey.UserID == member.OrganizationMember.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own organization roles.",
+			Detail:  "Another user with the appropriate permissions must change your roles.",
 		})
 		return
 	}
@@ -248,6 +251,35 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
+}
+
+func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWriter, member httpmw.OrganizationMember, organization database.Organization) bool {
+	// nolint:gocritic // The caller could be an org admin without this perm.
+	// We need to disable manual role assignment if role sync is enabled for
+	// the given organization.
+	user, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), member.UserID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return false
+	}
+
+	if user.LoginType == database.LoginTypeOIDC {
+		// nolint:gocritic // fetching settings
+		orgSync, err := api.IDPSync.OrganizationRoleSyncEnabled(dbauthz.AsSystemRestricted(ctx), api.Database, organization.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return false
+		}
+		if orgSync {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot modify roles for OIDC users when role sync is enabled. This organization member's roles are managed by the identity provider.",
+				Detail:  "'User Role Field' is set in the organization settings. Ask an administrator to adjust or disable these settings.",
+			})
+			return false
+		}
+	}
+
+	return true
 }
 
 // convertOrganizationMembers batches the role lookup to make only 1 sql call

@@ -2,6 +2,7 @@ import { screen, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import {
 	MockDefaultOrganization,
+	MockEntitlementsWithMultiOrg,
 	MockOrganization2,
 } from "testHelpers/entities";
 import {
@@ -24,6 +25,9 @@ const renderPage = async () => {
 describe("OrganizationSettingsPage", () => {
 	it("has no editable organizations", async () => {
 		server.use(
+			http.get("/api/v2/entitlements", () => {
+				return HttpResponse.json(MockEntitlementsWithMultiOrg);
+			}),
 			http.get("/api/v2/organizations", () => {
 				return HttpResponse.json([MockDefaultOrganization, MockOrganization2]);
 			}),
@@ -39,6 +43,9 @@ describe("OrganizationSettingsPage", () => {
 
 	it("redirects to default organization", async () => {
 		server.use(
+			http.get("/api/v2/entitlements", () => {
+				return HttpResponse.json(MockEntitlementsWithMultiOrg);
+			}),
 			http.get("/api/v2/organizations", () => {
 				// Default always preferred regardless of order.
 				return HttpResponse.json([MockOrganization2, MockDefaultOrganization]);
@@ -53,13 +60,16 @@ describe("OrganizationSettingsPage", () => {
 		);
 		await renderPage();
 		const form = screen.getByTestId("org-settings-form");
-		expect(within(form).getByRole("textbox", { name: "Name" })).toHaveValue(
+		expect(within(form).getByRole("textbox", { name: "Slug" })).toHaveValue(
 			MockDefaultOrganization.name,
 		);
 	});
 
 	it("redirects to non-default organization", async () => {
 		server.use(
+			http.get("/api/v2/entitlements", () => {
+				return HttpResponse.json(MockEntitlementsWithMultiOrg);
+			}),
 			http.get("/api/v2/organizations", () => {
 				return HttpResponse.json([MockDefaultOrganization, MockOrganization2]);
 			}),
@@ -72,7 +82,7 @@ describe("OrganizationSettingsPage", () => {
 		);
 		await renderPage();
 		const form = screen.getByTestId("org-settings-form");
-		expect(within(form).getByRole("textbox", { name: "Name" })).toHaveValue(
+		expect(within(form).getByRole("textbox", { name: "Slug" })).toHaveValue(
 			MockOrganization2.name,
 		);
 	});

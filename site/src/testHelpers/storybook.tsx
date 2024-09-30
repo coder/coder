@@ -20,10 +20,16 @@ export const withDashboardProvider = (
 	Story: FC,
 	{ parameters }: StoryContext,
 ) => {
-	const { features = [], experiments = [] } = parameters;
+	const {
+		features = [],
+		experiments = [],
+		showOrganizations = false,
+		organizations = [MockDefaultOrganization],
+	} = parameters;
 
 	const entitlements: Entitlements = {
 		...MockEntitlements,
+		has_license: features.length > 0,
 		features: withDefaultFeatures(
 			Object.fromEntries(
 				features.map((feature) => [
@@ -39,9 +45,9 @@ export const withDashboardProvider = (
 			value={{
 				entitlements,
 				experiments,
+				organizations,
+				showOrganizations,
 				appearance: MockAppearanceConfig,
-				organizations: [MockDefaultOrganization],
-				showOrganizations: false,
 			}}
 		>
 			<Story />
@@ -98,7 +104,6 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	if (!parameters.user) {
 		throw new Error("You forgot to add `parameters.user` to your story");
 	}
-	// eslint-disable-next-line react-hooks/rules-of-hooks -- decorators are components
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(meKey, parameters.user);
 	queryClient.setQueryData(hasFirstUserKey, true);

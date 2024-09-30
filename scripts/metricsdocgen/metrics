@@ -63,6 +63,9 @@ coderd_agentstats_connection_count{agent_name="main",username="admin",workspace_
 # HELP coderd_agentstats_connection_median_latency_seconds The median agent connection latency
 # TYPE coderd_agentstats_connection_median_latency_seconds gauge
 coderd_agentstats_connection_median_latency_seconds{agent_name="main",username="admin",workspace_name="workspace1"} 0.001784
+# HELP coderd_agentstats_currently_reachable_peers The number of peers (e.g. clients) that are currently reachable over the encrypted network.
+# TYPE coderd_agentstats_currently_reachable_peers gauge
+coderd_agentstats_currently_reachable_peers{agent_name="main",connection_type="derp",template_name="docker",username="admin",workspace_name="workspace1"} 0
 # HELP coderd_agentstats_rx_bytes Agent Rx bytes
 # TYPE coderd_agentstats_rx_bytes gauge
 coderd_agentstats_rx_bytes{agent_name="main",username="admin",workspace_name="workspace1"} 7731
@@ -704,6 +707,9 @@ coderd_provisionerd_job_timings_seconds_count{provisioner="terraform",status="su
 # HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
 # TYPE coderd_provisionerd_jobs_current gauge
 coderd_provisionerd_jobs_current{provisioner="terraform"} 0
+# HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner.
+# TYPE coderd_workspace_latest_build_status gauge
+coderd_workspace_latest_build_status{status="failed",template_name="docker",template_version="sweet_gould9",workspace_owner="admin",workspace_transition="stop"} 1
 # HELP coderd_workspace_builds_total The number of workspaces started, updated, or deleted.
 # TYPE coderd_workspace_builds_total counter
 coderd_workspace_builds_total{action="START",owner_email="admin@coder.com",status="failed",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -373,7 +374,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		snapshot.Groups = make([]Group, 0, len(groups))
 		for _, group := range groups {
-			snapshot.Groups = append(snapshot.Groups, ConvertGroup(group))
+			snapshot.Groups = append(snapshot.Groups, ConvertGroup(group.Group))
 		}
 		return nil
 	})
@@ -473,13 +474,24 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		stats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
-		if err != nil {
-			return xerrors.Errorf("get workspace agent stats: %w", err)
-		}
-		snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(stats))
-		for _, stat := range stats {
-			snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(stat))
+		if r.options.DeploymentConfig != nil && slices.Contains(r.options.DeploymentConfig.Experiments, string(codersdk.ExperimentWorkspaceUsage)) {
+			agentStats, err := r.options.Database.GetWorkspaceAgentUsageStats(ctx, createdAfter)
+			if err != nil {
+				return xerrors.Errorf("get workspace agent stats: %w", err)
+			}
+			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
+			for _, stat := range agentStats {
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(database.GetWorkspaceAgentStatsRow(stat)))
+			}
+		} else {
+			agentStats, err := r.options.Database.GetWorkspaceAgentStats(ctx, createdAfter)
+			if err != nil {
+				return xerrors.Errorf("get workspace agent stats: %w", err)
+			}
+			snapshot.WorkspaceAgentStats = make([]WorkspaceAgentStat, 0, len(agentStats))
+			for _, stat := range agentStats {
+				snapshot.WorkspaceAgentStats = append(snapshot.WorkspaceAgentStats, ConvertWorkspaceAgentStat(stat))
+			}
 		}
 		return nil
 	})
@@ -1230,19 +1242,18 @@ func netcheckFromProto(proto *tailnetproto.Netcheck) Netcheck {
 
 // NetworkEvent and all related structs come from tailnet.proto.
 type NetworkEvent struct {
-	ID                  uuid.UUID               `json:"id"`
-	Time                time.Time               `json:"time"`
-	Application         string                  `json:"application"`
-	Status              string                  `json:"status"` // connected, disconnected
-	DisconnectionReason string                  `json:"disconnection_reason"`
-	ClientType          string                  `json:"client_type"` // cli, agent, coderd, wsproxy
-	ClientVersion       string                  `json:"client_version"`
-	NodeIDSelf          uint64                  `json:"node_id_self"`
-	NodeIDRemote        uint64                  `json:"node_id_remote"`
-	P2PEndpoint         NetworkEventP2PEndpoint `json:"p2p_endpoint"`
-	HomeDERP            int                     `json:"home_derp"`
-	DERPMap             DERPMap                 `json:"derp_map"`
-	LatestNetcheck      Netcheck                `json:"latest_netcheck"`
+	ID             uuid.UUID               `json:"id"`
+	Time           time.Time               `json:"time"`
+	Application    string                  `json:"application"`
+	Status         string                  `json:"status"`      // connected, disconnected
+	ClientType     string                  `json:"client_type"` // cli, agent, coderd, wsproxy
+	ClientVersion  string                  `json:"client_version"`
+	NodeIDSelf     uint64                  `json:"node_id_self"`
+	NodeIDRemote   uint64                  `json:"node_id_remote"`
+	P2PEndpoint    NetworkEventP2PEndpoint `json:"p2p_endpoint"`
+	HomeDERP       int                     `json:"home_derp"`
+	DERPMap        DERPMap                 `json:"derp_map"`
+	LatestNetcheck Netcheck                `json:"latest_netcheck"`
 
 	ConnectionAge   *time.Duration `json:"connection_age"`
 	ConnectionSetup *time.Duration `json:"connection_setup"`
@@ -1277,18 +1288,18 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 	}
 
 	return NetworkEvent{
-		ID:                  id,
-		Time:                proto.Time.AsTime(),
-		Application:         proto.Application,
-		Status:              strings.ToLower(proto.Status.String()),
-		DisconnectionReason: proto.DisconnectionReason,
-		ClientType:          strings.ToLower(proto.ClientType.String()),
-		NodeIDSelf:          proto.NodeIdSelf,
-		NodeIDRemote:        proto.NodeIdRemote,
-		P2PEndpoint:         p2pEndpointFromProto(proto.P2PEndpoint),
-		HomeDERP:            int(proto.HomeDerp),
-		DERPMap:             derpMapFromProto(proto.DerpMap),
-		LatestNetcheck:      netcheckFromProto(proto.LatestNetcheck),
+		ID:             id,
+		Time:           proto.Time.AsTime(),
+		Application:    proto.Application,
+		Status:         strings.ToLower(proto.Status.String()),
+		ClientType:     strings.ToLower(proto.ClientType.String()),
+		ClientVersion:  proto.ClientVersion,
+		NodeIDSelf:     proto.NodeIdSelf,
+		NodeIDRemote:   proto.NodeIdRemote,
+		P2PEndpoint:    p2pEndpointFromProto(proto.P2PEndpoint),
+		HomeDERP:       int(proto.HomeDerp),
+		DERPMap:        derpMapFromProto(proto.DerpMap),
+		LatestNetcheck: netcheckFromProto(proto.LatestNetcheck),
 
 		ConnectionAge:   protoDurationNil(proto.ConnectionAge),
 		ConnectionSetup: protoDurationNil(proto.ConnectionSetup),

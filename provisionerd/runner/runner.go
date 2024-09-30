@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -221,7 +222,7 @@ func (r *Runner) Run() {
 		err := r.sender.CompleteJob(ctx, r.completedJob)
 		if err != nil {
 			r.logger.Error(ctx, "sending CompletedJob failed", slog.Error(err))
-			err = r.sender.FailJob(ctx, r.failedJobf("internal provisionerserver error"))
+			err = r.sender.FailJob(ctx, r.failedJobf("internal provisionerserver error: %s", err))
 			if err != nil {
 				r.logger.Error(ctx, "sending FailJob failed (while CompletedJob)", slog.Error(err))
 			}
@@ -723,7 +724,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 
 			r.logger.Info(context.Background(), "parse dry-run provision successful",
 				slog.F("resource_count", len(c.Resources)),
-				slog.F("resources", c.Resources),
+				slog.F("resources", resourceNames(c.Resources)),
 			)
 
 			return &templateImportProvision{
@@ -853,7 +854,7 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
 	cost := sumDailyCost(resources)
 	r.logger.Debug(ctx, "committing quota",
-		slog.F("resources", resources),
+		slog.F("resources", resourceNames(resources)),
 		slog.F("cost", cost),
 	)
 	if cost == 0 {
@@ -964,7 +965,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 
 	r.logger.Info(context.Background(), "plan request successful",
 		slog.F("resource_count", len(planComplete.Resources)),
-		slog.F("resources", planComplete.Resources),
+		slog.F("resources", resourceNames(planComplete.Resources)),
 	)
 	r.flushQueuedLogs(ctx)
 	if commitQuota {
@@ -996,6 +997,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if applyComplete == nil {
 		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
 	}
+
+	// Prepend the plan timings (since they occurred first).
+	applyComplete.Timings = append(planComplete.Timings, applyComplete.Timings...)
+
 	if applyComplete.Error != "" {
 		r.logger.Warn(context.Background(), "apply failed; updating state",
 			slog.F("error", applyComplete.Error),
@@ -1007,7 +1012,8 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			Error: applyComplete.Error,
 			Type: &proto.FailedJob_WorkspaceBuild_{
 				WorkspaceBuild: &proto.FailedJob_WorkspaceBuild{
-					State: applyComplete.State,
+					State:   applyComplete.State,
+					Timings: applyComplete.Timings,
 				},
 			},
 		}
@@ -1015,7 +1021,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 
 	r.logger.Info(context.Background(), "apply successful",
 		slog.F("resource_count", len(applyComplete.Resources)),
-		slog.F("resources", applyComplete.Resources),
+		slog.F("resources", resourceNames(applyComplete.Resources)),
 		slog.F("state_len", len(applyComplete.State)),
 	)
 	r.flushQueuedLogs(ctx)
@@ -1026,9 +1032,23 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
 				State:     applyComplete.State,
 				Resources: applyComplete.Resources,
+				Timings:   applyComplete.Timings,
 			},
 		},
 	}, nil
+}
+
+func resourceNames(rs []*sdkproto.Resource) []string {
+	var sb strings.Builder
+	names := make([]string, 0, len(rs))
+	for _, r := range rs {
+		_, _ = sb.WriteString(r.Type)
+		_, _ = sb.WriteString(".")
+		_, _ = sb.WriteString(r.Name)
+		names = append(names, sb.String())
+		sb.Reset()
+	}
+	return names
 }
 
 func (r *Runner) failedWorkspaceBuildf(format string, args ...interface{}) *proto.FailedJob {

@@ -62,6 +62,16 @@ func init() {
 				return `| | |
 | --- | --- |`
 			},
+			"typeHelper": func(opt *serpent.Option) string {
+				switch v := opt.Value.(type) {
+				case *serpent.Enum:
+					return strings.Join(v.Choices, "\\|")
+				case *serpent.EnumArray:
+					return fmt.Sprintf("[%s]", strings.Join(v.Choices, "\\|"))
+				default:
+					return v.Type()
+				}
+			},
 		},
 		).Parse(strings.TrimSpace(commandTemplateRaw)),
 	)

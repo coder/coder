@@ -25,13 +25,13 @@ OPTIONS:
       --allow-user-cancel-workspace-jobs bool (default: true)
           Allow users to cancel in-progress workspace jobs.
 
-      --autostart-requirement-weekdays string-array
+      --autostart-requirement-weekdays [monday|tuesday|wednesday|thursday|friday|saturday|sunday|all]
           Edit the template autostart requirement weekdays - workspaces created
           from this template can only autostart on the given weekdays. To unset
           this value for the template (and allow autostart on all days), pass
           'all'.
 
-      --autostop-requirement-weekdays string-array
+      --autostop-requirement-weekdays [monday|tuesday|wednesday|thursday|friday|saturday|sunday|none]
           Edit the template autostop requirement weekdays - workspaces created
           from this template must be restarted on the given weekdays. To unset
           this value for the template (and disable the autostop requirement for
@@ -86,7 +86,9 @@ OPTIONS:
       --require-active-version bool (default: false)
           Requires workspace builds to use the active template version. This
           setting does not apply to template admins. This is an enterprise-only
-          feature.
+          feature. See
+          https://coder.com/docs/templates/general-settings#require-automatic-updates-enterprise
+          for more details.
 
   -y, --yes bool
           Bypass prompts.

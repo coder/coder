@@ -274,8 +274,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		DisplayName: "Member",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionRead},
-			// All users can see the provisioner daemons.
-			ResourceProvisionerDaemon.Type: {policy.ActionRead},
 			// All users can see OAuth2 provider applications.
 			ResourceOauth2App.Type:      {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
@@ -414,18 +412,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				DisplayName: "",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
-					organizationID.String(): {
-						{
-							// All org members can read the organization
-							ResourceType: ResourceOrganization.Type,
-							Action:       policy.ActionRead,
-						},
-						{
-							// Can read available roles.
-							ResourceType: ResourceAssignOrgRole.Type,
-							Action:       policy.ActionRead,
-						},
-					},
+					organizationID.String(): Permissions(map[string][]policy.Action{
+						// All users can see the provisioner daemons for workspace
+						// creation.
+						ResourceProvisionerDaemon.Type: {policy.ActionRead},
+						// All org members can read the organization
+						ResourceOrganization.Type: {policy.ActionRead},
+						// Can read available roles.
+						ResourceAssignOrgRole.Type: {policy.ActionRead},
+					}),
 				},
 				User: []Permission{
 					{
@@ -465,6 +460,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 						ResourceGroup.Type:              ResourceGroup.AvailableActions(),
 						ResourceGroupMember.Type:        ResourceGroupMember.AvailableActions(),
+						ResourceIdpsyncSettings.Type:    {policy.ActionRead, policy.ActionUpdate},
 					}),
 				},
 				User: []Permission{},
@@ -764,29 +760,9 @@ func SiteRoles() []Role {
 // RBAC checks can be applied using "ActionCreate" and "ActionDelete" for
 // "added" and "removed" roles respectively.
 func ChangeRoleSet(from []RoleIdentifier, to []RoleIdentifier) (added []RoleIdentifier, removed []RoleIdentifier) {
-	has := make(map[RoleIdentifier]struct{})
-	for _, exists := range from {
-		has[exists] = struct{}{}
-	}
-
-	for _, roleName := range to {
-		// If the user already has the role assigned, we don't need to check the permission
-		// to reassign it. Only run permission checks on the difference in the set of
-		// roles.
-		if _, ok := has[roleName]; ok {
-			delete(has, roleName)
-			continue
-		}
-
-		added = append(added, roleName)
-	}
-
-	// Remaining roles are the ones removed/deleted.
-	for roleName := range has {
-		removed = append(removed, roleName)
-	}
-
-	return added, removed
+	return slice.SymmetricDifferenceFunc(from, to, func(a, b RoleIdentifier) bool {
+		return a.Name == b.Name && a.OrganizationID == b.OrganizationID
+	})
 }
 
 // Permissions is just a helper function to make building roles that list out resources

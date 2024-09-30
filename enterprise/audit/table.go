@@ -129,22 +129,25 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"archived":                ActionTrack,
 	},
 	&database.User{}: {
-		"id":                   ActionTrack,
-		"email":                ActionTrack,
-		"username":             ActionTrack,
-		"hashed_password":      ActionSecret, // Do not expose a users hashed password.
-		"created_at":           ActionIgnore, // Never changes.
-		"updated_at":           ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"status":               ActionTrack,
-		"rbac_roles":           ActionTrack,
-		"login_type":           ActionTrack,
-		"avatar_url":           ActionIgnore,
-		"last_seen_at":         ActionIgnore,
-		"deleted":              ActionTrack,
-		"quiet_hours_schedule": ActionTrack,
-		"theme_preference":     ActionIgnore,
-		"name":                 ActionTrack,
-		"github_com_user_id":   ActionIgnore,
+		"id":                           ActionTrack,
+		"email":                        ActionTrack,
+		"username":                     ActionTrack,
+		"hashed_password":              ActionSecret, // Do not expose a users hashed password.
+		"created_at":                   ActionIgnore, // Never changes.
+		"updated_at":                   ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"status":                       ActionTrack,
+		"rbac_roles":                   ActionTrack,
+		"login_type":                   ActionTrack,
+		"avatar_url":                   ActionIgnore,
+		"last_seen_at":                 ActionIgnore,
+		"deleted":                      ActionTrack,
+		"quiet_hours_schedule":         ActionTrack,
+		"theme_preference":             ActionIgnore,
+		"name":                         ActionTrack,
+		"github_com_user_id":           ActionIgnore,
+		"hashed_one_time_passcode":     ActionSecret, // Do not expose a user's one time passcode.
+		"one_time_passcode_expires_at": ActionTrack,
+		"must_reset_password":          ActionTrack,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,

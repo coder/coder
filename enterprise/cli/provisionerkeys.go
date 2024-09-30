@@ -20,7 +20,6 @@ func (r *RootCmd) provisionerKeys() *serpent.Command {
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Hidden:  true,
 		Aliases: []string{"key"},
 		Children: []*serpent.Command{
 			r.provisionerKeysCreate(),
@@ -96,7 +95,7 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 	var (
 		orgContext = agpl.NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]codersdk.ProvisionerKey{}, nil),
+			cliui.TableFormat([]codersdk.ProvisionerKey{}, []string{"created at", "name", "tags"}),
 			cliui.JSONFormat(),
 		)
 	)

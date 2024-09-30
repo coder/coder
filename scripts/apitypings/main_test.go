@@ -43,7 +43,7 @@ func TestGeneration(t *testing.T) {
 			output = strings.TrimSpace(output)
 			if *updateGoldenFiles {
 				// nolint:gosec
-				err := os.WriteFile(golden, []byte(output), 0o644)
+				err := os.WriteFile(golden, []byte(output+"\n"), 0o644)
 				require.NoError(t, err, "write golden file")
 			} else {
 				require.Equal(t, expectedString, output, "matched output")

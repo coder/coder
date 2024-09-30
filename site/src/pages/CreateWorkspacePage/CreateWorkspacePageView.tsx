@@ -318,7 +318,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 const styles = {
 	nameSuggestion: (theme) => ({
-		color: theme.roles.info.fill.solid,
+		color: theme.roles.notice.fill.solid,
 		padding: "4px 8px",
 		lineHeight: "inherit",
 		fontSize: "inherit",

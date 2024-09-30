@@ -79,9 +79,9 @@ type Config struct {
 	// where users will land when they connect via SSH. Default is the home
 	// directory of the user.
 	WorkingDirectory func() string
-	// X11SocketDir is the directory where X11 sockets are created. Default is
-	// /tmp/.X11-unix.
-	X11SocketDir string
+	// X11DisplayOffset is the offset to add to the X11 display number.
+	// Default is 10.
+	X11DisplayOffset *int
 	// BlockFileTransfer restricts use of file transfer applications.
 	BlockFileTransfer bool
 }
@@ -124,8 +124,9 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	if config == nil {
 		config = &Config{}
 	}
-	if config.X11SocketDir == "" {
-		config.X11SocketDir = filepath.Join(os.TempDir(), ".X11-unix")
+	if config.X11DisplayOffset == nil {
+		offset := X11DefaultDisplayOffset
+		config.X11DisplayOffset = &offset
 	}
 	if config.UpdateEnv == nil {
 		config.UpdateEnv = func(current []string) ([]string, error) { return current, nil }
@@ -273,13 +274,13 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	extraEnv := make([]string, 0)
 	x11, hasX11 := session.X11()
 	if hasX11 {
-		handled := s.x11Handler(session.Context(), x11)
+		display, handled := s.x11Handler(session.Context(), x11)
 		if !handled {
 			_ = session.Exit(1)
 			logger.Error(ctx, "x11 handler failed")
 			return
 		}
-		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
+		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=localhost:%d.%d", display, x11.ScreenNumber))
 	}
 
 	if s.fileTransferBlocked(session) {

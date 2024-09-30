@@ -73,6 +73,9 @@ sql:
           - column: "notification_messages.payload"
             go_type:
               type: "[]byte"
+          - column: "provisioner_job_stats.*_secs"
+            go_type:
+              type: "float64"
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember

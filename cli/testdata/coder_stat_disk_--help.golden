@@ -6,8 +6,8 @@ USAGE:
   Show disk usage, in gigabytes.
 
 OPTIONS:
-  -o, --output string (default: text)
-          Output format. Available formats: text, json.
+  -o, --output text|json (default: text)
+          Output format.
 
       --path string (default: /)
           Path for which to check disk usage.

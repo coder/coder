@@ -14,7 +14,7 @@ import {
 import type { User } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { useFilter } from "components/Filter/filter";
+import { useFilter } from "components/Filter/Filter";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -40,10 +40,10 @@ const UsersPage: FC = () => {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const searchParamsResult = useSearchParams();
-	const { entitlements, experiments } = useDashboard();
+	const { entitlements, showOrganizations } = useDashboard();
 	const [searchParams] = searchParamsResult;
 
-	const groupsByUserIdQuery = useQuery(groupsByUserId("default"));
+	const groupsByUserIdQuery = useQuery(groupsByUserId());
 	const authMethodsQuery = useQuery(authMethods());
 
 	const { permissions, user: me } = useAuthenticated();
@@ -102,8 +102,7 @@ const UsersPage: FC = () => {
 		authMethodsQuery.isLoading ||
 		groupsByUserIdQuery.isLoading;
 
-	const canViewOrganizations = experiments.includes("multi-organization");
-	if (canViewOrganizations && location.pathname !== "/deployment/users") {
+	if (showOrganizations && location.pathname !== "/deployment/users") {
 		return <Navigate to={`/deployment/users${location.search}`} replace />;
 	}
 
@@ -160,7 +159,7 @@ const UsersPage: FC = () => {
 					menus: { status: statusMenu },
 				}}
 				usersQuery={usersQuery}
-				canViewOrganizations={canViewOrganizations}
+				canViewOrganizations={showOrganizations}
 				canCreateUser={canCreateUser}
 			/>
 
@@ -172,8 +171,11 @@ const UsersPage: FC = () => {
 				entity="user"
 				onCancel={() => setUserToDelete(undefined)}
 				onConfirm={async () => {
+					if (!userToDelete) {
+						return;
+					}
 					try {
-						await deleteUserMutation.mutateAsync(userToDelete!.id);
+						await deleteUserMutation.mutateAsync(userToDelete.id);
 						setUserToDelete(undefined);
 						displaySuccess("Successfully deleted the user.");
 					} catch (e) {
@@ -191,8 +193,11 @@ const UsersPage: FC = () => {
 				confirmText="Suspend"
 				onClose={() => setUserToSuspend(undefined)}
 				onConfirm={async () => {
+					if (!userToSuspend) {
+						return;
+					}
 					try {
-						await suspendUserMutation.mutateAsync(userToSuspend!.id);
+						await suspendUserMutation.mutateAsync(userToSuspend.id);
 						setUserToSuspend(undefined);
 						displaySuccess("Successfully suspended the user.");
 					} catch (e) {
@@ -216,8 +221,11 @@ const UsersPage: FC = () => {
 				confirmText="Activate"
 				onClose={() => setUserToActivate(undefined)}
 				onConfirm={async () => {
+					if (!userToActivate) {
+						return;
+					}
 					try {
-						await activateUserMutation.mutateAsync(userToActivate!.id);
+						await activateUserMutation.mutateAsync(userToActivate.id);
 						setUserToActivate(undefined);
 						displaySuccess("Successfully activated the user.");
 					} catch (e) {
@@ -242,10 +250,13 @@ const UsersPage: FC = () => {
 					setConfirmResetPassword(undefined);
 				}}
 				onConfirm={async () => {
+					if (!confirmResetPassword) {
+						return;
+					}
 					try {
 						await updatePasswordMutation.mutateAsync({
-							userId: confirmResetPassword!.user.id,
-							password: confirmResetPassword!.newPassword,
+							userId: confirmResetPassword.user.id,
+							password: confirmResetPassword.newPassword,
 							old_password: "",
 						});
 						setConfirmResetPassword(undefined);

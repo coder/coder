@@ -2,6 +2,8 @@
 syntax = "proto3";
 option go_package = "github.com/coder/coder/v2/provisionersdk/proto";
 
+import "google/protobuf/timestamp.proto";
+
 package provisioner;
 
 // Empty indicates a successful request/response.
@@ -175,6 +177,7 @@ message App {
     AppSharingLevel sharing_level = 8;
     bool external = 9;
     int64 order = 10;
+    bool hidden = 11;
 }
 
 // Healthcheck represents configuration for checking for app readiness.
@@ -266,6 +269,7 @@ message PlanComplete {
     repeated Resource resources = 2;
     repeated RichParameter parameters = 3;
     repeated ExternalAuthProviderResource external_auth_providers = 4;
+    repeated Timing timings = 6;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -281,6 +285,23 @@ message ApplyComplete {
     repeated Resource resources = 3;
     repeated RichParameter parameters = 4;
     repeated ExternalAuthProviderResource external_auth_providers = 5;
+    repeated Timing timings = 6;
+}
+
+message Timing {
+    google.protobuf.Timestamp start = 1;
+    google.protobuf.Timestamp end = 2;
+    string action = 3;
+    string source = 4;
+    string resource = 5;
+    string stage = 6;
+    TimingState state = 7;
+}
+
+enum TimingState {
+    STARTED = 0;
+    COMPLETED = 1;
+    FAILED = 2;
 }
 
 // CancelRequest requests that the previous request be canceled gracefully.

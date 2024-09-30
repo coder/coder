@@ -53,6 +53,7 @@ message AcquiredJob {
 message FailedJob {
     message WorkspaceBuild {
         bytes state = 1;
+        repeated provisioner.Timing timings = 2;
     }
     message TemplateImport {}
     message TemplateDryRun {}
@@ -72,6 +73,7 @@ message CompletedJob {
     message WorkspaceBuild {
         bytes state = 1;
         repeated provisioner.Resource resources = 2;
+        repeated provisioner.Timing timings = 3;
     }
     message TemplateImport {
         repeated provisioner.Resource start_resources = 1;

@@ -139,14 +139,8 @@ func TestTemplateCreate(t *testing.T) {
 	t.Run("SecondOrganization", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentCustomRoles),
-			string(codersdk.ExperimentMultiOrganization),
-		}
 		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 				// This only affects the first org.
 				IncludeProvisionerDaemon: false,
 			},

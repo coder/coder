@@ -46,7 +46,7 @@ func TestInTx(t *testing.T) {
 	go func() {
 		<-inTx
 		for i := 0; i < 20; i++ {
-			orgs, err := uut.GetOrganizations(context.Background())
+			orgs, err := uut.GetOrganizations(context.Background(), database.GetOrganizationsParams{})
 			if err != nil {
 				assert.ErrorIs(t, err, sql.ErrNoRows)
 			}

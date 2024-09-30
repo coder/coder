@@ -271,8 +271,7 @@
 				{
 					"title": "Dev Containers",
 					"description": "Use Dev Containers in workspaces",
-					"path": "./templates/dev-containers.md",
-					"state": "alpha"
+					"path": "./templates/dev-containers.md"
 				},
 				{
 					"title": "Troubleshooting templates",
@@ -328,6 +327,11 @@
 					"title": "Remote Desktops",
 					"description": "Learn how to use Remote Desktops with Coder",
 					"path": "./ides/remote-desktops.md"
+				},
+				{
+					"title": "VSCode Extensions",
+					"description": "Learn how to use extensions in VSCode with Coder",
+					"path": "./ides/vscode-extensions.md"
 				}
 			]
 		},
@@ -346,6 +350,11 @@
 					"title": "STUN and NAT",
 					"description": "Learn how Coder establishes direct connections",
 					"path": "./networking/stun.md"
+				},
+				{
+					"title": "Troubleshooting",
+					"description": "Troubleshoot networking issues in Coder",
+					"path": "./networking/troubleshooting.md"
 				}
 			]
 		},
@@ -501,6 +510,26 @@
 					"description": "Learn how to monitor the health of your Coder deployment",
 					"path": "./admin/healthcheck.md",
 					"icon_path": "./images/icons/health.svg"
+				},
+				{
+					"title": "Notifications",
+					"description": "Learn how to configure notifications",
+					"path": "./admin/notifications.md",
+					"icon_path": "./images/icons/info.svg",
+					"children": [
+						{
+							"title": "Slack Notifications",
+							"description": "Learn how to setup Slack notifications",
+							"path": "./admin/notifications/slack.md",
+							"state": "beta"
+						},
+						{
+							"title": "Microsoft Teams Notifications",
+							"description": "Learn how to setup Microsoft Teams notifications",
+							"path": "./admin/notifications/teams.md",
+							"state": "beta"
+						}
+					]
 				}
 			]
 		},
@@ -653,6 +682,11 @@
 							"path": "reference/cli/README.md"
 						},
 						{
+							"title": "completion",
+							"description": "Install or update shell completion scripts for the detected or chosen shell.",
+							"path": "reference/cli/completion.md"
+						},
+						{
 							"title": "config-ssh",
 							"description": "Add an SSH Host entry for your workspaces \"ssh coder.workspace\"",
 							"path": "reference/cli/config-ssh.md"
@@ -787,6 +821,96 @@
 							"path": "reference/cli/open_vscode.md"
 						},
 						{
+							"title": "organizations",
+							"description": "Organization related commands",
+							"path": "reference/cli/organizations.md"
+						},
+						{
+							"title": "organizations create",
+							"description": "Create a new organization.",
+							"path": "reference/cli/organizations_create.md"
+						},
+						{
+							"title": "organizations members",
+							"description": "Manage organization members",
+							"path": "reference/cli/organizations_members.md"
+						},
+						{
+							"title": "organizations members add",
+							"description": "Add a new member to the current organization",
+							"path": "reference/cli/organizations_members_add.md"
+						},
+						{
+							"title": "organizations members edit-roles",
+							"description": "Edit organization member's roles",
+							"path": "reference/cli/organizations_members_edit-roles.md"
+						},
+						{
+							"title": "organizations members list",
+							"description": "List all organization members",
+							"path": "reference/cli/organizations_members_list.md"
+						},
+						{
+							"title": "organizations members remove",
+							"description": "Remove a new member to the current organization",
+							"path": "reference/cli/organizations_members_remove.md"
+						},
+						{
+							"title": "organizations roles",
+							"description": "Manage organization roles.",
+							"path": "reference/cli/organizations_roles.md"
+						},
+						{
+							"title": "organizations roles edit",
+							"description": "Edit an organization custom role",
+							"path": "reference/cli/organizations_roles_edit.md"
+						},
+						{
+							"title": "organizations roles show",
+							"description": "Show role(s)",
+							"path": "reference/cli/organizations_roles_show.md"
+						},
+						{
+							"title": "organizations settings",
+							"description": "Manage organization settings.",
+							"path": "reference/cli/organizations_settings.md"
+						},
+						{
+							"title": "organizations settings set",
+							"description": "Update specified organization setting.",
+							"path": "reference/cli/organizations_settings_set.md"
+						},
+						{
+							"title": "organizations settings set group-sync",
+							"description": "Group sync settings to sync groups from an IdP.",
+							"path": "reference/cli/organizations_settings_set_group-sync.md"
+						},
+						{
+							"title": "organizations settings set role-sync",
+							"description": "Role sync settings to sync organization roles from an IdP.",
+							"path": "reference/cli/organizations_settings_set_role-sync.md"
+						},
+						{
+							"title": "organizations settings show",
+							"description": "Outputs specified organization setting.",
+							"path": "reference/cli/organizations_settings_show.md"
+						},
+						{
+							"title": "organizations settings show group-sync",
+							"description": "Group sync settings to sync groups from an IdP.",
+							"path": "reference/cli/organizations_settings_show_group-sync.md"
+						},
+						{
+							"title": "organizations settings show role-sync",
+							"description": "Role sync settings to sync organization roles from an IdP.",
+							"path": "reference/cli/organizations_settings_show_role-sync.md"
+						},
+						{
+							"title": "organizations show",
+							"description": "Show the organization. Using \"selected\" will show the selected organization from the \"--org\" flag. Using \"me\" will show all organizations you are a member of.",
+							"path": "reference/cli/organizations_show.md"
+						},
+						{
 							"title": "ping",
 							"description": "Ping a workspace",
 							"path": "reference/cli/ping.md"
@@ -797,14 +921,34 @@
 							"path": "reference/cli/port-forward.md"
 						},
 						{
-							"title": "provisionerd",
+							"title": "provisioner",
 							"description": "Manage provisioner daemons",
-							"path": "reference/cli/provisionerd.md"
+							"path": "reference/cli/provisioner.md"
 						},
 						{
-							"title": "provisionerd start",
+							"title": "provisioner keys",
+							"description": "Manage provisioner keys",
+							"path": "reference/cli/provisioner_keys.md"
+						},
+						{
+							"title": "provisioner keys create",
+							"description": "Create a new provisioner key",
+							"path": "reference/cli/provisioner_keys_create.md"
+						},
+						{
+							"title": "provisioner keys delete",
+							"description": "Delete a provisioner key",
+							"path": "reference/cli/provisioner_keys_delete.md"
+						},
+						{
+							"title": "provisioner keys list",
+							"description": "List provisioner keys in an organization",
+							"path": "reference/cli/provisioner_keys_list.md"
+						},
+						{
+							"title": "provisioner start",
 							"description": "Run a provisioner daemon",
-							"path": "reference/cli/provisionerd_start.md"
+							"path": "reference/cli/provisioner_start.md"
 						},
 						{
 							"title": "publickey",
@@ -1100,6 +1244,22 @@
 							"path": "reference/cli/whoami.md"
 						}
 					]
+				},
+				{
+					"title": "Agent API",
+					"description": "Learn how to use Coder Agent API",
+					"path": "./reference/agent-api/README.md",
+					"icon_path": "./images/icons/api.svg",
+					"children": [
+						{
+							"title": "Debug",
+							"path": "./reference/agent-api/debug.md"
+						},
+						{
+							"title": "Schemas",
+							"path": "./reference/agent-api/schemas.md"
+						}
+					]
 				}
 			]
 		},
@@ -1177,6 +1337,11 @@
 					"title": "Cloning Git Repositories",
 					"description": "Automatically clone Git repositories into your workspace",
 					"path": "./guides/cloning-git-repositories.md"
+				},
+				{
+					"title": "Using Organizations",
+					"description": "Learn how to use our (early access) Organizations functionality",
+					"path": "./guides/using-organizations.md"
 				}
 			]
 		}

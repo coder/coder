@@ -40,11 +40,11 @@ func (r *RootCmd) templateVersions() *serpent.Command {
 
 func (r *RootCmd) templateVersionsList() *serpent.Command {
 	defaultColumns := []string{
-		"Name",
-		"Created At",
-		"Created By",
-		"Status",
-		"Active",
+		"name",
+		"created at",
+		"created by",
+		"status",
+		"active",
 	}
 	formatter := cliui.NewOutputFormatter(
 		cliui.TableFormat([]templateVersionRow{}, defaultColumns),
@@ -70,10 +70,10 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 						for _, opt := range i.Command.Options {
 							if opt.Flag == "column" {
 								if opt.ValueSource == serpent.ValueSourceDefault {
-									v, ok := opt.Value.(*serpent.StringArray)
+									v, ok := opt.Value.(*serpent.EnumArray)
 									if ok {
 										// Add the extra new default column.
-										*v = append(*v, "Archived")
+										_ = v.Append("Archived")
 									}
 								}
 								break

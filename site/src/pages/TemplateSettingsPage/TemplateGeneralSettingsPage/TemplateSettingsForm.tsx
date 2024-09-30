@@ -8,7 +8,7 @@ import {
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
-import { EnterpriseBadge } from "components/Badges/Badges";
+import { PremiumBadge } from "components/Badges/Badges";
 import {
 	FormFields,
 	FormFooter,
@@ -212,8 +212,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 											alignItems="center"
 											css={{ marginTop: 16 }}
 										>
-											<EnterpriseBadge />
-											<span>Enterprise license required to enabled.</span>
+											<PremiumBadge />
+											<span>Premium license required to be enabled.</span>
 										</Stack>
 									)}
 								</StackLabelHelperText>
@@ -241,9 +241,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 					/>
 					{!accessControlEnabled && (
 						<Stack direction="row" spacing={2} alignItems="center">
-							<EnterpriseBadge />
+							<PremiumBadge />
 							<FormHelperText>
-								Enterprise license required to deprecate templates.
+								Premium license required to deprecate templates.
 								{template.deprecated &&
 									" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
 							</FormHelperText>
@@ -281,9 +281,9 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 					</TextField>
 					{!portSharingControlsEnabled && (
 						<Stack direction="row" spacing={2} alignItems="center">
-							<EnterpriseBadge />
+							<PremiumBadge />
 							<FormHelperText>
-								Enterprise license required to control max port sharing level.
+								Premium license required to control max port sharing level.
 							</FormHelperText>
 						</Stack>
 					)}
