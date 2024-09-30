@@ -93,7 +93,7 @@ resource "coder_app" "code-server" {
 }
 ```
 
-![code-server in a workspace](../images/code-server-ide.png)
+![code-server in a workspace](../../../images/code-server-ide.png)
 
 ## VS Code Web
 
@@ -350,7 +350,7 @@ module "filebrowser" {
 }
 ```
 
-![File Browser](../images/file-browser.png)
+![File Browser](../../../images/file-browser.png)
 
 ## SSH Fallback
 

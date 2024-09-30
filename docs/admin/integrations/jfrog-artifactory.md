@@ -69,7 +69,7 @@ artifactory:
    <https://JFROG_URL/ui/admin/configuration/integrations/new> and select the
    Application Type as the integration you created in step 1.
 
-![JFrog Platform new integration](../images/guides/artifactory-integration/jfrog-oauth-app.png)
+![JFrog Platform new integration](../../images/guides/artifactory-integration/jfrog-oauth-app.png)
 
 3. Add a new
    [external authentication](https://coder.com/docs/admin/external-auth) to

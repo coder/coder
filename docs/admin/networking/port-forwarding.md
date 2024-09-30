@@ -90,7 +90,7 @@ Valid `share` values include `owner` - private to the user, `authenticated` -
 accessible by any user authenticated to the Coder deployment, and `public` -
 accessible by users outside of the Coder deployment.
 
-![Port forwarding from an app in the UI](../images/networking/portforwarddashboard.png)
+![Port forwarding from an app in the UI](../../images/networking/portforwarddashboard.png)
 
 ## Accessing workspace ports
 
@@ -118,7 +118,7 @@ Once a port is shared at either `authenticated` or `public` levels, it will stay
 pinned in the open ports UI for better accessibility regardless of whether or
 not it is still accessible.
 
-![Annotated port controls in the UI](../images/networking/annotatedports.png)
+![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
 The sharing level is limited by the maximum level enforced in the template
 settings in enterprise deployments, and not restricted in OSS deployments.
@@ -137,7 +137,7 @@ maximum sharing level is set to `Owner`, meaning port sharing is disabled for
 end-users. OSS deployments allow all workspaces to share ports at both the
 `authenticated` and `public` levels.
 
-![Max port sharing level in the UI](../images/networking/portsharingmax.png)
+![Max port sharing level in the UI](../../images/networking/portsharingmax.png)
 
 ### Configuring port protocol
 

@@ -69,4 +69,4 @@ image = "<ARTIFACTORY_URL>/<REPO>/<IMAGE>:<TAG>"
 > and use it in the `imagePullSecrets` field of the kubernetes pod. See this
 > [guide](./image-pull-secret.md) for more information.
 
-![JFrog Xray Integration](../images/guides/xray-integration/example.png)
+![JFrog Xray Integration](../../images/guides/xray-integration/example.png)
