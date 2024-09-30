@@ -27,6 +27,7 @@ func TestTokens(t *testing.T) {
 
 	// helpful empty response
 	inv, root := clitest.New(t, "tokens", "ls")
+	//nolint:gocritic // This should be run as the owner user.
 	clitest.SetupConfig(t, client, root)
 	buf := new(bytes.Buffer)
 	inv.Stdout = buf
