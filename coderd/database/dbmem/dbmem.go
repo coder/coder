@@ -9077,6 +9077,27 @@ func (q *FakeQuerier) UpdateUserGithubComUserID(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateUserHashedOneTimePasscode(ctx context.Context, arg database.UpdateUserHashedOneTimePasscodeParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.HashedOneTimePasscode = arg.HashedOneTimePasscode
+		user.OneTimePasscodeExpiresAt = arg.OneTimePasscodeExpiresAt
+		q.users[i] = user
+		return nil
+	}
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err

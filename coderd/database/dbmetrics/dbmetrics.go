@@ -2307,6 +2307,13 @@ func (m metricsStore) UpdateUserGithubComUserID(ctx context.Context, arg databas
 	return r0
 }
 
+func (m metricsStore) UpdateUserHashedOneTimePasscode(ctx context.Context, arg database.UpdateUserHashedOneTimePasscodeParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateUserHashedOneTimePasscode(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserHashedOneTimePasscode").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	start := time.Now()
 	err := m.s.UpdateUserHashedPassword(ctx, arg)

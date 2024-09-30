@@ -178,6 +178,13 @@ export interface BuildInfoResponse {
 	readonly deployment_id: string;
 }
 
+// From codersdk/users.go
+export interface ChangePasswordWithOneTimePasscodeRequest {
+	readonly email: string;
+	readonly password: string;
+	readonly one_time_passcode: string;
+}
+
 // From codersdk/insights.go
 export interface ConnectionLatency {
 	readonly p50: number;
@@ -1144,6 +1151,11 @@ export interface Replica {
 	readonly region_id: number;
 	readonly error: string;
 	readonly database_latency: number;
+}
+
+// From codersdk/users.go
+export interface RequestOneTimePasscodeRequest {
+	readonly email: string;
 }
 
 // From codersdk/workspaces.go

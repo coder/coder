@@ -983,6 +983,8 @@ func New(options *Options) *API {
 				// This value is intentionally increased during tests.
 				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 				r.Post("/login", api.postLogin)
+				r.Post("/request-one-time-passcode", api.postRequestOneTimePasscode)
+				r.Post("/change-password-with-one-time-passcode", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
 						r.Use(

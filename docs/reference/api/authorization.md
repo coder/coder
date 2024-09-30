@@ -68,6 +68,40 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Change password with a one-time-passcode.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/change-password-with-one-time-passcode \
+  -H 'Content-Type: application/json'
+```
+
+`POST /users/change-password-with-one-time-passcode`
+
+> Body parameter
+
+```json
+{
+	"email": "user@example.com",
+	"one_time_passcode": "string",
+	"password": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                             | Required | Description             |
+| ------ | ---- | ---------------------------------------------------------------------------------------------------------------- | -------- | ----------------------- |
+| `body` | body | [codersdk.ChangePasswordWithOneTimePasscodeRequest](schemas.md#codersdkchangepasswordwithonetimepasscoderequest) | true     | Change password request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
 ## Log in user
 
 ### Code samples
@@ -111,6 +145,38 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 | Status | Meaning                                                      | Description | Schema                                                                             |
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
+
+## Request one-time-passcode.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/request-one-time-passcode \
+  -H 'Content-Type: application/json'
+```
+
+`POST /users/request-one-time-passcode`
+
+> Body parameter
+
+```json
+{
+	"email": "user@example.com"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                       | Required | Description                       |
+| ------ | ---- | ------------------------------------------------------------------------------------------ | -------- | --------------------------------- |
+| `body` | body | [codersdk.RequestOneTimePasscodeRequest](schemas.md#codersdkrequestonetimepasscoderequest) | true     | Request one time passcode request |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 ## Convert user from password to oauth authentication
 

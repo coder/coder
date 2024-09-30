@@ -5094,6 +5094,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/change-password-with-one-time-passcode": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Change password with a one-time-passcode.",
+                "operationId": "change-password-with-a-one-time-passcode",
+                "parameters": [
+                    {
+                        "description": "Change password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChangePasswordWithOneTimePasscodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/users/first": {
             "get": {
                 "security": [
@@ -5249,6 +5277,34 @@ const docTemplate = `{
                 "responses": {
                     "307": {
                         "description": "Temporary Redirect"
+                    }
+                }
+            }
+        },
+        "/users/request-one-time-passcode": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Request one-time-passcode.",
+                "operationId": "request-one-time-passcode",
+                "parameters": [
+                    {
+                        "description": "Request one time passcode request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RequestOneTimePasscodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -9293,6 +9349,26 @@ const docTemplate = `{
                 "BuildReasonAutostop"
             ]
         },
+        "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "one_time_passcode",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "one_time_passcode": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -12268,6 +12344,18 @@ const docTemplate = `{
                 "relay_address": {
                     "description": "RelayAddress is the accessible address to relay DERP connections.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.RequestOneTimePasscodeRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
                 }
             }
         },

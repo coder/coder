@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -1652,6 +1653,48 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	found, err := userClient.User(ctx, "me")
 	require.NoError(t, err)
 	require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
+}
+
+func TestUserForgotPassword(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Can change their password", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
+			Email: anotherUser.Email,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, 2, len(notifyEnq.Sent))
+
+		notif := notifyEnq.Sent[1]
+		require.Equal(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
+		require.Equal(t, anotherUser.ID, notif.UserID)
+		require.Equal(t, 1, len(notif.Targets))
+		require.Equal(t, anotherUser.ID, notif.Targets[0])
+
+		oneTimePasscode := notif.Labels["one_time_passcode"]
+
+		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        "SomeNewSecurePassword!",
+		})
+		require.NoError(t, err)
+	})
 }
 
 func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Request)) *http.Response {

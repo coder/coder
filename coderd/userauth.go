@@ -24,6 +24,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/notifications"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -199,6 +200,233 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		ToType:      claims.ToLoginType,
 		UserID:      claims.UserID,
 	})
+}
+
+// Requests a one-time-passcode for a user.
+//
+// @Summary Request one-time-passcode.
+// @ID request-one-time-passcode
+// @Accept json
+// @Tags Authorization
+// @Param request body codersdk.RequestOneTimePasscodeRequest true "Request one time passcode request"
+// @Success 200
+// @Router /users/request-one-time-passcode [post]
+func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		logger            = api.Logger.Named(userAuthLoggerName)
+		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+
+	if api.DeploymentValues.DisablePasswordAuth {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Password authentication is disabled.",
+		})
+		return
+	}
+
+	var req codersdk.RequestOneTimePasscodeRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	defer func() {
+		// We always send the same response. If we give a more detailed response
+		// it would open us up to an enumeration attack.
+		rw.WriteHeader(http.StatusOK)
+	}()
+
+	//nolint:gocritic // In order to request a one-time-passcode, we need to get the user first!
+	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
+		Email: req.Email,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		logger.Error(ctx, "unable to get user by email", slog.Error(err))
+		return
+	}
+	aReq.Old = user
+
+	// TODO: Should we use something different?
+	passcode := uuid.New()
+	// TODO: What should the token duration be?
+	passcodeExpiresAt := dbtime.Now().Add(5 * time.Minute)
+
+	hashedPasscode, err := userpassword.Hash(passcode.String())
+	if err != nil {
+		logger.Error(ctx, "unable to hash passcode", slog.Error(err))
+		return
+	}
+
+	//nolint:gocritic // We need to be able to save the one-time-passcode.
+	err = api.Database.UpdateUserHashedOneTimePasscode(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedOneTimePasscodeParams{
+		ID:                       user.ID,
+		HashedOneTimePasscode:    []byte(hashedPasscode),
+		OneTimePasscodeExpiresAt: sql.NullTime{Time: passcodeExpiresAt, Valid: true},
+	})
+	if err != nil {
+		logger.Error(ctx, "unable to set user hashed one time passcode", slog.Error(err))
+		return
+	}
+
+	newUser := user
+	newUser.HashedOneTimePasscode = []byte(hashedPasscode)
+	newUser.OneTimePasscodeExpiresAt = sql.NullTime{Time: passcodeExpiresAt, Valid: true}
+	aReq.New = newUser
+
+	// Send the one-time-passcode to the user.
+	api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
+}
+
+func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) {
+	_, err := api.NotificationsEnqueuer.Enqueue(
+		dbauthz.AsSystemRestricted(ctx),
+		user.ID,
+		notifications.TemplateUserRequestedOneTimePasscode,
+		map[string]string{"one_time_passcode": passcode},
+		"change-password-with-one-time-passcode",
+		user.ID,
+	)
+	if err != nil {
+		api.Logger.Warn(ctx, "unable to notify user about requested one-time-passcode", slog.F("affected_user", user.Username), slog.Error(err))
+	}
+}
+
+// Change a users password with a one-time-passcode.
+//
+// @Summary Change password with a one-time-passcode.
+// @ID change-password-with-a-one-time-passcode
+// @Accept json
+// @Tags Authorization
+// @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Change password request"
+// @Success 204
+// @Router /users/change-password-with-one-time-passcode [post]
+func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
+	var (
+		err               error
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		logger            = api.Logger.Named(userAuthLoggerName)
+		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+
+	if api.DeploymentValues.DisablePasswordAuth {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Password authentication is disabled.",
+		})
+		return
+	}
+
+	var req codersdk.ChangePasswordWithOneTimePasscodeRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	//nolint:gocritic // In order to change a user's password, we need to get the user first!
+	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
+		Email: req.Email,
+	})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		logger.Error(ctx, "unable to fetch user by email", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+	aReq.Old = user
+
+	equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
+	if err != nil {
+		logger.Error(ctx, "unable to compare passwords", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+		})
+		return
+	}
+
+	if !equal {
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Incorrect email or one-time-passcode.",
+		})
+		return
+	}
+
+	if err := userpassword.Validate(req.Password); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid password.",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "password",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
+	}
+
+	if equal, _ = userpassword.Compare(string(user.HashedPassword), req.Password); equal {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "New password cannot match old password.",
+		})
+		return
+	}
+
+	newHashedPassword, err := userpassword.Hash(req.Password)
+	if err != nil {
+		logger.Error(ctx, "unable to hash new user password", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error hashing new password.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.Database.InTx(func(tx database.Store) error {
+		//nolint:gocritic // We need to update the user's password.
+		err = tx.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
+			ID:             user.ID,
+			HashedPassword: []byte(newHashedPassword),
+		})
+		if err != nil {
+			return xerrors.Errorf("update user hashed password: %w", err)
+		}
+
+		//nolint:gocritic // We need to delete all API keys for the user.
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
+		if err != nil {
+			return xerrors.Errorf("delete api keys for user: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		logger.Error(ctx, "unable to update user's password", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating user's password.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	newUser := user
+	newUser.HashedPassword = []byte(newHashedPassword)
+	newUser.OneTimePasscodeExpiresAt = sql.NullTime{}
+	newUser.HashedOneTimePasscode = nil
+	aReq.New = newUser
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // Authenticates the user with an email and password.

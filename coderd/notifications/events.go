@@ -24,6 +24,8 @@ var (
 	TemplateUserAccountActivated = uuid.MustParse("9f5af851-8408-4e73-a7a1-c6502ba46689")
 	TemplateYourAccountSuspended = uuid.MustParse("6a2f0609-9b69-4d36-a989-9f5925b6cbff")
 	TemplateYourAccountActivated = uuid.MustParse("1a6a6bea-ee0a-43e2-9e7c-eabdb53730e4")
+
+	TemplateUserRequestedOneTimePasscode = uuid.MustParse("62f86a30-2330-4b61-a26d-311ff3b608cf")
 )
 
 // Template-related events.

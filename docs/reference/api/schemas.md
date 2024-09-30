@@ -930,6 +930,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autostart` |
 | `autostop`  |
 
+## codersdk.ChangePasswordWithOneTimePasscodeRequest
+
+```json
+{
+	"email": "user@example.com",
+	"one_time_passcode": "string",
+	"password": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+| ------------------- | ------ | -------- | ------------ | ----------- |
+| `email`             | string | true     |              |             |
+| `one_time_passcode` | string | true     |              |             |
+| `password`          | string | true     |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -4597,6 +4615,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`               | string  | false    |              | ID is the unique identifier for the replica.                       |
 | `region_id`        | integer | false    |              | Region ID is the region of the replica.                            |
 | `relay_address`    | string  | false    |              | Relay address is the accessible address to relay DERP connections. |
+
+## codersdk.RequestOneTimePasscodeRequest
+
+```json
+{
+	"email": "user@example.com"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `email` | string | true     |              |             |
 
 ## codersdk.ResolveAutostartResponse
 

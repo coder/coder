@@ -1187,6 +1187,12 @@ func (s *MethodTestSuite) TestUser() {
 			ID: u.ID,
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns()
 	}))
+	s.Run("UpdateUserHashedOneTimePasscode", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserHashedOneTimePasscodeParams{
+			ID: u.ID,
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
+	}))
 	s.Run("UpdateUserQuietHoursSchedule", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserQuietHoursScheduleParams{

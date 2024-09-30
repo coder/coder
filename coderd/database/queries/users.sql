@@ -117,7 +117,9 @@ RETURNING *;
 UPDATE
 	users
 SET
-	hashed_password = $2
+	hashed_password = $2,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
 WHERE
 	id = $1;
 
@@ -289,3 +291,13 @@ RETURNING id, email, last_seen_at;
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
 SELECT DISTINCT id FROM USERS;
+
+-- name: UpdateUserHashedOneTimePasscode :exec
+UPDATE
+    users
+SET
+    hashed_one_time_passcode = $2,
+    one_time_passcode_expires_at = $3
+WHERE
+    id = $1
+;

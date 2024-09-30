@@ -10528,11 +10528,34 @@ func (q *sqlQuerier) UpdateUserGithubComUserID(ctx context.Context, arg UpdateUs
 	return err
 }
 
+const updateUserHashedOneTimePasscode = `-- name: UpdateUserHashedOneTimePasscode :exec
+UPDATE
+    users
+SET
+    hashed_one_time_passcode = $2,
+    one_time_passcode_expires_at = $3
+WHERE
+    id = $1
+`
+
+type UpdateUserHashedOneTimePasscodeParams struct {
+	ID                       uuid.UUID    `db:"id" json:"id"`
+	HashedOneTimePasscode    []byte       `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
+	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+}
+
+func (q *sqlQuerier) UpdateUserHashedOneTimePasscode(ctx context.Context, arg UpdateUserHashedOneTimePasscodeParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserHashedOneTimePasscode, arg.ID, arg.HashedOneTimePasscode, arg.OneTimePasscodeExpiresAt)
+	return err
+}
+
 const updateUserHashedPassword = `-- name: UpdateUserHashedPassword :exec
 UPDATE
 	users
 SET
-	hashed_password = $2
+	hashed_password = $2,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
 WHERE
 	id = $1
 `
