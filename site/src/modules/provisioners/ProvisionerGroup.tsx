@@ -166,8 +166,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						gap: 12,
 						justifyContent: "right",
 					}}
-				>
-				</div>
+				></div>
 			</header>
 
 			{showDetails && (
