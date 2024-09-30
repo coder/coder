@@ -78,7 +78,7 @@ func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.Crypt
 
 	cache, latest, err := d.fetch(ctx)
 	if err != nil {
-		return codersdk.CryptoKey{}, xerrors.Errorf("new cache: %w", err)
+		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
 	}
 	d.keys, d.latestKey = cache, latest
 
