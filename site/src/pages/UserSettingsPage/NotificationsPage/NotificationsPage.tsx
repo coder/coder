@@ -20,6 +20,7 @@ import type {
 	NotificationTemplate,
 } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
@@ -94,6 +95,7 @@ export const NotificationsPage: FC = () => {
 		<>
 			<Helmet>
 				<title>{pageTitle("Notifications Settings")}</title>
+				<FeatureStageBadge contentType="beta" size="lg" />
 			</Helmet>
 			<Section
 				title="Notifications"
