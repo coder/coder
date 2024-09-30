@@ -122,5 +122,5 @@ entry:
 
 ## Enabling this feature
 
-This feature is only available with an
-[enterprise license](https://coder.com/pricing).
+This feature is only available with a
+[Premium or Enterprise license](https://coder.com/pricing).

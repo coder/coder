@@ -252,7 +252,7 @@ CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder. To enable
 group sync, ensure that the `groups` claim is being sent by your OpenID
-provider. This may involve requesting an additional
+provider. You might need to request an additional
 [scope](../reference/cli/server.md#--oidc-scopes) or additional configuration on
 the OpenID provider side.
 
@@ -266,8 +266,8 @@ There are two ways you can configure group sync:
 
 ## Server Flags
 
-First, confirm that your OIDC provider is sending a groups claim by logging in
-with OIDC and visiting the following URL:
+First, confirm that your OIDC provider is sending claims by logging in with OIDC
+and visiting the following URL with an `Owner` account:
 
 ```text
 https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
@@ -437,14 +437,15 @@ Users who are not in a matching group will see the following error:
 If your OpenID Connect provider supports roles claims, you can configure Coder
 to synchronize roles in your auth provider to roles within Coder.
 
-There are two ways you can configure group sync:
+There are 2 ways to do role sync. Server Flags assign site wide roles, and
+runtime org role sync assigns organization roles
 
 <div class="tabs">
 
 ## Server Flags
 
 First, confirm that your OIDC provider is sending a roles claim by logging in
-with OIDC and visiting the following URL:
+with OIDC and visiting the following URL with an `Owner` account:
 
 ```text
 https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
@@ -486,7 +487,7 @@ configure role sync at the organization level. In future Coder versions, you
 will be able to configure this in the UI. For now, you must use CLI commands.
 
 First, confirm that your OIDC provider is sending a roles claim by logging in
-with OIDC and visiting the following URL:
+with OIDC and visiting the following URL with an `Owner` account:
 
 ```text
 https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
@@ -532,8 +533,8 @@ role.
 ```
 
 > Note: Be sure to use the `name` field for each role, not the display name. Use
-> `organization-admin`, `organization-user-admin`, `organization-auditor` for
-> the built in roles.
+> `coder organization  roles show --org=<your-org>` to see roles for your
+> organization.
 
 To set these role sync settings, use the following command:
 
@@ -551,11 +552,14 @@ Visit the Coder UI to confirm these changes:
 
 ## Organization Sync (Premium)
 
-If your OpenID Connect provider supports groups/role claims, you can configure
-Coder to synchronize roles in your auth provider to organizations within Coder.
+> Note: In a future Coder release, this can be managed via the Coder UI instead
+> of server flags.
 
-First, confirm that your OIDC provider is sending a groups claim by logging in
-with OIDC and visiting the following URL:
+If your OpenID Connect provider supports groups/role claims, you can configure
+Coder to synchronize claims in your auth provider to organizations within Coder.
+
+First, confirm that your OIDC provider is sending clainms by logging in with
+OIDC and visiting the following URL with an `Owner` account:
 
 ```text
 https://[coder.example.com]/api/v2/debug/[your-username]/debug-link

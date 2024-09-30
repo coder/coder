@@ -20,4 +20,4 @@ You can set the following permissions:
 ## Enabling this feature
 
 This feature is only available with an
-[enterprise license](https://coder.com/pricing).
+[Enterprise or Premium license](https://coder.com/pricing).

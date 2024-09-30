@@ -9,7 +9,7 @@ To try Premium features, you can [request a trial](https://coder.com/trial) or
 
 ## Adding your license key
 
-There are two ways to add an enterprise license to a Coder deployment:
+There are two ways to add a license to a Coder deployment:
 
 <div class="tabs">
 

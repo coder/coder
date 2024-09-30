@@ -1,4 +1,4 @@
-# Organizations (Enterprise) (Premium)
+# Organizations (Premium)
 
 > Note: Organizations requires a [Premium license](../licensing.md). For more
 > details, [contact your account team](https://coder.com/contact).
@@ -15,7 +15,7 @@ with multiple platform teams, all with unique resources:
 
 ## The default organization
 
-All Coder deployments start with one organization called `Default`.
+All Coder deployments start with one organization called `Coder`.
 
 To edit the organization details, navigate to `Deployment -> Organizations` in
 the top bar:
