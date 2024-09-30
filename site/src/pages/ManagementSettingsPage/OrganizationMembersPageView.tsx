@@ -8,7 +8,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
-import type { GroupsByUserId } from "api/queries/groups";
 import type {
 	Group,
 	Organization,
@@ -18,7 +17,6 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	MoreMenu,
@@ -30,9 +28,11 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 
 interface OrganizationMembersPageViewProps {
 	allAvailableRoles: readonly SlimRole[] | undefined;
@@ -43,7 +43,6 @@ interface OrganizationMembersPageViewProps {
 	organization: Organization;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
-	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
@@ -72,7 +71,7 @@ export const OrganizationMembersPageView: FC<
 	updateMemberRoles,
 }) => {
 	return (
-		<Stack>
+		<div>
 			<Breadcrumbs>
 				<Crumb>Organizations</Crumb>
 				<Crumb href={`/organizations/${organization}`}>
@@ -82,98 +81,94 @@ export const OrganizationMembersPageView: FC<
 					Members
 				</Crumb>
 			</Breadcrumbs>
+			<Stack>
+				{Boolean(error) && <ErrorAlert error={error} />}
 
-			{Boolean(error) && <ErrorAlert error={error} />}
+				{canEditMembers && (
+					<AddOrganizationMember
+						isLoading={isAddingMember}
+						onSubmit={addMember}
+					/>
+				)}
 
-			{canEditMembers && (
-				<AddOrganizationMember
-					isLoading={isAddingMember}
-					onSubmit={addMember}
-				/>
-			)}
-
-			<TableContainer>
-				<Table>
-					<TableHead>
-						<TableRow>
-							<TableCell width="50%">User</TableCell>
-							<TableCell width="49%">
-								<Stack direction="row" spacing={1} alignItems="center">
-									<span>Roles</span>
-									<TableColumnHelpTooltip variant="roles" />
-								</Stack>
-							</TableCell>
-							<TableCell width="1%"></TableCell>
-						</TableRow>
-					</TableHead>
-					<TableBody>
-						{members?.map((member) => (
-							<TableRow key={member.user_id}>
-								<TableCell>
-									<AvatarData
-										avatar={
-											<UserAvatar
-												username={member.username}
-												avatarURL={member.avatar_url}
-											/>
-										}
-										title={member.name || member.username}
-										subtitle={member.email}
-									/>
+				<TableContainer>
+					<Table>
+						<TableHead>
+							<TableRow>
+								<TableCell width="33%">User</TableCell>
+								<TableCell width="33%">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Roles</span>
+										<TableColumnHelpTooltip variant="roles" />
+									</Stack>
 								</TableCell>
-								<UserRoleCell
-									inheritedRoles={member.global_roles}
-									roles={member.roles}
-									allAvailableRoles={allAvailableRoles}
-									oidcRoleSyncEnabled={false}
-									isLoading={isUpdatingMemberRoles}
-									canEditUsers={canEditMembers}
-									onEditRoles={async (roles) => {
-										try {
-											await updateMemberRoles(member, roles);
-											displaySuccess("Roles updated successfully.");
-										} catch (error) {
-											displayError(
-												getErrorMessage(error, "Failed to update roles."),
-											);
-										}
-									}}
-								/>
-								<TableCell>
-									{member.user_id !== me.id && canEditMembers && (
-										<MoreMenu>
-											<MoreMenuTrigger>
-												<ThreeDotsButton />
-											</MoreMenuTrigger>
-											<MoreMenuContent>
-												<MoreMenuItem
-													danger
-													onClick={async () => {
-														try {
-															await removeMember(member);
-															displaySuccess("Member removed successfully.");
-														} catch (error) {
-															displayError(
-																getErrorMessage(
-																	error,
-																	"Failed to remove member.",
-																),
-															);
-														}
-													}}
-												>
-													Remove
-												</MoreMenuItem>
-											</MoreMenuContent>
-										</MoreMenu>
-									)}
+								<TableCell width="33%">
+									<Stack direction="row" spacing={1} alignItems="center">
+										<span>Groups</span>
+										<TableColumnHelpTooltip variant="groups" />
+									</Stack>
 								</TableCell>
+								<TableCell width="1%" />
 							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			</TableContainer>
-		</Stack>
+						</TableHead>
+						<TableBody>
+							{members?.map((member) => (
+								<TableRow key={member.user_id}>
+									<TableCell>
+										<AvatarData
+											avatar={
+												<UserAvatar
+													username={member.username}
+													avatarURL={member.avatar_url}
+												/>
+											}
+											title={member.name || member.username}
+											subtitle={member.email}
+										/>
+									</TableCell>
+									<UserRoleCell
+										inheritedRoles={member.global_roles}
+										roles={member.roles}
+										allAvailableRoles={allAvailableRoles}
+										oidcRoleSyncEnabled={false}
+										isLoading={isUpdatingMemberRoles}
+										canEditUsers={canEditMembers}
+										onEditRoles={async (roles) => {
+											try {
+												await updateMemberRoles(member, roles);
+												displaySuccess("Roles updated successfully.");
+											} catch (error) {
+												displayError(
+													getErrorMessage(error, "Failed to update roles."),
+												);
+											}
+										}}
+									/>
+									<UserGroupsCell userGroups={member.groups} />
+									<TableCell>
+										{member.user_id !== me.id && canEditMembers && (
+											<MoreMenu>
+												<MoreMenuTrigger>
+													<ThreeDotsButton />
+												</MoreMenuTrigger>
+												<MoreMenuContent>
+													<MoreMenuItem
+														danger
+														onClick={() => removeMember(member)}
+													>
+														Remove
+													</MoreMenuItem>
+												</MoreMenuContent>
+											</MoreMenu>
+										)}
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</TableContainer>
+			</Stack>
+		</div>
 	);
 };
 

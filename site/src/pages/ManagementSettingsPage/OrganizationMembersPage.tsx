@@ -82,7 +82,6 @@ const OrganizationMembersPage: FC = () => {
 				organization={organization}
 				me={me}
 				members={members}
-				groupsByUserId={groupsByUserIdQuery.data}
 				addMember={async (user: User) => {
 					await addMemberMutation.mutateAsync(user.id);
 					void membersQuery.refetch();
