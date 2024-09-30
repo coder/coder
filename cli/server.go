@@ -493,7 +493,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Render(fmt.Sprintf("View the Web UI:\n%s",
 					pretty.Sprint(cliui.DefaultStyles.Hyperlink, accessURL))))
 			if buildinfo.HasSite() {
-				_ = openURL(inv, accessURL)
+				err = openURL(inv, accessURL)
+				if err == nil {
+					cliui.Infof(inv.Stdout, "Opening local browser... You can disable this by passing --no-open.\n")
+				}
 			}
 
 			// Used for zero-trust instance identity with Google Cloud.
