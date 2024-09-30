@@ -8,12 +8,12 @@ import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import CustomRolesPageView from "./CustomRolesPageView";
 
 export const CustomRolesPage: FC = () => {

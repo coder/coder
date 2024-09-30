@@ -12,8 +12,8 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withManagementSettingsProvider,
 	withGlobalSnackbar,
+	withManagementSettingsProvider,
 } from "testHelpers/storybook";
 import type { NotificationsPage } from "./NotificationsPage";
 

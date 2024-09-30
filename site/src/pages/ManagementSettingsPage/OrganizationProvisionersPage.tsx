@@ -4,10 +4,10 @@ import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
 const OrganizationProvisionersPage: FC = () => {

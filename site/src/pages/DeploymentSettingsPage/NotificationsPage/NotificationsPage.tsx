@@ -6,6 +6,7 @@ import {
 } from "api/queries/notifications";
 import { Loader } from "components/Loader/Loader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { castNotificationMethod } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import type { FC } from "react";
@@ -14,7 +15,6 @@ import { useQueries } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { pageTitle } from "utils/page";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
 

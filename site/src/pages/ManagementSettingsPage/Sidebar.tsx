@@ -1,13 +1,13 @@
 import { organizationsPermissions } from "api/queries/organizations";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { useLocation, useParams } from "react-router-dom";
 import {
 	canEditOrganization,
 	useManagementSettings,
 } from "modules/management/ManagementSettingsLayout";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { useLocation, useParams } from "react-router-dom";
 import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
 
 /**

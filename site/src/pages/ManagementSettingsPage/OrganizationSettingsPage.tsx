@@ -9,13 +9,13 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
 	canEditOrganization,
 	useManagementSettings,
 } from "modules/management/ManagementSettingsLayout";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
 

@@ -3,11 +3,11 @@ import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const GeneralSettingsPage: FC = () => {

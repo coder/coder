@@ -1,9 +1,9 @@
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 
 const SecuritySettingsPage: FC = () => {

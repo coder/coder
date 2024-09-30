@@ -1,17 +1,17 @@
 import type { DeploymentConfig } from "api/api";
 import { deploymentConfig } from "api/queries/deployment";
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { createContext, type FC, Suspense, useContext } from "react";
+import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
 import { Navigate, Outlet, useNavigate, useParams } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const ManagementSettingsContext = createContext<
 	{ deploymentValues: DeploymentConfig } | undefined

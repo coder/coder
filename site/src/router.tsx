@@ -10,10 +10,10 @@ import {
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { ManagementSettingsLayout } from "./modules/management/ManagementSettingsLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
-import { ManagementSettingsLayout } from "./modules/management/ManagementSettingsLayout";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";

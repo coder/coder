@@ -11,13 +11,13 @@ import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
 import { useParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
 

@@ -10,12 +10,12 @@ import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Navigate, Link as RouterLink, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
