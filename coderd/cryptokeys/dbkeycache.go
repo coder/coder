@@ -81,6 +81,10 @@ func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.Crypt
 	d.keysMu.Lock()
 	defer d.keysMu.Unlock()
 
+	if d.closed {
+		return codersdk.CryptoKey{}, ErrClosed
+	}
+
 	key, ok = d.keys[sequence]
 	if ok {
 		return checkKey(key, now)
@@ -119,6 +123,10 @@ func (d *DBCache) Signing(ctx context.Context) (codersdk.CryptoKey, error) {
 
 	d.keysMu.Lock()
 	defer d.keysMu.Unlock()
+
+	if d.closed {
+		return codersdk.CryptoKey{}, ErrClosed
+	}
 
 	if d.latestKey.CanSign(now) {
 		return db2sdk.CryptoKey(d.latestKey), nil
