@@ -61,14 +61,14 @@ by default.
 
 ### User
 
-A [user](../users.md) is an individual who utilizes the Coder platform to
+A [user](../../users/README.md) is an individual who utilizes the Coder platform to
 develop, test, and deploy applications using workspaces. Users can select
 available templates to provision workspaces. They interact with Coder using the
 web interface, the CLI tool, or directly calling API methods.
 
 ### Workspace
 
-A [workspace](../../workspaces.md) refers to an isolated development environment
+A [workspace](../../workspaces/README.md) refers to an isolated development environment
 where users can write, build, and run code. Workspaces are fully configurable
 and can be tailored to specific project requirements, providing developers with
 a consistent and efficient development environment. Workspaces can be
@@ -82,7 +82,7 @@ Coder templates and deployed on resources created by provisioners.
 
 ### Template
 
-A [template](../../templates/index.md) in Coder is a predefined configuration
+A [template](../../../admin/templates/README.md) in Coder is a predefined configuration
 for creating workspaces. Templates streamline the process of workspace creation
 by providing pre-configured settings, tooling, and dependencies. They are built
 by template administrators on top of Terraform, allowing for efficient
@@ -93,7 +93,7 @@ provisioning rules for infrastructure resources offered by Terraform providers.
 
 ### Workspace Proxy
 
-A [workspace proxy](../workspace-proxies.md) serves as a relay connection option
+A [workspace proxy](../../../admin/networking/workspace-proxies.md) serves as a relay connection option
 for developers connecting to their workspace over SSH, a workspace app, or
 through port forwarding. It helps reduce network latency for geo-distributed
 teams by minimizing the distance network traffic needs to travel. Notably,
@@ -297,7 +297,7 @@ considerations:
   active users.
 - Enable High Availability mode for database engine for large scale deployments.
 
-If you enable [database encryption](../encryption.md) in Coder, consider
+If you enable [database encryption](../../../admin/security/database-encryption.md) in Coder, consider
 allocating an additional CPU core to every `coderd` replica.
 
 #### Resource utilization guidelines
