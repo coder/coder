@@ -16,10 +16,10 @@ import (
 type route struct {
 	Title       string  `json:"title,omitempty"`
 	Description string  `json:"description,omitempty"`
-	Path        string  `json:"path,omitempty"`
-	IconPath    string  `json:"icon_path,omitempty"`
-	State       string  `json:"state,omitempty"`
-	Children    []route `json:"children,omitempty"`
+	Path        string   `json:"path,omitempty"`
+	IconPath    string   `json:"icon_path,omitempty"`
+	State       []string `json:"state,omitempty"` // Changed to []string to support an array of states
+	Children    []route  `json:"children,omitempty"`
 }
 
 // manifest describes the entire documentation index.
