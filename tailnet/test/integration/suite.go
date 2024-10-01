@@ -48,13 +48,13 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 
 	t.Run("Connectivity", func(t *testing.T) {
 		t.Parallel()
-		peerIP := tailnet.IPFromUUID(peer.ID)
+		peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
 	})
 
 	t.Run("RestartDERP", func(t *testing.T) {
-		peerIP := tailnet.IPFromUUID(peer.ID)
+		peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
 		sendRestart(t, serverURL, true, false)
@@ -63,7 +63,7 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 	})
 
 	t.Run("RestartCoordinator", func(t *testing.T) {
-		peerIP := tailnet.IPFromUUID(peer.ID)
+		peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
 		sendRestart(t, serverURL, false, true)
@@ -72,7 +72,7 @@ func TestSuite(t *testing.T, _ slog.Logger, serverURL *url.URL, conn *tailnet.Co
 	})
 
 	t.Run("RestartBoth", func(t *testing.T) {
-		peerIP := tailnet.IPFromUUID(peer.ID)
+		peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
 		_, _, _, err := conn.Ping(testutil.Context(t, testutil.WaitLong), peerIP)
 		require.NoError(t, err, "ping peer")
 		sendRestart(t, serverURL, true, true)

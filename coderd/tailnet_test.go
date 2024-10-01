@@ -186,7 +186,9 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		// Ensure the reverse proxy director rewrites the url host to the agent's IP.
 		rp.Director(req)
 		assert.Equal(t,
-			fmt.Sprintf("[%s]:%d", tailnet.IPFromUUID(a.id).String(), workspacesdk.AgentHTTPAPIServerPort),
+			fmt.Sprintf("[%s]:%d",
+				tailnet.TailscaleServicePrefix.AddrFromUUID(a.id).String(),
+				workspacesdk.AgentHTTPAPIServerPort),
 			req.URL.Host,
 		)
 	})

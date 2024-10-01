@@ -1880,7 +1880,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	// Setup a client connection.
 	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *workspacesdk.AgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
-			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			DERPMap:   derpMap,
 			Logger:    logger.Named(name),
 		})
@@ -2372,7 +2372,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		_ = agnt.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.TailscaleServicePrefix.RandomAddr(), 128)},
 		DERPMap:   metadata.DERPMap,
 		Logger:    logger.Named("client"),
 	})

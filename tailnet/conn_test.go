@@ -3,6 +3,7 @@ package tailnet_test
 import (
 	"context"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestTailnet(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		conn, err := tailnet.NewConn(&tailnet.Options{
-			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			Logger:    logger.Named("w1"),
 			DERPMap:   derpMap,
 		})
@@ -42,7 +43,7 @@ func TestTailnet(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		w1IP := tailnet.IP()
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 			Logger:    logger.Named("w1"),
@@ -51,7 +52,7 @@ func TestTailnet(t *testing.T) {
 		require.NoError(t, err)
 
 		w2, err := tailnet.NewConn(&tailnet.Options{
-			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			Logger:    logger.Named("w2"),
 			DERPMap:   derpMap,
 		})
@@ -106,7 +107,7 @@ func TestTailnet(t *testing.T) {
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		w1IP := tailnet.IP()
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		derpMap := tailnettest.RunDERPOnlyWebSockets(t)
 		w1, err := tailnet.NewConn(&tailnet.Options{
 			Addresses:      []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
@@ -117,7 +118,7 @@ func TestTailnet(t *testing.T) {
 		require.NoError(t, err)
 
 		w2, err := tailnet.NewConn(&tailnet.Options{
-			Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Addresses:      []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			Logger:         logger.Named("w2"),
 			DERPMap:        derpMap,
 			BlockEndpoints: true,
@@ -168,7 +169,7 @@ func TestTailnet(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		w1IP := tailnet.IP()
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 			Logger:    logger.Named("w1"),
@@ -177,7 +178,7 @@ func TestTailnet(t *testing.T) {
 		require.NoError(t, err)
 
 		w2, err := tailnet.NewConn(&tailnet.Options{
-			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			Logger:    logger.Named("w2"),
 			DERPMap:   derpMap,
 		})
@@ -211,7 +212,7 @@ func TestTailnet(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		w1IP := tailnet.IP()
+		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
 			Addresses:      []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 			Logger:         logger.Named("w1"),
@@ -221,7 +222,7 @@ func TestTailnet(t *testing.T) {
 		require.NoError(t, err)
 
 		w2, err := tailnet.NewConn(&tailnet.Options{
-			Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Addresses:      []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			Logger:         logger.Named("w2"),
 			DERPMap:        derpMap,
 			BlockEndpoints: true,
@@ -261,7 +262,7 @@ func TestConn_PreferredDERP(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 		Logger:    logger.Named("w1"),
 		DERPMap:   derpMap,
 	})
@@ -290,7 +291,7 @@ func TestConn_UpdateDERP(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	derpMap1, _ := tailnettest.RunDERPAndSTUN(t)
-	ip := tailnet.IP()
+	ip := tailnet.TailscaleServicePrefix.RandomAddr()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		Logger:         logger.Named("w1"),
@@ -320,7 +321,7 @@ func TestConn_UpdateDERP(t *testing.T) {
 
 	// Connect from a different client.
 	client1, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		Addresses:      []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 		Logger:         logger.Named("client1"),
 		DERPMap:        derpMap1,
 		BlockEndpoints: true,
@@ -394,7 +395,7 @@ parentLoop:
 	// Connect from a different different client with up-to-date derp map and
 	// nodes.
 	client2, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		Addresses:      []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 		Logger:         logger.Named("client2"),
 		DERPMap:        derpMap2,
 		BlockEndpoints: true,
@@ -425,7 +426,7 @@ func TestConn_BlockEndpoints(t *testing.T) {
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 
 	// Setup conn 1.
-	ip1 := tailnet.IP()
+	ip1 := tailnet.TailscaleServicePrefix.RandomAddr()
 	conn1, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(ip1, 128)},
 		Logger:         logger.Named("w1"),
@@ -439,7 +440,7 @@ func TestConn_BlockEndpoints(t *testing.T) {
 	}()
 
 	// Setup conn 2.
-	ip2 := tailnet.IP()
+	ip2 := tailnet.TailscaleServicePrefix.RandomAddr()
 	conn2, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(ip2, 128)},
 		Logger:         logger.Named("w2"),
@@ -491,4 +492,32 @@ func stitch(t *testing.T, dst, src *tailnet.Conn) {
 		}})
 		assert.NoError(t, err)
 	})
+}
+
+func TestTailscaleServicePrefix(t *testing.T) {
+	t.Parallel()
+	a := tailnet.TailscaleServicePrefix.RandomAddr()
+	require.True(t, strings.HasPrefix(a.String(), "fd7a:115c:a1e0"))
+	p := tailnet.TailscaleServicePrefix.RandomPrefix()
+	require.True(t, strings.HasPrefix(p.String(), "fd7a:115c:a1e0"))
+	require.True(t, strings.HasSuffix(p.String(), "/128"))
+	u := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-123456789abc")
+	a = tailnet.TailscaleServicePrefix.AddrFromUUID(u)
+	require.Equal(t, "fd7a:115c:a1e0:aaaa:aaaa:1234:5678:9abc", a.String())
+	p = tailnet.TailscaleServicePrefix.PrefixFromUUID(u)
+	require.Equal(t, "fd7a:115c:a1e0:aaaa:aaaa:1234:5678:9abc/128", p.String())
+}
+
+func TestCoderServicePrefix(t *testing.T) {
+	t.Parallel()
+	a := tailnet.CoderServicePrefix.RandomAddr()
+	require.True(t, strings.HasPrefix(a.String(), "fd60:627a:a42b"))
+	p := tailnet.CoderServicePrefix.RandomPrefix()
+	require.True(t, strings.HasPrefix(p.String(), "fd60:627a:a42b"))
+	require.True(t, strings.HasSuffix(p.String(), "/128"))
+	u := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-123456789abc")
+	a = tailnet.CoderServicePrefix.AddrFromUUID(u)
+	require.Equal(t, "fd60:627a:a42b:aaaa:aaaa:1234:5678:9abc", a.String())
+	p = tailnet.CoderServicePrefix.PrefixFromUUID(u)
+	require.Equal(t, "fd60:627a:a42b:aaaa:aaaa:1234:5678:9abc/128", p.String())
 }

@@ -83,7 +83,7 @@ func TestDERP(t *testing.T) {
 			},
 		},
 	}
-	w1IP := tailnet.IP()
+	w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 	w1, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 		Logger:    logger.Named("w1"),
@@ -92,7 +92,7 @@ func TestDERP(t *testing.T) {
 	require.NoError(t, err)
 
 	w2, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 		Logger:    logger.Named("w2"),
 		DERPMap:   derpMap,
 	})

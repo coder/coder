@@ -61,7 +61,7 @@ func NewServerTailnet(
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		Addresses:           []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 		DERPForceWebSockets: derpForceWebSockets,
 		Logger:              logger,
 		BlockEndpoints:      blockEndpoints,
@@ -352,7 +352,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 	// "localhost:port", causing connections to be shared across agents.
 	tgt := *targetURL
 	_, port, _ := net.SplitHostPort(tgt.Host)
-	tgt.Host = net.JoinHostPort(tailnet.IPFromUUID(agentID).String(), port)
+	tgt.Host = net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(agentID).String(), port)
 
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {

@@ -120,7 +120,7 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 	defer agent.Close(ctx)
 	agent.UpdateNode(&proto.Node{
 		Addresses: []string{
-			netip.PrefixFrom(agpl.IP(), 128).String(),
+			agpl.TailscaleServicePrefix.RandomPrefix().String(),
 		},
 		PreferredDerp: 10,
 	})
@@ -147,7 +147,7 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 	defer agent.Close(ctx)
 	agent.UpdateNode(&proto.Node{
 		Addresses: []string{
-			netip.PrefixFrom(agpl.IPFromUUID(agent.ID), 64).String(),
+			netip.PrefixFrom(agpl.TailscaleServicePrefix.AddrFromUUID(agent.ID), 64).String(),
 		},
 		PreferredDerp: 10,
 	})
@@ -174,7 +174,7 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 	defer agent.Close(ctx)
 	agent.UpdateNode(&proto.Node{
 		Addresses: []string{
-			netip.PrefixFrom(agpl.IPFromUUID(agent.ID), 128).String(),
+			agpl.TailscaleServicePrefix.PrefixFromUUID(agent.ID).String(),
 		},
 		PreferredDerp: 10,
 	})
