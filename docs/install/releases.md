@@ -8,7 +8,7 @@ their infrastructure on a staging environment before upgrading a production
 deployment.
 
 We support two release channels:
-[mainline](https://github.com/coder/coder/releases/tag/v2.13.0) for the bleeding
+[mainline](https://github.com/coder/coder/releases/tag/v2.16.0) for the bleeding
 edge version of Coder and
 [stable](https://github.com/coder/coder/releases/latest) for those with lower
 tolerance for fault. We field our mainline releases publicly for one month
@@ -47,16 +47,17 @@ pages.
 
 ## Release schedule
 
+You can expect a release on the first Tuesday of every month excluding January. We skip this release to allow ample time for our team members and customers to return from the Holiday season.  
+
 | Release name | Release Date       | Status           |
 | ------------ | ------------------ | ---------------- |
-| 2.9.x        | March 07, 2024     | Not Supported    |
-| 2.10.x       | April 03, 2024     | Not Supported    |
 | 2.11.x       | May 07, 2024       | Not Supported    |
 | 2.12.x       | June 04, 2024      | Not Supported    |
 | 2.13.x       | July 02, 2024      | Security Support |
-| 2.14.x       | August 06, 2024    | Stable           |
-| 2.15.x       | September 03, 2024 | Mainline         |
-| 2.16.x       | October 01, 2024   | Not Released     |
+| 2.14.x       | August 06, 2024    | Security Support |
+| 2.15.x       | September 03, 2024 | Stable           |
+| 2.16.x       | October 01, 2024   | Mainline         |
+| 2.17.x       | November 05, 2024  | Not Released     |
 
 > **Tip**: We publish a
 > [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image
