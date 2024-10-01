@@ -426,8 +426,11 @@ const UserAuthProvisionerTitle: FC = () => {
 					<HelpTooltipContent>
 						<HelpTooltipTitle>User-authenticated provisioners</HelpTooltipTitle>
 						<HelpTooltipText>
-							These provisioners all use user session authentication. User
-							provisioners can be scoped to the user or organization.{" "}
+							These provisioners are connected by users using the{" "}
+							<code>coder</code> CLI, and are authorized by the users
+							credentials. They can be tagged to only run provisioner jobs for
+							that user. User-authenticated provisioners are only available for
+							the default organization.{" "}
 							<Link href={docs("/")}>Learn more&hellip;</Link>
 						</HelpTooltipText>
 					</HelpTooltipContent>
