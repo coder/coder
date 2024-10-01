@@ -58,7 +58,7 @@ the workspace proxy usable. If the proxy deployment is successful,
 
 ```
 $ coder wsproxy ls
-NAME              URL                           STATUS STATUS
+NAME              URL                         STATUS STATUS
 brazil-saopaulo   https://brazil.example.com  ok
 europe-frankfurt  https://europe.example.com  ok
 sydney            https://sydney.example.com  ok

@@ -169,6 +169,13 @@ with security policies. In these cases, pass the `--browser-only` flag to
 With browser-only connections, developers can only connect to their workspaces
 via the web terminal and [web IDEs](../../user-guides/workspace-access/web-ides.md).
 
+### Workspace Proxies (enterprise)
+
+Workspace proxies are a Coder Enterprise feature that allows you to provide
+low-latency browser experiences for geo-distributed teams.
+
+To learn more, see [Workspace Proxies](./workspace-proxies.md).
+
 ## Up next
 
 - Learn about [Port Forwarding](./port-forwarding.md)

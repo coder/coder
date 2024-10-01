@@ -44,9 +44,9 @@ module "git-clone" {
 > [template editor UI](../../admin/templates/creating-templates.md#web-ui).
 
 You can also use
-[template parameters](../../admin/templates/extending-templates/parameters.md) to customize
-the Git URL and make it dynamic for use cases where a template supports multiple
-projects.
+[template parameters](../../admin/templates/extending-templates/parameters.md)
+to customize the Git URL and make it dynamic for use cases where a template
+supports multiple projects.
 
 ```tf
 data "coder_parameter" "git_repo" {
