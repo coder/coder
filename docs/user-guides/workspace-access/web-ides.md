@@ -22,11 +22,11 @@ used as a Coder application. For example:
 
 ## code-server
 
-[code-server](https://github.com/coder/code-server) is our supported method of
+[`code-server`](https://github.com/coder/code-server) is our supported method of
 running VS Code in the web browser. You can read more in our
-[documentation for code-server](https://coder.com/docs/code-server/latest).
+[documentation for code-server](https://coder.com/docs/code-server).
 
-![code-server in a workspace](../images/code-server-ide.png)
+![code-server in a workspace](../../images/code-server-ide.png)
 
 ## VS Code Web
 
