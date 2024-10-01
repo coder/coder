@@ -253,10 +253,8 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	}
 	aReq.Old = user
 
-	// TODO: Should we use something different?
 	passcode := uuid.New()
-	// TODO: What should the token duration be?
-	passcodeExpiresAt := dbtime.Now().Add(5 * time.Minute)
+	passcodeExpiresAt := dbtime.Now().Add(20 * time.Minute)
 
 	hashedPasscode, err := userpassword.Hash(passcode.String())
 	if err != nil {
