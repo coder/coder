@@ -389,11 +389,11 @@ const UserAuthProvisionerTitle: FC = () => {
 	return (
 		<h4 css={styles.groupTitle}>
 			<Stack direction="row" alignItems="end" spacing={1}>
-				<span>User provisioners</span>
+				<span>User-authenticated provisioners</span>
 				<HelpTooltip>
 					<HelpTooltipTrigger />
 					<HelpTooltipContent>
-						<HelpTooltipTitle>User provisioners</HelpTooltipTitle>
+						<HelpTooltipTitle>User-authenticated provisioners</HelpTooltipTitle>
 						<HelpTooltipText>
 							These provisioners all use user session authentication. User
 							provisioners can be scoped to the user or organization.{" "}
