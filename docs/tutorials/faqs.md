@@ -55,11 +55,11 @@ to establish these direct connections.
 Setting the following flags as shown disables this logic to simplify
 troubleshooting.
 
-| Flag                                                                                       | Value       | Meaning                               |
-| ------------------------------------------------------------------------------------------ | ----------- | ------------------------------------- |
-| [`CODER_BLOCK_DIRECT`](../reference/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
-| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
-| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
+| Flag                                                                                          | Value       | Meaning                               |
+| --------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
+| [`CODER_BLOCK_DIRECT`](../reference/cli/server.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
 ### How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -123,14 +123,14 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the [`CODER_ACCESS_URL`](../admin/configure.md#access-url) is not accessible
-from a workspace, the workspace may build, but the agent cannot reach Coder, and
-thus the missing icons. e.g., Terminal, IDEs, Apps.
+If the [`CODER_ACCESS_URL`](../admin/setup.md#access-url) is not accessible from
+a workspace, the workspace may build, but the agent cannot reach Coder, and thus
+the missing icons. e.g., Terminal, IDEs, Apps.
 
 > By default, `coder server` automatically creates an Internet-accessible
 > reverse proxy so that workspaces you create can reach the server.
 
-If you are doing a standalone install, e.g., on a Macbook and want to build
+If you are doing a standalone install, e.g., on a MacBook and want to build
 workspaces in Docker Desktop, everything is self-contained and workspaces
 (containers in Docker Desktop) can reach the Coder server.
 
