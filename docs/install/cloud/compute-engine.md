@@ -70,9 +70,9 @@ instances in your GCP project. Follow the instructions in the
 [gcp-linux template README](https://github.com/coder/coder/tree/main/examples/templates/gcp-linux#authentication)
 to set up authentication.
 
-## Next Steps
+## Next steps
 
-- [IDEs with Coder](../../user-guides/workspace-access/README.md)
+- [Use your IDE with Coder](../../user-guides/workspace-access/README.md)
 - [Writing custom templates for Coder](../../admin/templates/README.md)
 - [Configure the Coder server](../../admin/setup.md)
 - [Use your own domain + TLS](../../admin/setup.md#tls--reverse-proxy)

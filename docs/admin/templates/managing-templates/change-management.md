@@ -88,7 +88,7 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
     --name=$CODER_TEMPLATE_VERSION # Version name is optional
 ```
 
-## Next Steps
+## Next steps
 
 - [Coder CLI Reference](../reference/cli/templates.md)
 - [Coderd Terraform Provider Reference](https://registry.terraform.io/providers/coder/coderd/latest/docs)

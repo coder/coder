@@ -87,8 +87,6 @@ template:
 coder templates delete <template-name>
 ```
 
-<children></children>
-
 ## Next steps
 
 - [Image management](./image-management.md)
