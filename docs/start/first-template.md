@@ -13,8 +13,8 @@ template.
 ## Before you start
 
 Use the [previous section](./local-deploy.md) of this guide to set up
-[Docker](https://docs.docker.com/get-docker/) and [Coder](../install/index.md)
-on your local machine to continue.
+[Docker](https://docs.docker.com/get-docker/) and [Coder](../install/cli.md) on
+your local machine to continue.
 
 ## 1. Log in to Coder
 
