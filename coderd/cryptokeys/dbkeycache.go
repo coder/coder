@@ -157,8 +157,7 @@ func (d *DBCache) fetch(ctx context.Context) error {
 	}
 
 	now := d.clock.Now()
-	d.timer.Stop()
-	d.timer = d.newTimer()
+	_ = d.timer.Reset(time.Minute * 10)
 	d.invalidateAt = now.Add(time.Minute * 10)
 
 	cache := make(map[int32]database.CryptoKey)
