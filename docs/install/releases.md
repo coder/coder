@@ -47,7 +47,9 @@ pages.
 
 ## Release schedule
 
-You can expect a release on the first Tuesday of every month excluding January. We skip this release to allow ample time for our team members and customers to return from the Holiday season.  
+You can expect a release on the first Tuesday of every month excluding January.
+We skip this release to allow ample time for our team members and customers to
+return from the Holiday season.
 
 | Release name | Release Date       | Status           |
 | ------------ | ------------------ | ---------------- |
