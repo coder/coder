@@ -21,9 +21,9 @@ authorization. This can be achieved by using the Git provider, such as GitHub,
 as an authentication method. If you don't know how to do that, we have written
 documentation to help you:
 
-- [GitHub](https://coder.com/docs/admin/auth#github)
-- [GitLab self-managed](https://coder.com/docs/admin/external-auth#gitlab-self-managed)
-- [Self-managed git providers](https://coder.com/docs/admin/external-auth#self-managed-git-providers)
+- [GitHub](../../admin/external-auth.md#github)
+- [GitLab self-managed](../../admin/external-auth.md#gitlab-self-managed)
+- [Self-managed git providers](../../admin/external-auth.md#self-managed-git-providers)
 
 With the authentication in place, it is time to set up the template to use the
 [Git Clone module](https://registry.coder.com/modules/git-clone) from the
@@ -41,10 +41,10 @@ module "git-clone" {
 
 > You can edit the template using an IDE or terminal of your preference, or by
 > going into the
-> [template editor UI](https://coder.com/docs/templates/creating#editing-templates).
+> [template editor UI](../../admin/templates/creating-templates.md#web-ui).
 
 You can also use
-[template parameters](https://coder.com/docs/templates/parameters) to customize
+[template parameters](../../admin/templates/extending-templates/parameters.md) to customize
 the Git URL and make it dynamic for use cases where a template supports multiple
 projects.
 
