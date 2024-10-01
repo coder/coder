@@ -14,6 +14,7 @@ import {
 } from "components/Sidebar/Sidebar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 
 export const Sidebar: FC = () => {
 	const { experiments } = useDashboard();
@@ -51,11 +52,9 @@ export const Sidebar: FC = () => {
 			<SidebarNavItem href="observability" icon={InsertChartIcon}>
 				Observability
 			</SidebarNavItem>
-			{experiments.includes("notifications") && (
-				<SidebarNavItem href="notifications" icon={NotificationsIcon}>
-					Notifications
-				</SidebarNavItem>
-			)}
+			<SidebarNavItem href="notifications" icon={NotificationsIcon}>
+				Notifications <FeatureStageBadge contentType="beta" size="sm" />
+			</SidebarNavItem>
 		</BaseSidebar>
 	);
 };

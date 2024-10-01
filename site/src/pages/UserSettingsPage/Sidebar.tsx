@@ -57,11 +57,9 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
 				Tokens
 			</SidebarNavItem>
-			{experiments.includes("notifications") && (
-				<SidebarNavItem href="notifications" icon={NotificationsIcon}>
-					Notifications
-				</SidebarNavItem>
-			)}
+			<SidebarNavItem href="notifications" icon={NotificationsIcon}>
+				Notifications
+			</SidebarNavItem>
 		</BaseSidebar>
 	);
 };

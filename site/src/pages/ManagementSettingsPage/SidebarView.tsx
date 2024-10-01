@@ -148,11 +148,12 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 							Users
 						</SidebarNavSubItem>
 					)}
-					{experiments.includes("notifications") && (
+					<Stack direction={"row"} alignItems={"center"} css={{ gap: 0 }}>
 						<SidebarNavSubItem href="notifications">
 							Notifications
 						</SidebarNavSubItem>
-					)}
+						<FeatureStageBadge contentType="beta" size="sm" />
+					</Stack>
 				</Stack>
 			)}
 		</div>
