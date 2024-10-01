@@ -28,7 +28,7 @@ product.
 Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
 and whatever else Terraform lets you dream up.
 
-[Learn more about managing infrastructure.](./templates/index.md)
+[Learn more about managing infrastructure.](../admin/templates/README.md)
 
 ## IDE Support
 
@@ -80,7 +80,7 @@ layer of infrastructure control. This additional layer allows admins to:
 - Enable persistent workspaces, which are like local machines, but faster and
   hosted by a cloud service
 
-Coder includes [production-ready templates](https://github.com/coder/coder/tree/c6b1daabc5a7aa67bfbb6c89966d728919ba7f80/examples/templates) for use with AWS EC2,
+Coder includes [production-ready templates](https://github.com/coder/coder/tree/main/examples/templates) for use with AWS EC2,
 Azure, Google Cloud, Kubernetes, and more.
 
 ## What Coder is _not_
@@ -104,5 +104,5 @@ Azure, Google Cloud, Kubernetes, and more.
 
 ## Up next
 
-- Learn about [Templates](./templates/index.md)
-- [Install Coder](./install/index.md#install-coder)
+- Learn about [Templates](../admin/templates/README.md)
+- [Install Coder](../install/README.md)
