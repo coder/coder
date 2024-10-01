@@ -37,8 +37,7 @@ There are multiple ways to add extensions to VS Code Desktop:
 1. Using the
    [public extensions marketplaces](#using-the-public-extensions-marketplaces)
    with Code Web (code-server)
-1. Adding
-   [extensions to custom images](#adding-extensions-to-custom-images)
+1. Adding [extensions to custom images](#adding-extensions-to-custom-images)
 1. Installing extensions
    [using its `vsix` file at the command line](#installing-extensions-using-its-vsix-file-at-the-command-line)
 1. Installing extensions

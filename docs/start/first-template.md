@@ -120,10 +120,10 @@ Python 3 instead of Go.
 For developers with workspaces that were created with a previous version of your
 template, Coder will notify them that there's a new version of the template.
 
-You can also handle [change management](./change-management.md) through your own
-repo and continuous integration.
+You can also handle
+[change management](../admin/templates/managing-templates/change-management.md)
+through your own repo and continuous integration.
 
 ## Next steps
 
-- [Write your own template](./tour.md)
-- [Setting up templates](./best-practices.md)
+- [Setting up templates](../admin/templates/creating-templates.md)

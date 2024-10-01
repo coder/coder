@@ -5,7 +5,7 @@ automating the creation of new versions in CI/CD pipelines.
 
 These pipelines will require tokens for your deployment. To cap token lifetime
 on creation,
-[configure Coder server to set a shorter max token lifetime](../reference/cli/server.md#--max-token-lifetime).
+[configure Coder server to set a shorter max token lifetime](../../../reference/cli/server.md#--max-token-lifetime).
 
 ## coderd Terraform Provider
 
@@ -62,8 +62,8 @@ For an example, see how we push our development image and template
 
 ## Coder CLI
 
-You can also [install Coder](../install/) to automate pushing new template
-versions in CI/CD pipelines.
+You can also [install Coder](../../../install/cli.md) to automate pushing new
+template versions in CI/CD pipelines.
 
 ```console
 # Install the Coder CLI

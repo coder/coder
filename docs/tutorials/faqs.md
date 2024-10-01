@@ -299,7 +299,8 @@ References:
 
 ### Can I run Coder in an air-gapped or offline mode? (no Internet)?
 
-Yes, Coder can be deployed in [air-gapped or offline mode](../install/offline.md).
+Yes, Coder can be deployed in
+[air-gapped or offline mode](../install/offline.md).
 
 Our product bundles with the Terraform binary so assume access to terraform.io
 during installation. The docs outline rebuilding the Coder container with

@@ -53,8 +53,8 @@ For more examples, see `coder port-forward --help`.
 ## Dashboard
 
 > To enable port forwarding via the dashboard, Coder must be configured with a
-> [wildcard access URL](../admin/setup.md#wildcard-access-url). If an access
-> URL is not specified, Coder will create
+> [wildcard access URL](../admin/setup.md#wildcard-access-url). If an access URL
+> is not specified, Coder will create
 > [a publicly accessible URL](../admin/setup.md#tunnel) to reverse proxy the
 > deployment, and port forwarding will work.
 >

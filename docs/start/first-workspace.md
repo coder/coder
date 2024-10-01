@@ -12,7 +12,8 @@ same resources.
 ## Before you begin
 
 This guide will use the Docker template from the
-[previous step](../tutorials/template-from-scratch.md) to create and connect to a Coder workspace.
+[previous step](../tutorials/template-from-scratch.md) to create and connect to
+a Coder workspace.
 
 ## 1. Create a workspace from your template through the GUI
 

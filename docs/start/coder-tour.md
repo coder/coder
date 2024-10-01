@@ -128,7 +128,8 @@ This starter template lets you connect to your workspace in a few ways:
 - VS Code Desktop: Loads your workspace into
   [VS Code Desktop](https://code.visualstudio.com/Download) installed on your
   local computer.
-- code-server: Opens [browser-based VS Code](../ides/web-ides.md) with your
+- code-server: Opens
+  [browser-based VS Code](../user-guides/workspace-access/vscode.md) with your
   workspace.
 - Terminal: Opens a browser-based terminal with a shell in the workspace's
   Docker instance.
@@ -137,7 +138,7 @@ This starter template lets you connect to your workspace in a few ways:
   configure your SSH client.
 
 > **Tip**: You can edit the template to let developers connect to a workspace in
-> [a few more ways](../ides.md).
+> [a few more ways](../admin/templates/managing-templates/devcontainers.md).
 
 When you're done, you can stop the workspace.
 
@@ -181,5 +182,6 @@ Python 3 instead of Go.
 For developers with workspaces that were created with a previous version of your
 template, Coder will notify them that there's a new version of the template.
 
-You can also handle [change management](./change-management.md) through your own
-repo and continuous integration.
+You can also handle
+[change management](../admin/templates/managing-templates/change-management.md)
+through your own repo and continuous integration.

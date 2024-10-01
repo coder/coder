@@ -10,7 +10,7 @@ are sometimes benefits to running external provisioner daemons:
 
 - **Isolate APIs:** Deploy provisioners in isolated environments (on-prem, AWS,
   Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the Coder
-  server. See [Provider Authentication](../templates/authentication.md) for more
+  server. See [Provider Authentication](../admin/external-auth.md) for more
   details.
 
 - **Isolate secrets**: Keep Coder unaware of cloud secrets, manage/rotate
@@ -18,10 +18,11 @@ are sometimes benefits to running external provisioner daemons:
 
 - **Reduce server load**: External provisioners reduce load and build queue
   times from the Coder server. See
-  [Scaling Coder](scaling/scale-utility.md#recent-scale-tests) for more details.
+  [Scaling Coder](../admin/infrastructure/scale-utility.md#recent-scale-tests)
+  for more details.
 
 Each provisioner can run a single
-[concurrent workspace build](scaling/scale-testing.md#control-plane-provisionerd).
+[concurrent workspace build](../admin/infrastructure/scale-testing.md#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
@@ -264,7 +265,7 @@ docker run --rm -it \
 
 As mentioned above, the Coder server will run built-in provisioners by default.
 This can be disabled with a server-wide
-[flag or environment variable](../reference/cli/server.md#provisioner-daemons).
+[flag or environment variable](../reference/cli/server.md#--provisioner-daemons).
 
 ```shell
 coder server --provisioner-daemons=0

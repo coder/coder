@@ -185,7 +185,7 @@ resource "coder_app" "jupyter" {
 }
 ```
 
-Or Alternatively, you can use the Jypyter Lab module from the Coder registry:
+Or Alternatively, you can use the JupyterLab module from the Coder registry:
 
 ```tf
 module "jupyter" {
@@ -196,13 +196,13 @@ module "jupyter" {
 ```
 
 If you cannot enable a
-[wildcard subdomain](https://coder.com/docs/admin/configure#wildcard-access-url),
-you can configure the template to run Jupyter on a path. There is however
-[security risk](https://coder.com/docs/reference/cli/server#--dangerous-allow-path-app-sharing)
+[wildcard subdomain](../../../admin/setup.md#wildcard-access-url), you can
+configure the template to run Jupyter on a path. There is however
+[security risk](../../../reference/cli/server#--dangerous-allow-path-app-sharing)
 running an app on a path and the template code is more complicated with coder
 value substitution to recreate the path structure.
 
-![JupyterLab in Coder](../../../../images/jupyterlab.png)
+![JupyterLab in Coder](../../../images/jupyter.png)
 
 ## RStudio
 

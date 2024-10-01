@@ -26,31 +26,31 @@ using Coder's [JFrog Xray Integration](https://github.com/coder/coder-xray).
    with a user that has the read
    [permission](https://jfrog.com/help/r/jfrog-platform-administration-documentation/permissions)
    for the repositories you want to scan.
-2. Create a Coder
+1. Create a Coder
    [token](https://coder.com/docs/latest/reference/cli/tokens_create#tokens-create)
    with a user that has the
    [`owner`](https://coder.com/docs/latest/admin/users#roles) role.
-3. Create kubernetes secrets for the JFrog Xray and Coder tokens.
+1. Create Kubernetes secrets for the JFrog Xray and Coder tokens.
 
-```bash
-kubectl create secret generic coder-token --from-literal=coder-token='<token>'
-kubectl create secret generic jfrog-token --from-literal=user='<user>' --from-literal=token='<token>'
-```
+   ```bash
+   kubectl create secret generic coder-token --from-literal=coder-token='<token>'
+   kubectl create secret generic jfrog-token --from-literal=user='<user>' --from-literal=token='<token>'
+   ```
 
-4. Deploy the Coder - JFrog Xray integration.
+1. Deploy the Coder - JFrog Xray integration.
 
-```bash
-helm repo add coder-xray https://helm.coder.com/coder-xray
+   ```bash
+   helm repo add coder-xray https://helm.coder.com/coder-xray
 
-helm upgrade --install coder-xray coder-xray/coder-xray \
-  --namespace coder-xray \
-  --create-namespace \
-  --set namespace="<CODER_WORKSPACES_NAMESPACE>" \ # Replace with your Coder workspaces namespace
-  --set coder.url="https://<your-coder-url>" \
-  --set coder.secretName="coder-token" \
-  --set artifactory.url="https://<your-artifactory-url>" \
-  --set artifactory.secretName="jfrog-token"
-```
+   helm upgrade --install coder-xray coder-xray/coder-xray \
+   --namespace coder-xray \
+   --create-namespace \
+   --set namespace="<CODER_WORKSPACES_NAMESPACE>" \ # Replace with your Coder workspaces namespace
+   --set coder.url="https://<your-coder-url>" \
+   --set coder.secretName="coder-token" \
+   --set artifactory.url="https://<your-artifactory-url>" \
+   --set artifactory.secretName="jfrog-token"
+   ```
 
 ### Updating the Coder template
 

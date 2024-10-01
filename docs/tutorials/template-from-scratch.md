@@ -11,8 +11,8 @@ with Ubuntu.
 To follow this guide, you'll need:
 
 - A computer or cloud computing instance with both
-  [Docker](https://docs.docker.com/get-docker/) and [Coder](../install/index.md)
-  installed on it.
+  [Docker](https://docs.docker.com/get-docker/) and
+  [Coder](../install/README.md) installed on it.
 
 > When setting up your computer or computing instance, make sure to install
 > Docker first, then Coder. Otherwise, you'll need to add the `coder` user to
@@ -194,7 +194,7 @@ resource "coder_agent" "main" {
 Because Docker is running locally in the Coder server, there is no need to
 authenticate `coder_agent`. But if your `coder_agent` were running on a remote
 host, your template would need
-[authentication credentials](./authentication.md).
+[authentication credentials](../admin/external-auth.md).
 
 This template's agent also runs a startup script, sets environment variables,
 and provides metadata.
