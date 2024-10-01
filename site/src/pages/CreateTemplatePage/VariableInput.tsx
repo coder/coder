@@ -95,7 +95,7 @@ const VariableField: FC<VariableInputProps> = ({
 			placeholder={variable.sensitive ? "" : variable.default_value}
 			required={variable.required}
 			defaultValue={
-				variable.sensitive ? "" : defaultValue ?? variable.default_value
+				variable.sensitive ? "" : (defaultValue ?? variable.default_value)
 			}
 			onChange={(event) => {
 				onChange(event.target.value);
