@@ -54,6 +54,7 @@ type Manager struct {
 
 	runOnce  sync.Once
 	stopOnce sync.Once
+	doneOnce sync.Once
 	stop     chan any
 	done     chan any
 
@@ -153,7 +154,9 @@ func (m *Manager) Run(ctx context.Context) {
 // events, creating a notifier, and publishing bulk dispatch result updates to the store.
 func (m *Manager) loop(ctx context.Context) error {
 	defer func() {
-		close(m.done)
+		m.doneOnce.Do(func() {
+			close(m.done)
+		})
 		m.log.Info(context.Background(), "notification manager stopped")
 	}()
 
@@ -364,7 +367,9 @@ func (m *Manager) Stop(ctx context.Context) error {
 		// If the notifier hasn't been started, we don't need to wait for anything.
 		// This is only really during testing when we want to enqueue messages only but not deliver them.
 		if m.notifier == nil {
-			close(m.done)
+			m.doneOnce.Do(func() {
+				close(m.done)
+			})
 		} else {
 			m.notifier.stop()
 		}

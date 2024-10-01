@@ -56,14 +56,15 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/coderd/entitlements"
-	"github.com/coder/coder/v2/coderd/notifications/reports"
-	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
+
+	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/notifications/reports"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -679,10 +680,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.OIDCConfig = oc
 			}
 
-			experiments := coderd.ReadExperiments(
-				options.Logger, options.DeploymentValues.Experiments.Value(),
-			)
-
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
@@ -946,6 +943,33 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("write config url: %w", err)
 			}
 
+			// Manage notifications.
+			cfg := options.DeploymentValues.Notifications
+			metrics := notifications.NewMetrics(options.PrometheusRegistry)
+			helpers := templateHelpers(options)
+
+			// The enqueuer is responsible for enqueueing notifications to the given store.
+			enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+			}
+			options.NotificationsEnqueuer = enqueuer
+
+			// The notification manager is responsible for:
+			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+			//   - keeping the store updated with status updates
+			notificationsManager, err := notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+			}
+
+			// nolint:gocritic // TODO: create own role.
+			notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
+
+			// Run report generator to distribute periodic reports.
+			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+			defer notificationReportGenerator.Close()
+
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to
 			// avoid leaving dangling goroutines waiting for the
@@ -1001,38 +1025,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			)
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
-
-			// Manage notifications.
-			var (
-				notificationsManager *notifications.Manager
-			)
-			if experiments.Enabled(codersdk.ExperimentNotifications) {
-				cfg := options.DeploymentValues.Notifications
-				metrics := notifications.NewMetrics(options.PrometheusRegistry)
-				helpers := templateHelpers(options)
-
-				// The enqueuer is responsible for enqueueing notifications to the given store.
-				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
-				}
-				options.NotificationsEnqueuer = enqueuer
-
-				// The notification manager is responsible for:
-				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
-				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
-				}
-
-				// nolint:gocritic // TODO: create own role.
-				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
-
-				// Run report generator to distribute periodic reports.
-				notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-				defer notificationReportGenerator.Close()
-			}
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
@@ -1153,19 +1145,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
 
-			if notificationsManager != nil {
-				// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
-				// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
-				// their leases expire after a period of time and will be re-queued for sending.
-				// See CODER_NOTIFICATIONS_LEASE_PERIOD.
-				cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
-				err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
-				if err != nil {
-					cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
-						"this may result in duplicate notifications being sent: %s\n", err)
-				} else {
-					cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
-				}
+			// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
+			// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
+			// their leases expire after a period of time and will be re-queued for sending.
+			// See CODER_NOTIFICATIONS_LEASE_PERIOD.
+			cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
+			err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
+					"this may result in duplicate notifications being sent: %s\n", err)
+			} else {
+				cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
 			}
 
 			// Shut down provisioners before waiting for WebSockets
