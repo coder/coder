@@ -8,9 +8,11 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-var ErrKeyNotFound = xerrors.New("key not found")
-
-var ErrKeyInvalid = xerrors.New("key is invalid for use")
+var (
+	ErrKeyNotFound = xerrors.New("key not found")
+	ErrKeyInvalid  = xerrors.New("key is invalid for use")
+	ErrClosed      = xerrors.New("closed")
+)
 
 // Keycache provides an abstraction for fetching signing keys.
 type Keycache interface {

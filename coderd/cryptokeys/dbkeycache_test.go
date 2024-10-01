@@ -104,4 +104,40 @@ func TestDBKeyCache(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
 	})
+
+	t.Run("Closed", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			db, _  = dbtestutil.NewDB(t)
+			clock  = quartz.NewMock(t)
+			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
+		)
+
+		expectedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 10,
+			StartsAt: clock.Now(),
+		})
+
+		k := cryptokeys.NewDBCache(logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+		defer k.Close()
+
+		got, err := k.Signing(ctx)
+		require.NoError(t, err)
+		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
+
+		got, err = k.Verifying(ctx, expectedKey.Sequence)
+		require.NoError(t, err)
+		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
+
+		k.Close()
+
+		_, err = k.Signing(ctx)
+		require.ErrorIs(t, err, cryptokeys.ErrClosed)
+
+		_, err = k.Verifying(ctx, expectedKey.Sequence)
+		require.ErrorIs(t, err, cryptokeys.ErrClosed)
+	})
 }

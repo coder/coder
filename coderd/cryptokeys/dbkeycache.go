@@ -31,6 +31,7 @@ type DBCache struct {
 	timer     *quartz.Timer
 	// invalidateAt is the time at which the keys cache should be invalidated.
 	invalidateAt time.Time
+	closed       bool
 }
 
 type DBCacheOption func(*DBCache)
@@ -64,8 +65,13 @@ func NewDBCache(logger slog.Logger, db database.Store, feature database.CryptoKe
 // it is neither deleted nor has breached its deletion date. It should only be
 // used for verifying or decrypting payloads. To sign/encrypt call Signing.
 func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
-	now := d.clock.Now()
 	d.keysMu.RLock()
+	if d.closed {
+		d.keysMu.RUnlock()
+		return codersdk.CryptoKey{}, ErrClosed
+	}
+
+	now := d.clock.Now()
 	key, ok := d.keys[sequence]
 	d.keysMu.RUnlock()
 	if ok {
@@ -97,6 +103,12 @@ func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.Crypt
 // both past its start time and before its deletion time.
 func (d *DBCache) Signing(ctx context.Context) (codersdk.CryptoKey, error) {
 	d.keysMu.RLock()
+
+	if d.closed {
+		d.keysMu.RUnlock()
+		return codersdk.CryptoKey{}, ErrClosed
+	}
+
 	latest := d.latestKey
 	d.keysMu.RUnlock()
 
@@ -185,5 +197,11 @@ func (d *DBCache) newTimer() *quartz.Timer {
 func (d *DBCache) Close() {
 	d.keysMu.Lock()
 	defer d.keysMu.Unlock()
+
+	if d.closed {
+		return
+	}
+
 	d.timer.Stop()
+	d.closed = true
 }
