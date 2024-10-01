@@ -214,7 +214,7 @@ configuration.
 
 Your template can use metadata to show information to the workspace owner. Coder
 displays this metadata in the Coder dashboard. Our template has
-[`metadata`](./agent-metadata.md) blocks for CPU and RAM usage.
+[`metadata`](../admin/templates/extending-templates/agent-metadata.md) blocks for CPU and RAM usage.
 
 ## 4. coder_app
 
@@ -224,13 +224,13 @@ resource lets a developer use an app from the workspace's Coder dashboard.
 
 ![Apps in a Coder workspace](../images/templates/workspace-apps.png)
 
-This is commonly used for [web IDEs](../ides/web-ides.md) such as
-[code-server](https://coder.com/docs/code-server/latest), RStudio, and
+This is commonly used for [web IDEs](../user-guides/workspace-access/web-ides.md) such as
+[code-server](https://coder.com/docs/code-server), RStudio, and
 JupyterLab.
 
 To install and code-server in the workspace, remember that we installed it in
 the `startup_script` argument in `coder_agent`. We make it available from a
-workspace with a `coder_app` resource. See [web IDEs](../ides/web-ides.md) for
+workspace with a `coder_app` resource. See [web IDEs](../user-guides/workspace-access/web-ides.md) for
 more examples.
 
 ```tf
@@ -414,6 +414,6 @@ template is ready to use for new workspaces.
 
 ## Next steps
 
-- [Setting up templates](./best-practices.md)
-- [Customizing templates](./customizing.md)
-- [Troubleshooting template](./troubleshooting.md)
+- [Setting up templates](../admin/templates/README.md)
+- [Customizing templates](../admin/templates/extending-templates/README.md)
+- [Troubleshooting template](../admin/templates/troubleshooting.md)
