@@ -77,6 +77,12 @@
 					"description": "Other installation methods",
 					"path": "./install/other/README.md",
 					"icon_path": "./images/icons/generic.svg"
+				},
+				{
+					"title": "Upgrading",
+					"description": "Learn how to upgrade Coder",
+					"path": "./install/upgrade.md",
+					"icon_path": "./images/icons/upgrade.svg"
 				}
 			]
 		},
