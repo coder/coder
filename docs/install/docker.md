@@ -77,7 +77,7 @@ which includes an PostgreSQL container and volume.
    workspace
 
 Coder configuration is defined via environment variables. Learn more about
-Coder's [configuration options](../admin/configure.md).
+Coder's [configuration options](../admin/setup.md).
 
 ## Troubleshooting
 

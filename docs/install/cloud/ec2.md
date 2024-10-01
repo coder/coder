@@ -29,7 +29,7 @@ deployments and you should adjust your infrastructure when preparing for
 production use. See: [Scaling Coder](../../admin/infrastructure/README.md)
 
 Be sure to add a keypair so that you can connect over SSH to further
-[configure Coder](../../admin/configure.md).
+[configure Coder](../../admin/setup.md).
 
 After launching the instance, wait 30 seconds and navigate to the public IPv4
 address. You should be redirected to a public tunnel URL.
@@ -49,8 +49,8 @@ pre-installed.
 
 Coder is primarily configured by server-side flags and environment variables.
 Given you created or added key-pairs when launching the instance, you can
-[configure your Coder deployment](../../admin/configure.md) by logging in via
-SSH or using the console:
+[configure your Coder deployment](../../admin/setup.md) by logging in via SSH or
+using the console:
 
 <!-- TOOD(@kylecarbs): fix this weird formatting (https://imgur.com/a/LAUY3cT) -->
 
