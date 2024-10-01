@@ -27,9 +27,9 @@ using Coder's [JFrog Xray Integration](https://github.com/coder/coder-xray).
    [permission](https://jfrog.com/help/r/jfrog-platform-administration-documentation/permissions)
    for the repositories you want to scan.
 1. Create a Coder
-   [token](https://coder.com/docs/latest/reference/cli/tokens_create#tokens-create)
+   [token](../../reference/cli/tokens_create#tokens-create)
    with a user that has the
-   [`owner`](https://coder.com/docs/latest/admin/users#roles) role.
+   [`owner`](../users#roles) role.
 1. Create Kubernetes secrets for the JFrog Xray and Coder tokens.
 
    ```bash
@@ -67,6 +67,6 @@ image = "<ARTIFACTORY_URL>/<REPO>/<IMAGE>:<TAG>"
 > create a
 > [Docker config](https://jfrog.com/help/r/jfrog-artifactory-documentation/docker-advanced-topics)
 > and use it in the `imagePullSecrets` field of the kubernetes pod. See this
-> [guide](./image-pull-secret.md) for more information.
+> [guide](../../tutorials/image-pull-secret.md) for more information.
 
 ![JFrog Xray Integration](../../images/guides/xray-integration/example.png)
