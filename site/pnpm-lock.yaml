@@ -169,8 +169,8 @@ importers:
         specifier: npm:@tanstack/react-query@4.35.3
         version: '@tanstack/react-query@4.35.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)'
       react-router-dom:
-        specifier: 6.24.0
-        version: 6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: 6.26.2
+        version: 6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-syntax-highlighter:
         specifier: 15.5.0
         version: 15.5.0(react@18.3.1)
@@ -375,7 +375,7 @@ importers:
         version: 8.1.11(@babel/preset-env@7.24.7(@babel/core@7.24.7))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       storybook-addon-remix-react-router:
         specifier: 3.0.1
-        version: 3.0.1(@storybook/blocks@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/channels@8.1.11)(@storybook/components@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/preview-api@8.1.11)(@storybook/theming@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+        version: 3.0.1(@storybook/blocks@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/channels@8.1.11)(@storybook/components@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/preview-api@8.1.11)(@storybook/theming@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       storybook-react-context:
         specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))
@@ -2262,8 +2262,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@remix-run/router@1.17.0':
-    resolution: {integrity: sha512-2D6XaHEVvkCn682XBnipbJjgZUU7xjLtA4dGJRBVUKpEaDYOZMENZoZjAOSb7qirxt5RupjzZxz4fK2FO+EFPw==}
+  '@remix-run/router@1.19.2':
+    resolution: {integrity: sha512-baiMx18+IMuD1yyvOGaHM9QrVUPGGG0jC+z+IPHnRJWUAUvaKuWKyE8gjDj2rzv3sz9zOGoRSPgeBVHRhZnBlA==}
     engines: {node: '>=14.0.0'}
 
   '@rollup/pluginutils@5.0.5':
@@ -5919,15 +5919,15 @@ packages:
       '@types/react':
         optional: true
 
-  react-router-dom@6.24.0:
-    resolution: {integrity: sha512-960sKuau6/yEwS8e+NVEidYQb1hNjAYM327gjEyXlc6r3Skf2vtwuJ2l7lssdegD2YjoKG5l8MsVyeTDlVeY8g==}
+  react-router-dom@6.26.2:
+    resolution: {integrity: sha512-z7YkaEW0Dy35T3/QKPYB1LjMK2R1fxnHO8kWpUMTBdfVzZrWOiY9a7CtN8HqdWtDUWd5FY6Dl8HFsqVwH4uOtQ==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
       react: '>=16.8'
       react-dom: '>=16.8'
 
-  react-router@6.24.0:
-    resolution: {integrity: sha512-sQrgJ5bXk7vbcC4BxQxeNa5UmboFm35we1AFK0VvQaz9g0LzxEIuLOhHIoZ8rnu9BO21ishGeL9no1WB76W/eg==}
+  react-router@6.26.2:
+    resolution: {integrity: sha512-tvN1iuT03kHgOFnLPfLJ8V95eijteveqdOSk+srqfePtQvqCExB8eHOYnlilbOcyJyKnYkr1vJvf7YqotAJu1A==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
       react: '>=16.8'
@@ -9198,7 +9198,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.3.10
 
-  '@remix-run/router@1.17.0': {}
+  '@remix-run/router@1.19.2': {}
 
   '@rollup/pluginutils@5.0.5(rollup@4.20.0)':
     dependencies:
@@ -13833,16 +13833,16 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.3.10
 
-  react-router-dom@6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  react-router-dom@6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@remix-run/router': 1.17.0
+      '@remix-run/router': 1.19.2
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-      react-router: 6.24.0(react@18.3.1)
+      react-router: 6.26.2(react@18.3.1)
 
-  react-router@6.24.0(react@18.3.1):
+  react-router@6.26.2(react@18.3.1):
     dependencies:
-      '@remix-run/router': 1.17.0
+      '@remix-run/router': 1.19.2
       react: 18.3.1
 
   react-style-singleton@2.2.1(@types/react@18.3.10)(react@18.3.1):
@@ -14313,7 +14313,7 @@ snapshots:
 
   store2@2.14.2: {}
 
-  storybook-addon-remix-react-router@3.0.1(@storybook/blocks@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/channels@8.1.11)(@storybook/components@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/preview-api@8.1.11)(@storybook/theming@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1):
+  storybook-addon-remix-react-router@3.0.1(@storybook/blocks@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/channels@8.1.11)(@storybook/components@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/preview-api@8.1.11)(@storybook/theming@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1):
     dependencies:
       '@storybook/blocks': 8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@storybook/channels': 8.1.11
@@ -14324,7 +14324,7 @@ snapshots:
       '@storybook/theming': 8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       compare-versions: 6.1.0
       react-inspector: 6.0.2(react@18.3.1)
-      react-router-dom: 6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-router-dom: 6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     optionalDependencies:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
