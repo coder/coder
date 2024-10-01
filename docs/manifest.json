@@ -480,8 +480,7 @@
 						{
 							"title": "Notifications",
 							"description": "Configure notifications for your deployment",
-							"path": "./admin/monitoring/notifications.md",
-							"icon_path": "./images/icons/info.svg"
+							"path": "./admin/monitoring/notifications.md"
 						},
 						{
 							"title": "Slack Notifications",
