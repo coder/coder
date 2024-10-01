@@ -2,28 +2,28 @@ import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "react-query";
 
-export type UseFilterMenuOptions<TOption extends SelectFilterOption> = {
+export type UseFilterMenuOptions = {
 	id: string;
 	value: string | undefined;
 	// Using null because of react-query
 	// https://tanstack.com/query/v4/docs/react/guides/migrating-to-react-query-4#undefined-is-an-illegal-cache-value-for-successful-queries
-	getSelectedOption: () => Promise<TOption | null>;
-	getOptions: (query: string) => Promise<TOption[]>;
-	onChange: (option: TOption | undefined) => void;
+	getSelectedOption: () => Promise<SelectFilterOption | null>;
+	getOptions: (query: string) => Promise<SelectFilterOption[]>;
+	onChange: (option: SelectFilterOption | undefined) => void;
 	enabled?: boolean;
 };
 
-export const useFilterMenu = <
-	TOption extends SelectFilterOption = SelectFilterOption,
->({
+export const useFilterMenu = ({
 	id,
 	value,
 	getSelectedOption,
 	getOptions,
 	onChange,
 	enabled,
-}: UseFilterMenuOptions<TOption>) => {
-	const selectedOptionsCacheRef = useRef<Record<string, TOption>>({});
+}: UseFilterMenuOptions) => {
+	const selectedOptionsCacheRef = useRef<Record<string, SelectFilterOption>>(
+		{},
+	);
 	const [query, setQuery] = useState("");
 	const selectedOptionQuery = useQuery({
 		queryKey: [id, "autocomplete", "selected", value],
@@ -80,7 +80,7 @@ export const useFilterMenu = <
 		selectedOption,
 	]);
 
-	const selectOption = (option: TOption | undefined) => {
+	const selectOption = (option: SelectFilterOption | undefined) => {
 		if (option) {
 			selectedOptionsCacheRef.current[option.value] = option;
 		}

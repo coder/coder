@@ -148,11 +148,9 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 							Users
 						</SidebarNavSubItem>
 					)}
-					{experiments.includes("notifications") && (
-						<SidebarNavSubItem href="notifications">
-							Notifications
-						</SidebarNavSubItem>
-					)}
+					<SidebarNavSubItem href="notifications">
+						Notifications <FeatureStageBadge contentType="beta" size="sm" />
+					</SidebarNavSubItem>
 				</Stack>
 			)}
 		</div>
