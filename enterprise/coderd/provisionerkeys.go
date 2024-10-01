@@ -147,7 +147,9 @@ func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 
 	pkDaemons := []codersdk.ProvisionerKeyDaemons{}
 	for _, key := range sdkKeys {
-		// Currently the user-auth key orgID is hardcoded to the default org.
+		// The key.OrganizationID for the `user-auth` key is hardcoded to
+		// the default org in the database and we are overwriting it here
+		// to be the correct org we used to query the list.
 		// This will be changed when we update the `user-auth` keys to be
 		// directly tied to a user ID.
 		if key.ID.String() == codersdk.ProvisionerKeyIDUserAuth {
