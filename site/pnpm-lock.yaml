@@ -374,8 +374,8 @@ importers:
         specifier: 8.1.11
         version: 8.1.11(@babel/preset-env@7.24.7(@babel/core@7.24.7))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       storybook-addon-remix-react-router:
-        specifier: 3.0.0
-        version: 3.0.0(@storybook/blocks@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/channels@8.1.11)(@storybook/components@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/preview-api@8.1.11)(@storybook/theming@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+        specifier: 3.0.1
+        version: 3.0.1(@storybook/blocks@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/channels@8.1.11)(@storybook/components@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/preview-api@8.1.11)(@storybook/theming@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       storybook-react-context:
         specifier: 0.6.0
         version: 0.6.0(react-dom@18.3.1(react@18.3.1))
@@ -6299,8 +6299,8 @@ packages:
   store2@2.14.2:
     resolution: {integrity: sha512-siT1RiqlfQnGqgT/YzXVUNsom9S0H1OX+dpdGN1xkyYATo4I6sep5NmsRD/40s3IIOvlCq6akxkqG82urIZW1w==}
 
-  storybook-addon-remix-react-router@3.0.0:
-    resolution: {integrity: sha512-0D7VDVf6uX6vgegpCb3v1/TIADxRWomycyj0ZNuVjrCO6w6FwfZ9CHlCK7k9v6CB2uqKjPiaBwmT7odHyy1qYA==}
+  storybook-addon-remix-react-router@3.0.1:
+    resolution: {integrity: sha512-3tXvjDXFEZCfhGcoX6zdx6jRGH+QciDtSjmc0M8M4DlgEpwhflHwbS4J2NqaFmFTlsRXuh2+qjLfVzp4bkCixg==}
     peerDependencies:
       '@storybook/blocks': ^8.0.0
       '@storybook/channels': ^8.0.0
@@ -14313,7 +14313,7 @@ snapshots:
 
   store2@2.14.2: {}
 
-  storybook-addon-remix-react-router@3.0.0(@storybook/blocks@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/channels@8.1.11)(@storybook/components@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/preview-api@8.1.11)(@storybook/theming@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1):
+  storybook-addon-remix-react-router@3.0.1(@storybook/blocks@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/channels@8.1.11)(@storybook/components@8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@storybook/preview-api@8.1.11)(@storybook/theming@8.1.11(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1):
     dependencies:
       '@storybook/blocks': 8.1.11(@types/react-dom@18.3.0)(@types/react@18.3.10)(prettier@3.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@storybook/channels': 8.1.11
