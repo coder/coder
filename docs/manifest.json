@@ -608,7 +608,7 @@
 				{
 					"title": "Cloning Git Repositories",
 					"description": "Learn how to clone Git repositories in Coder",
-					"path": "./tutorials/templates/cloning-git-repositories.md"
+					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
 					"title": "FAQs",
