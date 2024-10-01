@@ -23,7 +23,7 @@ import (
 func TestCryptoKeyCache(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Latest", func(t *testing.T) {
+	t.Run("Signing", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("HitsCache", func(t *testing.T) {
@@ -138,9 +138,27 @@ func TestCryptoKeyCache(t *testing.T) {
 			require.Equal(t, expected, got)
 			require.Equal(t, 1, fc.called)
 		})
+
+		t.Run("KeyNotFound", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx    = testutil.Context(t, testutil.WaitShort)
+				logger = slogtest.Make(t, nil)
+				clock  = quartz.NewMock(t)
+			)
+
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{})
+
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			require.NoError(t, err)
+
+			_, err = cache.Verifying(ctx, 1)
+			require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
+		})
 	})
 
-	t.Run("Version", func(t *testing.T) {
+	t.Run("Verifying", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("HitsCache", func(t *testing.T) {
@@ -241,7 +259,7 @@ func TestCryptoKeyCache(t *testing.T) {
 			require.Equal(t, 1, fc.called)
 		})
 
-		t.Run("NoInvalid", func(t *testing.T) {
+		t.Run("KeyInvalid", func(t *testing.T) {
 			t.Parallel()
 
 			var (
@@ -267,8 +285,26 @@ func TestCryptoKeyCache(t *testing.T) {
 			require.NoError(t, err)
 
 			_, err = cache.Verifying(ctx, expected.Sequence)
-			require.Error(t, err)
+			require.ErrorIs(t, err, cryptokeys.ErrKeyInvalid)
 			require.Equal(t, 1, fc.called)
+		})
+
+		t.Run("KeyNotFound", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx    = testutil.Context(t, testutil.WaitShort)
+				logger = slogtest.Make(t, nil)
+				clock  = quartz.NewMock(t)
+			)
+
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{})
+
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			require.NoError(t, err)
+
+			_, err = cache.Verifying(ctx, 1)
+			require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
 		})
 	})
 
@@ -342,11 +378,10 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		now := clock.Now()
 		expected := codersdk.CryptoKey{
-			Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
-			Secret:    "key1",
-			Sequence:  12,
-			StartsAt:  now,
-			DeletesAt: now.Add(time.Minute * 10),
+			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+			Secret:   "key1",
+			Sequence: 12,
+			StartsAt: now,
 		}
 		fc := newFakeCoderd(t, []codersdk.CryptoKey{
 			expected,

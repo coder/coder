@@ -64,7 +64,7 @@ func (k *CryptoKeyCache) Signing(ctx context.Context) (codersdk.CryptoKey, error
 	latest := k.latest
 	k.keysMu.RUnlock()
 
-	now := k.Clock.Now().UTC()
+	now := k.Clock.Now()
 	if latest.CanSign(now) {
 		return latest, nil
 	}
@@ -87,14 +87,14 @@ func (k *CryptoKeyCache) Signing(ctx context.Context) (codersdk.CryptoKey, error
 	}
 
 	if !k.latest.CanSign(now) {
-		return codersdk.CryptoKey{}, xerrors.Errorf("no active keys found")
+		return codersdk.CryptoKey{}, cryptokeys.ErrKeyNotFound
 	}
 
 	return k.latest, nil
 }
 
 func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
-	now := k.Clock.Now().UTC()
+	now := k.Clock.Now()
 	k.keysMu.RLock()
 	if k.closed {
 		k.keysMu.RUnlock()
@@ -127,7 +127,7 @@ func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersd
 
 	key, ok = k.keys[sequence]
 	if !ok {
-		return codersdk.CryptoKey{}, xerrors.Errorf("key %d not found", sequence)
+		return codersdk.CryptoKey{}, cryptokeys.ErrKeyNotFound
 	}
 
 	return validKey(key, now)
@@ -155,7 +155,7 @@ func (k *CryptoKeyCache) fetch(ctx context.Context) (map[int32]codersdk.CryptoKe
 		return nil, codersdk.CryptoKey{}, xerrors.Errorf("get security keys: %w", err)
 	}
 
-	kmap, latest := toKeyMap(keys.CryptoKeys, k.Clock.Now().UTC())
+	kmap, latest := toKeyMap(keys.CryptoKeys, k.Clock.Now())
 	return kmap, latest, nil
 }
 
@@ -172,8 +172,8 @@ func toKeyMap(keys []codersdk.CryptoKey, now time.Time) (map[int32]codersdk.Cryp
 }
 
 func validKey(key codersdk.CryptoKey, now time.Time) (codersdk.CryptoKey, error) {
-	if !key.CanSign(now) {
-		return codersdk.CryptoKey{}, xerrors.Errorf("key %d is invalid", key.Sequence)
+	if !key.CanVerify(now) {
+		return codersdk.CryptoKey{}, cryptokeys.ErrKeyInvalid
 	}
 
 	return key, nil
