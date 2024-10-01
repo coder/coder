@@ -14,8 +14,8 @@ import (
 
 // route is an individual page object in the docs manifest.json.
 type route struct {
-	Title       string  `json:"title,omitempty"`
-	Description string  `json:"description,omitempty"`
+	Title       string   `json:"title,omitempty"`
+	Description string   `json:"description,omitempty"`
 	Path        string   `json:"path,omitempty"`
 	IconPath    string   `json:"icon_path,omitempty"`
 	State       []string `json:"state,omitempty"` // Changed to []string to support an array of states
