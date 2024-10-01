@@ -14,6 +14,9 @@ import (
 	"github.com/coder/quartz"
 )
 
+// never represents the maximum value for a time.Duration.
+const never = 1<<63 - 1
+
 // DBCache implements Keycache for callers with access to the database.
 type DBCache struct {
 	db      database.Store
@@ -25,7 +28,9 @@ type DBCache struct {
 	keysMu    sync.RWMutex
 	keys      map[int32]database.CryptoKey
 	latestKey database.CryptoKey
-	fetched   chan struct{}
+	timer     *quartz.Timer
+	// invalidateAt is the time at which the keys cache should be invalidated.
+	invalidateAt time.Time
 }
 
 type DBCacheOption func(*DBCache)
@@ -36,23 +41,22 @@ func WithDBCacheClock(clock quartz.Clock) DBCacheOption {
 	}
 }
 
-// NewDBCache creates a new DBCache. It starts a background
-// process that periodically refreshes the cache. The context should
-// be canceled to stop the background process.
-func NewDBCache(ctx context.Context, logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*DBCache)) *DBCache {
+// NewDBCache creates a new DBCache. Close should be called to
+// release resources associated with its internal timer.
+func NewDBCache(logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*DBCache)) *DBCache {
 	d := &DBCache{
 		db:      db,
 		feature: feature,
 		clock:   quartz.NewReal(),
 		logger:  logger,
-		fetched: make(chan struct{}),
 	}
 
 	for _, opt := range opts {
 		opt(d)
 	}
 
-	go d.clear(ctx)
+	d.timer = d.clock.AfterFunc(never, d.clear)
+
 	return d
 }
 
@@ -76,11 +80,10 @@ func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.Crypt
 		return checkKey(key, now)
 	}
 
-	cache, latest, err := d.fetch(ctx)
+	err := d.fetch(ctx)
 	if err != nil {
 		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
 	}
-	d.keys, d.latestKey = cache, latest
 
 	key, ok = d.keys[sequence]
 	if !ok {
@@ -110,46 +113,41 @@ func (d *DBCache) Signing(ctx context.Context) (codersdk.CryptoKey, error) {
 	}
 
 	// Refetch all keys for this feature so we can find the latest valid key.
-	cache, latest, err := d.fetch(ctx)
+	err := d.fetch(ctx)
 	if err != nil {
 		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
 	}
-	d.keys, d.latestKey = cache, latest
 
 	return db2sdk.CryptoKey(d.latestKey), nil
 }
 
-func (d *DBCache) clear(ctx context.Context) {
-	for {
-		fired := make(chan struct{})
-		timer := d.clock.AfterFunc(time.Minute*10, func() {
-			defer close(fired)
-
-			// There's a small window where the timer fires as we're fetching
-			// keys that could result in us immediately invalidating the cache that we just populated.
-			d.keysMu.Lock()
-			defer d.keysMu.Unlock()
-			d.keys = nil
-			d.latestKey = database.CryptoKey{}
-		})
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-d.fetched:
-			timer.Stop()
-		case <-fired:
-		}
+// clear invalidates the cache. This forces the subsequent call to fetch fresh keys.
+func (d *DBCache) clear() {
+	now := d.clock.Now("DBCache", "clear")
+	d.keysMu.Lock()
+	defer d.keysMu.Unlock()
+	// Check if we raced with a fetch. It's possible that the timer fired and we
+	// lost the race to the mutex. We want to avoid invalidating
+	// a cache that was just refetched.
+	if now.Before(d.invalidateAt) {
+		return
 	}
+	d.keys = nil
+	d.latestKey = database.CryptoKey{}
 }
 
 // fetch fetches all keys for the given feature and determines the latest key.
-func (d *DBCache) fetch(ctx context.Context) (map[int32]database.CryptoKey, database.CryptoKey, error) {
-	now := d.clock.Now()
+// It must be called while holding the keysMu lock.
+func (d *DBCache) fetch(ctx context.Context) error {
 	keys, err := d.db.GetCryptoKeysByFeature(ctx, d.feature)
 	if err != nil {
-		return nil, database.CryptoKey{}, xerrors.Errorf("get crypto keys by feature: %w", err)
+		return xerrors.Errorf("get crypto keys by feature: %w", err)
 	}
+
+	now := d.clock.Now()
+	d.timer.Stop()
+	d.timer = d.newTimer()
+	d.invalidateAt = now.Add(time.Minute * 10)
 
 	cache := make(map[int32]database.CryptoKey)
 	var latest database.CryptoKey
@@ -161,20 +159,15 @@ func (d *DBCache) fetch(ctx context.Context) (map[int32]database.CryptoKey, data
 	}
 
 	if len(cache) == 0 {
-		return nil, database.CryptoKey{}, ErrKeyNotFound
+		return ErrKeyNotFound
 	}
 
 	if !latest.CanSign(now) {
-		return nil, database.CryptoKey{}, ErrKeyInvalid
+		return ErrKeyInvalid
 	}
 
-	select {
-	case <-ctx.Done():
-		return nil, database.CryptoKey{}, ctx.Err()
-	case d.fetched <- struct{}{}:
-	}
-
-	return cache, latest, nil
+	d.keys, d.latestKey = cache, latest
+	return nil
 }
 
 func checkKey(key database.CryptoKey, now time.Time) (codersdk.CryptoKey, error) {
@@ -183,4 +176,12 @@ func checkKey(key database.CryptoKey, now time.Time) (codersdk.CryptoKey, error)
 	}
 
 	return db2sdk.CryptoKey(key), nil
+}
+
+func (d *DBCache) newTimer() *quartz.Timer {
+	return d.clock.AfterFunc(time.Minute*10, d.clear)
+}
+
+func (d *DBCache) Close() {
+	d.timer.Stop()
 }

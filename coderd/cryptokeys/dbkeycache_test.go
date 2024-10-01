@@ -38,7 +38,8 @@ func TestDBKeyCache(t *testing.T) {
 				StartsAt: clock.Now().UTC(),
 			})
 
-			k := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+			k := cryptokeys.NewDBCache(logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+			defer k.Close()
 
 			got, err := k.Verifying(ctx, key.Sequence)
 			require.NoError(t, err)
@@ -55,7 +56,8 @@ func TestDBKeyCache(t *testing.T) {
 				logger = slogtest.Make(t, nil)
 			)
 
-			k := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+			k := cryptokeys.NewDBCache(logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+			defer k.Close()
 
 			_, err := k.Verifying(ctx, 123)
 			require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
@@ -90,7 +92,8 @@ func TestDBKeyCache(t *testing.T) {
 			StartsAt: clock.Now().UTC(),
 		})
 
-		k := cryptokeys.NewDBCache(ctx, logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+		k := cryptokeys.NewDBCache(logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+		defer k.Close()
 
 		got, err := k.Signing(ctx)
 		require.NoError(t, err)

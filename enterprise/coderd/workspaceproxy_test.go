@@ -912,7 +912,7 @@ func TestGetCryptoKeys(t *testing.T) {
 			},
 		})
 
-		now := time.Now().UTC()
+		now := time.Now()
 
 		expectedKey1 := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
@@ -959,8 +959,7 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
 		require.Equal(t, 2, len(keys.CryptoKeys))
-		require.Contains(t, keys.CryptoKeys, key1)
-		require.Contains(t, keys.CryptoKeys, key2)
+		requireContainsKeys(t, keys.CryptoKeys, key1, key2)
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
@@ -994,4 +993,21 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
+}
+
+func requireContainsKeys(t *testing.T, keys []codersdk.CryptoKey, expected ...codersdk.CryptoKey) {
+	t.Helper()
+
+	for _, expectedKey := range expected {
+		var found bool
+		for _, key := range keys {
+			if key.Feature == expectedKey.Feature && key.Sequence == expectedKey.Sequence {
+				require.True(t, expectedKey.StartsAt.Equal(key.StartsAt), "expected starts at %s, got %s", expectedKey.StartsAt, key.StartsAt)
+				require.Equal(t, expectedKey.Secret, key.Secret)
+				require.True(t, expectedKey.DeletesAt.Equal(key.DeletesAt), "expected deletes at %s, got %s", expectedKey.DeletesAt, key.DeletesAt)
+				found = true
+			}
+		}
+		require.True(t, found, "expected key %+v not found", expectedKey)
+	}
 }
