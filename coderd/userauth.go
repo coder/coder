@@ -281,11 +281,15 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	aReq.New = newUser
 
 	// Send the one-time-passcode to the user.
-	api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
+	err = api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
+	if err != nil {
+		logger.Error(ctx, "unable to notify user about one time passcode request", slog.Error(err))
+	}
 }
 
-func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) {
+func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
 	_, err := api.NotificationsEnqueuer.Enqueue(
+		//nolint:gocritic // We need to be able to send the user their one time passcode.
 		dbauthz.AsSystemRestricted(ctx),
 		user.ID,
 		notifications.TemplateUserRequestedOneTimePasscode,
@@ -294,8 +298,10 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 		user.ID,
 	)
 	if err != nil {
-		api.Logger.Warn(ctx, "unable to notify user about requested one-time-passcode", slog.F("affected_user", user.Username), slog.Error(err))
+		return xerrors.Errorf("enqueue notification: %w", err)
 	}
+
+	return nil
 }
 
 // Change a users password with a one-time-passcode.

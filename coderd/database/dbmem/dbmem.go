@@ -9077,7 +9077,7 @@ func (q *FakeQuerier) UpdateUserGithubComUserID(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateUserHashedOneTimePasscode(ctx context.Context, arg database.UpdateUserHashedOneTimePasscodeParams) error {
+func (q *FakeQuerier) UpdateUserHashedOneTimePasscode(_ context.Context, arg database.UpdateUserHashedOneTimePasscodeParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
