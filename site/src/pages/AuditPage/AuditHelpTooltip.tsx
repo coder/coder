@@ -25,7 +25,7 @@ export const AuditHelpTooltip: FC = () => {
 				<HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
 				<HelpTooltipText>{Language.body}</HelpTooltipText>
 				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/admin/audit-logs")}>
+					<HelpTooltipLink href={docs("/admin/security/audit-logs")}>
 						{Language.docs}
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>

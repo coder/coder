@@ -6,7 +6,7 @@ other services.
 
 ## Who creates templates?
 
-The [Template Admin](../admin/users.md) role (and above) can create templates.
+The [Template Admin](../../../admin/users/groups-roles.md#roles) role (and above) can create templates.
 End users, like developers, create workspaces from them. Templates can also be
 [managed with git](./change-management.md), allowing any developer to propose
 changes to a template.
@@ -41,13 +41,13 @@ by our users
 Our starter templates are meant to be modified for your use cases. You can edit
 any template's files directly in the Coder dashboard.
 
-![Editing a template](../../images/templates/choosing-edit-template.gif)
+![Editing a template](../../../images/templates/choosing-edit-template.gif)
 
 If you'd prefer to use the CLI, use `coder templates pull`, edit the template
 files, then `coder templates push`.
 
 > Even if you are a Terraform expert, we suggest reading our
-> [guided tour](./tour.md).
+> [guided tour of a template](../../../tutorials/template-from-scratch.md).
 
 ## Updating templates
 
@@ -56,7 +56,7 @@ When you publish a new version, developers are notified to get the latest
 infrastructure, software, or security patches. Learn more about
 [change management](./change-management.md).
 
-![Updating a template](../../images/templates/update.png)
+![Updating a template](../../../images/templates/update.png)
 
 ### Template update policies (enterprise)
 
@@ -67,18 +67,18 @@ forced to update their workspaces before starting them once the setting is
 applied. Workspaces which leverage autostart or start-on-connect will be
 automatically updated on the next startup.
 
-![Template update policies](../../images/templates/update-policies.png)
+![Template update policies](../../../images/templates/update-policies.png)
 
 ## Delete templates
 
 You can delete a template using both the coder CLI and UI. Only
-[template admins and owners](../admin/users.md) can delete a template, and the
+[template admins and owners](../../users/groups-roles.md#roles) can delete a template, and the
 template must not have any running workspaces associated to it.
 
 In the UI, navigate to the template you want to delete, and select the dropdown
 in the right-hand corner of the page to delete the template.
 
-![delete-template](../../images/delete-template.png)
+![delete-template](../../../images/delete-template.png)
 
 Using the CLI, login to Coder and run the following command to delete a
 template:
@@ -92,5 +92,5 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- [Devcontainer templates](./devcontainer-templates.md)
+- [Devcontainer templates](./devcontainers.md)
 - [Change management](./change-management.md)

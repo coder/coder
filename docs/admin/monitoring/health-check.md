@@ -148,7 +148,7 @@ misconfigured reverse HTTP proxy. Additionally, while workspace users should
 still be able to reach their workspaces, connection performance may be degraded.
 
 > **Note:** This may also be shown if you have
-> [forced websocket connections for DERP](../cli/server.md#--derp-force-websockets).
+> [forced websocket connections for DERP](../../reference/cli/server.md#--derp-force-websockets).
 
 **Solution:** ensure that any proxies you use allow connection upgrade with the
 `Upgrade: derp` header.

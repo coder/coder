@@ -4,8 +4,7 @@ This guided tour introduces you to the different parts of a Coder template by
 showing you how to create a template from scratch.
 
 You'll write a simple template that provisions a workspace as a Docker container
-with Ubuntu. This simple template is based on the same Docker starter template
-that the [tutorial](./tutorial.md) uses.
+with Ubuntu.
 
 ## Before you start
 

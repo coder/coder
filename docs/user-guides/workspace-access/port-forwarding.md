@@ -262,7 +262,7 @@ configurable by either admins or users.
 
 ## SSH
 
-First, [configure SSH](../ides.md#ssh-configuration) on your local machine.
+First, [configure SSH](../../user-guides/workspace-access/README.md#configure-ssh) on your local machine.
 Then, use `ssh` to forward like so:
 
 ```console

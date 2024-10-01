@@ -139,7 +139,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html).
 
-1. [Configure the `coder` CLI](../ides.md#ssh-configuration).
+1. [Configure the `coder` CLI](../../user-guides/workspace-access/README.md#configure-ssh).
 
 1. Open Gateway, make sure **SSH** is selected under **Remote Development**.
 
@@ -354,7 +354,7 @@ Additionally, create a string for each setting with its appropriate value in
 
 With the server now configured, you can now configure your local machine to use
 Gateway. Here is the documentation to
-[setup SSH config via the Coder CLI](../ides.md#ssh-configuration). On the
+[setup SSH config via the Coder CLI](../../user-guides/workspace-access/README.md#configure-ssh). On the
 Gateway side, follow our guide here until step 16.
 
 Instead of downloading from jetbrains.com, we will point Gateway to our server
