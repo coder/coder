@@ -204,7 +204,37 @@ type RegisterWorkspaceProxyRequest struct {
 	Version string `json:"version"`
 }
 
+type CryptoKeyFeature string
+
+const (
+	CryptoKeyFeatureWorkspaceApp  CryptoKeyFeature = "workspace_apps"
+	CryptoKeyFeatureOIDCConvert   CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+)
+
+type CryptoKey struct {
+	Feature   CryptoKeyFeature `json:"feature"`
+	Secret    string           `json:"secret"`
+	DeletesAt time.Time        `json:"deletes_at"`
+	Sequence  int32            `json:"sequence"`
+	StartsAt  time.Time        `json:"starts_at"`
+}
+
+func (c CryptoKey) Active(now time.Time) bool {
+	now = now.UTC()
+	isAfterStartsAt := !c.StartsAt.IsZero() && !now.Before(c.StartsAt)
+	return isAfterStartsAt && !c.Invalid(now)
+}
+
+func (c CryptoKey) Invalid(now time.Time) bool {
+	now = now.UTC()
+	noSecret := c.Secret == ""
+	afterDelete := !c.DeletesAt.IsZero() && !now.Before(c.DeletesAt.UTC())
+	return noSecret || afterDelete
+}
+
 type RegisterWorkspaceProxyResponse struct {
+	Keys                []CryptoKey      `json:"keys"`
 	AppSecurityKey      string           `json:"app_security_key"`
 	DERPMeshKey         string           `json:"derp_mesh_key"`
 	DERPRegionID        int32            `json:"derp_region_id"`
