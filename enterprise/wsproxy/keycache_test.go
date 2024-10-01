@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/v2/testutil"
@@ -33,23 +34,23 @@ func TestCryptoKeyCache(t *testing.T) {
 			)
 
 			now := clock.Now().UTC()
-			expected := wsproxysdk.CryptoKey{
-				Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+			expected := codersdk.CryptoKey{
+				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 				Secret:   "key2",
 				Sequence: 2,
 				StartsAt: now,
 			}
 
-			fc := newFakeCoderd(t, []wsproxysdk.CryptoKey{
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{
 				{
-					Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+					Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 					Secret:   "key1",
 					Sequence: 1,
 					StartsAt: now,
 				},
 				// Should be ignored since it hasn't breached its starts_at time yet.
 				{
-					Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+					Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 					Secret:   "key3",
 					Sequence: 3,
 					StartsAt: now.Add(time.Second * 2),
@@ -74,18 +75,18 @@ func TestCryptoKeyCache(t *testing.T) {
 				clock  = quartz.NewMock(t)
 			)
 
-			fc := newFakeCoderd(t, []wsproxysdk.CryptoKey{})
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{})
 
 			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
 			require.NoError(t, err)
 
-			expected := wsproxysdk.CryptoKey{
-				Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+			expected := codersdk.CryptoKey{
+				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 				Secret:   "key1",
 				Sequence: 12,
 				StartsAt: clock.Now().UTC(),
 			}
-			fc.keys = []wsproxysdk.CryptoKey{expected}
+			fc.keys = []codersdk.CryptoKey{expected}
 
 			got, err := cache.Latest(ctx)
 			require.NoError(t, err)
@@ -110,17 +111,17 @@ func TestCryptoKeyCache(t *testing.T) {
 				clock  = quartz.NewMock(t)
 			)
 			now := clock.Now().UTC()
-			expected := wsproxysdk.CryptoKey{
-				Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+			expected := codersdk.CryptoKey{
+				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 				Secret:   "key1",
 				Sequence: 1,
 				StartsAt: clock.Now().UTC(),
 			}
 
-			fc := newFakeCoderd(t, []wsproxysdk.CryptoKey{
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{
 				expected,
 				{
-					Feature:   wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+					Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
 					Secret:    "key2",
 					Sequence:  2,
 					StartsAt:  now.Add(-time.Second),
@@ -151,16 +152,16 @@ func TestCryptoKeyCache(t *testing.T) {
 			)
 
 			now := clock.Now().UTC()
-			expected := wsproxysdk.CryptoKey{
-				Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+			expected := codersdk.CryptoKey{
+				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 				Secret:   "key1",
 				Sequence: 12,
 				StartsAt: now,
 			}
-			fc := newFakeCoderd(t, []wsproxysdk.CryptoKey{
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{
 				expected,
 				{
-					Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+					Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 					Secret:   "key2",
 					Sequence: 13,
 					StartsAt: now,
@@ -184,18 +185,18 @@ func TestCryptoKeyCache(t *testing.T) {
 				clock  = quartz.NewMock(t)
 			)
 
-			fc := newFakeCoderd(t, []wsproxysdk.CryptoKey{})
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{})
 
 			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
 			require.NoError(t, err)
 
-			expected := wsproxysdk.CryptoKey{
-				Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+			expected := codersdk.CryptoKey{
+				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 				Secret:   "key1",
 				Sequence: 12,
 				StartsAt: clock.Now().UTC(),
 			}
-			fc.keys = []wsproxysdk.CryptoKey{expected}
+			fc.keys = []codersdk.CryptoKey{expected}
 
 			got, err := cache.Version(ctx, expected.Sequence)
 			require.NoError(t, err)
@@ -219,14 +220,14 @@ func TestCryptoKeyCache(t *testing.T) {
 			)
 
 			now := clock.Now().UTC()
-			expected := wsproxysdk.CryptoKey{
-				Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+			expected := codersdk.CryptoKey{
+				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 				Secret:   "key1",
 				Sequence: 12,
 				StartsAt: now.Add(-time.Second),
 			}
 
-			fc := newFakeCoderd(t, []wsproxysdk.CryptoKey{
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{
 				expected,
 			})
 
@@ -249,15 +250,15 @@ func TestCryptoKeyCache(t *testing.T) {
 			)
 
 			now := clock.Now().UTC()
-			expected := wsproxysdk.CryptoKey{
-				Feature:   wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+			expected := codersdk.CryptoKey{
+				Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
 				Secret:    "key1",
 				Sequence:  12,
 				StartsAt:  now.Add(-time.Second),
 				DeletesAt: now,
 			}
 
-			fc := newFakeCoderd(t, []wsproxysdk.CryptoKey{
+			fc := newFakeCoderd(t, []codersdk.CryptoKey{
 				expected,
 			})
 
@@ -282,14 +283,14 @@ func TestCryptoKeyCache(t *testing.T) {
 		trap := clock.Trap().TickerFunc()
 
 		now := clock.Now().UTC()
-		expected := wsproxysdk.CryptoKey{
-			Feature:   wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+		expected := codersdk.CryptoKey{
+			Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
 			Secret:    "key1",
 			Sequence:  12,
 			StartsAt:  now,
 			DeletesAt: now.Add(time.Minute * 10),
 		}
-		fc := newFakeCoderd(t, []wsproxysdk.CryptoKey{
+		fc := newFakeCoderd(t, []codersdk.CryptoKey{
 			expected,
 		})
 
@@ -303,13 +304,13 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		wait := trap.MustWait(ctx)
 
-		newKey := wsproxysdk.CryptoKey{
-			Feature:  wsproxysdk.CryptoKeyFeatureWorkspaceApp,
+		newKey := codersdk.CryptoKey{
+			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 			Secret:   "key2",
 			Sequence: 13,
 			StartsAt: now,
 		}
-		fc.keys = []wsproxysdk.CryptoKey{newKey}
+		fc.keys = []codersdk.CryptoKey{newKey}
 
 		wait.Release()
 
@@ -332,12 +333,12 @@ func TestCryptoKeyCache(t *testing.T) {
 
 type fakeCoderd struct {
 	server *httptest.Server
-	keys   []wsproxysdk.CryptoKey
+	keys   []codersdk.CryptoKey
 	called int
 	url    *url.URL
 }
 
-func newFakeCoderd(t *testing.T, keys []wsproxysdk.CryptoKey) *fakeCoderd {
+func newFakeCoderd(t *testing.T, keys []codersdk.CryptoKey) *fakeCoderd {
 	t.Helper()
 
 	c := &fakeCoderd{

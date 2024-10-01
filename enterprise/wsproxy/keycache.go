@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/quartz"
 )
@@ -19,8 +20,8 @@ type CryptoKeyCache struct {
 	Clock  quartz.Clock
 
 	keysMu sync.RWMutex
-	keys   map[int32]wsproxysdk.CryptoKey
-	latest wsproxysdk.CryptoKey
+	keys   map[int32]codersdk.CryptoKey
+	latest codersdk.CryptoKey
 }
 
 func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client *wsproxysdk.Client, opts ...func(*CryptoKeyCache)) (*CryptoKeyCache, error) {
@@ -45,37 +46,37 @@ func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client *wsproxysdk.
 	return cache, nil
 }
 
-func (k *CryptoKeyCache) Latest(ctx context.Context) (wsproxysdk.CryptoKey, error) {
+func (k *CryptoKeyCache) Latest(ctx context.Context) (codersdk.CryptoKey, error) {
 	k.keysMu.RLock()
 	latest := k.latest
 	k.keysMu.RUnlock()
 
 	now := k.Clock.Now().UTC()
-	if latest.Active(now) {
+	if latest.CanSign(now) {
 		return latest, nil
 	}
 
 	k.keysMu.Lock()
 	defer k.keysMu.Unlock()
 
-	if k.latest.Active(now) {
+	if k.latest.CanSign(now) {
 		return k.latest, nil
 	}
 
 	var err error
 	k.keys, k.latest, err = k.fetch(ctx)
 	if err != nil {
-		return wsproxysdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
+		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
 	}
 
-	if !k.latest.Active(now) {
-		return wsproxysdk.CryptoKey{}, xerrors.Errorf("no active keys found")
+	if !k.latest.CanSign(now) {
+		return codersdk.CryptoKey{}, xerrors.Errorf("no active keys found")
 	}
 
 	return k.latest, nil
 }
 
-func (k *CryptoKeyCache) Version(ctx context.Context, sequence int32) (wsproxysdk.CryptoKey, error) {
+func (k *CryptoKeyCache) Version(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
 	now := k.Clock.Now().UTC()
 	k.keysMu.RLock()
 	key, ok := k.keys[sequence]
@@ -94,12 +95,12 @@ func (k *CryptoKeyCache) Version(ctx context.Context, sequence int32) (wsproxysd
 	var err error
 	k.keys, k.latest, err = k.fetch(ctx)
 	if err != nil {
-		return wsproxysdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
+		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
 	}
 
 	key, ok = k.keys[sequence]
 	if !ok {
-		return wsproxysdk.CryptoKey{}, xerrors.Errorf("key %d not found", sequence)
+		return codersdk.CryptoKey{}, xerrors.Errorf("key %d not found", sequence)
 	}
 
 	return validKey(key, now)
@@ -121,31 +122,31 @@ func (k *CryptoKeyCache) refresh(ctx context.Context) {
 	})
 }
 
-func (k *CryptoKeyCache) fetch(ctx context.Context) (map[int32]wsproxysdk.CryptoKey, wsproxysdk.CryptoKey, error) {
+func (k *CryptoKeyCache) fetch(ctx context.Context) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey, error) {
 	keys, err := k.client.CryptoKeys(ctx)
 	if err != nil {
-		return nil, wsproxysdk.CryptoKey{}, xerrors.Errorf("get security keys: %w", err)
+		return nil, codersdk.CryptoKey{}, xerrors.Errorf("get security keys: %w", err)
 	}
 
 	kmap, latest := toKeyMap(keys.CryptoKeys, k.Clock.Now().UTC())
 	return kmap, latest, nil
 }
 
-func toKeyMap(keys []wsproxysdk.CryptoKey, now time.Time) (map[int32]wsproxysdk.CryptoKey, wsproxysdk.CryptoKey) {
-	m := make(map[int32]wsproxysdk.CryptoKey)
-	var latest wsproxysdk.CryptoKey
+func toKeyMap(keys []codersdk.CryptoKey, now time.Time) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey) {
+	m := make(map[int32]codersdk.CryptoKey)
+	var latest codersdk.CryptoKey
 	for _, key := range keys {
 		m[key.Sequence] = key
-		if key.Sequence > latest.Sequence && key.Active(now) {
+		if key.Sequence > latest.Sequence && key.CanSign(now) {
 			latest = key
 		}
 	}
 	return m, latest
 }
 
-func validKey(key wsproxysdk.CryptoKey, now time.Time) (wsproxysdk.CryptoKey, error) {
-	if key.Invalid(now) {
-		return wsproxysdk.CryptoKey{}, xerrors.Errorf("key %d is invalid", key.Sequence)
+func validKey(key codersdk.CryptoKey, now time.Time) (codersdk.CryptoKey, error) {
+	if !key.CanSign(now) {
+		return codersdk.CryptoKey{}, xerrors.Errorf("key %d is invalid", key.Sequence)
 	}
 
 	return key, nil
