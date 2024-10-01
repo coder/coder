@@ -1404,6 +1404,13 @@ func (m metricsStore) GetWorkspaceAgentPortShare(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m metricsStore) GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentScriptTimingsByWorkspaceID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
@@ -1936,11 +1943,11 @@ func (m metricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg data
 	return err
 }
 
-func (m metricsStore) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) error {
+func (m metricsStore) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
 	start := time.Now()
-	err := m.s.InsertWorkspaceAgentScriptTimings(ctx, arg)
+	r0, r1 := m.s.InsertWorkspaceAgentScriptTimings(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentScriptTimings").Observe(time.Since(start).Seconds())
-	return err
+	return r0, r1
 }
 
 func (m metricsStore) InsertWorkspaceAgentScripts(ctx context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {

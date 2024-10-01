@@ -288,7 +288,7 @@ WHERE
 	)
 ;
 
--- name: InsertWorkspaceAgentScriptTimings :exec
+-- name: InsertWorkspaceAgentScriptTimings :one
 INSERT INTO
     workspace_agent_script_timings (
         script_id,
@@ -299,4 +299,14 @@ INSERT INTO
         status
     )
 VALUES
-    ($1, $2, $3, $4, $5, $6);
+    ($1, $2, $3, $4, $5, $6)
+RETURNING workspace_agent_script_timings.*;
+
+-- name: GetWorkspaceAgentScriptTimingsByWorkspaceID :many
+SELECT workspace_agent_script_timings.*, workspace_agent_scripts.display_name
+FROM workspace_agent_script_timings
+INNER JOIN workspace_agent_scripts ON workspace_agent_scripts.id = workspace_agent_script_timings.script_id
+INNER JOIN workspace_agents ON workspace_agents.id = workspace_agent_scripts.workspace_agent_id
+INNER JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
+INNER JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
+WHERE workspace_builds.workspace_id = $1;

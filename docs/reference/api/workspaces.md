@@ -1641,6 +1641,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 
 ```json
 {
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "string",
+			"exit_code": 0,
+			"script_id": "string",
+			"stage": "string",
+			"started_at": "string",
+			"status": "string"
+		}
+	],
 	"provisioner_timings": [
 		{
 			"action": "string",

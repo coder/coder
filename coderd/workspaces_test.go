@@ -3592,11 +3592,12 @@ func TestWorkspaceTimings(t *testing.T) {
 
 	// Since the tests run in parallel, we need to create a new workspace for
 	// each test to avoid fetching the wrong latest build.
-	type workspaceWithBuild struct {
+	type testWorkspace struct {
 		database.Workspace
-		build database.WorkspaceBuild
+		build  database.WorkspaceBuild
+		script database.WorkspaceAgentScript
 	}
-	makeWorkspace := func() workspaceWithBuild {
+	makeWorkspace := func() testWorkspace {
 		ws := dbgen.Workspace(t, db, database.Workspace{
 			OwnerID:        owner.UserID,
 			OrganizationID: owner.OrganizationID,
@@ -3619,9 +3620,36 @@ func TestWorkspaceTimings(t *testing.T) {
 			InitiatorID:       owner.UserID,
 			JobID:             job.ID,
 		})
-		return workspaceWithBuild{
+		// Create a resource, agent, and script to test the timing of agent scripts
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: jobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		scripts := dbgen.WorkspaceAgentScripts(t, db, database.InsertWorkspaceAgentScriptsParams{
+			WorkspaceAgentID: agent.ID,
+			CreatedAt:        time.Now(),
+			LogSourceID: []uuid.UUID{
+				uuid.New(),
+			},
+			LogPath:          []string{""},
+			Script:           []string{""},
+			Cron:             []string{""},
+			StartBlocksLogin: []bool{false},
+			RunOnStart:       []bool{false},
+			RunOnStop:        []bool{false},
+			TimeoutSeconds:   []int32{0},
+			DisplayName:      []string{""},
+			ID: []uuid.UUID{
+				uuid.New(),
+			},
+		})
+
+		return testWorkspace{
 			Workspace: ws,
 			build:     build,
+			script:    scripts[0],
 		}
 	}
 
@@ -3659,58 +3687,82 @@ func TestWorkspaceTimings(t *testing.T) {
 		return dbgen.ProvisionerJobTimings(t, db, insertParams)
 	}
 
+	makeAgentScriptTimings := func(scriptID uuid.UUID, count int) []database.WorkspaceAgentScriptTiming {
+		newTimings := make([]database.InsertWorkspaceAgentScriptTimingsParams, count)
+		now := time.Now()
+		for i := range count {
+			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
+			endedAt := startedAt.Add(time.Minute)
+			newTimings[i] = database.InsertWorkspaceAgentScriptTimingsParams{
+				StartedAt: startedAt,
+				EndedAt:   endedAt,
+				Stage:     database.WorkspaceAgentScriptTimingStageStart,
+				ScriptID:  scriptID,
+				ExitCode:  0,
+				Status:    database.WorkspaceAgentScriptTimingStatusOk,
+			}
+		}
+
+		timings := make([]database.WorkspaceAgentScriptTiming, 0)
+		for _, newTiming := range newTimings {
+			timing := dbgen.WorkspaceAgentScriptTiming(t, db, newTiming)
+			timings = append(timings, timing)
+		}
+
+		return timings
+	}
+
 	// Given
 	testCases := []struct {
-		name               string
 		provisionerTimings int
-		workspace          workspaceWithBuild
-		error              bool
+		agentScriptTimings int
+		workspace          testWorkspace
 	}{
 		{
-			name:               "workspace with 5 provisioner timings",
+			workspace: makeWorkspace(),
+		},
+		{
 			provisionerTimings: 5,
 			workspace:          makeWorkspace(),
 		},
 		{
-			name:               "workspace with 2 provisioner timings",
 			provisionerTimings: 2,
 			workspace:          makeWorkspace(),
 		},
 		{
-			name:               "workspace with 0 provisioner timings",
-			provisionerTimings: 0,
+			agentScriptTimings: 5,
 			workspace:          makeWorkspace(),
 		},
 		{
-			name:               "workspace not found",
-			provisionerTimings: 0,
-			workspace:          workspaceWithBuild{},
-			error:              true,
+			agentScriptTimings: 2,
+			workspace:          makeWorkspace(),
+		},
+		{
+			provisionerTimings: 3,
+			agentScriptTimings: 4,
+			workspace:          makeWorkspace(),
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
+		name := fmt.Sprintf("provisionerTimings=%d, agentScriptTimings=%d", tc.provisionerTimings, tc.agentScriptTimings)
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			// Generate timings based on test config
-			generatedTimings := makeProvisionerTimings(tc.workspace.build.JobID, tc.provisionerTimings)
+			genProvisionerTimings := makeProvisionerTimings(tc.workspace.build.JobID, tc.provisionerTimings)
+			genAgentScriptTimings := makeAgentScriptTimings(tc.workspace.script.ID, tc.agentScriptTimings)
+
 			res, err := client.WorkspaceTimings(context.Background(), tc.workspace.ID)
-
-			// When error is expected, than an error is returned
-			if tc.error {
-				require.Error(t, err)
-				return
-			}
-
-			// When success is expected, than no error is returned and the length and
-			// fields are correctly returned
 			require.NoError(t, err)
 			require.Len(t, res.ProvisionerTimings, tc.provisionerTimings)
+			require.Len(t, res.AgentScriptTimings, tc.agentScriptTimings)
+
+			// Verify timings data
 			for i := range res.ProvisionerTimings {
 				timingRes := res.ProvisionerTimings[i]
-				genTiming := generatedTimings[i]
+				genTiming := genProvisionerTimings[i]
 				require.Equal(t, genTiming.Resource, timingRes.Resource)
 				require.Equal(t, genTiming.Action, timingRes.Action)
 				require.Equal(t, string(genTiming.Stage), timingRes.Stage)
@@ -3719,6 +3771,26 @@ func TestWorkspaceTimings(t *testing.T) {
 				require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
 				require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
 			}
+			for i := range res.AgentScriptTimings {
+				timingRes := res.AgentScriptTimings[i]
+				genTiming := genAgentScriptTimings[i]
+				require.Equal(t, genTiming.ScriptID.String(), timingRes.ScriptID.String())
+				require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
+				require.Equal(t, string(genTiming.Status), timingRes.Status)
+				require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+				require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+				require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+			}
 		})
 	}
+}
+
+func TestWorkspaceTimings_NotFound(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.WorkspaceTimings(context.Background(), uuid.New())
+	require.Contains(t, err.Error(), "not found")
 }

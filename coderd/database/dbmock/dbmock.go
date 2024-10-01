@@ -2933,6 +2933,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentPortShare(arg0, arg1 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPortShare), arg0, arg1)
 }
 
+// GetWorkspaceAgentScriptTimingsByWorkspaceID mocks base method.
+func (m *MockStore) GetWorkspaceAgentScriptTimingsByWorkspaceID(arg0 context.Context, arg1 uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentScriptTimingsByWorkspaceID", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentScriptTimingsByWorkspaceID indicates an expected call of GetWorkspaceAgentScriptTimingsByWorkspaceID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptTimingsByWorkspaceID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentScriptTimingsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentScriptTimingsByWorkspaceID), arg0, arg1)
+}
+
 // GetWorkspaceAgentScriptsByAgentIDs mocks base method.
 func (m *MockStore) GetWorkspaceAgentScriptsByAgentIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	m.ctrl.T.Helper()
@@ -4080,11 +4095,12 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(arg0, arg1 any) *g
 }
 
 // InsertWorkspaceAgentScriptTimings mocks base method.
-func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) error {
+func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspaceAgentScriptTimings", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.WorkspaceAgentScriptTiming)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // InsertWorkspaceAgentScriptTimings indicates an expected call of InsertWorkspaceAgentScriptTimings.

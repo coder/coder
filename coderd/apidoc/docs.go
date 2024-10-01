@@ -8884,6 +8884,32 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentScriptTiming": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "script_id": {
+                    "type": "string"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentSubsystem": {
             "type": "string",
             "enum": [
@@ -14807,6 +14833,12 @@ const docTemplate = `{
         "codersdk.WorkspaceTimings": {
             "type": "object",
             "properties": {
+                "agent_script_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentScriptTiming"
+                    }
+                },
                 "provisioner_timings": {
                     "type": "array",
                     "items": {

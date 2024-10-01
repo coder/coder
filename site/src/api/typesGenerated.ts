@@ -32,6 +32,17 @@ export interface AddLicenseRequest {
 	readonly license: string;
 }
 
+// From codersdk/workspaces.go
+export interface AgentScriptTiming {
+	readonly script_id: string;
+	readonly started_at: string;
+	readonly ended_at: string;
+	readonly exit_code: number;
+	readonly stage: string;
+	readonly status: string;
+	readonly display_name: string;
+}
+
 // From codersdk/templates.go
 export interface AgentStatsReportResponse {
 	readonly num_comms: number;
@@ -2044,6 +2055,7 @@ export interface WorkspaceResourceMetadata {
 // From codersdk/workspaces.go
 export interface WorkspaceTimings {
 	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
+	readonly agent_script_timings: Readonly<Array<AgentScriptTiming>>;
 }
 
 // From codersdk/workspaces.go

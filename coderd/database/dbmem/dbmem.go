@@ -5793,6 +5793,67 @@ func (q *FakeQuerier) GetWorkspaceAgentPortShare(_ context.Context, arg database
 	return database.WorkspaceAgentPortShare{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	resources, err := q.GetWorkspaceResourcesByJobID(ctx, build.JobID)
+	if err != nil {
+		return nil, err
+	}
+	resourceIDs := make([]uuid.UUID, 0, len(resources))
+	for _, res := range resources {
+		resourceIDs = append(resourceIDs, res.ID)
+	}
+
+	agents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil {
+		return nil, err
+	}
+	agentIDs := make([]uuid.UUID, 0, len(agents))
+	for _, agent := range agents {
+		agentIDs = append(agentIDs, agent.ID)
+	}
+
+	scripts, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, agentIDs)
+	if err != nil {
+		return nil, err
+	}
+	scriptIDs := make([]uuid.UUID, 0, len(scripts))
+	for _, script := range scripts {
+		scriptIDs = append(scriptIDs, script.ID)
+	}
+
+	rows := []database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow{}
+	for _, t := range q.workspaceAgentScriptTimings {
+		if slices.Contains(scriptIDs, t.ScriptID) {
+			var script database.WorkspaceAgentScript
+			for _, s := range scripts {
+				if s.ID == t.ScriptID {
+					script = s
+					break
+				}
+			}
+
+			rows = append(rows, database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow{
+				ScriptID:    t.ScriptID,
+				StartedAt:   t.StartedAt,
+				EndedAt:     t.EndedAt,
+				ExitCode:    t.ExitCode,
+				Stage:       t.Stage,
+				Status:      t.Status,
+				DisplayName: script.DisplayName,
+			})
+		}
+	}
+	return rows, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7844,28 +7905,26 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) error {
+func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return err
+		return database.WorkspaceAgentScriptTiming{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings,
-		//nolint:gosimple // Stop the linter complaining about changing the type of `arg`.
-		database.WorkspaceAgentScriptTiming{
-			ScriptID:  arg.ScriptID,
-			StartedAt: arg.StartedAt,
-			EndedAt:   arg.EndedAt,
-			ExitCode:  arg.ExitCode,
-			Stage:     arg.Stage,
-			Status:    arg.Status,
-		},
-	)
+	timing := database.WorkspaceAgentScriptTiming{
+		ScriptID:  arg.ScriptID,
+		StartedAt: arg.StartedAt,
+		EndedAt:   arg.EndedAt,
+		ExitCode:  arg.ExitCode,
+		Stage:     arg.Stage,
+		Status:    arg.Status,
+	}
+	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings, timing)
 
-	return nil
+	return timing, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {

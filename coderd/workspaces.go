@@ -1772,9 +1772,20 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	agentScriptTimings, err := api.Database.GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx, workspace.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent script timings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	res := codersdk.WorkspaceTimings{
 		ProvisionerTimings: make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
+		AgentScriptTimings: make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
 	}
+
 	for _, t := range provisionerTimings {
 		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
 			JobID:     t.JobID,
@@ -1786,6 +1797,18 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 			EndedAt:   t.EndedAt,
 		})
 	}
+	for _, t := range agentScriptTimings {
+		res.AgentScriptTimings = append(res.AgentScriptTimings, codersdk.AgentScriptTiming{
+			ScriptID:    t.ScriptID,
+			StartedAt:   t.StartedAt,
+			EndedAt:     t.EndedAt,
+			ExitCode:    t.ExitCode,
+			Stage:       string(t.Stage),
+			Status:      string(t.Status),
+			DisplayName: t.DisplayName,
+		})
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, res)
 }
 

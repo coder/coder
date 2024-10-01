@@ -11420,6 +11420,57 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorks
 	return items, nil
 }
 
+const getWorkspaceAgentScriptTimingsByWorkspaceID = `-- name: GetWorkspaceAgentScriptTimingsByWorkspaceID :many
+SELECT workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status, workspace_agent_scripts.display_name
+FROM workspace_agent_script_timings
+INNER JOIN workspace_agent_scripts ON workspace_agent_scripts.id = workspace_agent_script_timings.script_id
+INNER JOIN workspace_agents ON workspace_agents.id = workspace_agent_scripts.workspace_agent_id
+INNER JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
+INNER JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
+WHERE workspace_builds.workspace_id = $1
+`
+
+type GetWorkspaceAgentScriptTimingsByWorkspaceIDRow struct {
+	ScriptID    uuid.UUID                        `db:"script_id" json:"script_id"`
+	StartedAt   time.Time                        `db:"started_at" json:"started_at"`
+	EndedAt     time.Time                        `db:"ended_at" json:"ended_at"`
+	ExitCode    int32                            `db:"exit_code" json:"exit_code"`
+	Stage       WorkspaceAgentScriptTimingStage  `db:"stage" json:"stage"`
+	Status      WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
+	DisplayName string                           `db:"display_name" json:"display_name"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptTimingsByWorkspaceID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceAgentScriptTimingsByWorkspaceIDRow
+	for rows.Next() {
+		var i GetWorkspaceAgentScriptTimingsByWorkspaceIDRow
+		if err := rows.Scan(
+			&i.ScriptID,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.ExitCode,
+			&i.Stage,
+			&i.Status,
+			&i.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, expanded_directory, logs_length, logs_overflowed, started_at, ready_at, subsystems, display_apps, api_version, display_order
@@ -11879,7 +11930,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 	return err
 }
 
-const insertWorkspaceAgentScriptTimings = `-- name: InsertWorkspaceAgentScriptTimings :exec
+const insertWorkspaceAgentScriptTimings = `-- name: InsertWorkspaceAgentScriptTimings :one
 INSERT INTO
     workspace_agent_script_timings (
         script_id,
@@ -11891,6 +11942,7 @@ INSERT INTO
     )
 VALUES
     ($1, $2, $3, $4, $5, $6)
+RETURNING workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status
 `
 
 type InsertWorkspaceAgentScriptTimingsParams struct {
@@ -11902,8 +11954,8 @@ type InsertWorkspaceAgentScriptTimingsParams struct {
 	Status    WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) error {
-	_, err := q.db.ExecContext(ctx, insertWorkspaceAgentScriptTimings,
+func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg InsertWorkspaceAgentScriptTimingsParams) (WorkspaceAgentScriptTiming, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentScriptTimings,
 		arg.ScriptID,
 		arg.StartedAt,
 		arg.EndedAt,
@@ -11911,7 +11963,16 @@ func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg 
 		arg.Stage,
 		arg.Status,
 	)
-	return err
+	var i WorkspaceAgentScriptTiming
+	err := row.Scan(
+		&i.ScriptID,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.ExitCode,
+		&i.Stage,
+		&i.Status,
+	)
+	return i, err
 }
 
 const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec

@@ -349,6 +349,32 @@
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
 
+## codersdk.AgentScriptTiming
+
+```json
+{
+	"display_name": "string",
+	"ended_at": "string",
+	"exit_code": 0,
+	"script_id": "string",
+	"stage": "string",
+	"started_at": "string",
+	"status": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `display_name` | string  | false    |              |             |
+| `ended_at`     | string  | false    |              |             |
+| `exit_code`    | integer | false    |              |             |
+| `script_id`    | string  | false    |              |             |
+| `stage`        | string  | false    |              |             |
+| `started_at`   | string  | false    |              |             |
+| `status`       | string  | false    |              |             |
+
 ## codersdk.AgentSubsystem
 
 ```json
@@ -7609,6 +7635,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "string",
+			"exit_code": 0,
+			"script_id": "string",
+			"stage": "string",
+			"started_at": "string",
+			"status": "string"
+		}
+	],
 	"provisioner_timings": [
 		{
 			"action": "string",
@@ -7625,9 +7662,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                  | Type                                                              | Required | Restrictions | Description |
-| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `provisioner_timings` | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
+| Name                   | Type                                                              | Required | Restrictions | Description |
+| ---------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `agent_script_timings` | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming) | false    |              |             |
+| `provisioner_timings`  | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
 
 ## codersdk.WorkspaceTransition
 

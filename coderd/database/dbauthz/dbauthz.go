@@ -2421,6 +2421,13 @@ func (q *querier) GetWorkspaceAgentPortShare(ctx context.Context, arg database.G
 	return q.db.GetWorkspaceAgentPortShare(ctx, arg)
 }
 
+func (q *querier) GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx, workspaceID)
+}
+
 func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -3034,9 +3041,9 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) error {
+func (q *querier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return err
+		return database.WorkspaceAgentScriptTiming{}, err
 	}
 	return q.db.InsertWorkspaceAgentScriptTimings(ctx, arg)
 }

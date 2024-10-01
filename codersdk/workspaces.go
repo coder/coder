@@ -636,9 +636,19 @@ type ProvisionerTiming struct {
 	Resource  string    `json:"resource"`
 }
 
+type AgentScriptTiming struct {
+	ScriptID    uuid.UUID `json:"script_id"`
+	StartedAt   time.Time `json:"started_at"`
+	EndedAt     time.Time `json:"ended_at"`
+	ExitCode    int32     `json:"exit_code"`
+	Stage       string    `json:"stage"`
+	Status      string    `json:"status"`
+	DisplayName string    `json:"display_name"`
+}
+
 type WorkspaceTimings struct {
 	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
-	// TODO: Add AgentScriptTimings when it is done https://github.com/coder/coder/issues/14630
+	AgentScriptTimings []AgentScriptTiming `json:"agent_script_timings"`
 }
 
 func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceTimings, error) {

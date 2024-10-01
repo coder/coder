@@ -189,6 +189,18 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 	return agt
 }
 
+func WorkspaceAgentScripts(t testing.TB, db database.Store, orig database.InsertWorkspaceAgentScriptsParams) []database.WorkspaceAgentScript {
+	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, orig)
+	require.NoError(t, err, "insert workspace agent script")
+	return scripts
+}
+
+func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.InsertWorkspaceAgentScriptTimingsParams) database.WorkspaceAgentScriptTiming {
+	timing, err := db.InsertWorkspaceAgentScriptTimings(genCtx, orig)
+	require.NoError(t, err, "insert workspace agent script")
+	return timing
+}
+
 func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
 	t.Helper()
 
