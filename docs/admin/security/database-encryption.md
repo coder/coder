@@ -175,11 +175,11 @@ To delete all encrypted data from your database, perform the following actions:
 ## Troubleshooting
 
 - If Coder detects that the data stored in the database was not encrypted with
-  any known keys, it will refuse to start. If you are seeing this behaviour,
+  any known keys, it will refuse to start. If you are seeing this behavior,
   ensure that the encryption keys provided are correct.
 - If Coder detects that the data stored in the database was encrypted with a key
   that is no longer active, it will refuse to start. If you are seeing this
-  behaviour, ensure that the encryption keys provided are correct and that you
+  behavior, ensure that the encryption keys provided are correct and that you
   have not revoked any keys that are still in use.
 - Decryption may fail if newly encrypted data is written while decryption is in
   progress. If this happens, ensure that all active coder instances are stopped,
