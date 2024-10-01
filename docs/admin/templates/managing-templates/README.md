@@ -22,7 +22,7 @@ images, VPC, cloud credentials, and so on. Coder supports all Terraform
 resources and properties, so fear not if your favorite cloud provider isn't
 here!
 
-![Starter templates](../../images/templates/starter-templates.png)
+![Starter templates](../../images/start/starter-templates.png)
 
 If you prefer to use Coder on the [command line](../../reference/cli/README.md),
 `coder templates init`.

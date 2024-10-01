@@ -344,8 +344,8 @@ the IDE can be baked into the container image and manually open Gateway (or
 IntelliJ which has Gateway built-in), using a session token to Coder and then
 open the IDE.
 
-- [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/pod-idea)
-- [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/pod-idea-icon)
+- [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/src/pod-idea)
+- [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/src/pod-idea-icon)
 
 ### What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?
 
@@ -405,7 +405,7 @@ colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
 ```
 
 Colima will show the path to the docker socket so we have a
-[community template](https://github.com/sharkymark/v2-templates/tree/main/docker-code-server)
+[community template](https://github.com/sharkymark/v2-templates/tree/main/src/docker-code-server)
 that prompts the Coder admin to enter the docker socket as a Terraform variable.
 
 ### How to make a `coder_app` optional?
