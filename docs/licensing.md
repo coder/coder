@@ -5,8 +5,12 @@ Some features are only accessible with a Premium or Enterprise license. See our
 features, you can [request a trial](https://coder.com/trial) or
 [contact sales](https://coder.com/contact).
 
+<!-- markdown-link-check-disable -->
+
 > If you are an existing customer, you can learn more our new Premium plan in
 > the [Coder v2.16 blog post](https://coder.com/blog/release-recap-2-16-0)
+
+<!-- markdown-link-check-enable -->
 
 ## Adding your license key
 
