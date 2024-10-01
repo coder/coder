@@ -162,7 +162,7 @@ concepts apply to all compute types.
 
 ## Offline Deployments
 
-See the [offline deployments](../templates/modules.md#offline-installations)
+See the [offline deployments](../templates/extending-templates/modules.md#offline-installations)
 section for instructions on how to use coder-modules in an offline environment
 with Artifactory.
 
@@ -172,5 +172,3 @@ with Artifactory.
   [here](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
 - To serve extensions from your own VS Code Marketplace, check out
   [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).
-- To store templates in Artifactory, check out our
-  [Artifactory modules](../templates/modules.md#artifactory) docs.
