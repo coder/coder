@@ -7,6 +7,7 @@ import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import Globe from "@mui/icons-material/PublicOutlined";
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
 	Sidebar as BaseSidebar,
@@ -14,7 +15,6 @@ import {
 } from "components/Sidebar/Sidebar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 
 export const Sidebar: FC = () => {
 	const { experiments } = useDashboard();
