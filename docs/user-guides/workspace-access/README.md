@@ -24,7 +24,9 @@ The terminal is implicitly enabled in Coder and allows you to access your worksp
 
 ### Through with the CLI
 
-Coder will use the optimal path for an SSH connection (determined by your deployment's [networking configuration](../../admin/networking.md)) when using the CLI:
+Coder will use the optimal path for an SSH connection (determined by your
+deployment's [networking configuration](../../admin/infrastructure/README.md))
+when using the CLI:
 
 ```console
 coder ssh my-workspace
@@ -34,7 +36,7 @@ Or, you can configure plain SSH on your client below.
 
 ### Configure SSH
 
-Coder generates [SSH key pairs](../../secrets.md#ssh-keys) for each user to simplify the setup process.
+Coder generates [SSH key pairs](../../admin/security/secrets.md#ssh-keys) for each user to simplify the setup process.
 
 > Before proceeding, run `coder login <accessURL>` if you haven't already to
 > authenticate the CLI with the web UI and your workspaces.
