@@ -21,7 +21,7 @@ practices:
 
 - Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
 - Ensure the resource can `curl` your Coder
-  [access URL](../../admin/setup.md#access-url)
+  [access URL](../../admin/setup/README.md#access-url)
 - Manually connect to the resource and check the agent logs (e.g.,
   `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
@@ -31,7 +31,7 @@ practices:
     `/tmp/coder-shutdown-script.log`
 - This can also happen if the websockets are not being forwarded correctly when
   running Coder behind a reverse proxy.
-  [Read our reverse-proxy docs](../../admin/setup.md#tls--reverse-proxy)
+  [Read our reverse-proxy docs](../../admin/setup/README.md#tls--reverse-proxy)
 
 ## Startup script issues
 

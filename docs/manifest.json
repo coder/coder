@@ -153,8 +153,16 @@
 				{
 					"title": "Setup",
 					"description": "Configure user access to your control plane.",
-					"path": "./admin/setup.md",
-					"icon_path": "./images/icons/toggle_on.svg"
+					"path": "./admin/setup/README.md",
+					"icon_path": "./images/icons/toggle_on.svg",
+					"children": [
+						{
+							"title": "Appearance",
+							"description": "Learn how to configure the appearance of Coder",
+							"path": "./admin/appearance.md",
+							"state": ["enterprise", "premium"]
+						}
+					]
 				},
 				{
 					"title": "Infrastructure",

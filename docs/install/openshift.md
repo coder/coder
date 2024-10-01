@@ -326,4 +326,4 @@ This template should be ready to use straight away.
 ## Next steps
 
 - [Create your first template](../tutorials/template-from-scratch.md)
-- [Control plane configuration](../admin/setup.md)
+- [Control plane configuration](../admin/setup/README.md)

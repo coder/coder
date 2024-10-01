@@ -57,4 +57,4 @@ coder login https://coder.example.com
 ## Next up
 
 - [Create your first template](../tutorials/template-from-scratch.md)
-- [Control plane configuration](../admin/setup.md)
+- [Control plane configuration](../admin/setup/README.md)

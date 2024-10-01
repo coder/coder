@@ -119,7 +119,7 @@ CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
 
 To change the icon and text above the OpenID Connect button, see application
-name and logo url in [appearance](./appearance.md) settings.
+name and logo url in [appearance](../setup/appearance.md) settings.
 
 ## Disable Built-in Authentication
 

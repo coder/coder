@@ -13,7 +13,7 @@ The deployment health page is broken up into the following sections:
 ## Access URL
 
 The Access URL section shows checks related to Coder's
-[access URL](../setup.md#access-url).
+[access URL](../setup/README.md#access-url).
 
 Coder will periodically send a GET request to `${CODER_ACCESS_URL}/healthz` and
 validate that the response is `200 OK`. The expected response body is also the
@@ -27,7 +27,8 @@ _Access URL not set_
 
 **Problem:** no access URL has been configured.
 
-**Solution:** configure an [access URL](../setup.md#access-url) for Coder.
+**Solution:** configure an [access URL](../setup/README.md#access-url) for
+Coder.
 
 ### EACS02
 

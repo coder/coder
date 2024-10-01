@@ -104,4 +104,4 @@ Form will never get held up by quota enforcement.
 ## Up next
 
 - [Group Sync](./group-sync.md)
-- [Control plane configuration](../setup.md)
+- [Control plane configuration](../setup/README.md)

@@ -40,8 +40,8 @@ manually setting up an SSH connection.
 
    ![Gateway Connect to Coder](../../images/gateway/plugin-connect-to-coder.png)
 
-1. Enter your Coder deployment's [Access Url](../../admin/setup.md#access-url)
-   and click **Connect**.
+1. Enter your Coder deployment'ssetup/README.md
+   [Access Url](../../admin/setup/README.md#access-url) and click **Connect**.
 
    Gateway opens your Coder deployment's `cli-auth` page with a session token.
    Click the copy button, paste the session token in the Gateway **Session

@@ -31,7 +31,7 @@ Your browser does not support the video tag.
 </video>
 
 Be sure to add a keypair so that you can connect over SSH to further
-[configure Coder](../../admin/setup.md).
+[configure Coder](../../admin/setup/README.md).
 
 After launching the instance, wait 30 seconds and navigate to the public IPv4
 address. You should be redirected to a public tunnel URL.
@@ -48,8 +48,8 @@ pre-installed.
 
 Coder is primarily configured by server-side flags and environment variables.
 Given you created or added key-pairs when launching the instance, you can
-[configure your Coder deployment](../../admin/setup.md) by logging in via SSH or
-using the console:
+[configure your Coder deployment](../../admin/setup/README.md) by logging in via
+SSH or using the console:
 
 ```shell
 ssh ubuntu@<gcp-public-IPv4>
@@ -74,5 +74,5 @@ to set up authentication.
 
 - [Use your IDE with Coder](../../user-guides/workspace-access/README.md)
 - [Writing custom templates for Coder](../../admin/templates/README.md)
-- [Configure the Coder server](../../admin/setup.md)
-- [Use your own domain + TLS](../../admin/setup.md#tls--reverse-proxy)
+- [Configure the Coder server](../../admin/setup/README.md)
+- [Use your own domain + TLS](../../admin/setup/README.md#tls--reverse-proxy)
