@@ -198,5 +198,5 @@ Compare: [\`${old_version}...${new_version}\`](https://github.com/coder/coder/co
 
 ## Install/upgrade
 
-Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/admin/upgrade) Coder, or use a release asset below.
+Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.
 "
