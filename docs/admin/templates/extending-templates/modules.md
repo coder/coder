@@ -188,12 +188,8 @@ coder:
       readOnly: true
 ```
 
-### Next up
+## Next steps
 
-Learn more about
-
-- JFrog's Terraform Registry support
-  [here](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry).
-- Configuring the JFrog toolchain inside a workspace
-  [here](../../integrations/jfrog-artifactory.md).
-- Coder Module Registry [here](https://registry.coder.com/modules)
+- JFrog's [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry)
+- [Configuring the JFrog toolchain inside a workspace](../../integrations/jfrog-artifactory.md)
+- [Coder Module Registry](https://registry.coder.com/modules)
