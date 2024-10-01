@@ -484,6 +484,34 @@
 			]
 		},
 		{
+			"title": "Contributing",
+			"description": "Learn how to contribute to Coder",
+			"path": "./CONTRIBUTING.md",
+			"icon_path": "./images/icons/contributing.svg",
+			"children": [
+				{
+					"title": "Code of Conduct",
+					"description": "See the code of conduct for contributing to Coder",
+					"path": "./contributing/CODE_OF_CONDUCT.md"
+				},
+				{
+					"title": "Feature stages",
+					"description": "Policies for Alpha and Experimental features.",
+					"path": "./contributing/feature-stages.md"
+				},
+				{
+					"title": "Documentation",
+					"description": "Our style guide for use when authoring documentation",
+					"path": "./contributing/documentation.md"
+				},
+				{
+					"title": "Frontend",
+					"description": "Our guide for frontend development",
+					"path": "./contributing/frontend.md"
+				}
+			]
+		},
+		{
 			"title": "Tutorials",
 			"description": "Coder knowledgebase for administrating your deployment",
 			"path": "./tutorials/README.md",
