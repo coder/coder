@@ -68,7 +68,7 @@ web interface, the CLI tool, or directly calling API methods.
 
 ### Workspace
 
-A [workspace](../../workspaces/README.md) refers to an isolated development environment
+A [workspace](../../../workspaces.md) refers to an isolated development environment
 where users can write, build, and run code. Workspaces are fully configurable
 and can be tailored to specific project requirements, providing developers with
 a consistent and efficient development environment. Workspaces can be
@@ -336,10 +336,10 @@ could affect workspace users experience once the platform is live.
    [version control](../../templates/managing-templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template
    versions into Coder from git. For example, on Github, you can use the
-   [Update Coder Template](https://github.com/marketplace/actions/update-coder-template)
+   [Setup Coder](https://github.com/marketplace/actions/setup-coder)
    action.
 1. Evaluate enabling
-   [automatic template updates](../../templates/general-settings.md#require-automatic-updates-enterprise)
+   [automatic template updates](../../workspaces/README.md#update-policies)
    upon workspace startup.
 
 ### Observability
@@ -351,12 +351,14 @@ could affect workspace users experience once the platform is live.
    leverage pre-configured dashboards, alerts, and runbooks for monitoring
    Coder. This includes integrations between Prometheus, Grafana, Loki, and
    Alertmanager.
-1. Review the [Prometheus response](../prometheus.md) and set up alarms on
+1. Review the [Prometheus response](../../integrations/prometheus.md) and set up alarms on
    selected metrics.
 
 ### User support
 
-1. Incorporate [support links](../appearance.md#support-links) into internal
+<!-- TODO: Add support links section -->
+
+1. Incorporate [support links](#) into internal
    documentation accessible from the user context menu. Ensure that hyperlinks
    are valid and lead to up-to-date materials.
 1. Encourage the use of `coder support bundle` to allow workspace users to
