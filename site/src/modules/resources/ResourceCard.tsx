@@ -87,7 +87,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 	const mLength =
 		resource.daily_cost > 0
 			? (resource.metadata?.length ?? 0) + 1
-			: resource.metadata?.length ?? 0;
+			: (resource.metadata?.length ?? 0);
 
 	const gridWidth = mLength === 1 ? 1 : 4;
 
