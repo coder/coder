@@ -58,7 +58,7 @@ If you deployed Coder on a VM, copy the kubeconfig file to
 
 You can start from our
 [example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
-From there, add [template parameters](../../templates/concepts/parameters.md) to
+From there, add [template parameters](../templates/extending-templates/parameters.md) to
 allow developers to pick their desired cluster.
 
 ```tf
@@ -91,7 +91,7 @@ provider "kubernetes" {
 
 Alternatively, you can authenticate with remote clusters with ServiceAccount
 tokens. Coder can store these secrets on your behalf with
-[managed Terraform variables](../templates/concepts/variables.md).
+[managed Terraform variables](../templates/extending-templates/variables.md).
 
 Alternatively, these could also be fetched from Kubernetes secrets or even
 [Hashicorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).

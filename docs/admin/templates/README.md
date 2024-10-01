@@ -36,4 +36,5 @@ We recommend starting with a universal template that can be used for basic tasks
 
 ## Template permissions & policies (enterprise)
 
-TODO Link permissions page.
+With Coder Enterprise, you can control who can use and modify the template. Docs: [Template permissions](./template-permissions.md).
+
