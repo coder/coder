@@ -183,5 +183,7 @@ func (d *DBCache) newTimer() *quartz.Timer {
 }
 
 func (d *DBCache) Close() {
+	d.keysMu.Lock()
+	defer d.keysMu.Unlock()
 	d.timer.Stop()
 }
