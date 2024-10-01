@@ -3,24 +3,6 @@
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
 
-**Notifications are currently an experimental feature.**
-
-## Enable experiment
-
-In order to activate the notifications feature, you'll need to enable the
-`notifications` experiment.
-
-```bash
-# Using the CLI flag
-$ coder server --experiments=notifications
-
-# Alternatively, using the `CODER_EXPERIMENTS` environment variable
-$ CODER_EXPERIMENTS=notifications coder server
-```
-
-More information on experiments can be found
-[here](../../contributing/feature-stages#experimental-features).
-
 ## Event Types
 
 Notifications are sent in response to internal events, to alert the affected
