@@ -102,6 +102,10 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 			? "1 provisioner"
 			: `${provisionersWithWarnings} provisioners`;
 
+	const hasMultipleTagVariants =
+		(type === "psk" || type === "userAuth") &&
+		provisioners.some((it) => !isSimpleTagSet(it.tags));
+
 	return (
 		<div
 			css={[
@@ -166,7 +170,32 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						gap: 12,
 						justifyContent: "right",
 					}}
-				></div>
+				>
+					{!hasMultipleTagVariants ? (
+						<Tooltip title="Scope">
+							<Pill
+								size="lg"
+								icon={
+									daemonScope === "organization" ? (
+										<BusinessIcon />
+									) : (
+										<PersonIcon />
+									)
+								}
+							>
+								<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
+							</Pill>
+						</Tooltip>
+					) : (
+						<Pill size="lg" icon={<TagIcon />}>
+							Multiple tags
+						</Pill>
+					)}
+					{type === "key" &&
+						extraTags.map(([key, value]) => (
+							<ProvisionerTag key={key} tagName={key} tagValue={value} />
+						))}
+				</div>
 			</header>
 
 			{showDetails && (
@@ -222,7 +251,9 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 										)}
 									</span>
 								</div>
-								<ProvisionerTags tags={provisioner.tags} />
+								{hasMultipleTagVariants && (
+									<InlineProvisionerTags tags={provisioner.tags} />
+								)}
 							</Stack>
 						</div>
 					))}
@@ -307,11 +338,11 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 	);
 };
 
-interface ProvisionerTagsProps {
+interface InlineProvisionerTagsProps {
 	tags: Record<string, string>;
 }
 
-const ProvisionerTags: FC<ProvisionerTagsProps> = ({ tags }) => {
+const InlineProvisionerTags: FC<InlineProvisionerTagsProps> = ({ tags }) => {
 	const daemonScope = tags.scope || "organization";
 	const iconScope =
 		daemonScope === "organization" ? <BusinessIcon /> : <PersonIcon />;
