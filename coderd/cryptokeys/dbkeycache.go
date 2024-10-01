@@ -189,10 +189,6 @@ func checkKey(key database.CryptoKey, now time.Time) (codersdk.CryptoKey, error)
 	return db2sdk.CryptoKey(key), nil
 }
 
-func (d *DBCache) newTimer() *quartz.Timer {
-	return d.clock.AfterFunc(time.Minute*10, d.clear)
-}
-
 func (d *DBCache) Close() {
 	d.keysMu.Lock()
 	defer d.keysMu.Unlock()
