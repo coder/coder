@@ -13,7 +13,7 @@ connecting with their workspace over SSH, a workspace app, port forwarding, etc.
 Dashboard connections and API calls (e.g. the workspaces list) are not served
 over workspace proxies.
 
-![ProxyDiagram](../../images/workspaceproxy/proxydiagram.png)
+![ProxyDiagram](../../images/admin/networking/workspace-proxies/proxydiagram.png)
 
 # Deploy a workspace proxy
 
@@ -206,7 +206,7 @@ dashboard. Workspace proxy preferences are cached by the web browser. If a proxy
 goes offline, the session will fall back to the primary proxy. This could take
 up to 60 seconds.
 
-![Workspace proxy picker](../../images/workspaceproxy/ws-proxy-picker.png)
+![Workspace proxy picker](../../images/admin/networking/workspace-proxies/ws-proxy-picker.png)
 
 ## Observability
 

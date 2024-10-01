@@ -422,6 +422,11 @@
 							"path": "./admin/networking/stun.md"
 						},
 						{
+							"title": "Workspace Proxies",
+							"description": "Run geo distributed workspace proxies",
+							"path": "./admin/networking/workspace-proxies.md"
+						},
+						{
 							"title": "Troubleshooting",
 							"description": "Troubleshoot networking issues in Coder",
 							"path": "./admin/networking/troubleshooting.md"
