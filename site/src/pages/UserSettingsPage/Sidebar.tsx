@@ -6,6 +6,7 @@ import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import AccountIcon from "@mui/icons-material/Person";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { User } from "api/typesGenerated";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
 	Sidebar as BaseSidebar,
@@ -15,7 +16,6 @@ import {
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import {FeatureStageBadge} from "components/FeatureStageBadge/FeatureStageBadge";
 
 interface SidebarProps {
 	user: User;
