@@ -20,9 +20,9 @@ With `psql -U coder`:
 CREATE DATABASE coder;
 ```
 
-Coder configuration is defined via
-[environment variables](../admin/configure.md). The database client requires the
-connection string provided via the `CODER_PG_CONNECTION_URL` variable.
+Coder configuration is defined via [environment variables](../admin/setup.md).
+The database client requires the connection string provided via the
+`CODER_PG_CONNECTION_URL` variable.
 
 ```shell
 export CODER_PG_CONNECTION_URL="postgres://coder:secret42@localhost/coder?sslmode=disable"
