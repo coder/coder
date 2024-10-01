@@ -1,5 +1,7 @@
 {
-	"versions": ["main"],
+	"versions": [
+		"main"
+	],
 	"routes": [
 		{
 			"title": "About",
@@ -282,7 +284,10 @@
 					"title": "Process Logging",
 					"description": "Audit commands in workspaces with exectrace",
 					"path": "./templates/process-logging.md",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "Icons",
@@ -393,21 +398,29 @@
 					"description": "Learn how to manage user groups",
 					"path": "./admin/groups.md",
 					"icon_path": "./images/icons/group.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "Organizations",
 					"description": "Learn how to manage organizations",
 					"path": "./admin/organizations.md",
 					"icon_path": "./images/icons/orgs.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"premium"
+					]
 				},
 				{
 					"title": "Template RBAC",
 					"description": "Learn how to use the role based access control against templates",
 					"path": "./admin/rbac.md",
 					"icon_path": "./images/icons/rbac.svg",
-					"state": ["enterprise", "beta"]
+					"state": [
+						"enterprise",
+						"beta"
+					]
 				},
 				{
 					"title": "Configuration",
@@ -450,14 +463,20 @@
 					"description": "Run provisioners isolated from the Coder server",
 					"path": "./admin/provisioners.md",
 					"icon_path": "./images/icons/queue.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "Workspace Proxies",
 					"description": "Run geo distributed workspace proxies",
 					"path": "./admin/workspace-proxies.md",
 					"icon_path": "./images/icons/networking.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "Application Logs",
@@ -470,21 +489,30 @@
 					"description": "Learn how to use Audit Logs in your Coder deployment",
 					"path": "./admin/audit-logs.md",
 					"icon_path": "./images/icons/radar.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "Quotas",
 					"description": "Learn how to use Workspace Quotas in Coder",
 					"path": "./admin/quotas.md",
 					"icon_path": "./images/icons/dollar.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "High Availability",
 					"description": "Learn how to configure Coder for High Availability",
 					"path": "./admin/high-availability.md",
 					"icon_path": "./images/icons/hydra.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "Prometheus",
@@ -497,7 +525,10 @@
 					"description": "Learn how to configure the appearance of Coder",
 					"path": "./admin/appearance.md",
 					"icon_path": "./images/icons/info.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "Telemetry",
@@ -510,7 +541,10 @@
 					"description": "Learn how to encrypt sensitive data at rest in Coder",
 					"path": "./admin/encryption.md",
 					"icon_path": "./images/icons/lock.svg",
-					"state": ["enterprise", "premium"]
+					"state": [
+						"enterprise",
+						"premium"
+					]
 				},
 				{
 					"title": "Deployment Health",
@@ -528,13 +562,17 @@
 							"title": "Slack Notifications",
 							"description": "Learn how to setup Slack notifications",
 							"path": "./admin/notifications/slack.md",
-							"state": ["beta"]
+							"state": [
+								"beta"
+							]
 						},
 						{
 							"title": "Microsoft Teams Notifications",
 							"description": "Learn how to setup Microsoft Teams notifications",
 							"path": "./admin/notifications/teams.md",
-							"state": ["beta"]
+							"state": [
+								"beta"
+							]
 						}
 					]
 				}
