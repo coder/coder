@@ -92,7 +92,7 @@ const ViewContent: FC<ViewContentProps> = ({ buildInfo, provisioners }) => {
 							target="_blank"
 							href={docs("/admin/provisioners")}
 						>
-							Show me how to create a provisioner
+							Create a provisioner
 						</Button>
 					}
 				/>

@@ -73,4 +73,3 @@ Then, increase the number of pods.
 
 - [Networking](../networking/index.md)
 - [Kubernetes](../install/kubernetes.md)
-- [Enterprise](../enterprise.md)

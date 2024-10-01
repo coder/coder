@@ -46,7 +46,7 @@ be sent.
 
 Configure Coder to use these claims for group sync. These claims are present in
 the `id_token`. See all configuration options for group sync in the
-[docs](https://coder.com/docs/admin/auth#group-sync-enterprise).
+[docs](https://coder.com/docs/admin/auth#group-sync-enterprise-premium).
 
 ```bash
 # Add the 'groups' scope.
