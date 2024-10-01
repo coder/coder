@@ -10,7 +10,7 @@ Coder offers these user roles in the community edition:
 |                                                       | Auditor | User Admin | Template Admin | Owner |
 | ----------------------------------------------------- | ------- | ---------- | -------------- | ----- |
 | Add and remove Users                                  |         | ✅         |                | ✅    |
-| Manage groups (enterprise)                            |         | ✅         |                | ✅    |
+| Manage groups (premium)                               |         | ✅         |                | ✅    |
 | Change User roles                                     |         |            |                | ✅    |
 | Manage **ALL** Templates                              |         |            | ✅             | ✅    |
 | View **ALL** Workspaces                               |         |            | ✅             | ✅    |
@@ -21,6 +21,16 @@ Coder offers these user roles in the community edition:
 
 A user may have one or more roles. All users have an implicit Member role that
 may use personal workspaces.
+
+## Custom Roles (Premium) (Beta)
+
+Coder v2.16+ deployments can configure custom roles on the
+[Organization](./organizations.md) level.
+
+![Custom roles](../images/admin/organizations/custom-roles.png)
+
+> Note: This requires a Premium license.
+> [Contact your account team](https://coder.com/contact) for more details.
 
 ## Security notes
 
