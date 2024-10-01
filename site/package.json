@@ -125,7 +125,7 @@
 		"@types/color-convert": "2.0.0",
 		"@types/express": "4.17.17",
 		"@types/file-saver": "2.0.7",
-		"@types/jest": "29.5.12",
+		"@types/jest": "29.5.13",
 		"@types/lodash": "4.17.9",
 		"@types/node": "20.16.10",
 		"@types/react": "18.3.10",
