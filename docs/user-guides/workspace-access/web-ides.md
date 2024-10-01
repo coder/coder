@@ -3,7 +3,7 @@
 By default, Coder workspaces allow connections via:
 
 - Web terminal
-- SSH (plus any [SSH-compatible IDE](../ides.md))
+- [SSH](./README.md#ssh)
 
 It's common to also connect via web IDEs for uses cases like zero trust
 networks, data science, contractors, and infrequent code contributors.
