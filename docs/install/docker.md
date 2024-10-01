@@ -104,10 +104,10 @@ group, the above may not work as-is.
 In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have an
 external URL that users and workspaces will use to connect to Coder. For
 proof-of-concept deployments, you can use
-[Coder's tunnel](../admin/configure.md#tunnel). For production deployments, we
-recommend setting an [access URL](../admin/configure.md#access-url)
+[Coder's tunnel](../admin/setup.md#tunnel). For production deployments, we
+recommend setting an [access URL](../admin/setup.md#access-url)
 
 ## Next steps
 
-- [Create your first template](../start/first-template.md)
-- [Control plane configuration](../admin/configure.md)
+- [Create your first template](../tutorials/template-from-scratch.md)
+- [Control plane configuration](../admin/setup.md#configure-control-plane-access)

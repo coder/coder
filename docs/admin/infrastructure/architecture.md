@@ -99,7 +99,7 @@ A managed PostgreSQL database, with daily backups, is recommended:
 - Flexible Server For GCP: Cloud SQL for PostgreSQL
 
 Learn more about database requirements:
-[Database Health](./health-check.md#database)
+[Database Health](../monitoring/health-check.md#database)
 
 ### Git Providers (Recommended)
 
@@ -107,10 +107,10 @@ Users will likely need to pull source code and other artifacts from a git
 provider. The Coder control plane and workspaces will need network connectivity
 to the git provider.
 
-- [GitHub Enterprise](../configure.md#github-enterprise)
-- [GitLab](../configure.md#gitlab-self-managed)
-- [BitBucket](../configure.md#bitbucket-server)
-- [Other Providers](../configure.md#external-authentication)
+- [GitHub Enterprise](../../admin/external-auth.md#github-enterprise)
+- [GitLab](../../admin/external-auth.md#gitlab-self-managed)
+- [BitBucket](../../admin/external-auth.md#bitbucket-server)
+- [Other Providers](../../admin/external-auth.md#self-managed-git-providers)
 
 ### Artifact Manager (Optional)
 

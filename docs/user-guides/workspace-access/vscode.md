@@ -15,7 +15,7 @@ extension, authenticates with Coder, and connects to the workspace.
 ![Demo](https://github.com/coder/vscode-coder/raw/main/demo.gif?raw=true)
 
 > The `VS Code Desktop` button can be hidden by enabling
-> [Browser-only connections](./networking/index.md#Browser-only).
+> [Browser-only connections](../../admin/networking/README.md#browser-only-connections-enterprise).
 
 ### Manual Installation
 
@@ -35,16 +35,14 @@ Alternatively, manually install the VSIX from the
 There are multiple ways to add extensions to VS Code Desktop:
 
 1. Using the
-   [public extensions marketplaces](vscode-extensions.md#using-the-public-extensions-marketplaces)
+   [public extensions marketplaces](#using-the-public-extensions-marketplaces)
    with Code Web (code-server)
 1. Adding
-   [extensions to custom images](vscode-extensions.md#adding-extensions-to-custom-images)
+   [extensions to custom images](#adding-extensions-to-custom-images)
 1. Installing extensions
-   [using its `vsix` file at the command line](vscode-extensions.md#installing-extensions-using-its-vsix-file-at-the-command-line)
+   [using its `vsix` file at the command line](#installing-extensions-using-its-vsix-file-at-the-command-line)
 1. Installing extensions
-   [from a marketplace using the command line](vscode-extensions.md#installing-from-a-marketplace-at-the-command-line)
-1. Using a
-   [local VS Code instance with SSH](vscode-extensions.md#using-a-local-vs-code-instance-with-ssh)
+   [from a marketplace using the command line](#installing-from-a-marketplace-at-the-command-line)
 
 ### Using the public extensions marketplaces
 
@@ -52,7 +50,7 @@ You can manually add an extension while you're working in the Code Web IDE. The
 extensions can be from Coder's public marketplace, Eclipse Open VSX's public
 marketplace, or the Eclipse Open VSX _local_ marketplace.
 
-![Code Web Extensions](../images/ides/code-web-extensions.png)
+![Code Web Extensions](../../images/ides/code-web-extensions.png)
 
 > Note: Microsoft does not allow any unofficial VS Code IDE to connect to the
 > extension marketplace.
@@ -64,7 +62,7 @@ Web or using the workspace's terminal.
 
 1. Download the extension(s) from the Microsoft public marketplace.
 
-   ![Code Web Extensions](../images/ides/copilot.png)
+   ![Code Web Extensions](../../images/ides/copilot.png)
 
 1. Add the `vsix` extension files to the same folder as your Dockerfile.
 

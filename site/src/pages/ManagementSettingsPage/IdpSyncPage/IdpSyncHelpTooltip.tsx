@@ -21,7 +21,9 @@ export const IdpSyncHelpTooltip: FC = () => {
 					Coder. Use the Coder CLI to configure these mappings.
 				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/admin/users/oidc-auth.md#group-sync-enterprise")}>
+					<HelpTooltipLink
+						href={docs("/admin/users/oidc-auth.md#group-sync-enterprise")}
+					>
 						Configure IdP Sync
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>

@@ -78,10 +78,16 @@ export const SSHButton: FC<SSHButtonProps> = ({
 					<HelpTooltipLink href={docs("/user-guides/workspace-access/vscode")}>
 						Connect via VS Code Remote SSH
 					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/workspace-access/jetbrains#jetbrains-gateway")}>
+					<HelpTooltipLink
+						href={docs(
+							"/user-guides/workspace-access/jetbrains#jetbrains-gateway",
+						)}
+					>
 						Connect via JetBrains Gateway
 					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/workspace-access#configure-ssh")}>
+					<HelpTooltipLink
+						href={docs("/user-guides/workspace-access#configure-ssh")}
+					>
 						SSH configuration
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>

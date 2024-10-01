@@ -41,7 +41,7 @@ manually setting up an SSH connection.
    ![Gateway Connect to Coder](../../images/gateway/plugin-connect-to-coder.png)
 
 1. Enter your Coder deployment's
-   [Access Url](../../admin/configure.md#access-url) and click **Connect**.
+   [Access Url](../../admin/setup.md#access-url) and click **Connect**.
 
    Gateway opens your Coder deployment's `cli-auth` page with a session token.
    Click the copy button, paste the session token in the Gateway **Session
@@ -354,8 +354,8 @@ Additionally, create a string for each setting with its appropriate value in
 
 With the server now configured, you can now configure your local machine to use
 Gateway. Here is the documentation to
-[setup SSH config via the Coder CLI](../../user-guides/workspace-access/README.md#configure-ssh). On the
-Gateway side, follow our guide here until step 16.
+[setup SSH config via the Coder CLI](../../user-guides/workspace-access/README.md#configure-ssh).
+On the Gateway side, follow our guide here until step 16.
 
 Instead of downloading from jetbrains.com, we will point Gateway to our server
 endpoint. Select `Installation options...` and select `Use download link`. Note

@@ -64,5 +64,5 @@ coder login https://coder.example.com
 
 ## Next up
 
-- [Create your first template](../templates/tutorial.md)
-- [Expose your control plane to other users](../admin/configure.md)
+- [Create your first template](../start/first-template.md)
+- [Expose your control plane to other users](../admin/setup.md)

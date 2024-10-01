@@ -264,5 +264,5 @@ local machine has outbound HTTPS (port 443) connectivity to:
 
 ## Next steps
 
-- [Create your first template](../start/first-template.md)
-- [Control plane configuration](../admin/configuration.md)
+- [Create your first template](../tutorials/template-from-scratch.md)
+- [Control plane configuration](../admin/setup.md)

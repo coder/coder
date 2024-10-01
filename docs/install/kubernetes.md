@@ -287,10 +287,10 @@ Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm
 chart. If you do not have a domain set up, this should be the IP address of
 Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../admin//templates/troubleshooting.md) for more
+See [troubleshooting templates](../admin/templates/troubleshooting.md) for more
 steps.
 
 ## Next steps
 
-- [Create your first template](../start/first-template.md)
-- [Control plane configuration](../admin/configure.md)
+- [Create your first template](../tutorials/template-from-scratch.md)
+- [Control plane configuration](../admin/setup.md)

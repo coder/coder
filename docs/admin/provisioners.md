@@ -1,9 +1,9 @@
 # Provisioners
 
 By default, the Coder server runs
-[built-in provisioner daemons](../reference/cli/server.md#provisioner-daemons), which
-execute `terraform` during workspace and template builds. However, there are
-sometimes benefits to running external provisioner daemons:
+[built-in provisioner daemons](../reference/cli/server.md#provisioner-daemons),
+which execute `terraform` during workspace and template builds. However, there
+are sometimes benefits to running external provisioner daemons:
 
 - **Secure build environments:** Run build jobs in isolated containers,
   preventing malicious templates from gaining shell access to the Coder host.
@@ -41,10 +41,10 @@ on the Coder server and start the provisioner with
 the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
 > Coder still supports authenticating the provisioner daemon with a
-> [token](../reference/cli/tokens.md) from a user with the Template Admin or Owner role.
-> This method is deprecated in favor of the PSK, which only has permission to
-> access provisioner daemon APIs. We recommend migrating to the PSK as soon as
-> practical.
+> [token](../reference/cli/tokens.md) from a user with the Template Admin or
+> Owner role. This method is deprecated in favor of the PSK, which only has
+> permission to access provisioner daemon APIs. We recommend migrating to the
+> PSK as soon as practical.
 
 ## Types of provisioners
 
@@ -57,8 +57,8 @@ organization-scoped provisioner daemons.
 
 There are two exceptions:
 
-- [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are always
-  organization-scoped.
+- [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are
+  always organization-scoped.
 - External provisioners started using a
   [pre-shared key (PSK)](../reference/cli/provisioner_start.md#psk) are always
   organization-scoped.

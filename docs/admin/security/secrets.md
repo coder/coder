@@ -19,9 +19,10 @@ Often, this workflow is simply:
 1. Your users write them to a persistent file after they've built their
    workspace
 
-[Template parameters](./templates/parameters.md) are a dangerous way to accept
-secrets. We show parameters in cleartext around the product. Assume anyone with
-view access to a workspace can also see its parameters.
+[Template parameters](../templates/extending-templates/parameters.md) are a
+dangerous way to accept secrets. We show parameters in cleartext around the
+product. Assume anyone with view access to a workspace can also see its
+parameters.
 
 ## SSH Keys
 
@@ -32,7 +33,7 @@ environment variable.
 
 Users can view their public key in their account settings:
 
-![SSH keys in account settings](./images/ssh-keys.png)
+![SSH keys in account settings](../../images/ssh-keys.png)
 
 > Note: SSH keys are never stored in Coder workspaces, and are fetched only when
 > SSH is invoked. The keys are held in-memory and never written to disk.
@@ -104,5 +105,5 @@ store and retrieve secrets in your workspace. For example, you can use
 [HashiCorp Vault](https://www.vaultproject.io/) to inject secrets into your
 workspace.
 
-Refer to our [HashiCorp Vault Integration](./integrations/vault.md) guide for
+Refer to our [HashiCorp Vault Integration](../integrations/vault.md) guide for
 more information on how to integrate HashiCorp Vault with Coder.

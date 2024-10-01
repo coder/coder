@@ -111,7 +111,11 @@ const SSOEmptyState: FC = () => {
 			message="No SSO Providers"
 			description="No SSO providers are configured with this Coder deployment."
 			cta={
-				<Link href={docs("/admin/external-auth")} target="_blank" rel="noreferrer">
+				<Link
+					href={docs("/admin/external-auth")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Learn how to add a provider
 				</Link>
 			}
