@@ -230,6 +230,11 @@
 							"state": "enterprise"
 						},
 						{
+							"title": "Quotas",
+							"path": "./admin/users/quotas.md",
+							"state": "enterprise"
+						},
+						{
 							"title": "Sessions \u0026 API Tokens",
 							"path": "./admin/users/sessions-tokens.md"
 						}
@@ -425,6 +430,11 @@
 							"title": "Workspace Proxies",
 							"description": "Run geo distributed workspace proxies",
 							"path": "./admin/networking/workspace-proxies.md"
+						},
+						{
+							"title": "High Availability",
+							"description": "Learn how to configure Coder for High Availability",
+							"path": "./admin/high-availability.md"
 						},
 						{
 							"title": "Troubleshooting",
