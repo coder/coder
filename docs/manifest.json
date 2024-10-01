@@ -159,8 +159,13 @@
 						{
 							"title": "Appearance",
 							"description": "Learn how to configure the appearance of Coder",
-							"path": "./admin/appearance.md",
+							"path": "./admin/setup/appearance.md",
 							"state": ["enterprise", "premium"]
+						},
+						{
+							"title": "Telemetry",
+							"description": "Learn what usage telemetry Coder collects",
+							"path": "./admin/setup/telemetry.md"
 						}
 					]
 				},
