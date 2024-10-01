@@ -32,9 +32,10 @@ We recommend starting with a universal template that can be used for basic tasks
 - [Image management](./managing-templates/image-management.md): Learn how to create and publish images for use within Coder workspaces & templates.
 - [Dev Container support](./managing-templates/devcontainers.md): Enable dev containers to allow teams to bring their own tools into Coder workspaces.
 - [Template hardening](./extending-templates/resource-persistence.md#-bulletproofing): Configure your template to prevent certain resources from being destroyed (e.g. user disks).
-- [Manage templates with Ci/Cd pipelines](#): Learn how to source control your templates and use GitOps to ensure template changes are reviewed and tested.
+- [Manage templates with Ci/Cd pipelines](./managing-templates/change-management.md): Learn how to source control your templates and use GitOps to ensure template changes are reviewed and tested.
 
 ## Template permissions & policies (enterprise)
 
 With Coder Enterprise, you can control who can use and modify the template. Docs: [Template permissions](./template-permissions.md).
 
+<children></children>
