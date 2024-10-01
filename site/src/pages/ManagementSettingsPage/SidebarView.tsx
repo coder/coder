@@ -148,7 +148,7 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 							Users
 						</SidebarNavSubItem>
 					)}
-					<Stack direction={"row"} alignItems={"center"} css={{ gap: 0 }}>
+					<Stack direction="row" alignItems="center" css={{ gap: 0 }}>
 						<SidebarNavSubItem href="notifications">
 							Notifications
 						</SidebarNavSubItem>

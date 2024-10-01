@@ -15,6 +15,7 @@ import {
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
+import {FeatureStageBadge} from "components/FeatureStageBadge/FeatureStageBadge";
 
 interface SidebarProps {
 	user: User;
@@ -58,7 +59,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 				Tokens
 			</SidebarNavItem>
 			<SidebarNavItem href="notifications" icon={NotificationsIcon}>
-				Notifications
+				Notifications <FeatureStageBadge contentType="beta" size="sm" />
 			</SidebarNavItem>
 		</BaseSidebar>
 	);
