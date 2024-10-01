@@ -90,6 +90,6 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
 
 ## Next steps
 
-- [Coder CLI Reference](../reference/cli/templates.md)
+- [Coder CLI Reference](../../../reference/cli/templates.md)
 - [Coderd Terraform Provider Reference](https://registry.terraform.io/providers/coder/coderd/latest/docs)
-- [Coderd API Reference](https://coder.com/docs/reference/api/README.md)
+- [Coderd API Reference](../../../reference/README.md)
