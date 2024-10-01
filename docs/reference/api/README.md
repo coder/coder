@@ -18,7 +18,7 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 
 ## Use cases
 
-See some common [use cases](../../admin/automation.md#use-cases) for the REST API.
+See some common [use cases](../../reference/README.md#use-cases) for the REST API.
 
 ## Sections
 
