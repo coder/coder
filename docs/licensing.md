@@ -1,9 +1,8 @@
 # Licensing
 
 Some features are only accessible with a Premium or Enterprise license. See our
-[pricing page](https://coder.com/pricing) for more details.
-
-To try Premium features, you can [request a trial](https://coder.com/trial) or
+[pricing page](https://coder.com/pricing) for more details. To try Premium
+features, you can [request a trial](https://coder.com/trial) or
 [contact sales](https://coder.com/contact).
 
 > If you are an existing customer, you can learn more our new Premium plan in
