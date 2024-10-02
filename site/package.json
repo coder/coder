@@ -36,7 +36,7 @@
 		"@alwaysmeticulous/recorder-loader": "2.137.0",
 		"@emoji-mart/data": "1.2.1",
 		"@emoji-mart/react": "1.1.1",
-		"@emotion/css": "11.13.0",
+		"@emotion/css": "11.13.4",
 		"@emotion/react": "11.13.3",
 		"@emotion/styled": "11.13.0",
 		"@fastly/performance-observer-polyfill": "2.0.0",
