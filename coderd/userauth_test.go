@@ -1682,7 +1682,15 @@ func TestUserForgotPassword(t *testing.T) {
 
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
+		// First try to login before changing our password. We expected this to error
+		// as we haven't change the password yet.
+		_, err := anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: newPassword,
+		})
+		require.Error(t, err)
+
+		err = anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
 			Email: anotherUser.Email,
 		})
 		require.NoError(t, err)
@@ -1701,6 +1709,7 @@ func TestUserForgotPassword(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// Now that we have changed the password, this should work.
 		_, err = anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    anotherUser.Email,
 			Password: newPassword,
