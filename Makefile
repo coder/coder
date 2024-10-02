@@ -488,7 +488,7 @@ gen: \
 	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
-	vpn/vpn.proto \
+	vpn/vpn.pb.go \
 	coderd/database/dump.sql \
 	$(DB_GEN_FILES) \
 	site/src/api/typesGenerated.ts \
@@ -518,7 +518,7 @@ gen/mark-fresh:
 		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
-		vpn/vpn.proto \
+		vpn/vpn.pb.go \
 		coderd/database/dump.sql \
 		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
