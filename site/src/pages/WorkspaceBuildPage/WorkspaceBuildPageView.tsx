@@ -24,7 +24,14 @@ import {
 	WorkspaceBuildDataSkeleton,
 } from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { HTMLProps, useLayoutEffect, useRef, type FC } from "react";
+import {
+	type CSSProperties,
+	type FC,
+	type HTMLProps,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { Link } from "react-router-dom";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
@@ -212,6 +219,7 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = () => {
 	// Issue: https://github.com/coder/coder/issues/9687
 	// Reference: https://stackoverflow.com/questions/43381836/height100-works-in-chrome-but-not-in-safari
 	const contentRef = useRef<HTMLDivElement>(null);
+	const [height, setHeight] = useState<CSSProperties["width"]>("100%");
 	useLayoutEffect(() => {
 		const contentEl = contentRef.current;
 		if (!contentEl) {
@@ -223,7 +231,7 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = () => {
 			if (!parentEl) {
 				return;
 			}
-			contentEl.style.setProperty("height", `${parentEl.clientHeight}px`);
+			setHeight(parentEl.clientHeight);
 		});
 		resizeObserver.observe(document.body);
 
@@ -233,10 +241,7 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = () => {
 	}, []);
 
 	return (
-		<div
-			ref={contentRef}
-			css={{ height: "100%", overflowY: "auto", width: "100%" }}
-		/>
+		<div ref={contentRef} css={{ height, overflowY: "auto", width: "100%" }} />
 	);
 };
 
