@@ -62,7 +62,7 @@ func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, titlePlaintex
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		// Prepare payload.
 		payload := WebhookPayload{
-			Version:       "1.0",
+			Version:       "1.1",
 			MsgID:         msgID,
 			Title:         titlePlaintext,
 			TitleMarkdown: titleMarkdown,
