@@ -274,8 +274,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		DisplayName: "Member",
 		Site: Permissions(map[string][]policy.Action{
 			ResourceAssignRole.Type: {policy.ActionRead},
-			// All users can see the provisioner daemons.
-			ResourceProvisionerDaemon.Type: {policy.ActionRead},
 			// All users can see OAuth2 provider applications.
 			ResourceOauth2App.Type:      {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
@@ -414,18 +412,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				DisplayName: "",
 				Site:        []Permission{},
 				Org: map[string][]Permission{
-					organizationID.String(): {
-						{
-							// All org members can read the organization
-							ResourceType: ResourceOrganization.Type,
-							Action:       policy.ActionRead,
-						},
-						{
-							// Can read available roles.
-							ResourceType: ResourceAssignOrgRole.Type,
-							Action:       policy.ActionRead,
-						},
-					},
+					organizationID.String(): Permissions(map[string][]policy.Action{
+						// All users can see the provisioner daemons for workspace
+						// creation.
+						ResourceProvisionerDaemon.Type: {policy.ActionRead},
+						// All org members can read the organization
+						ResourceOrganization.Type: {policy.ActionRead},
+						// Can read available roles.
+						ResourceAssignOrgRole.Type: {policy.ActionRead},
+					}),
 				},
 				User: []Permission{
 					{
@@ -465,6 +460,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 						ResourceGroup.Type:              ResourceGroup.AvailableActions(),
 						ResourceGroupMember.Type:        ResourceGroupMember.AvailableActions(),
+						ResourceIdpsyncSettings.Type:    {policy.ActionRead, policy.ActionUpdate},
 					}),
 				},
 				User: []Permission{},

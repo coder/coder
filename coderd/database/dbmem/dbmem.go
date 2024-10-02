@@ -92,8 +92,8 @@ func New() database.Store {
 	// Always start with a default org. Matching migration 198.
 	defaultOrg, err := q.InsertOrganization(context.Background(), database.InsertOrganizationParams{
 		ID:          uuid.New(),
-		Name:        "first-organization",
-		DisplayName: "first-organization",
+		Name:        "coder",
+		DisplayName: "Coder",
 		Description: "Builtin default organization.",
 		Icon:        "",
 		CreatedAt:   dbtime.Now(),
@@ -2426,6 +2426,23 @@ func (q *FakeQuerier) GetCryptoKeys(_ context.Context) ([]database.CryptoKey, er
 			keys = append(keys, key)
 		}
 	}
+	return keys, nil
+}
+
+func (q *FakeQuerier) GetCryptoKeysByFeature(_ context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	keys := make([]database.CryptoKey, 0)
+	for _, key := range q.cryptoKeys {
+		if key.Feature == feature && key.Secret.Valid {
+			keys = append(keys, key)
+		}
+	}
+	// We want to return the highest sequence number first.
+	slices.SortFunc(keys, func(i, j database.CryptoKey) int {
+		return int(j.Sequence - i.Sequence)
+	})
 	return keys, nil
 }
 

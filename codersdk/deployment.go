@@ -2893,8 +2893,6 @@ const (
 	// Add new experiments here!
 	ExperimentExample            Experiment = "example"              // This isn't used for anything.
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentMultiOrganization  Experiment = "multi-organization"   // Requires organization context for interactions, default org is assumed.
-	ExperimentCustomRoles        Experiment = "custom-roles"         // Allows creating runtime custom roles.
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 )
@@ -2903,7 +2901,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{ExperimentNotifications}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -3102,4 +3100,33 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 
 	var sshConfig SSHConfigResponse
 	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
+}
+
+type CryptoKeyFeature string
+
+const (
+	CryptoKeyFeatureWorkspaceApp  CryptoKeyFeature = "workspace_apps"
+	CryptoKeyFeatureOIDCConvert   CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+)
+
+type CryptoKey struct {
+	Feature   CryptoKeyFeature `json:"feature"`
+	Secret    string           `json:"secret"`
+	DeletesAt time.Time        `json:"deletes_at" format:"date-time"`
+	Sequence  int32            `json:"sequence"`
+	StartsAt  time.Time        `json:"starts_at" format:"date-time"`
+}
+
+func (c CryptoKey) CanSign(now time.Time) bool {
+	now = now.UTC()
+	isAfterStartsAt := !c.StartsAt.IsZero() && !now.Before(c.StartsAt)
+	return isAfterStartsAt && c.CanVerify(now)
+}
+
+func (c CryptoKey) CanVerify(now time.Time) bool {
+	now = now.UTC()
+	hasSecret := c.Secret != ""
+	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
+	return hasSecret && beforeDelete
 }

@@ -5,7 +5,6 @@ import { groupsByOrganization } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
@@ -81,7 +80,6 @@ export const GroupsPage: FC = () => {
 				<SettingsHeader
 					title="Groups"
 					description="Manage groups for this organization."
-					badges={<FeatureStageBadge contentType="beta" size="lg" />}
 				/>
 				{permissions.createGroup && feats.template_rbac && (
 					<Button component={RouterLink} startIcon={<GroupAdd />} to="create">

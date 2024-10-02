@@ -102,5 +102,4 @@ Form will never get held up by quota enforcement.
 
 ## Up next
 
-- [Enterprise](../enterprise.md)
 - [Configuring](./configure.md)

@@ -95,7 +95,7 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 	var (
 		orgContext = agpl.NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]codersdk.ProvisionerKey{}, nil),
+			cliui.TableFormat([]codersdk.ProvisionerKey{}, []string{"created at", "name", "tags"}),
 			cliui.JSONFormat(),
 		)
 	)

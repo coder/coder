@@ -17,7 +17,6 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	MoreMenu,
@@ -45,7 +44,7 @@ interface OrganizationMembersPageViewProps {
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
-	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
+	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
 		member: OrganizationMemberWithUserData,
 		newRoles: string[],
@@ -61,11 +60,7 @@ export const OrganizationMembersPageView: FC<
 > = (props) => {
 	return (
 		<div>
-			<SettingsHeader
-				title="Members"
-				badges={<FeatureStageBadge contentType="beta" size="lg" />}
-			/>
-
+			<SettingsHeader title="Members" />
 			<Stack>
 				{Boolean(props.error) && <ErrorAlert error={props.error} />}
 
@@ -139,19 +134,7 @@ export const OrganizationMembersPageView: FC<
 												<MoreMenuContent>
 													<MoreMenuItem
 														danger
-														onClick={async () => {
-															try {
-																await props.removeMember(member);
-																displaySuccess("Member removed successfully.");
-															} catch (error) {
-																displayError(
-																	getErrorMessage(
-																		error,
-																		"Failed to remove member.",
-																	),
-																);
-															}
-														}}
+														onClick={() => props.removeMember(member)}
 													>
 														Remove
 													</MoreMenuItem>

@@ -7,8 +7,10 @@ import {
 	MockProvisionerBuiltinKey,
 	MockProvisionerKey,
 	MockProvisionerPskKey,
+	MockProvisionerUserAuthKey,
 	MockProvisionerWithTags,
 	MockUserProvisioner,
+	mockApiError,
 } from "testHelpers/entities";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
@@ -44,7 +46,10 @@ export const Provisioners: Story = {
 			},
 			{
 				key: { ...MockProvisionerKey, id: "ジェイデン", name: "ジェイデン" },
-				daemons: [MockProvisioner, MockProvisioner2],
+				daemons: [
+					MockProvisioner,
+					{ ...MockProvisioner2, tags: { scope: "organization", owner: "" } },
+				],
 			},
 			{
 				key: { ...MockProvisionerKey, id: "ベン", name: "ベン" },
@@ -74,6 +79,17 @@ export const Provisioners: Story = {
 					id: `ケイラ-${i}`,
 					name: `ケイラ-${i}`,
 				})),
+			},
+			{
+				key: MockProvisionerUserAuthKey,
+				daemons: [
+					MockUserProvisioner,
+					{
+						...MockUserProvisioner,
+						id: "mock-user-provisioner-2",
+						name: "Test User Provisioner 2",
+					},
+				],
 			},
 		],
 	},
@@ -107,5 +123,20 @@ export const Provisioners: Story = {
 export const Empty: Story = {
 	args: {
 		provisioners: [],
+	},
+};
+
+export const WithError: Story = {
+	args: {
+		error: mockApiError({
+			message: "Fern is mad",
+			detail: "Frieren slept in and didn't get groceries",
+		}),
+	},
+};
+
+export const Paywall: Story = {
+	args: {
+		showPaywall: true,
 	},
 };

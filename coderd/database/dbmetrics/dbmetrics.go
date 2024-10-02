@@ -564,6 +564,13 @@ func (m metricsStore) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, 
 	return r0, r1
 }
 
+func (m metricsStore) GetCryptoKeysByFeature(ctx context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCryptoKeysByFeature(ctx, feature)
+	m.queryLatencies.WithLabelValues("GetCryptoKeysByFeature").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDBCryptKeys(ctx)

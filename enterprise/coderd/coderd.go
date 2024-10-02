@@ -243,6 +243,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Post("/app-stats", api.workspaceProxyReportAppStats)
 				r.Post("/register", api.workspaceProxyRegister)
 				r.Post("/deregister", api.workspaceProxyDeregister)
+				r.Get("/crypto-keys", api.workspaceProxyCryptoKeys)
 			})
 			r.Route("/{workspaceproxy}", func(r chi.Router) {
 				r.Use(
@@ -260,7 +261,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				apiKeyMiddleware,
 				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
-				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
 			)
 			r.Post("/organizations", api.postOrganizations)
 		})
@@ -269,7 +269,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				apiKeyMiddleware,
 				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
-				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Patch("/organizations/{organization}", api.patchOrganization)
@@ -280,7 +279,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				apiKeyMiddleware,
 				api.RequireFeatureMW(codersdk.FeatureCustomRoles),
-				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentCustomRoles),
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Post("/organizations/{organization}/members/roles", api.postOrgRoles)
@@ -335,7 +333,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
 				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
-				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentMultiOrganization),
 			)
 			r.Get("/", api.provisionerKeys)
 			r.Post("/", api.postProvisionerKey)
@@ -361,10 +358,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.provisionerDaemonsEnabledMW,
 				apiKeyMiddlewareOptional,
 				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
-					DB:              api.Database,
-					Optional:        true,
-					PSK:             api.ProvisionerDaemonPSK,
-					MultiOrgEnabled: api.AGPL.Experiments.Enabled(codersdk.ExperimentMultiOrganization),
+					DB:       api.Database,
+					Optional: true,
+					PSK:      api.ProvisionerDaemonPSK,
 				}),
 				// Either a user auth or provisioner auth is required
 				// to move forward.
@@ -452,7 +448,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// with the below route, we need to register this route without any mounts or groups to make both work.
 		r.With(
 			apiKeyMiddleware,
-			httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentNotifications),
 			httpmw.ExtractNotificationTemplateParam(options.Database),
 		).Put("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
 	})

@@ -23,12 +23,7 @@ func TestProvisionerKeys(t *testing.T) {
 	t.Run("CRUD", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
@@ -41,7 +36,7 @@ func TestProvisionerKeys(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, conf := newCLI(
 			t,
-			"provisioner", "keys", "create", name, "--tag", "foo=bar",
+			"provisioner", "keys", "create", name, "--tag", "foo=bar", "--tag", "my=way",
 		)
 
 		pty := ptytest.New(t)
@@ -73,11 +68,10 @@ func TestProvisionerKeys(t *testing.T) {
 		line = pty.ReadLine(ctx)
 		require.Contains(t, line, "NAME")
 		require.Contains(t, line, "CREATED AT")
-		require.Contains(t, line, "ORGANIZATION ID")
 		require.Contains(t, line, "TAGS")
 		line = pty.ReadLine(ctx)
 		require.Contains(t, line, strings.ToLower(name))
-		require.Contains(t, line, "map[foo:bar]")
+		require.Contains(t, line, "foo=bar my=way")
 
 		inv, conf = newCLI(
 			t,

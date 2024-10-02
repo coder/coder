@@ -5,12 +5,12 @@ import {
 	groupIdpSyncSettings,
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
-import { Loader } from "components/Loader/Loader";
+import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
@@ -25,6 +25,8 @@ export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
+	// IdP sync does not have its own entitlement and is based on templace_rbac
+	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 
@@ -41,26 +43,10 @@ export const IdpSyncPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	if (
-		groupsQuery.isLoading ||
-		groupIdpSyncSettingsQuery.isLoading ||
-		roleIdpSyncSettingsQuery.isLoading
-	) {
-		return <Loader />;
-	}
-
 	const error =
 		groupIdpSyncSettingsQuery.error ||
 		roleIdpSyncSettingsQuery.error ||
 		groupsQuery.error;
-	if (
-		error ||
-		!groupIdpSyncSettingsQuery.data ||
-		!roleIdpSyncSettingsQuery.data ||
-		!groupsQuery.data
-	) {
-		return <ErrorAlert error={error} />;
-	}
 
 	const groupsMap = new Map<string, string>();
 	if (groupsQuery.data) {
@@ -84,27 +70,37 @@ export const IdpSyncPage: FC = () => {
 					title="IdP Sync"
 					description="Group and role sync mappings (configured using Coder CLI)."
 					tooltip={<IdpSyncHelpTooltip />}
-					badges={<FeatureStageBadge contentType="beta" size="lg" />}
 				/>
-				<Stack direction="row" spacing={2}>
-					<Button
-						startIcon={<LaunchOutlined />}
-						component="a"
-						href={docs("/admin/auth#group-sync-enterprise")}
-						target="_blank"
-					>
-						Setup IdP Sync
-					</Button>
-				</Stack>
+				<Button
+					startIcon={<LaunchOutlined />}
+					component="a"
+					href={docs("/admin/auth#group-sync-enterprise-premium")}
+					target="_blank"
+				>
+					Setup IdP Sync
+				</Button>
 			</Stack>
-
-			<IdpSyncPageView
-				groupSyncSettings={groupIdpSyncSettingsQuery.data}
-				roleSyncSettings={roleIdpSyncSettingsQuery.data}
-				groups={groupsQuery.data}
-				groupsMap={groupsMap}
-				organization={organization}
-			/>
+			<ChooseOne>
+				<Cond condition={!isIdpSyncEnabled}>
+					<Paywall
+						message="IdP Sync"
+						description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
+						documentationLink={docs(
+							"/admin/auth#group-sync-enterprise-premium",
+						)}
+					/>
+				</Cond>
+				<Cond>
+					<IdpSyncPageView
+						groupSyncSettings={groupIdpSyncSettingsQuery.data}
+						roleSyncSettings={roleIdpSyncSettingsQuery.data}
+						groups={groupsQuery.data}
+						groupsMap={groupsMap}
+						organization={organization}
+						error={error}
+					/>
+				</Cond>
+			</ChooseOne>
 		</>
 	);
 };

@@ -343,6 +343,15 @@ export interface CreateWorkspaceRequest {
 	readonly automatic_updates?: AutomaticUpdates;
 }
 
+// From codersdk/deployment.go
+export interface CryptoKey {
+	readonly feature: CryptoKeyFeature;
+	readonly secret: string;
+	readonly deletes_at: string;
+	readonly sequence: number;
+	readonly starts_at: string;
+}
+
 // From codersdk/roles.go
 export interface CustomRoleRequest {
 	readonly name: string;
@@ -1060,7 +1069,7 @@ export interface ProvisionerKey {
 	readonly created_at: string;
 	readonly organization: string;
 	readonly name: string;
-	readonly tags: Record<string, string>;
+	readonly tags: ProvisionerKeyTags;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1068,6 +1077,9 @@ export interface ProvisionerKeyDaemons {
 	readonly key: ProvisionerKey;
 	readonly daemons: Readonly<Array<ProvisionerDaemon>>;
 }
+
+// From codersdk/provisionerdaemons.go
+export type ProvisionerKeyTags = Record<string, string>
 
 // From codersdk/workspaces.go
 export interface ProvisionerTiming {
@@ -2074,6 +2086,10 @@ export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"]
 export type BuildReason = "autostart" | "autostop" | "initiator"
 export const BuildReasons: BuildReason[] = ["autostart", "autostop", "initiator"]
 
+// From codersdk/deployment.go
+export type CryptoKeyFeature = "oidc_convert" | "tailnet_resume" | "workspace_apps"
+export const CryptoKeyFeatures: CryptoKeyFeature[] = ["oidc_convert", "tailnet_resume", "workspace_apps"]
+
 // From codersdk/workspaceagents.go
 export type DisplayApp = "port_forwarding_helper" | "ssh_helper" | "vscode" | "vscode_insiders" | "web_terminal"
 export const DisplayApps: DisplayApp[] = ["port_forwarding_helper", "ssh_helper", "vscode", "vscode_insiders", "web_terminal"]
@@ -2087,8 +2103,8 @@ export type Entitlement = "entitled" | "grace_period" | "not_entitled"
 export const Entitlements: Entitlement[] = ["entitled", "grace_period", "not_entitled"]
 
 // From codersdk/deployment.go
-export type Experiment = "auto-fill-parameters" | "custom-roles" | "example" | "multi-organization" | "notifications" | "workspace-usage"
-export const Experiments: Experiment[] = ["auto-fill-parameters", "custom-roles", "example", "multi-organization", "notifications", "workspace-usage"]
+export type Experiment = "auto-fill-parameters" | "example" | "notifications" | "workspace-usage"
+export const Experiments: Experiment[] = ["auto-fill-parameters", "example", "notifications", "workspace-usage"]
 
 // From codersdk/deployment.go
 export type FeatureName = "access_control" | "advanced_template_scheduling" | "appearance" | "audit_log" | "browser_only" | "control_shared_ports" | "custom_roles" | "external_provisioner_daemons" | "external_token_encryption" | "high_availability" | "multiple_external_auth" | "multiple_organizations" | "scim" | "template_rbac" | "user_limit" | "user_role_management" | "workspace_batch_actions" | "workspace_proxy"

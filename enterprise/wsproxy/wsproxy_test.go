@@ -45,7 +45,6 @@ func TestDERPOnly(t *testing.T) {
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
 		"*",
-		string(codersdk.ExperimentMultiOrganization),
 	}
 
 	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -94,7 +93,6 @@ func TestDERP(t *testing.T) {
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
 		"*",
-		string(codersdk.ExperimentMultiOrganization),
 	}
 
 	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -327,7 +325,6 @@ func TestDERPEndToEnd(t *testing.T) {
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
 		"*",
-		string(codersdk.ExperimentMultiOrganization),
 	}
 	deploymentValues.DERP.Config.BlockDirect = true
 
@@ -467,7 +464,6 @@ func TestDERPMesh(t *testing.T) {
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{
 		"*",
-		string(codersdk.ExperimentMultiOrganization),
 	}
 
 	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -610,7 +606,6 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.Experiments = []string{
 			"*",
-			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -722,7 +717,6 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.Experiments = []string{
 			"*",
-			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -811,7 +805,6 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.Experiments = []string{
 			"*",
-			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -927,7 +920,6 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
 			"*",
-			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
@@ -998,7 +990,6 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
 			"*",
-			string(codersdk.ExperimentMultiOrganization),
 		}
 
 		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)

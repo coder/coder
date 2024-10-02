@@ -37,11 +37,8 @@ func TestEnterpriseCreate(t *testing.T) {
 	// setupMultipleOrganizations creates an extra organization, assigns a member
 	// both organizations, and optionally creates templates in each organization.
 	setupMultipleOrganizations := func(t *testing.T, args setupArgs) setupData {
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 				// This only affects the first org.
 				IncludeProvisionerDaemon: true,
 			},
@@ -202,6 +199,6 @@ func TestEnterpriseCreate(t *testing.T) {
 		err := inv.Run()
 		require.Error(t, err)
 		// The error message should indicate the flag to fix the issue.
-		require.ErrorContains(t, err, fmt.Sprintf("--org=%q", "first-organization"))
+		require.ErrorContains(t, err, fmt.Sprintf("--org=%q", "coder"))
 	})
 }

@@ -70,7 +70,7 @@ GitHub provider).
    | Pull requests | Read & Write | Grants access to create and update pull requests.      |
    | Workflows     | Read & Write | Grants access to update files in `.github/workflows/`. |
    | Metadata      | Read-only    | Grants access to metadata written by GitHub Apps.      |
-   | Members       | Rad-only     | Grabts access to organization members and teams.       |
+   | Members       | Read-only    | Grants access to organization members and teams.       |
 
 3. Install the App for your organization. You may select a subset of
    repositories to grant access to.
@@ -195,10 +195,10 @@ Optionally, you can request custom scopes:
 CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
 
-### Multiple External Providers (enterprise)
+### Multiple External Providers (enterprise) (premium)
 
-Multiple providers are an Enterprise feature. [Learn more](../enterprise.md).
-Below is an example configuration with multiple providers.
+Multiple providers are an [Enterprise feature](https://coder.com/pricing). Below
+is an example configuration with multiple providers.
 
 ```env
 # Provider 1) github.com

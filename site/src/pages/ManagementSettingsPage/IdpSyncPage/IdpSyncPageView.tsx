@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -14,9 +15,17 @@ import type {
 	Organization,
 	RoleSyncSettings,
 } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Paywall } from "components/Paywall/Paywall";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipText,
+	HelpTooltipTitle,
+	HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
+import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import {
@@ -37,13 +46,16 @@ interface IdpSyncPageViewProps {
 	groups: Group[] | undefined;
 	groupsMap: Map<string, string>;
 	organization: Organization;
+	error?: unknown;
 }
 
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	groupSyncSettings,
 	roleSyncSettings,
+	groups,
 	groupsMap,
 	organization,
+	error,
 }) => {
 	const [searchParams] = useSearchParams();
 
@@ -56,130 +68,145 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	const groupMappingCount = groupSyncSettings?.mapping
 		? Object.entries(groupSyncSettings.mapping).length
 		: 0;
+	const legacyGroupMappingCount = groupSyncSettings?.legacy_group_name_mapping
+		? Object.entries(groupSyncSettings.legacy_group_name_mapping).length
+		: 0;
 	const roleMappingCount = roleSyncSettings?.mapping
 		? Object.entries(roleSyncSettings.mapping).length
 		: 0;
 
+	if (error) {
+		return <ErrorAlert error={error} />;
+	}
+
+	if (!groupSyncSettings || !roleSyncSettings || !groups) {
+		return <Loader />;
+	}
+
 	return (
 		<>
-			<ChooseOne>
-				<Cond condition={false}>
-					<Paywall
-						message="IdP Sync"
-						description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
-						documentationLink={docs("/admin/groups")}
-					/>
-				</Cond>
-				<Cond>
-					<Stack spacing={2}>
-						<Tabs active={tab}>
-							<TabsList>
-								<TabLink to="?tab=groups" value="groups">
-									Group Sync Settings
-								</TabLink>
-								<TabLink to="?tab=roles" value="roles">
-									Role Sync Settings
-								</TabLink>
-							</TabsList>
-						</Tabs>
-						{tab === "groups" ? (
-							<>
-								<div css={styles.fields}>
-									<Stack direction={"row"} alignItems={"center"} spacing={6}>
-										<IdpField
-											name={"Sync Field"}
-											fieldText={groupSyncSettings?.field}
-											showDisabled
-										/>
-										<IdpField
-											name={"Regex Filter"}
-											fieldText={
-												typeof groupSyncSettings?.regex_filter === "string"
-													? groupSyncSettings.regex_filter
-													: "none"
-											}
-										/>
-										<IdpField
-											name={"Auto Create"}
-											fieldText={String(
-												groupSyncSettings?.auto_create_missing_groups || "n/a",
-											)}
-										/>
-									</Stack>
-								</div>
-								<Stack
-									direction="row"
-									alignItems="baseline"
-									justifyContent="space-between"
-									css={styles.tableInfo}
-								>
-									<TableRowCount count={groupMappingCount} type="groups" />
-									<ExportPolicyButton
-										syncSettings={groupSyncSettings}
-										organization={organization}
-										type="groups"
-									/>
-								</Stack>
-								<Stack spacing={6}>
+			<Stack spacing={2}>
+				<Tabs active={tab}>
+					<TabsList>
+						<TabLink to="?tab=groups" value="groups">
+							Group Sync Settings
+						</TabLink>
+						<TabLink to="?tab=roles" value="roles">
+							Role Sync Settings
+						</TabLink>
+					</TabsList>
+				</Tabs>
+				{tab === "groups" ? (
+					<>
+						<div css={styles.fields}>
+							<Stack direction="row" alignItems="center" spacing={6}>
+								<IdpField
+									name="Sync Field"
+									fieldText={groupSyncSettings?.field}
+									showDisabled
+								/>
+								<IdpField
+									name="Regex Filter"
+									fieldText={
+										typeof groupSyncSettings?.regex_filter === "string"
+											? groupSyncSettings.regex_filter
+											: "none"
+									}
+								/>
+								<IdpField
+									name="Auto Create"
+									fieldText={
+										groupSyncSettings?.field
+											? String(groupSyncSettings?.auto_create_missing_groups)
+											: "n/a"
+									}
+								/>
+							</Stack>
+						</div>
+						<Stack
+							direction="row"
+							alignItems="baseline"
+							justifyContent="space-between"
+							css={styles.tableInfo}
+						>
+							<TableRowCount count={groupMappingCount} type="groups" />
+							<ExportPolicyButton
+								syncSettings={groupSyncSettings}
+								organization={organization}
+								type="groups"
+							/>
+						</Stack>
+						<Stack spacing={6}>
+							<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
+								{groupSyncSettings?.mapping &&
+									Object.entries(groupSyncSettings.mapping)
+										.sort()
+										.map(([idpGroup, groups]) => (
+											<GroupRow
+												key={idpGroup}
+												idpGroup={idpGroup}
+												coderGroup={getGroupNames(groups)}
+											/>
+										))}
+							</IdpMappingTable>
+							{groupSyncSettings?.legacy_group_name_mapping && (
+								<section>
+									<LegacyGroupSyncHeader />
 									<IdpMappingTable
 										type="Group"
-										isEmpty={Boolean(groupMappingCount === 0)}
+										isEmpty={legacyGroupMappingCount === 0}
 									>
-										{groupSyncSettings?.mapping &&
-											Object.entries(groupSyncSettings.mapping)
-												.sort()
-												.map(([idpGroup, groups]) => (
-													<GroupRow
-														key={idpGroup}
-														idpGroup={idpGroup}
-														coderGroup={getGroupNames(groups)}
-													/>
-												))}
-									</IdpMappingTable>
-								</Stack>
-							</>
-						) : (
-							<>
-								<div css={styles.fields}>
-									<IdpField
-										name={"Sync Field"}
-										fieldText={roleSyncSettings?.field}
-										showDisabled
-									/>
-								</div>
-								<Stack
-									direction="row"
-									alignItems="baseline"
-									justifyContent="space-between"
-									css={styles.tableInfo}
-								>
-									<TableRowCount count={roleMappingCount} type="roles" />
-									<ExportPolicyButton
-										syncSettings={roleSyncSettings}
-										organization={organization}
-										type="roles"
-									/>
-								</Stack>
-								<IdpMappingTable
-									type="Role"
-									isEmpty={Boolean(roleMappingCount === 0)}
-								>
-									{roleSyncSettings?.mapping &&
-										Object.entries(roleSyncSettings.mapping)
+										{Object.entries(groupSyncSettings.legacy_group_name_mapping)
 											.sort()
-											.map(([idpRole, roles]) => (
-												<RoleRow
-													key={idpRole}
-													idpRole={idpRole}
-													coderRoles={roles}
+											.map(([idpGroup, groupId]) => (
+												<GroupRow
+													key={idpGroup}
+													idpGroup={idpGroup}
+													coderGroup={getGroupNames([groupId])}
 												/>
 											))}
-								</IdpMappingTable>
-							</>
-						)}
-					</Stack>
-				</Cond>
-			</ChooseOne>
+									</IdpMappingTable>
+								</section>
+							)}
+						</Stack>
+					</>
+				) : (
+					<>
+						<div css={styles.fields}>
+							<IdpField
+								name="Sync Field"
+								fieldText={roleSyncSettings?.field}
+								showDisabled
+							/>
+						</div>
+						<Stack
+							direction="row"
+							alignItems="baseline"
+							justifyContent="space-between"
+							css={styles.tableInfo}
+						>
+							<TableRowCount count={roleMappingCount} type="roles" />
+							<ExportPolicyButton
+								syncSettings={roleSyncSettings}
+								organization={organization}
+								type="roles"
+							/>
+						</Stack>
+						<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
+							{roleSyncSettings?.mapping &&
+								Object.entries(roleSyncSettings.mapping)
+									.sort()
+									.map(([idpRole, roles]) => (
+										<RoleRow
+											key={idpRole}
+											idpRole={idpRole}
+											coderRoles={roles}
+										/>
+									))}
+						</IdpMappingTable>
+					</>
+				)}
+			</Stack>
 		</>
 	);
 };
@@ -265,7 +292,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 			<Table>
 				<TableHead>
 					<TableRow>
-						<TableCell width="45%">Idp {type}</TableCell>
+						<TableCell width="45%">IdP {type}</TableCell>
 						<TableCell width="55%">Coder {type}</TableCell>
 					</TableRow>
 				</TableHead>
@@ -286,7 +313,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 												startIcon={<LaunchOutlined />}
 												component="a"
 												href={docs(
-													`/admin/auth#${type.toLowerCase()}-sync-enterprise`,
+													`/admin/auth#${type.toLowerCase()}-sync-enterprise-premium`,
 												)}
 												target="_blank"
 											>
@@ -356,12 +383,43 @@ const TableLoader = () => {
 	);
 };
 
+const LegacyGroupSyncHeader: FC = () => {
+	return (
+		<h4
+			css={{
+				fontSize: 20,
+				fontWeight: 500,
+			}}
+		>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>Legacy Group Sync Settings</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>Legacy Group Sync Settings</HelpTooltipTitle>
+						<HelpTooltipText>
+							These settings were configured using environment variables, and
+							only apply to the default organization. It is now recommended to
+							configure IdP sync via the CLI, which enables sync to be
+							configured for any organization, and for those settings to be
+							persisted without manually setting environment variables.{" "}
+							<Link href={docs("/admin/auth#group-sync-enterprise-premium")}>
+								Learn more&hellip;
+							</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
 const styles = {
-	fieldText: (theme) => ({
+	fieldText: {
 		fontFamily: MONOSPACE_FONT_FAMILY,
 		whiteSpace: "nowrap",
 		paddingBottom: ".02rem",
-	}),
+	},
 	fieldLabel: (theme) => ({
 		color: theme.palette.text.secondary,
 	}),

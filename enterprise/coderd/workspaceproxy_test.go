@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,8 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
@@ -886,4 +889,125 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		// The token is validated in the apptest suite, so we don't need to
 		// validate it here.
 	})
+}
+
+func TestGetCryptoKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		now := time.Now()
+
+		expectedKey1 := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now.Add(-time.Hour),
+			Sequence: 2,
+		})
+		key1 := db2sdk.CryptoKey(expectedKey1)
+
+		expectedKey2 := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now,
+			Sequence: 3,
+		})
+		key2 := db2sdk.CryptoKey(expectedKey2)
+
+		// Create a deleted key.
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			StartsAt: now.Add(-time.Hour),
+			Secret: sql.NullString{
+				String: "secret1",
+				Valid:  false,
+			},
+			Sequence: 1,
+		})
+
+		// Create a key with different features.
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureTailnetResume,
+			StartsAt: now.Add(-time.Hour),
+			Sequence: 1,
+		})
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureOidcConvert,
+			StartsAt: now.Add(-time.Hour),
+			Sequence: 1,
+		})
+
+		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		keys, err := proxy.SDKClient.CryptoKeys(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, keys)
+		require.Equal(t, 2, len(keys.CryptoKeys))
+		requireContainsKeys(t, keys.CryptoKeys, key1, key2)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		_ = coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		client := wsproxysdk.New(cclient.URL)
+		client.SetSessionToken(cclient.SessionToken())
+
+		_, err := client.CryptoKeys(ctx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+}
+
+func requireContainsKeys(t *testing.T, keys []codersdk.CryptoKey, expected ...codersdk.CryptoKey) {
+	t.Helper()
+
+	for _, expectedKey := range expected {
+		var found bool
+		for _, key := range keys {
+			if key.Feature == expectedKey.Feature && key.Sequence == expectedKey.Sequence {
+				require.True(t, expectedKey.StartsAt.Equal(key.StartsAt), "expected starts at %s, got %s", expectedKey.StartsAt, key.StartsAt)
+				require.Equal(t, expectedKey.Secret, key.Secret)
+				require.True(t, expectedKey.DeletesAt.Equal(key.DeletesAt), "expected deletes at %s, got %s", expectedKey.DeletesAt, key.DeletesAt)
+				found = true
+			}
+		}
+		require.True(t, found, "expected key %+v not found", expectedKey)
+	}
 }

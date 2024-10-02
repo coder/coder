@@ -1406,6 +1406,44 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
 | `ttl_ms`                | integer                                                                       | false    |              |                                                                                                         |
 
+## codersdk.CryptoKey
+
+```json
+{
+	"deletes_at": "2019-08-24T14:15:22Z",
+	"feature": "workspace_apps",
+	"secret": "string",
+	"sequence": 0,
+	"starts_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type                                                   | Required | Restrictions | Description |
+| ------------ | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `deletes_at` | string                                                 | false    |              |             |
+| `feature`    | [codersdk.CryptoKeyFeature](#codersdkcryptokeyfeature) | false    |              |             |
+| `secret`     | string                                                 | false    |              |             |
+| `sequence`   | integer                                                | false    |              |             |
+| `starts_at`  | string                                                 | false    |              |             |
+
+## codersdk.CryptoKeyFeature
+
+```json
+"workspace_apps"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value            |
+| ---------------- |
+| `workspace_apps` |
+| `oidc_convert`   |
+| `tailnet_resume` |
+
 ## codersdk.CustomRoleRequest
 
 ```json
@@ -2558,8 +2596,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ---------------------- |
 | `example`              |
 | `auto-fill-parameters` |
-| `multi-organization`   |
-| `custom-roles`         |
 | `notifications`        |
 | `workspace-usage`      |
 
@@ -4176,14 +4212,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `created_at`       | string | false    |              |             |
-| `id`               | string | false    |              |             |
-| `name`             | string | false    |              |             |
-| `organization`     | string | false    |              |             |
-| `tags`             | object | false    |              |             |
-| » `[any property]` | string | false    |              |             |
+| Name           | Type                                                       | Required | Restrictions | Description |
+| -------------- | ---------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`   | string                                                     | false    |              |             |
+| `id`           | string                                                     | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `organization` | string                                                     | false    |              |             |
+| `tags`         | [codersdk.ProvisionerKeyTags](#codersdkprovisionerkeytags) | false    |              |             |
 
 ## codersdk.ProvisionerKeyDaemons
 
@@ -4225,6 +4260,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | --------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `daemons` | array of [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `key`     | [codersdk.ProvisionerKey](#codersdkprovisionerkey)                | false    |              |             |
+
+## codersdk.ProvisionerKeyTags
+
+```json
+{
+	"property1": "string",
+	"property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.ProvisionerLogLevel
 
@@ -9767,6 +9817,28 @@ _None_
 | `derp_force_websockets`      | boolean                            | false    |              |             |
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
+
+## wsproxysdk.CryptoKeysResponse
+
+```json
+{
+	"crypto_keys": [
+		{
+			"deletes_at": "2019-08-24T14:15:22Z",
+			"feature": "workspace_apps",
+			"secret": "string",
+			"sequence": 0,
+			"starts_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name          | Type                                              | Required | Restrictions | Description |
+| ------------- | ------------------------------------------------- | -------- | ------------ | ----------- |
+| `crypto_keys` | array of [codersdk.CryptoKey](#codersdkcryptokey) | false    |              |             |
 
 ## wsproxysdk.DeregisterWorkspaceProxyRequest
 
