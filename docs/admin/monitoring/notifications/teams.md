@@ -15,7 +15,7 @@ Before setting up Microsoft Teams notifications, ensure that you have the
 following:
 
 - Administrator access to the Teams platform
-- Coder platform with notifications enabled
+- Coder platform with [notifications enabled](./README.md#enable-experiment)
 
 ## Build Teams Workflow
 
@@ -133,12 +133,9 @@ The process of setting up a Teams workflow consists of three key steps:
 
 ## Enable Webhook Integration
 
-To enable webhook integration in Coder, ensure the "notifications" experiment is
-activated by running the following command:
-
-```bash
-export CODER_EXPERIMENTS=notifications
-```
+To enable webhook integration in Coder, ensure the "notifications"
+[experiment is activated](./README.md#enable-experiment) (only required in
+v2.15.X).
 
 Then, define the POST webhook endpoint created by your Teams workflow:
 

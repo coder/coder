@@ -17,8 +17,8 @@ consistent between Slack and their Coder login.
 Before setting up Slack notifications, ensure that you have the following:
 
 - Administrator access to the Slack platform to create apps
-- Coder platform with
-  [notifications enabled](../notifications#enable-experiment)
+- Coder platform v2.15.0 or greater with
+  [notifications enabled](./README.md#enable-experiment) for versions <v2.16.0
 
 ## Create Slack Application
 
@@ -192,12 +192,9 @@ must respond appropriately.
 
 ## Enable Webhook Integration in Coder
 
-To enable webhook integration in Coder, ensure the "notifications" experiment is
-activated by running the following command:
-
-```bash
-export CODER_EXPERIMENTS=notifications
-```
+To enable webhook integration in Coder, ensure the "notifications"
+[experiment is activated](./README.md#enable-experiment) (only required in
+v2.15.X).
 
 Then, define the POST webhook endpoint matching the deployed Slack bot:
 

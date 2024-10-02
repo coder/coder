@@ -3,6 +3,22 @@
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
 
+## Enable experiment
+
+In order to activate the notifications feature on Coder v2.15.X, you'll need to enable the
+`notifications` experiment. Notifications are enabled by default starting in v2.16.0.
+
+```bash
+# Using the CLI flag
+$ coder server --experiments=notifications
+
+# Alternatively, using the `CODER_EXPERIMENTS` environment variable
+$ CODER_EXPERIMENTS=notifications coder server
+```
+
+More information on experiments can be found
+[here](https://coder.com/docs/contributing/feature-stages#experimental-features).
+
 ## Event Types
 
 Notifications are sent in response to internal events, to alert the affected
@@ -56,7 +72,7 @@ flags.
 
 Notifications can currently be delivered by either SMTP or webhook. Each message
 can only be delivered to one method, and this method is configured globally with
-[`CODER_NOTIFICATIONS_METHOD`](../../reference/server#--notifications-method)
+[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server#--notifications-method)
 (default: `smtp`).
 
 Enterprise customers can configure which method to use for each of the supported
@@ -211,14 +227,14 @@ All users have the option to opt-out of any notifications. Go to **Account** ->
 **Notifications** to turn notifications on or off. The delivery method for each
 notification is indicated on the right hand side of this table.
 
-![User Notification Preferences](../../images/user-notification-preferences.png)
+![User Notification Preferences](../../../images/admin/monitoring/notifications/user-notification-preferences.png)
 
 ## Delivery Preferences (enterprise)
 
 Administrators can configure which delivery methods are used for each different
 [event type](#event-types).
 
-![preferences](../../images/admin/notification-admin-prefs.png)
+![preferences](../../../images/admin/monitoring/notifications/notification-admin-prefs.png)
 
 You can find this page under
 `https://$CODER_ACCESS_URL/deployment/notifications?tab=events`.
@@ -229,10 +245,10 @@ Administrators may wish to stop _all_ notifications across the deployment. We
 support a killswitch in the CLI for these cases.
 
 To pause sending notifications, execute
-[`coder notifications pause`](../../reference/cli/notifications_pause).
+[`coder notifications pause`](../../../reference/cli/notifications_pause).
 
 To resume sending notifications, execute
-[`coder notifications resume`](../../reference/cli/notifications_resume).
+[`coder notifications resume`](../../../reference/cli/notifications_resume).
 
 ## Troubleshooting
 
@@ -259,7 +275,7 @@ Messages older than 7 days are deleted.
 
 ### Message States
 
-![states](../../images/admin/notification-states.png)
+![states](../../../images/admin/monitoring/notifications/notification-states.png)
 
 _A notifier here refers to a Coder replica which is responsible for dispatching
 the notification. All running replicas act as notifiers to process pending
