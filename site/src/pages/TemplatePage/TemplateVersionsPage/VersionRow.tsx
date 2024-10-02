@@ -106,34 +106,30 @@ export const VersionRow: FC<VersionRowProps> = ({
 							</Pill>
 						)}
 
-						{showActions && (
-							<>
-								{jobStatus === "failed" ? (
-									<Button
-										css={styles.promoteButton}
-										disabled={isActive || version.archived}
-										onClick={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
-											onArchiveClick?.(version.id);
-										}}
-									>
-										Archive&hellip;
-									</Button>
-								) : (
-									<Button
-										css={styles.promoteButton}
-										disabled={isActive || jobStatus !== "succeeded"}
-										onClick={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
-											onPromoteClick?.(version.id);
-										}}
-									>
-										Promote&hellip;
-									</Button>
-								)}
-							</>
+						{showActions && jobStatus === "failed" ? (
+							<Button
+								css={styles.promoteButton}
+								disabled={isActive || version.archived}
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									onArchiveClick?.(version.id);
+								}}
+							>
+								Archive&hellip;
+							</Button>
+						) : (
+							<Button
+								css={styles.promoteButton}
+								disabled={isActive || jobStatus !== "succeeded"}
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									onPromoteClick?.(version.id);
+								}}
+							>
+								Promote&hellip;
+							</Button>
 						)}
 					</Stack>
 				</Stack>

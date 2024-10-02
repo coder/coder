@@ -12,6 +12,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
@@ -278,9 +280,11 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 type ProvisionerKeyTags map[string]string
 
 func (p ProvisionerKeyTags) String() string {
+	keys := maps.Keys(p)
+	slices.Sort(keys)
 	tags := []string{}
-	for key, value := range p {
-		tags = append(tags, fmt.Sprintf("%s=%s", key, value))
+	for _, key := range keys {
+		tags = append(tags, fmt.Sprintf("%s=%s", key, p[key]))
 	}
 	return strings.Join(tags, " ")
 }

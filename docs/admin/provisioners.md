@@ -34,7 +34,9 @@ to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
 
 ## Authentication
 
-The provisioner daemon must authenticate with your Coder deployment.
+The provisioner daemon must authenticate with your Coder deployment. If you have
+multiple [organizations](./organizations.md), you'll need at least 1 provisioner
+running for each organization.
 
 <div class="tabs">
 
@@ -213,10 +215,10 @@ organization-scoped provisioner daemons.
 
 There are two exceptions:
 
-- [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are
+- [Built-in provisioners](../reference/cli/server.md#--provisioner-daemons) are
   always organization-scoped.
 - External provisioners started using a
-  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#psk) are always
+  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#--psk) are always
   organization-scoped.
 
 ### Organization-Scoped Provisioners

@@ -49,15 +49,13 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 			filter={filter}
 			error={error}
 			options={
-				<>
-					<SelectFilter
-						placeholder="All organizations"
-						label="Select an organization"
-						options={organizationMenu.searchOptions}
-						selectedOption={organizationMenu.selectedOption ?? undefined}
-						onSelect={organizationMenu.selectOption}
-					/>
-				</>
+				<SelectFilter
+					placeholder="All organizations"
+					label="Select an organization"
+					options={organizationMenu.searchOptions}
+					selectedOption={organizationMenu.selectedOption ?? undefined}
+					onSelect={organizationMenu.selectOption}
+				/>
 			}
 			optionsSkeleton={<MenuSkeleton />}
 		/>

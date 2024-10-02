@@ -48,6 +48,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 	var (
 		tokenLifetime time.Duration
 		name          string
+		user          string
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -58,7 +59,11 @@ func (r *RootCmd) createToken() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			res, err := client.CreateToken(inv.Context(), codersdk.Me, codersdk.CreateTokenRequest{
+			userID := codersdk.Me
+			if user != "" {
+				userID = user
+			}
+			res, err := client.CreateToken(inv.Context(), userID, codersdk.CreateTokenRequest{
 				Lifetime:  tokenLifetime,
 				TokenName: name,
 			})
@@ -86,6 +91,13 @@ func (r *RootCmd) createToken() *serpent.Command {
 			Env:           "CODER_TOKEN_NAME",
 			Description:   "Specify a human-readable name.",
 			Value:         serpent.StringOf(&name),
+		},
+		{
+			Flag:          "user",
+			FlagShorthand: "u",
+			Env:           "CODER_TOKEN_USER",
+			Description:   "Specify the user to create the token for (Only works if logged in user is admin).",
+			Value:         serpent.StringOf(&user),
 		},
 	}
 

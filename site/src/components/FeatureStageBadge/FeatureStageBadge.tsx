@@ -10,7 +10,7 @@ import { docs } from "utils/docs";
  * All types of feature that we are currently supporting. Defined as record to
  * ensure that we can't accidentally make typos when writing the badge text.
  */
-const featureStageBadgeTypes = {
+export const featureStageBadgeTypes = {
 	beta: "beta",
 	experimental: "experimental",
 } as const satisfies Record<string, ReactNode>;

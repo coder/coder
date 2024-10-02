@@ -11,15 +11,50 @@ By default, Coder is accessible via password authentication. For production depl
 
 Multiple users can be organized into logical groups to control which templates they can use. While groups can be manually created in Coder, we recommend syncing them from your identity provider.
 
-- [Learn more about Groups](./groups.md)
-- [Group & Role Sync](./group-role-sync.md)
+- [Learn more about groups](./groups-roles.md#groups)
 
 ## Roles
 
 Roles determine which actions users can take within the platform. Typically, most developers in your organization have the `Member` role, allowing them to create workspaces. Other roles have administrative capabilities such as auditing, managing users, and managing templates.
 
-- [Learn more about Roles](./roles.md)
-- [Group & Role Sync](./group-role-sync.md)
+|                                                       | Auditor | User Admin | Template Admin | Owner |
+| ----------------------------------------------------- | ------- | ---------- | -------------- | ----- |
+| Add and remove Users                                  |         | ✅         |                | ✅    |
+| Manage groups (premium)                               |         | ✅         |                | ✅    |
+| Change User roles                                     |         |            |                | ✅    |
+| Manage **ALL** Templates                              |         |            | ✅             | ✅    |
+| View **ALL** Workspaces                               |         |            | ✅             | ✅    |
+| Update and delete **ALL** Workspaces                  |         |            |                | ✅    |
+| Run [external provisioners](./provisioners.md)        |         |            | ✅             | ✅    |
+| Execute and use **ALL** Workspaces                    |         |            |                | ✅    |
+| View all user operation [Audit Logs](./audit-logs.md) | ✅      |            |                | ✅    |
+
+A user may have one or more roles. All users have an implicit Member role that
+may use personal workspaces.
+
+Learn more about [roles](./groups-roles.md#roles)
+
+## Custom Roles (Premium) (Beta)
+
+Coder v2.16+ deployments can configure custom roles on the
+[Organization](./organizations.md) level.
+
+![Custom roles](../../images/admin/organizations/custom-roles.png)
+
+> Note: This requires a Premium license.
+> [Contact your account team](https://coder.com/contact) for more details.
+
+## Security notes
+
+A malicious Template Admin could write a template that executes commands on the
+host (or `coder server` container), which potentially escalates their privileges
+or shuts down the Coder server. To avoid this, run
+[external provisioners](../provisioners.md).
+
+In low-trust environments, we do not recommend giving users direct access to
+edit templates. Instead, use
+[CI/CD pipelines to update templates](../templates/change-management.md) with
+proper security scans and code reviews in place.
 
 ## User status
 

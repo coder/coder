@@ -246,45 +246,6 @@ func TestAPIKey_Deleted(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 }
 
-func TestAPIKey_Refresh(t *testing.T) {
-	t.Parallel()
-
-	db, pubsub := dbtestutil.NewDB(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   pubsub,
-	})
-	owner := coderdtest.CreateFirstUser(t, client)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	token, err := client.CreateAPIKey(ctx, owner.UserID.String())
-	require.NoError(t, err)
-	split := strings.Split(token.Key, "-")
-	apiKey1, err := db.GetAPIKeyByID(ctx, split[0])
-	require.NoError(t, err)
-	require.Equal(t, int64(604800), apiKey1.LifetimeSeconds, "default should be 7 days")
-
-	err = db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
-		ID:       apiKey1.ID,
-		LastUsed: apiKey1.LastUsed,
-		// Cross the no-refresh threshold
-		ExpiresAt: apiKey1.ExpiresAt.Add(time.Hour * -2),
-		IPAddress: apiKey1.IPAddress,
-	})
-	require.NoError(t, err, "update login key")
-
-	// Refresh the token
-	client.SetSessionToken(token.Key)
-	_, err = client.User(ctx, codersdk.Me)
-	require.NoError(t, err)
-
-	apiKey2, err := client.APIKeyByID(ctx, owner.UserID.String(), split[0])
-	require.NoError(t, err)
-	require.True(t, apiKey2.ExpiresAt.After(apiKey1.ExpiresAt), "token should have a later expiry")
-}
-
 func TestAPIKey_SetDefault(t *testing.T) {
 	t.Parallel()
 

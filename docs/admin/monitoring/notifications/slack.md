@@ -90,9 +90,11 @@ receiver.router.post("/v1/webhook", async (req, res) => {
 			return res.status(400).send("Error: request body is missing");
 		}
 
-		const { title, body } = req.body;
-		if (!title || !body) {
-			return res.status(400).send('Error: missing fields: "title", or "body"');
+		const { title_markdown, body_markdown } = req.body;
+		if (!title_markdown || !body_markdown) {
+			return res
+				.status(400)
+				.send('Error: missing fields: "title_markdown", or "body_markdown"');
 		}
 
 		const payload = req.body.payload;
@@ -118,11 +120,11 @@ receiver.router.post("/v1/webhook", async (req, res) => {
 			blocks: [
 				{
 					type: "header",
-					text: { type: "plain_text", text: title },
+					text: { type: "mrkdwn", text: title_markdown },
 				},
 				{
 					type: "section",
-					text: { type: "mrkdwn", text: body },
+					text: { type: "mrkdwn", text: body_markdown },
 				},
 			],
 		};

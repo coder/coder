@@ -8,11 +8,11 @@ import {
 	MockTemplateExample2,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
-import StarterTemplatesPage from "./CreateTemplatesGalleryPage";
+import CreateTemplateGalleryPage from "./CreateTemplateGalleryPage";
 
 test("does not display the scratch template", async () => {
 	server.use(
-		http.get("api/v2/organizations/:organizationId/templates/examples", () => {
+		http.get("api/v2/templates/examples", () => {
 			return HttpResponse.json([
 				MockTemplateExample,
 				MockTemplateExample2,
@@ -36,7 +36,7 @@ test("does not display the scratch template", async () => {
 							children: [
 								{
 									path: "/starter-templates",
-									element: <StarterTemplatesPage />,
+									element: <CreateTemplateGalleryPage />,
 								},
 							],
 						},
