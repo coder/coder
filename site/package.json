@@ -36,6 +36,7 @@
 		"@alwaysmeticulous/recorder-loader": "2.137.0",
 		"@emoji-mart/data": "1.2.1",
 		"@emoji-mart/react": "1.1.1",
+		"@emotion/cache": "11.13.1",
 		"@emotion/css": "11.13.4",
 		"@emotion/react": "11.13.3",
 		"@emotion/styled": "11.13.0",
@@ -158,6 +159,7 @@
 		"storybook": "8.3.5",
 		"storybook-addon-remix-react-router": "3.0.1",
 		"storybook-react-context": "0.6.0",
+		"tailwindcss": "3.4.13",
 		"ts-node": "10.9.1",
 		"ts-proto": "1.164.0",
 		"ts-prune": "0.10.3",
@@ -166,11 +168,7 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": [
-		"chrome 110",
-		"firefox 111",
-		"safari 16.0"
-	],
+	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"
