@@ -8896,9 +8896,6 @@ const docTemplate = `{
                 "exit_code": {
                     "type": "integer"
                 },
-                "script_id": {
-                    "type": "string"
-                },
                 "stage": {
                     "type": "string"
                 },

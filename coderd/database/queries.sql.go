@@ -11420,17 +11420,17 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorks
 	return items, nil
 }
 
-const getWorkspaceAgentScriptTimingsByWorkspaceID = `-- name: GetWorkspaceAgentScriptTimingsByWorkspaceID :many
+const getWorkspaceAgentScriptTimingsByBuildID = `-- name: GetWorkspaceAgentScriptTimingsByBuildID :many
 SELECT workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status, workspace_agent_scripts.display_name
 FROM workspace_agent_script_timings
 INNER JOIN workspace_agent_scripts ON workspace_agent_scripts.id = workspace_agent_script_timings.script_id
 INNER JOIN workspace_agents ON workspace_agents.id = workspace_agent_scripts.workspace_agent_id
 INNER JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
 INNER JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
-WHERE workspace_builds.workspace_id = $1
+WHERE workspace_builds.id = $1
 `
 
-type GetWorkspaceAgentScriptTimingsByWorkspaceIDRow struct {
+type GetWorkspaceAgentScriptTimingsByBuildIDRow struct {
 	ScriptID    uuid.UUID                        `db:"script_id" json:"script_id"`
 	StartedAt   time.Time                        `db:"started_at" json:"started_at"`
 	EndedAt     time.Time                        `db:"ended_at" json:"ended_at"`
@@ -11440,15 +11440,15 @@ type GetWorkspaceAgentScriptTimingsByWorkspaceIDRow struct {
 	DisplayName string                           `db:"display_name" json:"display_name"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptTimingsByWorkspaceID, workspaceID)
+func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptTimingsByBuildID, id)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetWorkspaceAgentScriptTimingsByWorkspaceIDRow
+	var items []GetWorkspaceAgentScriptTimingsByBuildIDRow
 	for rows.Next() {
-		var i GetWorkspaceAgentScriptTimingsByWorkspaceIDRow
+		var i GetWorkspaceAgentScriptTimingsByBuildIDRow
 		if err := rows.Scan(
 			&i.ScriptID,
 			&i.StartedAt,

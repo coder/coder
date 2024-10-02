@@ -3774,7 +3774,6 @@ func TestWorkspaceTimings(t *testing.T) {
 			for i := range res.AgentScriptTimings {
 				timingRes := res.AgentScriptTimings[i]
 				genTiming := genAgentScriptTimings[i]
-				require.Equal(t, genTiming.ScriptID.String(), timingRes.ScriptID.String())
 				require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
 				require.Equal(t, string(genTiming.Status), timingRes.Status)
 				require.Equal(t, string(genTiming.Stage), timingRes.Stage)

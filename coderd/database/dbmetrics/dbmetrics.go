@@ -1404,10 +1404,10 @@ func (m metricsStore) GetWorkspaceAgentPortShare(ctx context.Context, arg databa
 	return r0, r1
 }
 
-func (m metricsStore) GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
+func (m metricsStore) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx, workspaceID)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentScriptTimingsByWorkspaceID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetWorkspaceAgentScriptTimingsByBuildID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentScriptTimingsByBuildID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

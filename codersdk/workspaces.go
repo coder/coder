@@ -637,7 +637,6 @@ type ProvisionerTiming struct {
 }
 
 type AgentScriptTiming struct {
-	ScriptID    uuid.UUID `json:"script_id"`
 	StartedAt   time.Time `json:"started_at"`
 	EndedAt     time.Time `json:"ended_at"`
 	ExitCode    int32     `json:"exit_code"`

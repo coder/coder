@@ -5793,11 +5793,11 @@ func (q *FakeQuerier) GetWorkspaceAgentPortShare(_ context.Context, arg database
 	return database.WorkspaceAgentPortShare{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspaceID)
+	build, err := q.GetWorkspaceBuildByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -5829,27 +5829,29 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByWorkspaceID(ctx context.Co
 		scriptIDs = append(scriptIDs, script.ID)
 	}
 
-	rows := []database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow{}
+	rows := []database.GetWorkspaceAgentScriptTimingsByBuildIDRow{}
 	for _, t := range q.workspaceAgentScriptTimings {
-		if slices.Contains(scriptIDs, t.ScriptID) {
-			var script database.WorkspaceAgentScript
-			for _, s := range scripts {
-				if s.ID == t.ScriptID {
-					script = s
-					break
-				}
-			}
-
-			rows = append(rows, database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow{
-				ScriptID:    t.ScriptID,
-				StartedAt:   t.StartedAt,
-				EndedAt:     t.EndedAt,
-				ExitCode:    t.ExitCode,
-				Stage:       t.Stage,
-				Status:      t.Status,
-				DisplayName: script.DisplayName,
-			})
+		if !slice.Contains(scriptIDs, t.ScriptID) {
+			continue
 		}
+
+		var script database.WorkspaceAgentScript
+		for _, s := range scripts {
+			if s.ID == t.ScriptID {
+				script = s
+				break
+			}
+		}
+
+		rows = append(rows, database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
+			ScriptID:    t.ScriptID,
+			StartedAt:   t.StartedAt,
+			EndedAt:     t.EndedAt,
+			ExitCode:    t.ExitCode,
+			Stage:       t.Stage,
+			Status:      t.Status,
+			DisplayName: script.DisplayName,
+		})
 	}
 	return rows, nil
 }

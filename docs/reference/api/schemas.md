@@ -356,7 +356,6 @@
 	"display_name": "string",
 	"ended_at": "string",
 	"exit_code": 0,
-	"script_id": "string",
 	"stage": "string",
 	"started_at": "string",
 	"status": "string"
@@ -370,7 +369,6 @@
 | `display_name` | string  | false    |              |             |
 | `ended_at`     | string  | false    |              |             |
 | `exit_code`    | integer | false    |              |             |
-| `script_id`    | string  | false    |              |             |
 | `stage`        | string  | false    |              |             |
 | `started_at`   | string  | false    |              |             |
 | `status`       | string  | false    |              |             |
@@ -7640,7 +7638,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"display_name": "string",
 			"ended_at": "string",
 			"exit_code": 0,
-			"script_id": "string",
 			"stage": "string",
 			"started_at": "string",
 			"status": "string"

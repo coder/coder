@@ -34,7 +34,6 @@ export interface AddLicenseRequest {
 
 // From codersdk/workspaces.go
 export interface AgentScriptTiming {
-	readonly script_id: string;
 	readonly started_at: string;
 	readonly ended_at: string;
 	readonly exit_code: number;

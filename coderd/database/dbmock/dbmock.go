@@ -2933,19 +2933,19 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentPortShare(arg0, arg1 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPortShare), arg0, arg1)
 }
 
-// GetWorkspaceAgentScriptTimingsByWorkspaceID mocks base method.
-func (m *MockStore) GetWorkspaceAgentScriptTimingsByWorkspaceID(arg0 context.Context, arg1 uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow, error) {
+// GetWorkspaceAgentScriptTimingsByBuildID mocks base method.
+func (m *MockStore) GetWorkspaceAgentScriptTimingsByBuildID(arg0 context.Context, arg1 uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceAgentScriptTimingsByWorkspaceID", arg0, arg1)
-	ret0, _ := ret[0].([]database.GetWorkspaceAgentScriptTimingsByWorkspaceIDRow)
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentScriptTimingsByBuildID", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetWorkspaceAgentScriptTimingsByWorkspaceID indicates an expected call of GetWorkspaceAgentScriptTimingsByWorkspaceID.
-func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptTimingsByWorkspaceID(arg0, arg1 any) *gomock.Call {
+// GetWorkspaceAgentScriptTimingsByBuildID indicates an expected call of GetWorkspaceAgentScriptTimingsByBuildID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptTimingsByBuildID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentScriptTimingsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentScriptTimingsByWorkspaceID), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentScriptTimingsByBuildID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentScriptTimingsByBuildID), arg0, arg1)
 }
 
 // GetWorkspaceAgentScriptsByAgentIDs mocks base method.
