@@ -5102,7 +5102,7 @@ const docTemplate = `{
                 "tags": [
                     "Authorization"
                 ],
-                "summary": "Change password with a one-time-passcode.",
+                "summary": "Change password with a one-time passcode.",
                 "operationId": "change-password-with-a-one-time-passcode",
                 "parameters": [
                     {
@@ -5116,8 +5116,8 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "No Content"
+                    "200": {
+                        "description": "OK"
                     }
                 }
             }
@@ -5289,11 +5289,11 @@ const docTemplate = `{
                 "tags": [
                     "Authorization"
                 ],
-                "summary": "Request one-time-passcode.",
+                "summary": "Request one-time passcode.",
                 "operationId": "request-one-time-passcode",
                 "parameters": [
                     {
-                        "description": "Request one time passcode request",
+                        "description": "Request one-time passcode request",
                         "name": "request",
                         "in": "body",
                         "required": true,

@@ -310,7 +310,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 // @Accept json
 // @Tags Authorization
 // @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Change password request"
-// @Success 204
+// @Success 200
 // @Router /users/change-password-with-one-time-passcode [post]
 func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (

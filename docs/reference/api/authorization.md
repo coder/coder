@@ -68,7 +68,7 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Change password with a one-time-passcode.
+## Change password with a one-time passcode.
 
 ### Code samples
 
@@ -98,9 +98,9 @@ curl -X POST http://coder-server:8080/api/v2/users/change-password-with-one-time
 
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-| ------ | --------------------------------------------------------------- | ----------- | ------ |
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                 | Description | Schema |
+| ------ | ------------------------------------------------------- | ----------- | ------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
 
 ## Log in user
 
@@ -146,7 +146,7 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
 
-## Request one-time-passcode.
+## Request one-time passcode.
 
 ### Code samples
 
@@ -170,7 +170,7 @@ curl -X POST http://coder-server:8080/api/v2/users/request-one-time-passcode \
 
 | Name   | In   | Type                                                                                       | Required | Description                       |
 | ------ | ---- | ------------------------------------------------------------------------------------------ | -------- | --------------------------------- |
-| `body` | body | [codersdk.RequestOneTimePasscodeRequest](schemas.md#codersdkrequestonetimepasscoderequest) | true     | Request one time passcode request |
+| `body` | body | [codersdk.RequestOneTimePasscodeRequest](schemas.md#codersdkrequestonetimepasscoderequest) | true     | Request one-time passcode request |
 
 ### Responses
 
