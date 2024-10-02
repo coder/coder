@@ -41,21 +41,21 @@ func NewWebhookHandler(cfg codersdk.NotificationsWebhookConfig, log slog.Logger)
 	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{}}
 }
 
-func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, title, body string) (DeliveryFunc, error) {
+func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleMarkdown, bodyMarkdown string) (DeliveryFunc, error) {
 	if w.cfg.Endpoint.String() == "" {
 		return nil, xerrors.New("webhook endpoint not defined")
 	}
 
-	titlePlaintext, err := markdown.PlaintextFromMarkdown(title)
+	titlePlaintext, err := markdown.PlaintextFromMarkdown(titleMarkdown)
 	if err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	bodyPlaintext, err := markdown.PlaintextFromMarkdown(body)
+	bodyPlaintext, err := markdown.PlaintextFromMarkdown(bodyMarkdown)
 	if err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return w.dispatch(payload, titlePlaintext, title, bodyPlaintext, body, w.cfg.Endpoint.String()), nil
+	return w.dispatch(payload, titlePlaintext, titleMarkdown, bodyPlaintext, bodyMarkdown, w.cfg.Endpoint.String()), nil
 }
 
 func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, titlePlaintext, titleMarkdown, bodyPlaintext, bodyMarkdown, endpoint string) DeliveryFunc {
