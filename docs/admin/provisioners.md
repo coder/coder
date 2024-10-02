@@ -267,7 +267,7 @@ will use in concert with the Helm chart for deploying the Coder server.
 1. Modify your Coder `values.yaml` to include
 
    ```yaml
-   provisioneraemon:
+   provisionerDaemon:
      pskSecretName: "coder-provisioner-psk"
    ```
 
@@ -290,7 +290,7 @@ will use in concert with the Helm chart for deploying the Coder server.
        - name: CODER_URL
          value: "https://coder.example.com"
      replicaCount: 10
-   provisioneraemon:
+   provisionerDaemon:
      pskSecretName: "coder-provisioner-psk"
      tags:
        location: auh
