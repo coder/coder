@@ -448,7 +448,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// with the below route, we need to register this route without any mounts or groups to make both work.
 		r.With(
 			apiKeyMiddleware,
-			httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentNotifications),
 			httpmw.ExtractNotificationTemplateParam(options.Database),
 		).Put("/notifications/templates/{notification_template}/method", api.updateNotificationTemplateMethod)
 	})

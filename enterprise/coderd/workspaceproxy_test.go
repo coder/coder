@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -911,21 +912,21 @@ func TestGetCryptoKeys(t *testing.T) {
 			},
 		})
 
-		now := time.Now().UTC()
+		now := time.Now()
 
 		expectedKey1 := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			StartsAt: now.Add(-time.Hour),
 			Sequence: 2,
 		})
-		key1 := fromDBCryptoKeys(expectedKey1)
+		key1 := db2sdk.CryptoKey(expectedKey1)
 
 		expectedKey2 := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			StartsAt: now,
 			Sequence: 3,
 		})
-		key2 := fromDBCryptoKeys(expectedKey2)
+		key2 := db2sdk.CryptoKey(expectedKey2)
 
 		// Create a deleted key.
 		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
@@ -958,8 +959,7 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
 		require.Equal(t, 2, len(keys.CryptoKeys))
-		require.Contains(t, keys.CryptoKeys, key1)
-		require.Contains(t, keys.CryptoKeys, key2)
+		requireContainsKeys(t, keys.CryptoKeys, key1, key2)
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
@@ -995,12 +995,19 @@ func TestGetCryptoKeys(t *testing.T) {
 	})
 }
 
-func fromDBCryptoKeys(key database.CryptoKey) wsproxysdk.CryptoKey {
-	return wsproxysdk.CryptoKey{
-		Feature:   wsproxysdk.CryptoKeyFeature(key.Feature),
-		Sequence:  key.Sequence,
-		StartsAt:  key.StartsAt.UTC(),
-		DeletesAt: key.DeletesAt.Time.UTC(),
-		Secret:    key.Secret.String,
+func requireContainsKeys(t *testing.T, keys []codersdk.CryptoKey, expected ...codersdk.CryptoKey) {
+	t.Helper()
+
+	for _, expectedKey := range expected {
+		var found bool
+		for _, key := range keys {
+			if key.Feature == expectedKey.Feature && key.Sequence == expectedKey.Sequence {
+				require.True(t, expectedKey.StartsAt.Equal(key.StartsAt), "expected starts at %s, got %s", expectedKey.StartsAt, key.StartsAt)
+				require.Equal(t, expectedKey.Secret, key.Secret)
+				require.True(t, expectedKey.DeletesAt.Equal(key.DeletesAt), "expected deletes at %s, got %s", expectedKey.DeletesAt, key.DeletesAt)
+				found = true
+			}
+		}
+		require.True(t, found, "expected key %+v not found", expectedKey)
 	}
 }

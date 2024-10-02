@@ -350,6 +350,15 @@ export interface CreateWorkspaceRequest {
 	readonly automatic_updates?: AutomaticUpdates;
 }
 
+// From codersdk/deployment.go
+export interface CryptoKey {
+	readonly feature: CryptoKeyFeature;
+	readonly secret: string;
+	readonly deletes_at: string;
+	readonly sequence: number;
+	readonly starts_at: string;
+}
+
 // From codersdk/roles.go
 export interface CustomRoleRequest {
 	readonly name: string;
@@ -2088,6 +2097,10 @@ export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"]
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator"
 export const BuildReasons: BuildReason[] = ["autostart", "autostop", "initiator"]
+
+// From codersdk/deployment.go
+export type CryptoKeyFeature = "oidc_convert" | "tailnet_resume" | "workspace_apps"
+export const CryptoKeyFeatures: CryptoKeyFeature[] = ["oidc_convert", "tailnet_resume", "workspace_apps"]
 
 // From codersdk/workspaceagents.go
 export type DisplayApp = "port_forwarding_helper" | "ssh_helper" | "vscode" | "vscode_insiders" | "web_terminal"

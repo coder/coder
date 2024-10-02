@@ -610,7 +610,7 @@ export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
-	...MockProvisioner,
+	...MockUserAuthProvisioner,
 	id: "test-user-provisioner",
 	name: "Test User Provisioner",
 	tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },

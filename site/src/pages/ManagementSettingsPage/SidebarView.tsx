@@ -148,11 +148,12 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 							Users
 						</SidebarNavSubItem>
 					)}
-					{experiments.includes("notifications") && (
+					<Stack direction="row" alignItems="center" css={{ gap: 0 }}>
 						<SidebarNavSubItem href="notifications">
 							Notifications
 						</SidebarNavSubItem>
-					)}
+						<FeatureStageBadge contentType="beta" size="sm" />
+					</Stack>
 				</Stack>
 			)}
 		</div>
@@ -386,49 +387,49 @@ const styles = {
 
 const classNames = {
 	link: (css, theme) => css`
-    color: inherit;
-    display: block;
-    font-size: 14px;
-    text-decoration: none;
-    padding: 10px 12px 10px 16px;
-    border-radius: 4px;
-    transition: background-color 0.15s ease-in-out;
-    position: relative;
+		color: inherit;
+		display: block;
+		font-size: 14px;
+		text-decoration: none;
+		padding: 10px 12px 10px 16px;
+		border-radius: 4px;
+		transition: background-color 0.15s ease-in-out;
+		position: relative;
 
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-    }
+		&:hover {
+			background-color: ${theme.palette.action.hover};
+		}
 
-    border-left: 3px solid transparent;
-  `,
+		border-left: 3px solid transparent;
+	`,
 
 	activeLink: (css, theme) => css`
-    border-left-color: ${theme.palette.primary.main};
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  `,
+		border-left-color: ${theme.palette.primary.main};
+		border-top-left-radius: 0;
+		border-bottom-left-radius: 0;
+	`,
 
 	subLink: (css, theme) => css`
-    color: ${theme.palette.text.secondary};
-    text-decoration: none;
+		color: ${theme.palette.text.secondary};
+		text-decoration: none;
 
-    display: block;
-    font-size: 13px;
-    margin-left: 44px;
-    padding: 4px 12px;
-    border-radius: 4px;
-    transition: background-color 0.15s ease-in-out;
-    margin-bottom: 1px;
-    position: relative;
+		display: block;
+		font-size: 13px;
+		margin-left: 44px;
+		padding: 4px 12px;
+		border-radius: 4px;
+		transition: background-color 0.15s ease-in-out;
+		margin-bottom: 1px;
+		position: relative;
 
-    &:hover {
-	  color: ${theme.palette.text.primary};
-      background-color: ${theme.palette.action.hover};
-    }
-  `,
+		&:hover {
+			color: ${theme.palette.text.primary};
+			background-color: ${theme.palette.action.hover};
+		}
+	`,
 
 	activeSubLink: (css, theme) => css`
-	color: ${theme.palette.text.primary};
-    font-weight: 600;
-  `,
+		color: ${theme.palette.text.primary};
+		font-weight: 600;
+	`,
 } satisfies Record<string, ClassName>;

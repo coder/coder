@@ -53,7 +53,3 @@ from Winget.
 ```pwsh
 winget install Coder.Coder
 ```
-
-## Up Next
-
-- [Learn how to enable Enterprise features](../enterprise.md).
