@@ -22,6 +22,8 @@ type Store interface {
 	FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error)
 	GetNotificationsSettings(ctx context.Context) (string, error)
+
+	GetLogoURL(ctx context.Context) (string, error)
 }
 
 // Handler is responsible for preparing and delivering a notification by a given method.
