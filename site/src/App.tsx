@@ -15,6 +15,9 @@ import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { router } from "./router";
+import { StyledEngineProvider } from "@mui/material/styles";
+import createCache from "@emotion/cache";
+import { CacheProvider } from "@emotion/react";
 
 const defaultQueryClient = new QueryClient({
 	defaultOptions: {
@@ -37,6 +40,11 @@ declare global {
 		toggleDevtools: () => void;
 	}
 }
+
+const cache = createCache({
+	key: "css",
+	prepend: true,
+});
 
 export const AppProviders: FC<AppProvidersProps> = ({
 	children,
@@ -64,17 +72,23 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	}, []);
 
 	return (
-		<HelmetProvider>
-			<QueryClientProvider client={queryClient}>
-				<AuthProvider>
-					<ThemeProvider>
-						{children}
-						<GlobalSnackbar />
-					</ThemeProvider>
-				</AuthProvider>
-				{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
-			</QueryClientProvider>
-		</HelmetProvider>
+		<StyledEngineProvider injectFirst>
+			<CacheProvider value={cache}>
+				<HelmetProvider>
+					<QueryClientProvider client={queryClient}>
+						<AuthProvider>
+							<ThemeProvider>
+								{children}
+								<GlobalSnackbar />
+							</ThemeProvider>
+						</AuthProvider>
+						{showDevtools && (
+							<ReactQueryDevtools initialIsOpen={showDevtools} />
+						)}
+					</QueryClientProvider>
+				</HelmetProvider>
+			</CacheProvider>
+		</StyledEngineProvider>
 	);
 };
 
