@@ -340,6 +340,11 @@
 									"title": "Workspace Tags",
 									"description": "Control provisioning using Workspace Tags and Parameters",
 									"path": "./admin/templates/extending-templates/workspace-tags.md"
+								},
+								{
+									"title": "Provider Authentication",
+									"description": "Authenticate with provider APIs to provision workspaces",
+									"path": "./admin/templates/extending-templates/provider-authentication.md"
 								}
 							]
 						},
