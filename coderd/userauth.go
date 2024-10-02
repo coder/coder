@@ -46,6 +46,7 @@ const (
 	userAuthLoggerName      = "userauth"
 	OAuthConvertCookieValue = "coder_oauth_convert_jwt"
 	mergeStateStringPrefix  = "convert-"
+	oneTimePasscodeDuration = 20 * time.Minute
 )
 
 type OAuthConvertStateClaims struct {
@@ -202,13 +203,13 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Requests a one-time-passcode for a user.
+// Requests a one-time passcode for a user.
 //
-// @Summary Request one-time-passcode.
+// @Summary Request one-time passcode.
 // @ID request-one-time-passcode
 // @Accept json
 // @Tags Authorization
-// @Param request body codersdk.RequestOneTimePasscodeRequest true "Request one time passcode request"
+// @Param request body codersdk.RequestOneTimePasscodeRequest true "Request one-time passcode request"
 // @Success 200
 // @Router /users/request-one-time-passcode [post]
 func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
@@ -243,7 +244,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		rw.WriteHeader(http.StatusOK)
 	}()
 
-	//nolint:gocritic // In order to request a one-time-passcode, we need to get the user first!
+	//nolint:gocritic // In order to request a one-time passcode, we need to get the user first - and can only do that in the system auth context.
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: req.Email,
 	})
@@ -254,7 +255,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	aReq.Old = user
 
 	passcode := uuid.New()
-	passcodeExpiresAt := dbtime.Now().Add(20 * time.Minute)
+	passcodeExpiresAt := dbtime.Now().Add(oneTimePasscodeDuration)
 
 	hashedPasscode, err := userpassword.Hash(passcode.String())
 	if err != nil {
@@ -262,14 +263,14 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	//nolint:gocritic // We need to be able to save the one-time-passcode.
+	//nolint:gocritic // We need the system auth context to be able to save the one-time passcode.
 	err = api.Database.UpdateUserHashedOneTimePasscode(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedOneTimePasscodeParams{
 		ID:                       user.ID,
 		HashedOneTimePasscode:    []byte(hashedPasscode),
 		OneTimePasscodeExpiresAt: sql.NullTime{Time: passcodeExpiresAt, Valid: true},
 	})
 	if err != nil {
-		logger.Error(ctx, "unable to set user hashed one time passcode", slog.Error(err))
+		logger.Error(ctx, "unable to set user hashed one-time passcode", slog.Error(err))
 		return
 	}
 
@@ -278,16 +279,16 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	newUser.OneTimePasscodeExpiresAt = sql.NullTime{Time: passcodeExpiresAt, Valid: true}
 	aReq.New = newUser
 
-	// Send the one-time-passcode to the user.
+	// Send the one-time passcode to the user.
 	err = api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
 	if err != nil {
-		logger.Error(ctx, "unable to notify user about one time passcode request", slog.Error(err))
+		logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
 	}
 }
 
 func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
 	_, err := api.NotificationsEnqueuer.Enqueue(
-		//nolint:gocritic // We need to be able to send the user their one time passcode.
+		//nolint:gocritic // We need the system auth context to be able to send the user their one-time passcode.
 		dbauthz.AsSystemRestricted(ctx),
 		user.ID,
 		notifications.TemplateUserRequestedOneTimePasscode,
@@ -302,9 +303,9 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 	return nil
 }
 
-// Change a users password with a one-time-passcode.
+// Change a users password with a one-time passcode.
 //
-// @Summary Change password with a one-time-passcode.
+// @Summary Change password with a one-time passcode.
 // @ID change-password-with-a-one-time-passcode
 // @Accept json
 // @Tags Authorization
@@ -338,7 +339,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		return
 	}
 
-	//nolint:gocritic // In order to change a user's password, we need to get the user first!
+	//nolint:gocritic // In order to change a user's password, we need to get the user first - and can only do that in the system auth context.
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: req.Email,
 	})
@@ -361,7 +362,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 	}
 
 	if !equal {
-		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Incorrect email or one-time-passcode.",
 		})
 		return
@@ -398,7 +399,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 	}
 
 	err = api.Database.InTx(func(tx database.Store) error {
-		//nolint:gocritic // We need to update the user's password.
+		//nolint:gocritic // We need the system auth context to be able to update the user's password.
 		err = tx.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
 			ID:             user.ID,
 			HashedPassword: []byte(newHashedPassword),
@@ -407,7 +408,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
-		//nolint:gocritic // We need to delete all API keys for the user.
+		//nolint:gocritic // We need the system auth context to be able to delete all API keys for the user.
 		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
 			return xerrors.Errorf("delete api keys for user: %w", err)
@@ -430,7 +431,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 	newUser.HashedOneTimePasscode = nil
 	aReq.New = newUser
 
-	rw.WriteHeader(http.StatusNoContent)
+	rw.WriteHeader(http.StatusOK)
 }
 
 // Authenticates the user with an email and password.
