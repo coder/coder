@@ -583,7 +583,7 @@ func (c *Client) ChangePasswordWithOneTimePasscode(ctx context.Context, req Chan
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusNoContent {
+	if res.StatusCode != http.StatusOK {
 		return ReadBodyAsError(res)
 	}
 
