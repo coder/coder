@@ -3,6 +3,7 @@ package wsproxy
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -18,16 +19,19 @@ import (
 var _ cryptokeys.Keycache = &CryptoKeyCache{}
 
 type CryptoKeyCache struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	client *wsproxysdk.Client
-	logger slog.Logger
-	Clock  quartz.Clock
+	refreshCtx    context.Context
+	refreshCancel context.CancelFunc
+	client        *wsproxysdk.Client
+	logger        slog.Logger
+	Clock         quartz.Clock
 
-	keysMu sync.RWMutex
-	keys   map[int32]codersdk.CryptoKey
-	latest codersdk.CryptoKey
-	closed bool
+	keysMu    sync.RWMutex
+	keys      map[int32]codersdk.CryptoKey
+	latest    codersdk.CryptoKey
+	fetchLock sync.RWMutex
+	lastFetch time.Time
+	refresher *quartz.Timer
+	closed    atomic.Bool
 }
 
 func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client *wsproxysdk.Client, opts ...func(*CryptoKeyCache)) (*CryptoKeyCache, error) {
@@ -46,21 +50,17 @@ func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client *wsproxysdk.
 		return nil, xerrors.Errorf("initial fetch: %w", err)
 	}
 	cache.keys, cache.latest = m, latest
-	cache.ctx, cache.cancel = context.WithCancel(ctx)
-
-	go cache.refresh()
+	cache.refresher = cache.Clock.AfterFunc(time.Minute*10, cache.refresh)
 
 	return cache, nil
 }
 
 func (k *CryptoKeyCache) Signing(ctx context.Context) (codersdk.CryptoKey, error) {
-	k.keysMu.RLock()
-
-	if k.closed {
-		k.keysMu.RUnlock()
+	if k.isClosed() {
 		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
 	}
 
+	k.keysMu.RLock()
 	latest := k.latest
 	k.keysMu.RUnlock()
 
@@ -69,34 +69,31 @@ func (k *CryptoKeyCache) Signing(ctx context.Context) (codersdk.CryptoKey, error
 		return latest, nil
 	}
 
-	k.keysMu.Lock()
-	defer k.keysMu.Unlock()
+	k.fetchLock.Lock()
+	defer k.fetchLock.Unlock()
 
-	if k.closed {
+	if k.isClosed() {
 		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
 	}
 
+	k.keysMu.RLock()
 	if k.latest.CanSign(now) {
+		k.keysMu.RUnlock()
 		return k.latest, nil
 	}
 
-	var err error
-	k.keys, k.latest, err = k.fetch(ctx)
+	_, latest, err := k.fetch(ctx)
 	if err != nil {
 		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
 	}
 
-	if !k.latest.CanSign(now) {
-		return codersdk.CryptoKey{}, cryptokeys.ErrKeyNotFound
-	}
-
-	return k.latest, nil
+	return latest, nil
 }
 
 func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
 	now := k.Clock.Now()
 	k.keysMu.RLock()
-	if k.closed {
+	if k.isClosed() {
 		k.keysMu.RUnlock()
 		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
 	}
@@ -110,7 +107,7 @@ func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersd
 	k.keysMu.Lock()
 	defer k.keysMu.Unlock()
 
-	if k.closed {
+	if k.isClosed() {
 		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
 	}
 
@@ -119,13 +116,12 @@ func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersd
 		return validKey(key, now)
 	}
 
-	var err error
-	k.keys, k.latest, err = k.fetch(ctx)
+	keys, _, err := k.fetch(ctx)
 	if err != nil {
 		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
 	}
 
-	key, ok = k.keys[sequence]
+	key, ok = keys[sequence]
 	if !ok {
 		return codersdk.CryptoKey{}, cryptokeys.ErrKeyNotFound
 	}
@@ -134,28 +130,50 @@ func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersd
 }
 
 func (k *CryptoKeyCache) refresh() {
-	k.Clock.TickerFunc(k.ctx, time.Minute*10, func() error {
-		kmap, latest, err := k.fetch(k.ctx)
-		if err != nil {
-			k.logger.Error(k.ctx, "failed to fetch crypto keys", slog.Error(err))
-			return nil
-		}
+	if k.isClosed() {
+		return
+	}
 
-		k.keysMu.Lock()
-		defer k.keysMu.Unlock()
-		k.keys = kmap
-		k.latest = latest
-		return nil
-	})
+	k.keysMu.RLock()
+	if k.Clock.Now().Sub(k.lastFetch) < time.Minute*10 {
+		k.keysMu.Unlock()
+		return
+	}
+
+	k.fetchLock.Lock()
+	defer k.fetchLock.Unlock()
+
+	_, _, err := k.fetch(k.refreshCtx)
+	if err != nil {
+		k.logger.Error(k.refreshCtx, "fetch crypto keys", slog.Error(err))
+		return
+	}
 }
 
 func (k *CryptoKeyCache) fetch(ctx context.Context) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey, error) {
+
 	keys, err := k.client.CryptoKeys(ctx)
 	if err != nil {
 		return nil, codersdk.CryptoKey{}, xerrors.Errorf("get security keys: %w", err)
 	}
 
-	kmap, latest := toKeyMap(keys.CryptoKeys, k.Clock.Now())
+	if len(keys.CryptoKeys) == 0 {
+		return nil, codersdk.CryptoKey{}, cryptokeys.ErrKeyNotFound
+	}
+
+	now := k.Clock.Now()
+	kmap, latest := toKeyMap(keys.CryptoKeys, now)
+	if !latest.CanSign(now) {
+		return nil, codersdk.CryptoKey{}, cryptokeys.ErrKeyInvalid
+	}
+
+	k.keysMu.Lock()
+	defer k.keysMu.Unlock()
+
+	k.lastFetch = k.Clock.Now()
+	k.refresher.Reset(time.Minute * 10)
+	k.keys, k.latest = kmap, latest
+
 	return kmap, latest, nil
 }
 
@@ -179,14 +197,18 @@ func validKey(key codersdk.CryptoKey, now time.Time) (codersdk.CryptoKey, error)
 	return key, nil
 }
 
+func (k *CryptoKeyCache) isClosed() bool {
+	return k.closed.Load()
+}
+
 func (k *CryptoKeyCache) Close() {
 	k.keysMu.Lock()
 	defer k.keysMu.Unlock()
 
-	if k.closed {
+	if k.isClosed() {
 		return
 	}
 
-	k.cancel()
-	k.closed = true
+	k.refreshCancel()
+	k.closed.Store(true)
 }
