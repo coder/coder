@@ -18,7 +18,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
    # Clone coder/coder and copy the Caddy example
    git clone https://github.com/coder/coder /tmp/coder
-   mv /tmp/coder/examples/web-server/caddy $(pwd)
+   mv /tmp/coder/docs/admin/setup/web-server/caddy $(pwd)
    ```
 
 1. Modify the [Caddyfile](./Caddyfile) and change the following values:
@@ -26,7 +26,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
    - `localhost:3000`: Change to `coder:7080` (Coder container on Docker network)
    - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL (does not have to be Coder admin email)
    - `coder.example.com`: Domain name you're using for Coder.
-   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](https://coder.com/docs/networking/port-forwarding#dashboard). This is optional and can be removed.
+   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](../../../networking/port-forwarding.md). This is optional and can be removed.
 
 1. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the domain you're using in your Caddyfile.
 
@@ -38,7 +38,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
 ### Standalone
 
-1. If you haven't already, [install Coder](https://coder.com/docs/install)
+1. If you haven't already, [install Coder](../../../../install/README.md)
 
 2. Install [Caddy Server](https://caddyserver.com/docs/install)
 
@@ -48,11 +48,11 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
    - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL (does not have to be Coder admin email)
    - `coder.example.com`: Domain name you're using for Coder.
-   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](https://coder.com/docs/networking/port-forwarding#dashboard). This is optional and can be removed.
+   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for [dashboard port forwarding](../../../networking/port-forwarding.md). This is optional and can be removed.
    - `localhost:3000`: Address Coder is running on. Modify this if you changed `CODER_HTTP_ADDRESS` in the Coder configuration.
    - _DO NOT CHANGE the `ask http://example.com` line! Doing so will result in your certs potentially not being generated._
 
-4. [Configure Coder](https://coder.com/docs/admin/configure) and change the following values:
+4. [Configure Coder](../../README.md) and change the following values:
 
    - `CODER_ACCESS_URL`: root domain (e.g. `https://coder.example.com`)
    - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (e.g. `*.example.com`).
@@ -95,7 +95,7 @@ This is an example configuration of how to use Coder with [caddy](https://caddys
 
 ## Generating wildcard certificates
 
-By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (e.g. `app1.coder.example.com`, `app2.coder.example.com`). When users visit new subdomains, such as accessing [ports on a workspace](../../../docs/networking/port-forwarding.md), the request will take an additional 5-30 seconds since a new certificate is being generated.
+By default, this configuration uses Caddy's [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to generate a certificate for each subdomain (e.g. `app1.coder.example.com`, `app2.coder.example.com`). When users visit new subdomains, such as accessing [ports on a workspace](../../../networking/port-forwarding.md), the request will take an additional 5-30 seconds since a new certificate is being generated.
 
 For production deployments, we recommend configuring Caddy to generate a wildcard certificate, which requires an explicit DNS challenge and additional Caddy modules.
 

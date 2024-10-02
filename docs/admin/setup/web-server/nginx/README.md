@@ -1,13 +1,13 @@
-# How to use Apache as a reverse-proxy with LetsEncrypt
+# How to use NGINX as a reverse-proxy with LetsEncrypt
 
 ## Requirements
 
-1. Start a Coder deployment and be sure to set the following [configuration values](https://coder.com/docs/admin/configure):
+1. Start a Coder deployment and be sure to set the following [configuration values](../../README.md):
 
    ```env
    CODER_HTTP_ADDRESS=127.0.0.1:3000
    CODER_ACCESS_URL=https://coder.example.com
-   CODER_WILDCARD_ACCESS_URL=*coder.example.com
+   CODER_WILDCARD_ACCESS_URL=*.coder.example.com
    ```
 
    Throughout the guide, be sure to replace `coder.example.com` with the domain you intend to use with Coder.
@@ -16,26 +16,32 @@
 
    > For example, to use `coder.example.com` as your subdomain, configure `coder.example.com` and `*.coder.example.com` to point to your server's public ip. This can be done by adding A records in your DNS provider's dashboard.
 
-3. Install Apache (assuming you're on Debian/Ubuntu):
+3. Install NGINX (assuming you're on Debian/Ubuntu):
 
    ```shell
-   sudo apt install apache2
+   sudo apt install nginx
    ```
 
-4. Enable the following Apache modules:
+4. Stop NGINX service:
 
    ```shell
-   sudo a2enmod proxy
-   sudo a2enmod proxy_http
-   sudo a2enmod ssl
-   sudo a2enmod rewrite
+   sudo systemctl stop nginx
    ```
 
-5. Stop Apache service and disable default site:
+## Adding Coder deployment subdomain
+
+> This example assumes Coder is running locally on `127.0.0.1:3000` and that you're using `coder.example.com` as your subdomain.
+
+1. Create NGINX configuration for this app:
 
    ```shell
-   sudo a2dissite 000-default.conf
-   sudo systemctl stop apache2
+   sudo touch /etc/nginx/sites-available/coder.example.com
+   ```
+
+2. Activate this file:
+
+   ```shell
+   sudo ln -s /etc/nginx/sites-available/coder.example.com /etc/nginx/sites-enabled/coder.example.com
    ```
 
 ## Install and configure LetsEncrypt Certbot
@@ -76,60 +82,55 @@
    sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/certbot/cloudflare.ini -d coder.example.com -d *.coder.example.com
    ```
 
-## Configure Apache
+## Configure nginx
 
-> This example assumes Coder is running locally on `127.0.0.1:3000` and that you're using `coder.example.com` as your subdomain.
-
-1. Create Apache configuration for Coder:
+1. Edit the file with:
 
    ```shell
-   sudo nano /etc/apache2/sites-available/coder.conf
+   sudo nano /etc/nginx/sites-available/coder.example.com
    ```
 
 2. Add the following content:
 
-   ```apache
-    # Redirect HTTP to HTTPS
-    <VirtualHost *:80>
-        ServerName coder.example.com
-        ServerAlias *.coder.example.com
-        Redirect permanent / https://coder.example.com/
-    </VirtualHost>
+   ```nginx
+   server {
+       server_name coder.example.com *.coder.example.com;
 
-    <VirtualHost *:443>
-        ServerName coder.example.com
-        ServerAlias *.coder.example.com
-        ErrorLog ${APACHE_LOG_DIR}/error.log
-        CustomLog ${APACHE_LOG_DIR}/access.log combined
+       # HTTP configuration
+       listen 80;
+       listen [::]:80;
 
-        ProxyPass / http://127.0.0.1:3000/ upgrade=any # required for websockets
-        ProxyPassReverse / http://127.0.0.1:3000/
-        ProxyRequests Off
-        ProxyPreserveHost On
+       # HTTP to HTTPS
+       if ($scheme != "https") {
+           return 301 https://$host$request_uri;
+       }
 
-        RewriteEngine On
-        # Websockets are required for workspace connectivity
-        RewriteCond %{HTTP:Connection} Upgrade [NC]
-        RewriteCond %{HTTP:Upgrade} websocket [NC]
-        RewriteRule /(.*) ws://127.0.0.1:3000/$1 [P,L]
+       # HTTPS configuration
+       listen [::]:443 ssl ipv6only=on;
+       listen 443 ssl;
+       ssl_certificate /etc/letsencrypt/live/coder.example.com/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/coder.example.com/privkey.pem;
 
-        SSLCertificateFile /etc/letsencrypt/live/coder.example.com/fullchain.pem
-        SSLCertificateKeyFile /etc/letsencrypt/live/coder.example.com/privkey.pem
-    </VirtualHost>
+       location / {
+           proxy_pass  http://127.0.0.1:3000; # Change this to your coder deployment port default is 3000
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection upgrade;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+           add_header Strict-Transport-Security "max-age=15552000; includeSubDomains" always;
+       }
+   }
    ```
 
    > Don't forget to change: `coder.example.com` by your (sub)domain
 
-3. Enable the site:
+3. Test the configuration:
 
    ```shell
-   sudo a2ensite coder.conf
-   ```
-
-4. Restart Apache:
-
-   ```shell
-   sudo systemctl restart apache2
+   sudo nginx -t
    ```
 
 ## Refresh certificates automatically
@@ -152,5 +153,11 @@
    #!/bin/sh
    sudo certbot renew -q
    ```
+
+## Restart NGINX
+
+```shell
+sudo systemctl restart nginx
+```
 
 And that's it, you should now be able to access Coder at your sub(domain) e.g. `https://coder.example.com`.
