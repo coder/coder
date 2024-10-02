@@ -50,7 +50,7 @@ guide.
 
 In addition to Jupyter Notebook, you can use Jupyter lab in your workspace. A
 template administrator can add it by following the
-[Extending Templates](../../admin/templates/extending-templates/ides/web-ides.md#jupyterlab)
+[Extending Templates](../../admin/templates/extending-templates/web-ides.md#jupyterlab)
 guide.
 
 ![JupyterLab in Coder](../../images/jupyter.png)
@@ -59,7 +59,7 @@ guide.
 
 RStudio is a popular IDE for R programming language. A template administrator
 can add it to your workspace by following the
-[Extending Templates](../../admin/templates/extending-templates/ides/web-ides.md#rstudio)
+[Extending Templates](../../admin/templates/extending-templates/web-ides.md#rstudio)
 guide.
 
 ![RStudio in Coder](../../images/rstudio-port-forward.png)
@@ -68,7 +68,7 @@ guide.
 
 Apache Airflow is an open-source workflow management platform for data
 engineering pipelines. A template administrator can add it by following the
-[Extending Templates](../../admin/templates/extending-templates/ides/web-ides.md#airflow)
+[Extending Templates](../../admin/templates/extending-templates/web-ides.md#airflow)
 guide.
 
 ![Airflow in Coder](../../images/airflow-port-forward.png)
