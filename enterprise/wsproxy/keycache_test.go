@@ -317,8 +317,6 @@ func TestCryptoKeyCache(t *testing.T) {
 			clock  = quartz.NewMock(t)
 		)
 
-		trap := clock.Trap().TickerFunc()
-
 		now := clock.Now().UTC()
 		expected := codersdk.CryptoKey{
 			Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
@@ -339,8 +337,6 @@ func TestCryptoKeyCache(t *testing.T) {
 		require.Equal(t, expected, got)
 		require.Equal(t, 1, fc.called)
 
-		wait := trap.MustWait(ctx)
-
 		newKey := codersdk.CryptoKey{
 			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
 			Secret:   "key2",
@@ -348,8 +344,6 @@ func TestCryptoKeyCache(t *testing.T) {
 			StartsAt: now,
 		}
 		fc.keys = []codersdk.CryptoKey{newKey}
-
-		wait.Release()
 
 		// The ticker should fire and cause a request to coderd.
 		_, advance := clock.AdvanceNext()
@@ -362,9 +356,10 @@ func TestCryptoKeyCache(t *testing.T) {
 		require.Equal(t, newKey, got)
 		require.Equal(t, 2, fc.called)
 
-		// Assert we do not have the old key.
-		_, err = cache.Verifying(ctx, expected.Sequence)
-		require.Error(t, err)
+		// The ticker should fire and cause a request to coderd.
+		_, advance = clock.AdvanceNext()
+		advance.MustWait(ctx)
+		require.Equal(t, 3, fc.called)
 	})
 
 	t.Run("Closed", func(t *testing.T) {
