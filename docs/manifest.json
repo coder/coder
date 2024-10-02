@@ -514,6 +514,11 @@
 							"title": "Secrets",
 							"description": "Use sensitive variables in your workspaces",
 							"path": "./admin/security/secrets.md"
+						},
+						{
+							"title": "Database Encryption",
+							"description": "Encrypt the database to prevent unauthorized access",
+							"path": "./admin/security/database-encryption.md"
 						}
 					]
 				}
