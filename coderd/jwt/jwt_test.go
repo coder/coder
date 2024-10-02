@@ -23,7 +23,7 @@ func TestJWT(t *testing.T) {
 	t.Parallel()
 
 	type tokenType struct {
-		name     string
+		Name     string
 		SecureFn func(jwt.Claims, jwt.SecuringKeyFn) (string, error)
 		ParseFn  func(string, jwt.Claims, jwt.ParseKeyFunc, ...func(*jwt.ParseOptions)) error
 		KeySize  int
@@ -31,13 +31,13 @@ func TestJWT(t *testing.T) {
 
 	types := []tokenType{
 		{
-			name:     "JWE",
+			Name:     "JWE",
 			SecureFn: jwt.Encrypt,
 			ParseFn:  jwt.Decrypt,
 			KeySize:  32,
 		},
 		{
-			name:     "JWS",
+			Name:     "JWS",
 			SecureFn: jwt.Sign,
 			ParseFn:  jwt.Verify,
 			KeySize:  64,
@@ -47,7 +47,7 @@ func TestJWT(t *testing.T) {
 	for _, tt := range types {
 		tt := tt
 
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 
 			t.Run("Basic", func(t *testing.T) {
@@ -257,7 +257,7 @@ func TestJWT(t *testing.T) {
 			t.Run("WrongSignatureAlgorithm", func(t *testing.T) {
 				t.Parallel()
 
-				if tt.name == "JWE" {
+				if tt.Name == "JWE" {
 					t.Skip("JWE does not support this")
 				}
 
@@ -284,7 +284,7 @@ func TestJWT(t *testing.T) {
 			t.Run("WrongKeyAlgorithm", func(t *testing.T) {
 				t.Parallel()
 
-				if tt.name == "JWS" {
+				if tt.Name == "JWS" {
 					t.Skip("JWS does not support this")
 				}
 
@@ -311,7 +311,7 @@ func TestJWT(t *testing.T) {
 			t.Run("WrongContentyEncryption", func(t *testing.T) {
 				t.Parallel()
 
-				if tt.name == "JWS" {
+				if tt.Name == "JWS" {
 					t.Skip("JWS does not support this")
 				}
 
