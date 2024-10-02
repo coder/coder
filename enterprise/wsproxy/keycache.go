@@ -233,19 +233,20 @@ func (k *CryptoKeyCache) isClosed() bool {
 }
 
 func (k *CryptoKeyCache) Close() {
+	if k.isClosed() {
+		return
+	}
+
+	k.refreshCancel()
+	k.closed.Store(true)
+
 	// It's important to hold the locks here so that we don't unintentionally
-	// reset the timer via an in flight request when Close is called.
+	// reset the timer via an in flight request after Close returns.
 	k.fetchLock.Lock()
 	defer k.fetchLock.Unlock()
 
 	k.keysMu.Lock()
 	defer k.keysMu.Unlock()
 
-	if k.isClosed() {
-		return
-	}
-
-	k.refreshCancel()
 	k.refresher.Stop()
-	k.closed.Store(true)
 }
