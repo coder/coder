@@ -507,7 +507,8 @@ gen: \
 	examples/examples.gen.json \
 	tailnet/tailnettest/coordinatormock.go \
 	tailnet/tailnettest/coordinateemock.go \
-	tailnet/tailnettest/multiagentmock.go
+	tailnet/tailnettest/multiagentmock.go \
+	coderd/cryptokeys/keycachemock.go
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
@@ -537,6 +538,7 @@ gen/mark-fresh:
 		tailnet/tailnettest/coordinatormock.go \
 		tailnet/tailnettest/coordinateemock.go \
 		tailnet/tailnettest/multiagentmock.go \
+		coderd/cryptokeys/keycachemock.go
 	"
 	for file in $$files; do
 		echo "$$file"
@@ -627,6 +629,9 @@ examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(sh
 
 coderd/rbac/object_gen.go: scripts/rbacgen/rbacobject.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/rbacgen/main.go rbac > coderd/rbac/object_gen.go
+
+coderd/cryptokeys/keycachemock.go: coderd/cryptokeys/keycache.go
+	go generate ./coderd/cryptokeys
 
 codersdk/rbacresources_gen.go: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/rbacgen/main.go codersdk > codersdk/rbacresources_gen.go
