@@ -1,7 +1,5 @@
 # Workspace lifecycle
 
-<!-- TODO: Make a sexier opener -->
-
 Workspaces are flexible, reproducible, and isolated units of compute. Workspaces
 are created via Terraform, managed through the Coder control plane, accessed
 through the Coder agent, then stopped and deleted again by Terraform.
@@ -43,10 +41,8 @@ API, or dashboard. To learn how, read our
 
 By default, there is no limit on the number of workspaces a user may create,
 regardless of the template's resource demands. Enterprise administrators may
-limit the number of workspaces per template or group using quotas to prevent
-over provisioning and control costs.
-
-<!-- TODO: Quota link -->
+limit the number of workspaces per template, group, and organization using
+[quotas](../users/quotas.md) to prevent over provisioning and control costs.
 
 When a user creates a workspace, they're sending a build request to the control
 plane. Coder takes this and uses [Terraform](https://www.terraform.io/) to

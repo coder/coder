@@ -1,5 +1,7 @@
 # Workspaces
 
+<!-- TODO: ENSURE THIS CONTENT IS COPIED IN RESTRUCTURE -->
+
 A workspace is the environment that a developer works in. Developers in a team
 each work from their own workspace and can use
 [multiple IDEs](./user-guides/workspace-access/README.md).

@@ -65,7 +65,7 @@ User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly
 stopped due to the policy at the **start** of the user's quiet hours.
 
-![User schedule settings](../images/user-quiet-hours.png)
+![User schedule settings](../images/admin/templates/schedule/user-quiet-hours.png)
 
 ## Scheduling configuration examples
 
