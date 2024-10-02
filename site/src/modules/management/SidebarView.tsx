@@ -143,9 +143,7 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 						</SidebarNavSubItem>
 					)}
 					{permissions.viewAllUsers && (
-						<SidebarNavSubItem href={linkToUsers.slice(1)}>
-							Users
-						</SidebarNavSubItem>
+						<SidebarNavSubItem href="users">Users</SidebarNavSubItem>
 					)}
 					<SidebarNavSubItem href="notifications">
 						<Stack direction="row" alignItems="center" spacing={1}>
