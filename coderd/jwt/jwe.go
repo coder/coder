@@ -15,6 +15,7 @@ const (
 	encryptContentAlgo = jose.A256GCM
 )
 
+// Encrypt encrypts a token and returns it as a string.
 func Encrypt(claims Claims, keyFn SecuringKeyFn) (string, error) {
 	kid, key, err := keyFn()
 	if err != nil {
@@ -52,7 +53,8 @@ func Encrypt(claims Claims, keyFn SecuringKeyFn) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(serialized), nil
 }
 
-func Decrypt(token string, claims Claims, keyFn KeyFunc, opts ...func(*ParseOptions)) error {
+// Decrypt decrypts the token using the provided key. It unmarshals into the provided claims.
+func Decrypt(token string, claims Claims, keyFn ParseKeyFunc, opts ...func(*ParseOptions)) error {
 	options := ParseOptions{
 		RegisteredClaims: jjwt.Expected{
 			Time: time.Now(),

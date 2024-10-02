@@ -25,7 +25,7 @@ func TestJWT(t *testing.T) {
 	type tokenType struct {
 		name     string
 		SecureFn func(jwt.Claims, jwt.SecuringKeyFn) (string, error)
-		VerifyFn func(string, jwt.Claims, jwt.KeyFunc, ...func(*jwt.ParseOptions)) error
+		VerifyFn func(string, jwt.Claims, jwt.ParseKeyFunc, ...func(*jwt.ParseOptions)) error
 		KeySize  int
 	}
 
@@ -101,7 +101,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, jwt.KeycacheVerify(ctx, keycache))
+				err = tt.VerifyFn(token, &actual, jwt.KeycacheParse(ctx, keycache))
 				require.NoError(t, err)
 			})
 
@@ -372,7 +372,7 @@ func securingKeyFn(id string, key []byte) jwt.SecuringKeyFn {
 	}
 }
 
-func verifyingKeyFn(id string, key []byte) jwt.KeyFunc {
+func verifyingKeyFn(id string, key []byte) jwt.ParseKeyFunc {
 	return func(header jose.Header) (interface{}, error) {
 		if header.KeyID != id {
 			return nil, xerrors.Errorf("expected key ID %q, got %q", id, header.KeyID)

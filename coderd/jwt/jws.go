@@ -1,22 +1,13 @@
 package jwt
 
 import (
-	"context"
-	"encoding/hex"
 	"encoding/json"
-	"strconv"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
 	jjwt "github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 )
-
-type Claims interface {
-	Validate(jjwt.Expected) error
-}
 
 const (
 	defaultSigningAlgo = jose.HS512
@@ -24,24 +15,7 @@ const (
 	keyIDHeaderKey     = "kid"
 )
 
-type SecuringKeyFn func() (id string, key interface{}, err error)
-
-func KeycacheSecure(ctx context.Context, keys cryptokeys.Keycache) SecuringKeyFn {
-	return func() (id string, key interface{}, err error) {
-		signing, err := keys.Signing(ctx)
-		if err != nil {
-			return "", nil, xerrors.Errorf("get signing key: %w", err)
-		}
-
-		decoded, err := hex.DecodeString(signing.Secret)
-		if err != nil {
-			return "", nil, xerrors.Errorf("decode signing key: %w", err)
-		}
-
-		return strconv.FormatInt(int64(signing.Sequence), 10), decoded, nil
-	}
-}
-
+// Sign signs a token and returns it as a string.
 func Sign(claims Claims, keyFn SecuringKeyFn) (string, error) {
 	kid, key, err := keyFn()
 	if err != nil {
@@ -78,46 +52,8 @@ func Sign(claims Claims, keyFn SecuringKeyFn) (string, error) {
 	return compact, nil
 }
 
-type KeyFunc func(jose.Header) (interface{}, error)
-
-func KeycacheVerify(ctx context.Context, keys cryptokeys.Keycache) KeyFunc {
-	return func(header jose.Header) (interface{}, error) {
-		sequenceStr := header.KeyID
-		if sequenceStr == "" {
-			return nil, xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
-		}
-
-		sequence, err := strconv.ParseInt(sequenceStr, 10, 32)
-		if err != nil {
-			return nil, xerrors.Errorf("parse sequence: %w", err)
-		}
-
-		key, err := keys.Verifying(ctx, int32(sequence))
-		if err != nil {
-			return nil, xerrors.Errorf("version: %w", err)
-		}
-
-		decoded, err := hex.DecodeString(key.Secret)
-		if err != nil {
-			return nil, xerrors.Errorf("decode key: %w", err)
-		}
-
-		return decoded, nil
-	}
-}
-
-type ParseOptions struct {
-	RegisteredClaims jjwt.Expected
-
-	// The following are only used for JWSs.
-	SignatureAlgorithm jose.SignatureAlgorithm
-
-	// The following should only be used for JWEs.
-	KeyAlgorithm               jose.KeyAlgorithm
-	ContentEncryptionAlgorithm jose.ContentEncryption
-}
-
-func Verify(token string, claims Claims, keyFn KeyFunc, opts ...func(*ParseOptions)) error {
+// Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.
+func Verify(token string, claims Claims, keyFn ParseKeyFunc, opts ...func(*ParseOptions)) error {
 	options := ParseOptions{
 		RegisteredClaims: jjwt.Expected{
 			Time: time.Now(),
