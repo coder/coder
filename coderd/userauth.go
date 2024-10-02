@@ -341,66 +341,57 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		return
 	}
 
-	//nolint:gocritic // In order to change a user's password, we need to get the user first - and can only do that in the system auth context.
-	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
-		Email: req.Email,
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		logger.Error(ctx, "unable to fetch user by email", slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error.",
-		})
-		return
-	}
-	aReq.Old = user
-
-	equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
-	if err != nil {
-		logger.Error(ctx, "unable to compare passwords", slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error.",
-		})
-		return
-	}
-
-	if !equal {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Incorrect email or one-time-passcode.",
-		})
-		return
-	}
-
-	if err := userpassword.Validate(req.Password); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid password.",
-			Validations: []codersdk.ValidationError{
-				{
-					Field:  "password",
-					Detail: err.Error(),
-				},
-			},
-		})
-		return
-	}
-
-	if equal, _ = userpassword.Compare(string(user.HashedPassword), req.Password); equal {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "New password cannot match old password.",
-		})
-		return
-	}
-
-	newHashedPassword, err := userpassword.Hash(req.Password)
-	if err != nil {
-		logger.Error(ctx, "unable to hash new user password", slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error hashing new password.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	err = api.Database.InTx(func(tx database.Store) error {
+		//nolint:gocritic // In order to change a user's password, we need to get the user first - and can only do that in the system auth context.
+		user, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
+			Email: req.Email,
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			logger.Error(ctx, "unable to fetch user by email", slog.F("email", req.Email), slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error.",
+			})
+			return nil
+		}
+		aReq.Old = user
+
+		equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
+		if err != nil {
+			return xerrors.Errorf("compare one time passcode: %w", err)
+		}
+
+		if !equal {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Incorrect email or one-time-passcode.",
+			})
+			return nil
+		}
+
+		if err := userpassword.Validate(req.Password); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid password.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  "password",
+						Detail: err.Error(),
+					},
+				},
+			})
+			return nil
+		}
+
+		if equal, _ = userpassword.Compare(string(user.HashedPassword), req.Password); equal {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "New password cannot match old password.",
+			})
+			return nil
+		}
+
+		newHashedPassword, err := userpassword.Hash(req.Password)
+		if err != nil {
+			return xerrors.Errorf("hash user password: %w", err)
+		}
+
 		//nolint:gocritic // We need the system auth context to be able to update the user's password.
 		err = tx.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
 			ID:             user.ID,
@@ -416,24 +407,24 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return xerrors.Errorf("delete api keys for user: %w", err)
 		}
 
+		auditUser := user
+		auditUser.HashedPassword = []byte(newHashedPassword)
+		auditUser.OneTimePasscodeExpiresAt = sql.NullTime{}
+		auditUser.HashedOneTimePasscode = nil
+		aReq.New = auditUser
+
+		rw.WriteHeader(http.StatusOK)
+
 		return nil
 	}, nil)
 	if err != nil {
 		logger.Error(ctx, "unable to update user's password", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user's password.",
+			Message: "Internal error.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-
-	auditUser := user
-	auditUser.HashedPassword = []byte(newHashedPassword)
-	auditUser.OneTimePasscodeExpiresAt = sql.NullTime{}
-	auditUser.HashedOneTimePasscode = nil
-	aReq.New = auditUser
-
-	rw.WriteHeader(http.StatusOK)
 }
 
 // Authenticates the user with an email and password.
