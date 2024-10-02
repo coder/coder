@@ -28,17 +28,15 @@ func TestWebhook(t *testing.T) {
 	t.Parallel()
 
 	const (
-		titleTemplate = "this is the title ({{.Labels.foo}})"
-		bodyTemplate  = "this is the body ({{.Labels.baz}})"
+		titlePlaintext = "this is the title"
+		titleMarkdown  = "this *is* _the_ title"
+		bodyPlaintext  = "this is the body"
+		bodyMarkdown   = "~this~ is the `body`"
 	)
 
 	msgPayload := types.MessagePayload{
 		Version:          "1.0",
 		NotificationName: "test",
-		Labels: map[string]string{
-			"foo": "bar",
-			"baz": "quux",
-		},
 	}
 
 	tests := []struct {
@@ -60,6 +58,11 @@ func TestWebhook(t *testing.T) {
 				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 				assert.Equal(t, msgID, payload.MsgID)
 				assert.Equal(t, msgID.String(), r.Header.Get("X-Message-Id"))
+
+				assert.Equal(t, titlePlaintext, payload.Title)
+				assert.Equal(t, titleMarkdown, payload.TitleMarkdown)
+				assert.Equal(t, bodyPlaintext, payload.Body)
+				assert.Equal(t, bodyMarkdown, payload.BodyMarkdown)
 
 				w.WriteHeader(http.StatusOK)
 				_, err = w.Write([]byte(fmt.Sprintf("received %s", payload.MsgID)))
@@ -138,7 +141,7 @@ func TestWebhook(t *testing.T) {
 				Endpoint: *serpent.URLOf(endpoint),
 			}
 			handler := dispatch.NewWebhookHandler(cfg, logger.With(slog.F("test", tc.name)))
-			deliveryFn, err := handler.Dispatcher(msgPayload, titleTemplate, bodyTemplate)
+			deliveryFn, err := handler.Dispatcher(msgPayload, titleMarkdown, bodyMarkdown)
 			require.NoError(t, err)
 
 			retryable, err := deliveryFn(ctx, msgID)
