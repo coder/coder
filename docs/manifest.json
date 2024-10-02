@@ -346,7 +346,8 @@
 						{
 							"title": "Permissions \u0026 Policies",
 							"description": "Learn how to create templates with Terraform",
-							"path": "./admin/templates/template-permissions.md"
+							"path": "./admin/templates/template-permissions.md",
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Troubleshooting Templates",

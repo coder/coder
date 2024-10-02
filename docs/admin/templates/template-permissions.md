@@ -1,5 +1,7 @@
 # Permissions (enterprise) (premium)
 
+Licensed Coder administrators can control who can use and modify the template.
+
 ![Template Permissions](../../images/templates/permissions.png)
 
 Permissions allow you to control who can use and modify the template. Both
