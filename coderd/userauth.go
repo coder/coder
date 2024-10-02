@@ -279,10 +279,12 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	auditUser.OneTimePasscodeExpiresAt = sql.NullTime{Time: passcodeExpiresAt, Valid: true}
 	aReq.New = auditUser
 
-	// Send the one-time passcode to the user.
-	err = api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
-	if err != nil {
-		logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
+	if user.ID != uuid.Nil {
+		// Send the one-time passcode to the user.
+		err = api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
+		if err != nil {
+			logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
+		}
 	}
 }
 
