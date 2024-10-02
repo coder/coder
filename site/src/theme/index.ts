@@ -33,6 +33,6 @@ export const DEFAULT_THEME = "dark";
 const theme = {
 	dark,
 	light,
-} satisfies Record<"dark" | "light", Theme>;
+} satisfies Record<string, Theme>;
 
 export default theme;

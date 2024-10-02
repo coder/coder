@@ -337,6 +337,22 @@ export const MockUsers: User[] = [
 		],
 	},
 	{
+		id: "59da0bfe-9c99-47fa-a563-f9fdb18449d0",
+		created_at: "2022-08-15T08:30:10.343828Z",
+		updated_at: "2024-09-05T12:27:22.098297Z",
+		last_seen_at: "2024-09-05T12:27:22.098297Z",
+		status: "active",
+		login_type: "oidc",
+		theme_preference: "dark",
+		organization_ids: ["703f72a1-76f6-4f89-9de6-8a3989693fe5"],
+		roles: [
+			{
+				name: "owner",
+				display_name: "Owner",
+			},
+		],
+	},
+	{
 		id: "12b03f43-1bb7-4fca-967a-585c97f31682",
 		created_at: "2022-08-10T15:35:20.553581Z",
 		updated_at: "2024-09-05T13:23:46.237798Z",
@@ -392,6 +408,22 @@ export const MockUsers: User[] = [
 		status: "active",
 		login_type: "github",
 		theme_preference: "auto",
+		organization_ids: ["703f72a1-76f6-4f89-9de6-8a3989693fe5"],
+		roles: [
+			{
+				name: "owner",
+				display_name: "Owner",
+			},
+		],
+	},
+	{
+		id: "c323e5c3-57cb-45e7-81c4-56d6cacb2f8c",
+		created_at: "2024-03-04T11:12:41.201352Z",
+		updated_at: "2024-09-05T07:24:39.32465Z",
+		last_seen_at: "2024-09-05T07:24:39.324649Z",
+		status: "active",
+		login_type: "oidc",
+		theme_preference: "dark",
 		organization_ids: ["703f72a1-76f6-4f89-9de6-8a3989693fe5"],
 		roles: [
 			{
