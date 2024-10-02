@@ -1113,6 +1113,9 @@ func (*agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
 	return []netip.Prefix{
 		// This is the IP that should be used primarily.
 		tailnet.TailscaleServicePrefix.PrefixFromUUID(agentID),
+		// We'll need this address for CoderVPN, but aren't using it from clients until that feature
+		// is ready
+		tailnet.CoderServicePrefix.PrefixFromUUID(agentID),
 	}
 }
 
