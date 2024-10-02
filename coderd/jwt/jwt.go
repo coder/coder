@@ -19,8 +19,8 @@ type Claims interface {
 // SecuringKeyFn returns a key for signing or encrypting.
 type SecuringKeyFn func() (id string, key interface{}, err error)
 
-// KeycacheSecure returns the appropriate key for signing or encrypting.
-func KeycacheSecure(ctx context.Context, keys cryptokeys.Keycache) SecuringKeyFn {
+// SecuringKeyFromCache returns the appropriate key for signing or encrypting.
+func SecuringKeyFromCache(ctx context.Context, keys cryptokeys.Keycache) SecuringKeyFn {
 	return func() (id string, key interface{}, err error) {
 		signing, err := keys.Signing(ctx)
 		if err != nil {
@@ -39,8 +39,8 @@ func KeycacheSecure(ctx context.Context, keys cryptokeys.Keycache) SecuringKeyFn
 // ParseKeyFunc returns a key for verifying or decrypting a token.
 type ParseKeyFunc func(jose.Header) (interface{}, error)
 
-// KeycacheParse returns the appropriate key to decrypt or verify a token.
-func KeycacheParse(ctx context.Context, keys cryptokeys.Keycache) ParseKeyFunc {
+// ParseKeyFromCache returns the appropriate key to decrypt or verify a token.
+func ParseKeyFromCache(ctx context.Context, keys cryptokeys.Keycache) ParseKeyFunc {
 	return func(header jose.Header) (interface{}, error) {
 		sequenceStr := header.KeyID
 		if sequenceStr == "" {

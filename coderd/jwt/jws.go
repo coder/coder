@@ -11,7 +11,6 @@ import (
 
 const (
 	defaultSigningAlgo = jose.HS512
-	featureHeaderKey   = "feat"
 	keyIDHeaderKey     = "kid"
 )
 
