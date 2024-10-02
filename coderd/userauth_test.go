@@ -1715,6 +1715,14 @@ func TestUserForgotPassword(t *testing.T) {
 			Password: newPassword,
 		})
 		require.NoError(t, err)
+
+		// We now need to check that the one-time passcode isn't valid.
+		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        "SomeDifferentSecurePassword!",
+		})
+		require.Error(t, err)
 	})
 
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
@@ -1745,6 +1753,43 @@ func TestUserForgotPassword(t *testing.T) {
 		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: uuid.New().String(), // Use a different UUID to the one expected
+			Password:        "SomeNewSecurePassword!",
+		})
+		require.Error(t, err)
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
+			Email: anotherUser.Email,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, 2, len(notifyEnq.Sent))
+
+		notif := notifyEnq.Sent[1]
+		verifyOneTimePasscodeNotification(t, notif, anotherUser.ID)
+
+		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: "",
 			Password:        "SomeNewSecurePassword!",
 		})
 		require.Error(t, err)

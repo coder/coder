@@ -9110,6 +9110,8 @@ func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.U
 			continue
 		}
 		user.HashedPassword = arg.HashedPassword
+		user.HashedOneTimePasscode = nil
+		user.OneTimePasscodeExpiresAt = sql.NullTime{}
 		q.users[i] = user
 		return nil
 	}
