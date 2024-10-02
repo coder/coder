@@ -11,7 +11,7 @@ deployment for different user groups or projects.
 Here is an example of how one could use organizations to run a Coder deployment
 with multiple platform teams, all with unique resources:
 
-![Organizations Example](../images/admin/organizations/diagram.png)
+![Organizations Example](../../images/admin/users/organizations/diagram.png)
 
 ## The default organization
 
@@ -20,11 +20,11 @@ All Coder deployments start with one organization called `Coder`.
 To edit the organization details, navigate to `Deployment -> Organizations` in
 the top bar:
 
-![Organizations Menu](../images/admin/organizations/deployment-organizations.png)
+![Organizations Menu](../../images/admin/users/organizations/deployment-organizations.png)
 
 From there, you can manage the name, icon, description, users, and groups:
 
-![Organization Settings](../images/admin/organizations/default-organization.png)
+![Organization Settings](../../images/admin/users/organizations/default-organization.png)
 
 ## Additional organizations
 
@@ -49,7 +49,7 @@ provider to avoid manually assigning users to organizations.
 Within the sidebar, click `New organization` to create an organization. In this
 example, we'll create the `data-platform` org.
 
-![New Organization](../images/admin/organizations/new-organization.png)
+![New Organization](../../images/admin/users/organizations/new-organization.png)
 
 From there, let's deploy a provisioner and template for this organization.
 
@@ -87,21 +87,21 @@ coder provisionerd start --org <org-name>
 Once you've started a provisioner, you can create a template. You'll notice the
 "Create Template" screen now has an organization dropdown:
 
-![Template Org Picker](../images/admin/organizations/template-org-picker.png)
+![Template Org Picker](../../images/admin/users/organizations/template-org-picker.png)
 
 ### 5. Add members
 
 Navigate to `Deployment->Organizations` to add members to your organization.
 Once added, they will be able to see the organization-specific templates.
 
-![Add members](../images/admin/organizations/organization-members.png)
+![Add members](../../images/admin/users/organizations/organization-members.png)
 
 ### 6. Create a workspace
 
 Now, users in the data platform organization will see the templates related to
 their organization. Users can be in multiple organizations.
 
-![Workspace List](../images/admin/organizations/workspace-list.png)
+![Workspace List](../../images/admin/users/organizations/workspace-list.png)
 
 ## Beta
 
