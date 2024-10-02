@@ -68,7 +68,7 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Change password with a one-time passcode.
+## Change password with a one-time passcode
 
 ### Code samples
 
@@ -146,7 +146,7 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
 
-## Request one-time passcode.
+## Request one-time passcode
 
 ### Code samples
 

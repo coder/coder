@@ -205,7 +205,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 
 // Requests a one-time passcode for a user.
 //
-// @Summary Request one-time passcode.
+// @Summary Request one-time passcode
 // @ID request-one-time-passcode
 // @Accept json
 // @Tags Authorization
@@ -307,7 +307,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 
 // Change a users password with a one-time passcode.
 //
-// @Summary Change password with a one-time passcode.
+// @Summary Change password with a one-time passcode
 // @ID change-password-with-a-one-time-passcode
 // @Accept json
 // @Tags Authorization
@@ -358,7 +358,8 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return xerrors.Errorf("compare one time passcode: %w", err)
 		}
 
-		if !equal {
+		now := dbtime.Now()
+		if !equal || now.After(user.OneTimePasscodeExpiresAt.Time) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Incorrect email or one-time-passcode.",
 			})
