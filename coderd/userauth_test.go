@@ -1793,7 +1793,7 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
-	t.Run("NoNotificationIsSentIfEmailInvalid", func(t *testing.T) {
+	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {
 		t.Parallel()
 
 		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
@@ -1809,14 +1809,14 @@ func TestUserForgotPassword(t *testing.T) {
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
 		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
-			Email: "not-a-valid-email@coder.com",
+			Email: "not-a-member@coder.com",
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, 1, len(notifyEnq.Sent))
+		require.Equal(t, 2, len(notifyEnq.Sent))
 
-		notif := notifyEnq.Sent[0]
-		require.NotEqual(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
+		notif := notifyEnq.Sent[1]
+		verifyOneTimePasscodeNotification(t, notif, uuid.Nil)
 	})
 }
 

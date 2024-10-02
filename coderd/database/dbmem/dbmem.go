@@ -9093,9 +9093,8 @@ func (q *FakeQuerier) UpdateUserHashedOneTimePasscode(_ context.Context, arg dat
 		user.HashedOneTimePasscode = arg.HashedOneTimePasscode
 		user.OneTimePasscodeExpiresAt = arg.OneTimePasscodeExpiresAt
 		q.users[i] = user
-		return nil
 	}
-	return sql.ErrNoRows
+	return nil
 }
 
 func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
