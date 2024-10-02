@@ -9,6 +9,9 @@
 		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
-		"prettier": "3.3.3"
+		"autoprefixer": "^10.4.20",
+		"postcss": "^8.4.47",
+		"prettier": "3.3.3",
+		"tailwindcss": "^3.4.13"
 	}
 }
