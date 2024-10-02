@@ -147,12 +147,12 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 							Users
 						</SidebarNavSubItem>
 					)}
-					<Stack direction="row" alignItems="center" spacing={0}>
-						<SidebarNavSubItem href="notifications">
-							Notifications
-						</SidebarNavSubItem>
-						<FeatureStageBadge contentType="beta" size="sm" />
-					</Stack>
+					<SidebarNavSubItem href="notifications">
+						<Stack direction="row" alignItems="center" spacing={1}>
+							<span>Notifications</span>
+							<FeatureStageBadge contentType="beta" size="sm" />
+						</Stack>
+					</SidebarNavSubItem>
 				</Stack>
 			)}
 		</div>
