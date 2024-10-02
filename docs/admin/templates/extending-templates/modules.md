@@ -190,6 +190,7 @@ coder:
 
 ## Next steps
 
-- JFrog's [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry)
+- JFrog's
+  [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry)
 - [Configuring the JFrog toolchain inside a workspace](../../integrations/jfrog-artifactory.md)
 - [Coder Module Registry](https://registry.coder.com/modules)

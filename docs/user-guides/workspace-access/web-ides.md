@@ -32,7 +32,7 @@ running VS Code in the web browser. You can read more in our
 
 We also support Microsoft's official product for using VS Code in the browser. A
 template administrator can add it by following the
-[Extending Templates](../../admin/templates/extending-templates/ides/web-ides.md#vscode-web)
+[Extending Templates](../../admin/templates/extending-templates/web-ides.md#vs-code-web)
 guide.
 
 ![VS Code Web in Coder](../../images/vscode-web.gif)
@@ -41,7 +41,7 @@ guide.
 
 Jupyter Notebook is a web-based interactive computing platform. A template
 administrator can add it by following the
-[Extending Templates](../../admin/templates/extending-templates/ides/web-ides.md#jupyter)
+[Extending Templates](../../admin/templates/extending-templates/web-ides.md#jupyter-notebook)
 guide.
 
 ![Jupyter Notebook in Coder](../../images/jupyter-notebook.png)

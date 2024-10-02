@@ -150,6 +150,22 @@ command. To add VS Code web as a web IDE, you have two options.
    }
    ```
 
+## Jupyter Notebook
+
+To use Jupyter Notebook in your workspace, you can install it by using the
+[Jupyter Notebook module](https://registry.coder.com/modules/jupyter-notebook)
+from the Coder registry:
+
+```tf
+module "jupyter-notebook" {
+  source   = "registry.coder.com/modules/jupyter-notebook/coder"
+  version  = "1.0.19"
+  agent_id = coder_agent.example.id
+}
+```
+
+![Jupyter Notebook in Coder](../../../images/jupyter-notebook.png)
+
 ## JupyterLab
 
 Configure your agent and `coder_app` like so to use Jupyter. Notice the
@@ -273,7 +289,7 @@ resource "coder_app" "airflow" {
   agent_id      = coder_agent.coder.id
   slug          = "airflow"
   display_name  = "Airflow"
-  icon          = "https://upload.wikimedia.org/wikipedia/commons/d/de/AirflowLogo.png"
+  icon          = "/icon/airflow.svg"
   url           = "http://localhost:8080"
   subdomain     = true
   share         = "owner"
