@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -19,6 +20,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestCryptoKeyCache(t *testing.T) {
 	t.Parallel()
@@ -346,9 +351,10 @@ func TestCryptoKeyCache(t *testing.T) {
 		fc.keys = []codersdk.CryptoKey{newKey}
 
 		// The ticker should fire and cause a request to coderd.
-		_, advance := clock.AdvanceNext()
+		dur, advance := clock.AdvanceNext()
 		advance.MustWait(ctx)
 		require.Equal(t, 2, fc.called)
+		require.Equal(t, time.Minute*10, dur)
 
 		// Assert hits cache.
 		got, err = cache.Signing(ctx)
@@ -356,9 +362,66 @@ func TestCryptoKeyCache(t *testing.T) {
 		require.Equal(t, newKey, got)
 		require.Equal(t, 2, fc.called)
 
-		// The ticker should fire and cause a request to coderd.
+		// We check again to ensure the timer has been reset.
 		_, advance = clock.AdvanceNext()
 		advance.MustWait(ctx)
+		require.Equal(t, 3, fc.called)
+		require.Equal(t, time.Minute*10, dur)
+	})
+
+	// This test ensures that if the refresh timer races with an inflight request
+	// and loses that it doesn't cause a redundant fetch.
+
+	t.Run("RefreshNoDoubleFetch", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, nil)
+			clock  = quartz.NewMock(t)
+		)
+
+		now := clock.Now().UTC()
+		expected := codersdk.CryptoKey{
+			Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
+			Secret:    "key1",
+			Sequence:  12,
+			StartsAt:  now,
+			DeletesAt: now.Add(time.Minute * 10),
+		}
+		fc := newFakeCoderd(t, []codersdk.CryptoKey{
+			expected,
+		})
+
+		// Create a trap that blocks when the refresh timer fires.
+		trap := clock.Trap().Now("refresh")
+		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+		require.NoError(t, err)
+
+		_, wait := clock.AdvanceNext()
+		trapped := trap.MustWait(ctx)
+
+		newKey := codersdk.CryptoKey{
+			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+			Secret:   "key2",
+			Sequence: 13,
+			StartsAt: now,
+		}
+		fc.keys = []codersdk.CryptoKey{newKey}
+
+		_, err = cache.Verifying(ctx, newKey.Sequence)
+		require.NoError(t, err)
+		require.Equal(t, 2, fc.called)
+
+		trapped.Release()
+		wait.MustWait(ctx)
+		require.Equal(t, 2, fc.called)
+		trap.Close()
+
+		// The next timer should fire in 10 minutes.
+		dur, wait := clock.AdvanceNext()
+		wait.MustWait(ctx)
+		require.Equal(t, time.Minute*10, dur)
 		require.Equal(t, 3, fc.called)
 	})
 

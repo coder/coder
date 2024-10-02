@@ -2,6 +2,7 @@ package wsproxy
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,7 +48,7 @@ func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client *wsproxysdk.
 
 	cache.refreshCtx, cache.refreshCancel = context.WithCancel(ctx)
 	cache.refresher = cache.Clock.AfterFunc(time.Minute*10, cache.refresh)
-	m, latest, err := cache.fetchKeys(ctx)
+	m, latest, err := cache.cryptoKeys(ctx)
 	if err != nil {
 		cache.refreshCancel()
 		return nil, xerrors.Errorf("initial fetch: %w", err)
@@ -100,10 +101,11 @@ func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersd
 		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
 	}
 
-	now := k.Clock.Now()
 	k.keysMu.RLock()
 	key, ok := k.keys[sequence]
 	k.keysMu.RUnlock()
+
+	now := k.Clock.Now()
 	if ok {
 		return validKey(key, now)
 	}
@@ -135,11 +137,13 @@ func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersd
 	return validKey(key, now)
 }
 
+// refresh fetches the keys from the control plane and updates the cache.
 func (k *CryptoKeyCache) refresh() {
 	if k.isClosed() {
 		return
 	}
 
+	now := k.Clock.Now("CryptoKeyCache", "refresh")
 	k.fetchLock.Lock()
 	defer k.fetchLock.Unlock()
 
@@ -154,7 +158,7 @@ func (k *CryptoKeyCache) refresh() {
 	// There's a window we must account for where the timer fires while a fetch
 	// is ongoing but prior to the timer getting reset. In this case we want to
 	// avoid double fetching.
-	if k.Clock.Now().Sub(lastFetch) < time.Minute*10 {
+	if now.Sub(lastFetch) < time.Minute*10 {
 		return
 	}
 
@@ -165,7 +169,9 @@ func (k *CryptoKeyCache) refresh() {
 	}
 }
 
-func (k *CryptoKeyCache) fetchKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey, error) {
+// cryptoKeys queries the control plane for the crypto keys.
+// Outside of initialization, this should only be called by fetch.
+func (k *CryptoKeyCache) cryptoKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey, error) {
 	keys, err := k.client.CryptoKeys(ctx)
 	if err != nil {
 		return nil, codersdk.CryptoKey{}, xerrors.Errorf("crypto keys: %w", err)
@@ -176,8 +182,9 @@ func (k *CryptoKeyCache) fetchKeys(ctx context.Context) (map[int32]codersdk.Cryp
 
 // fetch fetches the keys from the control plane and updates the cache. The fetchMu
 // must be held when calling this function to avoid multiple concurrent fetches.
+// The returned keys are safe to use without additional locking.
 func (k *CryptoKeyCache) fetch(ctx context.Context) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey, error) {
-	keys, latest, err := k.fetchKeys(ctx)
+	keys, latest, err := k.cryptoKeys(ctx)
 	if err != nil {
 		return nil, codersdk.CryptoKey{}, xerrors.Errorf("fetch keys: %w", err)
 	}
@@ -196,7 +203,7 @@ func (k *CryptoKeyCache) fetch(ctx context.Context) (map[int32]codersdk.CryptoKe
 
 	k.lastFetch = k.Clock.Now()
 	k.refresher.Reset(time.Minute * 10)
-	k.keys, k.latest = keys, latest
+	k.keys, k.latest = maps.Clone(keys), latest
 
 	return keys, latest, nil
 }
@@ -226,8 +233,8 @@ func (k *CryptoKeyCache) isClosed() bool {
 }
 
 func (k *CryptoKeyCache) Close() {
-	// The fetch lock must always be held before holding the keys lock
-	// otherwise we risk a deadlock.
+	// It's important to hold the locks here so that we don't unintentionally
+	// reset the timer via an in flight request when Close is called.
 	k.fetchLock.Lock()
 	defer k.fetchLock.Unlock()
 
@@ -239,5 +246,6 @@ func (k *CryptoKeyCache) Close() {
 	}
 
 	k.refreshCancel()
+	k.refresher.Stop()
 	k.closed.Store(true)
 }
