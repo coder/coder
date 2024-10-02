@@ -249,7 +249,7 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// THEN: the webhook is received by the mock server and has the expected contents
 	payload := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, sent)
-	require.EqualValues(t, "1.0", payload.Version)
+	require.EqualValues(t, "1.1", payload.Version)
 	require.Equal(t, *msgID, payload.MsgID)
 	require.Equal(t, payload.Payload.Labels, input)
 	require.Equal(t, payload.Payload.UserEmail, email)

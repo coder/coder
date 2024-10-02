@@ -75,8 +75,8 @@ const parseInvertFilterParameters = (
 
 	let extraStyles: CSSObject | undefined;
 
-	const brightness = params.get("brightness");
-	if (multiplier.test(brightness!)) {
+	const brightness = params.get("brightness") ?? "";
+	if (multiplier.test(brightness)) {
 		let filter = baseStyles.filter ?? "";
 		filter += ` brightness(${brightness})`;
 		extraStyles = { ...extraStyles, filter };
@@ -131,7 +131,7 @@ export function getExternalImageStylesFromUrl(
 	) {
 		return parseImageParameters(
 			modes,
-			defaultParametersForBuiltinIcons.get(url.pathname)!,
+			defaultParametersForBuiltinIcons.get(url.pathname) as string,
 		);
 	}
 
