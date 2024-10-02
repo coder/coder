@@ -20,7 +20,6 @@ import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
 export const Sidebar: FC = () => {
 	const location = useLocation();
 	const { permissions } = useAuthenticated();
-	const { experiments } = useDashboard();
 	const { organizations } = useManagementSettings();
 	const { organization: organizationName } = useParams() as {
 		organization?: string;
@@ -56,7 +55,6 @@ export const Sidebar: FC = () => {
 			activeOrganizationName={organizationName}
 			organizations={editableOrgs}
 			permissions={permissions}
-			experiments={experiments}
 		/>
 	);
 };

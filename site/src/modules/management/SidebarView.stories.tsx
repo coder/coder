@@ -35,7 +35,6 @@ const meta: Meta<typeof SidebarView> = {
 			},
 		],
 		permissions: MockPermissions,
-		experiments: ["notifications"],
 	},
 };
 

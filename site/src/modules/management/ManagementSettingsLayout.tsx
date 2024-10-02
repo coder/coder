@@ -10,7 +10,7 @@ import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
-import { Navigate, Outlet, useNavigate, useParams } from "react-router-dom";
+import { Outlet, useParams } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 
 export const ManagementSettingsContext = createContext<
@@ -88,21 +88,21 @@ export const ManagementSettingsLayout: FC = () => {
 	}
 
 	return (
-		<Margins>
-			<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
-				<Sidebar />
-				<main css={{ width: "100%" }}>
-					<Suspense fallback={<Loader />}>
-						<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
-							<ManagementSettingsContext.Provider
-								value={{ deploymentValues: deploymentConfigQuery.data }}
-							>
+		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
+			<ManagementSettingsContext.Provider
+				value={{ deploymentValues: deploymentConfigQuery.data }}
+			>
+				<Margins>
+					<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
+						<Sidebar />
+						<main css={{ width: "100%" }}>
+							<Suspense fallback={<Loader />}>
 								<Outlet />
-							</ManagementSettingsContext.Provider>
-						</RequirePermission>
-					</Suspense>
-				</main>
-			</Stack>
-		</Margins>
+							</Suspense>
+						</main>
+					</Stack>
+				</Margins>
+			</ManagementSettingsContext.Provider>
+		</RequirePermission>
 	);
 };

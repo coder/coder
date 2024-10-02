@@ -102,7 +102,7 @@ const UsersPage: FC = () => {
 		authMethodsQuery.isLoading ||
 		groupsByUserIdQuery.isLoading;
 
-	if (showOrganizations && location.pathname === "/users") {
+	if (location.pathname === "/users") {
 		return <Navigate to={`/deployment/users${location.search}`} replace />;
 	}
 

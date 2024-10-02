@@ -31,8 +31,6 @@ interface SidebarProps {
 	organizations: OrganizationWithPermissions[] | undefined;
 	/** Site-wide permissions. */
 	permissions: AuthorizationResponse;
-	/** Active experiments */
-	experiments: Experiments;
 }
 
 /**
@@ -43,25 +41,29 @@ export const SidebarView: FC<SidebarProps> = ({
 	activeOrganizationName,
 	organizations,
 	permissions,
-	experiments,
 }) => {
+	const { showOrganizations } = useDashboard();
+
 	// TODO: Do something nice to scroll to the active org.
 	return (
 		<BaseSidebar>
-			<header>
-				<h2 css={styles.sidebarHeader}>Deployment</h2>
-			</header>
+			{showOrganizations && (
+				<header>
+					<h2 css={styles.sidebarHeader}>Deployment</h2>
+				</header>
+			)}
 
 			<DeploymentSettingsNavigation
 				active={!activeOrganizationName && activeSettings}
-				experiments={experiments}
 				permissions={permissions}
 			/>
-			<OrganizationsSettingsNavigation
-				activeOrganizationName={activeOrganizationName}
-				organizations={organizations}
-				permissions={permissions}
-			/>
+			{showOrganizations && (
+				<OrganizationsSettingsNavigation
+					activeOrganizationName={activeOrganizationName}
+					organizations={organizations}
+					permissions={permissions}
+				/>
+			)}
 		</BaseSidebar>
 	);
 };
@@ -71,8 +73,6 @@ interface DeploymentSettingsNavigationProps {
 	active: boolean;
 	/** Site-wide permissions. */
 	permissions: AuthorizationResponse;
-	/** Active experiments */
-	experiments: Experiments;
 }
 
 /**
@@ -85,7 +85,6 @@ interface DeploymentSettingsNavigationProps {
 const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 	active,
 	permissions,
-	experiments,
 }) => {
 	return (
 		<div css={{ paddingBottom: 12 }}>
@@ -148,9 +147,12 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 							Users
 						</SidebarNavSubItem>
 					)}
-					<SidebarNavSubItem href="notifications">
-						Notifications <FeatureStageBadge contentType="beta" size="sm" />
-					</SidebarNavSubItem>
+					<Stack direction="row" alignItems="center" spacing={0}>
+						<SidebarNavSubItem href="notifications">
+							Notifications
+						</SidebarNavSubItem>
+						<FeatureStageBadge contentType="beta" size="sm" />
+					</Stack>
 				</Stack>
 			)}
 		</div>
