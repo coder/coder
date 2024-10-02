@@ -274,10 +274,10 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	newUser := user
-	newUser.HashedOneTimePasscode = []byte(hashedPasscode)
-	newUser.OneTimePasscodeExpiresAt = sql.NullTime{Time: passcodeExpiresAt, Valid: true}
-	aReq.New = newUser
+	auditUser := user
+	auditUser.HashedOneTimePasscode = []byte(hashedPasscode)
+	auditUser.OneTimePasscodeExpiresAt = sql.NullTime{Time: passcodeExpiresAt, Valid: true}
+	aReq.New = auditUser
 
 	// Send the one-time passcode to the user.
 	err = api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
@@ -425,11 +425,11 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		return
 	}
 
-	newUser := user
-	newUser.HashedPassword = []byte(newHashedPassword)
-	newUser.OneTimePasscodeExpiresAt = sql.NullTime{}
-	newUser.HashedOneTimePasscode = nil
-	aReq.New = newUser
+	auditUser := user
+	auditUser.HashedPassword = []byte(newHashedPassword)
+	auditUser.OneTimePasscodeExpiresAt = sql.NullTime{}
+	auditUser.HashedOneTimePasscode = nil
+	aReq.New = auditUser
 
 	rw.WriteHeader(http.StatusOK)
 }
