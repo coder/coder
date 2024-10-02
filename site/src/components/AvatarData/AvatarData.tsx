@@ -10,15 +10,11 @@ export interface AvatarDataProps {
 	avatar?: React.ReactNode;
 
 	/**
-	 * Useful for when you need to pass in a ReactNode for the title of the
-	 * component.
+	 * Lets you specify the character(s) displayed in an avatar when an image is
+	 * unavailable (like when the network request fails).
 	 *
-	 * MUI will try to take any string titles and turn them into the first
-	 * character, but if you pass in a ReactNode, MUI can't do that, because it
-	 * has no way to reliably grab the text content during renders.
-	 *
-	 * Tried writing some layout effect/JSX parsing logic to do the extraction,
-	 * but it added complexity and render overhead, and wasn't reliable enough
+	 * If not specified, the component will try to parse the first character
+	 * from the title prop if it is a string.
 	 */
 	imgFallbackText?: string;
 }
@@ -34,7 +30,7 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	if (!avatar) {
 		avatar = (
 			<Avatar background src={src}>
-				{typeof title === "string" ? title || "-" : imgFallbackText ?? "-"}
+				{(typeof title === "string" ? title : imgFallbackText) || "-"}
 			</Avatar>
 		);
 	}
