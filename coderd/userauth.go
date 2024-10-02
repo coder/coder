@@ -348,15 +348,13 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Error(ctx, "unable to fetch user by email", slog.F("email", req.Email), slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error.",
-			})
-			return nil
+			return xerrors.Errorf("get user by email: %w", err)
 		}
 		aReq.Old = user
 
 		equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
 		if err != nil {
+			logger.Error(ctx, "unable to compare one time passcode", slog.Error(err))
 			return xerrors.Errorf("compare one time passcode: %w", err)
 		}
 
@@ -389,6 +387,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 		newHashedPassword, err := userpassword.Hash(req.Password)
 		if err != nil {
+			logger.Error(ctx, "unable to hash user's password", slog.Error(err))
 			return xerrors.Errorf("hash user password: %w", err)
 		}
 
@@ -398,12 +397,14 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			HashedPassword: []byte(newHashedPassword),
 		})
 		if err != nil {
+			logger.Error(ctx, "unable to delete user's hashed password", slog.Error(err))
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
 		//nolint:gocritic // We need the system auth context to be able to delete all API keys for the user.
 		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
+			logger.Error(ctx, "unable to delete user's api keys", slog.Error(err))
 			return xerrors.Errorf("delete api keys for user: %w", err)
 		}
 
@@ -418,7 +419,6 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		return nil
 	}, nil)
 	if err != nil {
-		logger.Error(ctx, "unable to update user's password", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 			Detail:  err.Error(),
