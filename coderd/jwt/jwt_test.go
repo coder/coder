@@ -25,7 +25,7 @@ func TestJWT(t *testing.T) {
 	type tokenType struct {
 		name     string
 		SecureFn func(jwt.Claims, jwt.SecuringKeyFn) (string, error)
-		VerifyFn func(string, jwt.Claims, jwt.ParseKeyFunc, ...func(*jwt.ParseOptions)) error
+		ParseFn  func(string, jwt.Claims, jwt.ParseKeyFunc, ...func(*jwt.ParseOptions)) error
 		KeySize  int
 	}
 
@@ -33,13 +33,13 @@ func TestJWT(t *testing.T) {
 		{
 			name:     "JWE",
 			SecureFn: jwt.Encrypt,
-			VerifyFn: jwt.Decrypt,
+			ParseFn:  jwt.Decrypt,
 			KeySize:  32,
 		},
 		{
 			name:     "JWS",
 			SecureFn: jwt.Sign,
-			VerifyFn: jwt.Verify,
+			ParseFn:  jwt.Verify,
 			KeySize:  64,
 		},
 	}
@@ -69,7 +69,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key))
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key))
 				require.NoError(t, err)
 			})
 
@@ -101,7 +101,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, jwt.ParseKeyFromCache(ctx, keycache))
+				err = tt.ParseFn(token, &actual, jwt.ParseKeyFromCache(ctx, keycache))
 				require.NoError(t, err)
 			})
 
@@ -124,7 +124,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
 					Issuer: "coder2",
 				}))
 				require.ErrorIs(t, err, jjwt.ErrInvalidIssuer)
@@ -149,7 +149,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
 					Subject: "user2@coder.com",
 				}))
 				require.ErrorIs(t, err, jjwt.ErrInvalidSubject)
@@ -174,7 +174,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
 					AnyAudience: jjwt.Audience{"coder2"},
 				}))
 				require.ErrorIs(t, err, jjwt.ErrInvalidAudience)
@@ -199,7 +199,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
 					Time: time.Now().Add(time.Minute * 3),
 				}))
 				require.ErrorIs(t, err, jjwt.ErrExpired)
@@ -223,7 +223,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
 					Time: time.Now().Add(-time.Minute * 3),
 				}))
 				require.ErrorIs(t, err, jjwt.ErrIssuedInTheFuture)
@@ -248,7 +248,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
 					Time: time.Now().Add(time.Minute * 3),
 				}))
 				require.ErrorIs(t, err, jjwt.ErrNotValidYet)
@@ -277,7 +277,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withSignatureAlgorithm(jose.HS256))
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withSignatureAlgorithm(jose.HS256))
 				require.Error(t, err)
 			})
 
@@ -304,7 +304,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withKeyAlgorithm(jose.A128GCMKW))
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withKeyAlgorithm(jose.A128GCMKW))
 				require.Error(t, err)
 			})
 
@@ -331,7 +331,7 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(token, &actual, verifyingKeyFn(id, key), withContentEncryptionAlgorithm(jose.A128GCM))
+				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withContentEncryptionAlgorithm(jose.A128GCM))
 				require.Error(t, err)
 			})
 		})
