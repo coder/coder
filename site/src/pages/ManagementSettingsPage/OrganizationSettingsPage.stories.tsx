@@ -1,14 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MockDefaultOrganization, MockUser } from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withManagementSettingsProvider,
+} from "testHelpers/storybook";
 import OrganizationSettingsPage from "./OrganizationSettingsPage";
 
 const meta: Meta<typeof OrganizationSettingsPage> = {
 	title: "pages/OrganizationSettingsPage",
 	component: OrganizationSettingsPage,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [
+		withAuthProvider,
+		withDashboardProvider,
+		withManagementSettingsProvider,
+	],
 	parameters: {
+		showOrganizations: true,
 		user: MockUser,
 		features: ["multiple_organizations"],
 		permissions: { viewDeploymentValues: true },

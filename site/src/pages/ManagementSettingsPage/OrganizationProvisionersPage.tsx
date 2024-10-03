@@ -1,27 +1,20 @@
 import { buildInfo } from "api/queries/buildInfo";
-import {
-	organizationsPermissions,
-	provisionerDaemonGroups,
-} from "api/queries/organizations";
+import { provisionerDaemonGroups } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Loader } from "components/Loader/Loader";
-import { Paywall } from "components/Paywall/Paywall";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router-dom";
-import { docs } from "utils/docs";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
 const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { organizations } = useOrganizationSettings();
+	const { organizations } = useManagementSettings();
 	const { entitlements } = useDashboard();
 
 	const { metadata } = useEmbeddedMetadata();
