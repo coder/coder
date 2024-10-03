@@ -804,8 +804,12 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 	}
 }
 
+func removeTrailingVersionInfo(v string) string {
+	return strings.Split(strings.Split(v, "-")[0], "+")[0]
+}
+
 func DefaultDocsURL() string {
-	version := strings.Split(buildinfo.Version(), "-")[0]
+	version := removeTrailingVersionInfo(buildinfo.Version())
 	if version == "v0.0.0" {
 		return "https://coder.com/docs"
 	}
