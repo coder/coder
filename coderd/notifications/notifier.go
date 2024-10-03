@@ -2,9 +2,7 @@ package notifications
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"sync"
 	"text/template"
 
@@ -26,6 +24,7 @@ import (
 
 const (
 	NotificationsDefaultLogoURL = "https://coder.com/coder-logo-horizontal.png"
+	NotificationsDefaultAppName = "Coder"
 )
 
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
@@ -228,18 +227,6 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	if !ok {
 		return nil, xerrors.Errorf("failed to resolve handler %q", msg.Method)
 	}
-
-	logoURL, err := n.store.GetLogoURL(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		n.log.Error(ctx, "failed fetching logo url", slog.Error(err))
-	}
-
-	if logoURL == "" {
-		//nolint:ineffassign // define to default value if unable to fetch one from db
-		logoURL = NotificationsDefaultLogoURL
-	}
-
-	payload.Labels["_logo_url"] = logoURL
 
 	var title, body string
 	if title, err = render.GoTemplate(msg.TitleTemplate, payload, n.helpers); err != nil {

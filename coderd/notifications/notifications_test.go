@@ -241,9 +241,8 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// WHEN: a notification is enqueued (including arbitrary labels)
 	input := map[string]string{
-		"a":         "b",
-		"c":         "d",
-		"_logo_url": notifications.NotificationsDefaultLogoURL,
+		"a": "b",
+		"c": "d",
 	}
 	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
 	require.NoError(t, err)

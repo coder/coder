@@ -1309,6 +1309,30 @@ func templateHelpers(options *coderd.Options) map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return options.AccessURL.String() },
 		"current_year": func() string { return strconv.Itoa(time.Now().Year()) },
+		"logo_url": func() string {
+			logoURL, err := options.Database.GetLogoURL(context.Background())
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return notifications.NotificationsDefaultLogoURL
+				}
+
+				return ""
+			}
+
+			return logoURL
+		},
+		"app_name": func() string {
+			appName, err := options.Database.GetApplicationName(context.Background())
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return notifications.NotificationsDefaultAppName
+				}
+
+				return ""
+			}
+
+			return appName
+		},
 	}
 }
 
