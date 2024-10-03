@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -259,7 +260,10 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+		api.publishWorkspaceUpdate(ctx, build.InitiatorID, wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindLogs,
+			WorkspaceID: build.WorkspaceID,
+		})
 
 		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 			Message: "Logs limit exceeded",
@@ -296,7 +300,10 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+		api.publishWorkspaceUpdate(ctx, build.InitiatorID, wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindLogs,
+			WorkspaceID: build.WorkspaceID,
+		})
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
@@ -426,12 +433,15 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	notifyCh <- struct{}{}
 
 	// Subscribe to workspace to detect new builds.
-	closeSubscribeWorkspace, err := api.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-		select {
-		case workspaceNotifyCh <- struct{}{}:
-		default:
-		}
-	})
+	closeSubscribeWorkspace, err := api.Pubsub.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+		wspubsub.HandleWorkspaceEvent(func(_ context.Context, e wspubsub.WorkspaceEvent) {
+			if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+				select {
+				case workspaceNotifyCh <- struct{}{}:
+				default:
+				}
+			}
+		}))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to subscribe to workspace for log streaming.",
