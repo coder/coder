@@ -19,7 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -225,7 +226,15 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	_ = dbgen.WorkspaceBuildParameters(b.t, b.db, b.params)
 
 	if b.ps != nil {
-		err = b.ps.Publish(codersdk.WorkspaceNotifyChannel(resp.Build.WorkspaceID), []byte{})
+		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
+			Kind:          wspubsub.WorkspaceEventKindStateChange,
+			WorkspaceID:   resp.Workspace.ID,
+			WorkspaceName: ptr.Ref(resp.Workspace.Name),
+			Transition:    ptr.Ref(resp.Build.Transition),
+			JobStatus:     ptr.Ref(job.JobStatus),
+		})
+		require.NoError(b.t, err)
+		err = b.ps.Publish(wspubsub.WorkspaceEventChannel(resp.Build.InitiatorID), msg)
 		require.NoError(b.t, err)
 	}
 
