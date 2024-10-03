@@ -1658,11 +1658,50 @@ func TestOIDCSkipIssuer(t *testing.T) {
 func TestUserForgotPassword(t *testing.T) {
 	t.Parallel()
 
-	verifyOneTimePasscodeNotification := func(t *testing.T, notif *testutil.Notification, userID uuid.UUID) {
+	requireOneTimePasscodeNotification := func(t *testing.T, notif *testutil.Notification, userID uuid.UUID) {
 		require.Equal(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
 		require.Equal(t, userID, notif.UserID)
 		require.Equal(t, 1, len(notif.Targets))
 		require.Equal(t, userID, notif.Targets[0])
+	}
+
+	requireCanLogin := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, password string) {
+		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    email,
+			Password: password,
+		})
+		require.NoError(t, err)
+	}
+
+	requireCannotLogin := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, password string) {
+		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    email,
+			Password: password,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or password.")
+	}
+
+	requireRequestOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, notifyEnq *testutil.FakeNotificationsEnqueuer, email string, userID uuid.UUID) string {
+		err := client.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{Email: email})
+		require.NoError(t, err)
+
+		require.Equal(t, 2, len(notifyEnq.Sent))
+
+		notif := notifyEnq.Sent[1]
+		requireOneTimePasscodeNotification(t, notifyEnq.Sent[1], userID)
+		return notif.Labels["one_time_passcode"]
+	}
+
+	requireChangePasswordWithOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, passcode string, password string) {
+		err := client.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           email,
+			OneTimePasscode: passcode,
+			Password:        password,
+		})
+		require.NoError(t, err)
 	}
 
 	t.Run("CanChangePassword", func(t *testing.T) {
@@ -1684,47 +1723,20 @@ func TestUserForgotPassword(t *testing.T) {
 
 		// First try to login before changing our password. We expected this to error
 		// as we haven't change the password yet.
-		_, err := anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
-			Password: newPassword,
-		})
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Incorrect email or password.")
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 
-		err = anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
-			Email: anotherUser.Email,
-		})
-		require.NoError(t, err)
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
 
-		require.Equal(t, 2, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[1]
-		verifyOneTimePasscodeNotification(t, notif, anotherUser.ID)
-
-		oneTimePasscode := notif.Labels["one_time_passcode"]
-
-		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
-			Email:           anotherUser.Email,
-			OneTimePasscode: oneTimePasscode,
-			Password:        newPassword,
-		})
-		require.NoError(t, err)
-
-		// Now that we have changed the password, this should work.
-		_, err = anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
-			Password: newPassword,
-		})
-		require.NoError(t, err)
+		requireChangePasswordWithOneTimePasscode(t, ctx, anotherClient, anotherUser.Email, oneTimePasscode, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 
 		// We now need to check that the one-time passcode isn't valid.
-		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: oneTimePasscode,
 			Password:        "SomeDifferentSecurePassword!",
 		})
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
@@ -1749,23 +1761,13 @@ func TestUserForgotPassword(t *testing.T) {
 
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
-			Email: anotherUser.Email,
-		})
-		require.NoError(t, err)
-
-		require.Equal(t, 2, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[1]
-		verifyOneTimePasscodeNotification(t, notif, anotherUser.ID)
-
-		oneTimePasscode := notif.Labels["one_time_passcode"]
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
 
 		// Wait for long enough so that the token expires
 		time.Sleep(oneTimePasscodeValidityPeriod + 1*time.Second)
 
 		// Try to change password with an expired one time passcode.
-		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: oneTimePasscode,
 			Password:        newPassword,
@@ -1776,13 +1778,33 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
 
 		// Ensure that the password was not changed.
-		_, err = anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
-			Password: newPassword,
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+	})
+
+	t.Run("CannotChangePasswordWithoutRequestingOneTimePasscode", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
 		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: uuid.New().String(),
+			Password:        "SomeNewSecurePassword!",
+		})
+		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-		require.Contains(t, apiErr.Message, "Incorrect email or password.")
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
 	})
 
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
@@ -1800,17 +1822,9 @@ func TestUserForgotPassword(t *testing.T) {
 
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
-			Email: anotherUser.Email,
-		})
-		require.NoError(t, err)
+		_ = requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
 
-		require.Equal(t, 2, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[1]
-		verifyOneTimePasscodeNotification(t, notif, anotherUser.ID)
-
-		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: uuid.New().String(), // Use a different UUID to the one expected
 			Password:        "SomeNewSecurePassword!",
@@ -1836,17 +1850,9 @@ func TestUserForgotPassword(t *testing.T) {
 
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
-			Email: anotherUser.Email,
-		})
-		require.NoError(t, err)
+		_ = requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
 
-		require.Equal(t, 2, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[1]
-		verifyOneTimePasscodeNotification(t, notif, anotherUser.ID)
-
-		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: "",
 			Password:        "SomeNewSecurePassword!",
@@ -1874,19 +1880,9 @@ func TestUserForgotPassword(t *testing.T) {
 
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
-			Email: anotherUser.Email,
-		})
-		require.NoError(t, err)
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
 
-		require.Equal(t, 2, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[1]
-		verifyOneTimePasscodeNotification(t, notif, anotherUser.ID)
-
-		oneTimePasscode := notif.Labels["one_time_passcode"]
-
-		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: oneTimePasscode,
 			Password:        "notstrong",
