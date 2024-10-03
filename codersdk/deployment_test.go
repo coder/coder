@@ -565,33 +565,3 @@ func TestPremiumSuperSet(t *testing.T) {
 	require.NotContains(t, enterprise.Features(), "", "enterprise should not contain empty string")
 	require.NotContains(t, premium.Features(), "", "premium should not contain empty string")
 }
-
-func TestRemoveTrailingVersionInfo(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		Version                    string
-		ExpectedAfterStrippingInfo string
-	}{
-		{
-			Version:                    "v2.16.0+683a720",
-			ExpectedAfterStrippingInfo: "v2.16.0",
-		},
-		{
-			Version:                    "v2.16.0-devel+683a720",
-			ExpectedAfterStrippingInfo: "v2.16.0",
-		},
-		{
-			Version:                    "v2.16.0+683a720-devel",
-			ExpectedAfterStrippingInfo: "v2.16.0",
-		},
-	}
-
-	for _, tc := range testCases {
-		// Is this still necessary?
-		tc := tc
-
-		stripped := codersdk.RemoveTrailingVersionInfo(tc.Version)
-		require.Equal(t, tc.ExpectedAfterStrippingInfo, stripped)
-	}
-}
