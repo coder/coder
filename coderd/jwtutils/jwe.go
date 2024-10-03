@@ -16,16 +16,16 @@ const (
 	encryptContentAlgo = jose.A256GCM
 )
 
-type EncryptKeyer interface {
+type EncryptKeyProvider interface {
 	EncryptingKey(ctx context.Context) (id string, key interface{}, err error)
 }
 
-type DecryptKeyer interface {
+type DecryptKeyProvider interface {
 	DecryptingKey(ctx context.Context, id string) (key interface{}, err error)
 }
 
 // Encrypt encrypts a token and returns it as a string.
-func Encrypt(ctx context.Context, e EncryptKeyer, claims Claims) (string, error) {
+func Encrypt(ctx context.Context, e EncryptKeyProvider, claims Claims) (string, error) {
 	id, key, err := e.EncryptingKey(ctx)
 	if err != nil {
 		return "", xerrors.Errorf("get signing key: %w", err)
@@ -72,7 +72,7 @@ type DecryptOptions struct {
 }
 
 // Decrypt decrypts the token using the provided key. It unmarshals into the provided claims.
-func Decrypt(ctx context.Context, d DecryptKeyer, token string, claims Claims, opts ...func(*DecryptOptions)) error {
+func Decrypt(ctx context.Context, d DecryptKeyProvider, token string, claims Claims, opts ...func(*DecryptOptions)) error {
 	options := DecryptOptions{
 		RegisteredClaims: jwt.Expected{
 			Time: time.Now(),

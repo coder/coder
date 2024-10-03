@@ -24,16 +24,16 @@ const (
 	signingAlgo = jose.HS512
 )
 
-type SignKeyer interface {
+type SigningKeyProvider interface {
 	SigningKey(ctx context.Context) (id string, key interface{}, err error)
 }
 
-type VerifyKeyer interface {
+type VerifyKeyProvider interface {
 	VerifyingKey(ctx context.Context, id string) (key interface{}, err error)
 }
 
 // Sign signs a token and returns it as a string.
-func Sign(ctx context.Context, s SignKeyer, claims Claims) (string, error) {
+func Sign(ctx context.Context, s SigningKeyProvider, claims Claims) (string, error) {
 	id, key, err := s.SigningKey(ctx)
 	if err != nil {
 		return "", xerrors.Errorf("get signing key: %w", err)
@@ -78,7 +78,7 @@ type VerifyOptions struct {
 }
 
 // Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.
-func Verify(ctx context.Context, v VerifyKeyer, token string, claims Claims, opts ...func(*VerifyOptions)) error {
+func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claims, opts ...func(*VerifyOptions)) error {
 	options := VerifyOptions{
 		RegisteredClaims: jwt.Expected{
 			Time: time.Now(),
