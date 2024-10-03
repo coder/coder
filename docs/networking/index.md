@@ -22,6 +22,14 @@ In order for clients and workspaces to be able to connect:
 - Any reverse proxy or ingress between the Coder control plane and
   clients/agents must support WebSockets.
 
+> **Note:** We strongly recommend that clients connect to Coder and their
+> workspaces over a good quality, broadband network connection. The following
+> are minimum requirements:
+>
+> - better than 400ms round-trip latency to the Coder server and to their
+>   workspace
+> - better than 0.5% random packet loss
+
 In order for clients to be able to establish direct connections:
 
 > **Note:** Direct connections via the web browser are not supported. To improve
@@ -157,10 +165,10 @@ $ coder server --derp-config-path derpmap.json
 
 The dashboard (and web apps opened through the dashboard) are served from the
 coder server, so they can only be geo-distributed with High Availability mode in
-our Enterprise Edition. [Reach out to Sales](https://coder.com/contact) to learn
-more.
+our Enterprise and Premium Editions.
+[Reach out to Sales](https://coder.com/contact) to learn more.
 
-## Browser-only connections (enterprise)
+## Browser-only connections (enterprise) (premium)
 
 Some Coder deployments require that all access is through the browser to comply
 with security policies. In these cases, pass the `--browser-only` flag to

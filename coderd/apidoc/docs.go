@@ -9871,6 +9871,41 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CryptoKey": {
+            "type": "object",
+            "properties": {
+                "deletes_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "feature": {
+                    "$ref": "#/definitions/codersdk.CryptoKeyFeature"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "sequence": {
+                    "type": "integer"
+                },
+                "starts_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.CryptoKeyFeature": {
+            "type": "string",
+            "enum": [
+                "workspace_apps",
+                "oidc_convert",
+                "tailnet_resume"
+            ],
+            "x-enum-varnames": [
+                "CryptoKeyFeatureWorkspaceApp",
+                "CryptoKeyFeatureOIDCConvert",
+                "CryptoKeyFeatureTailnetResume"
+            ]
+        },
         "codersdk.CustomRoleRequest": {
             "type": "object",
             "properties": {
@@ -16009,46 +16044,13 @@ const docTemplate = `{
                 }
             }
         },
-        "wsproxysdk.CryptoKey": {
-            "type": "object",
-            "properties": {
-                "deletes_at": {
-                    "type": "string"
-                },
-                "feature": {
-                    "$ref": "#/definitions/wsproxysdk.CryptoKeyFeature"
-                },
-                "secret": {
-                    "type": "string"
-                },
-                "sequence": {
-                    "type": "integer"
-                },
-                "starts_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "wsproxysdk.CryptoKeyFeature": {
-            "type": "string",
-            "enum": [
-                "workspace_apps",
-                "oidc_convert",
-                "tailnet_resume"
-            ],
-            "x-enum-varnames": [
-                "CryptoKeyFeatureWorkspaceApp",
-                "CryptoKeyFeatureOIDCConvert",
-                "CryptoKeyFeatureTailnetResume"
-            ]
-        },
         "wsproxysdk.CryptoKeysResponse": {
             "type": "object",
             "properties": {
                 "crypto_keys": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/wsproxysdk.CryptoKey"
+                        "$ref": "#/definitions/codersdk.CryptoKey"
                     }
                 }
             }

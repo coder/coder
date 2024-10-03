@@ -17,7 +17,7 @@ import { getDisplayWorkspaceStatus } from "utils/workspace";
 export const useTemplateFilterMenu = ({
 	value,
 	onChange,
-}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
 	return useFilterMenu({
 		onChange,
 		value,
@@ -31,7 +31,7 @@ export const useTemplateFilterMenu = ({
 					label: template.display_name || template.name,
 					value: template.name,
 					startIcon: <TemplateAvatar size="xs" template={template} />,
-				};
+				} satisfies SelectFilterOption;
 			}
 			return null;
 		},
@@ -86,7 +86,7 @@ export const TemplateMenu: FC<TemplateMenuProps> = ({ width, menu }) => {
 export const useStatusFilterMenu = ({
 	value,
 	onChange,
-}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
 	const statusesToFilter: WorkspaceStatus[] = [
 		"running",
 		"stopped",
