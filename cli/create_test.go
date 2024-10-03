@@ -146,6 +146,7 @@ func TestCreate(t *testing.T) {
 		version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent(), func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.TemplateID = template.ID
 		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
 
 		args := []string{
 			"create",
