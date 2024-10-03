@@ -77,8 +77,6 @@ inactivity by
 Once stopped, a workspace may resume running by starting it manually, or via
 user connection if automatic start is enabled.
 
-<!-- TODO: Add "start on connect" docs link -->
-
 ## Deleting workspaces
 
 Similarly to stopping, workspaces may be deleted manually or automatically by
@@ -112,8 +110,6 @@ A failed workspace is most often caused by misalignment from the definition in
 your template's Terraform file and the target resources on your infrastructure.
 Unhealthy workspaces are usually caused by a misconfiguration in the agent or
 workspace startup scripts.
-
-<!-- TODO: Needs review/addition -->
 
 ## Next steps
 

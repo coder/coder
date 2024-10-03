@@ -1,6 +1,5 @@
 # Extending templates
 
-<!-- TODO: Review structure and links -->
 
 There are a variety of Coder-native features to extend the configuration of your development environments. Many of the following features are defined in your templates using the [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs). The provider docs will provide code examples for usage; alternatively, you can view our [example templates](https://github.com/coder/coder/tree/main/examples/templates) to get started.
 

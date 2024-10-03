@@ -99,8 +99,6 @@ hours of inactivity.
 
 ## Dormancy (enterprise)
 
-<!-- TODO: Admin links -->
-
 Dormancy automatically deletes workspaces which remain unused for long
 durations. Template admins configure an inactivity period after which your
 workspaces will gain a `dormant` badge. A separate period determines how long
@@ -109,8 +107,3 @@ workspaces will remain in the dormant state before automatic deletion.
 Enterprise admins may also configure failure cleanup, which will automatically
 delete workspaces that remain in a `failed` state for too long.
 
-## Next steps
-
-<!-- TODO: Links -->
-
-- Template Scheduling

@@ -356,9 +356,8 @@ could affect workspace users experience once the platform is live.
 
 ### User support
 
-<!-- TODO: Add support links section -->
 
-1. Incorporate [support links](#) into internal
+1. Incorporate [support links](../../setup/appearance.md#support-links) into internal
    documentation accessible from the user context menu. Ensure that hyperlinks
    are valid and lead to up-to-date materials.
 1. Encourage the use of `coder support bundle` to allow workspace users to
