@@ -179,7 +179,7 @@ Optionally, you can request custom scopes:
 CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
 
-## Multiple External Providers (enterprise)
+## Multiple External Providers (enterprise) (premium)
 
 Multiple providers are an Enterprise feature. [Learn more](../enterprise.md).
 Below is an example configuration with multiple providers.
