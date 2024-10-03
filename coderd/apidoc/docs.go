@@ -7417,6 +7417,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspacebuilds/{workspacebuild}/timings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace build timings by ID",
+                "operationId": "get-workspace-build-timings-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceproxies": {
             "get": {
                 "security": [

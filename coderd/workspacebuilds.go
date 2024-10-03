@@ -654,7 +654,7 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 // @Tags Builds
 // @Param workspacebuild path string true "Workspace build ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceBuildTimings
-// @Router/workspacebuilds/{workspacebuild}/timings [get]
+// @Router /workspacebuilds/{workspacebuild}/timings [get]
 func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()

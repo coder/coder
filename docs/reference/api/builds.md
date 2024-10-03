@@ -991,6 +991,63 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get workspace build timings by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/timings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspacebuilds/{workspacebuild}/timings`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+| ---------------- | ---- | ------------ | -------- | ------------------ |
+| `workspacebuild` | path | string(uuid) | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "string",
+			"exit_code": 0,
+			"stage": "string",
+			"started_at": "string",
+			"status": "string"
+		}
+	],
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                     |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuildTimings](schemas.md#codersdkworkspacebuildtimings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace builds by workspace ID
 
 ### Code samples
