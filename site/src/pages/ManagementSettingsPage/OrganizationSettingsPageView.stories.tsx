@@ -5,11 +5,13 @@ import {
 	MockOrganization,
 } from "testHelpers/entities";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
+import { withManagementSettingsProvider } from "testHelpers/storybook";
 
 const meta: Meta<typeof OrganizationSettingsPageView> = {
 	title: "pages/OrganizationSettingsPageView",
 	component: OrganizationSettingsPageView,
 	parameters: { chromatic },
+	decorators: [withManagementSettingsProvider],
 	args: {
 		organization: MockOrganization,
 	},

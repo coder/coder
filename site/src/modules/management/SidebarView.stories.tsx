@@ -8,9 +8,10 @@ import { withDashboardProvider } from "testHelpers/storybook";
 import { SidebarView } from "./SidebarView";
 
 const meta: Meta<typeof SidebarView> = {
-	title: "components/MultiOrgSidebarView",
+	title: "modules/management/SidebarView",
 	component: SidebarView,
 	decorators: [withDashboardProvider],
+	parameters: { showOrganizations: true },
 	args: {
 		activeSettings: true,
 		activeOrganizationName: undefined,
@@ -220,5 +221,11 @@ export const SelectedMultiOrgAdminAndUserAdmin: Story = {
 				},
 			},
 		],
+	},
+};
+
+export const OrgsDisabled: Story = {
+	parameters: {
+		showOrganizations: false,
 	},
 };
