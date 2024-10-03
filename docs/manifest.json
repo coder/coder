@@ -351,6 +351,12 @@
 									"title": "Provider Authentication",
 									"description": "Authenticate with provider APIs to provision workspaces",
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
+								},
+								{
+									"title": "Process Logging",
+									"description": "Log workspace processes",
+									"path": "./admin/templates/extending-templates/process-logging.md",
+									"state": ["enterprise", "premium"]
 								}
 							]
 						},
