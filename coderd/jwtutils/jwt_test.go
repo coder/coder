@@ -261,7 +261,6 @@ func TestJWS(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, claims, actual)
 	})
-
 }
 
 func TestJWE(t *testing.T) {
