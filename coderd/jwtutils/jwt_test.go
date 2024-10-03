@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"gopkg.in/square/go-jose.v2"
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -116,10 +116,10 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jwt.Expected{
 					Issuer: "coder2",
 				}))
-				require.ErrorIs(t, err, jjwt.ErrInvalidIssuer)
+				require.ErrorIs(t, err, jwt.ErrInvalidIssuer)
 			})
 
 			t.Run("WrongSubject", func(t *testing.T) {
@@ -153,10 +153,10 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jwt.Expected{
 					Subject: "user2@coder.com",
 				}))
-				require.ErrorIs(t, err, jjwt.ErrInvalidSubject)
+				require.ErrorIs(t, err, jwt.ErrInvalidSubject)
 			})
 
 			t.Run("WrongAudience", func(t *testing.T) {
@@ -189,10 +189,10 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
-					AnyAudience: jjwt.Audience{"coder2"},
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jwt.Expected{
+					AnyAudience: jwt.Audience{"coder2"},
 				}))
-				require.ErrorIs(t, err, jjwt.ErrInvalidAudience)
+				require.ErrorIs(t, err, jwt.ErrInvalidAudience)
 			})
 
 			t.Run("Expired", func(t *testing.T) {
@@ -225,10 +225,10 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jwt.Expected{
 					Time: time.Now().Add(time.Minute * 3),
 				}))
-				require.ErrorIs(t, err, jjwt.ErrExpired)
+				require.ErrorIs(t, err, jwt.ErrExpired)
 			})
 
 			t.Run("IssuedInFuture", func(t *testing.T) {
@@ -261,10 +261,10 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jwt.Expected{
 					Time: time.Now().Add(-time.Minute * 3),
 				}))
-				require.ErrorIs(t, err, jjwt.ErrIssuedInTheFuture)
+				require.ErrorIs(t, err, jwt.ErrIssuedInTheFuture)
 			})
 
 			t.Run("IsBefore", func(t *testing.T) {
@@ -298,10 +298,10 @@ func TestJWT(t *testing.T) {
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jwt.Expected{
 					Time: time.Now().Add(time.Minute * 3),
 				}))
-				require.ErrorIs(t, err, jjwt.ErrNotValidYet)
+				require.ErrorIs(t, err, jwt.ErrNotValidYet)
 			})
 
 			t.Run("WrongSignatureAlgorithm", func(t *testing.T) {
@@ -323,10 +323,10 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Signing(ctx).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
+						Audience:  jwt.Audience{"coder"},
 						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
 						IssuedAt:  jwt.NewNumericDate(time.Now()),
 						NotBefore: jwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
@@ -361,13 +361,13 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Signing(ctx).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+						Audience:  jwt.Audience{"coder"},
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
 					},
 					MyClaim: "my_value",
 				}
@@ -445,29 +445,29 @@ func generateSecret(t *testing.T, keySize int) []byte {
 
 type testClaims struct {
 	MyClaim string `json:"my_claim"`
-	jjwt.Claims
+	jwt.Claims
 }
 
-func withExpected(e jjwt.Expected) func(*jwt.ParseOptions) {
-	return func(opts *jwt.ParseOptions) {
+func withExpected(e jwt.Expected) func(*jwtutils.ParseOptions) {
+	return func(opts *jwtutils.ParseOptions) {
 		opts.RegisteredClaims = e
 	}
 }
 
-func withSignatureAlgorithm(alg jose.SignatureAlgorithm) func(*jwt.ParseOptions) {
-	return func(opts *jwt.ParseOptions) {
+func withSignatureAlgorithm(alg jose.SignatureAlgorithm) func(*jwtutils.ParseOptions) {
+	return func(opts *jwtutils.ParseOptions) {
 		opts.SignatureAlgorithm = alg
 	}
 }
 
-func withKeyAlgorithm(alg jose.KeyAlgorithm) func(*jwt.ParseOptions) {
-	return func(opts *jwt.ParseOptions) {
+func withKeyAlgorithm(alg jose.KeyAlgorithm) func(*jwtutils.ParseOptions) {
+	return func(opts *jwtutils.ParseOptions) {
 		opts.KeyAlgorithm = alg
 	}
 }
 
-func withContentEncryptionAlgorithm(alg jose.ContentEncryption) func(*jwt.ParseOptions) {
-	return func(opts *jwt.ParseOptions) {
+func withContentEncryptionAlgorithm(alg jose.ContentEncryption) func(*jwtutils.ParseOptions) {
+	return func(opts *jwtutils.ParseOptions) {
 		opts.ContentEncryptionAlgorithm = alg
 	}
 }
