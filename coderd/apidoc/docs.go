@@ -5094,34 +5094,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/change-password-with-one-time-passcode": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Authorization"
-                ],
-                "summary": "Change password with a one-time passcode",
-                "operationId": "change-password-with-a-one-time-passcode",
-                "parameters": [
-                    {
-                        "description": "Change password request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChangePasswordWithOneTimePasscodeRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
         "/users/first": {
             "get": {
                 "security": [
@@ -5281,7 +5253,35 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/request-one-time-passcode": {
+        "/users/otp/change-password": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Change password with a one-time passcode",
+                "operationId": "change-password-with-a-one-time-passcode",
+                "parameters": [
+                    {
+                        "description": "Change password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChangePasswordWithOneTimePasscodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/users/otp/request": {
             "post": {
                 "consumes": [
                     "application/json"
@@ -5293,7 +5293,7 @@ const docTemplate = `{
                 "operationId": "request-one-time-passcode",
                 "parameters": [
                     {
-                        "description": "Request one-time passcode request",
+                        "description": "One-time passcode request",
                         "name": "request",
                         "in": "body",
                         "required": true,

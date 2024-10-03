@@ -563,7 +563,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 }
 
 func (c *Client) RequestOneTimePasscode(ctx context.Context, req RequestOneTimePasscodeRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/request-one-time-passcode", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/otp/request", req)
 	if err != nil {
 		return err
 	}
@@ -577,7 +577,7 @@ func (c *Client) RequestOneTimePasscode(ctx context.Context, req RequestOneTimeP
 }
 
 func (c *Client) ChangePasswordWithOneTimePasscode(ctx context.Context, req ChangePasswordWithOneTimePasscodeRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/change-password-with-one-time-passcode", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/otp/change-password", req)
 	if err != nil {
 		return err
 	}

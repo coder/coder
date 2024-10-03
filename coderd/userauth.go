@@ -209,9 +209,9 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 // @ID request-one-time-passcode
 // @Accept json
 // @Tags Authorization
-// @Param request body codersdk.RequestOneTimePasscodeRequest true "Request one-time passcode request"
+// @Param request body codersdk.RequestOneTimePasscodeRequest true "One-time passcode request"
 // @Success 204
-// @Router /users/request-one-time-passcode [post]
+// @Router /users/otp/request [post]
 func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -279,15 +279,13 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	auditUser.OneTimePasscodeExpiresAt = sql.NullTime{Time: passcodeExpiresAt, Valid: true}
 	aReq.New = auditUser
 
-	go func() {
-		if user.ID != uuid.Nil {
-			// Send the one-time passcode to the user.
-			err = api.notifyUserRequestedOneTimePasscode(context.Background(), user, passcode.String())
-			if err != nil {
-				logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
-			}
+	if user.ID != uuid.Nil {
+		// Send the one-time passcode to the user.
+		err = api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
+		if err != nil {
+			logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
 		}
-	}()
+	}
 }
 
 func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
@@ -315,7 +313,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 // @Tags Authorization
 // @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Change password request"
 // @Success 204
-// @Router /users/change-password-with-one-time-passcode [post]
+// @Router /users/otp/change-password [post]
 func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
 		err               error
