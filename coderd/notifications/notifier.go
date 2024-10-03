@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	notificationsDefaultLogoURL = "https://coder.com/coder-logo-horizontal.png"
+	NotificationsDefaultLogoURL = "https://coder.com/coder-logo-horizontal.png"
 )
 
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
@@ -236,7 +236,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 
 	if logoURL == "" {
 		//nolint:ineffassign // define to default value if unable to fetch one from db
-		logoURL = notificationsDefaultLogoURL
+		logoURL = NotificationsDefaultLogoURL
 	}
 
 	payload.Labels["_logo_url"] = logoURL
