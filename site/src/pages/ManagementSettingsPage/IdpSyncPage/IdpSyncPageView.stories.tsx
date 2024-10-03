@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, within } from "@storybook/test";
 import {
 	MockGroup,
 	MockGroup2,
@@ -43,17 +44,6 @@ export const Empty: Story = {
 	},
 };
 
-export const HasError: Story = {
-	args: {
-		groupSyncSettings: MockGroupSyncSettings,
-		roleSyncSettings: MockRoleSyncSettings,
-		groups: [MockGroup, MockGroup2],
-		groupsMap,
-		organization: MockOrganization,
-		error: "This is a test error",
-	},
-};
-
 export const Default: Story = {
 	args: {
 		groupSyncSettings: MockGroupSyncSettings,
@@ -65,24 +55,37 @@ export const Default: Story = {
 	},
 };
 
+export const HasError: Story = {
+	args: {
+		...Default.args,
+		error: "This is a test error",
+	},
+};
+
 export const MissingGroups: Story = {
 	args: {
+		...Default.args,
 		groupSyncSettings: MockGroupSyncSettings2,
-		roleSyncSettings: MockRoleSyncSettings,
-		groups: [MockGroup, MockGroup2],
-		groupsMap,
-		organization: MockOrganization,
-		error: undefined,
 	},
 };
 
 export const WithLegacyMapping: Story = {
 	args: {
+		...Default.args,
 		groupSyncSettings: MockLegacyMappingGroupSyncSettings,
-		roleSyncSettings: MockRoleSyncSettings,
-		groups: [MockGroup, MockGroup2],
-		groupsMap,
-		organization: MockOrganization,
-		error: undefined,
+	},
+};
+
+export const RolesTab: Story = {
+	args: {
+		...Default.args,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const rolesTab = await canvas.findByText("Role Sync Settings");
+		console.log(rolesTab);
+		await user.click(rolesTab);
+		await expect(canvas.findByText("IdP Role")).resolves.toBeVisible();
 	},
 };

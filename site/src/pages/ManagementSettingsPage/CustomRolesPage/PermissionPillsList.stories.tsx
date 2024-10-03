@@ -44,9 +44,3 @@ export const HoverOverflowPill: Story = {
 		await userEvent.hover(canvas.getByTestId("overflow-permissions-pill"));
 	},
 };
-
-export const ShowAllResources: Story = {
-	args: {
-		permissions: MockRoleWithOrgPermissions.organization_permissions,
-	},
-};
