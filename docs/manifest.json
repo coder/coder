@@ -240,12 +240,12 @@
 						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
-							"state": "enterprise"
+							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
 							"path": "./admin/users/quotas.md",
-							"state": "enterprise"
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Sessions \u0026 API Tokens",
@@ -492,13 +492,13 @@
 									"title": "Slack Notifications",
 									"description": "Learn how to setup Slack notifications",
 									"path": "./admin/monitoring/notifications/slack.md",
-									"state": "beta"
+									"state": ["beta"]
 								},
 								{
 									"title": "Microsoft Teams Notifications",
 									"description": "Learn how to setup Microsoft Teams notifications",
 									"path": "./admin/monitoring/notifications/teams.md",
-									"state": "beta"
+									"state": ["beta"]
 								}
 							]
 						}
