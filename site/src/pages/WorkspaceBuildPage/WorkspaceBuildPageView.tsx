@@ -219,7 +219,7 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = () => {
 	// Issue: https://github.com/coder/coder/issues/9687
 	// Reference: https://stackoverflow.com/questions/43381836/height100-works-in-chrome-but-not-in-safari
 	const contentRef = useRef<HTMLDivElement>(null);
-	const [height, setHeight] = useState<CSSProperties["width"]>("100%");
+	const [height, setHeight] = useState<CSSProperties["height"]>("100%");
 	useLayoutEffect(() => {
 		const contentEl = contentRef.current;
 		if (!contentEl) {
