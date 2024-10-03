@@ -23,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1179,4 +1181,196 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
 	})
+}
+
+func TestWorkspaceBuildTimings(t *testing.T) {
+	t.Parallel()
+
+	// Setup the test environment with a template and version
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	file := dbgen.File(t, db, database.File{
+		CreatedBy: owner.UserID,
+	})
+	versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: owner.OrganizationID,
+		InitiatorID:    owner.UserID,
+		WorkerID:       uuid.NullUUID{},
+		FileID:         file.ID,
+		Tags: database.StringMap{
+			"custom": "true",
+		},
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		JobID:          versionJob.ID,
+		CreatedBy:      owner.UserID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  owner.OrganizationID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       owner.UserID,
+	})
+
+	makeProvisionerTimings := func(build database.WorkspaceBuild, count int) []database.ProvisionerJobTiming {
+		// Use the database.ProvisionerJobTiming struct to mock timings data instead
+		// of directly creating database.InsertProvisionerJobTimingsParams. This
+		// approach makes the mock data easier to understand, as
+		// database.InsertProvisionerJobTimingsParams requires slices of each field
+		// for batch inserts.
+		timings := make([]database.ProvisionerJobTiming, count)
+		now := time.Now()
+		for i := range count {
+			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
+			endedAt := startedAt.Add(time.Minute)
+			timings[i] = database.ProvisionerJobTiming{
+				StartedAt: startedAt,
+				EndedAt:   endedAt,
+				Stage:     database.ProvisionerJobTimingStageInit,
+				Action:    string(database.AuditActionCreate),
+				Source:    "source",
+				Resource:  fmt.Sprintf("resource[%d]", i),
+			}
+		}
+		insertParams := database.InsertProvisionerJobTimingsParams{
+			JobID: build.JobID,
+		}
+		for _, timing := range timings {
+			insertParams.StartedAt = append(insertParams.StartedAt, timing.StartedAt)
+			insertParams.EndedAt = append(insertParams.EndedAt, timing.EndedAt)
+			insertParams.Stage = append(insertParams.Stage, timing.Stage)
+			insertParams.Action = append(insertParams.Action, timing.Action)
+			insertParams.Source = append(insertParams.Source, timing.Source)
+			insertParams.Resource = append(insertParams.Resource, timing.Resource)
+		}
+		return dbgen.ProvisionerJobTimings(t, db, insertParams)
+	}
+
+	makeAgentScriptTimings := func(build database.WorkspaceBuild, count int) []database.WorkspaceAgentScriptTiming {
+		// Create a resource, agent, and script to test the timing of agent scripts
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		scripts := dbgen.WorkspaceAgentScripts(t, db, database.InsertWorkspaceAgentScriptsParams{
+			WorkspaceAgentID: agent.ID,
+			CreatedAt:        time.Now(),
+			LogSourceID: []uuid.UUID{
+				uuid.New(),
+			},
+			LogPath:          []string{""},
+			Script:           []string{""},
+			Cron:             []string{""},
+			StartBlocksLogin: []bool{false},
+			RunOnStart:       []bool{false},
+			RunOnStop:        []bool{false},
+			TimeoutSeconds:   []int32{0},
+			DisplayName:      []string{""},
+			ID: []uuid.UUID{
+				uuid.New(),
+			},
+		})
+
+		newTimings := make([]database.InsertWorkspaceAgentScriptTimingsParams, count)
+		now := time.Now()
+		for i := range count {
+			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
+			endedAt := startedAt.Add(time.Minute)
+			newTimings[i] = database.InsertWorkspaceAgentScriptTimingsParams{
+				StartedAt: startedAt,
+				EndedAt:   endedAt,
+				Stage:     database.WorkspaceAgentScriptTimingStageStart,
+				ScriptID:  scripts[0].ID,
+				ExitCode:  0,
+				Status:    database.WorkspaceAgentScriptTimingStatusOk,
+			}
+		}
+
+		timings := make([]database.WorkspaceAgentScriptTiming, 0)
+		for _, newTiming := range newTimings {
+			timing := dbgen.WorkspaceAgentScriptTiming(t, db, newTiming)
+			timings = append(timings, timing)
+		}
+
+		return timings
+	}
+
+	// Given
+	testCases := []struct {
+		name                string
+		provisionerTimings  int
+		actionScriptTimings int
+	}{
+		{name: "with empty provisioner timings", provisionerTimings: 0},
+		{name: "with provisioner timings", provisionerTimings: 5},
+		{name: "with empty agent script timings", actionScriptTimings: 0},
+		{name: "with agent script timings", actionScriptTimings: 5},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a build to attach provisioner timings
+			ws := dbgen.Workspace(t, db, database.Workspace{
+				OwnerID:        owner.UserID,
+				OrganizationID: owner.OrganizationID,
+				TemplateID:     template.ID,
+				// Generate unique name for the workspace
+				Name: "test-workspace-" + uuid.New().String(),
+			})
+			jobID := uuid.New()
+			job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+				ID:             jobID,
+				OrganizationID: owner.OrganizationID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				Tags:           database.StringMap{jobID.String(): "true"},
+			})
+			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       ws.ID,
+				TemplateVersionID: version.ID,
+				BuildNumber:       1,
+				Transition:        database.WorkspaceTransitionStart,
+				InitiatorID:       owner.UserID,
+				JobID:             job.ID,
+			})
+
+			// Generate timings based on test config
+			genProvisionerTimings := makeProvisionerTimings(build, tc.provisionerTimings)
+			genAgentScriptTimings := makeAgentScriptTimings(build, tc.provisionerTimings)
+
+			res, err := client.WorkspaceBuildTimings(context.Background(), build.ID)
+			require.NoError(t, err)
+			require.Len(t, res.ProvisionerTimings, tc.provisionerTimings)
+
+			for i := range res.ProvisionerTimings {
+				timingRes := res.ProvisionerTimings[i]
+				genTiming := genProvisionerTimings[i]
+				require.Equal(t, genTiming.Resource, timingRes.Resource)
+				require.Equal(t, genTiming.Action, timingRes.Action)
+				require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+				require.Equal(t, genTiming.JobID.String(), timingRes.JobID.String())
+				require.Equal(t, genTiming.Source, timingRes.Source)
+				require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+				require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+			}
+
+			for i := range res.AgentScriptTimings {
+				timingRes := res.AgentScriptTimings[i]
+				genTiming := genAgentScriptTimings[i]
+				require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
+				require.Equal(t, string(genTiming.Status), timingRes.Status)
+				require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+				require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+				require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+			}
+		})
+	}
 }

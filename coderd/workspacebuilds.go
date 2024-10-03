@@ -647,6 +647,68 @@ func (api *API) workspaceBuildState(rw http.ResponseWriter, r *http.Request) {
 	_, _ = rw.Write(workspaceBuild.ProvisionerState)
 }
 
+// @Summary Get workspace build timings by ID
+// @ID get-workspace-build-timings-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Builds
+// @Param workspacebuild path string true "Workspace build ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceBuildTimings
+// @Router/workspacebuilds/{workspacebuild}/timings [get]
+func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		build = httpmw.WorkspaceBuildParam(r)
+	)
+
+	provisionerTimings, err := api.Database.GetProvisionerJobTimingsByJobID(ctx, build.JobID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace timings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	agentScriptTimings, err := api.Database.GetWorkspaceAgentScriptTimingsByBuildID(ctx, build.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent script timings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	res := codersdk.WorkspaceBuildTimings{
+		ProvisionerTimings: make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
+		AgentScriptTimings: make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
+	}
+
+	for _, t := range provisionerTimings {
+		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
+			JobID:     t.JobID,
+			Stage:     string(t.Stage),
+			Source:    t.Source,
+			Action:    t.Action,
+			Resource:  t.Resource,
+			StartedAt: t.StartedAt,
+			EndedAt:   t.EndedAt,
+		})
+	}
+	for _, t := range agentScriptTimings {
+		res.AgentScriptTimings = append(res.AgentScriptTimings, codersdk.AgentScriptTiming{
+			StartedAt:   t.StartedAt,
+			EndedAt:     t.EndedAt,
+			ExitCode:    t.ExitCode,
+			Stage:       string(t.Stage),
+			Status:      string(t.Status),
+			DisplayName: t.DisplayName,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, res)
+}
+
 type workspaceBuildsData struct {
 	users            []database.User
 	jobs             []database.GetProvisionerJobsByIDsWithQueuePositionRow
