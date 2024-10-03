@@ -296,8 +296,8 @@ importers:
         specifier: 18.3.10
         version: 18.3.10
       '@types/react-color':
-        specifier: 3.0.6
-        version: 3.0.6
+        specifier: 3.0.12
+        version: 3.0.12
       '@types/react-date-range':
         specifier: 1.4.4
         version: 1.4.4
@@ -3003,8 +3003,8 @@ packages:
   '@types/range-parser@1.2.4':
     resolution: {integrity: sha512-EEhsLsD6UsDM1yFhAvy0Cjr6VwmpMWqFBCb9w07wVugF7w9nfajxLuVmngTIpgS6svCnm6Vaw+MZhoDCKnOfsw==}
 
-  '@types/react-color@3.0.6':
-    resolution: {integrity: sha512-OzPIO5AyRmLA7PlOyISlgabpYUa3En74LP8mTMa0veCA719SvYQov4WLMsHvCgXP+L+KI9yGhYnqZafVGG0P4w==}
+  '@types/react-color@3.0.12':
+    resolution: {integrity: sha512-pr3uKE3lSvf7GFo1Rn2K3QktiZQFFrSgSGJ/3iMvSOYWt2pPAJ97rVdVfhWxYJZ8prAEXzoP2XX//3qGSQgu7Q==}
 
   '@types/react-date-range@1.4.4':
     resolution: {integrity: sha512-9Y9NyNgaCsEVN/+O4HKuxzPbVjRVBGdOKRxMDcsTRWVG62lpYgnxefNckTXDWup8FvczoqPW0+ESZR6R1yymDg==}
@@ -10375,7 +10375,7 @@ snapshots:
 
   '@types/range-parser@1.2.4': {}
 
-  '@types/react-color@3.0.6':
+  '@types/react-color@3.0.12':
     dependencies:
       '@types/react': 18.3.10
       '@types/reactcss': 1.2.6
