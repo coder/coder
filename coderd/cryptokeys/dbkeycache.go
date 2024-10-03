@@ -77,18 +77,34 @@ func newDBCache(logger slog.Logger, db database.Store, feature database.CryptoKe
 }
 
 func (d *dbCache) EncryptingKey(ctx context.Context) (id string, key interface{}, err error) {
+	if !isEncryptionKeyFeature(d.feature) {
+		return "", nil, ErrInvalidFeature
+	}
+
 	return d.latest(ctx)
 }
 
 func (d *dbCache) DecryptingKey(ctx context.Context, id string) (key interface{}, err error) {
+	if !isEncryptionKeyFeature(d.feature) {
+		return nil, ErrInvalidFeature
+	}
+
 	return d.sequence(ctx, id)
 }
 
 func (d *dbCache) SigningKey(ctx context.Context) (id string, key interface{}, err error) {
+	if !isSigningKeyFeature(d.feature) {
+		return "", nil, ErrInvalidFeature
+	}
+
 	return d.latest(ctx)
 }
 
 func (d *dbCache) VerifyingKey(ctx context.Context, id string) (key interface{}, err error) {
+	if !isSigningKeyFeature(d.feature) {
+		return nil, ErrInvalidFeature
+	}
+
 	return d.sequence(ctx, id)
 }
 

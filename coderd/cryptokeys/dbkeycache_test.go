@@ -154,9 +154,23 @@ func TestDBKeyCache(t *testing.T) {
 			db, _  = dbtestutil.NewDB(t)
 			clock  = quartz.NewMock(t)
 			logger = slogtest.Make(t, nil)
+			ctx    = testutil.Context(t, testutil.WaitShort)
 		)
 
 		_, err := cryptokeys.NewSigningCache(logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
+
+		// Instantiate a signing cache and try to use it as an encryption cache.
+		sc, err := cryptokeys.NewSigningCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
+		require.NoError(t, err)
+		defer sc.Close()
+
+		ec, ok := sc.(cryptokeys.EncryptionKeycache)
+		require.True(t, ok)
+		_, _, err = ec.EncryptingKey(ctx)
+		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
+
+		_, err = ec.DecryptingKey(ctx, "123")
 		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
 	})
 
@@ -167,9 +181,23 @@ func TestDBKeyCache(t *testing.T) {
 			db, _  = dbtestutil.NewDB(t)
 			clock  = quartz.NewMock(t)
 			logger = slogtest.Make(t, nil)
+			ctx    = testutil.Context(t, testutil.WaitShort)
 		)
 
 		_, err := cryptokeys.NewEncryptionCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
+		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
+
+		// Instantiate an encryption cache and try to use it as a signing cache.
+		ec, err := cryptokeys.NewEncryptionCache(logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+		require.NoError(t, err)
+		defer ec.Close()
+
+		sc, ok := ec.(cryptokeys.SigningKeycache)
+		require.True(t, ok)
+		_, _, err = sc.SigningKey(ctx)
+		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
+
+		_, err = sc.VerifyingKey(ctx, "123")
 		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
 	})
 }
