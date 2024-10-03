@@ -3,7 +3,6 @@ package jwtutils_test
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"testing"
 	"time"
 
@@ -19,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/jwtutils"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -355,19 +353,6 @@ func TestJWE(t *testing.T) {
 	})
 }
 
-func generateCryptoKey(t *testing.T, seq int32, now time.Time, keySize int) codersdk.CryptoKey {
-	t.Helper()
-
-	secret := generateSecret(t, keySize)
-
-	return codersdk.CryptoKey{
-		Feature:  codersdk.CryptoKeyFeatureTailnetResume,
-		Secret:   hex.EncodeToString(secret),
-		Sequence: seq,
-		StartsAt: now,
-	}
-}
-
 func generateSecret(t *testing.T, keySize int) []byte {
 	t.Helper()
 
@@ -431,22 +416,22 @@ func newKey(t *testing.T, size int) *key {
 	}
 }
 
-func (k *key) SigningKey(ctx context.Context) (id string, key interface{}, err error) {
+func (k *key) SigningKey(_ context.Context) (id string, key interface{}, err error) {
 	return k.id, k.secret, nil
 }
 
-func (k *key) VerifyingKey(ctx context.Context, id string) (key interface{}, err error) {
+func (k *key) VerifyingKey(_ context.Context, id string) (key interface{}, err error) {
 	k.t.Helper()
 
 	require.Equal(k.t, k.id, id)
 	return k.secret, nil
 }
 
-func (k *key) EncryptingKey(ctx context.Context) (id string, key interface{}, err error) {
+func (k *key) EncryptingKey(_ context.Context) (id string, key interface{}, err error) {
 	return k.id, k.secret, nil
 }
 
-func (k *key) DecryptingKey(ctx context.Context, id string) (key interface{}, err error) {
+func (k *key) DecryptingKey(_ context.Context, id string) (key interface{}, err error) {
 	k.t.Helper()
 
 	require.Equal(k.t, k.id, id)

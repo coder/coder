@@ -69,7 +69,6 @@ func TestDBKeyCache(t *testing.T) {
 			_, err = k.VerifyingKey(ctx, "123")
 			require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
 		})
-
 	})
 
 	t.Run("Signing", func(t *testing.T) {
@@ -173,7 +172,6 @@ func TestDBKeyCache(t *testing.T) {
 		_, err := cryptokeys.NewEncryptionCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
 		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
 	})
-
 }
 
 func keyID(key database.CryptoKey) string {
