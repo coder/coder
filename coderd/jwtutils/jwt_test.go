@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
-	jjwt "github.com/go-jose/go-jose/v4/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"gopkg.in/square/go-jose.v2"
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
-	"github.com/coder/coder/v2/coderd/jwt"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -23,22 +23,22 @@ func TestJWT(t *testing.T) {
 
 	type tokenType struct {
 		Name     string
-		SignFn   func(ctx context.Context, keys cryptokeys.Keycache, claims jwt.Claims) (string, error)
-		VerifyFn func(ctx context.Context, keys cryptokeys.Keycache, token string, claims jwt.Claims, opts ...func(*jwt.ParseOptions)) error
+		SignFn   func(ctx context.Context, keys cryptokeys.Keycache, claims jwtutils.Claims) (string, error)
+		VerifyFn func(ctx context.Context, keys cryptokeys.Keycache, token string, claims jwtutils.Claims, opts ...func(*jwtutils.ParseOptions)) error
 		KeySize  int
 	}
 
 	types := []tokenType{
 		{
 			Name:     "JWE",
-			SignFn:   jwt.Encrypt,
-			VerifyFn: jwt.Decrypt,
+			SignFn:   jwtutils.Encrypt,
+			VerifyFn: jwtutils.Decrypt,
 			KeySize:  32,
 		},
 		{
 			Name:     "JWS",
-			SignFn:   jwt.Sign,
-			VerifyFn: jwt.Verify,
+			SignFn:   jwtutils.Sign,
+			VerifyFn: jwtutils.Verify,
 			KeySize:  64,
 		},
 	}
@@ -65,13 +65,13 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now()),
+						Audience:  jwt.Audience{"coder"},
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now()),
 					},
 					MyClaim: "my_value",
 				}
@@ -101,13 +101,13 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now()),
+						Audience:  jwt.Audience{"coder"},
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now()),
 					},
 					MyClaim: "my_value",
 				}
@@ -138,13 +138,13 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now()),
+						Audience:  jwt.Audience{"coder"},
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now()),
 					},
 					MyClaim: "my_value",
 				}
@@ -174,13 +174,13 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now()),
+						Audience:  jwt.Audience{"coder"},
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now()),
 					},
 					MyClaim: "my_value",
 				}
@@ -210,13 +210,13 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Minute)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now()),
+						Audience:  jwt.Audience{"coder"},
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Minute)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now()),
 					},
 					MyClaim: "my_value",
 				}
@@ -247,12 +247,12 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:   "coder",
 						Subject:  "user@coder.com",
-						Audience: jjwt.Audience{"coder"},
-						Expiry:   jjwt.NewNumericDate(time.Now().Add(time.Minute)),
-						IssuedAt: jjwt.NewNumericDate(time.Now()),
+						Audience: jwt.Audience{"coder"},
+						Expiry:   jwt.NewNumericDate(time.Now().Add(time.Minute)),
+						IssuedAt: jwt.NewNumericDate(time.Now()),
 					},
 					MyClaim: "my_value",
 				}
@@ -283,13 +283,13 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+						Audience:  jwt.Audience{"coder"},
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
 					},
 					MyClaim: "my_value",
 				}
@@ -327,9 +327,9 @@ func TestJWT(t *testing.T) {
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
 						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
 					},
 					MyClaim: "my_value",
 				}
@@ -399,13 +399,13 @@ func TestJWT(t *testing.T) {
 				keycache.EXPECT().Signing(gomock.Any()).Return(key, nil)
 
 				claims := testClaims{
-					Claims: jjwt.Claims{
+					Claims: jwt.Claims{
 						Issuer:    "coder",
 						Subject:   "user@coder.com",
-						Audience:  jjwt.Audience{"coder"},
-						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-						IssuedAt:  jjwt.NewNumericDate(time.Now()),
-						NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+						Audience:  jwt.Audience{"coder"},
+						Expiry:    jwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jwt.NewNumericDate(time.Now()),
+						NotBefore: jwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
 					},
 					MyClaim: "my_value",
 				}
