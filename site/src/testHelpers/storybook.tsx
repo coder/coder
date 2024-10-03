@@ -13,6 +13,7 @@ import { useQueryClient } from "react-query";
 import {
 	MockAppearanceConfig,
 	MockDefaultOrganization,
+	MockDeploymentConfig,
 	MockEntitlements,
 } from "./entities";
 
@@ -126,17 +127,13 @@ export const withGlobalSnackbar = (Story: FC) => (
 	</>
 );
 
-export const withManagementSettingsProvider = (
-	Story: FC,
-	{ parameters }: StoryContext,
-) => {
+export const withManagementSettingsProvider = (Story: FC) => {
 	return (
 		<ManagementSettingsContext.Provider
 			value={{
-				deploymentValues: {
-					config: parameters.deploymentValues ?? {},
-					options: parameters.deploymentOptions ?? [],
-				},
+				deploymentValues: MockDeploymentConfig,
+				organizations: [MockDefaultOrganization],
+				organization: MockDefaultOrganization,
 			}}
 		>
 			<Story />
