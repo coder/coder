@@ -8421,41 +8421,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaces/{workspace}/timings": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Get workspace timings by ID",
-                "operationId": "get-workspace-timings-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceTimings"
-                        }
-                    }
-                }
-            }
-        },
         "/workspaces/{workspace}/ttl": {
             "put": {
                 "security": [
@@ -14619,6 +14584,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceBuildTimings": {
+            "type": "object",
+            "properties": {
+                "agent_script_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentScriptTiming"
+                    }
+                },
+                "provisioner_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceConnectionLatencyMS": {
             "type": "object",
             "properties": {
@@ -14861,23 +14843,6 @@ const docTemplate = `{
                 "WorkspaceStatusDeleting",
                 "WorkspaceStatusDeleted"
             ]
-        },
-        "codersdk.WorkspaceTimings": {
-            "type": "object",
-            "properties": {
-                "agent_script_timings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AgentScriptTiming"
-                    }
-                },
-                "provisioner_timings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
-                    }
-                }
-            }
         },
         "codersdk.WorkspaceTransition": {
             "type": "string",

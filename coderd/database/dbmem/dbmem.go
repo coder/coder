@@ -7916,14 +7916,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg d
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	timing := database.WorkspaceAgentScriptTiming{
-		ScriptID:  arg.ScriptID,
-		StartedAt: arg.StartedAt,
-		EndedAt:   arg.EndedAt,
-		ExitCode:  arg.ExitCode,
-		Stage:     arg.Stage,
-		Status:    arg.Status,
-	}
+	timing := database.WorkspaceAgentScriptTiming(arg)
 	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings, timing)
 
 	return timing, nil

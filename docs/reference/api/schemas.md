@@ -7340,6 +7340,41 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
 
+## codersdk.WorkspaceBuildTimings
+
+```json
+{
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "string",
+			"exit_code": 0,
+			"stage": "string",
+			"started_at": "string",
+			"status": "string"
+		}
+	],
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                              | Required | Restrictions | Description |
+| ---------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `agent_script_timings` | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming) | false    |              |             |
+| `provisioner_timings`  | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
+
 ## codersdk.WorkspaceConnectionLatencyMS
 
 ```json
@@ -7666,41 +7701,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `canceled`  |
 | `deleting`  |
 | `deleted`   |
-
-## codersdk.WorkspaceTimings
-
-```json
-{
-	"agent_script_timings": [
-		{
-			"display_name": "string",
-			"ended_at": "string",
-			"exit_code": 0,
-			"stage": "string",
-			"started_at": "string",
-			"status": "string"
-		}
-	],
-	"provisioner_timings": [
-		{
-			"action": "string",
-			"ended_at": "2019-08-24T14:15:22Z",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"resource": "string",
-			"source": "string",
-			"stage": "string",
-			"started_at": "2019-08-24T14:15:22Z"
-		}
-	]
-}
-```
-
-### Properties
-
-| Name                   | Type                                                              | Required | Restrictions | Description |
-| ---------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `agent_script_timings` | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming) | false    |              |             |
-| `provisioner_timings`  | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
 
 ## codersdk.WorkspaceTransition
 

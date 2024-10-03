@@ -32,7 +32,7 @@ export interface AddLicenseRequest {
 	readonly license: string;
 }
 
-// From codersdk/workspaces.go
+// From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;
 	readonly ended_at: string;
@@ -1091,7 +1091,7 @@ export interface ProvisionerKeyDaemons {
 // From codersdk/provisionerdaemons.go
 export type ProvisionerKeyTags = Record<string, string>
 
-// From codersdk/workspaces.go
+// From codersdk/workspacebuilds.go
 export interface ProvisionerTiming {
 	readonly job_id: string;
 	readonly started_at: string;
@@ -1969,6 +1969,12 @@ export interface WorkspaceBuildParameter {
 	readonly value: string;
 }
 
+// From codersdk/workspacebuilds.go
+export interface WorkspaceBuildTimings {
+	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
+	readonly agent_script_timings: Readonly<Array<AgentScriptTiming>>;
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {
 	readonly since?: string;
@@ -2058,12 +2064,6 @@ export interface WorkspaceResourceMetadata {
 	readonly key: string;
 	readonly value: string;
 	readonly sensitive: boolean;
-}
-
-// From codersdk/workspaces.go
-export interface WorkspaceTimings {
-	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
-	readonly agent_script_timings: Readonly<Array<AgentScriptTiming>>;
 }
 
 // From codersdk/workspaces.go
