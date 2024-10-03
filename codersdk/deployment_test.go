@@ -578,7 +578,11 @@ func TestRemoveTrailingVersionInfo(t *testing.T) {
 			ExpectedAfterStrippingInfo: "v2.16.0",
 		},
 		{
-			Version:                    "v2.16.0-devel+683a720)",
+			Version:                    "v2.16.0-devel+683a720",
+			ExpectedAfterStrippingInfo: "v2.16.0",
+		},
+		{
+			Version:                    "v2.16.0+683a720-devel",
 			ExpectedAfterStrippingInfo: "v2.16.0",
 		},
 	}
