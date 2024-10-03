@@ -29,7 +29,9 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -455,7 +457,13 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.publishWorkspaceUpdate(ctx, workspace.ID)
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:          wspubsub.WorkspaceEventKindStateChange,
+		WorkspaceID:   workspace.ID,
+		WorkspaceName: ptr.Ref(workspace.Name),
+		Transition:    &workspaceBuild.Transition,
+		JobStatus:     ptr.Ref(provisionerJob.JobStatus),
+	})
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
@@ -534,7 +542,13 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.publishWorkspaceUpdate(ctx, workspace.ID)
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:          wspubsub.WorkspaceEventKindStateChange,
+		WorkspaceID:   workspace.ID,
+		WorkspaceName: ptr.Ref(workspace.Name),
+		Transition:    ptr.Ref(workspaceBuild.Transition),
+		JobStatus:     ptr.Ref(database.ProvisionerJobStatusCanceling),
+	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
