@@ -25,7 +25,7 @@ func WithAPIVersion(ctx context.Context, version string) context.Context {
 
 type LifecycleAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
-	WorkspaceIDFn            func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error)
+	WorkspaceID              uuid.UUID
 	Database                 database.Store
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent) error
@@ -45,13 +45,9 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	if err != nil {
 		return nil, err
 	}
-	workspaceID, err := a.WorkspaceIDFn(ctx, &workspaceAgent)
-	if err != nil {
-		return nil, err
-	}
 
 	logger := a.Log.With(
-		slog.F("workspace_id", workspaceID),
+		slog.F("workspace_id", a.WorkspaceID),
 		slog.F("payload", req),
 	)
 	logger.Debug(ctx, "workspace agent state report")
@@ -140,15 +136,11 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 	if err != nil {
 		return nil, err
 	}
-	workspaceID, err := a.WorkspaceIDFn(ctx, &workspaceAgent)
-	if err != nil {
-		return nil, err
-	}
 
 	a.Log.Debug(
 		ctx,
 		"post workspace agent version",
-		slog.F("workspace_id", workspaceID),
+		slog.F("workspace_id", a.WorkspaceID),
 		slog.F("agent_version", req.Startup.Version),
 	)
 

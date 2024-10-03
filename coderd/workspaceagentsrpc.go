@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -137,6 +138,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 	agentAPI := agentapi.New(agentapi.Options{
 		AgentID: workspaceAgent.ID,
+		OwnerID: workspace.OwnerID,
 
 		Ctx:                               api.ctx,
 		Log:                               logger,
@@ -250,7 +252,7 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 }
 
 type workspaceUpdater interface {
-	publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUID)
+	publishWorkspaceUpdate(ctx context.Context, ownerID uuid.UUID, event wspubsub.WorkspaceEvent)
 }
 
 type pingerCloser interface {
@@ -393,7 +395,12 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 				)
 			}
 		}
-		m.updater.publishWorkspaceUpdate(finalCtx, m.workspaceBuild.WorkspaceID)
+		m.updater.publishWorkspaceUpdate(finalCtx, m.workspaceBuild.InitiatorID, wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentUpdate,
+			WorkspaceID: m.workspaceBuild.WorkspaceID,
+			AgentID:     &m.workspaceAgent.ID,
+			AgentName:   &m.workspaceAgent.Name,
+		})
 	}()
 	reason := "disconnect"
 	defer func() {
@@ -407,7 +414,12 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 		reason = err.Error()
 		return
 	}
-	m.updater.publishWorkspaceUpdate(ctx, m.workspaceBuild.WorkspaceID)
+	m.updater.publishWorkspaceUpdate(ctx, m.workspaceBuild.InitiatorID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindAgentUpdate,
+		WorkspaceID: m.workspaceBuild.WorkspaceID,
+		AgentID:     &m.workspaceAgent.ID,
+		AgentName:   &m.workspaceAgent.Name,
+	})
 
 	ticker := time.NewTicker(m.pingPeriod)
 	defer ticker.Stop()
@@ -441,7 +453,12 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 			return
 		}
 		if connectionStatusChanged {
-			m.updater.publishWorkspaceUpdate(ctx, m.workspaceBuild.WorkspaceID)
+			m.updater.publishWorkspaceUpdate(ctx, m.workspaceBuild.InitiatorID, wspubsub.WorkspaceEvent{
+				Kind:        wspubsub.WorkspaceEventKindAgentUpdate,
+				WorkspaceID: m.workspaceBuild.WorkspaceID,
+				AgentID:     &m.workspaceAgent.ID,
+				AgentName:   &m.workspaceAgent.Name,
+			})
 		}
 		err = checkBuildIsLatest(ctx, m.db, m.workspaceBuild)
 		if err != nil {
