@@ -1730,6 +1730,61 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
 	})
 
+	t.Run("OneTimePasscodeExpires", func(t *testing.T) {
+		t.Parallel()
+
+		const newPassword = "SomeNewSecurePassword!"
+		const oneTimePasscodeValidityPeriod = 2 * time.Second
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer:         notifyEnq,
+			OneTimePasscodeValidityPeriod: oneTimePasscodeValidityPeriod,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
+			Email: anotherUser.Email,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, 2, len(notifyEnq.Sent))
+
+		notif := notifyEnq.Sent[1]
+		verifyOneTimePasscodeNotification(t, notif, anotherUser.ID)
+
+		oneTimePasscode := notif.Labels["one_time_passcode"]
+
+		// Wait for long enough so that the token expires
+		time.Sleep(oneTimePasscodeValidityPeriod + 1*time.Second)
+
+		// Try to change password with an expired one time passcode.
+		err = anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        newPassword,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
+
+		// Ensure that the password was not changed.
+		_, err = anotherClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: newPassword,
+		})
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or password.")
+	})
+
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 

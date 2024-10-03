@@ -43,10 +43,9 @@ import (
 )
 
 const (
-	userAuthLoggerName            = "userauth"
-	OAuthConvertCookieValue       = "coder_oauth_convert_jwt"
-	mergeStateStringPrefix        = "convert-"
-	oneTimePasscodeValidityPeriod = 20 * time.Minute
+	userAuthLoggerName      = "userauth"
+	OAuthConvertCookieValue = "coder_oauth_convert_jwt"
+	mergeStateStringPrefix  = "convert-"
 )
 
 type OAuthConvertStateClaims struct {
@@ -255,7 +254,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	aReq.Old = user
 
 	passcode := uuid.New()
-	passcodeExpiresAt := dbtime.Now().Add(oneTimePasscodeValidityPeriod)
+	passcodeExpiresAt := dbtime.Now().Add(api.OneTimePasscodeValidityPeriod)
 
 	hashedPasscode, err := userpassword.Hash(passcode.String())
 	if err != nil {
