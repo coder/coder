@@ -22,24 +22,18 @@ func TestJWT(t *testing.T) {
 	t.Parallel()
 
 	type tokenType struct {
-		Name     string
-		SignFn   func(ctx context.Context, keys cryptokeys.Keycache, claims jwtutils.Claims) (string, error)
-		VerifyFn func(ctx context.Context, keys cryptokeys.Keycache, token string, claims jwtutils.Claims, opts ...func(*jwtutils.ParseOptions)) error
-		KeySize  int
+		Name    string
+		KeySize int
 	}
 
 	types := []tokenType{
 		{
-			Name:     "JWE",
-			SignFn:   jwtutils.Encrypt,
-			VerifyFn: jwtutils.Decrypt,
-			KeySize:  32,
+			Name:    "JWE",
+			KeySize: 32,
 		},
 		{
-			Name:     "JWS",
-			SignFn:   jwtutils.Sign,
-			VerifyFn: jwtutils.Verify,
-			KeySize:  64,
+			Name:    "JWS",
+			KeySize: 64,
 		},
 	}
 
@@ -74,6 +68,17 @@ func TestJWT(t *testing.T) {
 						NotBefore: jwt.NewNumericDate(time.Now()),
 					},
 					MyClaim: "my_value",
+				}
+
+				var token string
+				var err error
+
+				if tt.Name == "JWE" {
+					token, err = jwtutils.Encrypt(ctx, keycache, claims)
+					require.NoError(t, err)
+				} else {
+					token, err = jwtutils.Sign(ctx, keycache, claims)
+					require.NoError(t, err)
 				}
 
 				token, err := tt.SignFn(ctx, keycache, claims)
@@ -470,4 +475,32 @@ func withContentEncryptionAlgorithm(alg jose.ContentEncryption) func(*jwtutils.P
 	return func(opts *jwtutils.ParseOptions) {
 		opts.ContentEncryptionAlgorithm = alg
 	}
+}
+
+type godkey interface {
+	jwtutils.SignKeyer
+	jwtutils.VerifyKeyer
+	jwtutils.EncryptKeyer
+	jwtutils.DecryptKeyer
+}
+
+type key struct {
+	signFn   func(context.Context) (string, interface{}, error)
+	verifyFn func(context.Context, string) (interface{}, error)
+}
+
+func (k *key) SigningKey(ctx context.Context) (string, interface{}, error) {
+	return k.signFn(ctx)
+}
+
+func (k *key) VerifyingKey(ctx context.Context, id string) (interface{}, error) {
+	return k.verifyFn(ctx, id)
+}
+
+func (k *key) EncryptingKey(ctx context.Context) (string, interface{}, error) {
+	return k.signFn(ctx)
+}
+
+func (k *key) DecryptingKey(ctx context.Context, id string) (interface{}, error) {
+	return k.verifyFn(ctx, id)
 }

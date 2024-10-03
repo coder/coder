@@ -48,8 +48,9 @@ func Test_Verifying(t *testing.T) {
 		defer k.Close()
 		k.keys = cache
 
-		got, err := k.Verifying(ctx, 32)
+		id, secret, err := k.SigningKey(ctx)
 		require.NoError(t, err)
+		require.Equal(t, "32", id)
 		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
 	})
 

@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 var (
@@ -14,8 +12,18 @@ var (
 	ErrClosed      = xerrors.New("closed")
 )
 
-// Keycache provides an abstraction for fetching signing keys.
+// Keycache provides an abstraction for fetching cryptographic keys used for signing or encrypting payloads.
 type Keycache interface {
-	Signing(ctx context.Context) (codersdk.CryptoKey, error)
-	Verifying(ctx context.Context, sequence int32) (codersdk.CryptoKey, error)
+	SigningKeycache
+	EncryptionKeycache
+}
+
+type EncryptionKeycache interface {
+	EncryptingKey(ctx context.Context) (id string, key interface{}, err error)
+	DecryptingKey(ctx context.Context, id string) (key interface{}, err error)
+}
+
+type SigningKeycache interface {
+	SigningKey(ctx context.Context) (id string, key interface{}, err error)
+	VerifyingKey(ctx context.Context, id string) (key interface{}, err error)
 }

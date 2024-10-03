@@ -2,6 +2,7 @@ package cryptokeys
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -9,8 +10,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -61,18 +60,54 @@ func NewDBCache(logger slog.Logger, db database.Store, feature database.CryptoKe
 	return d
 }
 
+func (d *DBCache) EncryptingKey(ctx context.Context) (id string, key interface{}, err error) {
+	if !isEncryptionKeyFeature(d.feature) {
+		return "", nil, xerrors.Errorf("invalid feature: %s", d.feature)
+	}
+	return d.Signing(ctx)
+}
+
+func (d *DBCache) DecryptingKey(ctx context.Context, id string) (key interface{}, err error) {
+	if !isEncryptionKeyFeature(d.feature) {
+		return nil, xerrors.Errorf("invalid feature: %s", d.feature)
+	}
+
+	return d.Verifying(ctx, id)
+}
+
+func (d *DBCache) SigningKey(ctx context.Context) (id string, key interface{}, err error) {
+	if !isSigningKeyFeature(d.feature) {
+		return "", nil, xerrors.Errorf("invalid feature: %s", d.feature)
+	}
+
+	return d.Signing(ctx)
+}
+
+func (d *DBCache) VerifyingKey(ctx context.Context, id string) (key interface{}, err error) {
+	if !isSigningKeyFeature(d.feature) {	
+		return nil, xerrors.Errorf("invalid feature: %s", d.feature)
+	}
+
+	return d.Verifying(ctx, id)
+}
+
 // Verifying returns the CryptoKey with the given sequence number, provided that
 // it is neither deleted nor has breached its deletion date. It should only be
 // used for verifying or decrypting payloads. To sign/encrypt call Signing.
-func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
+func (d *DBCache) Verifying(ctx context.Context, id string) (interface{}, error) {
+	sequence, err := strconv.ParseInt(id, 10, 32)
+	if err != nil {
+		return nil, xerrors.Errorf("expecting sequence number got %q: %w", id, err)
+	}
+
 	d.keysMu.RLock()
 	if d.closed {
 		d.keysMu.RUnlock()
-		return codersdk.CryptoKey{}, ErrClosed
+		return nil, ErrClosed
 	}
 
 	now := d.clock.Now()
-	key, ok := d.keys[sequence]
+	key, ok := d.keys[int32(sequence)]
 	d.keysMu.RUnlock()
 	if ok {
 		return checkKey(key, now)
@@ -82,22 +117,22 @@ func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.Crypt
 	defer d.keysMu.Unlock()
 
 	if d.closed {
-		return codersdk.CryptoKey{}, ErrClosed
+		return nil, ErrClosed
 	}
 
-	key, ok = d.keys[sequence]
+	key, ok = d.keys[int32(sequence)]
 	if ok {
 		return checkKey(key, now)
 	}
 
-	err := d.fetch(ctx)
+	err = d.fetch(ctx)
 	if err != nil {
-		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
+		return nil, xerrors.Errorf("fetch: %w", err)
 	}
 
-	key, ok = d.keys[sequence]
+	key, ok = d.keys[int32(sequence)]
 	if !ok {
-		return codersdk.CryptoKey{}, ErrKeyNotFound
+		return nil, ErrKeyNotFound
 	}
 
 	return checkKey(key, now)
@@ -105,12 +140,12 @@ func (d *DBCache) Verifying(ctx context.Context, sequence int32) (codersdk.Crypt
 
 // Signing returns the latest valid key for signing. A valid key is one that is
 // both past its start time and before its deletion time.
-func (d *DBCache) Signing(ctx context.Context) (codersdk.CryptoKey, error) {
+func (d *DBCache) Signing(ctx context.Context) (string, interface{}, error) {
 	d.keysMu.RLock()
 
 	if d.closed {
 		d.keysMu.RUnlock()
-		return codersdk.CryptoKey{}, ErrClosed
+		return "", nil, ErrClosed
 	}
 
 	latest := d.latestKey
@@ -118,27 +153,27 @@ func (d *DBCache) Signing(ctx context.Context) (codersdk.CryptoKey, error) {
 
 	now := d.clock.Now()
 	if latest.CanSign(now) {
-		return db2sdk.CryptoKey(latest), nil
+		return idSecret(latest)
 	}
 
 	d.keysMu.Lock()
 	defer d.keysMu.Unlock()
 
 	if d.closed {
-		return codersdk.CryptoKey{}, ErrClosed
+		return "", nil, ErrClosed
 	}
 
 	if d.latestKey.CanSign(now) {
-		return db2sdk.CryptoKey(d.latestKey), nil
+		return idSecret(d.latestKey)
 	}
 
 	// Refetch all keys for this feature so we can find the latest valid key.
 	err := d.fetch(ctx)
 	if err != nil {
-		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
+		return "", nil, xerrors.Errorf("fetch: %w", err)
 	}
 
-	return db2sdk.CryptoKey(d.latestKey), nil
+	return idSecret(d.latestKey)
 }
 
 // clear invalidates the cache. This forces the subsequent call to fetch fresh keys.
@@ -189,12 +224,12 @@ func (d *DBCache) fetch(ctx context.Context) error {
 	return nil
 }
 
-func checkKey(key database.CryptoKey, now time.Time) (codersdk.CryptoKey, error) {
+func checkKey(key database.CryptoKey, now time.Time) (interface{}, error) {
 	if !key.CanVerify(now) {
-		return codersdk.CryptoKey{}, ErrKeyInvalid
+		return nil, ErrKeyInvalid
 	}
 
-	return db2sdk.CryptoKey(key), nil
+	return key.DecodeString()
 }
 
 func (d *DBCache) Close() {
@@ -207,4 +242,26 @@ func (d *DBCache) Close() {
 
 	d.timer.Stop()
 	d.closed = true
+}
+
+func isEncryptionKeyFeature(feature database.CryptoKeyFeature) bool {
+	return feature == database.CryptoKeyFeatureWorkspaceApps
+}
+
+func isSigningKeyFeature(feature database.CryptoKeyFeature) bool {
+	switch feature {
+	case database.CryptoKeyFeatureTailnetResume, database.CryptoKeyFeatureOidcConvert:
+		return true
+	default:
+		return false
+	}
+}
+
+func idSecret(k database.CryptoKey) (string, interface{}, error) {
+	key, err := k.DecodeString()
+	if err != nil {
+		return "", nil, xerrors.Errorf("decode key: %w", err)
+	}
+
+	return strconv.FormatInt(int64(k.Sequence), 10), key, nil
 }
