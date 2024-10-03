@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
+import { EmptyState } from "components/EmptyState/EmptyState";
 
 const OrganizationMembersPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -50,12 +51,15 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
+	const { organization } = useOrganizationSettings();
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
 	const [memberToDelete, setMemberToDelete] =
 		useState<OrganizationMemberWithUserData>();
+
+	if (!organization) {
+		return <EmptyState message="Organization not found" />;
+	}
 
 	const permissions = permissionsQuery.data;
 	if (!permissions) {
@@ -75,9 +79,9 @@ const OrganizationMembersPage: FC = () => {
 				}
 				isAddingMember={addMemberMutation.isLoading}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
+				organization={organization}
 				me={me}
 				members={members}
-				groupsByUserId={groupsByUserIdQuery.data}
 				addMember={async (user: User) => {
 					await addMemberMutation.mutateAsync(user.id);
 					void membersQuery.refetch();

@@ -4,28 +4,26 @@ import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { Navigate, Link as RouterLink, useParams } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
 	const feats = useFeatureVisibility();
-	const { organization: organizationName } = useParams() as {
-		organization: string;
-	};
-	const groupsQuery = useQuery(groupsByOrganization(organizationName));
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
+	const { organization } = useOrganizationSettings();
+	const groupsQuery = useQuery(
+		organization ? groupsByOrganization(organization.name) : { enabled: false },
+	);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
 	useEffect(() => {
@@ -43,19 +41,6 @@ export const GroupsPage: FC = () => {
 			);
 		}
 	}, [permissionsQuery.error]);
-
-	if (!organizations) {
-		return <Loader />;
-	}
-
-	if (!organizationName) {
-		const defaultName = getOrganizationNameByDefault(organizations);
-		if (defaultName) {
-			return <Navigate to={`/organizations/${defaultName}/groups`} replace />;
-		}
-		// We expect there to always be a default organization.
-		throw new Error("No default organization found");
-	}
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -76,11 +61,17 @@ export const GroupsPage: FC = () => {
 				alignItems="baseline"
 				direction="row"
 				justifyContent="space-between"
+				css={{ paddingBottom: 32 }}
 			>
-				<SettingsHeader
-					title="Groups"
-					description="Manage groups for this organization."
-				/>
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/groups`} active>
+						Groups
+					</Crumb>
+				</Breadcrumbs>
 				{permissions.createGroup && feats.template_rbac && (
 					<Button component={RouterLink} startIcon={<GroupAdd />} to="create">
 						Create group

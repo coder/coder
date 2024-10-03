@@ -5,6 +5,7 @@ import {
 	groupIdpSyncSettings,
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
@@ -65,12 +66,17 @@ export const IdpSyncPage: FC = () => {
 				alignItems="baseline"
 				direction="row"
 				justifyContent="space-between"
+				css={{ paddingBottom: 32 }}
 			>
-				<SettingsHeader
-					title="IdP Sync"
-					description="Group and role sync mappings (configured using Coder CLI)."
-					tooltip={<IdpSyncHelpTooltip />}
-				/>
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/idp-sync`} active>
+						IdP Sync
+					</Crumb>
+				</Breadcrumbs>
 				<Button
 					startIcon={<LaunchOutlined />}
 					component="a"

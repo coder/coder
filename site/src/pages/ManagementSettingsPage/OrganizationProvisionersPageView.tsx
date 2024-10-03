@@ -2,10 +2,12 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import Button from "@mui/material/Button";
 import type {
 	BuildInfoResponse,
+	Organization,
 	ProvisionerKey,
 	ProvisionerKeyDaemons,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Breadcrumbs, Crumb } from "components/Breadcrumbs/Breadcrumbs";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
@@ -14,8 +16,11 @@ import { Stack } from "components/Stack/Stack";
 import { ProvisionerGroup } from "modules/provisioners/ProvisionerGroup";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import { useOrganizationSettings } from "./ManagementSettingsLayout";
 
 interface OrganizationProvisionersPageViewProps {
+	organization: Organization;
+
 	/** Determines if the paywall will be shown or not */
 	showPaywall?: boolean;
 
@@ -31,15 +36,24 @@ interface OrganizationProvisionersPageViewProps {
 
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps
-> = ({ showPaywall, error, buildInfo, provisioners }) => {
+> = ({ organization, showPaywall, error, buildInfo, provisioners }) => {
 	return (
-		<div>
+		<Stack>
 			<Stack
 				alignItems="baseline"
 				direction="row"
 				justifyContent="space-between"
+				css={{ paddingBottom: 32 }}
 			>
-				<SettingsHeader title="Provisioners" />
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/members`} active>
+						Members
+					</Crumb>
+				</Breadcrumbs>
 				{!showPaywall && (
 					<Button
 						endIcon={<OpenInNewIcon />}
@@ -63,7 +77,7 @@ export const OrganizationProvisionersPageView: FC<
 			) : (
 				<ViewContent buildInfo={buildInfo} provisioners={provisioners} />
 			)}
-		</div>
+		</Stack>
 	);
 };
 
@@ -72,6 +86,8 @@ type ViewContentProps = Required<
 >;
 
 const ViewContent: FC<ViewContentProps> = ({ buildInfo, provisioners }) => {
+	const { organization } = useOrganizationSettings();
+
 	const isEmpty = provisioners.every((group) => group.daemons.length === 0);
 
 	const provisionerGroupsCount = provisioners.length;
@@ -80,8 +96,32 @@ const ViewContent: FC<ViewContentProps> = ({ buildInfo, provisioners }) => {
 		0,
 	);
 
+	if (!organization) return null;
+
 	return (
 		<>
+			<Stack
+				alignItems="baseline"
+				direction="row"
+				justifyContent="space-between"
+			>
+				<Breadcrumbs>
+					<Crumb>Organizations</Crumb>
+					<Crumb href={`/organizations/${organization}`}>
+						{organization.display_name || organization.name}
+					</Crumb>
+					<Crumb href={`/organizations/${organization}/groups`} active>
+						Groups
+					</Crumb>
+				</Breadcrumbs>
+				<Button
+					endIcon={<OpenInNewIcon />}
+					target="_blank"
+					href={docs("/admin/provisioners")}
+				>
+					Create a provisioner
+				</Button>
+			</Stack>
 			{isEmpty ? (
 				<EmptyState
 					message="No provisioners"
