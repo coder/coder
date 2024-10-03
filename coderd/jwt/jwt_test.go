@@ -1,4 +1,4 @@
-package jwt_test
+package jwtutils_test
 
 import (
 	"context"

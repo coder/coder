@@ -1,4 +1,4 @@
-package jwt
+package jwtutils
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
-	jjwt "github.com/go-jose/go-jose/v4/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
@@ -66,7 +66,7 @@ func Encrypt(ctx context.Context, keys cryptokeys.Keycache, claims Claims) (stri
 // Decrypt decrypts the token using the provided key. It unmarshals into the provided claims.
 func Decrypt(ctx context.Context, keys cryptokeys.Keycache, token string, claims Claims, opts ...func(*ParseOptions)) error {
 	options := ParseOptions{
-		RegisteredClaims: jjwt.Expected{
+		RegisteredClaims: jwt.Expected{
 			Time: time.Now(),
 		},
 		KeyAlgorithm:               encryptKeyAlgo,
@@ -87,11 +87,11 @@ func Decrypt(ctx context.Context, keys cryptokeys.Keycache, token string, claims
 		[]jose.ContentEncryption{options.ContentEncryptionAlgorithm},
 	)
 	if err != nil {
-		return xerrors.Errorf("parse encrypted API key: %w", err)
+		return xerrors.Errorf("parse jwe: %w", err)
 	}
 
 	if object.Header.Algorithm != string(encryptKeyAlgo) {
-		return xerrors.Errorf("expected API key encryption algorithm to be %q, got %q", encryptKeyAlgo, object.Header.Algorithm)
+		return xerrors.Errorf("expected JWE algorithm to be %q, got %q", encryptKeyAlgo, object.Header.Algorithm)
 	}
 
 	sequenceStr := object.Header.KeyID

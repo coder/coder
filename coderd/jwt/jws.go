@@ -1,4 +1,4 @@
-package jwt
+package jwtutils
 
 import (
 	"context"
@@ -8,15 +8,14 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
-	jjwt "github.com/go-jose/go-jose/v4/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 )
 
 const (
-	defaultSigningAlgo = jose.HS512
-	keyIDHeaderKey     = "kid"
+	signingAlgo = jose.HS512
 )
 
 // Sign signs a token and returns it as a string.
@@ -32,7 +31,7 @@ func Sign(ctx context.Context, keys cryptokeys.Keycache, claims Claims) (string,
 	}
 
 	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: defaultSigningAlgo,
+		Algorithm: signingAlgo,
 		Key:       decoded,
 	}, &jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]interface{}{
@@ -64,10 +63,10 @@ func Sign(ctx context.Context, keys cryptokeys.Keycache, claims Claims) (string,
 // Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.
 func Verify(ctx context.Context, keys cryptokeys.Keycache, token string, claims Claims, opts ...func(*ParseOptions)) error {
 	options := ParseOptions{
-		RegisteredClaims: jjwt.Expected{
+		RegisteredClaims: jwt.Expected{
 			Time: time.Now(),
 		},
-		SignatureAlgorithm: defaultSigningAlgo,
+		SignatureAlgorithm: signingAlgo,
 	}
 
 	for _, opt := range opts {
@@ -85,8 +84,8 @@ func Verify(ctx context.Context, keys cryptokeys.Keycache, token string, claims 
 
 	signature := object.Signatures[0]
 
-	if signature.Header.Algorithm != string(defaultSigningAlgo) {
-		return xerrors.Errorf("expected token signing algorithm to be %q, got %q", defaultSigningAlgo, object.Signatures[0].Header.Algorithm)
+	if signature.Header.Algorithm != string(signingAlgo) {
+		return xerrors.Errorf("expected JWS algorithm to be %q, got %q", signingAlgo, object.Signatures[0].Header.Algorithm)
 	}
 
 	sequenceStr := signature.Header.KeyID
@@ -96,12 +95,12 @@ func Verify(ctx context.Context, keys cryptokeys.Keycache, token string, claims 
 
 	sequence, err := strconv.ParseInt(sequenceStr, 10, 32)
 	if err != nil {
-		return xerrors.Errorf("parse sequence: %w", err)
+		return xerrors.Errorf("parse sequence %q: %w", sequenceStr, err)
 	}
 
 	key, err := keys.Verifying(ctx, int32(sequence))
 	if err != nil {
-		return xerrors.Errorf("version: %w", err)
+		return xerrors.Errorf("verifying key for seq %v: %w", sequence, err)
 	}
 
 	decoded, err := hex.DecodeString(key.Secret)

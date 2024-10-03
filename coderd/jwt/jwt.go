@@ -1,19 +1,23 @@
-package jwt
+package jwtutils
 
 import (
 	"github.com/go-jose/go-jose/v4"
-	jjwt "github.com/go-jose/go-jose/v4/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
+)
+
+const (
+	keyIDHeaderKey = "kid"
 )
 
 // Claims defines the payload for a JWT. Most callers
-// should ember go-jose/jwt.Claims
+// should embed jwt.Claims
 type Claims interface {
-	Validate(jjwt.Expected) error
+	Validate(jwt.Expected) error
 }
 
 // ParseOptions are options for parsing a JWT.
 type ParseOptions struct {
-	RegisteredClaims jjwt.Expected
+	RegisteredClaims jwt.Expected
 
 	// The following are only used for JWSs.
 	SignatureAlgorithm jose.SignatureAlgorithm
