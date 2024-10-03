@@ -43,10 +43,10 @@ import (
 )
 
 const (
-	userAuthLoggerName      = "userauth"
-	OAuthConvertCookieValue = "coder_oauth_convert_jwt"
-	mergeStateStringPrefix  = "convert-"
-	oneTimePasscodeDuration = 20 * time.Minute
+	userAuthLoggerName            = "userauth"
+	OAuthConvertCookieValue       = "coder_oauth_convert_jwt"
+	mergeStateStringPrefix        = "convert-"
+	oneTimePasscodeValidityPeriod = 20 * time.Minute
 )
 
 type OAuthConvertStateClaims struct {
@@ -210,7 +210,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Tags Authorization
 // @Param request body codersdk.RequestOneTimePasscodeRequest true "Request one-time passcode request"
-// @Success 200
+// @Success 204
 // @Router /users/request-one-time-passcode [post]
 func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -241,7 +241,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	defer func() {
 		// We always send the same response. If we give a more detailed response
 		// it would open us up to an enumeration attack.
-		rw.WriteHeader(http.StatusOK)
+		rw.WriteHeader(http.StatusNoContent)
 	}()
 
 	//nolint:gocritic // In order to request a one-time passcode, we need to get the user first - and can only do that in the system auth context.
@@ -255,7 +255,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	aReq.Old = user
 
 	passcode := uuid.New()
-	passcodeExpiresAt := dbtime.Now().Add(oneTimePasscodeDuration)
+	passcodeExpiresAt := dbtime.Now().Add(oneTimePasscodeValidityPeriod)
 
 	hashedPasscode, err := userpassword.Hash(passcode.String())
 	if err != nil {
@@ -279,13 +279,15 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	auditUser.OneTimePasscodeExpiresAt = sql.NullTime{Time: passcodeExpiresAt, Valid: true}
 	aReq.New = auditUser
 
-	if user.ID != uuid.Nil {
-		// Send the one-time passcode to the user.
-		err = api.notifyUserRequestedOneTimePasscode(ctx, user, passcode.String())
-		if err != nil {
-			logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
+	go func() {
+		if user.ID != uuid.Nil {
+			// Send the one-time passcode to the user.
+			err = api.notifyUserRequestedOneTimePasscode(context.Background(), user, passcode.String())
+			if err != nil {
+				logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
+			}
 		}
-	}
+	}()
 }
 
 func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
@@ -312,7 +314,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 // @Accept json
 // @Tags Authorization
 // @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Change password request"
-// @Success 200
+// @Success 204
 // @Router /users/change-password-with-one-time-passcode [post]
 func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -354,14 +356,14 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 		equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
 		if err != nil {
-			logger.Error(ctx, "unable to compare one time passcode", slog.Error(err))
-			return xerrors.Errorf("compare one time passcode: %w", err)
+			logger.Error(ctx, "unable to compare one-time passcode", slog.Error(err))
+			return xerrors.Errorf("compare one-time passcode: %w", err)
 		}
 
 		now := dbtime.Now()
 		if !equal || now.After(user.OneTimePasscodeExpiresAt.Time) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Incorrect email or one-time-passcode.",
+				Message: "Incorrect email or one-time passcode.",
 			})
 			return nil
 		}
@@ -415,7 +417,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		auditUser.HashedOneTimePasscode = nil
 		aReq.New = auditUser
 
-		rw.WriteHeader(http.StatusOK)
+		rw.WriteHeader(http.StatusNoContent)
 
 		return nil
 	}, nil)

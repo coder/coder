@@ -1666,9 +1666,9 @@ func TestUserForgotPassword(t *testing.T) {
 	}
 
 	t.Run("CanChangePassword", func(t *testing.T) {
-		const newPassword = "SomeNewSecurePassword!"
-
 		t.Parallel()
+
+		const newPassword = "SomeNewSecurePassword!"
 
 		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 
@@ -1688,7 +1688,10 @@ func TestUserForgotPassword(t *testing.T) {
 			Email:    anotherUser.Email,
 			Password: newPassword,
 		})
-		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or password.")
 
 		err = anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
 			Email: anotherUser.Email,
@@ -1722,7 +1725,9 @@ func TestUserForgotPassword(t *testing.T) {
 			OneTimePasscode: oneTimePasscode,
 			Password:        "SomeDifferentSecurePassword!",
 		})
-		require.Error(t, err)
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
 	})
 
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
@@ -1755,11 +1760,10 @@ func TestUserForgotPassword(t *testing.T) {
 			OneTimePasscode: uuid.New().String(), // Use a different UUID to the one expected
 			Password:        "SomeNewSecurePassword!",
 		})
-		require.Error(t, err)
-
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
 	})
 
 	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
@@ -1792,11 +1796,12 @@ func TestUserForgotPassword(t *testing.T) {
 			OneTimePasscode: "",
 			Password:        "SomeNewSecurePassword!",
 		})
-		require.Error(t, err)
-
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Validation failed.")
+		require.Equal(t, 1, len(apiErr.Validations))
+		require.Equal(t, "one_time_passcode", apiErr.Validations[0].Field)
 	})
 
 	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
@@ -1831,11 +1836,12 @@ func TestUserForgotPassword(t *testing.T) {
 			OneTimePasscode: oneTimePasscode,
 			Password:        "notstrong",
 		})
-		require.Error(t, err)
-
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Invalid password.")
+		require.Equal(t, 1, len(apiErr.Validations))
+		require.Equal(t, "password", apiErr.Validations[0].Field)
 	})
 
 	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {
