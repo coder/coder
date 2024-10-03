@@ -151,7 +151,7 @@ CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
 
-## Group Sync (enterprise)
+## Group Sync (enterprise) (premium)
 
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder.

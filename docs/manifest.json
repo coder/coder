@@ -239,6 +239,11 @@
 							"state": ["enterprise", "premium"]
 						},
 						{
+							"title": "Groups",
+							"path": "./admin/users/groups.md",
+							"state": ["enterprise", "premium"]
+						},
+						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
 							"state": ["premium"]
@@ -532,6 +537,12 @@
 							"state": ["enterprise", "premium"]
 						}
 					]
+				},
+				{
+					"title": "Licensing",
+					"description": "Configure licensing for your deployment",
+					"path": "./admin/licensing/README.md",
+					"icon_path": "./images/icons/licensing.svg"
 				}
 			]
 		},
