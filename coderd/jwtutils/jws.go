@@ -3,7 +3,6 @@ package jwtutils
 import (
 	"context"
 	"encoding/json"
-	"strconv"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -106,19 +105,14 @@ func Verify(ctx context.Context, v VerifyKeyer, token string, claims Claims, opt
 		return xerrors.Errorf("expected JWS algorithm to be %q, got %q", signingAlgo, object.Signatures[0].Header.Algorithm)
 	}
 
-	sequenceStr := signature.Header.KeyID
-	if sequenceStr == "" {
+	kid := signature.Header.KeyID
+	if kid == "" {
 		return xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
 	}
 
-	sequence, err := strconv.ParseInt(sequenceStr, 10, 32)
+	key, err := v.VerifyingKey(ctx, kid)
 	if err != nil {
-		return xerrors.Errorf("parse sequence %q: %w", sequenceStr, err)
-	}
-
-	key, err := v.VerifyingKey(ctx, sequenceStr)
-	if err != nil {
-		return xerrors.Errorf("verifying key for seq %v: %w", sequence, err)
+		return xerrors.Errorf("key with id %q: %w", kid, err)
 	}
 
 	payload, err := object.Verify(key)

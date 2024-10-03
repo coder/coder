@@ -988,9 +988,9 @@ func takeFirst[Value comparable](values ...Value) Value {
 func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	switch feature {
 	case database.CryptoKeyFeatureWorkspaceApps:
-		return generateCryptoKey(96)
-	case database.CryptoKeyFeatureOidcConvert:
 		return generateCryptoKey(32)
+	case database.CryptoKeyFeatureOidcConvert:
+		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateCryptoKey(64)
 	}

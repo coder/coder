@@ -12,6 +12,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/v2/coderd/cryptokeys"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -41,7 +47,7 @@ func TestClaims(t *testing.T) {
 
 	type testcase struct {
 		name           string
-		claims         jwt.Claims
+		claims         jwtutils.Claims
 		expectedClaims jwt.Expected
 		expectedErr    error
 	}
@@ -169,14 +175,18 @@ func TestClaims(t *testing.T) {
 					}
 					require.NoError(t, err)
 
-					var actual testClaims
+					var actual jwt.Claims
 					if tt.Sign {
-						err = jwtutils.Verify(ctx, key, token, &actual)
+						err = jwtutils.Verify(ctx, key, token, &actual, withVerifyExpected(c.expectedClaims))
 					} else {
-						err = jwtutils.Decrypt(ctx, key, token, &actual)
+						err = jwtutils.Decrypt(ctx, key, token, &actual, withDecryptExpected(c.expectedClaims))
 					}
-					require.NoError(t, err)
-					require.Equal(t, c.claims, actual)
+					if c.expectedErr != nil {
+						require.ErrorIs(t, err, c.expectedErr)
+					} else {
+						require.NoError(t, err)
+						require.Equal(t, c.claims, actual)
+					}
 				})
 			}
 		})
@@ -184,6 +194,7 @@ func TestClaims(t *testing.T) {
 }
 
 func TestJWS(t *testing.T) {
+	t.Parallel()
 	t.Run("WrongSignatureAlgorithm", func(t *testing.T) {
 		t.Parallel()
 
@@ -199,11 +210,65 @@ func TestJWS(t *testing.T) {
 		var actual testClaims
 		err = jwtutils.Verify(ctx, key, token, &actual, withSignatureAlgorithm(jose.HS256))
 		require.Error(t, err)
-
 	})
+
+	t.Run("CustomClaims", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx = testutil.Context(t, testutil.WaitShort)
+			key = newKey(t, 64)
+		)
+
+		expected := testClaims{
+			MyClaim: "my_value",
+		}
+		token, err := jwtutils.Sign(ctx, key, expected)
+		require.NoError(t, err)
+
+		var actual testClaims
+		err = jwtutils.Verify(ctx, key, token, &actual, withVerifyExpected(jwt.Expected{}))
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("WithKeycache", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx   = testutil.Context(t, testutil.WaitShort)
+			db, _ = dbtestutil.NewDB(t)
+			_     = dbgen.CryptoKey(t, db, database.CryptoKey{
+				Feature:  database.CryptoKeyFeatureOidcConvert,
+				StartsAt: time.Now(),
+			})
+			log = slogtest.Make(t, nil)
+		)
+
+		cache, err := cryptokeys.NewSigningCache(log, db, database.CryptoKeyFeatureOidcConvert)
+		require.NoError(t, err)
+
+		claims := testClaims{
+			MyClaim: "my_value",
+			Claims: jwt.Claims{
+				Expiry: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			},
+		}
+
+		token, err := jwtutils.Sign(ctx, cache, claims)
+		require.NoError(t, err)
+
+		var actual testClaims
+		err = jwtutils.Verify(ctx, cache, token, &actual)
+		require.NoError(t, err)
+		require.Equal(t, claims, actual)
+	})
+
 }
 
 func TestJWE(t *testing.T) {
+	t.Parallel()
+
 	t.Run("WrongKeyAlgorithm", func(t *testing.T) {
 		t.Parallel()
 
@@ -235,6 +300,59 @@ func TestJWE(t *testing.T) {
 		err = jwtutils.Decrypt(ctx, key, token, &actual, withContentEncryptionAlgorithm(jose.A128GCM))
 		require.Error(t, err)
 	})
+
+	t.Run("CustomClaims", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx = testutil.Context(t, testutil.WaitShort)
+			key = newKey(t, 32)
+		)
+
+		expected := testClaims{
+			MyClaim: "my_value",
+		}
+
+		token, err := jwtutils.Encrypt(ctx, key, expected)
+		require.NoError(t, err)
+
+		var actual testClaims
+		err = jwtutils.Decrypt(ctx, key, token, &actual, withDecryptExpected(jwt.Expected{}))
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("WithKeycache", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx   = testutil.Context(t, testutil.WaitShort)
+			db, _ = dbtestutil.NewDB(t)
+			_     = dbgen.CryptoKey(t, db, database.CryptoKey{
+				Feature:  database.CryptoKeyFeatureWorkspaceApps,
+				StartsAt: time.Now(),
+			})
+			log = slogtest.Make(t, nil)
+		)
+
+		cache, err := cryptokeys.NewEncryptionCache(log, db, database.CryptoKeyFeatureWorkspaceApps)
+		require.NoError(t, err)
+
+		claims := testClaims{
+			MyClaim: "my_value",
+			Claims: jwt.Claims{
+				Expiry: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+			},
+		}
+
+		token, err := jwtutils.Encrypt(ctx, cache, claims)
+		require.NoError(t, err)
+
+		var actual testClaims
+		err = jwtutils.Decrypt(ctx, cache, token, &actual)
+		require.NoError(t, err)
+		require.Equal(t, claims, actual)
+	})
 }
 
 func generateCryptoKey(t *testing.T, seq int32, now time.Time, keySize int) codersdk.CryptoKey {
@@ -264,7 +382,13 @@ type testClaims struct {
 	jwt.Claims
 }
 
-func withExpected(e jwt.Expected) func(*jwtutils.VerifyOptions) {
+func withDecryptExpected(e jwt.Expected) func(*jwtutils.DecryptOptions) {
+	return func(opts *jwtutils.DecryptOptions) {
+		opts.RegisteredClaims = e
+	}
+}
+
+func withVerifyExpected(e jwt.Expected) func(*jwtutils.VerifyOptions) {
 	return func(opts *jwtutils.VerifyOptions) {
 		opts.RegisteredClaims = e
 	}

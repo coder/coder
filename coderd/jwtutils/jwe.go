@@ -102,14 +102,14 @@ func Decrypt(ctx context.Context, d DecryptKeyer, token string, claims Claims, o
 		return xerrors.Errorf("expected JWE algorithm to be %q, got %q", encryptKeyAlgo, object.Header.Algorithm)
 	}
 
-	sequenceStr := object.Header.KeyID
-	if sequenceStr == "" {
+	kid := object.Header.KeyID
+	if kid == "" {
 		return xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
 	}
 
-	key, err := d.DecryptingKey(ctx, sequenceStr)
+	key, err := d.DecryptingKey(ctx, kid)
 	if err != nil {
-		return xerrors.Errorf("version: %w", err)
+		return xerrors.Errorf("key with id %q: %w", kid, err)
 	}
 
 	decrypted, err := object.Decrypt(key)
