@@ -1,13 +1,14 @@
 # FAQs
 
-Frequently asked questions on Coder OSS and Premium deployments. These FAQs come
-from our community and enterprise customers, feel free to
+Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
+come from our community and enterprise customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/faqs.md).
 
-### How do I add a Premium trial license?
+### How do I add an enterprise license?
 
 Visit https://coder.com/trial or contact
-[sales@coder.com](mailto:sales@coder.com?subject=License) to get a trial key.
+[sales@coder.com](mailto:sales@coder.com?subject=License) to get a v2 enterprise
+trial key.
 
 You can add a license through the UI or CLI.
 
@@ -15,8 +16,7 @@ In the UI, click the Deployment tab -> Licenses and upload the `jwt` license
 file.
 
 > To add the license with the CLI, first
-> [install the Coder CLI](./install/index.md#install-script) and server to the
-> latest release.
+> [install the Coder CLI](./install/cli.md) and server to the latest release.
 
 If the license is a text string:
 
@@ -36,12 +36,12 @@ The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
 
 Coder's networking stack has intelligence to attempt a peer-to-peer or
-[Direct connection](https://coder.com/docs/networking#direct-connections)
-between the local IDE and the workspace. However, this requires some additional
-protocols like UDP and being able to reach a STUN server to echo the IP
-addresses of the local IDE machine and workspace, for sharing using a Wireguard
-Coordination Server. By default, Coder assumes Internet and attempts to reach
-Google's STUN servers to perform this IP echo.
+[Direct connection](./admin/networking/README.md#direct-connections) between the
+local IDE and the workspace. However, this requires some additional protocols
+like UDP and being able to reach a STUN server to echo the IP addresses of the
+local IDE machine and workspace, for sharing using a Wireguard Coordination
+Server. By default, Coder assumes Internet and attempts to reach Google's STUN
+servers to perform this IP echo.
 
 Operators experimenting with Coder may run into networking issues if UDP (which
 STUN requires) or the STUN servers are unavailable, potentially resulting in
@@ -53,7 +53,7 @@ troubleshooting.
 
 | Flag                                                                                                 | Value       | Meaning                               |
 | ---------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
-| [`CODER_BLOCK_DIRECT`](https://coder.com/docs/cli/server#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_BLOCK_DIRECT`](./reference/cli/server#--block-direct-connections)                            | `true`      | Blocks direct connections             |
 | [`CODER_DERP_SERVER_STUN_ADDRESSES`](https://coder.com/docs/cli/server#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
 | [`CODER_DERP_FORCE_WEBSOCKETS`](https://coder.com/docs/cli/server#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
@@ -70,7 +70,7 @@ default (shows all), add this block inside the
 [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
 of a template and configure as needed:
 
-```hcl
+```tf
   display_apps {
     vscode = false
     vscode_insiders = false
@@ -104,7 +104,7 @@ In the template, set
 option to `authenticated` and when a workspace is built with this template, the
 pretty globe shows up next to path-based `code-server`:
 
-```hcl
+```tf
 resource "coder_app" "code-server" {
   ...
   share        = "authenticated"
@@ -117,9 +117,9 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the [`CODER_ACCESS_URL`](https://coder.com/docs/admin/configure#access-url)
-is not accessible from a workspace, the workspace may build, but the agent
-cannot reach Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
+If the [`CODER_ACCESS_URL`](./admin/setup#access-url) is not accessible from a
+workspace, the workspace may build, but the agent cannot reach Coder, and thus
+the missing icons. e.g., Terminal, IDEs, Apps.
 
 > By default, `coder server` automatically creates an Internet-accessible
 > reverse proxy so that workspaces you create can reach the server.
@@ -147,9 +147,9 @@ of these values can lead to existing workspaces failing to start. This issue
 occurs because the Terraform state will not be in sync with the new template.
 
 However, a lesser-known CLI sub-command,
-[`coder update`](https://coder.com/docs/cli/update), can resolve this issue.
-This command re-prompts users to re-enter the input variables, potentially
-saving the workspace from a failed status.
+[`coder update`](./reference/cli/update), can resolve this issue. This command
+re-prompts users to re-enter the input variables, potentially saving the
+workspace from a failed status.
 
 ```sh
 coder update --always-prompt <workspace name>
@@ -253,7 +253,7 @@ One way is to reference a Terraform module from a GitHub repo to avoid
 duplication and then just extend it or pass template-specific
 parameters/resources:
 
-```hcl
+```tf
 # template1/main.tf
 module "central-coder-module" {
   source = "github.com/yourorg/central-coder-module"
@@ -264,7 +264,7 @@ resource "ebs_volume" "custom_template1_only_resource" {
 }
 ```
 
-```hcl
+```tf
 # template2/main.tf
 module "central-coder-module" {
   source = "github.com/yourorg/central-coder-module"
@@ -288,7 +288,7 @@ References:
 
 - [Public Github Issue 6117](https://github.com/coder/coder/issues/6117)
 - [Public Github Issue 5677](https://github.com/coder/coder/issues/5677)
-- [Coder docs: Templates/Change Management](https://coder.com/docs/templates/change-management)
+- [Coder docs: Templates/Change Management](./admin/templates/managing-templates/change-management)
 
 ### Can I run Coder in an air-gapped or offline mode? (no Internet)?
 
@@ -311,7 +311,7 @@ duplicate name errors.
 
 This code produces a hashed value that will be difficult to replicate.
 
-```hcl
+```tf
 locals {
   concatenated_string = "${data.coder_workspace.me.name}+${data.coder_workspace_owner.me.name}"
   hashed_string = md5(local.concatenated_string)
@@ -408,7 +408,7 @@ like code-server when creating the workspace.
 1. Add a `coder_parameter` with type `bool` to ask the user if they want the
    code-server IDE
 
-```hcl
+```tf
 data "coder_parameter" "code_server" {
   name        = "Do you want code-server in your workspace?"
   description = "Use VS Code in a browser."
@@ -438,7 +438,7 @@ fi
    in the `coder_app` resource so it will only create the resource if the
    `coder_parameter` is `true`
 
-```hcl
+```tf
 # code-server
 resource "coder_app" "code-server" {
   count         = data.coder_parameter.code_server.value ? 1 : 0
@@ -509,7 +509,7 @@ To achieve this, template admins can use the environment variable
 This variable allows the system to check if the executed application is on the
 block list, which includes `scp`, `rsync`, `ftp`, and `nc`.
 
-```hcl
+```tf
 resource "docker_container" "workspace" {
   ...
   env = [

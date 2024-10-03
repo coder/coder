@@ -30,12 +30,3 @@ Specify a duration for the lifetime of the token.
 | Environment | <code>$CODER_TOKEN_NAME</code> |
 
 Specify a human-readable name.
-
-### -u, --user
-
-|             |                                |
-| ----------- | ------------------------------ |
-| Type        | <code>string</code>            |
-| Environment | <code>$CODER_TOKEN_USER</code> |
-
-Specify the user to create the token for (Only works if logged in user is admin).

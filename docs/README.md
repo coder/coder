@@ -18,7 +18,7 @@ By building on top of common development interfaces (SSH) and infrastructure too
 ## How it works
 
 Coder workspaces are represented with Terraform, but no Terraform knowledge is
-required to get started. We have a database of pre-made templates built into the
+required to get started. We have a [database](https://registry.coder.com/templates) of pre-made templates built into the
 product.
 
 <p align="center">
@@ -28,11 +28,11 @@ product.
 Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
 and whatever else Terraform lets you dream up.
 
-[Learn more about managing infrastructure.](./templates/index.md)
+[Learn more about templates.](./admin/templates/README.md)
 
 ## IDE Support
 
-You can use any Web IDE ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org/), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
+You can use any [Web IDE](./admin/templates/extending-templates/web-ides.md) ([code-server](https://github.com/coder/code-server), [projector](https://github.com/JetBrains/projector-server), [Jupyter](https://jupyter.org), etc.), [JetBrains Gateway](https://www.jetbrains.com/remote-development/gateway/), [VS Code Remote](https://code.visualstudio.com/docs/remote/ssh-tutorial) or even a file sync such as [mutagen](https://mutagen.io/).
 
 <p align="center">
   <img src="./images/ide-icons.svg" height=72>
@@ -80,7 +80,7 @@ layer of infrastructure control. This additional layer allows admins to:
 - Enable persistent workspaces, which are like local machines, but faster and
   hosted by a cloud service
 
-Coder includes [production-ready templates](https://github.com/coder/coder/tree/c6b1daabc5a7aa67bfbb6c89966d728919ba7f80/examples/templates) for use with AWS EC2,
+Coder includes [production-ready templates](https://registry.coder.com/templates) for use with AWS EC2,
 Azure, Google Cloud, Kubernetes, and more.
 
 ## What Coder is _not_
@@ -104,5 +104,5 @@ Azure, Google Cloud, Kubernetes, and more.
 
 ## Up next
 
-- Learn about [Templates](./templates/index.md)
-- [Install Coder](./install/index.md#install-coder)
+- Learn about [Templates](./admin/templates/README.md)
+- [Install Coder](./install/README.md)

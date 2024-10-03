@@ -31,7 +31,7 @@ The CSI Host Volume plugin is used to mount host volumes into Nomad tasks. This 
 
 2. Append the following stanza to your Nomad server configuration file and restart the nomad service.
 
-   ```hcl
+   ```tf
    plugin "docker" {
      config {
        allow_privileged = true
@@ -45,7 +45,7 @@ The CSI Host Volume plugin is used to mount host volumes into Nomad tasks. This 
 
 3. Create a file `hostpath.nomad` with following content:
 
-   ```hcl
+   ```tf
    job "hostpath-csi-plugin" {
      datacenters = ["dc1"]
      type = "system"
