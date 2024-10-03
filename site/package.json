@@ -155,7 +155,7 @@
 		"protobufjs": "7.2.5",
 		"rxjs": "7.8.1",
 		"ssh2": "1.15.0",
-		"storybook": "8.1.11",
+		"storybook": "8.3.4",
 		"storybook-addon-remix-react-router": "3.0.1",
 		"storybook-react-context": "0.6.0",
 		"ts-node": "10.9.1",
