@@ -570,7 +570,6 @@ func TestRemoveTrailingVersionInfo(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		Name                       string
 		Version                    string
 		ExpectedAfterStrippingInfo string
 	}{
@@ -588,15 +587,7 @@ func TestRemoveTrailingVersionInfo(t *testing.T) {
 		// Is this still necessary?
 		tc := tc
 
-		t.Run(tc.Name, func(t *testing.T) {
-			t.Parallel()
-
-			stripped := codersdk.RemoveTrailingVersionInfo(tc.Version)
-			if !assert.Equal(t, tc.ExpectedAfterStrippingInfo, stripped) {
-				// Log relevant information if the assertion fails
-				t.Logf("Test failed for case: %s\nExpected: %s\nGot: %s", tc.Name, tc.ExpectedAfterStrippingInfo, stripped)
-			}
-
-		})
+		stripped := codersdk.RemoveTrailingVersionInfo(tc.Version)
+		require.Equal(t, tc.ExpectedAfterStrippingInfo, stripped)
 	}
 }
