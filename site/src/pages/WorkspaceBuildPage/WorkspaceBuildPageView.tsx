@@ -210,7 +210,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	);
 };
 
-const ScrollArea: FC<HTMLProps<HTMLDivElement>> = () => {
+const ScrollArea: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	// TODO: Use only CSS to set the height of the content.
 	// Note: On Safari, when content is rendered inside a flex container and needs
 	// to scroll, the parent container must have a height set. Achieving this may
@@ -221,14 +221,6 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = () => {
 	const contentRef = useRef<HTMLDivElement>(null);
 	const [height, setHeight] = useState<CSSProperties["height"]>("100%");
 	useLayoutEffect(() => {
-		// TODO: Mock ResizeObserver in the test environment. This is a temporary
-		// workaround because the recommended way to mock ResizeObserver, as
-		// described in the following reference, did not work:
-		// https://github.com/ZeeCoder/use-resize-observer/issues/40#issuecomment-991256805
-		if (window.ResizeObserver === undefined) {
-			return;
-		}
-
 		const contentEl = contentRef.current;
 		if (!contentEl) {
 			return;
@@ -249,7 +241,11 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = () => {
 	}, []);
 
 	return (
-		<div ref={contentRef} css={{ height, overflowY: "auto", width: "100%" }} />
+		<div
+			ref={contentRef}
+			css={{ height, overflowY: "auto", width: "100%" }}
+			{...props}
+		/>
 	);
 };
 
