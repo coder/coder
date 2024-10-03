@@ -19,6 +19,7 @@ const meta: Meta<typeof OrganizationSettingsPage> = {
 	parameters: {
 		showOrganizations: true,
 		user: MockUser,
+		features: ["multiple_organizations"],
 		permissions: { viewDeploymentValues: true },
 		queries: [
 			{
