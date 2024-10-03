@@ -16,8 +16,8 @@ import (
 // never represents the maximum value for a time.Duration.
 const never = 1<<63 - 1
 
-// DBCache implements Keycache for callers with access to the database.
-type DBCache struct {
+// dbCache implements Keycache for callers with access to the database.
+type dbCache struct {
 	db      database.Store
 	feature database.CryptoKeyFeature
 	logger  slog.Logger
@@ -33,18 +33,34 @@ type DBCache struct {
 	closed       bool
 }
 
-type DBCacheOption func(*DBCache)
+type DBCacheOption func(*dbCache)
 
 func WithDBCacheClock(clock quartz.Clock) DBCacheOption {
-	return func(d *DBCache) {
+	return func(d *dbCache) {
 		d.clock = clock
 	}
 }
 
-// NewDBCache creates a new DBCache. Close should be called to
+// NewSigningCache creates a new DBCache. Close should be called to
 // release resources associated with its internal timer.
-func NewDBCache(logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*DBCache)) *DBCache {
-	d := &DBCache{
+func NewSigningCache(logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*dbCache)) (SigningKeycache, error) {
+	if !isSigningKeyFeature(feature) {
+		return nil, ErrInvalidFeature
+	}
+
+	return newDBCache(logger, db, feature, opts...), nil
+}
+
+func NewEncryptionCache(logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*dbCache)) (EncryptionKeycache, error) {
+	if !isEncryptionKeyFeature(feature) {
+		return nil, ErrInvalidFeature
+	}
+
+	return newDBCache(logger, db, feature, opts...), nil
+}
+
+func newDBCache(logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*dbCache)) *dbCache {
+	d := &dbCache{
 		db:      db,
 		feature: feature,
 		clock:   quartz.NewReal(),
@@ -60,41 +76,41 @@ func NewDBCache(logger slog.Logger, db database.Store, feature database.CryptoKe
 	return d
 }
 
-func (d *DBCache) EncryptingKey(ctx context.Context) (id string, key interface{}, err error) {
+func (d *dbCache) EncryptingKey(ctx context.Context) (id string, key interface{}, err error) {
 	if !isEncryptionKeyFeature(d.feature) {
 		return "", nil, xerrors.Errorf("invalid feature: %s", d.feature)
 	}
-	return d.Signing(ctx)
+	return d.latest(ctx)
 }
 
-func (d *DBCache) DecryptingKey(ctx context.Context, id string) (key interface{}, err error) {
+func (d *dbCache) DecryptingKey(ctx context.Context, id string) (key interface{}, err error) {
 	if !isEncryptionKeyFeature(d.feature) {
 		return nil, xerrors.Errorf("invalid feature: %s", d.feature)
 	}
 
-	return d.Verifying(ctx, id)
+	return d.sequence(ctx, id)
 }
 
-func (d *DBCache) SigningKey(ctx context.Context) (id string, key interface{}, err error) {
+func (d *dbCache) SigningKey(ctx context.Context) (id string, key interface{}, err error) {
 	if !isSigningKeyFeature(d.feature) {
 		return "", nil, xerrors.Errorf("invalid feature: %s", d.feature)
 	}
 
-	return d.Signing(ctx)
+	return d.latest(ctx)
 }
 
-func (d *DBCache) VerifyingKey(ctx context.Context, id string) (key interface{}, err error) {
-	if !isSigningKeyFeature(d.feature) {	
+func (d *dbCache) VerifyingKey(ctx context.Context, id string) (key interface{}, err error) {
+	if !isSigningKeyFeature(d.feature) {
 		return nil, xerrors.Errorf("invalid feature: %s", d.feature)
 	}
 
-	return d.Verifying(ctx, id)
+	return d.sequence(ctx, id)
 }
 
-// Verifying returns the CryptoKey with the given sequence number, provided that
+// sequence returns the CryptoKey with the given sequence number, provided that
 // it is neither deleted nor has breached its deletion date. It should only be
 // used for verifying or decrypting payloads. To sign/encrypt call Signing.
-func (d *DBCache) Verifying(ctx context.Context, id string) (interface{}, error) {
+func (d *dbCache) sequence(ctx context.Context, id string) (interface{}, error) {
 	sequence, err := strconv.ParseInt(id, 10, 32)
 	if err != nil {
 		return nil, xerrors.Errorf("expecting sequence number got %q: %w", id, err)
@@ -138,9 +154,9 @@ func (d *DBCache) Verifying(ctx context.Context, id string) (interface{}, error)
 	return checkKey(key, now)
 }
 
-// Signing returns the latest valid key for signing. A valid key is one that is
+// latest returns the latest valid key for signing. A valid key is one that is
 // both past its start time and before its deletion time.
-func (d *DBCache) Signing(ctx context.Context) (string, interface{}, error) {
+func (d *dbCache) latest(ctx context.Context) (string, interface{}, error) {
 	d.keysMu.RLock()
 
 	if d.closed {
@@ -177,7 +193,7 @@ func (d *DBCache) Signing(ctx context.Context) (string, interface{}, error) {
 }
 
 // clear invalidates the cache. This forces the subsequent call to fetch fresh keys.
-func (d *DBCache) clear() {
+func (d *dbCache) clear() {
 	now := d.clock.Now("DBCache", "clear")
 	d.keysMu.Lock()
 	defer d.keysMu.Unlock()
@@ -193,7 +209,7 @@ func (d *DBCache) clear() {
 
 // fetch fetches all keys for the given feature and determines the latest key.
 // It must be called while holding the keysMu lock.
-func (d *DBCache) fetch(ctx context.Context) error {
+func (d *dbCache) fetch(ctx context.Context) error {
 	keys, err := d.db.GetCryptoKeysByFeature(ctx, d.feature)
 	if err != nil {
 		return xerrors.Errorf("get crypto keys by feature: %w", err)
@@ -232,16 +248,17 @@ func checkKey(key database.CryptoKey, now time.Time) (interface{}, error) {
 	return key.DecodeString()
 }
 
-func (d *DBCache) Close() {
+func (d *dbCache) Close() error {
 	d.keysMu.Lock()
 	defer d.keysMu.Unlock()
 
 	if d.closed {
-		return
+		return nil
 	}
 
 	d.timer.Stop()
 	d.closed = true
+	return nil
 }
 
 func isEncryptionKeyFeature(feature database.CryptoKeyFeature) bool {
