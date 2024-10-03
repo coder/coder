@@ -140,7 +140,7 @@ helm install coder coder-v2/coder \
 helm install coder coder-v2/coder \
     --namespace coder \
     --values values.yaml \
-    --version 2.14.2
+    --version 2.15.1
 ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder

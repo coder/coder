@@ -4,6 +4,7 @@ import {
 	MockGroup2,
 	MockGroupSyncSettings,
 	MockGroupSyncSettings2,
+	MockLegacyMappingGroupSyncSettings,
 	MockOrganization,
 	MockRoleSyncSettings,
 } from "testHelpers/entities";
@@ -67,6 +68,17 @@ export const Default: Story = {
 export const MissingGroups: Story = {
 	args: {
 		groupSyncSettings: MockGroupSyncSettings2,
+		roleSyncSettings: MockRoleSyncSettings,
+		groups: [MockGroup, MockGroup2],
+		groupsMap,
+		organization: MockOrganization,
+		error: undefined,
+	},
+};
+
+export const WithLegacyMapping: Story = {
+	args: {
+		groupSyncSettings: MockLegacyMappingGroupSyncSettings,
 		roleSyncSettings: MockRoleSyncSettings,
 		groups: [MockGroup, MockGroup2],
 		groupsMap,

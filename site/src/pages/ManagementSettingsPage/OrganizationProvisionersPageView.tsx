@@ -92,7 +92,7 @@ const ViewContent: FC<ViewContentProps> = ({ buildInfo, provisioners }) => {
 							target="_blank"
 							href={docs("/admin/provisioners")}
 						>
-							Show me how to create a provisioner
+							Create a provisioner
 						</Button>
 					}
 				/>
@@ -110,28 +110,16 @@ const ViewContent: FC<ViewContentProps> = ({ buildInfo, provisioners }) => {
 				</div>
 			)}
 			<Stack spacing={4.5}>
-				{provisioners.map((group) => {
-					const type = getGroupType(group.key);
-
-					// We intentionally hide user-authenticated provisioners for now
-					// because there are 1. some grouping issues on the backend and 2. we
-					// should ideally group them by the user who authenticated them, and
-					// not just lump them all together.
-					if (type === "userAuth") {
-						return null;
-					}
-
-					return (
-						<ProvisionerGroup
-							key={group.key.id}
-							buildInfo={buildInfo}
-							keyName={group.key.name}
-							keyTags={group.key.tags}
-							type={type}
-							provisioners={group.daemons}
-						/>
-					);
-				})}
+				{provisioners.map((group) => (
+					<ProvisionerGroup
+						key={group.key.id}
+						buildInfo={buildInfo}
+						keyName={group.key.name}
+						keyTags={group.key.tags}
+						type={getGroupType(group.key)}
+						provisioners={group.daemons}
+					/>
+				))}
 			</Stack>
 		</>
 	);

@@ -235,17 +235,18 @@
 						},
 						{
 							"title": "Groups \u0026 Roles",
-							"path": "./admin/users/groups-roles.md"
+							"path": "./admin/users/groups-roles.md",
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
-							"state": "enterprise"
+							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
 							"path": "./admin/users/quotas.md",
-							"state": "enterprise"
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Sessions \u0026 API Tokens",
@@ -365,7 +366,8 @@
 					"title": "Provisioners",
 					"description": "Learn how to run external provisioners with Coder",
 					"path": "./admin/provisioners.md",
-					"icon_path": "./images/icons/key.svg"
+					"icon_path": "./images/icons/key.svg",
+					"state": ["enterprise", "premium"]
 				},
 				{
 					"title": "External Auth",
@@ -448,12 +450,14 @@
 						{
 							"title": "Workspace Proxies",
 							"description": "Run geo distributed workspace proxies",
-							"path": "./admin/networking/workspace-proxies.md"
+							"path": "./admin/networking/workspace-proxies.md",
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "High Availability",
 							"description": "Learn how to configure Coder for High Availability",
-							"path": "./admin/high-availability.md"
+							"path": "./admin/networking/high-availability.md",
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Troubleshooting",
@@ -492,13 +496,13 @@
 									"title": "Slack Notifications",
 									"description": "Learn how to setup Slack notifications",
 									"path": "./admin/monitoring/notifications/slack.md",
-									"state": "beta"
+									"state": ["beta"]
 								},
 								{
 									"title": "Microsoft Teams Notifications",
 									"description": "Learn how to setup Microsoft Teams notifications",
 									"path": "./admin/monitoring/notifications/teams.md",
-									"state": "beta"
+									"state": ["beta"]
 								}
 							]
 						}
@@ -513,7 +517,8 @@
 						{
 							"title": "Audit Logs",
 							"description": "Audit actions taken inside Coder",
-							"path": "./admin/security/audit-logs.md"
+							"path": "./admin/security/audit-logs.md",
+							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Secrets",
@@ -523,7 +528,8 @@
 						{
 							"title": "Database Encryption",
 							"description": "Encrypt the database to prevent unauthorized access",
-							"path": "./admin/security/database-encryption.md"
+							"path": "./admin/security/database-encryption.md",
+							"state": ["enterprise", "premium"]
 						}
 					]
 				}

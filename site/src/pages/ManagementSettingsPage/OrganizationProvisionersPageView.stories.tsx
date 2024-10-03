@@ -7,6 +7,7 @@ import {
 	MockProvisionerBuiltinKey,
 	MockProvisionerKey,
 	MockProvisionerPskKey,
+	MockProvisionerUserAuthKey,
 	MockProvisionerWithTags,
 	MockUserProvisioner,
 	mockApiError,
@@ -78,6 +79,17 @@ export const Provisioners: Story = {
 					id: `ケイラ-${i}`,
 					name: `ケイラ-${i}`,
 				})),
+			},
+			{
+				key: MockProvisionerUserAuthKey,
+				daemons: [
+					MockUserProvisioner,
+					{
+						...MockUserProvisioner,
+						id: "mock-user-provisioner-2",
+						name: "Test User Provisioner 2",
+					},
+				],
 			},
 		],
 	},

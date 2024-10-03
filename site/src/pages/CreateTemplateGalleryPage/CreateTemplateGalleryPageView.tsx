@@ -13,15 +13,14 @@ import { Link as RouterLink } from "react-router-dom";
 import type { StarterTemplatesByTag } from "utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
-export interface CreateTemplatePageViewProps {
+export interface CreateTemplateGalleryPageViewProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 	error?: unknown;
 }
 
-export const CreateTemplatesPageView: FC<CreateTemplatePageViewProps> = ({
-	starterTemplatesByTag,
-	error,
-}) => {
+export const CreateTemplateGalleryPageView: FC<
+	CreateTemplateGalleryPageViewProps
+> = ({ starterTemplatesByTag, error }) => {
 	return (
 		<Margins>
 			<PageHeader>

@@ -204,35 +204,6 @@ type RegisterWorkspaceProxyRequest struct {
 	Version string `json:"version"`
 }
 
-type CryptoKeyFeature string
-
-const (
-	CryptoKeyFeatureWorkspaceApp  CryptoKeyFeature = "workspace_apps"
-	CryptoKeyFeatureOIDCConvert   CryptoKeyFeature = "oidc_convert"
-	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
-)
-
-type CryptoKey struct {
-	Feature   CryptoKeyFeature `json:"feature"`
-	Secret    string           `json:"secret"`
-	DeletesAt time.Time        `json:"deletes_at"`
-	Sequence  int32            `json:"sequence"`
-	StartsAt  time.Time        `json:"starts_at"`
-}
-
-func (c CryptoKey) CanSign(now time.Time) bool {
-	now = now.UTC()
-	isAfterStartsAt := !c.StartsAt.IsZero() && !now.Before(c.StartsAt)
-	return isAfterStartsAt && c.CanVerify(now)
-}
-
-func (c CryptoKey) CanVerify(now time.Time) bool {
-	now = now.UTC()
-	hasSecret := c.Secret != ""
-	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
-	return hasSecret && beforeDelete
-}
-
 type RegisterWorkspaceProxyResponse struct {
 	AppSecurityKey      string           `json:"app_security_key"`
 	DERPMeshKey         string           `json:"derp_mesh_key"`
@@ -612,7 +583,7 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 }
 
 type CryptoKeysResponse struct {
-	CryptoKeys []CryptoKey `json:"crypto_keys"`
+	CryptoKeys []codersdk.CryptoKey `json:"crypto_keys"`
 }
 
 func (c *Client) CryptoKeys(ctx context.Context) (CryptoKeysResponse, error) {

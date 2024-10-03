@@ -44,7 +44,7 @@ interface OrganizationMembersPageViewProps {
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
-	removeMember: (member: OrganizationMemberWithUserData) => Promise<void>;
+	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
 		member: OrganizationMemberWithUserData,
 		newRoles: string[],
@@ -134,19 +134,7 @@ export const OrganizationMembersPageView: FC<
 												<MoreMenuContent>
 													<MoreMenuItem
 														danger
-														onClick={async () => {
-															try {
-																await props.removeMember(member);
-																displaySuccess("Member removed successfully.");
-															} catch (error) {
-																displayError(
-																	getErrorMessage(
-																		error,
-																		"Failed to remove member.",
-																	),
-																);
-															}
-														}}
+														onClick={() => props.removeMember(member)}
 													>
 														Remove
 													</MoreMenuItem>

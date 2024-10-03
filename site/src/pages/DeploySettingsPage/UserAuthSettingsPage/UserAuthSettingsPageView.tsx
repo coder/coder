@@ -33,7 +33,7 @@ export const UserAuthSettingsPageView = ({
 						title="Login with OpenID Connect"
 						secondary
 						description="Set up authentication to login with OpenID Connect."
-						docsHref={docs("/admin/users/oidc-auth")}
+						docsHref={docs("/admin/auth#openid-connect-with-google")}
 					/>
 
 					<Badges>{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
@@ -52,7 +52,7 @@ export const UserAuthSettingsPageView = ({
 						title="Login with GitHub"
 						secondary
 						description="Set up authentication to login with GitHub."
-						docsHref={docs("/admin/external-auth#github")}
+						docsHref={docs("/admin/auth#github")}
 					/>
 
 					<Badges>

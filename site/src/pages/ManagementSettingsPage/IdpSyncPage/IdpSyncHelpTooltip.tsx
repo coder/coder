@@ -22,7 +22,7 @@ export const IdpSyncHelpTooltip: FC = () => {
 				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
 					<HelpTooltipLink
-						href={docs("/admin/users/oidc-auth.md#group-sync-enterprise")}
+						href={docs("/admin/auth#group-sync-enterprise-premium")}
 					>
 						Configure IdP Sync
 					</HelpTooltipLink>

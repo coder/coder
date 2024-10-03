@@ -35,7 +35,7 @@ export const ObservabilitySettingsPageView: FC<
 						title="Audit Logging"
 						secondary
 						description="Allow auditors to monitor user operations in your deployment."
-						docsHref={docs("/admin/security/audit-logs")}
+						docsHref={docs("/admin/audit-logs")}
 					/>
 
 					<Badges>

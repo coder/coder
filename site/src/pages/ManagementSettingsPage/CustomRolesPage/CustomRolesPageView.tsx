@@ -52,7 +52,7 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 				<Paywall
 					message="Custom Roles"
 					description="Create custom roles to grant users a tailored set of granular permissions."
-					documentationLink={docs("/admin/users/groups")}
+					documentationLink={docs("/admin/groups")}
 				/>
 			)}
 			<Stack

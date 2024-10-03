@@ -17,7 +17,14 @@ main() {
 	# between the server and client, and the protocol changes between versions.
 	echo "Checking Playwright version from \"${workspace}\"..."
 	# shellcheck disable=SC2029 # This is intended to expand client-side.
-	playwright_version="$(ssh "coder.${workspace}" "cat '${coder_repo}'/site/pnpm-lock.yaml | grep '^  /@playwright/test@' | cut -d '@' -f 3 | tr -d ':'")"
+	playwright_version=$(
+		ssh "coder.${workspace}" \
+			"cat '${coder_repo}'/site/pnpm-lock.yaml | grep \"^  '@playwright/test@\"" |
+			cut -d '@' -f 3 |
+			tr -d ":'" |
+			sort -V |
+			tail -n 1
+	)
 
 	echo "Found Playwright version ${playwright_version}..."
 
