@@ -1216,6 +1216,32 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		CreatedBy:       owner.UserID,
 	})
 
+	// Create a build to attach timings
+	makeBuild := func() database.WorkspaceBuild {
+		ws := dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     template.ID,
+			// Generate unique name for the workspace
+			Name: "test-workspace-" + uuid.New().String(),
+		})
+		jobID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			ID:             jobID,
+			OrganizationID: owner.OrganizationID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Tags:           database.StringMap{jobID.String(): "true"},
+		})
+		return dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: version.ID,
+			BuildNumber:       1,
+			Transition:        database.WorkspaceTransitionStart,
+			InitiatorID:       owner.UserID,
+			JobID:             job.ID,
+		})
+	}
+
 	makeProvisionerTimings := func(build database.WorkspaceBuild, count int) []database.ProvisionerJobTiming {
 		// Use the database.ProvisionerJobTiming struct to mock timings data instead
 		// of directly creating database.InsertProvisionerJobTimingsParams. This
@@ -1250,8 +1276,86 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		return dbgen.ProvisionerJobTimings(t, db, insertParams)
 	}
 
-	makeAgentScriptTimings := func(build database.WorkspaceBuild, count int) []database.WorkspaceAgentScriptTiming {
-		// Create a resource, agent, and script to test the timing of agent scripts
+	makeAgentScriptTimings := func(script database.WorkspaceAgentScript, count int) []database.WorkspaceAgentScriptTiming {
+		newTimings := make([]database.InsertWorkspaceAgentScriptTimingsParams, count)
+		now := time.Now()
+		for i := range count {
+			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
+			endedAt := startedAt.Add(time.Minute)
+			newTimings[i] = database.InsertWorkspaceAgentScriptTimingsParams{
+				StartedAt: startedAt,
+				EndedAt:   endedAt,
+				Stage:     database.WorkspaceAgentScriptTimingStageStart,
+				ScriptID:  script.ID,
+				ExitCode:  0,
+				Status:    database.WorkspaceAgentScriptTimingStatusOk,
+			}
+		}
+
+		timings := make([]database.WorkspaceAgentScriptTiming, 0)
+		for _, newTiming := range newTimings {
+			timing := dbgen.WorkspaceAgentScriptTiming(t, db, newTiming)
+			timings = append(timings, timing)
+		}
+
+		return timings
+	}
+
+	t.Run("NonExistentBuild", func(t *testing.T) {
+		t.Parallel()
+
+		// When: fetching an inexistent build
+		buildID := uuid.New()
+		_, err := client.WorkspaceBuildTimings(context.Background(), buildID)
+
+		// Then: expect a not found error
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("EmptyTimings", func(t *testing.T) {
+		t.Parallel()
+
+		// When: fetching timings for a build with no timings
+		build := makeBuild()
+		res, err := client.WorkspaceBuildTimings(context.Background(), build.ID)
+
+		// Then: return a response with empty timings
+		require.NoError(t, err)
+		require.Empty(t, res.ProvisionerTimings)
+		require.Empty(t, res.AgentScriptTimings)
+	})
+
+	t.Run("ProvisionerTimings", func(t *testing.T) {
+		t.Parallel()
+
+		// When: fetching timings for a build with provisioner timings
+		build := makeBuild()
+		provisionerTimings := makeProvisionerTimings(build, 5)
+
+		// Then: return a response with the expected timings
+		res, err := client.WorkspaceBuildTimings(context.Background(), build.ID)
+		require.NoError(t, err)
+		require.Len(t, res.ProvisionerTimings, 5)
+
+		for i := range res.ProvisionerTimings {
+			timingRes := res.ProvisionerTimings[i]
+			genTiming := provisionerTimings[i]
+			require.Equal(t, genTiming.Resource, timingRes.Resource)
+			require.Equal(t, genTiming.Action, timingRes.Action)
+			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+			require.Equal(t, genTiming.JobID.String(), timingRes.JobID.String())
+			require.Equal(t, genTiming.Source, timingRes.Source)
+			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+		}
+	})
+
+	t.Run("AgentScriptTimings", func(t *testing.T) {
+		t.Parallel()
+
+		// When: fetching timings for a build with agent script timings
+		build := makeBuild()
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})
@@ -1276,101 +1380,55 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 				uuid.New(),
 			},
 		})
+		agentScriptTimings := makeAgentScriptTimings(scripts[0], 5)
 
-		newTimings := make([]database.InsertWorkspaceAgentScriptTimingsParams, count)
-		now := time.Now()
-		for i := range count {
-			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
-			endedAt := startedAt.Add(time.Minute)
-			newTimings[i] = database.InsertWorkspaceAgentScriptTimingsParams{
-				StartedAt: startedAt,
-				EndedAt:   endedAt,
-				Stage:     database.WorkspaceAgentScriptTimingStageStart,
-				ScriptID:  scripts[0].ID,
-				ExitCode:  0,
-				Status:    database.WorkspaceAgentScriptTimingStatusOk,
-			}
+		// Then: return a response with the expected timings
+		res, err := client.WorkspaceBuildTimings(context.Background(), build.ID)
+		require.NoError(t, err)
+		require.Len(t, res.AgentScriptTimings, 5)
+
+		for i := range res.AgentScriptTimings {
+			timingRes := res.AgentScriptTimings[i]
+			genTiming := agentScriptTimings[i]
+			require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
+			require.Equal(t, string(genTiming.Status), timingRes.Status)
+			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
 		}
+	})
 
-		timings := make([]database.WorkspaceAgentScriptTiming, 0)
-		for _, newTiming := range newTimings {
-			timing := dbgen.WorkspaceAgentScriptTiming(t, db, newTiming)
-			timings = append(timings, timing)
-		}
+	t.Run("NoAgentScripts", func(t *testing.T) {
+		t.Parallel()
 
-		return timings
-	}
-
-	// Given
-	testCases := []struct {
-		name                string
-		provisionerTimings  int
-		actionScriptTimings int
-	}{
-		{name: "with empty provisioner timings", provisionerTimings: 0},
-		{name: "with provisioner timings", provisionerTimings: 5},
-		{name: "with empty agent script timings", actionScriptTimings: 0},
-		{name: "with agent script timings", actionScriptTimings: 5},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Create a build to attach provisioner timings
-			ws := dbgen.Workspace(t, db, database.Workspace{
-				OwnerID:        owner.UserID,
-				OrganizationID: owner.OrganizationID,
-				TemplateID:     template.ID,
-				// Generate unique name for the workspace
-				Name: "test-workspace-" + uuid.New().String(),
-			})
-			jobID := uuid.New()
-			job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-				ID:             jobID,
-				OrganizationID: owner.OrganizationID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				Tags:           database.StringMap{jobID.String(): "true"},
-			})
-			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       ws.ID,
-				TemplateVersionID: version.ID,
-				BuildNumber:       1,
-				Transition:        database.WorkspaceTransitionStart,
-				InitiatorID:       owner.UserID,
-				JobID:             job.ID,
-			})
-
-			// Generate timings based on test config
-			genProvisionerTimings := makeProvisionerTimings(build, tc.provisionerTimings)
-			genAgentScriptTimings := makeAgentScriptTimings(build, tc.provisionerTimings)
-
-			res, err := client.WorkspaceBuildTimings(context.Background(), build.ID)
-			require.NoError(t, err)
-			require.Len(t, res.ProvisionerTimings, tc.provisionerTimings)
-
-			for i := range res.ProvisionerTimings {
-				timingRes := res.ProvisionerTimings[i]
-				genTiming := genProvisionerTimings[i]
-				require.Equal(t, genTiming.Resource, timingRes.Resource)
-				require.Equal(t, genTiming.Action, timingRes.Action)
-				require.Equal(t, string(genTiming.Stage), timingRes.Stage)
-				require.Equal(t, genTiming.JobID.String(), timingRes.JobID.String())
-				require.Equal(t, genTiming.Source, timingRes.Source)
-				require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
-				require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
-			}
-
-			for i := range res.AgentScriptTimings {
-				timingRes := res.AgentScriptTimings[i]
-				genTiming := genAgentScriptTimings[i]
-				require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
-				require.Equal(t, string(genTiming.Status), timingRes.Status)
-				require.Equal(t, string(genTiming.Stage), timingRes.Stage)
-				require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
-				require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
-			}
+		// When: fetching timings for a build with no agent scripts
+		build := makeBuild()
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
 		})
-	}
+		dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		// Then: return a response with empty agent script timings
+		res, err := client.WorkspaceBuildTimings(context.Background(), build.ID)
+		require.NoError(t, err)
+		require.Empty(t, res.AgentScriptTimings)
+	})
+
+	// Some workspaces might not have agents. It is improbable, but possible.
+	t.Run("NoAgents", func(t *testing.T) {
+		t.Parallel()
+
+		// When: fetching timings for a build with no agents
+		build := makeBuild()
+		dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+
+		// Then: return a response with empty agent script timings
+		res, err := client.WorkspaceBuildTimings(context.Background(), build.ID)
+		require.NoError(t, err)
+		require.Empty(t, res.AgentScriptTimings)
+	})
 }
