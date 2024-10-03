@@ -62,9 +62,18 @@ func Encrypt(ctx context.Context, e EncryptKeyer, claims Claims) (string, error)
 	return base64.RawURLEncoding.EncodeToString(serialized), nil
 }
 
+// DecryptOptions are options for decrypting a JWE.
+type DecryptOptions struct {
+	RegisteredClaims jwt.Expected
+
+	// The following should only be used for JWEs.
+	KeyAlgorithm               jose.KeyAlgorithm
+	ContentEncryptionAlgorithm jose.ContentEncryption
+}
+
 // Decrypt decrypts the token using the provided key. It unmarshals into the provided claims.
-func Decrypt(ctx context.Context, d DecryptKeyer, token string, claims Claims, opts ...func(*ParseOptions)) error {
-	options := ParseOptions{
+func Decrypt(ctx context.Context, d DecryptKeyer, token string, claims Claims, opts ...func(*DecryptOptions)) error {
+	options := DecryptOptions{
 		RegisteredClaims: jwt.Expected{
 			Time: time.Now(),
 		},

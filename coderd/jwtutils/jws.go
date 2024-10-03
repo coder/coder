@@ -12,6 +12,16 @@ import (
 )
 
 const (
+	keyIDHeaderKey = "kid"
+)
+
+// Claims defines the payload for a JWT. Most callers
+// should embed jwt.Claims
+type Claims interface {
+	Validate(jwt.Expected) error
+}
+
+const (
 	signingAlgo = jose.HS512
 )
 
@@ -60,9 +70,17 @@ func Sign(ctx context.Context, s SignKeyer, claims Claims) (string, error) {
 	return compact, nil
 }
 
+// VerifyOptions are options for verifying a JWT.
+type VerifyOptions struct {
+	RegisteredClaims jwt.Expected
+
+	// The following are only used for JWSs.
+	SignatureAlgorithm jose.SignatureAlgorithm
+}
+
 // Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.
-func Verify(ctx context.Context, v VerifyKeyer, token string, claims Claims, opts ...func(*ParseOptions)) error {
-	options := ParseOptions{
+func Verify(ctx context.Context, v VerifyKeyer, token string, claims Claims, opts ...func(*VerifyOptions)) error {
+	options := VerifyOptions{
 		RegisteredClaims: jwt.Expected{
 			Time: time.Now(),
 		},
