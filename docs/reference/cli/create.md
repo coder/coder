@@ -90,7 +90,12 @@ Rich parameter value in the format "name=value".
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
 
-Specify a file path with values for rich parameters defined in the template.
+Specify a file path with values for rich parameters. The file should be in YAML format, containing key-value pairs for the parameters. For example:
+
+```yaml
+param1: value1
+param2: value2
+```
 
 ### --parameter-default
 
