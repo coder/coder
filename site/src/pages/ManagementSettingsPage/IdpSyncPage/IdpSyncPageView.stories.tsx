@@ -84,7 +84,6 @@ export const RolesTab: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const rolesTab = await canvas.findByText("Role Sync Settings");
-		console.log(rolesTab);
 		await user.click(rolesTab);
 		await expect(canvas.findByText("IdP Role")).resolves.toBeVisible();
 	},
