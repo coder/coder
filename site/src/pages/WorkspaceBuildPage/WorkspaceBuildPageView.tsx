@@ -221,6 +221,14 @@ const ScrollArea: FC<HTMLProps<HTMLDivElement>> = () => {
 	const contentRef = useRef<HTMLDivElement>(null);
 	const [height, setHeight] = useState<CSSProperties["height"]>("100%");
 	useLayoutEffect(() => {
+		// TODO: Mock ResizeObserver in the test environment. This is a temporary
+		// workaround because the recommended way to mock ResizeObserver, as
+		// described in the following reference, did not work:
+		// https://github.com/ZeeCoder/use-resize-observer/issues/40#issuecomment-991256805
+		if (window.ResizeObserver === undefined) {
+			return;
+		}
+
 		const contentEl = contentRef.current;
 		if (!contentEl) {
 			return;
