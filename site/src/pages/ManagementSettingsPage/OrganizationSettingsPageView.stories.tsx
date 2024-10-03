@@ -4,8 +4,8 @@ import {
 	MockDefaultOrganization,
 	MockOrganization,
 } from "testHelpers/entities";
-import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 import { withManagementSettingsProvider } from "testHelpers/storybook";
+import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const meta: Meta<typeof OrganizationSettingsPageView> = {
 	title: "pages/OrganizationSettingsPageView",
