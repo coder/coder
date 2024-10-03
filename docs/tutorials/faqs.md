@@ -8,11 +8,10 @@ For other community resources, see our
 [Github discussions](https://github.com/coder/coder/discussions), or join our
 [Discord server](https://discord.gg/coder).
 
-### How do I add an enterprise license?
+### How do I add a Premium trial license?
 
 Visit https://coder.com/trial or contact
-[sales@coder.com](mailto:sales@coder.com?subject=License) to get a v2 enterprise
-trial key.
+[sales@coder.com](mailto:sales@coder.com?subject=License) to get a trial key.
 
 You can add a license through the UI or CLI.
 
@@ -34,7 +33,7 @@ If the license is in a file:
 coder licenses add -f <path/filename>
 ```
 
-### I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websockets
+### I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websocket
 
 The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
@@ -262,7 +261,7 @@ parameters/resources:
 ```tf
 # template1/main.tf
 module "central-coder-module" {
-  source = "github.com/yourorg/central-coder-module"
+  source = "github.com/org/central-coder-module"
   myparam = "custom-for-template1"
 }
 
@@ -273,7 +272,7 @@ resource "ebs_volume" "custom_template1_only_resource" {
 ```tf
 # template2/main.tf
 module "central-coder-module" {
-  source = "github.com/yourorg/central-coder-module"
+  source = "github.com/org/central-coder-module"
   myparam = "custom-for-template2"
   myparam2 = "bar"
 }
@@ -357,18 +356,16 @@ Artifactory.
 - [Blog post](https://coder.com/blog/running-a-private-vs-code-extension-marketplace)
 - [OSS project](https://github.com/coder/code-marketplace)
 
-[See this example template](https://github.com/sharkymark/v2-templates/blob/main/code-marketplace/main.tf#L229C1-L232C12)
+[See this example template](https://github.com/sharkymark/v2-templates/blob/main/src/code-marketplace/main.tf#L229C1-L232C12)
 where the agent specifies the URL and config environment variables which
 code-server picks up and points the developer to.
 
 Another option is to use Microsoft's code-server - which is like Coder's, but it
 can connect to Microsoft's extension marketplace so Copilot and chat can be
 retrieved there.
-[See a sample template here](https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf).
 
 Another option is to use VS Code Desktop (local) and that connects to
 Microsoft's marketplace.
-https://github.com/sharkymark/v2-templates/blob/main/vs-code-server/main.tf
 
 > Note: these are example templates with no SLAs on them and are not guaranteed
 > for long-term support.
@@ -398,7 +395,7 @@ Start Colima with specific compute options:
 colima start --cpu 4 --memory 8
 ```
 
-Starting Colima on a M3 Macbook Pro:
+Starting Colima on a M3 MacBook Pro:
 
 ```sh
 colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
