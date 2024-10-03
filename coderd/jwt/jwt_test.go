@@ -1,6 +1,7 @@
 package jwt_test
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"testing"
@@ -8,10 +9,8 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	jjwt "github.com/go-jose/go-jose/v4/jwt"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwt"
@@ -24,22 +23,22 @@ func TestJWT(t *testing.T) {
 
 	type tokenType struct {
 		Name     string
-		SecureFn func(jwt.Claims, jwt.SecuringKeyFn) (string, error)
-		ParseFn  func(string, jwt.Claims, jwt.ParseKeyFunc, ...func(*jwt.ParseOptions)) error
+		SignFn   func(ctx context.Context, keys cryptokeys.Keycache, claims jwt.Claims) (string, error)
+		VerifyFn func(ctx context.Context, keys cryptokeys.Keycache, token string, claims jwt.Claims, opts ...func(*jwt.ParseOptions)) error
 		KeySize  int
 	}
 
 	types := []tokenType{
 		{
 			Name:     "JWE",
-			SecureFn: jwt.Encrypt,
-			ParseFn:  jwt.Decrypt,
+			SignFn:   jwt.Encrypt,
+			VerifyFn: jwt.Decrypt,
 			KeySize:  32,
 		},
 		{
 			Name:     "JWS",
-			SecureFn: jwt.Sign,
-			ParseFn:  jwt.Verify,
+			SignFn:   jwt.Sign,
+			VerifyFn: jwt.Verify,
 			KeySize:  64,
 		},
 	}
@@ -50,30 +49,7 @@ func TestJWT(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 
-			t.Run("Basic", func(t *testing.T) {
-				t.Parallel()
-
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
-
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now()),
-				}
-
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
-				require.NoError(t, err)
-
-				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key))
-				require.NoError(t, err)
-			})
-
-			t.Run("Keycache", func(t *testing.T) {
+			t.Run("OK", func(t *testing.T) {
 				t.Parallel()
 
 				var (
@@ -85,46 +61,62 @@ func TestJWT(t *testing.T) {
 
 				key := generateCryptoKey(t, 1234567890, now, tt.KeySize)
 
-				keycache.EXPECT().Signing(gomock.Any()).Return(key, nil)
-				keycache.EXPECT().Verifying(gomock.Any(), key.Sequence).Return(key, nil)
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now()),
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now()),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, jwt.SecuringKeyFromCache(ctx, keycache))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, jwt.ParseKeyFromCache(ctx, keycache))
+				err = tt.VerifyFn(ctx, keycache, token, &actual)
 				require.NoError(t, err)
+				require.Equal(t, claims, actual)
 			})
 
 			t.Run("WrongIssuer", func(t *testing.T) {
 				t.Parallel()
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+				)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now()),
+				key := generateCryptoKey(t, 1234567890, now, tt.KeySize)
+
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now()),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
 					Issuer: "coder2",
 				}))
 				require.ErrorIs(t, err, jjwt.ErrInvalidIssuer)
@@ -133,23 +125,35 @@ func TestJWT(t *testing.T) {
 			t.Run("WrongSubject", func(t *testing.T) {
 				t.Parallel()
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+				)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now()),
+				key := generateCryptoKey(t, 1234567890, now, tt.KeySize)
+
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now()),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
 					Subject: "user2@coder.com",
 				}))
 				require.ErrorIs(t, err, jjwt.ErrInvalidSubject)
@@ -158,23 +162,34 @@ func TestJWT(t *testing.T) {
 			t.Run("WrongAudience", func(t *testing.T) {
 				t.Parallel()
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+					key      = generateCryptoKey(t, 1234567890, now, tt.KeySize)
+				)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now()),
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now()),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
 					AnyAudience: jjwt.Audience{"coder2"},
 				}))
 				require.ErrorIs(t, err, jjwt.ErrInvalidAudience)
@@ -183,23 +198,34 @@ func TestJWT(t *testing.T) {
 			t.Run("Expired", func(t *testing.T) {
 				t.Parallel()
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+					key      = generateCryptoKey(t, 1234567890, now, tt.KeySize)
+				)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Minute)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now()),
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Minute)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now()),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
 					Time: time.Now().Add(time.Minute * 3),
 				}))
 				require.ErrorIs(t, err, jjwt.ErrExpired)
@@ -208,22 +234,34 @@ func TestJWT(t *testing.T) {
 			t.Run("IssuedInFuture", func(t *testing.T) {
 				t.Parallel()
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+				)
 
-				claims := jjwt.Claims{
-					Issuer:   "coder",
-					Subject:  "user@coder.com",
-					Audience: jjwt.Audience{"coder"},
-					Expiry:   jjwt.NewNumericDate(time.Now().Add(time.Minute)),
-					IssuedAt: jjwt.NewNumericDate(time.Now()),
+				key := generateCryptoKey(t, 1234567890, now, tt.KeySize)
+
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:   "coder",
+						Subject:  "user@coder.com",
+						Audience: jjwt.Audience{"coder"},
+						Expiry:   jjwt.NewNumericDate(time.Now().Add(time.Minute)),
+						IssuedAt: jjwt.NewNumericDate(time.Now()),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
 					Time: time.Now().Add(-time.Minute * 3),
 				}))
 				require.ErrorIs(t, err, jjwt.ErrIssuedInTheFuture)
@@ -232,23 +270,35 @@ func TestJWT(t *testing.T) {
 			t.Run("IsBefore", func(t *testing.T) {
 				t.Parallel()
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+				)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+				key := generateCryptoKey(t, 1234567890, now, tt.KeySize)
+
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+				keycache.EXPECT().Verifying(ctx, key.Sequence).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withExpected(jjwt.Expected{
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withExpected(jjwt.Expected{
 					Time: time.Now().Add(time.Minute * 3),
 				}))
 				require.ErrorIs(t, err, jjwt.ErrNotValidYet)
@@ -261,23 +311,34 @@ func TestJWT(t *testing.T) {
 					t.Skip("JWE does not support this")
 				}
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+				)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+				key := generateCryptoKey(t, 1234567890, now, tt.KeySize)
+
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withSignatureAlgorithm(jose.HS256))
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withSignatureAlgorithm(jose.HS256))
 				require.Error(t, err)
 			})
 
@@ -288,23 +349,34 @@ func TestJWT(t *testing.T) {
 					t.Skip("JWS does not support this")
 				}
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+				)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+				key := generateCryptoKey(t, 1234567890, now, tt.KeySize)
+
+				keycache.EXPECT().Signing(ctx).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withKeyAlgorithm(jose.A128GCMKW))
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withKeyAlgorithm(jose.A128GCMKW))
 				require.Error(t, err)
 			})
 
@@ -315,23 +387,34 @@ func TestJWT(t *testing.T) {
 					t.Skip("JWS does not support this")
 				}
 
-				id := uuid.New().String()
-				key := generateSecret(t, tt.KeySize)
+				var (
+					ctx      = testutil.Context(t, testutil.WaitShort)
+					ctrl     = gomock.NewController(t)
+					keycache = cryptokeys.NewMockKeycache(ctrl)
+					now      = time.Now()
+				)
 
-				claims := jjwt.Claims{
-					Issuer:    "coder",
-					Subject:   "user@coder.com",
-					Audience:  jjwt.Audience{"coder"},
-					Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
-					IssuedAt:  jjwt.NewNumericDate(time.Now()),
-					NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+				key := generateCryptoKey(t, 1234567890, now, tt.KeySize)
+
+				keycache.EXPECT().Signing(gomock.Any()).Return(key, nil)
+
+				claims := testClaims{
+					Claims: jjwt.Claims{
+						Issuer:    "coder",
+						Subject:   "user@coder.com",
+						Audience:  jjwt.Audience{"coder"},
+						Expiry:    jjwt.NewNumericDate(time.Now().Add(time.Hour)),
+						IssuedAt:  jjwt.NewNumericDate(time.Now()),
+						NotBefore: jjwt.NewNumericDate(time.Now().Add(time.Minute * 5)),
+					},
+					MyClaim: "my_value",
 				}
 
-				token, err := tt.SecureFn(claims, securingKeyFn(id, key))
+				token, err := tt.SignFn(ctx, keycache, claims)
 				require.NoError(t, err)
 
 				var actual testClaims
-				err = tt.ParseFn(token, &actual, verifyingKeyFn(id, key), withContentEncryptionAlgorithm(jose.A128GCM))
+				err = tt.VerifyFn(ctx, keycache, token, &actual, withContentEncryptionAlgorithm(jose.A128GCM))
 				require.Error(t, err)
 			})
 		})
@@ -363,21 +446,6 @@ func generateSecret(t *testing.T, keySize int) []byte {
 type testClaims struct {
 	MyClaim string `json:"my_claim"`
 	jjwt.Claims
-}
-
-func securingKeyFn(id string, key []byte) jwt.SecuringKeyFn {
-	return func() (string, interface{}, error) {
-		return id, key, nil
-	}
-}
-
-func verifyingKeyFn(id string, key []byte) jwt.ParseKeyFunc {
-	return func(header jose.Header) (interface{}, error) {
-		if header.KeyID != id {
-			return nil, xerrors.Errorf("expected key ID %q, got %q", id, header.KeyID)
-		}
-		return key, nil
-	}
 }
 
 func withExpected(e jjwt.Expected) func(*jwt.ParseOptions) {

@@ -1,13 +1,18 @@
 package jwt
 
 import (
+	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
 	jjwt "github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 )
 
 const (
@@ -16,22 +21,27 @@ const (
 )
 
 // Encrypt encrypts a token and returns it as a string.
-func Encrypt(claims Claims, keyFn SecuringKeyFn) (string, error) {
-	kid, key, err := keyFn()
+func Encrypt(ctx context.Context, keys cryptokeys.Keycache, claims Claims) (string, error) {
+	signing, err := keys.Signing(ctx)
 	if err != nil {
-		return "", xerrors.Errorf("get key: %w", err)
+		return "", xerrors.Errorf("get signing key: %w", err)
+	}
+
+	decoded, err := hex.DecodeString(signing.Secret)
+	if err != nil {
+		return "", xerrors.Errorf("decode signing key: %w", err)
 	}
 
 	encrypter, err := jose.NewEncrypter(
 		encryptContentAlgo,
 		jose.Recipient{
 			Algorithm: encryptKeyAlgo,
-			Key:       key,
+			Key:       decoded,
 		},
 		&jose.EncrypterOptions{
 			Compression: jose.DEFLATE,
 			ExtraHeaders: map[jose.HeaderKey]interface{}{
-				keyIDHeaderKey: kid,
+				keyIDHeaderKey: strconv.FormatInt(int64(signing.Sequence), 10),
 			},
 		},
 	)
@@ -54,7 +64,7 @@ func Encrypt(claims Claims, keyFn SecuringKeyFn) (string, error) {
 }
 
 // Decrypt decrypts the token using the provided key. It unmarshals into the provided claims.
-func Decrypt(token string, claims Claims, keyFn ParseKeyFunc, opts ...func(*ParseOptions)) error {
+func Decrypt(ctx context.Context, keys cryptokeys.Keycache, token string, claims Claims, opts ...func(*ParseOptions)) error {
 	options := ParseOptions{
 		RegisteredClaims: jjwt.Expected{
 			Time: time.Now(),
@@ -84,12 +94,27 @@ func Decrypt(token string, claims Claims, keyFn ParseKeyFunc, opts ...func(*Pars
 		return xerrors.Errorf("expected API key encryption algorithm to be %q, got %q", encryptKeyAlgo, object.Header.Algorithm)
 	}
 
-	key, err := keyFn(object.Header)
-	if err != nil {
-		return xerrors.Errorf("get key: %w", err)
+	sequenceStr := object.Header.KeyID
+	if sequenceStr == "" {
+		return xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
 	}
 
-	decrypted, err := object.Decrypt(key)
+	sequence, err := strconv.ParseInt(sequenceStr, 10, 32)
+	if err != nil {
+		return xerrors.Errorf("parse sequence: %w", err)
+	}
+
+	key, err := keys.Verifying(ctx, int32(sequence))
+	if err != nil {
+		return xerrors.Errorf("version: %w", err)
+	}
+
+	decoded, err := hex.DecodeString(key.Secret)
+	if err != nil {
+		return xerrors.Errorf("decode key: %w", err)
+	}
+
+	decrypted, err := object.Decrypt(decoded)
 	if err != nil {
 		return xerrors.Errorf("decrypt: %w", err)
 	}

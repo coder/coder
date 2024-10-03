@@ -1,12 +1,17 @@
 package jwt
 
 import (
+	"context"
+	"encoding/hex"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
 	jjwt "github.com/go-jose/go-jose/v4/jwt"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 )
 
 const (
@@ -15,18 +20,23 @@ const (
 )
 
 // Sign signs a token and returns it as a string.
-func Sign(claims Claims, keyFn SecuringKeyFn) (string, error) {
-	kid, key, err := keyFn()
+func Sign(ctx context.Context, keys cryptokeys.Keycache, claims Claims) (string, error) {
+	signing, err := keys.Signing(ctx)
 	if err != nil {
-		return "", xerrors.Errorf("get key: %w", err)
+		return "", xerrors.Errorf("get signing key: %w", err)
+	}
+
+	decoded, err := hex.DecodeString(signing.Secret)
+	if err != nil {
+		return "", xerrors.Errorf("decode signing key: %w", err)
 	}
 
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: defaultSigningAlgo,
-		Key:       key,
+		Key:       decoded,
 	}, &jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]interface{}{
-			keyIDHeaderKey: kid,
+			keyIDHeaderKey: strconv.FormatInt(int64(signing.Sequence), 10),
 		},
 	})
 	if err != nil {
@@ -52,7 +62,7 @@ func Sign(claims Claims, keyFn SecuringKeyFn) (string, error) {
 }
 
 // Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.
-func Verify(token string, claims Claims, keyFn ParseKeyFunc, opts ...func(*ParseOptions)) error {
+func Verify(ctx context.Context, keys cryptokeys.Keycache, token string, claims Claims, opts ...func(*ParseOptions)) error {
 	options := ParseOptions{
 		RegisteredClaims: jjwt.Expected{
 			Time: time.Now(),
@@ -79,12 +89,27 @@ func Verify(token string, claims Claims, keyFn ParseKeyFunc, opts ...func(*Parse
 		return xerrors.Errorf("expected token signing algorithm to be %q, got %q", defaultSigningAlgo, object.Signatures[0].Header.Algorithm)
 	}
 
-	key, err := keyFn(signature.Header)
-	if err != nil {
-		return xerrors.Errorf("get key: %w", err)
+	sequenceStr := signature.Header.KeyID
+	if sequenceStr == "" {
+		return xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
 	}
 
-	payload, err := object.Verify(key)
+	sequence, err := strconv.ParseInt(sequenceStr, 10, 32)
+	if err != nil {
+		return xerrors.Errorf("parse sequence: %w", err)
+	}
+
+	key, err := keys.Verifying(ctx, int32(sequence))
+	if err != nil {
+		return xerrors.Errorf("version: %w", err)
+	}
+
+	decoded, err := hex.DecodeString(key.Secret)
+	if err != nil {
+		return xerrors.Errorf("decode key: %w", err)
+	}
+
+	payload, err := object.Verify(decoded)
 	if err != nil {
 		return xerrors.Errorf("verify payload: %w", err)
 	}
