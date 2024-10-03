@@ -196,9 +196,7 @@ func TestJWS(t *testing.T) {
 	t.Run("WrongSignatureAlgorithm", func(t *testing.T) {
 		t.Parallel()
 
-		var (
-			ctx = testutil.Context(t, testutil.WaitShort)
-		)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		key := newKey(t, 64)
 
