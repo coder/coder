@@ -37,12 +37,11 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/quartz"
-	"github.com/coder/serpent"
-
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -1258,7 +1257,10 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/notifications", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentNotifications),
+			)
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {

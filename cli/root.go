@@ -411,7 +411,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
-			Description: "Suppress opening the browser when logging in, or starting the server.",
+			Description: "Suppress opening the browser after logging in.",
 			Value:       serpent.BoolOf(&r.noOpen),
 			Hidden:      true,
 			Group:       globalGroup,

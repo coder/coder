@@ -25,7 +25,6 @@ import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/Wo
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
-import { isEmojiUrl } from "utils/appearance";
 import { displayDormantDeletion } from "utils/dormant";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
@@ -345,15 +344,9 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					subtitle="Organization"
 					avatar={
 						orgIconUrl && (
-							<ExternalAvatar
-								src={orgIconUrl}
-								title={orgName}
-								variant={isEmojiUrl(orgIconUrl) ? "square" : "circular"}
-								fitImage
-							/>
+							<ExternalAvatar src={orgIconUrl} variant="square" fitImage />
 						)
 					}
-					imgFallbackText={orgName}
 				/>
 			</HelpTooltipContent>
 		</Popover>
@@ -412,14 +405,8 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						</Link>
 					}
 					avatar={
-						<ExternalAvatar
-							src={templateIconUrl}
-							title={workspaceName}
-							variant={isEmojiUrl(templateIconUrl) ? "square" : "circular"}
-							fitImage
-						/>
+						<ExternalAvatar src={templateIconUrl} variant="square" fitImage />
 					}
-					imgFallbackText={templateVersionDisplayName}
 				/>
 			</HelpTooltipContent>
 		</Popover>

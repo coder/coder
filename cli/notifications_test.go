@@ -20,6 +20,7 @@ func createOpts(t *testing.T) *coderdtest.Options {
 	t.Helper()
 
 	dt := coderdtest.DeploymentValues(t)
+	dt.Experiments = []string{string(codersdk.ExperimentNotifications)}
 	return &coderdtest.Options{
 		DeploymentValues: dt,
 	}

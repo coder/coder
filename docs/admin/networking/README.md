@@ -157,10 +157,10 @@ $ coder server --derp-config-path derpmap.json
 
 The dashboard (and web apps opened through the dashboard) are served from the
 coder server, so they can only be geo-distributed with High Availability mode in
-our Enterprise and Premium Editions.
-[Reach out to Sales](https://coder.com/contact) to learn more.
+our Enterprise Edition. [Reach out to Sales](https://coder.com/contact) to learn
+more.
 
-## Browser-only connections (enterprise) (premium)
+## Browser-only connections (enterprise)
 
 Some Coder deployments require that all access is through the browser to comply
 with security policies. In these cases, pass the `--browser-only` flag to

@@ -1,4 +1,4 @@
-package cryptokeys_test
+package keyrotate_test
 
 import (
 	"testing"
@@ -9,10 +9,10 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/keyrotate"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -34,7 +34,7 @@ func TestRotator(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, dbkeys, 0)
 
-		err = cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
+		err = keyrotate.StartRotator(ctx, logger, db, keyrotate.WithClock(clock))
 		require.NoError(t, err)
 
 		// Fetch the keys from the database and ensure they
@@ -59,14 +59,14 @@ func TestRotator(t *testing.T) {
 
 		rotatingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
-			StartsAt: now.Add(-cryptokeys.DefaultKeyDuration + time.Hour + time.Minute),
+			StartsAt: now.Add(-keyrotate.DefaultKeyDuration + time.Hour + time.Minute),
 			Sequence: 12345,
 		})
 
 		trap := clock.Trap().TickerFunc()
 		t.Cleanup(trap.Close)
 
-		err := cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
+		err := keyrotate.StartRotator(ctx, logger, db, keyrotate.WithClock(clock))
 		require.NoError(t, err)
 
 		initialKeyLen := len(database.AllCryptoKeyFeatureValues())
@@ -88,14 +88,14 @@ func TestRotator(t *testing.T) {
 		newKey, err := db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
 		require.NoError(t, err)
 		require.Equal(t, rotatingKey.Sequence+1, newKey.Sequence)
-		require.Equal(t, rotatingKey.ExpiresAt(cryptokeys.DefaultKeyDuration), newKey.StartsAt.UTC())
+		require.Equal(t, rotatingKey.ExpiresAt(keyrotate.DefaultKeyDuration), newKey.StartsAt.UTC())
 		require.False(t, newKey.DeletesAt.Valid)
 
 		oldKey, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
 			Feature:  rotatingKey.Feature,
 			Sequence: rotatingKey.Sequence,
 		})
-		expectedDeletesAt := rotatingKey.StartsAt.Add(cryptokeys.DefaultKeyDuration + time.Hour + cryptokeys.WorkspaceAppsTokenDuration)
+		expectedDeletesAt := rotatingKey.StartsAt.Add(keyrotate.DefaultKeyDuration + time.Hour + keyrotate.WorkspaceAppsTokenDuration)
 		require.NoError(t, err)
 		require.Equal(t, rotatingKey.StartsAt, oldKey.StartsAt)
 		require.True(t, oldKey.DeletesAt.Valid)

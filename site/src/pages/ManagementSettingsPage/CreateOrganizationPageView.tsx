@@ -69,7 +69,7 @@ export const CreateOrganizationPageView: FC<
 			<div>
 				<SettingsHeader
 					title="New Organization"
-					description="Organize your deployment into multiple platform teams with unique provisioners, templates, groups, and members."
+					description="Organize your deployment into multiple platform teams."
 				/>
 
 				{Boolean(error) && !isApiValidationError(error) && (
@@ -92,7 +92,7 @@ export const CreateOrganizationPageView: FC<
 							<PopoverPaywall
 								message="Organizations"
 								description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-								documentationLink={docs("/admin/organizations")}
+								documentationLink={docs("/guides/using-organizations")}
 							/>
 						</PopoverContent>
 					</Popover>
@@ -104,7 +104,7 @@ export const CreateOrganizationPageView: FC<
 					<Paywall
 						message="Organizations"
 						description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-						documentationLink={docs("/admin/organizations")}
+						documentationLink={docs("/guides/using-organizations")}
 					/>
 				</Cond>
 				<Cond>

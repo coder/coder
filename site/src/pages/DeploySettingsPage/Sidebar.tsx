@@ -7,7 +7,6 @@ import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import Globe from "@mui/icons-material/PublicOutlined";
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
 	Sidebar as BaseSidebar,
@@ -52,9 +51,11 @@ export const Sidebar: FC = () => {
 			<SidebarNavItem href="observability" icon={InsertChartIcon}>
 				Observability
 			</SidebarNavItem>
-			<SidebarNavItem href="notifications" icon={NotificationsIcon}>
-				Notifications <FeatureStageBadge contentType="beta" size="sm" />
-			</SidebarNavItem>
+			{experiments.includes("notifications") && (
+				<SidebarNavItem href="notifications" icon={NotificationsIcon}>
+					Notifications
+				</SidebarNavItem>
+			)}
 		</BaseSidebar>
 	);
 };

@@ -488,7 +488,6 @@ gen: \
 	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
-	vpn/vpn.pb.go \
 	coderd/database/dump.sql \
 	$(DB_GEN_FILES) \
 	site/src/api/typesGenerated.ts \
@@ -518,7 +517,6 @@ gen/mark-fresh:
 		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
-		vpn/vpn.pb.go \
 		coderd/database/dump.sql \
 		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
@@ -601,12 +599,6 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
 		./provisionerd/proto/provisionerd.proto
-
-vpn/vpn.pb.go: vpn/vpn.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		./vpn/vpn.proto
 
 site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run ./scripts/apitypings/ > $@

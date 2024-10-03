@@ -24,9 +24,6 @@ var (
 	// Updated by buildinfo_slim.go on start.
 	slim bool
 
-	// Updated by buildinfo_site.go on start.
-	site bool
-
 	// Injected with ldflags at build, see scripts/build_go.sh
 	tag  string
 	agpl string // either "true" or "false", ldflags does not support bools
@@ -96,11 +93,6 @@ func IsDev() bool {
 // IsSlim returns true if this is a slim build.
 func IsSlim() bool {
 	return slim
-}
-
-// HasSite returns true if the frontend is embedded in the build.
-func HasSite() bool {
-	return site
 }
 
 // IsAGPL returns true if this is an AGPL build.

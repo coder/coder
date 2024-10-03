@@ -67,10 +67,10 @@ The process of setting up a Teams workflow consists of three key steps:
     				}
     			}
     		},
-    		"title_markdown": {
+    		"title": {
     			"type": "string"
     		},
-    		"body_markdown": {
+    		"body": {
     			"type": "string"
     		}
     	}
@@ -108,11 +108,11 @@ The process of setting up a Teams workflow consists of three key steps:
     		},
     		{
     			"type": "TextBlock",
-    			"text": "**@{replace(body('Parse_JSON')?['title_markdown'], '"', '\"')}**"
+    			"text": "**@{replace(body('Parse_JSON')?['title'], '"', '\"')}**"
     		},
     		{
     			"type": "TextBlock",
-    			"text": "@{replace(body('Parse_JSON')?['body_markdown'], '"', '\"')}",
+    			"text": "@{replace(body('Parse_JSON')?['body'], '"', '\"')}",
     			"wrap": true
     		},
     		{

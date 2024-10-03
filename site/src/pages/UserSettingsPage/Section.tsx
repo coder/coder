@@ -1,9 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import {
-	FeatureStageBadge,
-	type featureStageBadgeTypes,
-} from "components/FeatureStageBadge/FeatureStageBadge";
-import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
 
 type SectionLayout = "fixed" | "fluid";
@@ -18,7 +13,6 @@ export interface SectionProps {
 	layout?: SectionLayout;
 	className?: string;
 	children?: ReactNode;
-	featureStage?: keyof typeof featureStageBadgeTypes;
 }
 
 export const Section: FC<SectionProps> = ({
@@ -30,7 +24,6 @@ export const Section: FC<SectionProps> = ({
 	className = "",
 	children,
 	layout = "fixed",
-	featureStage,
 }) => {
 	return (
 		<section className={className} id={id} data-testid={id}>
@@ -39,25 +32,16 @@ export const Section: FC<SectionProps> = ({
 					<div css={styles.header}>
 						<div>
 							{title && (
-								<Stack direction={"row"} alignItems="center">
-									<h4
-										css={{
-											fontSize: 24,
-											fontWeight: 500,
-											margin: 0,
-											marginBottom: 8,
-										}}
-									>
-										{title}
-									</h4>
-									{featureStage && (
-										<FeatureStageBadge
-											contentType={featureStage}
-											size="lg"
-											css={{ marginBottom: "5px" }}
-										/>
-									)}
-								</Stack>
+								<h4
+									css={{
+										fontSize: 24,
+										fontWeight: 500,
+										margin: 0,
+										marginBottom: 8,
+									}}
+								>
+									{title}
+								</h4>
 							)}
 							{description && typeof description === "string" && (
 								<p css={styles.description}>{description}</p>

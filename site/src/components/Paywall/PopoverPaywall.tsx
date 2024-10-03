@@ -62,7 +62,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 				</ul>
 				<div css={styles.learnButton}>
 					<Button
-						href={docs("/licensing")}
+						href={docs("/enterprise")}
 						target="_blank"
 						rel="noreferrer"
 						startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}

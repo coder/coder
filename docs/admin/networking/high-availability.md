@@ -68,7 +68,7 @@ env:
 
 Then, increase the number of pods.
 
-## Next steps
+## Up next
 
 - [Read more on Coder's networking stack](./README.md)
 - [Install on Kubernetes](../../install/kubernetes.md)

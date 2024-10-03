@@ -101,7 +101,7 @@ Form will never get held up by quota enforcement.
 
 ![build-log](../images/admin/quota-buildlog.png)
 
-## Next steps
+## Up next
 
 - [Group Sync](./group-sync.md)
 - [Control plane configuration](../setup/README.md)

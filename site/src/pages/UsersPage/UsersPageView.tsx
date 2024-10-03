@@ -74,14 +74,16 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 				<PageHeader
 					css={{ paddingTop: 0 }}
 					actions={
-						canCreateUser && (
-							<Button
-								onClick={() => navigate("create")}
-								startIcon={<PersonAdd />}
-							>
-								Create user
-							</Button>
-						)
+						<>
+							{canCreateUser && (
+								<Button
+									onClick={() => navigate("create")}
+									startIcon={<PersonAdd />}
+								>
+									Create user
+								</Button>
+							)}
+						</>
 					}
 				>
 					<PageHeaderTitle>Users</PageHeaderTitle>

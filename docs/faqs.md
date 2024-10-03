@@ -1,13 +1,14 @@
 # FAQs
 
-Frequently asked questions on Coder OSS and Premium deployments. These FAQs come
-from our community and enterprise customers, feel free to
+Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
+come from our community and enterprise customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/faqs.md).
 
-### How do I add a Premium trial license?
+### How do I add an enterprise license?
 
 Visit https://coder.com/trial or contact
-[sales@coder.com](mailto:sales@coder.com?subject=License) to get a trial key.
+[sales@coder.com](mailto:sales@coder.com?subject=License) to get a v2 enterprise
+trial key.
 
 You can add a license through the UI or CLI.
 

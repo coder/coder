@@ -28,47 +28,43 @@ type WebhookHandler struct {
 
 // WebhookPayload describes the JSON payload to be delivered to the configured webhook endpoint.
 type WebhookPayload struct {
-	Version       string               `json:"_version"`
-	MsgID         uuid.UUID            `json:"msg_id"`
-	Payload       types.MessagePayload `json:"payload"`
-	Title         string               `json:"title"`
-	TitleMarkdown string               `json:"title_markdown"`
-	Body          string               `json:"body"`
-	BodyMarkdown  string               `json:"body_markdown"`
+	Version string               `json:"_version"`
+	MsgID   uuid.UUID            `json:"msg_id"`
+	Payload types.MessagePayload `json:"payload"`
+	Title   string               `json:"title"`
+	Body    string               `json:"body"`
 }
 
 func NewWebhookHandler(cfg codersdk.NotificationsWebhookConfig, log slog.Logger) *WebhookHandler {
 	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{}}
 }
 
-func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleMarkdown, bodyMarkdown string) (DeliveryFunc, error) {
+func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
 	if w.cfg.Endpoint.String() == "" {
 		return nil, xerrors.New("webhook endpoint not defined")
 	}
 
-	titlePlaintext, err := markdown.PlaintextFromMarkdown(titleMarkdown)
+	title, err := markdown.PlaintextFromMarkdown(titleTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	bodyPlaintext, err := markdown.PlaintextFromMarkdown(bodyMarkdown)
+	body, err := markdown.PlaintextFromMarkdown(bodyTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return w.dispatch(payload, titlePlaintext, titleMarkdown, bodyPlaintext, bodyMarkdown, w.cfg.Endpoint.String()), nil
+	return w.dispatch(payload, title, body, w.cfg.Endpoint.String()), nil
 }
 
-func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, titlePlaintext, titleMarkdown, bodyPlaintext, bodyMarkdown, endpoint string) DeliveryFunc {
+func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, title, body, endpoint string) DeliveryFunc {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		// Prepare payload.
 		payload := WebhookPayload{
-			Version:       "1.1",
-			MsgID:         msgID,
-			Title:         titlePlaintext,
-			TitleMarkdown: titleMarkdown,
-			Body:          bodyPlaintext,
-			BodyMarkdown:  bodyMarkdown,
-			Payload:       msgPayload,
+			Version: "1.0",
+			MsgID:   msgID,
+			Title:   title,
+			Body:    body,
+			Payload: msgPayload,
 		}
 		m, err := json.Marshal(payload)
 		if err != nil {

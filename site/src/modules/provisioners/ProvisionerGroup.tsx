@@ -27,7 +27,7 @@ import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import { ProvisionerTag } from "./ProvisionerTag";
 
-type ProvisionerGroupType = "builtin" | "userAuth" | "psk" | "key";
+type ProvisionerGroupType = "builtin" | "psk" | "key";
 
 interface ProvisionerGroupProps {
 	readonly buildInfo: BuildInfoResponse;
@@ -103,8 +103,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 			: `${provisionersWithWarnings} provisioners`;
 
 	const hasMultipleTagVariants =
-		(type === "psk" || type === "userAuth") &&
-		provisioners.some((it) => !isSimpleTagSet(it.tags));
+		type === "psk" && provisioners.some((it) => !isSimpleTagSet(it.tags));
 
 	return (
 		<div
@@ -143,8 +142,6 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 								</span>
 							</>
 						)}
-
-						{type === "userAuth" && <UserAuthProvisionerTitle />}
 
 						{type === "psk" && <PskProvisionerTitle />}
 						{type === "key" && (
@@ -252,7 +249,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 									</span>
 								</div>
 								{hasMultipleTagVariants && (
-									<InlineProvisionerTags tags={provisioner.tags} />
+									<PskProvisionerTags tags={provisioner.tags} />
 								)}
 							</Stack>
 						</div>
@@ -338,11 +335,11 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 	);
 };
 
-interface InlineProvisionerTagsProps {
+interface PskProvisionerTagsProps {
 	tags: Record<string, string>;
 }
 
-const InlineProvisionerTags: FC<InlineProvisionerTagsProps> = ({ tags }) => {
+const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
 	const daemonScope = tags.scope || "organization";
 	const iconScope =
 		daemonScope === "organization" ? <BusinessIcon /> : <PersonIcon />;
@@ -408,30 +405,6 @@ const BuiltinProvisionerTitle: FC = () => {
 							These provisioners are running as part of a coderd instance.
 							Built-in provisioners are only available for the default
 							organization. <Link href={docs("/")}>Learn more&hellip;</Link>
-						</HelpTooltipText>
-					</HelpTooltipContent>
-				</HelpTooltip>
-			</Stack>
-		</h4>
-	);
-};
-
-const UserAuthProvisionerTitle: FC = () => {
-	return (
-		<h4 css={styles.groupTitle}>
-			<Stack direction="row" alignItems="end" spacing={1}>
-				<span>User-authenticated provisioners</span>
-				<HelpTooltip>
-					<HelpTooltipTrigger />
-					<HelpTooltipContent>
-						<HelpTooltipTitle>User-authenticated provisioners</HelpTooltipTitle>
-						<HelpTooltipText>
-							These provisioners are connected by users using the{" "}
-							<code>coder</code> CLI, and are authorized by the users
-							credentials. They can be tagged to only run provisioner jobs for
-							that user. User-authenticated provisioners are only available for
-							the default organization.{" "}
-							<Link href={docs("/")}>Learn more&hellip;</Link>
 						</HelpTooltipText>
 					</HelpTooltipContent>
 				</HelpTooltip>

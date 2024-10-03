@@ -1,4 +1,4 @@
-package cryptokeys
+package keyrotate
 
 import (
 	"database/sql"

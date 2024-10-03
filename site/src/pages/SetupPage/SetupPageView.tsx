@@ -211,7 +211,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								quotas, and more.
 							</span>
 							<Link
-								href={docs("/licensing")}
+								href={docs("/enterprise")}
 								target="_blank"
 								css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
 							>

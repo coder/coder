@@ -43,7 +43,6 @@ export const NotificationsPage: FC = () => {
 				title="Notifications"
 				description="Control delivery methods for notifications on this deployment."
 				layout="fluid"
-				featureStage={"beta"}
 			>
 				<Tabs active={tab}>
 					<TabsList>

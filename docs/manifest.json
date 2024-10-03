@@ -87,264 +87,6 @@
 			]
 		},
 		{
-			"title": "Templates",
-			"description": "Templates define the infrastructure for workspaces",
-			"path": "./templates/index.md",
-			"icon_path": "./images/icons/picture.svg",
-			"children": [
-				{
-					"title": "Working with templates",
-					"description": "Creating, editing, and updating templates",
-					"path": "./templates/creating.md"
-				},
-				{
-					"title": "Your first template",
-					"description": "A tutorial for creating and editing your first template",
-					"path": "./templates/tutorial.md"
-				},
-				{
-					"title": "Guided tour",
-					"description": "Create a template from scratch",
-					"path": "./templates/tour.md"
-				},
-				{
-					"title": "Setting up templates",
-					"description": "Best practices for writing templates",
-					"path": "./templates/best-practices.md",
-					"children": [
-						{
-							"title": "Template Dependencies",
-							"description": "Manage dependencies of your templates",
-							"path": "./templates/dependencies.md",
-							"icon_path": "./images/icons/dependency.svg"
-						},
-						{
-							"title": "Change management",
-							"description": "Versioning templates with git and CI",
-							"path": "./templates/change-management.md",
-							"icon_path": "./images/icons/git.svg"
-						},
-						{
-							"title": "Provider authentication",
-							"description": "Authenticate the provisioner",
-							"path": "./templates/authentication.md",
-							"icon_path": "./images/icons/key.svg"
-						},
-						{
-							"title": "Resource persistence",
-							"description": "How resource persistence works in Coder",
-							"path": "./templates/resource-persistence.md",
-							"icon_path": "./images/icons/infinity.svg"
-						},
-						{
-							"title": "Terraform modules",
-							"description": "Reuse code across Coder templates",
-							"path": "./templates/modules.md"
-						}
-					]
-				},
-				{
-					"title": "Customizing templates",
-					"description": "Give information and options to workspace users",
-					"path": "./templates/customizing.md",
-					"children": [
-						{
-							"title": "Agent metadata",
-							"description": "Show operational metrics in the workspace",
-							"path": "./templates/agent-metadata.md"
-						},
-						{
-							"title": "Resource metadata",
-							"description": "Show information in the workspace about template resources",
-							"path": "./templates/resource-metadata.md"
-						},
-						{
-							"title": "UI Resource Ordering",
-							"description": "Learn how to manage the order of Terraform resources in UI",
-							"path": "./templates/resource-ordering.md"
-						}
-					]
-				},
-				{
-					"title": "Parameters",
-					"description": "Prompt the user for additional information about a workspace",
-					"path": "./templates/parameters.md"
-				},
-				{
-					"title": "Variables",
-					"description": "Prompt the template administrator for additional information about a template",
-					"path": "./templates/variables.md"
-				},
-				{
-					"title": "Workspace Tags",
-					"description": "Control provisioning using Workspace Tags and Parameters",
-					"path": "./templates/workspace-tags.md"
-				},
-				{
-					"title": "Administering templates",
-					"description": "Configuration settings for template admins",
-					"path": "./templates/configuration.md",
-					"children": [
-						{
-							"title": "General settings",
-							"description": "Configure name, display info, and update polices",
-							"path": "./templates/general-settings.md"
-						},
-						{
-							"title": "Permissions",
-							"description": "Configure who can access a template",
-							"path": "./templates/permissions.md"
-						},
-						{
-							"title": "Workspace Scheduling",
-							"description": "Configure when workspaces start, stop, and delete",
-							"path": "./templates/schedule.md"
-						}
-					]
-				},
-				{
-					"title": "Open in Coder",
-					"description": "Add an \"Open in Coder\" button to your repos",
-					"path": "./templates/open-in-coder.md",
-					"icon_path": "./images/icons/key.svg"
-				},
-				{
-					"title": "Docker in workspaces",
-					"description": "Use Docker inside containerized templates",
-					"path": "./templates/docker-in-workspaces.md",
-					"icon_path": "./images/icons/docker.svg"
-				},
-				{
-					"title": "Dev Containers",
-					"description": "Use Dev Containers in workspaces",
-					"path": "./templates/dev-containers.md"
-				},
-				{
-					"title": "Troubleshooting templates",
-					"description": "Fix common template problems",
-					"path": "./templates/troubleshooting.md"
-				},
-				{
-					"title": "Process Logging",
-					"description": "Audit commands in workspaces with exectrace",
-					"path": "./templates/process-logging.md",
-					"state": ["enterprise", "premium"]
-				},
-				{
-					"title": "Icons",
-					"description": "Coder includes icons for popular cloud providers and programming languages for you to use",
-					"path": "./templates/icons.md"
-				}
-			]
-		},
-		{
-			"title": "Workspaces",
-			"description": "Learn about Coder workspaces.",
-			"path": "./workspaces.md",
-			"icon_path": "./images/icons/layers.svg"
-		},
-		{
-			"title": "IDEs",
-			"description": "Learn how to use your IDE of choice with Coder",
-			"path": "./ides.md",
-			"icon_path": "./images/icons/code.svg",
-			"children": [
-				{
-					"title": "Web IDEs",
-					"description": "Learn how to configure web IDEs in your templates",
-					"path": "./ides/web-ides.md"
-				},
-				{
-					"title": "JetBrains Gateway",
-					"description": "Learn how to configure JetBrains Gateway for your workspaces",
-					"path": "./ides/gateway.md"
-				},
-				{
-					"title": "JetBrains Fleet",
-					"description": "Learn how to configure JetBrains Fleet for your workspaces",
-					"path": "./ides/fleet.md"
-				},
-				{
-					"title": "Emacs",
-					"description": "Learn how to configure Emacs with TRAMP in Coder",
-					"path": "./ides/emacs-tramp.md"
-				},
-				{
-					"title": "Remote Desktops",
-					"description": "Learn how to use Remote Desktops with Coder",
-					"path": "./ides/remote-desktops.md"
-				},
-				{
-					"title": "VSCode Extensions",
-					"description": "Learn how to use extensions in VSCode with Coder",
-					"path": "./ides/vscode-extensions.md"
-				}
-			]
-		},
-		{
-			"title": "Networking",
-			"description": "Learn about networking in Coder",
-			"path": "./networking/index.md",
-			"icon_path": "./images/icons/networking.svg",
-			"children": [
-				{
-					"title": "Port Forwarding",
-					"description": "Learn how to forward ports in Coder",
-					"path": "./networking/port-forwarding.md"
-				},
-				{
-					"title": "STUN and NAT",
-					"description": "Learn how Coder establishes direct connections",
-					"path": "./networking/stun.md"
-				},
-				{
-					"title": "Troubleshooting",
-					"description": "Troubleshoot networking issues in Coder",
-					"path": "./networking/troubleshooting.md"
-				}
-			]
-		},
-		{
-			"title": "Dotfiles",
-			"description": "Learn how to personalize your workspace",
-			"path": "./dotfiles.md",
-			"icon_path": "./images/icons/art-pad.svg"
-		},
-		{
-			"title": "Secrets",
-			"description": "Learn how to use secrets in your workspace",
-			"path": "./secrets.md",
-			"icon_path": "./images/icons/secrets.svg"
-		},
-		{
-			"title": "Contributing",
-			"description": "Learn how to contribute to Coder",
-			"path": ".CONTRIBUTING.md",
-			"icon_path": "./images/icons/contributing.svg",
-			"children": [
-				{
-					"title": "Code of Conduct",
-					"description": "See the code of conduct for contributing to Coder",
-					"path": "./contributing/CODE_OF_CONDUCT.md"
-				},
-				{
-					"title": "Feature stages",
-					"description": "Policies for Alpha and Experimental features.",
-					"path": "./contributing/feature-stages.md"
-				},
-				{
-					"title": "Documentation",
-					"description": "Our style guide for use when authoring documentation",
-					"path": "./contributing/documentation.md"
-				},
-				{
-					"title": "Frontend",
-					"description": "Our guide for frontend development",
-					"path": "./contributing/frontend.md"
-				}
-			]
-		},
-		{
 			"title": "User Guides",
 			"description": "Guides for end-users of Coder",
 			"path": "./user-guides/README.md",
@@ -423,8 +165,7 @@
 						{
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects",
-							"path": "./admin/setup/telemetry.md",
-							"icon_path": "./images/icons/science.svg"
+							"path": "./admin/setup/telemetry.md"
 						}
 					]
 				},
@@ -494,19 +235,17 @@
 						},
 						{
 							"title": "Groups \u0026 Roles",
-							"path": "./admin/users/groups-roles.md",
-							"icon_path": "./images/icons/group.svg",
-							"state": ["enterprise", "premium"]
+							"path": "./admin/users/groups-roles.md"
 						},
 						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
-							"icon_path": "./images/icons/orgs.svg",
-							"state": ["premium"]						},
+							"state": "enterprise"
+						},
 						{
 							"title": "Quotas",
 							"path": "./admin/users/quotas.md",
-							"state": ["enterprise", "premium"]
+							"state": "enterprise"
 						},
 						{
 							"title": "Sessions \u0026 API Tokens",
@@ -626,12 +365,11 @@
 					"title": "Provisioners",
 					"description": "Learn how to run external provisioners with Coder",
 					"path": "./admin/provisioners.md",
-					"icon_path": "./images/icons/key.svg",
-					"state": ["enterprise", "premium"]
+					"icon_path": "./images/icons/key.svg"
 				},
 				{
 					"title": "External Auth",
-					"description": "Learn how connect Coder with external auth providers",
+					"description": "Learn how to configure external authentication",
 					"path": "./admin/external-auth.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
@@ -710,14 +448,12 @@
 						{
 							"title": "Workspace Proxies",
 							"description": "Run geo distributed workspace proxies",
-							"path": "./admin/networking/workspace-proxies.md",
-							"state": ["enterprise", "premium"]
+							"path": "./admin/networking/workspace-proxies.md"
 						},
 						{
 							"title": "High Availability",
 							"description": "Learn how to configure Coder for High Availability",
-							"path": "./admin/high-availability.md",
-							"state": ["enterprise", "premium"]
+							"path": "./admin/high-availability.md"
 						},
 						{
 							"title": "Troubleshooting",
@@ -745,8 +481,7 @@
 						{
 							"title": "Health Check",
 							"description": "Learn about Coder's automated health checks",
-							"path": "./admin/monitoring/health-check.md",
-							"icon_path": "./images/icons/health.svg"
+							"path": "./admin/monitoring/health-check.md"
 						},
 						{
 							"title": "Notifications",
@@ -757,13 +492,13 @@
 									"title": "Slack Notifications",
 									"description": "Learn how to setup Slack notifications",
 									"path": "./admin/monitoring/notifications/slack.md",
-									"state": ["beta"]
+									"state": "beta"
 								},
 								{
 									"title": "Microsoft Teams Notifications",
 									"description": "Learn how to setup Microsoft Teams notifications",
 									"path": "./admin/monitoring/notifications/teams.md",
-									"state": ["beta"]
+									"state": "beta"
 								}
 							]
 						}
@@ -778,8 +513,7 @@
 						{
 							"title": "Audit Logs",
 							"description": "Audit actions taken inside Coder",
-							"path": "./admin/security/audit-logs.md",
-							"state": ["enterprise", "premium"]
+							"path": "./admin/security/audit-logs.md"
 						},
 						{
 							"title": "Secrets",
@@ -789,17 +523,39 @@
 						{
 							"title": "Database Encryption",
 							"description": "Encrypt the database to prevent unauthorized access",
-							"path": "./admin/security/database-encryption.md",
-							"icon_path": "./images/icons/lock.svg",
-							"state": ["enterprise", "premium"]
+							"path": "./admin/security/database-encryption.md"
 						}
 					]
 				}
-			],
-			"title": "Licensing",
-			"description": "Learn how to enable Premium features",
-			"path": "./licensing.md",
-			"icon_path": "./images/icons/licensing.svg"
+			]
+		},
+		{
+			"title": "Contributing",
+			"description": "Learn how to contribute to Coder",
+			"path": "./CONTRIBUTING.md",
+			"icon_path": "./images/icons/contributing.svg",
+			"children": [
+				{
+					"title": "Code of Conduct",
+					"description": "See the code of conduct for contributing to Coder",
+					"path": "./contributing/CODE_OF_CONDUCT.md"
+				},
+				{
+					"title": "Feature stages",
+					"description": "Policies for Alpha and Experimental features.",
+					"path": "./contributing/feature-stages.md"
+				},
+				{
+					"title": "Documentation",
+					"description": "Our style guide for use when authoring documentation",
+					"path": "./contributing/documentation.md"
+				},
+				{
+					"title": "Frontend",
+					"description": "Our guide for frontend development",
+					"path": "./contributing/frontend.md"
+				}
+			]
 		},
 		{
 			"title": "Tutorials",
@@ -1562,19 +1318,6 @@
 							"path": "./reference/agent-api/schemas.md"
 						}
 					]
-				}
-			]
-		},
-		{
-			"title": "Security",
-			"description": "Security advisories",
-			"path": "./admin/security/README.md",
-			"icon_path": "./images/icons/security.svg",
-			"children": [
-				{
-					"title": "API tokens of deleted users not invalidated",
-					"description": "Fixed in v0.23.0 (Apr 25, 2023)",
-					"path": "./security/0001_user_apikeys_invalidation.md"
 				}
 			]
 		}

@@ -1,4 +1,4 @@
-package cryptokeys
+package keyrotate
 
 import (
 	"context"
@@ -36,15 +36,15 @@ type rotator struct {
 	features []database.CryptoKeyFeature
 }
 
-type RotatorOption func(*rotator)
+type Option func(*rotator)
 
-func WithClock(clock quartz.Clock) RotatorOption {
+func WithClock(clock quartz.Clock) Option {
 	return func(r *rotator) {
 		r.clock = clock
 	}
 }
 
-func WithKeyDuration(keyDuration time.Duration) RotatorOption {
+func WithKeyDuration(keyDuration time.Duration) Option {
 	return func(r *rotator) {
 		r.keyDuration = keyDuration
 	}
@@ -53,7 +53,7 @@ func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 // StartRotator starts a background process that rotates keys in the database.
 // It ensures there's at least one valid key per feature prior to returning.
 // Canceling the provided context will stop the background process.
-func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) error {
+func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...Option) error {
 	kr := &rotator{
 		db:          db,
 		logger:      logger,

@@ -87,9 +87,7 @@ export const CustomRolesPage: FC = () => {
 				onCancel={() => setRoleToDelete(undefined)}
 				onConfirm={async () => {
 					try {
-						if (roleToDelete) {
-							await deleteRoleMutation.mutateAsync(roleToDelete.name);
-						}
+						await deleteRoleMutation.mutateAsync(roleToDelete!.name);
 						setRoleToDelete(undefined);
 						await organizationRolesQuery.refetch();
 						displaySuccess("Custom role deleted successfully!");

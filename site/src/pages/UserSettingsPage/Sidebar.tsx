@@ -6,7 +6,6 @@ import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import AccountIcon from "@mui/icons-material/Person";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { User } from "api/typesGenerated";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { GitIcon } from "components/Icons/GitIcon";
 import {
 	Sidebar as BaseSidebar,
@@ -58,9 +57,11 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="tokens" icon={VpnKeyOutlined}>
 				Tokens
 			</SidebarNavItem>
-			<SidebarNavItem href="notifications" icon={NotificationsIcon}>
-				Notifications <FeatureStageBadge contentType="beta" size="sm" />
-			</SidebarNavItem>
+			{experiments.includes("notifications") && (
+				<SidebarNavItem href="notifications" icon={NotificationsIcon}>
+					Notifications
+				</SidebarNavItem>
+			)}
 		</BaseSidebar>
 	);
 };

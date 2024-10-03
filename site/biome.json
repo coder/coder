@@ -6,8 +6,7 @@
 		"rules": {
 			"a11y": {
 				"noSvgWithoutTitle": { "level": "off" },
-				"useButtonType": { "level": "off" },
-				"useSemanticElements": { "level": "off" }
+				"useButtonType": { "level": "off" }
 			},
 			"style": {
 				"noNonNullAssertion": { "level": "off" },
