@@ -13,7 +13,7 @@
 		"format:check": "prettier --cache --check './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
 	},
 	"dependencies": {
-		"@chakra-ui/react": "2.8.2",
+		"@chakra-ui/react": "2.9.3",
 		"@emotion/react": "11.13.3",
 		"@emotion/styled": "11.13.0",
 		"archiver": "6.0.2",
