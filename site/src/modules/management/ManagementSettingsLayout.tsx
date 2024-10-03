@@ -14,7 +14,7 @@ import { Outlet, useParams } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 
 export const ManagementSettingsContext = createContext<
-	{ deploymentValues: DeploymentConfig } | undefined
+	ManagementSettingsValue | undefined
 >(undefined);
 
 type ManagementSettingsValue = Readonly<{
@@ -30,21 +30,8 @@ export const useManagementSettings = (): ManagementSettingsValue => {
 			"useManagementSettings should be used inside of ManagementSettingsLayout",
 		);
 	}
-	const { organizations } = useDashboard();
-	const { organization: orgName } = useParams() as {
-		organization?: string;
-	};
 
-	const organization =
-		organizations && orgName
-			? organizations.find((org) => org.name === orgName)
-			: undefined;
-
-	return {
-		deploymentValues: context.deploymentValues,
-		organizations,
-		organization,
-	};
+	return context;
 };
 
 /**
@@ -70,6 +57,10 @@ export const canEditOrganization = (
 export const ManagementSettingsLayout: FC = () => {
 	const { permissions } = useAuthenticated();
 	const deploymentConfigQuery = useQuery(deploymentConfig());
+	const { organizations } = useDashboard();
+	const { organization: orgName } = useParams() as {
+		organization?: string;
+	};
 
 	// The deployment settings page also contains users, audit logs, groups and
 	// organizations, so this page must be visible if you can see any of these.
@@ -87,10 +78,19 @@ export const ManagementSettingsLayout: FC = () => {
 		return <Loader />;
 	}
 
+	const organization =
+		organizations && orgName
+			? organizations.find((org) => org.name === orgName)
+			: undefined;
+
 	return (
 		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
 			<ManagementSettingsContext.Provider
-				value={{ deploymentValues: deploymentConfigQuery.data }}
+				value={{
+					deploymentValues: deploymentConfigQuery.data,
+					organizations,
+					organization,
+				}}
 			>
 				<Margins>
 					<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>

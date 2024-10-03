@@ -38,8 +38,4 @@ export const WithError: Story = {
 	},
 };
 
-export const Default: Story = {
-	args: {
-		// Nothing.
-	},
-};
+export const Default: Story = {};

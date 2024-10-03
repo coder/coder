@@ -8,7 +8,7 @@ import { NotificationEvents } from "./NotificationEvents";
 import { baseMeta } from "./storybookUtils";
 
 const meta: Meta<typeof NotificationEvents> = {
-	title: "pages/DeploymentSettings/NotificationsPage/NotificationEvents",
+	title: "pages/DeploymentSettingsPage/NotificationsPage/NotificationEvents",
 	component: NotificationEvents,
 	args: {
 		defaultMethod: "smtp",

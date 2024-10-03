@@ -12,7 +12,7 @@ import { NotificationsPage } from "./NotificationsPage";
 import { baseMeta } from "./storybookUtils";
 
 const meta: Meta<typeof NotificationsPage> = {
-	title: "pages/DeploymentSettings/NotificationsPage",
+	title: "pages/DeploymentSettingsPage/NotificationsPage",
 	component: NotificationsPage,
 	...baseMeta,
 };
