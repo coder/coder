@@ -2,7 +2,6 @@ package jwtutils
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"time"
 
@@ -58,15 +57,17 @@ func Encrypt(ctx context.Context, e EncryptKeyProvider, claims Claims) (string, 
 		return "", xerrors.Errorf("encrypt: %w", err)
 	}
 
-	serialized := []byte(encrypted.FullSerialize())
-	return base64.RawURLEncoding.EncodeToString(serialized), nil
+	compact, err := encrypted.CompactSerialize()
+	if err != nil {
+		return "", xerrors.Errorf("compact serialize: %w", err)
+	}
+
+	return compact, nil
 }
 
 // DecryptOptions are options for decrypting a JWE.
 type DecryptOptions struct {
-	RegisteredClaims jwt.Expected
-
-	// The following should only be used for JWEs.
+	RegisteredClaims           jwt.Expected
 	KeyAlgorithm               jose.KeyAlgorithm
 	ContentEncryptionAlgorithm jose.ContentEncryption
 }
@@ -85,12 +86,7 @@ func Decrypt(ctx context.Context, d DecryptKeyProvider, token string, claims Cla
 		opt(&options)
 	}
 
-	encrypted, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		return xerrors.Errorf("decode: %w", err)
-	}
-
-	object, err := jose.ParseEncrypted(string(encrypted),
+	object, err := jose.ParseEncrypted(token,
 		[]jose.KeyAlgorithm{options.KeyAlgorithm},
 		[]jose.ContentEncryption{options.ContentEncryptionAlgorithm},
 	)

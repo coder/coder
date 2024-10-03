@@ -71,9 +71,7 @@ func Sign(ctx context.Context, s SigningKeyProvider, claims Claims) (string, err
 
 // VerifyOptions are options for verifying a JWT.
 type VerifyOptions struct {
-	RegisteredClaims jwt.Expected
-
-	// The following are only used for JWSs.
+	RegisteredClaims   jwt.Expected
 	SignatureAlgorithm jose.SignatureAlgorithm
 }
 
