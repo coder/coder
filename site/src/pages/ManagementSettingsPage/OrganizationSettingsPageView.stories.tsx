@@ -11,7 +11,6 @@ const meta: Meta<typeof OrganizationSettingsPageView> = {
 	title: "pages/OrganizationSettingsPageView",
 	component: OrganizationSettingsPageView,
 	parameters: { chromatic },
-	decorators: [withManagementSettingsProvider],
 	args: {
 		organization: MockOrganization,
 	},
