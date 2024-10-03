@@ -19,7 +19,7 @@ const userFilterQuery = {
 export const useStatusFilterMenu = ({
 	value,
 	onChange,
-}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
 	const statusOptions: SelectFilterOption[] = [
 		{
 			value: "active",

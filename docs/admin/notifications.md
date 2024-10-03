@@ -231,7 +231,7 @@ notification is indicated on the right hand side of this table.
 
 ![User Notification Preferences](../images/user-notification-preferences.png)
 
-## Delivery Preferences (enterprise)
+## Delivery Preferences (enterprise) (premium)
 
 Administrators can configure which delivery methods are used for each different
 [event type](#event-types).
