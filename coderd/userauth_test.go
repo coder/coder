@@ -1658,6 +1658,8 @@ func TestOIDCSkipIssuer(t *testing.T) {
 func TestUserForgotPassword(t *testing.T) {
 	t.Parallel()
 
+	const newPassword = "SomeNewSecurePassword!"
+
 	requireOneTimePasscodeNotification := func(t *testing.T, notif *testutil.Notification, userID uuid.UUID) {
 		require.Equal(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
 		require.Equal(t, userID, notif.UserID)
@@ -1707,8 +1709,6 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CanChangePassword", func(t *testing.T) {
 		t.Parallel()
 
-		const newPassword = "SomeNewSecurePassword!"
-
 		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -1734,18 +1734,19 @@ func TestUserForgotPassword(t *testing.T) {
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: oneTimePasscode,
-			Password:        "SomeDifferentSecurePassword!",
+			Password:        newPassword + "!",
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword+"!")
 	})
 
 	t.Run("OneTimePasscodeExpires", func(t *testing.T) {
 		t.Parallel()
 
-		const newPassword = "SomeNewSecurePassword!"
 		const oneTimePasscodeValidityPeriod = 2 * time.Second
 
 		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
@@ -1799,12 +1800,14 @@ func TestUserForgotPassword(t *testing.T) {
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: uuid.New().String(),
-			Password:        "SomeNewSecurePassword!",
+			Password:        newPassword,
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 	})
 
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
@@ -1827,12 +1830,14 @@ func TestUserForgotPassword(t *testing.T) {
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: uuid.New().String(), // Use a different UUID to the one expected
-			Password:        "SomeNewSecurePassword!",
+			Password:        newPassword,
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 	})
 
 	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
@@ -1855,7 +1860,7 @@ func TestUserForgotPassword(t *testing.T) {
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
 			Email:           anotherUser.Email,
 			OneTimePasscode: "",
-			Password:        "SomeNewSecurePassword!",
+			Password:        newPassword,
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -1863,6 +1868,8 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Validation failed.")
 		require.Equal(t, 1, len(apiErr.Validations))
 		require.Equal(t, "one_time_passcode", apiErr.Validations[0].Field)
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 	})
 
 	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
@@ -1893,6 +1900,8 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Invalid password.")
 		require.Equal(t, 1, len(apiErr.Validations))
 		require.Equal(t, "password", apiErr.Validations[0].Field)
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, "notstrong")
 	})
 
 	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {
