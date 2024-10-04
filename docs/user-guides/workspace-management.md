@@ -63,7 +63,7 @@ The following filters are supported:
 After updating the default version of the template that a workspace was created
 from, you can update the workspace.
 
-![Updating a workspace](../../images/workspace-update.png)
+![Updating a workspace](../images/workspace-update.png)
 
 If the workspace is running, Coder stops it, updates it, then starts the
 workspace again.
@@ -86,7 +86,7 @@ Note: If a template is updated such that new parameter inputs are required from
 the user, autostart will be disabled for the workspace until the user has
 manually updated the workspace.
 
-![Automatic Updates](./images/workspace-automatic-updates.png)
+![Automatic Updates](../images/workspace-automatic-updates.png)
 
 ## Bulk operations (enterprise)
 
@@ -99,7 +99,7 @@ The start and stop operations can only be applied to a set of workspaces which
 are all in the same state. For update and delete, the user will be prompted for
 confirmation before any action is taken.
 
-![Bulk workspace actions](../../images/user-guides/workspace-bulk-actions.png)
+![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 
 ## Starting and stopping workspaces
 
@@ -109,10 +109,10 @@ schedule a workspace to start and stop automatically.
 To set a workspace's schedule, go to the workspace, then **Settings** >
 **Schedule**.
 
-![Scheduling UI](./images/schedule.png)
+![Scheduling UI](../images/schedule.png)
 
 Coder might also stop a workspace automatically if there is a
-[template update](./admin/templates/index.md#Start/stop) available.
+[template update](../admin/templates/index.md#Start/stop) available.
 
 Learn more about [workspace lifecycle](./workspace-lifecycle.md) and our
 [scheduling features](./workspace-scheduling.md).
@@ -125,7 +125,7 @@ available.
 
 Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template. For more information, see
-[Resource Persistence](./admin/templates/extending-templates/resource-persistence.md).
+[Resource Persistence](../admin/templates/extending-templates/resource-persistence.md).
 
 ## Repairing workspaces
 
@@ -146,7 +146,7 @@ Coder's filter query:
 - To find workspaces that are currently running, use the filter
   `status:running`.
 
-![Re-entering template variables](../../images/templates/template-variables.png)
+![Re-entering template variables](../images/templates/template-variables.png)
 
 You can also do this in the CLI with the following command:
 
