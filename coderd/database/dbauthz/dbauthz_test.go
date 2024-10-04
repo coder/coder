@@ -2859,7 +2859,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Action:   []string{"action1", "action2"},
 			Resource: []string{"resource1", "resource2"},
 		})
-		check.Args(j.ID).Asserts(j, policy.ActionRead).Returns(t)
+		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
 	}))
 	s.Run("GetWorkspaceAgentScriptTimingsByBuildID", s.Subtest(func(db database.Store, check *expects) {
 		workspace := dbgen.Workspace(s.T(), db, database.Workspace{})
