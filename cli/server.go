@@ -1310,7 +1310,10 @@ func templateHelpers(options *coderd.Options) map[string]any {
 		"base_url":     func() string { return options.AccessURL.String() },
 		"current_year": func() string { return strconv.Itoa(time.Now().Year()) },
 		"logo_url": func() string {
-			logoURL, err := options.Database.GetLogoURL(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+			defer cancel()
+
+			logoURL, err := options.Database.GetLogoURL(ctx)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					return notifications.NotificationsDefaultLogoURL
@@ -1322,7 +1325,10 @@ func templateHelpers(options *coderd.Options) map[string]any {
 			return logoURL
 		},
 		"app_name": func() string {
-			appName, err := options.Database.GetApplicationName(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+			defer cancel()
+
+			appName, err := options.Database.GetApplicationName(ctx)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					return notifications.NotificationsDefaultAppName
