@@ -151,7 +151,7 @@ CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
 
-## Next steps
+### Next steps
 
 - [Group Sync](./group-sync.md)
 - [Groups & Roles](./groups-roles.md)

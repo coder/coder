@@ -413,7 +413,7 @@ template is ready to use for new workspaces.
 
 ![Your new template, ready to use](../images/templates/template-tour.png)
 
-## Next steps
+### Next steps
 
 - [Setting up templates](../admin/templates/index.md)
 - [Customizing templates](../admin/templates/extending-templates/index.md)

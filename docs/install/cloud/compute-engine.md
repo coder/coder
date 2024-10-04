@@ -70,7 +70,7 @@ instances in your GCP project. Follow the instructions in the
 [gcp-linux template README](https://github.com/coder/coder/tree/main/examples/templates/gcp-linux#authentication)
 to set up authentication.
 
-## Next steps
+### Next Steps
 
 - [Use your IDE with Coder](../../user-guides/workspace-access/index.md)
 - [Writing custom templates for Coder](../../admin/templates/index.md)

@@ -129,7 +129,7 @@ Refer to the following resources:
   templates for Coder
 - [Coder Terraform Provider Reference](https://registry.terraform.io/providers/coder/coder)
 
-## Next steps
+### Next steps
 
 - [Extending templates](./extending-templates/index.md)
 - [Managing templates](./managing-templates/index.md)

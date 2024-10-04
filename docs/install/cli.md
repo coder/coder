@@ -54,7 +54,7 @@ To log in to an existing Coder deployment:
 coder login https://coder.example.com
 ```
 
-## Next up
+### Next up
 
 - [Create your first template](../tutorials/template-from-scratch.md)
 - [Control plane configuration](../admin/setup/index.md)

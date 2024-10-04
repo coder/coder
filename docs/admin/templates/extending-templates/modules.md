@@ -188,7 +188,7 @@ coder:
       readOnly: true
 ```
 
-## Next steps
+### Next steps
 
 - JFrog's
   [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry)
