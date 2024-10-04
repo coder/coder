@@ -1,5 +1,7 @@
 # About Coder
 
+<!-- Warning for docs contributors: The first route in manifest.json must be titled "About" for the static landing page to work correctly.  -->
+
 Coder is an open-source platform for creating and managing developer workspaces
 on your preferred clouds and servers.
 
