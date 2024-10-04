@@ -251,8 +251,8 @@
 							"state": ["enterprise", "premium"]
 						},
 						{
-							"title": "Groups",
-							"path": "./admin/users/groups.md",
+							"title": "Group Sync",
+							"path": "./admin/users/group-sync.md",
 							"state": ["enterprise", "premium"]
 						},
 						{
