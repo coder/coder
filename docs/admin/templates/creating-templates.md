@@ -152,8 +152,8 @@ templates for additional clouds (e.g. Hetzner, Alibaba) or orchestrators
 Refer to the following resources:
 
 - [Tutorial: Create a template from scratch](../../tutorials/template-from-scratch.md)
-- [Extending templates](./editing-templates.md): Features and concepts around
-  templates (agents, parameters, variables, etc)
+- [Extending templates](./extending-templates/index.md): Features and concepts
+  around templates (agents, parameters, variables, etc)
 - [Coder Registry](https://registry.coder.com/templates): Official and community
   templates for Coder
 - [Coder Terraform Provider Reference](https://registry.terraform.io/providers/coder/coder)

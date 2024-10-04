@@ -5,9 +5,9 @@ each work from their own workspace and can use
 [multiple IDEs](../user-guides/workspace-access/index.md).
 
 A developer creates a workspace from a
-[shared template](../tutorials/templates/index.md). This lets an entire team
-work in environments that are identically configured and provisioned with the
-same resources.
+[shared template](../admin/templates/index.md). This lets an entire team work in
+environments that are identically configured and provisioned with the same
+resources.
 
 ## Before you begin
 

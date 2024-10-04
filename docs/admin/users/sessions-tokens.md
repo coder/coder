@@ -44,8 +44,8 @@ Use the following command:
 coder tokens create --name=my-token --lifetime=720h
 ```
 
-See the help docs for [`coder tokens create`](../../reference/cli/tokens_create)
-for more info.
+See the help docs for
+[`coder tokens create`](../../reference/cli/tokens_create.md) for more info.
 
 </div>
 

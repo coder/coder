@@ -73,7 +73,7 @@ flags.
 
 Notifications can currently be delivered by either SMTP or webhook. Each message
 can only be delivered to one method, and this method is configured globally with
-[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server#--notifications-method)
+[`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
 (default: `smtp`).
 
 Enterprise customers can configure which method to use for each of the supported

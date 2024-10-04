@@ -9,7 +9,7 @@ configured by your template admin, which will stop a workspace when a user's
 absence is detected.
 
 To learn more workspace states and schedule, read the
-[workspace lifecycle](../admin/workspaces/lifecycle.md) documentation.
+[workspace lifecycle](../user-guides/workspace-lifecycle.md) documentation.
 
 ## Where to find the schedule settings
 
