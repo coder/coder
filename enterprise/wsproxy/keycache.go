@@ -34,7 +34,6 @@ type CryptoKeyCache struct {
 
 	mu        sync.Mutex
 	keys      map[int32]codersdk.CryptoKey
-	latest    codersdk.CryptoKey
 	lastFetch time.Time
 	refresher *quartz.Timer
 	fetching  bool
@@ -57,12 +56,12 @@ func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client Fetcher, opt
 	cache.refreshCtx, cache.refreshCancel = context.WithCancel(ctx)
 	cache.refresher = cache.Clock.AfterFunc(refreshInterval, cache.refresh)
 
-	m, latest, err := cache.cryptoKeys(ctx)
+	keys, err := cache.cryptoKeys(ctx)
 	if err != nil {
 		cache.refreshCancel()
 		return nil, xerrors.Errorf("initial fetch: %w", err)
 	}
-	cache.keys, cache.latest = m, latest
+	cache.keys = keys
 
 	return cache, nil
 }
@@ -100,7 +99,7 @@ func (k *CryptoKeyCache) cryptoKey(ctx context.Context, sequence int32) (codersd
 	k.fetching = true
 	k.mu.Unlock()
 
-	keys, latest, err := k.cryptoKeys(ctx)
+	keys, err := k.cryptoKeys(ctx)
 	if err != nil {
 		return codersdk.CryptoKey{}, xerrors.Errorf("get keys: %w", err)
 	}
@@ -108,7 +107,7 @@ func (k *CryptoKeyCache) cryptoKey(ctx context.Context, sequence int32) (codersd
 	k.mu.Lock()
 	k.lastFetch = k.Clock.Now()
 	k.refresher.Reset(refreshInterval)
-	k.keys, k.latest = keys, latest
+	k.keys = keys
 	k.fetching = false
 	k.cond.Broadcast()
 
@@ -122,7 +121,7 @@ func (k *CryptoKeyCache) cryptoKey(ctx context.Context, sequence int32) (codersd
 
 func (k *CryptoKeyCache) key(sequence int32) (codersdk.CryptoKey, bool) {
 	if sequence == latestSequence {
-		return k.latest, k.latest.CanSign(k.Clock.Now())
+		return k.keys[latestSequence], k.keys[latestSequence].CanSign(k.Clock.Now())
 	}
 
 	key, ok := k.keys[sequence]
@@ -171,7 +170,7 @@ func (k *CryptoKeyCache) refresh() {
 	k.fetching = true
 
 	k.mu.Unlock()
-	keys, latest, err := k.cryptoKeys(k.refreshCtx)
+	keys, err := k.cryptoKeys(k.refreshCtx)
 	if err != nil {
 		k.logger.Error(k.refreshCtx, "fetch crypto keys", slog.Error(err))
 		return
@@ -182,32 +181,32 @@ func (k *CryptoKeyCache) refresh() {
 
 	k.lastFetch = k.Clock.Now()
 	k.refresher.Reset(refreshInterval)
-	k.keys, k.latest = keys, latest
+	k.keys = keys
 	k.fetching = false
 	k.cond.Broadcast()
 }
 
 // cryptoKeys queries the control plane for the crypto keys.
 // Outside of initialization, this should only be called by fetch.
-func (k *CryptoKeyCache) cryptoKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey, error) {
+func (k *CryptoKeyCache) cryptoKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, error) {
 	keys, err := k.fetcher.Fetch(ctx)
 	if err != nil {
-		return nil, codersdk.CryptoKey{}, xerrors.Errorf("crypto keys: %w", err)
+		return nil, xerrors.Errorf("crypto keys: %w", err)
 	}
-	cache, latest := toKeyMap(keys, k.Clock.Now())
-	return cache, latest, nil
+	cache := toKeyMap(keys, k.Clock.Now())
+	return cache, nil
 }
 
-func toKeyMap(keys []codersdk.CryptoKey, now time.Time) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey) {
+func toKeyMap(keys []codersdk.CryptoKey, now time.Time) map[int32]codersdk.CryptoKey {
 	m := make(map[int32]codersdk.CryptoKey)
 	var latest codersdk.CryptoKey
 	for _, key := range keys {
 		m[key.Sequence] = key
 		if key.Sequence > latest.Sequence && key.CanSign(now) {
-			latest = key
+			m[latestSequence] = key
 		}
 	}
-	return m, latest
+	return m
 }
 
 func (k *CryptoKeyCache) Close() {
