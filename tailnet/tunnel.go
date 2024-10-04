@@ -15,6 +15,13 @@ type CoordinateeAuth interface {
 	Authorize(req *proto.CoordinateRequest) error
 }
 
+type NamedCoordinatee interface {
+	// FQDN of the coordinatee for use in DNS resolution with a trailing dot. If
+	// the coordinatee does not have a DNS name, it should either not implement
+	// this method or return an empty string.
+	FQDN() string
+}
+
 // SingleTailnetCoordinateeAuth allows all tunnels, since Coderd and wsproxy are allowed to initiate a tunnel to any agent
 type SingleTailnetCoordinateeAuth struct{}
 
@@ -22,10 +29,16 @@ func (SingleTailnetCoordinateeAuth) Authorize(*proto.CoordinateRequest) error {
 	return nil
 }
 
+// Servers don't get DNS names in the current design.
+var _ CoordinateeAuth = SingleTailnetCoordinateeAuth{}
+
 // ClientCoordinateeAuth allows connecting to a single, given agent
 type ClientCoordinateeAuth struct {
 	AgentID uuid.UUID
 }
+
+// Clients don't get DNS names in the current design.
+var _ CoordinateeAuth = ClientCoordinateeAuth{}
 
 func (c ClientCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 	if tun := req.GetAddTunnel(); tun != nil {
@@ -61,7 +74,17 @@ func (c ClientCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 
 // AgentCoordinateeAuth disallows all tunnels, since agents are not allowed to initiate their own tunnels
 type AgentCoordinateeAuth struct {
-	ID uuid.UUID
+	ID        uuid.UUID
+	AgentFQDN string
+}
+
+var (
+	_ CoordinateeAuth  = AgentCoordinateeAuth{}
+	_ NamedCoordinatee = AgentCoordinateeAuth{}
+)
+
+func (a AgentCoordinateeAuth) FQDN() string {
+	return a.AgentFQDN
 }
 
 func (a AgentCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {

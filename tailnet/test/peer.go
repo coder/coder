@@ -72,9 +72,12 @@ func NewPeer(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, nam
 }
 
 // NewAgent is a wrapper around NewPeer, creating a peer with Agent auth tied to its ID
-func NewAgent(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, name string) *Peer {
+func NewAgent(ctx context.Context, t testing.TB, coord tailnet.CoordinatorV2, name, fqdn string) *Peer {
 	id := uuid.New()
-	return NewPeer(ctx, t, coord, name, WithID(id), WithAuth(tailnet.AgentCoordinateeAuth{ID: id}))
+	return NewPeer(ctx, t, coord, name, WithID(id), WithAuth(tailnet.AgentCoordinateeAuth{
+		ID:        id,
+		AgentFQDN: fqdn,
+	}))
 }
 
 // NewClient is a wrapper around NewPeer, creating a peer with Client auth tied to the provided agentID

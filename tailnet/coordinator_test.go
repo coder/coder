@@ -70,6 +70,33 @@ func TestCoordinator(t *testing.T) {
 		client.AssertEventuallyResponsesClosed()
 	})
 
+	t.Run("AgentNodeName", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+
+		const fqdn = "agent.example.com"
+		agent := test.NewAgent(ctx, t, coordinator, "agent", fqdn)
+		defer agent.Close(ctx)
+		agent.UpdateNode(&proto.Node{
+			Addresses: []string{
+				netip.PrefixFrom(tailnet.IPFromUUID(agent.ID), 128).String(),
+			},
+			PreferredDerp: 10,
+		})
+		require.Eventually(t, func() bool {
+			return coordinator.Node(agent.ID) != nil
+		}, testutil.WaitShort, testutil.IntervalFast)
+		node := coordinator.Node(agent.ID)
+		require.NotNil(t, node)
+		require.Equal(t, fqdn, node.Name)
+	})
+
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -80,7 +107,7 @@ func TestCoordinator(t *testing.T) {
 			require.NoError(t, err)
 		}()
 
-		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		agent := test.NewAgent(ctx, t, coordinator, "agent", "")
 		defer agent.Close(ctx)
 		agent.UpdateNode(&proto.Node{
 			Addresses: []string{
@@ -102,7 +129,7 @@ func TestCoordinator(t *testing.T) {
 			err := coordinator.Close()
 			require.NoError(t, err)
 		}()
-		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		agent := test.NewAgent(ctx, t, coordinator, "agent", "")
 		defer agent.Close(ctx)
 		agent.UpdateNode(&proto.Node{
 			Addresses: []string{
@@ -122,7 +149,7 @@ func TestCoordinator(t *testing.T) {
 			err := coordinator.Close()
 			require.NoError(t, err)
 		}()
-		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		agent := test.NewAgent(ctx, t, coordinator, "agent", "")
 		defer agent.Close(ctx)
 		agent.UpdateNode(&proto.Node{
 			Addresses: []string{
@@ -144,7 +171,7 @@ func TestCoordinator(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		agent := test.NewAgent(ctx, t, coordinator, "agent", "")
 		defer agent.Close(ctx)
 		agent.UpdateDERP(1)
 		require.Eventually(t, func() bool {

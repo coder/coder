@@ -69,6 +69,44 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	assertEventuallyLost(ctx, t, store, client.ID)
 }
 
+func TestAgentNodeName(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	const fqdn = "agent.example.com"
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent", fqdn)
+	defer agent.Close(ctx)
+	agent.UpdateDERP(10)
+
+	var node *proto.Node
+	require.Eventually(t, func() bool {
+		agents, err := store.GetTailnetPeers(ctx, agent.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			t.Fatalf("database error: %v", err)
+		}
+		if len(agents) == 0 {
+			return false
+		}
+		err = gProto.Unmarshal(agents[0].Node, node)
+		assert.NoError(t, err)
+		assert.EqualValues(t, 10, node.PreferredDerp)
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
+	require.Equal(t, fqdn, node.Name)
+
+	agent.UngracefulDisconnect(ctx)
+	assertEventuallyLost(ctx, t, store, agent.ID)
+}
+
 func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	t.Parallel()
 	if !dbtestutil.WillUsePostgres() {
@@ -82,7 +120,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent", "")
 	defer agent.Close(ctx)
 	agent.UpdateDERP(10)
 	require.Eventually(t, func() bool {
@@ -116,7 +154,7 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent", "")
 	defer agent.Close(ctx)
 	agent.UpdateNode(&proto.Node{
 		Addresses: []string{
@@ -143,7 +181,7 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent", "")
 	defer agent.Close(ctx)
 	agent.UpdateNode(&proto.Node{
 		Addresses: []string{
@@ -170,7 +208,7 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent", "")
 	defer agent.Close(ctx)
 	agent.UpdateNode(&proto.Node{
 		Addresses: []string{
@@ -209,7 +247,7 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "original")
+	agent := agpltest.NewAgent(ctx, t, coordinator, "original", "")
 	defer agent.Close(ctx)
 	agent.UpdateDERP(10)
 
@@ -264,7 +302,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent", "")
 	defer agent.Close(ctx)
 	agent.UpdateDERP(10)
 
@@ -442,10 +480,10 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	require.NoError(t, err)
 	defer coord2.Close()
 
-	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1", "")
 	defer agent1.Close(ctx)
 	t.Logf("agent1=%s", agent1.ID)
-	agent2 := agpltest.NewAgent(ctx, t, coord2, "agent2")
+	agent2 := agpltest.NewAgent(ctx, t, coord2, "agent2", "")
 	defer agent2.Close(ctx)
 	t.Logf("agent2=%s", agent2.ID)
 
@@ -543,7 +581,7 @@ func TestPGCoordinator_MultiCoordinatorAgent(t *testing.T) {
 	require.NoError(t, err)
 	defer coord3.Close()
 
-	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1", "")
 	defer agent1.Close(ctx)
 	agent2 := agpltest.NewPeer(ctx, t, coord2, "agent2",
 		agpltest.WithID(agent1.ID), agpltest.WithAuth(agpl.AgentCoordinateeAuth{ID: agent1.ID}),
@@ -625,7 +663,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 		err := uut.Close()
 		require.NoError(t, err)
 	}()
-	agent1 := agpltest.NewAgent(ctx, t, uut, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, uut, "agent1", "")
 	defer agent1.Close(ctx)
 	for i := 0; i < 3; i++ {
 		select {
@@ -639,7 +677,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	agent1.AssertEventuallyResponsesClosed()
 
 	// new agent should immediately disconnect
-	agent2 := agpltest.NewAgent(ctx, t, uut, "agent2")
+	agent2 := agpltest.NewAgent(ctx, t, uut, "agent2", "")
 	defer agent2.Close(ctx)
 	agent2.AssertEventuallyResponsesClosed()
 
@@ -652,7 +690,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 			// OK
 		}
 	}
-	agent3 := agpltest.NewAgent(ctx, t, uut, "agent3")
+	agent3 := agpltest.NewAgent(ctx, t, uut, "agent3", "")
 	defer agent3.Close(ctx)
 	agent3.AssertNotClosed(time.Second)
 }
@@ -750,7 +788,7 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "original")
+	agent := agpltest.NewAgent(ctx, t, coordinator, "original", "")
 	defer agent.Close(ctx)
 	agent.UpdateDERP(10)
 

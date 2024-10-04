@@ -46,6 +46,10 @@ message StreamDERPMapsRequest {}
 // defined in tailnet/coordinator.go
 message Node {
 	int64 id = 1;
+	// name is FQDN with trailing dot, if empty no DNS entry is added. This
+	// value is set by the server and ignored when a client sends it during a
+	// node update.
+	string name = 11;
 	google.protobuf.Timestamp as_of = 2;
 	bytes key = 3;
 	string disco = 4;

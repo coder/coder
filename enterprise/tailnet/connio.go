@@ -141,6 +141,7 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 
 	if req.UpdateSelf != nil {
 		c.logger.Debug(c.peerCtx, "got node update", slog.F("node", req.UpdateSelf))
+		c.mutateReceivedNode(req.UpdateSelf.Node)
 		b := binding{
 			bKey: bKey(c.UniqueID()),
 			node: req.UpdateSelf.Node,
@@ -232,6 +233,17 @@ func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 		}
 	}
 	return nil
+}
+
+func (c *connIO) mutateReceivedNode(n *proto.Node) {
+	if n == nil {
+		return
+	}
+	fqdn := ""
+	if named, ok := c.auth.(agpl.NamedCoordinatee); ok {
+		fqdn = named.FQDN()
+	}
+	n.Name = fqdn
 }
 
 func (c *connIO) setLatestMapping(latest []mapping) {

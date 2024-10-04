@@ -23,6 +23,7 @@ type peer struct {
 	sent   map[uuid.UUID]*proto.Node
 
 	name       string
+	fqdn       string
 	start      time.Time
 	lastWrite  time.Time
 	overwrites int
@@ -121,6 +122,13 @@ func (p *peer) storeMappingLocked(
 	}, nil
 }
 
+func (p *peer) mutateReceivedNode(n *proto.Node) {
+	if n == nil {
+		return
+	}
+	n.Name = p.fqdn
+}
+
 func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(*peer, *proto.CoordinateRequest) error) {
 	for {
 		select {
@@ -152,6 +160,7 @@ func (p *peer) htmlDebug() HTMLPeer {
 	return HTMLPeer{
 		ID:           p.id,
 		Name:         p.name,
+		FQDN:         p.fqdn,
 		CreatedAge:   time.Since(p.start),
 		LastWriteAge: time.Since(p.lastWrite),
 		Overwrites:   p.overwrites,

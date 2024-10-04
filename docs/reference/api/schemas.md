@@ -2598,6 +2598,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `auto-fill-parameters` |
 | `notifications`        |
 | `workspace-usage`      |
+| `coder-vpn`            |
 
 ## codersdk.ExternalAuth
 

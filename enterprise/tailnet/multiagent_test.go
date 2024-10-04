@@ -35,7 +35,7 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 	require.NoError(t, err)
 	defer coord1.Close()
 
-	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1", "")
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
@@ -102,7 +102,7 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 	require.NoError(t, err)
 	defer coord1.Close()
 
-	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1", "")
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
@@ -147,7 +147,7 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 	require.NoError(t, err)
 	defer coord1.Close()
 
-	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1", "")
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
@@ -212,7 +212,7 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 	require.NoError(t, err)
 	defer coord2.Close()
 
-	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1", "")
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
@@ -262,7 +262,7 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 	require.NoError(t, err)
 	defer coord2.Close()
 
-	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1", "")
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
@@ -317,11 +317,11 @@ func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 	require.NoError(t, err)
 	defer coord3.Close()
 
-	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1")
+	agent1 := agpltest.NewAgent(ctx, t, coord1, "agent1", "")
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
-	agent2 := agpltest.NewAgent(ctx, t, coord2, "agent2")
+	agent2 := agpltest.NewAgent(ctx, t, coord2, "agent2", "")
 	defer agent2.Close(ctx)
 	agent2.UpdateDERP(6)
 

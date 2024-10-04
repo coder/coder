@@ -737,6 +737,40 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	require.False(t, p2p)
 }
 
+func TestWorkspaceAgentTailnetFQDN(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	err := dv.Experiments.Append(string(codersdk.ExperimentCoderVPN))
+	require.NoError(t, err)
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+	agnt, err := client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
+	require.NoError(t, err)
+
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, agnt.ID, &workspacesdk.DialAgentOptions{
+			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	require.True(t, conn.AwaitReachable(ctx))
+	require.NotNil(t, conn.GetPeerDiagnostics().ReceivedNode)
+	require.Equal(t, fmt.Sprintf("%s--%s--%s.coder.", agnt.Name, r.Workspace.Name, coderdtest.FirstUserParams.Username), conn.GetPeerDiagnostics().ReceivedNode.Name)
+}
+
 func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	t.Parallel()
 

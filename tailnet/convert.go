@@ -93,6 +93,7 @@ func ProtoToNode(p *proto.Node) (*Node, error) {
 	}
 	return &Node{
 		ID:                  tailcfg.NodeID(p.GetId()),
+		Name:                p.GetName(),
 		AsOf:                p.GetAsOf().AsTime(),
 		Key:                 k,
 		DiscoKey:            disco,

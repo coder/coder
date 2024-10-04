@@ -10,9 +10,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -72,6 +77,53 @@ func TestBlockNonBrowser(t *testing.T) {
 		require.NoError(t, err)
 		_ = conn.Close()
 	})
+}
+
+func TestWorkspaceAgentHATailnetFQDN(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test requires postgres")
+	}
+
+	dv := coderdtest.DeploymentValues(t)
+	err := dv.Experiments.Append(string(codersdk.ExperimentCoderVPN))
+	require.NoError(t, err)
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+			Database:         db,
+			Pubsub:           pubsub,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureHighAvailability: 1,
+			},
+		},
+	})
+	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+	agnt, err := client.WorkspaceAgent(ctx, resources[0].Agents[0].ID)
+	require.NoError(t, err)
+
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, agnt.ID, &workspacesdk.DialAgentOptions{
+			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+		})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	require.True(t, conn.AwaitReachable(ctx))
+	require.NotNil(t, conn.GetPeerDiagnostics().ReceivedNode)
+	require.Equal(t, fmt.Sprintf("%s--%s--%s.coder.", agnt.Name, r.Workspace.Name, coderdtest.FirstUserParams.Username), conn.GetPeerDiagnostics().ReceivedNode.Name)
 }
 
 type setupResp struct {
