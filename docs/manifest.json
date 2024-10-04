@@ -392,7 +392,7 @@
 					]
 				},
 				{
-					"title": "Provisioners",
+					"title": "External Provisioners",
 					"description": "Learn how to run external provisioners with Coder",
 					"path": "./admin/provisioners.md",
 					"icon_path": "./images/icons/key.svg",
