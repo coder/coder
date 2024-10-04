@@ -340,6 +340,19 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		return
 	}
 
+	if err := userpassword.Validate(req.Password); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid password.",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "password",
+					Detail: err.Error(),
+				},
+			},
+		})
+		return
+	}
+
 	err = api.Database.InTx(func(tx database.Store) error {
 		//nolint:gocritic // In order to change a user's password, we need to get the user first - and can only do that in the system auth context.
 		user, err := tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
@@ -349,6 +362,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			logger.Error(ctx, "unable to fetch user by email", slog.F("email", req.Email), slog.Error(err))
 			return xerrors.Errorf("get user by email: %w", err)
 		}
+		// We continue if err == sql.ErrNoRows to help prevent a timing-based attack.
 		aReq.Old = user
 
 		equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
@@ -365,20 +379,13 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 			return nil
 		}
 
-		if err := userpassword.Validate(req.Password); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid password.",
-				Validations: []codersdk.ValidationError{
-					{
-						Field:  "password",
-						Detail: err.Error(),
-					},
-				},
-			})
-			return nil
+		equal, err = userpassword.Compare(string(user.HashedPassword), req.Password)
+		if err != nil {
+			logger.Error(ctx, "unable to compare password", slog.Error(err))
+			return xerrors.Errorf("compare password: %w", err)
 		}
 
-		if equal, _ = userpassword.Compare(string(user.HashedPassword), req.Password); equal {
+		if equal {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "New password cannot match old password.",
 			})
