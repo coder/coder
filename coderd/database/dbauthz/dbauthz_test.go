@@ -586,6 +586,46 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			JobID: j.ID,
 		}).Asserts(w, policy.ActionRead).Returns([]database.ProvisionerJobLog{})
 	}))
+	s.Run("GetWorkspaceAgentScriptTimingsByBuildID", s.Subtest(func(db database.Store, check *expects) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		r := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{
+			JobID: b.JobID,
+		})
+		a := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{
+			ResourceID: r.ID,
+		})
+		scripts := dbgen.WorkspaceAgentScripts(s.T(), db, database.InsertWorkspaceAgentScriptsParams{
+			WorkspaceAgentID: a.ID,
+			CreatedAt:        time.Now(),
+			LogSourceID: []uuid.UUID{
+				uuid.New(),
+			},
+			LogPath:          []string{""},
+			Script:           []string{""},
+			Cron:             []string{""},
+			StartBlocksLogin: []bool{false},
+			RunOnStart:       []bool{false},
+			RunOnStop:        []bool{false},
+			TimeoutSeconds:   []int32{0},
+			DisplayName:      []string{""},
+			ID: []uuid.UUID{
+				uuid.New(),
+			},
+		})
+		t := dbgen.WorkspaceAgentScriptTiming(s.T(), db, database.InsertWorkspaceAgentScriptTimingsParams{
+			StartedAt: dbtime.Now(),
+			EndedAt:   dbtime.Now(),
+			Stage:     database.WorkspaceAgentScriptTimingStageStart,
+			ScriptID:  scripts[0].ID,
+			ExitCode:  0,
+			Status:    database.WorkspaceAgentScriptTimingStatusOk,
+		})
+		check.Args(b.ID).Asserts(w, policy.ActionRead).Returns(t)
+	}))
 }
 
 func (s *MethodTestSuite) TestLicense() {
