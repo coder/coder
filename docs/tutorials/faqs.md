@@ -152,8 +152,8 @@ of these values can lead to existing workspaces failing to start. This issue
 occurs because the Terraform state will not be in sync with the new template.
 
 However, a lesser-known CLI sub-command,
-[`coder update`](../reference/cli/update), can resolve this issue. This command
-re-prompts users to re-enter the input variables, potentially saving the
+[`coder update`](../reference/cli/update.md), can resolve this issue. This
+command re-prompts users to re-enter the input variables, potentially saving the
 workspace from a failed status.
 
 ```sh
