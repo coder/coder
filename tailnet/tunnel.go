@@ -81,6 +81,7 @@ func (a AgentCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 			}
 
 			if TailscaleServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
+				CoderServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
 				legacyWorkspaceAgentIP.Compare(pre.Addr()) != 0 {
 				return xerrors.Errorf("invalid node address, got %s", pre.Addr().String())
 			}
