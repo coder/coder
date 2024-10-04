@@ -15,10 +15,10 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
-import { useOrganizationSettings } from "./ManagementSettingsLayout";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const OrganizationMembersPage: FC = () => {
@@ -50,7 +50,7 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { organizations } = useOrganizationSettings();
+	const { organizations } = useManagementSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 

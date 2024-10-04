@@ -5,7 +5,9 @@ import { beforeCoderTest } from "../../hooks";
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 test("create user with password", async ({ page, baseURL }) => {
-	await page.goto(`${baseURL}/users`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${baseURL}/deployment/users`, {
+		waitUntil: "domcontentloaded",
+	});
 	await expect(page).toHaveTitle("Users - Coder");
 
 	await page.getByRole("button", { name: "Create user" }).click();
@@ -37,7 +39,9 @@ test("create user with password", async ({ page, baseURL }) => {
 });
 
 test("create user without full name is optional", async ({ page, baseURL }) => {
-	await page.goto(`${baseURL}/users`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${baseURL}/deployment/users`, {
+		waitUntil: "domcontentloaded",
+	});
 	await expect(page).toHaveTitle("Users - Coder");
 
 	await page.getByRole("button", { name: "Create user" }).click();

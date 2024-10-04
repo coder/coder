@@ -327,28 +327,48 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	return server, nil
 }
 
-func maskUUID(uid uuid.UUID) uuid.UUID {
-	// This is Tailscale's ephemeral service prefix. This can be changed easily
-	// later-on, because all of our nodes are ephemeral.
-	// fd7a:115c:a1e0
-	uid[0] = 0xfd
-	uid[1] = 0x7a
-	uid[2] = 0x11
-	uid[3] = 0x5c
-	uid[4] = 0xa1
-	uid[5] = 0xe0
+type ServicePrefix [6]byte
+
+var (
+	// TailscaleServicePrefix is the IPv6 prefix for all tailnet nodes since it was first added to
+	// Coder.  It is identical to the service prefix Tailscale.com uses. With the introduction of
+	// CoderVPN, we would like to stop using the Tailscale prefix so that we don't conflict with
+	// Tailscale if both are installed at the same time. However, there are a large number of agents
+	// and clients using this prefix, so we need to carefully manage deprecation and eventual
+	// removal.
+	// fd7a:115c:a1e0:://48
+	TailscaleServicePrefix ServicePrefix = [6]byte{0xfd, 0x7a, 0x11, 0x5c, 0xa1, 0xe0}
+	// CoderServicePrefix is the Coder-specific IPv6 prefix for tailnet nodes, which we are in the
+	// process of migrating to. It allows Coder to run alongside Tailscale without conflicts even
+	// if both are set up as TUN interfaces into the OS (e.g. CoderVPN).
+	// fd60:627a:a42b::/48
+	CoderServicePrefix ServicePrefix = [6]byte{0xfd, 0x60, 0x62, 0x7a, 0xa4, 0x2b}
+)
+
+// maskUUID returns a new UUID with the first 6 bytes changed to the ServicePrefix
+func (p ServicePrefix) maskUUID(uid uuid.UUID) uuid.UUID {
+	copy(uid[:], p[:])
 	return uid
 }
 
-// IP generates a random IP with a static service prefix.
-func IP() netip.Addr {
-	uid := maskUUID(uuid.New())
-	return netip.AddrFrom16(uid)
+// RandomAddr returns a random IP address in the service prefix.
+func (p ServicePrefix) RandomAddr() netip.Addr {
+	return netip.AddrFrom16(p.maskUUID(uuid.New()))
 }
 
-// IP generates a new IP from a UUID.
-func IPFromUUID(uid uuid.UUID) netip.Addr {
-	return netip.AddrFrom16(maskUUID(uid))
+// AddrFromUUID returns an IPv6 address corresponding to the given UUID in the service prefix.
+func (p ServicePrefix) AddrFromUUID(uid uuid.UUID) netip.Addr {
+	return netip.AddrFrom16(p.maskUUID(uid))
+}
+
+// PrefixFromUUID returns a single IPv6 /128 prefix corresponding to the given UUID.
+func (p ServicePrefix) PrefixFromUUID(uid uuid.UUID) netip.Prefix {
+	return netip.PrefixFrom(p.AddrFromUUID(uid), 128)
+}
+
+// RandomPrefix returns a single IPv6 /128 prefix within the service prefix.
+func (p ServicePrefix) RandomPrefix() netip.Prefix {
+	return netip.PrefixFrom(p.RandomAddr(), 128)
 }
 
 // Conn is an actively listening Wireguard connection.
