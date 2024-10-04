@@ -12,7 +12,7 @@ them. Templates can also be [managed with git](./change-management.md), allowing
 any developer to propose changes to a template.
 
 You can give different users and groups access to templates with
-[role-based access control](../admin/rbac.md).
+[role-based access control](../template-permissions.md).
 
 ## Starter templates
 

@@ -9,7 +9,7 @@ For example: A template is configured with a cost of 5 credits per day, and the
 user is granted 15 credits, which can be consumed by both started and stopped
 workspaces. This budget limits the user to 3 concurrent workspaces.
 
-Quotas are scoped to [Groups](./groups.md) in Enterprise and
+Quotas are scoped to [Groups](./groups-roles.md) in Enterprise and
 [organizations](./organizations.md) in Premium.
 
 ## Definitions

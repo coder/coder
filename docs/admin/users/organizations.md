@@ -74,7 +74,7 @@ Successfully created provisioner key data-cluster! Save this authentication toke
 Next, start the provisioner with the key on your desired platform. In this
 example, we'll start it using the Coder CLI on a host with Docker. For
 instructions on using other platforms like Kubernetes, see our
-[provisioner documentation](../admin/provisioners.md).
+[provisioner documentation](../provisioners.md).
 
 ```sh
 export CODER_URL=https://<your-coder-url>
