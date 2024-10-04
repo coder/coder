@@ -319,6 +319,11 @@
 									"title": "Devcontainers",
 									"description": "Learn about using devcontainers in templates",
 									"path": "./admin/templates/managing-templates/devcontainers.md"
+								},
+								{
+									"title": "Dependencies",
+									"description": "Learn how to manage template dependencies",
+									"path": "./admin/templates/managing-templates/dependencies.md"
 								}
 							]
 						},
