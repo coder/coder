@@ -133,8 +133,8 @@
 				{
 					"title": "Workspace Management",
 					"description": "Manage workspaces",
-					"path": "./user-guides/workspace-management.md",
-					"icon_path": "./images/icons/layers.svg"
+					"path": "./user-guides/workspace-management.md"
+					"icon_path": "./images/icons/generic.svg"
 				},
 				{
 					"title": "Workspace Scheduling",
