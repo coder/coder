@@ -13,8 +13,6 @@ You can install and run Coder using the official Docker images published on
 
 - 2 CPU cores and 4 GB memory free on your machine.
 
-<!-- TODO: @kylecarbs fix this formatting (https://i.imgur.com/SoQtz47.png) -->
-
 ## Install Coder via `docker run`
 
 ### Built-in database (quick)

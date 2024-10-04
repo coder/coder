@@ -85,5 +85,3 @@ Enterprise admins may apply bulk operations (update, delete, start, stop) in the
 The start and stop operations can only be applied to a set of workspaces which are all in the same state. For update and delete, the user will be prompted for confirmation before any action is taken.
 
 ![Bulk workspace actions](../../images/user-guides/workspace-bulk-actions.png)
-
-<!-- TODO: Children or next steps -->
