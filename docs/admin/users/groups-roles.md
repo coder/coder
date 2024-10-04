@@ -1,8 +1,7 @@
 # Groups and Roles
 
 Groups and roles can be manually assigned in Coder. For production deployments,
-these can also be
-[managed and synced by the identity provider](./idp-sync.md).
+these can also be [managed and synced by the identity provider](./idp-sync.md).
 
 ## Groups
 
