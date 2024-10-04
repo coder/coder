@@ -88,7 +88,7 @@ manually updated the workspace.
 
 ![Automatic Updates](../images/workspace-automatic-updates.png)
 
-## Bulk operations (enterprise)
+## Bulk operations (enterprise) (premium)
 
 Enterprise admins may apply bulk operations (update, delete, start, stop) in the
 **Workspaces** tab. Select the workspaces you'd like to modify with the
