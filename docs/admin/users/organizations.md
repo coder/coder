@@ -1,7 +1,8 @@
 # Organizations (Premium)
 
-> Note: Organizations requires a [Premium license](../licensing.md). For more
-> details, [contact your account team](https://coder.com/contact).
+> Note: Organizations requires a
+> [Premium license](https://coder.com/pricing#compare-plans). For more details,
+> [contact your account team](https://coder.com/contact).
 
 Organizations can be used to segment and isolate resources inside a Coder
 deployment for different user groups or projects.
@@ -30,11 +31,12 @@ From there, you can manage the name, icon, description, users, and groups:
 
 Any additional organizations have unique admins, users, templates, provisioners,
 groups, and workspaces. Each organization must have at least one
-[provisioner](./provisioners.md) as the built-in provisioner only applies to the
-default organization.
+[provisioner](../provisioners.md) as the built-in provisioner only applies to
+the default organization.
 
-You can configure [organization/role/group sync](./auth.md) from your identity
-provider to avoid manually assigning users to organizations.
+You can configure
+[organization/role/group sync](./oidc-auth.md#group-sync-enterprise-premium)
+from your identity provider to avoid manually assigning users to organizations.
 
 ## Creating an organization
 
@@ -55,11 +57,10 @@ From there, let's deploy a provisioner and template for this organization.
 
 ### 2. Deploy a provisioner
 
-[Provisioners](../admin/provisioners.md) are organization-scoped and are
-responsible for executing Terraform/OpenTofu to provision the infrastructure for
-workspaces and testing templates. Before creating templates, we must deploy at
-least one provisioner as the built-in provisioners are scoped to the default
-organization.
+[Provisioners](../provisioners.md) are organization-scoped and are responsible
+for executing Terraform/OpenTofu to provision the infrastructure for workspaces
+and testing templates. Before creating templates, we must deploy at least one
+provisioner as the built-in provisioners are scoped to the default organization.
 
 Using Coder CLI, run the following command to create a key that will be used to
 authenticate the provisioner:

@@ -71,8 +71,8 @@ It offers the following services along with much more:
 - `startup_script` automation
 
 Templates are responsible for
-[creating and running agents](../templates/extending-templates/README.md#workspace-agents) within
-workspaces.
+[creating and running agents](../templates/extending-templates/README.md#workspace-agents)
+within workspaces.
 
 ## Service Bundling
 
