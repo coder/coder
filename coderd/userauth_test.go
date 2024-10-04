@@ -1658,6 +1658,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 func TestUserForgotPassword(t *testing.T) {
 	t.Parallel()
 
+	const oldPassword = "SomeSecurePassword!"
 	const newPassword = "SomeNewSecurePassword!"
 
 	requireOneTimePasscodeNotification := func(t *testing.T, notif *testutil.Notification, userID uuid.UUID) {
@@ -1687,13 +1688,15 @@ func TestUserForgotPassword(t *testing.T) {
 	}
 
 	requireRequestOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, notifyEnq *testutil.FakeNotificationsEnqueuer, email string, userID uuid.UUID) string {
+		notifsSent := len(notifyEnq.Sent)
+
 		err := client.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{Email: email})
 		require.NoError(t, err)
 
-		require.Equal(t, 2, len(notifyEnq.Sent))
+		require.Equal(t, notifsSent+1, len(notifyEnq.Sent))
 
-		notif := notifyEnq.Sent[1]
-		requireOneTimePasscodeNotification(t, notifyEnq.Sent[1], userID)
+		notif := notifyEnq.Sent[notifsSent]
+		requireOneTimePasscodeNotification(t, notif, userID)
 		return notif.Labels["one_time_passcode"]
 	}
 
@@ -1742,12 +1745,13 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
 
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword+"!")
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 	})
 
 	t.Run("OneTimePasscodeExpires", func(t *testing.T) {
 		t.Parallel()
 
-		const oneTimePasscodeValidityPeriod = 2 * time.Second
+		const oneTimePasscodeValidityPeriod = 1 * time.Millisecond
 
 		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 
@@ -1765,7 +1769,7 @@ func TestUserForgotPassword(t *testing.T) {
 		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
 
 		// Wait for long enough so that the token expires
-		time.Sleep(oneTimePasscodeValidityPeriod + 1*time.Second)
+		time.Sleep(oneTimePasscodeValidityPeriod + 1*time.Millisecond)
 
 		// Try to change password with an expired one time passcode.
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
@@ -1780,6 +1784,7 @@ func TestUserForgotPassword(t *testing.T) {
 
 		// Ensure that the password was not changed.
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
 
 	t.Run("CannotChangePasswordWithoutRequestingOneTimePasscode", func(t *testing.T) {
@@ -1808,6 +1813,7 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
 
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
 
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
@@ -1838,6 +1844,7 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
 
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
 
 	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
@@ -1870,6 +1877,7 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Equal(t, "one_time_passcode", apiErr.Validations[0].Field)
 
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
 
 	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
@@ -1902,6 +1910,42 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Equal(t, "password", apiErr.Validations[0].Field)
 
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, "notstrong")
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
+	})
+
+	t.Run("CannotChangePasswordOfAnotherUser", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		thirdClient, thirdUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		// Request a One-Time Passcode for `anotherUser`
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
+
+		// Ensure we cannot change the password for `thirdUser` with `anotherUser`'s One-Time Passcode.
+		err := thirdClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           thirdUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        newPassword,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
+
+		requireCannotLogin(t, ctx, thirdClient, thirdUser.Email, newPassword)
+		requireCanLogin(t, ctx, thirdClient, thirdUser.Email, oldPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
 
 	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {

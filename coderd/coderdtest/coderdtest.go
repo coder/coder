@@ -315,7 +315,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.OneTimePasscodeValidityPeriod == 0 {
-		options.OneTimePasscodeValidityPeriod = 20 * time.Second
+		options.OneTimePasscodeValidityPeriod = testutil.WaitLong
 	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
