@@ -74,7 +74,7 @@ export const IdpSyncPage: FC = () => {
 				<Button
 					startIcon={<LaunchOutlined />}
 					component="a"
-					href={docs("/admin/auth#group-sync-enterprise-premium")}
+					href={docs("/admin/users/idp-sync")}
 					target="_blank"
 				>
 					Setup IdP Sync
@@ -86,7 +86,7 @@ export const IdpSyncPage: FC = () => {
 						message="IdP Sync"
 						description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
 						documentationLink={docs(
-							"/admin/auth#group-sync-enterprise-premium",
+							"/admin/users/idp-sync",
 						)}
 					/>
 				</Cond>

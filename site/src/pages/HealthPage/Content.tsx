@@ -255,7 +255,7 @@ export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
 }) => {
 	return (
 		<Link
-			href={docs(`/admin/healthcheck#${code.toLocaleLowerCase()}`)}
+			href={docs(`/admin/monitoring/health-check#${code.toLocaleLowerCase()}`)}
 			target="_blank"
 			rel="noreferrer"
 		>
