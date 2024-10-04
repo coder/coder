@@ -50,7 +50,7 @@ ephemeral resources are destroyed and recreated on restart. All resources are
 destroyed when a workspace is deleted.
 
 > You can read more about how resource behavior and workspace state in the
-> [workspace lifecycle documentation](../../workspaces/lifecycle.md).
+> [workspace lifecycle documentation](../../../user-guides/workspace-lifecycle.md).
 
 Template resources follow the
 [behavior of Terraform resources](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration)

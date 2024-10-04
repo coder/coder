@@ -3,7 +3,7 @@
 You can configure a template to control how workspaces are started and stopped.
 You can also manage the lifecycle of failed or inactive workspaces.
 
-![Schedule screen](../../../images/templates/schedule/template-schedule-settings.png)
+![Schedule screen](../../../images/admin/templates/schedule/template-schedule-settings.png)
 
 ## Schedule
 

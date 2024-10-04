@@ -20,10 +20,10 @@ Coder:
 ## How it works
 
 A Coder admin adds a devcontainer-compatible template to Coder (envbuilder).
-Then developers enter their repository URL as a [parameter](./parameters.md)
-when they create their workspace.
-[Envbuilder](https://github.com/coder/envbuilder) clones the repo and builds a
-container from the `devcontainer.json` specified in the repo.
+Then developers enter their repository URL as a
+[parameter](../extending-templates/parameters.md) when they create their
+workspace. [Envbuilder](https://github.com/coder/envbuilder) clones the repo and
+builds a container from the `devcontainer.json` specified in the repo.
 
 When using the [Envbuilder Terraform provider](#provider), a previously built
 and cached image can be re-used directly, allowing instantaneous dev container
