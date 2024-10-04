@@ -248,6 +248,9 @@ type Options struct {
 
 	// IDPSync holds all configured values for syncing external IDP users into Coder.
 	IDPSync idpsync.IDPSync
+
+	// OneTimePasscodeValidityPeriod specifies how long a one time passcode should be valid for.
+	OneTimePasscodeValidityPeriod time.Duration
 }
 
 // @title Coder API
@@ -386,6 +389,9 @@ func New(options *Options) *API {
 	if options.UserQuietHoursScheduleStore.Load() == nil {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
+	}
+	if options.OneTimePasscodeValidityPeriod == 0 {
+		options.OneTimePasscodeValidityPeriod = 20 * time.Minute
 	}
 
 	if options.StatsBatcher == nil {
@@ -984,6 +990,8 @@ func New(options *Options) *API {
 				// This value is intentionally increased during tests.
 				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 				r.Post("/login", api.postLogin)
+				r.Post("/otp/request", api.postRequestOneTimePasscode)
+				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
 						r.Use(

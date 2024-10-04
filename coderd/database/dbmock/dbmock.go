@@ -4861,6 +4861,20 @@ func (mr *MockStoreMockRecorder) UpdateUserGithubComUserID(arg0, arg1 any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserGithubComUserID", reflect.TypeOf((*MockStore)(nil).UpdateUserGithubComUserID), arg0, arg1)
 }
 
+// UpdateUserHashedOneTimePasscode mocks base method.
+func (m *MockStore) UpdateUserHashedOneTimePasscode(arg0 context.Context, arg1 database.UpdateUserHashedOneTimePasscodeParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserHashedOneTimePasscode", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateUserHashedOneTimePasscode indicates an expected call of UpdateUserHashedOneTimePasscode.
+func (mr *MockStoreMockRecorder) UpdateUserHashedOneTimePasscode(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserHashedOneTimePasscode", reflect.TypeOf((*MockStore)(nil).UpdateUserHashedOneTimePasscode), arg0, arg1)
+}
+
 // UpdateUserHashedPassword mocks base method.
 func (m *MockStore) UpdateUserHashedPassword(arg0 context.Context, arg1 database.UpdateUserHashedPasswordParams) error {
 	m.ctrl.T.Helper()
