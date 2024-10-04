@@ -629,7 +629,10 @@ coderd/rbac/object_gen.go: scripts/rbacgen/rbacobject.gotmpl scripts/rbacgen/mai
 	go run scripts/rbacgen/main.go rbac > coderd/rbac/object_gen.go
 
 codersdk/rbacresources_gen.go: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	go run scripts/rbacgen/main.go codersdk > codersdk/rbacresources_gen.go
+	# Do no overwrite codersdk/rbacresources_gen.go directly, as it would make the file empty, breaking
+ 	# the `codersdk` package and any parallel build targets.
+	go run scripts/rbacgen/main.go codersdk > /tmp/rbacresources_gen.go
+	mv /tmp/rbacresources_gen.go codersdk/rbacresources_gen.go
 
 site/src/api/rbacresourcesGenerated.ts: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/rbacgen/main.go typescript > "$@"
