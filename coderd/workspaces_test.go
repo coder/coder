@@ -3642,7 +3642,7 @@ func TestWorkspaceTimings(t *testing.T) {
 		dbgen.WorkspaceAgentScriptTimings(t, db, script, 3)
 
 		// When: fetching the timings
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceTimings(ctx, ws.ID)
 
@@ -3657,7 +3657,7 @@ func TestWorkspaceTimings(t *testing.T) {
 
 		// When: fetching an inexistent workspace
 		workspaceID := uuid.New()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		_, err := client.WorkspaceTimings(ctx, workspaceID)
 

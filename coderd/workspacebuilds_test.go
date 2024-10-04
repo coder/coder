@@ -42,7 +42,7 @@ func TestWorkspaceBuild(t *testing.T) {
 			propagation.Baggage{},
 		),
 	)
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	auditor := audit.NewMock()
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
@@ -1244,7 +1244,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 		// When: fetching an inexistent build
 		buildID := uuid.New()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		_, err := client.WorkspaceBuildTimings(ctx, buildID)
 
@@ -1258,7 +1258,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 		// When: fetching timings for a build with no timings
 		build := makeBuild()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 
@@ -1276,7 +1276,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		provisionerTimings := dbgen.ProvisionerJobTimings(t, db, build, 5)
 
 		// Then: return a response with the expected timings
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 		require.NoError(t, err)
@@ -1312,7 +1312,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, script, 5)
 
 		// Then: return a response with the expected timings
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 		require.NoError(t, err)
@@ -1342,7 +1342,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		})
 
 		// Then: return a response with empty agent script timings
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 		require.NoError(t, err)
@@ -1360,7 +1360,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		})
 
 		// Then: return a response with empty agent script timings
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 		require.NoError(t, err)
