@@ -87,7 +87,7 @@ func fullName(cmd *serpent.Command) string {
 func fmtDocFilename(cmd *serpent.Command) string {
 	if cmd.FullName() == "coder" {
 		// Special case for index.
-		return "./README.md"
+		return "./index.md"
 	}
 	name := strings.ReplaceAll(fullName(cmd), " ", "_")
 	return fmt.Sprintf("%s.md", name)

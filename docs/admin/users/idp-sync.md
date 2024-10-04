@@ -34,7 +34,8 @@ the OIDC provider. See
 > ones include `groups`, `memberOf`, and `roles`.
 
 Next configure the Coder server to read groups from the claim name with the
-[OIDC group field](../../reference/cli/server.md#--oidc-group-field) server flag:
+[OIDC group field](../../reference/cli/server.md#--oidc-group-field) server
+flag:
 
 ```sh
 # as an environment variable
@@ -365,8 +366,8 @@ Some common issues when enabling group/role sync.
 
 If you are running into issues with group/role sync, is best to view your Coder
 server logs and enable
-[verbose mode](../../reference/cli/index.md#-v---verbose). To reduce
-noise, you can filter for only logs related to group/role sync:
+[verbose mode](../../reference/cli/index.md#-v---verbose). To reduce noise, you
+can filter for only logs related to group/role sync:
 
 ```sh
 CODER_VERBOSE=true
