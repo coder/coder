@@ -4,22 +4,22 @@ By default, Coder is accessible via password authentication. For production depl
 
 ## Configuring SSO
 
-- [OpenID Connect](./auth.md#openid-connect) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
-- [GitHub](./auth.md#github) (or GitHub Enterprise)
+- [OpenID Connect](./oidc-auth.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
+- [GitHub](./github-auth.md) (or GitHub Enterprise)
 
 ## Groups
 
 Multiple users can be organized into logical groups to control which templates they can use. While groups can be manually created in Coder, we recommend syncing them from your identity provider.
 
-- [Learn more about Groups](./groups.md)
-- [Group & Role Sync](./group-role-sync.md)
+- [Learn more about Groups](./groups-roles.md)
+- [Group & Role Sync](./group-sync.md)
 
 ## Roles
 
 Roles determine which actions users can take within the platform. Typically, most developers in your organization have the `Member` role, allowing them to create workspaces. Other roles have administrative capabilities such as auditing, managing users, and managing templates.
 
-- [Learn more about Roles](./roles.md)
-- [Group & Role Sync](./group-role-sync.md)
+- [Learn more about Roles](./groups-roles.md)
+- [Group & Role Sync](./group-sync.md)
 
 ## User status
 
