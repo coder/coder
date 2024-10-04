@@ -401,6 +401,11 @@
 							]
 						},
 						{
+							"title": "Open in Coder",
+							"description": "Open workspaces in Coder",
+							"path": "./admin/templates/open-in-coder.md"
+						},
+						{
 							"title": "Permissions \u0026 Policies",
 							"description": "Learn how to create templates with Terraform",
 							"path": "./admin/templates/template-permissions.md",
