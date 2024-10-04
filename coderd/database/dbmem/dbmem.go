@@ -5799,12 +5799,12 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 
 	build, err := q.GetWorkspaceBuildByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get build: %w", err)
 	}
 
 	resources, err := q.GetWorkspaceResourcesByJobID(ctx, build.JobID)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get resources: %w", err)
 	}
 	resourceIDs := make([]uuid.UUID, 0, len(resources))
 	for _, res := range resources {
@@ -5813,7 +5813,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 
 	agents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get agents: %w", err)
 	}
 	agentIDs := make([]uuid.UUID, 0, len(agents))
 	for _, agent := range agents {
@@ -5822,7 +5822,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 
 	scripts, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, agentIDs)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get scripts: %w", err)
 	}
 	scriptIDs := make([]uuid.UUID, 0, len(scripts))
 	for _, script := range scripts {
