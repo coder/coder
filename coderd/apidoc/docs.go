@@ -8891,7 +8891,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ended_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "exit_code": {
                     "type": "integer"
@@ -8900,7 +8901,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "started_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "status": {
                     "type": "string"

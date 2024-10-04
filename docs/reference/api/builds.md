@@ -1019,10 +1019,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/tim
 	"agent_script_timings": [
 		{
 			"display_name": "string",
-			"ended_at": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
 			"exit_code": 0,
 			"stage": "string",
-			"started_at": "string",
+			"started_at": "2019-08-24T14:15:22Z",
 			"status": "string"
 		}
 	],

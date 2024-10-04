@@ -186,8 +186,8 @@ type ProvisionerTiming struct {
 }
 
 type AgentScriptTiming struct {
-	StartedAt   time.Time `json:"started_at"`
-	EndedAt     time.Time `json:"ended_at"`
+	StartedAt   time.Time `json:"started_at" format:"date-time"`
+	EndedAt     time.Time `json:"ended_at" format:"date-time"`
 	ExitCode    int32     `json:"exit_code"`
 	Stage       string    `json:"stage"`
 	Status      string    `json:"status"`
