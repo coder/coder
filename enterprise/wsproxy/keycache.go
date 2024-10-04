@@ -148,13 +148,13 @@ func checkKey(key codersdk.CryptoKey, sequence int32, now time.Time) (codersdk.C
 
 // refresh fetches the keys from the control plane and updates the cache.
 func (k *CryptoKeyCache) refresh() {
+	now := k.Clock.Now("CryptoKeyCache", "refresh")
+	k.mu.Lock()
+
 	if k.closed {
+		k.mu.Unlock()
 		return
 	}
-
-	now := k.Clock.Now("CryptoKeyCache", "refresh")
-
-	k.mu.Lock()
 
 	// If something's already fetching, we don't need to do anything.
 	if k.fetching {
