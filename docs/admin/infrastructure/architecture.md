@@ -42,7 +42,7 @@ _provisionerd_ is the execution context for infrastructure modifying providers.
 At the moment, the only provider is Terraform (running `terraform`).
 
 By default, the Coder server runs multiple provisioner daemons.
-[External provisioners](../admin/provisioners.md) can be added for security or
+[External provisioners](../provisioners.md) can be added for security or
 scalability purposes.
 
 ### Workspaces
@@ -71,7 +71,7 @@ It offers the following services along with much more:
 - `startup_script` automation
 
 Templates are responsible for
-[creating and running agents](../templates/index.md#coder-agent) within
+[creating and running agents](../templates/extending-templates/README.md#workspace-agents) within
 workspaces.
 
 ## Service Bundling
@@ -107,10 +107,10 @@ Users will likely need to pull source code and other artifacts from a git
 provider. The Coder control plane and workspaces will need network connectivity
 to the git provider.
 
-- [GitHub Enterprise](../../admin/external-auth.md#github-enterprise)
-- [GitLab](../../admin/external-auth.md#gitlab-self-managed)
-- [BitBucket](../../admin/external-auth.md#bitbucket-server)
-- [Other Providers](../../admin/external-auth.md#self-managed-git-providers)
+- [GitHub Enterprise](../external-auth.md#github-enterprise)
+- [GitLab](../external-auth.md#gitlab-self-managed)
+- [BitBucket](../external-auth.md#bitbucket-server)
+- [Other Providers](../external-auth.md#self-managed-git-providers)
 
 ### Artifact Manager (Optional)
 
