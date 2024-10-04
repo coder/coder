@@ -654,6 +654,11 @@
 					"path": "./tutorials/template-from-scratch.md"
 				},
 				{
+					"title": "Using an External Database",
+					"description": "Use Coder with an external database",
+					"path": "./tutorials/external-database.md"
+				},
+				{
 					"title": "Image Management",
 					"description": "Learn about image management with Coder",
 					"path": "./admin/templates/managing-templates/image-management.md"

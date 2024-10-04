@@ -1,3 +1,5 @@
+# Using Coder with an external database
+
 ## Recommendation
 
 For production deployments, we recommend using an external
@@ -88,8 +90,3 @@ it. The schema should be present on this listing:
 ```shell
 psql -U coder -c '\dn'
 ```
-
-## Next steps
-
-- [Configuring Coder](../admin/setup/index.md)
-- [Templates](../admin/templates/index.md)
