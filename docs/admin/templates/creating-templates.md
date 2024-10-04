@@ -111,6 +111,33 @@ page.
 
 ### CLI
 
+First, ensure you are logged in to the control plane
+
+```console
+coder login
+```
+
+You can list the available templates with the following CLI invocation.
+
+```console
+coder templates list
+```
+
+After identified the template you'd like to work from, clone it into a directory
+with a name you'd like to assign to the new modified template.
+
+```console
+coder templates pull <template-name> ./<new-template-name>
+```
+
+Then, you can make modifications to the existing template in this directory and
+push them to the control plane using the `-d` flag to specify the directory.
+
+```console
+
+coder templates push <new-template-name> -d ./<new-template-name>
+```
+
 </div>
 
 ## From scratch (advanced)
