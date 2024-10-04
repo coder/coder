@@ -17,6 +17,14 @@ user <-> workspace connections are end-to-end encrypted.
 
 In order for clients and workspaces to be able to connect:
 
+> **Note:** We strongly recommend that clients connect to Coder and their
+> workspaces over a good quality, broadband network connection. The following
+> are minimum requirements:
+>
+> - better than 400ms round-trip latency to the Coder server and to their
+>   workspace
+> - better than 0.5% random packet loss
+
 - All clients and agents must be able to establish a connection to the Coder
   server (`CODER_ACCESS_URL`) over HTTP/HTTPS.
 - Any reverse proxy or ingress between the Coder control plane and
