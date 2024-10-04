@@ -14,7 +14,7 @@ We publish [reference architectures](./validated-architectures/README.md) that i
 
 ## Scale Tests
 
-Use our [scale test utility](../scaling/scale-utility.md) that can be run on your Coder deployment to simulate user activity and measure performance.
+Use our [scale test utility](./scale-utility.md) that can be run on your Coder deployment to simulate user activity and measure performance.
 
 ## Monitoring
 
