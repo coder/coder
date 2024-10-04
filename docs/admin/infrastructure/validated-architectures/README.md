@@ -68,7 +68,7 @@ web interface, the CLI tool, or directly calling API methods.
 
 ### Workspace
 
-A [workspace](../../../workspaces.md) refers to an isolated development environment
+A [workspace](../../../user-guides/workspace-creation.md) refers to an isolated development environment
 where users can write, build, and run code. Workspaces are fully configurable
 and can be tailored to specific project requirements, providing developers with
 a consistent and efficient development environment. Workspaces can be
