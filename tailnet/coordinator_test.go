@@ -40,7 +40,7 @@ func TestCoordinator(t *testing.T) {
 		client := test.NewClient(ctx, t, coordinator, "client", uuid.New())
 		defer client.Close(ctx)
 		client.UpdateNode(&proto.Node{
-			Addresses:     []string{netip.PrefixFrom(tailnet.IP(), 128).String()},
+			Addresses:     []string{tailnet.TailscaleServicePrefix.RandomPrefix().String()},
 			PreferredDerp: 10,
 		})
 		require.Eventually(t, func() bool {
@@ -63,7 +63,7 @@ func TestCoordinator(t *testing.T) {
 
 		client.UpdateNode(&proto.Node{
 			Addresses: []string{
-				netip.PrefixFrom(tailnet.IP(), 64).String(),
+				netip.PrefixFrom(tailnet.TailscaleServicePrefix.RandomAddr(), 64).String(),
 			},
 			PreferredDerp: 10,
 		})
@@ -84,7 +84,7 @@ func TestCoordinator(t *testing.T) {
 		defer agent.Close(ctx)
 		agent.UpdateNode(&proto.Node{
 			Addresses: []string{
-				netip.PrefixFrom(tailnet.IPFromUUID(agent.ID), 128).String(),
+				tailnet.TailscaleServicePrefix.PrefixFromUUID(agent.ID).String(),
 			},
 			PreferredDerp: 10,
 		})
@@ -106,7 +106,7 @@ func TestCoordinator(t *testing.T) {
 		defer agent.Close(ctx)
 		agent.UpdateNode(&proto.Node{
 			Addresses: []string{
-				netip.PrefixFrom(tailnet.IP(), 128).String(),
+				tailnet.TailscaleServicePrefix.RandomPrefix().String(),
 			},
 			PreferredDerp: 10,
 		})
@@ -126,7 +126,8 @@ func TestCoordinator(t *testing.T) {
 		defer agent.Close(ctx)
 		agent.UpdateNode(&proto.Node{
 			Addresses: []string{
-				netip.PrefixFrom(tailnet.IPFromUUID(agent.ID), 64).String(),
+				netip.PrefixFrom(
+					tailnet.TailscaleServicePrefix.AddrFromUUID(agent.ID), 64).String(),
 			},
 			PreferredDerp: 10,
 		})
