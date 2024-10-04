@@ -251,6 +251,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		logger.Error(ctx, "unable to get user by email", slog.Error(err))
 		return
 	}
+	// We continue if err == sql.ErrNoRows to help prevent a timing-based attack.
 	aReq.Old = user
 
 	passcode := uuid.New()
