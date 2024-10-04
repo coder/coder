@@ -111,7 +111,8 @@ page.
 
 ### CLI
 
-First, ensure you are logged in to the control plane
+First, ensure you are logged in to the control plane as a user with permissions
+to read and write permissions.
 
 ```console
 coder login
@@ -134,9 +135,10 @@ Then, you can make modifications to the existing template in this directory and
 push them to the control plane using the `-d` flag to specify the directory.
 
 ```console
-
 coder templates push <new-template-name> -d ./<new-template-name>
 ```
+
+You will then see your new template in the dashboard.
 
 </div>
 
