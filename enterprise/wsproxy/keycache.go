@@ -25,8 +25,6 @@ type Fetcher interface {
 	Fetch(ctx context.Context) ([]codersdk.CryptoKey, error)
 }
 
-var _ cryptokeys.Keycache = &CryptoKeyCache{}
-
 type CryptoKeyCache struct {
 	Clock         quartz.Clock
 	refreshCtx    context.Context

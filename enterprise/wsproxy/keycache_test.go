@@ -473,7 +473,7 @@ type fakeFetcher struct {
 	called int
 }
 
-func (f *fakeFetcher) Fetch(ctx context.Context) ([]codersdk.CryptoKey, error) {
+func (f *fakeFetcher) Fetch(_ context.Context) ([]codersdk.CryptoKey, error) {
 	f.called++
 	return f.keys, nil
 }
