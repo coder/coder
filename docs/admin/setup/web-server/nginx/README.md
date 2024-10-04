@@ -52,7 +52,7 @@
 
 > This example assumes you're using CloudFlare as your DNS provider. For other providers, refer to the [CertBot documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#dns-plugins).
 
-1. Create an API token for the DNS provider you're using: e.g. [CloudFlare](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
+1. Create an API token for the DNS provider you're using: e.g. [CloudFlare](https://developers.cloudflare.com/fundamentals/api/get-started/create-token) with the following permissions:
 
    - Zone - DNS - Edit
 

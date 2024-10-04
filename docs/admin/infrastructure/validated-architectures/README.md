@@ -356,7 +356,6 @@ could affect workspace users experience once the platform is live.
 
 ### User support
 
-
 1. Incorporate [support links](../../setup/appearance.md#support-links) into internal
    documentation accessible from the user context menu. Ensure that hyperlinks
    are valid and lead to up-to-date materials.

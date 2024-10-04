@@ -60,9 +60,7 @@ scheduling, and parameters which define their development environment.
 
 Once you're finished, you can stop your workspace.
 
-
 ## Next Steps
-
 
 - Creating workspaces with the [CLI](../reference/cli/create.md)
 - Creating workspaces with the [API](../reference/api/workspaces.md)

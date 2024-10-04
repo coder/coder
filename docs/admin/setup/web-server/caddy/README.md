@@ -131,7 +131,7 @@ For production deployments, we recommend configuring Caddy to generate a wildcar
 
    And for CloudFlare:
 
-   Generate a [token](https://dash.cloudflare.com/profile/api-tokens) with the following permissions:
+   Generate a [token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token) with the following permissions:
 
    - Zone:Zone:Edit
 

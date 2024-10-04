@@ -91,5 +91,5 @@ psql -U coder -c '\dn'
 
 ## Next steps
 
-- [Configuring Coder](../admin/configure.md)
+- [Configuring Coder](../admin/setup/README.md)
 - [Templates](../admin/templates/README.md)
