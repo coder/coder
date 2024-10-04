@@ -1310,7 +1310,7 @@ func templateHelpers(options *coderd.Options) map[string]any {
 		"base_url":     func() string { return options.AccessURL.String() },
 		"current_year": func() string { return strconv.Itoa(time.Now().Year()) },
 		"logo_url": func() string {
-			ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
 			logoURL, err := options.Database.GetLogoURL(ctx)
@@ -1325,7 +1325,7 @@ func templateHelpers(options *coderd.Options) map[string]any {
 			return logoURL
 		},
 		"app_name": func() string {
-			ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 
 			appName, err := options.Database.GetApplicationName(ctx)
