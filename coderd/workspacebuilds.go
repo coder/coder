@@ -661,52 +661,16 @@ func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
 		build = httpmw.WorkspaceBuildParam(r)
 	)
 
-	provisionerTimings, err := api.Database.GetProvisionerJobTimingsByJobID(ctx, build.JobID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	timings, err := api.buildTimings(ctx, build)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace timings.",
+			Message: "Internal error fetching timings.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	agentScriptTimings, err := api.Database.GetWorkspaceAgentScriptTimingsByBuildID(ctx, build.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agent script timings.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	res := codersdk.WorkspaceBuildTimings{
-		ProvisionerTimings: make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
-		AgentScriptTimings: make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
-	}
-
-	for _, t := range provisionerTimings {
-		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
-			JobID:     t.JobID,
-			Stage:     string(t.Stage),
-			Source:    t.Source,
-			Action:    t.Action,
-			Resource:  t.Resource,
-			StartedAt: t.StartedAt,
-			EndedAt:   t.EndedAt,
-		})
-	}
-	for _, t := range agentScriptTimings {
-		res.AgentScriptTimings = append(res.AgentScriptTimings, codersdk.AgentScriptTiming{
-			StartedAt:   t.StartedAt,
-			EndedAt:     t.EndedAt,
-			ExitCode:    t.ExitCode,
-			Stage:       string(t.Stage),
-			Status:      string(t.Status),
-			DisplayName: t.DisplayName,
-		})
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, res)
+	httpapi.Write(ctx, rw, http.StatusOK, timings)
 }
 
 type workspaceBuildsData struct {
@@ -1071,4 +1035,45 @@ func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition 
 
 	// return error status since we should never get here
 	return codersdk.WorkspaceStatusFailed
+}
+
+func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild) (codersdk.WorkspaceBuildTimings, error) {
+	provisionerTimings, err := api.Database.GetProvisionerJobTimingsByJobID(ctx, build.JobID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching provisioner job timings: %w", err)
+	}
+
+	agentScriptTimings, err := api.Database.GetWorkspaceAgentScriptTimingsByBuildID(ctx, build.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agent script timings: %w", err)
+	}
+
+	res := codersdk.WorkspaceBuildTimings{
+		ProvisionerTimings: make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
+		AgentScriptTimings: make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
+	}
+
+	for _, t := range provisionerTimings {
+		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
+			JobID:     t.JobID,
+			Stage:     string(t.Stage),
+			Source:    t.Source,
+			Action:    t.Action,
+			Resource:  t.Resource,
+			StartedAt: t.StartedAt,
+			EndedAt:   t.EndedAt,
+		})
+	}
+	for _, t := range agentScriptTimings {
+		res.AgentScriptTimings = append(res.AgentScriptTimings, codersdk.AgentScriptTiming{
+			StartedAt:   t.StartedAt,
+			EndedAt:     t.EndedAt,
+			ExitCode:    t.ExitCode,
+			Stage:       string(t.Stage),
+			Status:      string(t.Status),
+			DisplayName: t.DisplayName,
+		})
+	}
+
+	return res, nil
 }

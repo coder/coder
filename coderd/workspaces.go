@@ -1740,6 +1740,41 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// @Summary Get workspace timings by ID
+// @ID get-workspace-timings-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.WorkspaceBuildTimings
+// @Router /workspaces/{workspace}/timings [get]
+func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx       = r.Context()
+		workspace = httpmw.WorkspaceParam(r)
+	)
+
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	timings, err := api.buildTimings(ctx, build)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching timings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, timings)
+}
+
 type workspaceData struct {
 	templates    []database.Template
 	builds       []codersdk.WorkspaceBuild

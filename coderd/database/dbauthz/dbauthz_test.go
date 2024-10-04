@@ -2846,19 +2846,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-		t := dbgen.ProvisionerJobTimings(s.T(), db, database.InsertProvisionerJobTimingsParams{
-			JobID:     j.ID,
-			StartedAt: []time.Time{dbtime.Now(), dbtime.Now()},
-			EndedAt:   []time.Time{dbtime.Now(), dbtime.Now()},
-			Stage: []database.ProvisionerJobTimingStage{
-				database.ProvisionerJobTimingStageInit,
-				database.ProvisionerJobTimingStagePlan,
-			},
-			Source:   []string{"source1", "source2"},
-			Action:   []string{"action1", "action2"},
-			Resource: []string{"resource1", "resource2"},
-		})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		t := dbgen.ProvisionerJobTimings(s.T(), db, b, 2)
 		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
 	}))
 	s.Run("GetWorkspaceAgentScriptTimingsByBuildID", s.Subtest(func(db database.Store, check *expects) {
@@ -2873,31 +2862,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
-		scripts := dbgen.WorkspaceAgentScripts(s.T(), db, database.InsertWorkspaceAgentScriptsParams{
+		script := dbgen.WorkspaceAgentScript(s.T(), db, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
-			CreatedAt:        time.Now(),
-			LogSourceID: []uuid.UUID{
-				uuid.New(),
-			},
-			LogPath:          []string{""},
-			Script:           []string{""},
-			Cron:             []string{""},
-			StartBlocksLogin: []bool{false},
-			RunOnStart:       []bool{false},
-			RunOnStop:        []bool{false},
-			TimeoutSeconds:   []int32{0},
-			DisplayName:      []string{""},
-			ID: []uuid.UUID{
-				uuid.New(),
-			},
 		})
-		timing := dbgen.WorkspaceAgentScriptTiming(s.T(), db, database.InsertWorkspaceAgentScriptTimingsParams{
-			StartedAt: dbtime.Now(),
-			EndedAt:   dbtime.Now(),
-			Stage:     database.WorkspaceAgentScriptTimingStageStart,
-			ScriptID:  scripts[0].ID,
-			ExitCode:  0,
-			Status:    database.WorkspaceAgentScriptTimingStatusOk,
+		timing := dbgen.WorkspaceAgentScriptTiming(s.T(), db, database.WorkspaceAgentScriptTiming{
+			ScriptID: script.ID,
 		})
 		rows := []database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
 			{
@@ -2907,7 +2876,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 				ScriptID:    timing.ScriptID,
 				ExitCode:    timing.ExitCode,
 				Status:      timing.Status,
-				DisplayName: scripts[0].DisplayName,
+				DisplayName: script.DisplayName,
 			},
 		}
 		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)

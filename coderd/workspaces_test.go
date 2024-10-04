@@ -3556,3 +3556,113 @@ func TestWorkspaceNotifications(t *testing.T) {
 		})
 	})
 }
+
+func TestWorkspaceTimings(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+
+	t.Run("LatestBuild", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a workspace with many builds, provisioner, and agent script timings
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		file := dbgen.File(t, db, database.File{
+			CreatedBy: owner.UserID,
+		})
+		versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			OrganizationID: owner.OrganizationID,
+			InitiatorID:    owner.UserID,
+			FileID:         file.ID,
+			Tags: database.StringMap{
+				"custom": "true",
+			},
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			JobID:          versionJob.ID,
+			CreatedBy:      owner.UserID,
+		})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID:  owner.OrganizationID,
+			ActiveVersionID: version.ID,
+			CreatedBy:       owner.UserID,
+		})
+		ws := dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     template.ID,
+		})
+
+		// Create multiple builds
+		var buildNumber int32
+		makeBuild := func() database.WorkspaceBuild {
+			buildNumber++
+			jobID := uuid.New()
+			job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+				ID:             jobID,
+				OrganizationID: owner.OrganizationID,
+				Tags:           database.StringMap{jobID.String(): "true"},
+			})
+			return dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       ws.ID,
+				TemplateVersionID: version.ID,
+				InitiatorID:       owner.UserID,
+				JobID:             job.ID,
+				BuildNumber:       buildNumber,
+			})
+		}
+		makeBuild()
+		makeBuild()
+		latestBuild := makeBuild()
+
+		// Add provisioner timings
+		dbgen.ProvisionerJobTimings(t, db, latestBuild, 5)
+
+		// Add agent script timings
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: latestBuild.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
+		})
+		dbgen.WorkspaceAgentScriptTimings(t, db, script, 3)
+
+		// When: fetching the timings
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceTimings(ctx, ws.ID)
+
+		// Then: expect the timings to be returned
+		require.NoError(t, err)
+		require.Len(t, res.ProvisionerTimings, 5)
+		require.Len(t, res.AgentScriptTimings, 3)
+	})
+
+	t.Run("NonExistentWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		// When: fetching an inexistent workspace
+		workspaceID := uuid.New()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		_, err := client.WorkspaceTimings(ctx, workspaceID)
+
+		// Then: expect a not found error
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not found")
+	})
+}

@@ -1150,6 +1150,7 @@ func New(options *Options) *API {
 					r.Post("/", api.postWorkspaceAgentPortShare)
 					r.Delete("/", api.deleteWorkspaceAgentPortShare)
 				})
+				r.Get("/timings", api.workspaceTimings)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

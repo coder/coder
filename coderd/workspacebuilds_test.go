@@ -1199,7 +1199,6 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 	versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 		OrganizationID: owner.OrganizationID,
 		InitiatorID:    owner.UserID,
-		WorkerID:       uuid.NullUUID{},
 		FileID:         file.ID,
 		Tags: database.StringMap{
 			"custom": "true",
@@ -1215,90 +1214,26 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		ActiveVersionID: version.ID,
 		CreatedBy:       owner.UserID,
 	})
+	ws := dbgen.Workspace(t, db, database.Workspace{
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+		TemplateID:     template.ID,
+	})
 
 	// Create a build to attach timings
 	makeBuild := func() database.WorkspaceBuild {
-		ws := dbgen.Workspace(t, db, database.Workspace{
-			OwnerID:        owner.UserID,
-			OrganizationID: owner.OrganizationID,
-			TemplateID:     template.ID,
-			// Generate unique name for the workspace
-			Name: "test-workspace-" + uuid.New().String(),
-		})
 		jobID := uuid.New()
 		job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			ID:             jobID,
 			OrganizationID: owner.OrganizationID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			Tags:           database.StringMap{jobID.String(): "true"},
 		})
 		return dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			WorkspaceID:       ws.ID,
 			TemplateVersionID: version.ID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
 			InitiatorID:       owner.UserID,
 			JobID:             job.ID,
 		})
-	}
-
-	makeProvisionerTimings := func(build database.WorkspaceBuild, count int) []database.ProvisionerJobTiming {
-		// Use the database.ProvisionerJobTiming struct to mock timings data instead
-		// of directly creating database.InsertProvisionerJobTimingsParams. This
-		// approach makes the mock data easier to understand, as
-		// database.InsertProvisionerJobTimingsParams requires slices of each field
-		// for batch inserts.
-		timings := make([]database.ProvisionerJobTiming, count)
-		now := time.Now()
-		for i := range count {
-			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
-			endedAt := startedAt.Add(time.Minute)
-			timings[i] = database.ProvisionerJobTiming{
-				StartedAt: startedAt,
-				EndedAt:   endedAt,
-				Stage:     database.ProvisionerJobTimingStageInit,
-				Action:    string(database.AuditActionCreate),
-				Source:    "source",
-				Resource:  fmt.Sprintf("resource[%d]", i),
-			}
-		}
-		insertParams := database.InsertProvisionerJobTimingsParams{
-			JobID: build.JobID,
-		}
-		for _, timing := range timings {
-			insertParams.StartedAt = append(insertParams.StartedAt, timing.StartedAt)
-			insertParams.EndedAt = append(insertParams.EndedAt, timing.EndedAt)
-			insertParams.Stage = append(insertParams.Stage, timing.Stage)
-			insertParams.Action = append(insertParams.Action, timing.Action)
-			insertParams.Source = append(insertParams.Source, timing.Source)
-			insertParams.Resource = append(insertParams.Resource, timing.Resource)
-		}
-		return dbgen.ProvisionerJobTimings(t, db, insertParams)
-	}
-
-	makeAgentScriptTimings := func(script database.WorkspaceAgentScript, count int) []database.WorkspaceAgentScriptTiming {
-		newTimings := make([]database.InsertWorkspaceAgentScriptTimingsParams, count)
-		now := time.Now()
-		for i := range count {
-			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
-			endedAt := startedAt.Add(time.Minute)
-			newTimings[i] = database.InsertWorkspaceAgentScriptTimingsParams{
-				StartedAt: startedAt,
-				EndedAt:   endedAt,
-				Stage:     database.WorkspaceAgentScriptTimingStageStart,
-				ScriptID:  script.ID,
-				ExitCode:  0,
-				Status:    database.WorkspaceAgentScriptTimingStatusOk,
-			}
-		}
-
-		timings := make([]database.WorkspaceAgentScriptTiming, 0)
-		for _, newTiming := range newTimings {
-			timing := dbgen.WorkspaceAgentScriptTiming(t, db, newTiming)
-			timings = append(timings, timing)
-		}
-
-		return timings
 	}
 
 	t.Run("NonExistentBuild", func(t *testing.T) {
@@ -1335,7 +1270,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 		// When: fetching timings for a build with provisioner timings
 		build := makeBuild()
-		provisionerTimings := makeProvisionerTimings(build, 5)
+		provisionerTimings := dbgen.ProvisionerJobTimings(t, db, build, 5)
 
 		// Then: return a response with the expected timings
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1368,25 +1303,10 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
-		scripts := dbgen.WorkspaceAgentScripts(t, db, database.InsertWorkspaceAgentScriptsParams{
+		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
-			CreatedAt:        time.Now(),
-			LogSourceID: []uuid.UUID{
-				uuid.New(),
-			},
-			LogPath:          []string{""},
-			Script:           []string{""},
-			Cron:             []string{""},
-			StartBlocksLogin: []bool{false},
-			RunOnStart:       []bool{false},
-			RunOnStop:        []bool{false},
-			TimeoutSeconds:   []int32{0},
-			DisplayName:      []string{""},
-			ID: []uuid.UUID{
-				uuid.New(),
-			},
 		})
-		agentScriptTimings := makeAgentScriptTimings(scripts[0], 5)
+		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, script, 5)
 
 		// Then: return a response with the expected timings
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

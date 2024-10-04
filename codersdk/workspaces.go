@@ -626,6 +626,20 @@ func (c *Client) UnfavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID)
 	return nil
 }
 
+func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceBuildTimings, error) {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/timings", id.String())
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return WorkspaceBuildTimings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
+	}
+	var timings WorkspaceBuildTimings
+	return timings, json.NewDecoder(res.Body).Decode(&timings)
+}
+
 // WorkspaceNotifyChannel is the PostgreSQL NOTIFY
 // channel to listen for updates on. The payload is empty,
 // because the size of a workspace payload can be very large.
