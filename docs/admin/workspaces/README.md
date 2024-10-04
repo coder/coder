@@ -50,8 +50,6 @@ The following filters are supported:
 After updating the default version of the template that a workspace was created
 from, you can update the workspace.
 
-<!-- TODO: Update screenshot -->
-
 ![Updating a workspace](../../images/workspace-update.png)
 
 If the workspace is running, Coder stops it, updates it, then starts the workspace again.
@@ -78,9 +76,7 @@ manually updated the workspace.
 
 ### Update policies
 
-Template admins can require workspaces be on the latest version before starting. When this is enabled, you will be presented with an "Update and Start" button in the UI. Workspaces that start on connect will automatically update on the first out-of-date connection.
-
-<!-- TODO: Link force update policies -->
+Template admins can [require workspaces to upgrade to the latest template version](../templates/managing-templates/README.md#updating-templates) before starting. When this is enabled, you will be presented with an "Update and Start" button in the UI. Workspaces that start on connect will automatically update on the first out-of-date connection.
 
 ## Bulk operations (enterprise)
 
