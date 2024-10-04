@@ -269,8 +269,8 @@
 							"state": ["enterprise", "premium"]
 						},
 						{
-							"title": "Group Sync",
-							"path": "./admin/users/group-sync.md",
+							"title": "IDP Sync",
+							"path": "./admin/users/idp-sync.md",
 							"state": ["enterprise", "premium"]
 						},
 						{
@@ -354,8 +354,13 @@
 								},
 								{
 									"title": "Resource Ordering",
-									"description": "Design the UI of workspaces in Terraform",
+									"description": "Design the UI of workspaces",
 									"path": "./admin/templates/extending-templates/resource-ordering.md"
+								},
+								{
+									"title": "Resource Persistence",
+									"description": "Control resource persistence",
+									"path": "./admin/templates/extending-templates/resource-persistence.md"
 								},
 								{
 									"title": "Terraform Variables",
