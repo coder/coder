@@ -6,7 +6,7 @@ through the Coder agent, then stopped and deleted again by Terraform.
 
 This page covers how workspaces move through this lifecycle. To learn about
 automating workspace schedules for cost control, read the
-[workspace scheduling docs](../../user-guides/workspace-scheduling.md).
+[workspace scheduling docs](./workspace-scheduling.md).
 
 ## Workspace ephemerality
 
@@ -16,7 +16,7 @@ ephemeral resources are destroyed and recreated on restart. All resources are
 destroyed when a workspace is deleted.
 
 > Template administrators can learn more about resource configuration in the
-> [extending templates docs](../templates/extending-templates/resource-persistence.md).
+> [extending templates docs](../admin/templates/extending-templates/resource-persistence.md).
 
 ## Workspace States
 
@@ -35,17 +35,18 @@ following broken states:
 
 ## Workspace creation
 
-Workspaces are created from [templates](../templates/index.md) via the CLI, API,
-or dashboard. To learn how, read our [user guides](../../user-guides/index.md).
+Workspaces are created from [templates](../admin/templates/index.md) via the
+CLI, API, or dashboard.
 
 By default, there is no limit on the number of workspaces a user may create,
 regardless of the template's resource demands. Enterprise administrators may
 limit the number of workspaces per template, group, and organization using
-[quotas](../users/quotas.md) to prevent over provisioning and control costs.
+[quotas](../admin/users/quotas.md) to prevent over provisioning and control
+costs.
 
 When a user creates a workspace, they're sending a build request to the control
 plane. Coder takes this and uses [Terraform](https://www.terraform.io/) to
-provision a workspace defined by your [template](../templates/index.md).
+provision a workspace defined by your [template](../admin/templates/index.md).
 Generally, templates define the resources and environment of a workspace.
 
 The resources that run the agent are described as _computational resources_,
@@ -54,24 +55,22 @@ contain some computational resource to run the Coder agent process.
 
 The provisioned workspace's computational resources start the agent process,
 which opens connections to your workspace via SSH, the terminal, and IDES such
-as [JetBrains](../../user-guides/workspace-access/jetbrains.md) or
-[VSCode](../../user-guides/workspace-access/vscode.md).
+as [JetBrains](./workspace-access/jetbrains.md) or
+[VSCode](./workspace-access/vscode.md).
 
 Once started, the Coder agent is responsible for running your workspace startup
 scripts. These may configure tools, service connections, or personalization with
-[dotfiles](../../user-guides/workspace-dotfiles.md).
+[dotfiles](.workspace-dotfiles.md).
 
 Once these steps have completed, your workspace will now be in the `Running`
-state. You can access it via any of the
-[supported methods](../../user-guides/workspace-access/index.md), stop it when
-you're away, or delete it once it's no longer in use.
+state. You can access it via any of the [supported methods](./index.md), stop it
+when you're away, or delete it once it's no longer in use.
 
 ## Stopping workspaces
 
 Workspaces may be stopped manually by users and admins in the dashboard, CLI, or
 API. Workspaces may be automatically stopped due to template updates or
-inactivity by
-[scheduling configuration](../../user-guides/workspace-scheduling.md).
+inactivity by [scheduling configuration](./workspace-scheduling.md).
 
 Once stopped, a workspace may resume running by starting it manually, or via
 user connection if automatic start is enabled.
@@ -110,8 +109,8 @@ your template's Terraform file and the target resources on your infrastructure.
 Unhealthy workspaces are usually caused by a misconfiguration in the agent or
 workspace startup scripts.
 
-## Next steps
+### Next steps
 
-- [Connecting to your workspace](../../user-guides/workspace-access/index.md)
-- [Creating templates](../templates/index.md)
-- [Workspace scheduling](../../user-guides/workspace-scheduling.md)
+- [Connecting to your workspace](./index.md)
+- [Creating templates](../admin/templates/index.md)
+- [Workspace scheduling](./workspace-scheduling.md)
