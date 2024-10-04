@@ -1861,6 +1861,91 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 	})
 }
 
+func TestOwnedWorkspacesCoordinate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	firstClient, closer, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Coordinator:              tailnet.NewCoordinator(logger),
+		IncludeProvisionerDaemon: true,
+	})
+	defer closer.Close()
+	firstUser := coderdtest.CreateFirstUser(t, firstClient)
+	user, _ := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID)
+
+	u, err := user.URL.Parse("/api/v2/users/me/tailnet")
+	require.NoError(t, err)
+	q := u.Query()
+	q.Set("version", "2.0")
+	u.RawQuery = q.Encode()
+
+	//nolint:bodyclose // websocket package closes this for you
+	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Coder-Session-Token": []string{user.SessionToken()},
+		},
+	})
+	if err != nil {
+		if resp.StatusCode != http.StatusSwitchingProtocols {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		require.NoError(t, err)
+	}
+	defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+	rpcClient, err := tailnet.NewDRPCClient(
+		websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+		logger,
+	)
+	require.NoError(t, err)
+
+	stream, err := rpcClient.WorkspaceUpdates(ctx, &tailnetproto.WorkspaceUpdatesRequest{})
+	require.NoError(t, err)
+
+	update, err := stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, update.UpsertedWorkspaces, 0)
+	require.Len(t, update.DeletedWorkspaces, 0)
+	require.Len(t, update.UpsertedAgents, 0)
+	require.Len(t, update.DeletedAgents, 0)
+
+	// Build a workspace
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, firstClient, firstUser.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, firstClient, version.ID)
+	template := coderdtest.CreateTemplate(t, firstClient, firstUser.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, user, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, firstClient, workspace.LatestBuild.ID)
+
+	// Starting workspace
+	update, err = stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, update.UpsertedWorkspaces, 1)
+	require.Equal(t, update.UpsertedWorkspaces[0].Status, tailnetproto.Workspace_STARTING)
+
+	// Workspace is running
+	update, err = stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, update.UpsertedWorkspaces, 1)
+	require.Equal(t, update.UpsertedWorkspaces[0].Status, tailnetproto.Workspace_RUNNING)
+	wsID := update.UpsertedWorkspaces[0].Id
+
+	_ = agenttest.New(t, user.URL, authToken)
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, user, workspace.ID).Wait()
+
+	// Agent is created
+	update, err = stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, update.UpsertedAgents, 1)
+	require.Equal(t, update.UpsertedAgents[0].WorkspaceId, wsID)
+	require.EqualValues(t, update.UpsertedAgents[0].Id, resources[0].Agents[0].ID)
+}
+
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
 	mp, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	require.NoError(t, err)

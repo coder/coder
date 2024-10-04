@@ -721,6 +721,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 			}
 
+			wsUpdates, err := coderd.NewUpdatesProvider(ctx, options.Database, options.Pubsub)
+			if err != nil {
+				return xerrors.Errorf("create workspace updates provider: %w", err)
+			}
+			options.WorkspaceUpdatesProvider = wsUpdates
+			defer wsUpdates.Stop()
+
 			var deploymentID string
 			err = options.Database.InTx(func(tx database.Store) error {
 				// This will block until the lock is acquired, and will be
