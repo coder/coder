@@ -2910,7 +2910,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 				DisplayName: scripts[0].DisplayName,
 			},
 		}
-		check.Args(build.ID).Asserts(workspace, policy.ActionRead).Returns(rows)
+		check.Args(build.ID).Asserts(policy.ActionRead, rbac.ResourceSystem).Returns(rows)
 	}))
 }
 
