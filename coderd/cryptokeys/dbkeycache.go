@@ -71,6 +71,7 @@ func newDBCache(logger slog.Logger, db database.Store, feature database.CryptoKe
 		opt(d)
 	}
 
+	// Initialize the timer. This will get properly initialized the first time we fetch.
 	d.timer = d.clock.AfterFunc(never, d.clear)
 
 	return d
