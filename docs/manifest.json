@@ -127,7 +127,7 @@
 							"path": "./user-guides/workspace-access/jetbrains.md"
 						},
 						{
-							"title": "Remote desktop",
+							"title": "Remote Desktop",
 							"description": "Use RDP in Coder",
 							"path": "./user-guides/workspace-access/remote-desktops.md"
 						},
