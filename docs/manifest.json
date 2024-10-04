@@ -133,11 +133,17 @@
 				{
 					"title": "Workspace Management",
 					"description": "Manage workspaces",
-					"path": "./user-guides/workspace-management.md"
-					// "icon_path": "./images/icons/.svg"
+					"path": "./user-guides/workspace-management.md",
+					"icon_path": "./images/icons/layers.svg"
 				},
 				{
 					"title": "Workspace Scheduling",
+					"description": "Cost control with workspace schedules",
+					"path": "./user-guides/workspace-scheduling.md",
+					"icon_path": "./images/icons/stopwatch.svg"
+				},
+				{
+					"title": "Workspace Lifecycle",
 					"description": "Cost control with workspace schedules",
 					"path": "./user-guides/workspace-scheduling.md",
 					"icon_path": "./images/icons/stopwatch.svg"
@@ -432,19 +438,6 @@
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
-						}
-					]
-				},
-				{
-					"title": "Workspaces",
-					"description": "Learn how to manage \u0026 audit workspaces",
-					"path": "./admin/workspaces/README.md",
-					"icon_path": "./images/icons/layers.svg",
-					"children": [
-						{
-							"title": "Workspace Lifecycle",
-							"description": "Understand the lifecycle of a workspace",
-							"path": "./admin/workspaces/lifecycle.md"
 						}
 					]
 				},
