@@ -537,7 +537,8 @@ gen/mark-fresh:
 		tailnet/tailnettest/coordinatormock.go \
 		tailnet/tailnettest/coordinateemock.go \
 		tailnet/tailnettest/multiagentmock.go \
-	"
+		"
+
 	for file in $$files; do
 		echo "$$file"
 		if [ ! -f "$$file" ]; then
