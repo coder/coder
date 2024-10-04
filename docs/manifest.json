@@ -879,6 +879,11 @@
 							"path": "reference/cli/features_list.md"
 						},
 						{
+							"title": "groups",
+							"description": "Manage groups",
+							"path": "reference/cli/groups.md"
+						},
+						{
 							"title": "groups create",
 							"description": "Create a user group",
 							"path": "reference/cli/groups_create.md"
