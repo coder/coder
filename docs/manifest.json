@@ -276,7 +276,7 @@
 						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
-							"state": ["premium"]
+							"state": ["premium", "beta"]
 						},
 						{
 							"title": "Quotas",
@@ -534,6 +534,7 @@
 							"title": "Notifications",
 							"description": "Configure notifications for your deployment",
 							"path": "./admin/monitoring/notifications/index.md",
+							"state": ["beta"],
 							"children": [
 								{
 									"title": "Slack Notifications",

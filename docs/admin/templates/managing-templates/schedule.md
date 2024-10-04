@@ -26,13 +26,13 @@ allow users to define their own autostart and autostop schedules. Admins can
 restrict the days of the week a workspace should automatically start to help
 manage infrastructure costs.
 
-## Failure cleanup (enterprise)
+## Failure cleanup (enterprise) (premium)
 
 Failure cleanup defines how long a workspace is permitted to remain in the
 failed state prior to being automatically stopped. Failure cleanup is an
 enterprise-only feature.
 
-## Dormancy threshold (enterprise)
+## Dormancy threshold (enterprise) (premium)
 
 Dormancy Threshold defines how long Coder allows a workspace to remain inactive
 before being moved into a dormant state. A workspace's inactivity is determined
@@ -42,7 +42,7 @@ the user before being accessible. Coder stops workspaces during their transition
 to the dormant state if they are detected to be running. Dormancy Threshold is
 an enterprise-only feature.
 
-## Dormancy auto-deletion (enterprise)
+## Dormancy auto-deletion (enterprise) (premium)
 
 Dormancy Auto-Deletion allows a template admin to dictate how long a workspace
 is permitted to remain dormant before it is automatically deleted. Dormancy

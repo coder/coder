@@ -58,7 +58,7 @@ infrastructure, software, or security patches. Learn more about
 
 ![Updating a template](../../../images/templates/update.png)
 
-### Template update policies (enterprise)
+### Template update policies (enterprise) (premium)
 
 Enterprise template admins may want workspaces to always remain on the latest
 version of their parent template. To do so, enable **Template Update Policies**
