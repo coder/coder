@@ -2899,16 +2899,18 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			ExitCode:  0,
 			Status:    database.WorkspaceAgentScriptTimingStatusOk,
 		})
-		row := database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
-			StartedAt:   timing.StartedAt,
-			EndedAt:     timing.EndedAt,
-			Stage:       timing.Stage,
-			ScriptID:    timing.ScriptID,
-			ExitCode:    timing.ExitCode,
-			Status:      timing.Status,
-			DisplayName: scripts[0].DisplayName,
+		rows := []database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
+			{
+				StartedAt:   timing.StartedAt,
+				EndedAt:     timing.EndedAt,
+				Stage:       timing.Stage,
+				ScriptID:    timing.ScriptID,
+				ExitCode:    timing.ExitCode,
+				Status:      timing.Status,
+				DisplayName: scripts[0].DisplayName,
+			},
 		}
-		check.Args(build.ID).Asserts(workspace, policy.ActionRead).Returns(row)
+		check.Args(build.ID).Asserts(workspace, policy.ActionRead).Returns(rows)
 	}))
 }
 
