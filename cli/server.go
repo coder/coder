@@ -691,8 +691,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			var pubsubWatchdogTimeout <-chan struct{}
 			if vals.InMemoryDatabase {
 				// This is only used for testing.
-				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
+				options.Database = dbmem.New()
 			} else {
 				sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
 				if err != nil {
