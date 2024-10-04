@@ -77,7 +77,7 @@ While you can inject secrets into the workspace via environment variables, you
 can also show them in the Workspace UI with
 [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
 
-![secret UI](./images/secret-metadata-ui.png)
+![secret UI](../../images/secret-metadata-ui.png)
 
 Can be produced with
 
