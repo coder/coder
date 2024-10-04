@@ -1221,7 +1221,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 	})
 
 	// Create a build to attach timings
+	var buildNumber int32
 	makeBuild := func() database.WorkspaceBuild {
+		buildNumber++
 		jobID := uuid.New()
 		job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			ID:             jobID,
@@ -1233,6 +1235,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			TemplateVersionID: version.ID,
 			InitiatorID:       owner.UserID,
 			JobID:             job.ID,
+			BuildNumber:       buildNumber,
 		})
 	}
 
