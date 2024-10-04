@@ -17,7 +17,7 @@ they can use. While groups can be manually created in Coder, we recommend
 syncing them from your identity provider.
 
 - [Learn more about Groups](./groups-roles.md)
-- [Group & Role Sync](./group-sync.md)
+- [Group & Role Sync](./idp-sync.md)
 
 ## Roles
 
@@ -27,7 +27,7 @@ create workspaces. Other roles have administrative capabilities such as
 auditing, managing users, and managing templates.
 
 - [Learn more about Roles](./groups-roles.md)
-- [Group & Role Sync](./group-sync.md)
+- [Group & Role Sync](./idp-sync.md)
 
 ## User status
 

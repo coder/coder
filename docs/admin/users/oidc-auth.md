@@ -154,5 +154,5 @@ CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 
 ### Next steps
 
-- [Group Sync](./group-sync.md)
+- [Group Sync](./idp-sync.md)
 - [Groups & Roles](./groups-roles.md)

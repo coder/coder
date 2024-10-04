@@ -103,5 +103,5 @@ Form will never get held up by quota enforcement.
 
 ## Up next
 
-- [Group Sync](./group-sync.md)
+- [Group Sync](./idp-sync.md)
 - [Control plane configuration](../setup/index.md)
