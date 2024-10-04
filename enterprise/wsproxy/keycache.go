@@ -2,9 +2,7 @@ package wsproxy
 
 import (
 	"context"
-	"maps"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -13,41 +11,54 @@ import (
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/quartz"
 )
+
+const (
+	// latestSequence is a special sequence number that represents the latest key.
+	latestSequence = -1
+	// refreshInterval is the interval at which the key cache will refresh.
+	refreshInterval = time.Minute * 10
+)
+
+type Fetcher interface {
+	Fetch(ctx context.Context) ([]codersdk.CryptoKey, error)
+}
 
 var _ cryptokeys.Keycache = &CryptoKeyCache{}
 
 type CryptoKeyCache struct {
+	Clock         quartz.Clock
 	refreshCtx    context.Context
 	refreshCancel context.CancelFunc
-	client        *wsproxysdk.Client
+	fetcher       Fetcher
 	logger        slog.Logger
-	Clock         quartz.Clock
 
-	keysMu    sync.RWMutex
+	mu        sync.Mutex
 	keys      map[int32]codersdk.CryptoKey
 	latest    codersdk.CryptoKey
-	fetchLock sync.RWMutex
 	lastFetch time.Time
 	refresher *quartz.Timer
-	closed    atomic.Bool
+	fetching  bool
+	closed    bool
+	cond      *sync.Cond
 }
 
-func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client *wsproxysdk.Client, opts ...func(*CryptoKeyCache)) (*CryptoKeyCache, error) {
+func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client Fetcher, opts ...func(*CryptoKeyCache)) (*CryptoKeyCache, error) {
 	cache := &CryptoKeyCache{
-		client: client,
-		logger: log,
-		Clock:  quartz.NewReal(),
+		Clock:   quartz.NewReal(),
+		logger:  log,
+		fetcher: client,
 	}
 
 	for _, opt := range opts {
 		opt(cache)
 	}
 
+	cache.cond = sync.NewCond(&cache.mu)
 	cache.refreshCtx, cache.refreshCancel = context.WithCancel(ctx)
-	cache.refresher = cache.Clock.AfterFunc(time.Minute*10, cache.refresh)
+	cache.refresher = cache.Clock.AfterFunc(refreshInterval, cache.refresh)
+
 	m, latest, err := cache.cryptoKeys(ctx)
 	if err != nil {
 		cache.refreshCancel()
@@ -59,153 +70,134 @@ func NewCryptoKeyCache(ctx context.Context, log slog.Logger, client *wsproxysdk.
 }
 
 func (k *CryptoKeyCache) Signing(ctx context.Context) (codersdk.CryptoKey, error) {
-	if k.isClosed() {
-		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
-	}
-
-	k.keysMu.RLock()
-	latest := k.latest
-	k.keysMu.RUnlock()
-
-	now := k.Clock.Now()
-	if latest.CanSign(now) {
-		return latest, nil
-	}
-
-	k.fetchLock.Lock()
-	defer k.fetchLock.Unlock()
-
-	if k.isClosed() {
-		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
-	}
-
-	k.keysMu.RLock()
-	latest = k.latest
-	k.keysMu.RUnlock()
-
-	now = k.Clock.Now()
-	if latest.CanSign(now) {
-		return latest, nil
-	}
-
-	_, latest, err := k.fetch(ctx)
-	if err != nil {
-		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
-	}
-
-	return latest, nil
+	return k.cryptoKey(ctx, latestSequence)
 }
 
 func (k *CryptoKeyCache) Verifying(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
-	if k.isClosed() {
+	return k.cryptoKey(ctx, sequence)
+}
+
+func (k *CryptoKeyCache) cryptoKey(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if k.closed {
 		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
 	}
 
-	k.keysMu.RLock()
-	key, ok := k.keys[sequence]
-	k.keysMu.RUnlock()
-
-	now := k.Clock.Now()
-	if ok {
-		return validKey(key, now)
+	var key codersdk.CryptoKey
+	var ok bool
+	for key, ok = k.key(sequence); !ok && k.fetching && !k.closed; {
+		k.cond.Wait()
 	}
 
-	k.fetchLock.Lock()
-	defer k.fetchLock.Unlock()
-
-	if k.isClosed() {
+	if k.closed {
 		return codersdk.CryptoKey{}, cryptokeys.ErrClosed
 	}
 
-	k.keysMu.RLock()
-	key, ok = k.keys[sequence]
-	k.keysMu.RUnlock()
 	if ok {
-		return validKey(key, now)
+		return checkKey(key, sequence, k.Clock.Now())
 	}
 
-	keys, _, err := k.fetch(ctx)
+	k.fetching = true
+	k.mu.Unlock()
+
+	keys, latest, err := k.cryptoKeys(ctx)
 	if err != nil {
-		return codersdk.CryptoKey{}, xerrors.Errorf("fetch: %w", err)
+		return codersdk.CryptoKey{}, xerrors.Errorf("get keys: %w", err)
 	}
 
-	key, ok = keys[sequence]
+	k.mu.Lock()
+	k.lastFetch = k.Clock.Now()
+	k.refresher.Reset(refreshInterval)
+	k.keys, k.latest = keys, latest
+	k.fetching = false
+	k.cond.Broadcast()
+
+	key, ok = k.key(sequence)
 	if !ok {
 		return codersdk.CryptoKey{}, cryptokeys.ErrKeyNotFound
 	}
 
-	return validKey(key, now)
+	return checkKey(key, sequence, k.Clock.Now())
+}
+
+func (k *CryptoKeyCache) key(sequence int32) (codersdk.CryptoKey, bool) {
+	if sequence == latestSequence {
+		return k.latest, k.latest.CanSign(k.Clock.Now())
+	}
+
+	key, ok := k.keys[sequence]
+	return key, ok
+}
+
+func checkKey(key codersdk.CryptoKey, sequence int32, now time.Time) (codersdk.CryptoKey, error) {
+	if sequence == latestSequence {
+		if !key.CanSign(now) {
+			return codersdk.CryptoKey{}, cryptokeys.ErrKeyInvalid
+		}
+		return key, nil
+	}
+
+	if !key.CanVerify(now) {
+		return codersdk.CryptoKey{}, cryptokeys.ErrKeyInvalid
+	}
+
+	return key, nil
 }
 
 // refresh fetches the keys from the control plane and updates the cache.
 func (k *CryptoKeyCache) refresh() {
-	if k.isClosed() {
+	if k.closed {
 		return
 	}
 
 	now := k.Clock.Now("CryptoKeyCache", "refresh")
-	k.fetchLock.Lock()
-	defer k.fetchLock.Unlock()
 
-	if k.isClosed() {
+	k.mu.Lock()
+
+	// If something's already fetching, we don't need to do anything.
+	if k.fetching {
+		k.mu.Unlock()
 		return
 	}
-
-	k.keysMu.RLock()
-	lastFetch := k.lastFetch
-	k.keysMu.RUnlock()
 
 	// There's a window we must account for where the timer fires while a fetch
 	// is ongoing but prior to the timer getting reset. In this case we want to
 	// avoid double fetching.
-	if now.Sub(lastFetch) < time.Minute*10 {
+	if now.Sub(k.lastFetch) < refreshInterval {
+		k.mu.Unlock()
 		return
 	}
 
-	_, _, err := k.fetch(k.refreshCtx)
+	k.fetching = true
+
+	k.mu.Unlock()
+	keys, latest, err := k.cryptoKeys(k.refreshCtx)
 	if err != nil {
 		k.logger.Error(k.refreshCtx, "fetch crypto keys", slog.Error(err))
 		return
 	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.lastFetch = k.Clock.Now()
+	k.refresher.Reset(refreshInterval)
+	k.keys, k.latest = keys, latest
+	k.fetching = false
+	k.cond.Broadcast()
 }
 
 // cryptoKeys queries the control plane for the crypto keys.
 // Outside of initialization, this should only be called by fetch.
 func (k *CryptoKeyCache) cryptoKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey, error) {
-	keys, err := k.client.CryptoKeys(ctx)
+	keys, err := k.fetcher.Fetch(ctx)
 	if err != nil {
 		return nil, codersdk.CryptoKey{}, xerrors.Errorf("crypto keys: %w", err)
 	}
-	cache, latest := toKeyMap(keys.CryptoKeys, k.Clock.Now())
+	cache, latest := toKeyMap(keys, k.Clock.Now())
 	return cache, latest, nil
-}
-
-// fetch fetches the keys from the control plane and updates the cache. The fetchMu
-// must be held when calling this function to avoid multiple concurrent fetches.
-// The returned keys are safe to use without additional locking.
-func (k *CryptoKeyCache) fetch(ctx context.Context) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey, error) {
-	keys, latest, err := k.cryptoKeys(ctx)
-	if err != nil {
-		return nil, codersdk.CryptoKey{}, xerrors.Errorf("fetch keys: %w", err)
-	}
-
-	if len(keys) == 0 {
-		return nil, codersdk.CryptoKey{}, cryptokeys.ErrKeyNotFound
-	}
-
-	now := k.Clock.Now()
-	if !latest.CanSign(now) {
-		return nil, codersdk.CryptoKey{}, cryptokeys.ErrKeyInvalid
-	}
-
-	k.keysMu.Lock()
-	defer k.keysMu.Unlock()
-
-	k.lastFetch = k.Clock.Now()
-	k.refresher.Reset(time.Minute * 10)
-	k.keys, k.latest = maps.Clone(keys), latest
-
-	return keys, latest, nil
 }
 
 func toKeyMap(keys []codersdk.CryptoKey, now time.Time) (map[int32]codersdk.CryptoKey, codersdk.CryptoKey) {
@@ -220,33 +212,16 @@ func toKeyMap(keys []codersdk.CryptoKey, now time.Time) (map[int32]codersdk.Cryp
 	return m, latest
 }
 
-func validKey(key codersdk.CryptoKey, now time.Time) (codersdk.CryptoKey, error) {
-	if !key.CanVerify(now) {
-		return codersdk.CryptoKey{}, cryptokeys.ErrKeyInvalid
-	}
-
-	return key, nil
-}
-
-func (k *CryptoKeyCache) isClosed() bool {
-	return k.closed.Load()
-}
-
 func (k *CryptoKeyCache) Close() {
-	if k.isClosed() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if k.closed {
 		return
 	}
 
+	k.closed = true
 	k.refreshCancel()
-	k.closed.Store(true)
-
-	// It's important to hold the locks here so that we don't unintentionally
-	// reset the timer via an in flight request after Close returns.
-	k.fetchLock.Lock()
-	defer k.fetchLock.Unlock()
-
-	k.keysMu.Lock()
-	defer k.keysMu.Unlock()
-
 	k.refresher.Stop()
+	k.cond.Broadcast()
 }

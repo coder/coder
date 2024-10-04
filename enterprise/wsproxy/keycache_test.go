@@ -1,10 +1,7 @@
 package wsproxy_test
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
+	"context"
 	"testing"
 	"time"
 
@@ -15,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy"
-	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -42,30 +38,17 @@ func TestCryptoKeyCache(t *testing.T) {
 				StartsAt: now,
 			}
 
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{
-				{
-					Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-					Secret:   "key1",
-					Sequence: 1,
-					StartsAt: now,
-				},
-				// Should be ignored since it hasn't breached its starts_at time yet.
-				{
-					Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-					Secret:   "key3",
-					Sequence: 3,
-					StartsAt: now.Add(time.Second * 2),
-				},
-				expected,
-			})
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{expected},
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
 			got, err := cache.Signing(ctx)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
-			require.Equal(t, 1, fc.called)
+			require.Equal(t, 1, ff.called)
 		})
 
 		t.Run("MissesCache", func(t *testing.T) {
@@ -76,9 +59,11 @@ func TestCryptoKeyCache(t *testing.T) {
 				clock  = quartz.NewMock(t)
 			)
 
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{})
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{},
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
 			expected := codersdk.CryptoKey{
@@ -87,20 +72,20 @@ func TestCryptoKeyCache(t *testing.T) {
 				Sequence: 12,
 				StartsAt: clock.Now().UTC(),
 			}
-			fc.keys = []codersdk.CryptoKey{expected}
+			ff.keys = []codersdk.CryptoKey{expected}
 
 			got, err := cache.Signing(ctx)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
 			// 1 on startup + missing cache.
-			require.Equal(t, 2, fc.called)
+			require.Equal(t, 2, ff.called)
 
 			// Ensure the cache gets hit this time.
 			got, err = cache.Signing(ctx)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
 			// 1 on startup + missing cache.
-			require.Equal(t, 2, fc.called)
+			require.Equal(t, 2, ff.called)
 		})
 
 		t.Run("IgnoresInvalid", func(t *testing.T) {
@@ -119,24 +104,26 @@ func TestCryptoKeyCache(t *testing.T) {
 				StartsAt: clock.Now().UTC(),
 			}
 
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{
-				expected,
-				{
-					Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
-					Secret:    "key2",
-					Sequence:  2,
-					StartsAt:  now.Add(-time.Second),
-					DeletesAt: now,
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{
+					expected,
+					{
+						Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
+						Secret:    "key2",
+						Sequence:  2,
+						StartsAt:  now.Add(-time.Second),
+						DeletesAt: now,
+					},
 				},
-			})
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
 			got, err := cache.Signing(ctx)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
-			require.Equal(t, 1, fc.called)
+			require.Equal(t, 1, ff.called)
 		})
 
 		t.Run("KeyNotFound", func(t *testing.T) {
@@ -148,12 +135,14 @@ func TestCryptoKeyCache(t *testing.T) {
 				clock  = quartz.NewMock(t)
 			)
 
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{})
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{},
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
-			_, err = cache.Verifying(ctx, 1)
+			_, err = cache.Signing(ctx)
 			require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
 		})
 	})
@@ -177,23 +166,25 @@ func TestCryptoKeyCache(t *testing.T) {
 				Sequence: 12,
 				StartsAt: now,
 			}
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{
-				expected,
-				{
-					Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-					Secret:   "key2",
-					Sequence: 13,
-					StartsAt: now,
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{
+					expected,
+					{
+						Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+						Secret:   "key2",
+						Sequence: 13,
+						StartsAt: now,
+					},
 				},
-			})
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
 			got, err := cache.Verifying(ctx, expected.Sequence)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
-			require.Equal(t, 1, fc.called)
+			require.Equal(t, 1, ff.called)
 		})
 
 		t.Run("MissesCache", func(t *testing.T) {
@@ -204,9 +195,11 @@ func TestCryptoKeyCache(t *testing.T) {
 				clock  = quartz.NewMock(t)
 			)
 
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{})
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{},
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
 			expected := codersdk.CryptoKey{
@@ -215,18 +208,18 @@ func TestCryptoKeyCache(t *testing.T) {
 				Sequence: 12,
 				StartsAt: clock.Now().UTC(),
 			}
-			fc.keys = []codersdk.CryptoKey{expected}
+			ff.keys = []codersdk.CryptoKey{expected}
 
 			got, err := cache.Verifying(ctx, expected.Sequence)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
-			require.Equal(t, 2, fc.called)
+			require.Equal(t, 2, ff.called)
 
 			// Ensure the cache gets hit this time.
 			got, err = cache.Verifying(ctx, expected.Sequence)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
-			require.Equal(t, 2, fc.called)
+			require.Equal(t, 2, ff.called)
 		})
 
 		t.Run("AllowsBeforeStartsAt", func(t *testing.T) {
@@ -246,17 +239,19 @@ func TestCryptoKeyCache(t *testing.T) {
 				StartsAt: now.Add(-time.Second),
 			}
 
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{
-				expected,
-			})
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{
+					expected,
+				},
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
 			got, err := cache.Verifying(ctx, expected.Sequence)
 			require.NoError(t, err)
 			require.Equal(t, expected, got)
-			require.Equal(t, 1, fc.called)
+			require.Equal(t, 1, ff.called)
 		})
 
 		t.Run("KeyInvalid", func(t *testing.T) {
@@ -277,16 +272,18 @@ func TestCryptoKeyCache(t *testing.T) {
 				DeletesAt: now,
 			}
 
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{
-				expected,
-			})
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{
+					expected,
+				},
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
 			_, err = cache.Verifying(ctx, expected.Sequence)
 			require.ErrorIs(t, err, cryptokeys.ErrKeyInvalid)
-			require.Equal(t, 1, fc.called)
+			require.Equal(t, 1, ff.called)
 		})
 
 		t.Run("KeyNotFound", func(t *testing.T) {
@@ -298,9 +295,11 @@ func TestCryptoKeyCache(t *testing.T) {
 				clock  = quartz.NewMock(t)
 			)
 
-			fc := newFakeCoderd(t, []codersdk.CryptoKey{})
+			ff := &fakeFetcher{
+				keys: []codersdk.CryptoKey{},
+			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 			require.NoError(t, err)
 
 			_, err = cache.Verifying(ctx, 1)
@@ -325,17 +324,19 @@ func TestCryptoKeyCache(t *testing.T) {
 			StartsAt:  now,
 			DeletesAt: now.Add(time.Minute * 10),
 		}
-		fc := newFakeCoderd(t, []codersdk.CryptoKey{
-			expected,
-		})
+		ff := &fakeFetcher{
+			keys: []codersdk.CryptoKey{
+				expected,
+			},
+		}
 
-		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 		require.NoError(t, err)
 
 		got, err := cache.Signing(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, got)
-		require.Equal(t, 1, fc.called)
+		require.Equal(t, 1, ff.called)
 
 		newKey := codersdk.CryptoKey{
 			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
@@ -343,24 +344,24 @@ func TestCryptoKeyCache(t *testing.T) {
 			Sequence: 13,
 			StartsAt: now,
 		}
-		fc.keys = []codersdk.CryptoKey{newKey}
+		ff.keys = []codersdk.CryptoKey{newKey}
 
 		// The ticker should fire and cause a request to coderd.
 		dur, advance := clock.AdvanceNext()
 		advance.MustWait(ctx)
-		require.Equal(t, 2, fc.called)
+		require.Equal(t, 2, ff.called)
 		require.Equal(t, time.Minute*10, dur)
 
 		// Assert hits cache.
 		got, err = cache.Signing(ctx)
 		require.NoError(t, err)
 		require.Equal(t, newKey, got)
-		require.Equal(t, 2, fc.called)
+		require.Equal(t, 2, ff.called)
 
 		// We check again to ensure the timer has been reset.
 		_, advance = clock.AdvanceNext()
 		advance.MustWait(ctx)
-		require.Equal(t, 3, fc.called)
+		require.Equal(t, 3, ff.called)
 		require.Equal(t, time.Minute*10, dur)
 	})
 
@@ -384,13 +385,15 @@ func TestCryptoKeyCache(t *testing.T) {
 			StartsAt:  now,
 			DeletesAt: now.Add(time.Minute * 10),
 		}
-		fc := newFakeCoderd(t, []codersdk.CryptoKey{
-			expected,
-		})
+		ff := &fakeFetcher{
+			keys: []codersdk.CryptoKey{
+				expected,
+			},
+		}
 
 		// Create a trap that blocks when the refresh timer fires.
 		trap := clock.Trap().Now("refresh")
-		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 		require.NoError(t, err)
 
 		_, wait := clock.AdvanceNext()
@@ -402,22 +405,22 @@ func TestCryptoKeyCache(t *testing.T) {
 			Sequence: 13,
 			StartsAt: now,
 		}
-		fc.keys = []codersdk.CryptoKey{newKey}
+		ff.keys = []codersdk.CryptoKey{newKey}
 
 		_, err = cache.Verifying(ctx, newKey.Sequence)
 		require.NoError(t, err)
-		require.Equal(t, 2, fc.called)
+		require.Equal(t, 2, ff.called)
 
 		trapped.Release()
 		wait.MustWait(ctx)
-		require.Equal(t, 2, fc.called)
+		require.Equal(t, 2, ff.called)
 		trap.Close()
 
 		// The next timer should fire in 10 minutes.
 		dur, wait := clock.AdvanceNext()
 		wait.MustWait(ctx)
 		require.Equal(t, time.Minute*10, dur)
-		require.Equal(t, 3, fc.called)
+		require.Equal(t, 3, ff.called)
 	})
 
 	t.Run("Closed", func(t *testing.T) {
@@ -436,22 +439,24 @@ func TestCryptoKeyCache(t *testing.T) {
 			Sequence: 12,
 			StartsAt: now,
 		}
-		fc := newFakeCoderd(t, []codersdk.CryptoKey{
-			expected,
-		})
+		ff := &fakeFetcher{
+			keys: []codersdk.CryptoKey{
+				expected,
+			},
+		}
 
-		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, wsproxysdk.New(fc.url), withClock(clock))
+		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
 		require.NoError(t, err)
 
 		got, err := cache.Signing(ctx)
 		require.NoError(t, err)
 		require.Equal(t, expected, got)
-		require.Equal(t, 1, fc.called)
+		require.Equal(t, 1, ff.called)
 
 		got, err = cache.Verifying(ctx, expected.Sequence)
 		require.NoError(t, err)
 		require.Equal(t, expected, got)
-		require.Equal(t, 1, fc.called)
+		require.Equal(t, 1, ff.called)
 
 		cache.Close()
 
@@ -463,38 +468,14 @@ func TestCryptoKeyCache(t *testing.T) {
 	})
 }
 
-type fakeCoderd struct {
-	server *httptest.Server
+type fakeFetcher struct {
 	keys   []codersdk.CryptoKey
 	called int
-	url    *url.URL
 }
 
-func newFakeCoderd(t *testing.T, keys []codersdk.CryptoKey) *fakeCoderd {
-	t.Helper()
-
-	c := &fakeCoderd{
-		keys: keys,
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v2/workspaceproxies/me/crypto-keys", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		err := json.NewEncoder(w).Encode(wsproxysdk.CryptoKeysResponse{
-			CryptoKeys: c.keys,
-		})
-		require.NoError(t, err)
-		c.called++
-	})
-
-	c.server = httptest.NewServer(mux)
-	t.Cleanup(c.server.Close)
-
-	var err error
-	c.url, err = url.Parse(c.server.URL)
-	require.NoError(t, err)
-
-	return c
+func (f *fakeFetcher) Fetch(ctx context.Context) ([]codersdk.CryptoKey, error) {
+	f.called++
+	return f.keys, nil
 }
 
 func withClock(clock quartz.Clock) func(*wsproxy.CryptoKeyCache) {
