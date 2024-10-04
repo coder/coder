@@ -293,4 +293,4 @@ steps.
 ## Next steps
 
 - [Create your first template](../tutorials/template-from-scratch.md)
-- [Control plane configuration](../admin/setup/README.md)
+- [Control plane configuration](../admin/setup/index.md)

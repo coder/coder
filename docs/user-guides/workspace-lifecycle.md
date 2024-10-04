@@ -35,9 +35,8 @@ following broken states:
 
 ## Workspace creation
 
-Workspaces are created from [templates](../templates/README.md) via the CLI,
-API, or dashboard. To learn how, read our
-[user guides](../../user-guides/README.md).
+Workspaces are created from [templates](../templates/index.md) via the CLI, API,
+or dashboard. To learn how, read our [user guides](../../user-guides/index.md).
 
 By default, there is no limit on the number of workspaces a user may create,
 regardless of the template's resource demands. Enterprise administrators may
@@ -46,7 +45,7 @@ limit the number of workspaces per template, group, and organization using
 
 When a user creates a workspace, they're sending a build request to the control
 plane. Coder takes this and uses [Terraform](https://www.terraform.io/) to
-provision a workspace defined by your [template](../templates/README.md).
+provision a workspace defined by your [template](../templates/index.md).
 Generally, templates define the resources and environment of a workspace.
 
 The resources that run the agent are described as _computational resources_,
@@ -64,7 +63,7 @@ scripts. These may configure tools, service connections, or personalization with
 
 Once these steps have completed, your workspace will now be in the `Running`
 state. You can access it via any of the
-[supported methods](../../user-guides/workspace-access/README.md), stop it when
+[supported methods](../../user-guides/workspace-access/index.md), stop it when
 you're away, or delete it once it's no longer in use.
 
 ## Stopping workspaces
@@ -113,6 +112,6 @@ workspace startup scripts.
 
 ## Next steps
 
-- [Connecting to your workspace](../../user-guides/workspace-access/README.md)
-- [Creating templates](../templates/README.md)
+- [Connecting to your workspace](../../user-guides/workspace-access/index.md)
+- [Creating templates](../templates/index.md)
 - [Workspace scheduling](../../user-guides/workspace-scheduling.md)

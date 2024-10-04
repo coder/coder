@@ -13,7 +13,7 @@ Learn more about [Coder’s architecture](./architecture.md) and our
 
 > Note: the below information is for reference purposes only, and are not
 > intended to be used as guidelines for infrastructure sizing. Review the
-> [Reference Architectures](./validated-architectures/README.md#node-sizing) for
+> [Reference Architectures](./validated-architectures/index.md#node-sizing) for
 > hardware sizing recommendations.
 
 | Environment      | Coder CPU | Coder RAM | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |

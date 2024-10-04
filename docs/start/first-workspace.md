@@ -2,10 +2,10 @@
 
 A workspace is the environment that a developer works in. Developers in a team
 each work from their own workspace and can use
-[multiple IDEs](../user-guides/workspace-access/README.md).
+[multiple IDEs](../user-guides/workspace-access/index.md).
 
 A developer creates a workspace from a
-[shared template](../tutorials/templates/README.md). This lets an entire team
+[shared template](../tutorials/templates/index.md). This lets an entire team
 work in environments that are identically configured and provisioned with the
 same resources.
 

@@ -51,9 +51,9 @@ For more examples, see `coder port-forward --help`.
 ## Dashboard
 
 > To enable port forwarding via the dashboard, Coder must be configured with a
-> [wildcard access URL](../../admin/setup/README.md#wildcard-access-url). If an
+> [wildcard access URL](../../admin/setup/index.md#wildcard-access-url). If an
 > access URL is not specified, Coder will create
-> [a publicly accessible URL](../../admin/setup/README.md#tunnel) to reverse
+> [a publicly accessible URL](../../admin/setup/index.md#tunnel) to reverse
 > proxy the deployment, and port forwarding will work.
 >
 > There is a
@@ -260,7 +260,7 @@ configurable by either admins or users.
 
 ## SSH
 
-First, [configure SSH](./README.md#configure-ssh) on your local machine. Then,
+First, [configure SSH](./index.md#configure-ssh) on your local machine. Then,
 use `ssh` to forward like so:
 
 ```console

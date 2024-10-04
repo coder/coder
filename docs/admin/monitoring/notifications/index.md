@@ -5,8 +5,9 @@ a workspace being deleted or a user being created.
 
 ## Enable experiment
 
-In order to activate the notifications feature on Coder v2.15.X, you'll need to enable the
-`notifications` experiment. Notifications are enabled by default starting in v2.16.0.
+In order to activate the notifications feature on Coder v2.15.X, you'll need to
+enable the `notifications` experiment. Notifications are enabled by default
+starting in v2.16.0.
 
 ```bash
 # Using the CLI flag

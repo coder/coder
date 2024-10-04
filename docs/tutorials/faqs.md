@@ -39,12 +39,12 @@ The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
 
 Coder's networking stack has intelligence to attempt a peer-to-peer or
-[Direct connection](../admin/networking/README.md#direct-connections) between
-the local IDE and the workspace. However, this requires some additional
-protocols like UDP and being able to reach a STUN server to echo the IP
-addresses of the local IDE machine and workspace, for sharing using a Wireguard
-Coordination Server. By default, Coder assumes Internet and attempts to reach
-Google's STUN servers to perform this IP echo.
+[Direct connection](../admin/networking/index.md#direct-connections) between the
+local IDE and the workspace. However, this requires some additional protocols
+like UDP and being able to reach a STUN server to echo the IP addresses of the
+local IDE machine and workspace, for sharing using a Wireguard Coordination
+Server. By default, Coder assumes Internet and attempts to reach Google's STUN
+servers to perform this IP echo.
 
 Operators experimenting with Coder may run into networking issues if UDP (which
 STUN requires) or the STUN servers are unavailable, potentially resulting in
@@ -122,7 +122,7 @@ resource "coder_app" "code-server" {
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
 
-If the [`CODER_ACCESS_URL`](../admin/setup/README.md#access-url) is not
+If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not
 accessible from a workspace, the workspace may build, but the agent cannot reach
 Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 

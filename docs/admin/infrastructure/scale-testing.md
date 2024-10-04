@@ -113,12 +113,12 @@ on the workload size to ensure deployment stability.
 #### CPU and memory usage
 
 Enabling
-[agent stats collection](../../reference/cli/README.md#--prometheus-collect-agent-stats)
+[agent stats collection](../../reference/cli/index.md#--prometheus-collect-agent-stats)
 (optional) may increase memory consumption.
 
 Enabling direct connections between users and workspace agents (apps or SSH
 traffic) can help prevent an increase in CPU usage. It is recommended to keep
-[this option enabled](../../reference/cli/README.md#--disable-direct-connections)
+[this option enabled](../../reference/cli/index.md#--disable-direct-connections)
 unless there are compelling reasons to disable it.
 
 Inactive users do not consume Coder resources.

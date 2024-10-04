@@ -3,7 +3,7 @@
 By default, Coder workspaces allow connections via:
 
 - Web terminal
-- [SSH](./README.md#ssh)
+- [SSH](./index.md#ssh)
 
 It's common to also connect via web IDEs for uses cases like zero trust
 networks, data science, contractors, and infrequent code contributors.
@@ -16,7 +16,7 @@ resources in the template. With our generic model, any web application can be
 used as a Coder application. For example:
 
 > To learn more about configuring IDEs in templates, see our docs on
-> [template administration](../../admin/templates/README.md).
+> [template administration](../../admin/templates/index.md).
 
 ![External URLs](../../images/external-apps.png)
 
@@ -76,6 +76,6 @@ guide.
 ## SSH Fallback
 
 If you prefer to run web IDEs in localhost, you can port forward using
-[SSH](../README.md#ssh) or the Coder CLI `port-forward` sub-command. Some web
+[SSH](../index.md#ssh) or the Coder CLI `port-forward` sub-command. Some web
 IDEs may not support URL base path adjustment so port forwarding is the only
 approach.

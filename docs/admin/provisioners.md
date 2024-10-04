@@ -19,7 +19,7 @@ are often benefits to running external provisioner daemons:
 
 - **Reduce server load**: External provisioners reduce load and build queue
   times from the Coder server. See
-  [Scaling Coder](../admin/infrastructure/README.md#scale-tests) for more
+  [Scaling Coder](../admin/infrastructure/index.md#scale-tests) for more
   details.
 
 Each provisioner runs a single
@@ -79,7 +79,7 @@ Kubernetes/Docker/etc.
 
 A user account with the role `Template Admin` or `Owner` can start provisioners
 using their user account. This may be beneficial if you are running provisioners
-via [automation](../reference/README.md).
+via [automation](../reference/index.md).
 
 ```sh
 coder login https://<your-coder-url>
@@ -208,7 +208,7 @@ Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
 [`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#t---tag) when
 starting the provisioner daemon. Only users with at least the
-[Template Admin](./users/README.md#roles) role or higher may create
+[Template Admin](./users/index.md#roles) role or higher may create
 organization-scoped provisioner daemons.
 
 There are two exceptions:

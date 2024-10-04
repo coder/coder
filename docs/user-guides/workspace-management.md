@@ -2,11 +2,11 @@
 
 A workspace is the environment that a developer works in. Developers in a team
 each work from their own workspace and can use
-[multiple IDEs](./workspace-access/README.md).
+[multiple IDEs](./workspace-access/index.md).
 
 A developer creates a workspace from a
-[shared template](../admin/templates/README.md). This lets an entire team work
-in environments that are identically configured and provisioned with the same
+[shared template](../admin/templates/index.md). This lets an entire team work in
+environments that are identically configured and provisioned with the same
 resources.
 
 ## Creating workspaces
@@ -24,7 +24,7 @@ You can manage your existing templates in the **Workspaces** tab.
 You can also create a workspace from the command line:
 
 Each Coder user has their own workspaces created from
-[templates](../admin/templates/README.md):
+[templates](../admin/templates/index.md):
 
 ```shell
 # create a workspace from the template; specify any variables
@@ -112,7 +112,7 @@ To set a workspace's schedule, go to the workspace, then **Settings** >
 ![Scheduling UI](./images/schedule.png)
 
 Coder might also stop a workspace automatically if there is a
-[template update](./admin/templates/README.md#Start/stop) available.
+[template update](./admin/templates/index.md#Start/stop) available.
 
 Learn more about [workspace lifecycle](../admin/workspaces/lifecycle.md) and our
 [scheduling features](./workspace-scheduling.md).
@@ -120,7 +120,7 @@ Learn more about [workspace lifecycle](../admin/workspaces/lifecycle.md) and our
 ## Workspace resources
 
 Workspaces in Coder are started and stopped, often based on whether there was
-any activity or if there was a [template update](./admin/templates/README.md)
+any activity or if there was a [template update](./admin/templates/index.md)
 available.
 
 Resources are often destroyed and re-created when a workspace is restarted,

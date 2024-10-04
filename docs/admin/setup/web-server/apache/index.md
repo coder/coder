@@ -2,7 +2,8 @@
 
 ## Requirements
 
-1. Start a Coder deployment and be sure to set the following [configuration values](../../README.md):
+1. Start a Coder deployment and be sure to set the following
+   [configuration values](../../index.md):
 
    ```env
    CODER_HTTP_ADDRESS=127.0.0.1:3000
@@ -10,11 +11,16 @@
    CODER_WILDCARD_ACCESS_URL=*coder.example.com
    ```
 
-   Throughout the guide, be sure to replace `coder.example.com` with the domain you intend to use with Coder.
+   Throughout the guide, be sure to replace `coder.example.com` with the domain
+   you intend to use with Coder.
 
-2. Configure your DNS provider to point your coder.example.com and \*.coder.example.com to your server's public IP address.
+2. Configure your DNS provider to point your coder.example.com and
+   \*.coder.example.com to your server's public IP address.
 
-   > For example, to use `coder.example.com` as your subdomain, configure `coder.example.com` and `*.coder.example.com` to point to your server's public ip. This can be done by adding A records in your DNS provider's dashboard.
+   > For example, to use `coder.example.com` as your subdomain, configure
+   > `coder.example.com` and `*.coder.example.com` to point to your server's
+   > public ip. This can be done by adding A records in your DNS provider's
+   > dashboard.
 
 3. Install Apache (assuming you're on Debian/Ubuntu):
 
@@ -40,17 +46,25 @@
 
 ## Install and configure LetsEncrypt Certbot
 
-1. Install LetsEncrypt Certbot: Refer to the [CertBot documentation](https://certbot.eff.org/instructions?ws=apache&os=ubuntufocal&tab=wildcard). Be sure to pick the wildcard tab and select your DNS provider for instructions to install the necessary DNS plugin.
+1. Install LetsEncrypt Certbot: Refer to the
+   [CertBot documentation](https://certbot.eff.org/instructions?ws=apache&os=ubuntufocal&tab=wildcard).
+   Be sure to pick the wildcard tab and select your DNS provider for
+   instructions to install the necessary DNS plugin.
 
 ## Create DNS provider credentials
 
-> This example assumes you're using CloudFlare as your DNS provider. For other providers, refer to the [CertBot documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#dns-plugins).
+> This example assumes you're using CloudFlare as your DNS provider. For other
+> providers, refer to the
+> [CertBot documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#dns-plugins).
 
-1. Create an API token for the DNS provider you're using: e.g. [CloudFlare](https://developers.cloudflare.com/fundamentals/api/get-started/create-token) with the following permissions:
+1. Create an API token for the DNS provider you're using: e.g.
+   [CloudFlare](https://developers.cloudflare.com/fundamentals/api/get-started/create-token)
+   with the following permissions:
 
    - Zone - DNS - Edit
 
-2. Create a file in `.secrets/certbot/cloudflare.ini` with the following content:
+2. Create a file in `.secrets/certbot/cloudflare.ini` with the following
+   content:
 
    ```ini
    dns_cloudflare_api_token = YOUR_API_TOKEN
@@ -78,7 +92,8 @@
 
 ## Configure Apache
 
-> This example assumes Coder is running locally on `127.0.0.1:3000` and that you're using `coder.example.com` as your subdomain.
+> This example assumes Coder is running locally on `127.0.0.1:3000` and that
+> you're using `coder.example.com` as your subdomain.
 
 1. Create Apache configuration for Coder:
 
@@ -153,4 +168,5 @@
    sudo certbot renew -q
    ```
 
-And that's it, you should now be able to access Coder at your sub(domain) e.g. `https://coder.example.com`.
+And that's it, you should now be able to access Coder at your sub(domain) e.g.
+`https://coder.example.com`.

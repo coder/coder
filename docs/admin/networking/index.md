@@ -33,24 +33,24 @@ In order for clients to be able to establish direct connections:
   `coder port-forward`). Note that the
   [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)
   and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and
-  [`ssh coder.<workspace>`](../../reference/cli/config-ssh.md) all utilize the CLI to
-  establish a workspace connection.
+  [`ssh coder.<workspace>`](../../reference/cli/config-ssh.md) all utilize the
+  CLI to establish a workspace connection.
 - Either the client or workspace agent are able to discover a reachable
   `ip:port` of their counterpart. If the agent and client are able to
   communicate with each other using their locally assigned IP addresses, then a
   direct connection can be established immediately. Otherwise, the client and
   agent will contact
-  [the configured STUN servers](../../reference/cli/server.md#derp-server-stun-addresses) to
-  try and determine which `ip:port` can be used to communicate with their
+  [the configured STUN servers](../../reference/cli/server.md#derp-server-stun-addresses)
+  to try and determine which `ip:port` can be used to communicate with their
   counterpart. See [STUN and NAT](./stun.md) for more details on how this
   process works.
 - All outbound UDP traffic must be allowed for both the client and the agent on
   **all ports** to each others' respective networks.
   - To establish a direct connection, both agent and client use STUN. This
     involves sending UDP packets outbound on `udp/3478` to the configured
-    [STUN server](../../reference/cli/server.md#--derp-server-stun-addresses). If either the
-    agent or the client are unable to send and receive UDP packets to a STUN
-    server, then direct connections will not be possible.
+    [STUN server](../../reference/cli/server.md#--derp-server-stun-addresses).
+    If either the agent or the client are unable to send and receive UDP packets
+    to a STUN server, then direct connections will not be possible.
   - Both agents and clients will then establish a
     [WireGuard](https://www.wireguard.com/)️ tunnel and send UDP traffic on
     ephemeral (high) ports. If a firewall between the client and the agent
@@ -59,8 +59,8 @@ In order for clients to be able to establish direct connections:
 ## coder server
 
 Workspaces connect to the coder server via the server's external address, set
-via [`ACCESS_URL`](../../admin/setup/README.md#access-url). There must not be a NAT
-between workspaces and coder server.
+via [`ACCESS_URL`](../../admin/setup/index.md#access-url). There must not be a
+NAT between workspaces and coder server.
 
 Users connect to the coder server's dashboard and API through its `ACCESS_URL`
 as well. There must not be a NAT between users and the coder server.
@@ -167,7 +167,8 @@ with security policies. In these cases, pass the `--browser-only` flag to
 `coder server` or set `CODER_BROWSER_ONLY=true`.
 
 With browser-only connections, developers can only connect to their workspaces
-via the web terminal and [web IDEs](../../user-guides/workspace-access/web-ides.md).
+via the web terminal and
+[web IDEs](../../user-guides/workspace-access/web-ides.md).
 
 ### Workspace Proxies (enterprise)
 

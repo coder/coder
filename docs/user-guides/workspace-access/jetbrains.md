@@ -40,8 +40,8 @@ manually setting up an SSH connection.
 
    ![Gateway Connect to Coder](../../images/gateway/plugin-connect-to-coder.png)
 
-1. Enter your Coder deployment'ssetup/README.md
-   [Access Url](../../admin/setup/README.md#access-url) and click **Connect**.
+1. Enter your Coder deployment'ssetup/index.md
+   [Access Url](../../admin/setup/index.md#access-url) and click **Connect**.
 
    Gateway opens your Coder deployment's `cli-auth` page with a session token.
    Click the copy button, paste the session token in the Gateway **Session
@@ -139,7 +139,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html).
 
-1. [Configure the `coder` CLI](../../user-guides/workspace-access/README.md#configure-ssh).
+1. [Configure the `coder` CLI](../../user-guides/workspace-access/index.md#configure-ssh).
 
 1. Open Gateway, make sure **SSH** is selected under **Remote Development**.
 
@@ -354,7 +354,7 @@ Additionally, create a string for each setting with its appropriate value in
 
 With the server now configured, you can now configure your local machine to use
 Gateway. Here is the documentation to
-[setup SSH config via the Coder CLI](../../user-guides/workspace-access/README.md#configure-ssh).
+[setup SSH config via the Coder CLI](../../user-guides/workspace-access/index.md#configure-ssh).
 On the Gateway side, follow our guide here until step 16.
 
 Instead of downloading from jetbrains.com, we will point Gateway to our server

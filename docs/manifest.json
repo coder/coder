@@ -4,7 +4,7 @@
 		{
 			"title": "Home",
 			"description": "Landing Page",
-			"path": "./README.md",
+			"path": "./index.md",
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
@@ -22,7 +22,7 @@
 		{
 			"title": "Install",
 			"description": "Installing Coder",
-			"path": "./install/README.md",
+			"path": "./install/index.md",
 			"icon_path": "./images/icons/download.svg",
 			"children": [
 				{
@@ -52,7 +52,7 @@
 				{
 					"title": "Cloud Providers",
 					"description": "Install Coder on cloud providers",
-					"path": "./install/cloud/README.md",
+					"path": "./install/cloud/index.md",
 					"icon_path": "./images/icons/cloud.svg",
 					"children": [
 						{
@@ -75,7 +75,7 @@
 				{
 					"title": "Unofficial Install Methods",
 					"description": "Other installation methods",
-					"path": "./install/other/README.md",
+					"path": "./install/other/index.md",
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
@@ -89,13 +89,13 @@
 		{
 			"title": "User Guides",
 			"description": "Guides for end-users of Coder",
-			"path": "./user-guides/README.md",
+			"path": "./user-guides/index.md",
 			"icon_path": "./images/icons/users.svg",
 			"children": [
 				{
 					"title": "Access Workspaces",
 					"description": "Connect to your Coder workspaces",
-					"path": "./user-guides/workspace-access/README.md",
+					"path": "./user-guides/workspace-access/index.md",
 					"icon_path": "./images/icons/access.svg",
 					"children": [
 						{
@@ -159,13 +159,13 @@
 		{
 			"title": "Administration",
 			"description": "Guides for template and deployment administrators",
-			"path": "./admin/README.md",
+			"path": "./admin/index.md",
 			"icon_path": "./images/icons/wrench.svg",
 			"children": [
 				{
 					"title": "Setup",
 					"description": "Configure user access to your control plane.",
-					"path": "./admin/setup/README.md",
+					"path": "./admin/setup/index.md",
 					"icon_path": "./images/icons/toggle_on.svg",
 					"children": [
 						{
@@ -184,7 +184,7 @@
 				{
 					"title": "Infrastructure",
 					"description": "How to integrate Coder with your organization's compute",
-					"path": "./admin/infrastructure/README.md",
+					"path": "./admin/infrastructure/index.md",
 					"icon_path": "./images/icons/container.svg",
 					"children": [
 						{
@@ -195,7 +195,7 @@
 						{
 							"title": "Validated Architectures",
 							"description": "Architectures for large Coder deployments",
-							"path": "./admin/infrastructure/validated-architectures/README.md",
+							"path": "./admin/infrastructure/validated-architectures/index.md",
 							"children": [
 								{
 									"title": "Up to 1,000 Users",
@@ -226,7 +226,7 @@
 				{
 					"title": "Users",
 					"description": "Learn how to manage and audit users",
-					"path": "./admin/users/README.md",
+					"path": "./admin/users/index.md",
 					"icon_path": "./images/icons/users.svg",
 					"children": [
 						{
@@ -274,7 +274,7 @@
 				{
 					"title": "Templates",
 					"description": "Learn how to author and maintain Coder templates",
-					"path": "./admin/templates/README.md",
+					"path": "./admin/templates/index.md",
 					"icon_path": "./images/icons/picture.svg",
 					"children": [
 						{
@@ -285,7 +285,7 @@
 						{
 							"title": "Managing Templates",
 							"description": "Learn how to manage templates and best practices",
-							"path": "./admin/templates/managing-templates/README.md",
+							"path": "./admin/templates/managing-templates/index.md",
 							"children": [
 								{
 									"title": "Image Management",
@@ -307,7 +307,7 @@
 						{
 							"title": "Extending Templates",
 							"description": "Learn best practices in extending templates",
-							"path": "./admin/templates/extending-templates/README.md",
+							"path": "./admin/templates/extending-templates/index.md",
 							"children": [
 								{
 									"title": "Agent Metadata",
@@ -401,7 +401,7 @@
 				{
 					"title": "Integrations",
 					"description": "Use integrations to extend Coder",
-					"path": "./admin/integrations/README.md",
+					"path": "./admin/integrations/index.md",
 					"icon_path": "./images/icons/puzzle.svg",
 					"children": [
 						{
@@ -444,7 +444,7 @@
 				{
 					"title": "Networking",
 					"description": "Understand Coder's networking layer",
-					"path": "./admin/networking/README.md",
+					"path": "./admin/networking/index.md",
 					"icon_path": "./images/icons/networking.svg",
 					"children": [
 						{
@@ -479,7 +479,7 @@
 				{
 					"title": "Monitoring",
 					"description": "Configure security policy and audit your deployment",
-					"path": "./admin/monitoring/README.md",
+					"path": "./admin/monitoring/index.md",
 					"icon_path": "./images/icons/speed.svg",
 					"children": [
 						{
@@ -500,7 +500,7 @@
 						{
 							"title": "Notifications",
 							"description": "Configure notifications for your deployment",
-							"path": "./admin/monitoring/notifications/README.md",
+							"path": "./admin/monitoring/notifications/index.md",
 							"children": [
 								{
 									"title": "Slack Notifications",
@@ -521,7 +521,7 @@
 				{
 					"title": "Security",
 					"description": "Configure security policy and audit your deployment",
-					"path": "./admin/security/README.md",
+					"path": "./admin/security/index.md",
 					"icon_path": "./images/icons/lock.svg",
 					"children": [
 						{
@@ -546,7 +546,7 @@
 				{
 					"title": "Licensing",
 					"description": "Configure licensing for your deployment",
-					"path": "./admin/licensing/README.md",
+					"path": "./admin/licensing/index.md",
 					"icon_path": "./images/icons/licensing.svg"
 				}
 			]
@@ -582,7 +582,7 @@
 		{
 			"title": "Tutorials",
 			"description": "Coder knowledgebase for administrating your deployment",
-			"path": "./tutorials/README.md",
+			"path": "./tutorials/index.md",
 			"icon_path": "./images/icons/generic.svg",
 			"children": [
 				{
@@ -655,13 +655,13 @@
 		{
 			"title": "Reference",
 			"description": "Reference",
-			"path": "./reference/README.md",
+			"path": "./reference/index.md",
 			"icon_path": "./images/icons/notes.svg",
 			"children": [
 				{
 					"title": "REST API",
 					"description": "Learn how to use Coderd API",
-					"path": "./reference/api/README.md",
+					"path": "./reference/api/index.md",
 					"icon_path": "./images/icons/api.svg",
 					"children": [
 						{
@@ -749,7 +749,7 @@
 				{
 					"title": "Command Line",
 					"description": "Learn how to use Coder CLI",
-					"path": "./reference/cli/README.md",
+					"path": "./reference/cli/index.md",
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
 						{
@@ -759,7 +759,7 @@
 						},
 						{
 							"title": "coder",
-							"path": "reference/cli/README.md"
+							"path": "reference/cli/index.md"
 						},
 						{
 							"title": "completion",
@@ -1323,7 +1323,7 @@
 				{
 					"title": "Agent API",
 					"description": "Learn how to use Coder Agent API",
-					"path": "./reference/agent-api/README.md",
+					"path": "./reference/agent-api/index.md",
 					"icon_path": "./images/icons/api.svg",
 					"children": [
 						{

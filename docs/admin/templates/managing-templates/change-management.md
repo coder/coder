@@ -92,4 +92,4 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
 
 - [Coder CLI Reference](../../../reference/cli/templates.md)
 - [Coderd Terraform Provider Reference](https://registry.terraform.io/providers/coder/coderd/latest/docs)
-- [Coderd API Reference](../../../reference/README.md)
+- [Coderd API Reference](../../../reference/index.md)

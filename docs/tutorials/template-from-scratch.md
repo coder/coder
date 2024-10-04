@@ -11,8 +11,8 @@ with Ubuntu.
 To follow this guide, you'll need:
 
 - A computer or cloud computing instance with both
-  [Docker](https://docs.docker.com/get-docker/) and
-  [Coder](../install/README.md) installed on it.
+  [Docker](https://docs.docker.com/get-docker/) and [Coder](../install/index.md)
+  installed on it.
 
 > When setting up your computer or computing instance, make sure to install
 > Docker first, then Coder. Otherwise, you'll need to add the `coder` user to
@@ -415,6 +415,6 @@ template is ready to use for new workspaces.
 
 ## Next steps
 
-- [Setting up templates](../admin/templates/README.md)
-- [Customizing templates](../admin/templates/extending-templates/README.md)
+- [Setting up templates](../admin/templates/index.md)
+- [Customizing templates](../admin/templates/extending-templates/index.md)
 - [Troubleshooting template](../admin/templates/troubleshooting.md)

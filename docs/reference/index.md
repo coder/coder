@@ -2,14 +2,14 @@
 
 # Automation
 
-All actions possible through the Coder dashboard can also be automated. There are several ways to extend/automate
-Coder:
+All actions possible through the Coder dashboard can also be automated. There
+are several ways to extend/automate Coder:
 
 - [coderd Terraform Provider](https://registry.terraform.io/providers/coder/coderd/latest)
-- [CLI](../reference/cli/README.md)
-- [REST API](../reference/api/README.md)
+- [CLI](../reference/cli/index.md)
+- [REST API](../reference/api/index.md)
 - [Coder SDK](https://pkg.go.dev/github.com/coder/coder/v2/codersdk)
-- [Agent API](../reference/agent-api/README.md)
+- [Agent API](../reference/agent-api/index.md)
 
 ## Quickstart
 
@@ -35,7 +35,7 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 
 ## Documentation
 
-We publish an [API reference](../reference/api/README.md) in our documentation.
+We publish an [API reference](../reference/api/index.md) in our documentation.
 You can also enable a
 [Swagger endpoint](../reference/cli/server.md#--swagger-enable) on your Coder
 deployment.

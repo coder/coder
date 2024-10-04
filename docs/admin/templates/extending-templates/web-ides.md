@@ -212,8 +212,8 @@ module "jupyter" {
 ```
 
 If you cannot enable a
-[wildcard subdomain](../../../admin/setup/README.md#wildcard-access-url), you
-can configure the template to run Jupyter on a path. There is however
+[wildcard subdomain](../../../admin/setup/index.md#wildcard-access-url), you can
+configure the template to run Jupyter on a path. There is however
 [security risk](../../../reference/cli/server#--dangerous-allow-path-app-sharing)
 running an app on a path and the template code is more complicated with coder
 value substitution to recreate the path structure.

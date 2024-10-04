@@ -61,18 +61,19 @@ by default.
 
 ### User
 
-A [user](../../users/README.md) is an individual who utilizes the Coder platform to
-develop, test, and deploy applications using workspaces. Users can select
+A [user](../../users/index.md) is an individual who utilizes the Coder platform
+to develop, test, and deploy applications using workspaces. Users can select
 available templates to provision workspaces. They interact with Coder using the
 web interface, the CLI tool, or directly calling API methods.
 
 ### Workspace
 
-A [workspace](../../../user-guides/workspace-creation.md) refers to an isolated development environment
-where users can write, build, and run code. Workspaces are fully configurable
-and can be tailored to specific project requirements, providing developers with
-a consistent and efficient development environment. Workspaces can be
-autostarted and autostopped, enabling efficient resource management.
+A [workspace](../../../user-guides/workspace-creation.md) refers to an isolated
+development environment where users can write, build, and run code. Workspaces
+are fully configurable and can be tailored to specific project requirements,
+providing developers with a consistent and efficient development environment.
+Workspaces can be autostarted and autostopped, enabling efficient resource
+management.
 
 Users can connect to workspaces using SSH or via workspace applications like
 `code-server`, facilitating collaboration and remote access. Additionally,
@@ -82,22 +83,24 @@ Coder templates and deployed on resources created by provisioners.
 
 ### Template
 
-A [template](../../../admin/templates/README.md) in Coder is a predefined configuration
-for creating workspaces. Templates streamline the process of workspace creation
-by providing pre-configured settings, tooling, and dependencies. They are built
-by template administrators on top of Terraform, allowing for efficient
-management of infrastructure resources. Additionally, templates can utilize
-Coder modules to leverage existing features shared with other templates,
-enhancing flexibility and consistency across deployments. Templates describe
-provisioning rules for infrastructure resources offered by Terraform providers.
+A [template](../../../admin/templates/index.md) in Coder is a predefined
+configuration for creating workspaces. Templates streamline the process of
+workspace creation by providing pre-configured settings, tooling, and
+dependencies. They are built by template administrators on top of Terraform,
+allowing for efficient management of infrastructure resources. Additionally,
+templates can utilize Coder modules to leverage existing features shared with
+other templates, enhancing flexibility and consistency across deployments.
+Templates describe provisioning rules for infrastructure resources offered by
+Terraform providers.
 
 ### Workspace Proxy
 
-A [workspace proxy](../../../admin/networking/workspace-proxies.md) serves as a relay connection option
-for developers connecting to their workspace over SSH, a workspace app, or
-through port forwarding. It helps reduce network latency for geo-distributed
-teams by minimizing the distance network traffic needs to travel. Notably,
-workspace proxies do not handle dashboard connections or API calls.
+A [workspace proxy](../../../admin/networking/workspace-proxies.md) serves as a
+relay connection option for developers connecting to their workspace over SSH, a
+workspace app, or through port forwarding. It helps reduce network latency for
+geo-distributed teams by minimizing the distance network traffic needs to
+travel. Notably, workspace proxies do not handle dashboard connections or API
+calls.
 
 ### Provisioner
 
@@ -297,8 +300,9 @@ considerations:
   active users.
 - Enable High Availability mode for database engine for large scale deployments.
 
-If you enable [database encryption](../../../admin/security/database-encryption.md) in Coder, consider
-allocating an additional CPU core to every `coderd` replica.
+If you enable
+[database encryption](../../../admin/security/database-encryption.md) in Coder,
+consider allocating an additional CPU core to every `coderd` replica.
 
 #### Resource utilization guidelines
 
@@ -320,8 +324,8 @@ could affect workspace users experience once the platform is live.
 
 ### Helm Chart Configuration
 
-1. Reference our [Helm chart values file](../../../../helm/coder/values.yaml) and
-   identify the required values for deployment.
+1. Reference our [Helm chart values file](../../../../helm/coder/values.yaml)
+   and identify the required values for deployment.
 1. Create a `values.yaml` and add it to your version control system.
 1. Determine the necessary environment variables. Here is the
    [full list of supported server environment variables](../../../reference/cli/server.md).
@@ -336,11 +340,10 @@ could affect workspace users experience once the platform is live.
    [version control](../../templates/managing-templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template
    versions into Coder from git. For example, on Github, you can use the
-   [Setup Coder](https://github.com/marketplace/actions/setup-coder)
-   action.
+   [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
 1. Evaluate enabling
-   [automatic template updates](../../workspaces/README.md#update-policies)
-   upon workspace startup.
+   [automatic template updates](../../workspaces/index.md#update-policies) upon
+   workspace startup.
 
 ### Observability
 
@@ -351,13 +354,13 @@ could affect workspace users experience once the platform is live.
    leverage pre-configured dashboards, alerts, and runbooks for monitoring
    Coder. This includes integrations between Prometheus, Grafana, Loki, and
    Alertmanager.
-1. Review the [Prometheus response](../../integrations/prometheus.md) and set up alarms on
-   selected metrics.
+1. Review the [Prometheus response](../../integrations/prometheus.md) and set up
+   alarms on selected metrics.
 
 ### User support
 
-1. Incorporate [support links](../../setup/appearance.md#support-links) into internal
-   documentation accessible from the user context menu. Ensure that hyperlinks
-   are valid and lead to up-to-date materials.
+1. Incorporate [support links](../../setup/appearance.md#support-links) into
+   internal documentation accessible from the user context menu. Ensure that
+   hyperlinks are valid and lead to up-to-date materials.
 1. Encourage the use of `coder support bundle` to allow workspace users to
    generate and provide network-related diagnostic data.

@@ -1,15 +1,15 @@
 # Working with templates
 
-You create and edit Coder templates as [Terraform](../../../start/coder-tour.md) configuration
-files (`.tf`) and any supporting files, like a README or configuration files for
-other services.
+You create and edit Coder templates as [Terraform](../../../start/coder-tour.md)
+configuration files (`.tf`) and any supporting files, like a README or
+configuration files for other services.
 
 ## Who creates templates?
 
-The [Template Admin](../../../admin/users/groups-roles.md#roles) role (and above) can create templates.
-End users, like developers, create workspaces from them. Templates can also be
-[managed with git](./change-management.md), allowing any developer to propose
-changes to a template.
+The [Template Admin](../../../admin/users/groups-roles.md#roles) role (and
+above) can create templates. End users, like developers, create workspaces from
+them. Templates can also be [managed with git](./change-management.md), allowing
+any developer to propose changes to a template.
 
 You can give different users and groups access to templates with
 [role-based access control](../admin/rbac.md).
@@ -24,7 +24,7 @@ here!
 
 ![Starter templates](../../../images/start/starter-templates.png)
 
-If you prefer to use Coder on the [command line](../../reference/cli/README.md),
+If you prefer to use Coder on the [command line](../../reference/cli/index.md),
 `coder templates init`.
 
 > Coder starter templates are also available on our
@@ -72,8 +72,9 @@ automatically updated on the next startup.
 ## Delete templates
 
 You can delete a template using both the coder CLI and UI. Only
-[template admins and owners](../../users/groups-roles.md#roles) can delete a template, and the
-template must not have any running workspaces associated to it.
+[template admins and owners](../../users/groups-roles.md#roles) can delete a
+template, and the template must not have any running workspaces associated to
+it.
 
 In the UI, navigate to the template you want to delete, and select the dropdown
 in the right-hand corner of the page to delete the template.

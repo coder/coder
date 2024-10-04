@@ -1,6 +1,9 @@
 # Users
 
-By default, Coder is accessible via password authentication. For production deployments, we recommend using an SSO authentication provider with multi-factor authentication (MFA). It is your responsibility to ensure the auth provider enforces MFA correctly.
+By default, Coder is accessible via password authentication. For production
+deployments, we recommend using an SSO authentication provider with multi-factor
+authentication (MFA). It is your responsibility to ensure the auth provider
+enforces MFA correctly.
 
 ## Configuring SSO
 
@@ -9,14 +12,19 @@ By default, Coder is accessible via password authentication. For production depl
 
 ## Groups
 
-Multiple users can be organized into logical groups to control which templates they can use. While groups can be manually created in Coder, we recommend syncing them from your identity provider.
+Multiple users can be organized into logical groups to control which templates
+they can use. While groups can be manually created in Coder, we recommend
+syncing them from your identity provider.
 
 - [Learn more about Groups](./groups-roles.md)
 - [Group & Role Sync](./group-sync.md)
 
 ## Roles
 
-Roles determine which actions users can take within the platform. Typically, most developers in your organization have the `Member` role, allowing them to create workspaces. Other roles have administrative capabilities such as auditing, managing users, and managing templates.
+Roles determine which actions users can take within the platform. Typically,
+most developers in your organization have the `Member` role, allowing them to
+create workspaces. Other roles have administrative capabilities such as
+auditing, managing users, and managing templates.
 
 - [Learn more about Roles](./groups-roles.md)
 - [Group & Role Sync](./group-sync.md)

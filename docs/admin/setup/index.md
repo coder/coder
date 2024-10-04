@@ -40,10 +40,9 @@ coder server
 ## Wildcard access URL
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for
-[port forwarding](../networking/port-forwarding.md#dashboard) via the
-dashboard or running [coder_apps](../templates/README.md) on an absolute
-path. Set this to a wildcard subdomain that resolves to Coder (e.g.
-`*.coder.example.com`).
+[port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard
+or running [coder_apps](../templates/index.md) on an absolute path. Set this to
+a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
 If you are providing TLS certificates directly to the Coder server, either
 
@@ -62,9 +61,9 @@ The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and
 accompanying configuration flags. However, Coder can also run behind a
 reverse-proxy to terminate TLS certificates from LetsEncrypt, for example.
 
-- [Apache](./web-server/apache/README.md)
-- [Caddy](./web-server/caddy/README.md)
-- [NGINX](./web-server/nginx/README.md)
+- [Apache](./web-server/apache/index.md)
+- [Caddy](./web-server/caddy/index.md)
+- [NGINX](./web-server/nginx/index.md)
 
 ### Kubernetes TLS configuration
 
@@ -145,10 +144,10 @@ integrations with git providers, such as GitHub, GitLab, and Bitbucket etc.
 External authentication can also be used to integrate with external services
 like JFrog Artifactory and others.
 
-Please refer to the [external authentication](../external-auth.md) section
-for more information.
+Please refer to the [external authentication](../external-auth.md) section for
+more information.
 
 ## Up Next
 
-- [Learn how to setup and manage templates](../templates/README.md)
+- [Learn how to setup and manage templates](../templates/index.md)
 - [Setup external provisioners](../provisioners.md)

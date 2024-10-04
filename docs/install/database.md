@@ -21,7 +21,7 @@ CREATE DATABASE coder;
 ```
 
 Coder configuration is defined via
-[environment variables](../admin/setup/README.md). The database client requires
+[environment variables](../admin/setup/index.md). The database client requires
 the connection string provided via the `CODER_PG_CONNECTION_URL` variable.
 
 ```shell
@@ -91,5 +91,5 @@ psql -U coder -c '\dn'
 
 ## Next steps
 
-- [Configuring Coder](../admin/setup/README.md)
-- [Templates](../admin/templates/README.md)
+- [Configuring Coder](../admin/setup/index.md)
+- [Templates](../admin/templates/index.md)
