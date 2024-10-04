@@ -114,13 +114,13 @@ To set a workspace's schedule, go to the workspace, then **Settings** >
 Coder might also stop a workspace automatically if there is a
 [template update](./admin/templates/index.md#Start/stop) available.
 
-Learn more about [workspace lifecycle](../admin/workspaces/lifecycle.md) and our
+Learn more about [workspace lifecycle](./workspace-lifecycle.md) and our
 [scheduling features](./workspace-scheduling.md).
 
 ## Workspace resources
 
 Workspaces in Coder are started and stopped, often based on whether there was
-any activity or if there was a [template update](./admin/templates/index.md)
+any activity or if there was a [template update](../admin/templates/index.md)
 available.
 
 Resources are often destroyed and re-created when a workspace is restarted,

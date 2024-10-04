@@ -60,7 +60,7 @@ as [JetBrains](./workspace-access/jetbrains.md) or
 
 Once started, the Coder agent is responsible for running your workspace startup
 scripts. These may configure tools, service connections, or personalization with
-[dotfiles](.workspace-dotfiles.md).
+[dotfiles](./workspace-dotfiles.md).
 
 Once these steps have completed, your workspace will now be in the `Running`
 state. You can access it via any of the [supported methods](./index.md), stop it
@@ -85,7 +85,7 @@ and ephemeral resources. This action can not be reverted.
 
 When enabled on enterprise deployments, workspaces will become dormant after a
 specified duration of inactivity. Then, if left dormant, the workspaces will be
-queued for deletion. Learn about configuraing workspace dormancy in the template
+queued for deletion. Learn about configuring workspace dormancy in the template
 scheduling docs.
 
 ### Orphan resources
