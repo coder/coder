@@ -2,8 +2,6 @@
 
 ## Port forwarding
 
-<!-- TODO: Potentially break port management into subsection -->
-
 Port forwarding lets developers securely access processes on their Coder
 workspace from a local machine. A common use case is testing web applications in
 a browser.

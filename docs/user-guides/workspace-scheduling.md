@@ -30,6 +30,8 @@ Use autostart to start a workspace at a specified time and which days of the
 week. Also, you can choose your preferred timezone. Admins may restrict which
 days of the week your workspace is allowed to autostart.
 
+![Autostart UI](../images/workspaces/autostart.png)
+
 ## Autostop
 
 Use autostop to stop a workspace after a number of hours. Autostop won't stop a
@@ -39,7 +41,7 @@ modify the inactivity timeout duration with the
 [inactivity bump](#inactivity-timeout) template setting. Coder checks for active
 connections in the IDE, SSH, Port Forwarding, and coder_app.
 
-![Autostop UI](../images/autostop.png)
+![Autostop UI](../images/workspaces/autostop.png)
 
 ## Inactivity timeout
 
@@ -106,4 +108,3 @@ workspaces will remain in the dormant state before automatic deletion.
 
 Enterprise admins may also configure failure cleanup, which will automatically
 delete workspaces that remain in a `failed` state for too long.
-

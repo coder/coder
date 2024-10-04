@@ -131,6 +131,12 @@
 					]
 				},
 				{
+					"title": "Workspace Management",
+					"description": "Manage workspaces",
+					"path": "./user-guides/workspace-management.md"
+					// "icon_path": "./images/icons/.svg"
+				},
+				{
 					"title": "Workspace Scheduling",
 					"description": "Cost control with workspace schedules",
 					"path": "./user-guides/workspace-scheduling.md",

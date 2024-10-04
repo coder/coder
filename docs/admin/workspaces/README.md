@@ -85,3 +85,52 @@ Enterprise admins may apply bulk operations (update, delete, start, stop) in the
 The start and stop operations can only be applied to a set of workspaces which are all in the same state. For update and delete, the user will be prompted for confirmation before any action is taken.
 
 ![Bulk workspace actions](../../images/user-guides/workspace-bulk-actions.png)
+
+## Repairing workspaces
+
+Use the following command to re-enter template input variables in an existing
+workspace. This command is useful when a workspace fails to build because its
+state is out of sync with the template.
+
+```shell
+coder update <your workspace name> --always-prompt
+```
+
+First, try re-entering parameters from a workspace. In the Coder UI, you can
+filter your workspaces using pre-defined filters or employing the Coder's filter
+query. Take a look at the following examples to understand how to use the
+Coder's filter query:
+
+- To find the workspaces that you own, use the filter `owner:me`.
+- To find workspaces that are currently running, use the filter
+  `status:running`.
+
+![Re-entering template variables](../../images/templates/template-variables.png)
+
+You can also do this in the CLI with the following command:
+
+```shell
+coder update <your workspace name> --always-prompt
+```
+
+If that does not work, a Coder admin can manually push and pull the Terraform
+state for a given workspace. This can lead to state corruption or deleted
+resources if you do not know what you are doing.
+
+```shell
+coder state pull <username>/<workspace name>
+# Make changes
+coder state push <username>/<workspace name>
+```
+
+## Logging
+
+Coder stores macOS and Linux logs at the following locations:
+
+| Service           | Location                         |
+| ----------------- | -------------------------------- |
+| `startup_script`  | `/tmp/coder-startup-script.log`  |
+| `shutdown_script` | `/tmp/coder-shutdown-script.log` |
+| Agent             | `/tmp/coder-agent.log`           |
+
+> Note: Logs are truncated once they reach 5MB in size.

@@ -8,17 +8,11 @@ You can see the primary methods of connecting to your workspace in the workspace
 
 ![Workspace View](../../images/user-guides/workspace-view-connection-annotated.png)
 
-<!-- ## Coder Apps
-
-TODO: Is this relevant?
-
-Coder Apps (from our [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) resource in terraform) provide IDE connections and the Terminal. Coder Apps can connect you to ports or run commands on the remote workspace. They be shared with other users by copying the URL from the button. Contact your template administrator if you have IDEs or tools you'd like added into your workspace.
-
- , and can be extended with our [Module Registry](https://registry.coder.com/modules). -->
-
 ## Terminal
 
 The terminal is implicitly enabled in Coder and allows you to access your workspace through the shell environment set by your template.
+
+![Terminal Access](../../images/user-guides/terminal-access.png)
 
 ## SSH
 
@@ -96,9 +90,7 @@ VS Code in the web browser. You can read more in our [documentation for code-ser
 
 ## Other Web IDEs
 
-<!-- TODO: update template guides link -->
-
-We support a variety of other browser IDEs and tools to interact with your workspace. Each of these can be configured by your template admin using our [Web IDE guides](../../admin/templates/README.md).
+We support a variety of other browser IDEs and tools to interact with your workspace. Each of these can be configured by your template admin using our [Web IDE guides](../../admin/templates/extending-templates/web-ides.md).
 
 Supported IDEs:
 
@@ -115,8 +107,6 @@ Our [Module Registry](https://registry.coder.com/modules) also hosts a variety o
 You can manage listening ports on your workspace page through with the listening ports window in the dashboard. These ports are often used to run internal services or preview environments.
 
 You can also [share ports](./port-forwarding.md#sharing-ports) with other users, or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through the CLI with `coder port forward`. Read more in the [docs on workspace ports](./port-forwarding.md).
-
-<!-- TODO: Outdated screenshot -->
 
 ![Open Ports window](../../images/networking/listeningports.png)
 

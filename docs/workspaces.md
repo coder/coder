@@ -1,6 +1,10 @@
 # Workspaces
 
-<!-- TODO: ENSURE THIS CONTENT IS COPIED IN RESTRUCTURE -->
+<!-- TODO: audit
+- Creating workspaces -> user-guides/workspace-management.md
+- Filtering workspaces -> user-guides/workspace-management.md
+- Starting and Stopping workspaces  -> user-guides/workspace-management.md -> user-guides/workspace-scheduling.md
+ -->
 
 A workspace is the environment that a developer works in. Developers in a team
 each work from their own workspace and can use
