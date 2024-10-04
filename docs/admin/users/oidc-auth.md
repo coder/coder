@@ -3,13 +3,13 @@
 The following steps through how to integrate any OpenID Connect provider (Okta,
 Active Directory, etc.) to Coder.
 
-### Step 1: Set Redirect URI with your OIDC provider
+## Step 1: Set Redirect URI with your OIDC provider
 
 Your OIDC provider will ask you for the following parameter:
 
 - **Redirect URI**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
 
-### Step 2: Configure Coder with the OpenID Connect credentials
+## Step 2: Configure Coder with the OpenID Connect credentials
 
 Navigate to your Coder host and run the following command to start up the Coder
 server:
@@ -119,7 +119,7 @@ CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
 
 To change the icon and text above the OpenID Connect button, see application
-name and logo url in [appearance](../setup/appearance.md) settings.
+name and logo url in [appearance](./appearance.md) settings.
 
 ## Disable Built-in Authentication
 
@@ -130,12 +130,13 @@ your Coder deployment:
 CODER_DISABLE_PASSWORD_AUTH=true
 ```
 
-## SCIM (enterprise)
+## SCIM (enterprise) (premium)
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are
-[suspended](../users/index.md#suspend-a-user) and are not deleted. Configure
-your SCIM application with an auth key and supply it the Coder server.
+[suspended](./users.md#suspend-a-user) and are not deleted.
+[Configure](./configure.md) your SCIM application with an auth key and supply it
+the Coder server.
 
 ```env
 CODER_SCIM_AUTH_HEADER="your-api-key"
