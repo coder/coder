@@ -2,9 +2,9 @@
 
 Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
 come from our community and enterprise customers, feel free to
-[contribute to this page](https://github.com/coder/coder/edit/main/docs/faqs.md).
+[contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
 
-### How do I add an enterprise license?
+### How do I add a premium license?
 
 Visit https://coder.com/trial or contact
 [sales@coder.com](mailto:sales@coder.com?subject=License) to get a v2 enterprise
