@@ -612,7 +612,7 @@
 				{
 					"title": "Security",
 					"description": "Our guide for security",
-					"path": "./contributing/security.md",
+					"path": "./contributing/SECURITY.md",
 					"icon_path": "./images/icons/lock.svg"
 				}
 			]
