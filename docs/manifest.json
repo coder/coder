@@ -83,6 +83,12 @@
 					"description": "Learn how to upgrade Coder",
 					"path": "./install/upgrade.md",
 					"icon_path": "./images/icons/upgrade.svg"
+				},
+				{
+					"title": "Uninstall",
+					"description": "Learn how to uninstall Coder",
+					"path": "./install/uninstall.md",
+					"icon_path": "./images/icons/trash.svg"
 				}
 			]
 		},
