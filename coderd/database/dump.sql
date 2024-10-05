@@ -37,7 +37,8 @@ CREATE TYPE build_reason AS ENUM (
 );
 
 CREATE TYPE crypto_key_feature AS ENUM (
-    'workspace_apps',
+    'workspace_apps_token',
+    'workspace_apps_api_key',
     'oidc_convert',
     'tailnet_resume'
 );

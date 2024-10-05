@@ -236,7 +236,7 @@ func TestJWS(t *testing.T) {
 			ctx   = testutil.Context(t, testutil.WaitShort)
 			db, _ = dbtestutil.NewDB(t)
 			_     = dbgen.CryptoKey(t, db, database.CryptoKey{
-				Feature:  database.CryptoKeyFeatureOidcConvert,
+				Feature:  database.CryptoKeyFeatureOIDCConvert,
 				StartsAt: time.Now(),
 			})
 			log     = slogtest.Make(t, nil)
@@ -326,7 +326,7 @@ func TestJWE(t *testing.T) {
 			ctx   = testutil.Context(t, testutil.WaitShort)
 			db, _ = dbtestutil.NewDB(t)
 			_     = dbgen.CryptoKey(t, db, database.CryptoKey{
-				Feature:  database.CryptoKeyFeatureWorkspaceApps,
+				Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 				StartsAt: time.Now(),
 			})
 			log = slogtest.Make(t, nil)

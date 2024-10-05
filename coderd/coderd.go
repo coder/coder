@@ -616,7 +616,10 @@ func New(options *Options) *API {
 		api.Logger.Fatal(api.ctx, "start key rotator", slog.Error(err))
 	}
 
-	api.oauthConvertKeycache = cryptokeys.NewDBCache(api.Logger.Named("oauth_convert_keycache"), api.Database, database.CryptoKeyFeatureOidcConvert)
+	api.oauthConvertKeycache, err = cryptokeys.NewSigningCache(api.Logger.Named("oauth_convert_keycache"), api.Database, database.CryptoKeyFeatureOIDCConvert)
+	if err != nil {
+		api.Logger.Fatal(api.ctx, "failed to initialize oauth convert key cache", slog.Error(err))
+	}
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
 		Database:              options.Database,
@@ -1402,7 +1405,7 @@ type API struct {
 	// resumeTokenKeycache is used to fetch and cache keys used for signing JWTs
 	// oauthConvertKeycache is used to fetch and cache keys used for signing JWTs
 	// during OAuth conversions. See userauth.go.convertUserToOauth.
-	oauthConvertKeycache cryptokeys.Keycache
+	oauthConvertKeycache cryptokeys.SigningKeycache
 }
 
 // Close waits for all WebSocket connections to drain before returning.

@@ -915,14 +915,14 @@ func TestGetCryptoKeys(t *testing.T) {
 		now := time.Now()
 
 		expectedKey1 := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-time.Hour),
 			Sequence: 2,
 		})
 		key1 := db2sdk.CryptoKey(expectedKey1)
 
 		expectedKey2 := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now,
 			Sequence: 3,
 		})
@@ -930,7 +930,7 @@ func TestGetCryptoKeys(t *testing.T) {
 
 		// Create a deleted key.
 		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-time.Hour),
 			Secret: sql.NullString{
 				String: "secret1",
@@ -946,7 +946,7 @@ func TestGetCryptoKeys(t *testing.T) {
 			Sequence: 1,
 		})
 		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureOidcConvert,
+			Feature:  database.CryptoKeyFeatureOIDCConvert,
 			StartsAt: now.Add(-time.Hour),
 			Sequence: 1,
 		})

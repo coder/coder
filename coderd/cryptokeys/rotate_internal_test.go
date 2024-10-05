@@ -38,7 +38,7 @@ func Test_rotateKeys(t *testing.T) {
 			clock:       clock,
 			logger:      logger,
 			features: []database.CryptoKeyFeature{
-				database.CryptoKeyFeatureWorkspaceApps,
+				database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			},
 		}
 
@@ -46,7 +46,7 @@ func Test_rotateKeys(t *testing.T) {
 
 		// Seed the database with an existing key.
 		oldKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now,
 			Sequence: 15,
 		})
@@ -69,11 +69,11 @@ func Test_rotateKeys(t *testing.T) {
 
 		// The new key should be created and have a starts_at of the old key's expires_at.
 		newKey, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: oldKey.Sequence + 1,
 		})
 		require.NoError(t, err)
-		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceApps, oldKey.ExpiresAt(keyDuration), nullTime, oldKey.Sequence+1)
+		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceAppsAPIKey, oldKey.ExpiresAt(keyDuration), nullTime, oldKey.Sequence+1)
 
 		// Advance the clock just before the keys delete time.
 		clock.Advance(oldKey.DeletesAt.Time.UTC().Sub(now) - time.Second)
@@ -123,7 +123,7 @@ func Test_rotateKeys(t *testing.T) {
 			clock:       clock,
 			logger:      logger,
 			features: []database.CryptoKeyFeature{
-				database.CryptoKeyFeatureWorkspaceApps,
+				database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			},
 		}
 
@@ -131,7 +131,7 @@ func Test_rotateKeys(t *testing.T) {
 
 		// Seed the database with an existing key
 		existingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now,
 			Sequence: 123,
 		})
@@ -179,7 +179,7 @@ func Test_rotateKeys(t *testing.T) {
 			clock:       clock,
 			logger:      logger,
 			features: []database.CryptoKeyFeature{
-				database.CryptoKeyFeatureWorkspaceApps,
+				database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			},
 		}
 
@@ -187,7 +187,7 @@ func Test_rotateKeys(t *testing.T) {
 
 		// Seed the database with an existing key
 		deletingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-keyDuration),
 			Sequence: 789,
 			DeletesAt: sql.NullTime{
@@ -232,7 +232,7 @@ func Test_rotateKeys(t *testing.T) {
 			clock:       clock,
 			logger:      logger,
 			features: []database.CryptoKeyFeature{
-				database.CryptoKeyFeatureWorkspaceApps,
+				database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			},
 		}
 
@@ -240,7 +240,7 @@ func Test_rotateKeys(t *testing.T) {
 
 		// Seed the database with an existing key
 		deletingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now,
 			Sequence: 456,
 			DeletesAt: sql.NullTime{
@@ -281,7 +281,7 @@ func Test_rotateKeys(t *testing.T) {
 			clock:       clock,
 			logger:      logger,
 			features: []database.CryptoKeyFeature{
-				database.CryptoKeyFeatureWorkspaceApps,
+				database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			},
 		}
 
@@ -291,7 +291,7 @@ func Test_rotateKeys(t *testing.T) {
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
-		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, clock.Now().UTC(), nullTime, 1)
+		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceAppsAPIKey, clock.Now().UTC(), nullTime, 1)
 	})
 
 	// Assert we insert a new key when the only key was manually deleted.
@@ -312,14 +312,14 @@ func Test_rotateKeys(t *testing.T) {
 			clock:       clock,
 			logger:      logger,
 			features: []database.CryptoKeyFeature{
-				database.CryptoKeyFeatureWorkspaceApps,
+				database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			},
 		}
 
 		now := dbnow(clock)
 
 		deletedkey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now,
 			Sequence: 19,
 			DeletesAt: sql.NullTime{
@@ -338,7 +338,7 @@ func Test_rotateKeys(t *testing.T) {
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
-		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceApps, now, nullTime, deletedkey.Sequence+1)
+		requireKey(t, keys[0], database.CryptoKeyFeatureWorkspaceAppsAPIKey, now, nullTime, deletedkey.Sequence+1)
 	})
 
 	// This tests ensures that rotation works with multiple
@@ -389,14 +389,14 @@ func Test_rotateKeys(t *testing.T) {
 
 		// Insert a key that should be rotated.
 		rotatedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-keyDuration + time.Hour),
 			Sequence: 42,
 		})
 
 		// Insert a key that should not trigger an action.
 		validKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureOidcConvert,
+			Feature:  database.CryptoKeyFeatureOIDCConvert,
 			StartsAt: now,
 			Sequence: 17,
 		})
@@ -412,20 +412,20 @@ func Test_rotateKeys(t *testing.T) {
 		require.NoError(t, err)
 
 		// No actions on OIDC convert.
-		require.Len(t, kbf[database.CryptoKeyFeatureOidcConvert], 1)
+		require.Len(t, kbf[database.CryptoKeyFeatureOIDCConvert], 1)
 		// Workspace apps should have been rotated.
-		require.Len(t, kbf[database.CryptoKeyFeatureWorkspaceApps], 2)
+		require.Len(t, kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey], 2)
 		// No existing key for tailnet resume should've
 		// caused a key to be inserted.
 		require.Len(t, kbf[database.CryptoKeyFeatureTailnetResume], 1)
 
-		oidcKey := kbf[database.CryptoKeyFeatureOidcConvert][0]
+		oidcKey := kbf[database.CryptoKeyFeatureOIDCConvert][0]
 		tailnetKey := kbf[database.CryptoKeyFeatureTailnetResume][0]
-		requireKey(t, oidcKey, database.CryptoKeyFeatureOidcConvert, now, nullTime, validKey.Sequence)
+		requireKey(t, oidcKey, database.CryptoKeyFeatureOIDCConvert, now, nullTime, validKey.Sequence)
 		requireKey(t, tailnetKey, database.CryptoKeyFeatureTailnetResume, now, nullTime, deletedKey.Sequence+1)
 
-		newKey := kbf[database.CryptoKeyFeatureWorkspaceApps][0]
-		oldKey := kbf[database.CryptoKeyFeatureWorkspaceApps][1]
+		newKey := kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey][0]
+		oldKey := kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey][1]
 		if newKey.Sequence == rotatedKey.Sequence {
 			oldKey, newKey = newKey, oldKey
 		}
@@ -433,8 +433,8 @@ func Test_rotateKeys(t *testing.T) {
 			Time:  rotatedKey.ExpiresAt(keyDuration).Add(WorkspaceAppsTokenDuration + time.Hour),
 			Valid: true,
 		}
-		requireKey(t, oldKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.StartsAt.UTC(), deletesAt, rotatedKey.Sequence)
-		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceApps, rotatedKey.ExpiresAt(keyDuration), nullTime, rotatedKey.Sequence+1)
+		requireKey(t, oldKey, database.CryptoKeyFeatureWorkspaceAppsAPIKey, rotatedKey.StartsAt.UTC(), deletesAt, rotatedKey.Sequence)
+		requireKey(t, newKey, database.CryptoKeyFeatureWorkspaceAppsAPIKey, rotatedKey.ExpiresAt(keyDuration), nullTime, rotatedKey.Sequence+1)
 	})
 
 	t.Run("UnknownFeature", func(t *testing.T) {
@@ -478,11 +478,11 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			features:    []database.CryptoKeyFeature{database.CryptoKeyFeatureWorkspaceApps},
+			features:    []database.CryptoKeyFeature{database.CryptoKeyFeatureWorkspaceAppsAPIKey},
 		}
 
 		expiringKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-keyDuration),
 			Sequence: 345,
 		})
@@ -522,19 +522,19 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			features:    []database.CryptoKeyFeature{database.CryptoKeyFeatureWorkspaceApps},
+			features:    []database.CryptoKeyFeature{database.CryptoKeyFeatureWorkspaceAppsAPIKey},
 		}
 
 		now := dbnow(clock)
 
 		expiredKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-keyDuration - 2*time.Hour),
 			Sequence: 19,
 		})
 
 		deletedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now,
 			Sequence: 20,
 			Secret: sql.NullString{
@@ -587,9 +587,9 @@ func requireKey(t *testing.T, key database.CryptoKey, feature database.CryptoKey
 	require.NoError(t, err)
 
 	switch key.Feature {
-	case database.CryptoKeyFeatureOidcConvert:
+	case database.CryptoKeyFeatureOIDCConvert:
 		require.Len(t, secret, 64)
-	case database.CryptoKeyFeatureWorkspaceApps:
+	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		require.Len(t, secret, 32)
 	case database.CryptoKeyFeatureTailnetResume:
 		require.Len(t, secret, 64)

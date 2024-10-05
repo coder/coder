@@ -229,9 +229,9 @@ func (k *rotator) rotateKey(ctx context.Context, tx database.Store, key database
 
 func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
 	switch feature {
-	case database.CryptoKeyFeatureWorkspaceApps:
+	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return generateKey(32)
-	case database.CryptoKeyFeatureOidcConvert:
+	case database.CryptoKeyFeatureOIDCConvert:
 		return generateKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateKey(64)
@@ -250,9 +250,9 @@ func generateKey(length int) (string, error) {
 
 func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 	switch feature {
-	case database.CryptoKeyFeatureWorkspaceApps:
+	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return WorkspaceAppsTokenDuration
-	case database.CryptoKeyFeatureOidcConvert:
+	case database.CryptoKeyFeatureOIDCConvert:
 		return OIDCConvertTokenDuration
 	case database.CryptoKeyFeatureTailnetResume:
 		return TailnetResumeTokenDuration

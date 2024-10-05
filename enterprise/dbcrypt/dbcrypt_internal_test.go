@@ -397,12 +397,12 @@ func TestCryptoKeys(t *testing.T) {
 		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
 			Secret: sql.NullString{String: "test", Valid: true},
 		})
-		key, err := crypt.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		key, err := crypt.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.Equal(t, "test", key.Secret.String)
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
 
-		key, err = db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		key, err = db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
@@ -415,7 +415,7 @@ func TestCryptoKeys(t *testing.T) {
 			Secret: sql.NullString{String: "test", Valid: true},
 		})
 		key, err := crypt.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: key.Sequence,
 		})
 		require.NoError(t, err)
@@ -423,7 +423,7 @@ func TestCryptoKeys(t *testing.T) {
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
 
 		key, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: key.Sequence,
 		})
 		require.NoError(t, err)
@@ -459,7 +459,7 @@ func TestCryptoKeys(t *testing.T) {
 			Secret:   sql.NullString{String: "test", Valid: true},
 		})
 		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 43,
 		})
 		keys, err := crypt.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureTailnetResume)
