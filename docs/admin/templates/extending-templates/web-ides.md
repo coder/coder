@@ -313,7 +313,7 @@ module "airflow" {
 }
 ```
 
-![Airflow in Coder](../../../../images/airflow-port-forward.png)
+![Airflow in Coder](../../../images/airflow-port-forward.png)
 
 ## File Browser
 
@@ -371,6 +371,6 @@ module "filebrowser" {
 ## SSH Fallback
 
 If you prefer to run web IDEs in localhost, you can port forward using
-[SSH](../ides.md#ssh) or the Coder CLI `port-forward` sub-command. Some web IDEs
-may not support URL base path adjustment so port forwarding is the only
-approach.
+[SSH](../../../user-guides/workspace-access/index.md#ssh) or the Coder CLI
+`port-forward` sub-command. Some web IDEs may not support URL base path
+adjustment so port forwarding is the only approach.
