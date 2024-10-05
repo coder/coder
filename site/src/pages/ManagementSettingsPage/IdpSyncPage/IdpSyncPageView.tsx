@@ -312,9 +312,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 											<Button
 												startIcon={<LaunchOutlined />}
 												component="a"
-												href={docs(
-													`/admin/users/idp-sync`,
-												)}
+												href={docs("/admin/users/idp-sync")}
 												target="_blank"
 											>
 												How to setup IdP {type} sync

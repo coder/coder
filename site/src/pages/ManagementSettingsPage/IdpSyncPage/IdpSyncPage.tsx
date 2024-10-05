@@ -85,9 +85,7 @@ export const IdpSyncPage: FC = () => {
 					<Paywall
 						message="IdP Sync"
 						description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
-						documentationLink={docs(
-							"/admin/users/idp-sync",
-						)}
+						documentationLink={docs("/admin/users/idp-sync")}
 					/>
 				</Cond>
 				<Cond>
