@@ -22,7 +22,7 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 			<SettingsHeader
 				title="Network"
 				description="Configure your deployment connectivity."
-				docsHref={docs("/networking")}
+				docsHref={docs("/admin/networking")}
 			/>
 			<OptionsTable
 				options={options.filter((o) =>
@@ -36,7 +36,7 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 				title="Port Forwarding"
 				secondary
 				description="Port forwarding lets developers securely access processes on their Coder workspace from a local machine."
-				docsHref={docs("/networking/port-forwarding")}
+				docsHref={docs("/admin/networking/port-forwarding")}
 			/>
 
 			<Badges>

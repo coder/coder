@@ -72,7 +72,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 							component="a"
 							target="_blank"
 							rel="noreferrer"
-							href={docs("/admin/notifications#webhook")}
+							href={docs("/admin/monitoring/notifications#webhook")}
 						>
 							Read the docs
 						</Button>
@@ -92,7 +92,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 							component="a"
 							target="_blank"
 							rel="noreferrer"
-							href={docs("/admin/notifications#smtp-email")}
+							href={docs("/admin/monitoring/notifications#smtp-email")}
 						>
 							Read the docs
 						</Button>

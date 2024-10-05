@@ -315,6 +315,9 @@ Breaking changes can be triggered in two ways:
 
 ### Security
 
+> If you find a vulnerability, **DO NOT FILE AN ISSUE**. Instead, send an email
+> to security@coder.com.
+
 The
 [`security`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Asecurity)
 label can be added to PRs that have, or will be, merged into `main`. Doing so
