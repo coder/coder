@@ -91,7 +91,7 @@ For deployments with multiple [organizations](./organizations.md), you must
 configure group sync at the organization level. In future Coder versions, you
 will be able to configure this in the UI. For now, you must use CLI commands.
 
-First confirm you have the [Coder CLI](../install/index.md) installed and are
+First confirm you have the [Coder CLI](../../install/index.md) installed and are
 logged in with a user who is an Owner or Organization Admin role. Next, confirm
 that your OIDC provider is sending a groups claim by logging in with OIDC and
 visiting the following URL:
@@ -172,7 +172,7 @@ coder organizations settings set group-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IDP Sync](../images/admin/organizations/group-sync.png)
+![IDP Sync](../../images/admin/organizations/group-sync.png)
 
 </div>
 
