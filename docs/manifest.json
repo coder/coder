@@ -100,7 +100,7 @@
 					"title": "Releases",
 					"description": "Learn about the Coder release channels and schedule",
 					"path": "./install/releases.md",
-					"icon_path": "./images/icons/trash.svg"
+					"icon_path": "./images/icons/star.svg"
 				}
 			]
 		},
