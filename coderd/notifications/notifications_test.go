@@ -684,7 +684,6 @@ func enumerateAllTemplates(t *testing.T) ([]string, error) {
 	return out, nil
 }
 
-func TestNotificationTemplatesCanRender(t *testing.T) {
 func TestNotificationTemplates_Golden(t *testing.T) {
 	t.Parallel()
 
