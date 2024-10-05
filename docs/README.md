@@ -114,8 +114,3 @@ AWS EC2, Azure, Google Cloud, Kubernetes, and more.
 
 - Coder is not a SaaS/fully-managed offering. You must host Coder on a cloud
   service (AWS, Azure, GCP) or your private data center.
-
-## Up next
-
-- Learn about [Templates](./admin/templates/index.md)
-- [Install Coder](./install/index.md)
