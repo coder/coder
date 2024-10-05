@@ -82,7 +82,7 @@ creating VM-based workspaces.
 
 ![Modify IAM role](../../images/platforms/aws/aws-linux.png)
 
-## Next steps
+### Next steps
 
 - [IDEs with Coder](../../user-guides/workspace-access/index.md)
 - [Writing custom templates for Coder](../../admin/templates/index.md)

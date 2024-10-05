@@ -100,7 +100,7 @@
 					"title": "Releases",
 					"description": "Learn about the Coder release channels and schedule",
 					"path": "./install/releases.md",
-					"icon_path": "./images/icons/trash.svg"
+					"icon_path": "./images/icons/star.svg"
 				}
 			]
 		},
@@ -145,6 +145,11 @@
 							"title": "Filebrowser",
 							"description": "Access your workspace files",
 							"path": "./user-guides/workspace-access/filebrowser.md"
+						},
+						{
+							"title": "Web IDEs and Coder Apps",
+							"description": "Access your workspace with IDEs in the browser",
+							"path": "./user-guides/workspace-access/web-ides.md"
 						}
 					]
 				},

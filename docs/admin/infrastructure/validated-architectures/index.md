@@ -324,7 +324,8 @@ could affect workspace users experience once the platform is live.
 
 ### Helm Chart Configuration
 
-1. Reference our [Helm chart values file](../../../../helm/coder/values.yaml)
+1. Reference our
+   [Helm chart values file](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
    and identify the required values for deployment.
 1. Create a `values.yaml` and add it to your version control system.
 1. Determine the necessary environment variables. Here is the
