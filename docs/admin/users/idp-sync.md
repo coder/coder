@@ -215,7 +215,7 @@ Next configure the Coder server to read groups from the claim name with the
 [OIDC role field](../../reference/cli/server.md#--oidc-user-role-field) server
 flag:
 
-Set the following in your Coder server [configuration](./configure.md).
+Set the following in your Coder server [configuration](../setup/index.md).
 
 ```env
  # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
@@ -298,7 +298,7 @@ coder organizations settings set role-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IDP Sync](../images/admin/users/organizations/role-sync.png)
+![IDP Sync](../../images/admin/users/organizations/role-sync.png)
 
 </div>
 
