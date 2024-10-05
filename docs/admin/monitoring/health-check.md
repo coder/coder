@@ -253,8 +253,8 @@ to write a message.
 
 ## Workspace Proxy
 
-If you have configured [Workspace Proxies](../admin/workspace-proxies.md), Coder
-will periodically query their availability and show their status here.
+If you have configured [Workspace Proxies](../networking/workspace-proxies.md),
+Coder will periodically query their availability and show their status here.
 
 ### EWP01
 
