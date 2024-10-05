@@ -246,10 +246,10 @@ Administrators may wish to stop _all_ notifications across the deployment. We
 support a killswitch in the CLI for these cases.
 
 To pause sending notifications, execute
-[`coder notifications pause`](../../../reference/cli/notifications_pause).
+[`coder notifications pause`](../../../reference/cli/notifications_pause.md).
 
 To resume sending notifications, execute
-[`coder notifications resume`](../../../reference/cli/notifications_resume).
+[`coder notifications resume`](../../../reference/cli/notifications_resume.md).
 
 ## Troubleshooting
 

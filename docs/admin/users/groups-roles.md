@@ -36,7 +36,7 @@ may use personal workspaces.
 A malicious Template Admin could write a template that executes commands on the
 host (or `coder server` container), which potentially escalates their privileges
 or shuts down the Coder server. To avoid this, run
-[external provisioners](./provisioners.md).
+[external provisioners](../provisioners.md).
 
 In low-trust environments, we do not recommend giving users direct access to
 edit templates. Instead, use

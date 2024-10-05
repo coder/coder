@@ -342,8 +342,8 @@ could affect workspace users experience once the platform is live.
    versions into Coder from git. For example, on Github, you can use the
    [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
 1. Evaluate enabling
-   [automatic template updates](../../workspaces/index.md#update-policies) upon
-   workspace startup.
+   [automatic template updates](../../templates/managing-templates/index.md#template-update-policies-enterprise-premium)
+   upon workspace startup.
 
 ### Observability
 

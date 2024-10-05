@@ -4,8 +4,8 @@ If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder. To enable
 group sync, ensure that the `groups` claim is being sent by your OpenID
 provider. You might need to request an additional
-[scope](../reference/cli/server.md#--oidc-scopes) or additional configuration on
-the OpenID provider side.
+[scope](../../reference/cli/server.md#--oidc-scopes) or additional configuration
+on the OpenID provider side.
 
 If group sync is enabled, the user's groups will be controlled by the OIDC
 provider. This means manual group additions/removals will be overwritten on the

@@ -99,7 +99,7 @@ process dynamically calculates costs, so quota violation fails builds as opposed
 to failing the build-triggering operation. For example, the Workspace Create
 Form will never get held up by quota enforcement.
 
-![build-log](../images/admin/quota-buildlog.png)
+![build-log](../../images/admin/quota-buildlog.png)
 
 ## Up next
 

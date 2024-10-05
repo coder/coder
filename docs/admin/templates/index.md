@@ -35,7 +35,7 @@ users. Common modifications are:
 - Additional parameters (e.g. disk size, instance type, or region). Docs:
   [Template parameters](./extending-templates/parameters.md).
 - Additional IDEs (e.g. JetBrains) or features (e.g. dotfiles, RDP). Docs:
-  [Adding IDEs and features](./extending-templates/ides/index.md).
+  [Adding IDEs and features](./extending-templates/index.md).
 
 Learn more about the various ways you can
 [extend your templates](./extending-templates/index.md).

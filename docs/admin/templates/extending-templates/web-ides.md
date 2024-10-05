@@ -265,7 +265,7 @@ value substitution to recreate the path structure.
 [This](https://github.com/sempie/coder-templates/tree/main/rstudio) is a
 community template example.
 
-![RStudio in Coder](../../../../images/rstudio-port-forward.png)
+![RStudio in Coder](../../../images/rstudio-port-forward.png)
 
 ## Airflow
 

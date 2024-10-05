@@ -9,8 +9,9 @@ You can also manage the lifecycle of failed or inactive workspaces.
 
 Template [admins](../../users/index.md) may define these default values:
 
-- [**Default autostop**](../workspaces.md#autostart-and-autostop): How long a
-  workspace runs without user activity before Coder automatically stops it.
+- [**Default autostop**](../../../user-guides/workspace-scheduling.md#autostop):
+  How long a workspace runs without user activity before Coder automatically
+  stops it.
 - [**Autostop requirement**](#autostop-requirement-enterprise-premium): Enforce
   mandatory workspace restarts to apply template updates regardless of user
   activity.

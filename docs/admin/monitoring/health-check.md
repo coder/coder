@@ -207,7 +207,8 @@ for long-lived connections:
 - Between users interacting with Coder's Web UI (for example, the built-in
   terminal, or VSCode Web),
 - Between workspace agents and `coderd`,
-- Between Coder [workspace proxies](../admin/workspace-proxies.md) and `coderd`.
+- Between Coder [workspace proxies](../networking/workspace-proxies.md) and
+  `coderd`.
 
 Any issues causing failures to establish WebSocket connections will result in
 **severe** impairment of functionality for users. To validate this

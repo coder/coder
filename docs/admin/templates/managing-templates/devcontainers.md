@@ -50,7 +50,7 @@ iterate on their development environments.
 ![Devcontainer parameter screen](../../../images/templates/devcontainers.png)
 
 Your template can prompt the user for a repo URL with
-[Parameters](./parameters.md).
+[Parameters](../extending-templates/parameters.md).
 
 ## Authentication
 
