@@ -172,7 +172,7 @@ coder organizations settings set group-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IDP Sync](../../images/admin/organizations/group-sync.png)
+![IDP Sync](../../images/admin/users/organizations/group-sync.png)
 
 </div>
 
@@ -182,7 +182,7 @@ You can limit which groups from your identity provider can log in to Coder with
 [CODER_OIDC_ALLOWED_GROUPS](https://coder.com/docs/cli/server#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
-![Unauthorized group error](../images/admin/group-allowlist.png)
+![Unauthorized group error](../../images/admin/group-allowlist.png)
 
 ## Role sync (enterprise) (premium)
 
@@ -212,7 +212,7 @@ the OIDC provider. See
 > Depending on the OIDC provider, this claim may be named differently.
 
 Next configure the Coder server to read groups from the claim name with the
-[OIDC role field](../reference/cli/server.md#--oidc-user-role-field) server
+[OIDC role field](../../reference/cli/server.md#--oidc-user-role-field) server
 flag:
 
 Set the following in your Coder server [configuration](./configure.md).
@@ -298,7 +298,7 @@ coder organizations settings set role-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IDP Sync](../images/admin/organizations/role-sync.png)
+![IDP Sync](../images/admin/users/organizations/role-sync.png)
 
 </div>
 
@@ -327,7 +327,7 @@ the OIDC provider. See
 > ones include `groups`, `memberOf`, and `roles`.
 
 Next configure the Coder server to read groups from the claim name with the
-[OIDC organization field](../reference/cli/server.md#--oidc-organization-field)
+[OIDC organization field](../../reference/cli/server.md#--oidc-organization-field)
 server flag:
 
 ```sh
@@ -341,7 +341,7 @@ Next, fetch the corresponding organization IDs using the following endpoint:
 https://[coder.example.com]/api/v2/organizations
 ```
 
-Set the following in your Coder server [configuration](./configure.md).
+Set the following in your Coder server [configuration](../setup/index.md).
 
 ```env
 CODER_OIDC_ORGANIZATION_MAPPING='{"data-scientists":["d8d9daef-e273-49ff-a832-11fe2b2d4ab1", "70be0908-61b5-4fb5-aba4-4dfb3a6c5787"]}'
