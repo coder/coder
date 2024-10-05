@@ -172,7 +172,7 @@ coder organizations settings set group-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IDP Sync](../../images/admin/organizations/group-sync.png)
+![IDP Sync](../../images/admin/users/organizations/group-sync.png)
 
 </div>
 
@@ -298,7 +298,7 @@ coder organizations settings set role-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IDP Sync](../images/admin/organizations/role-sync.png)
+![IDP Sync](../images/admin/users/organizations/role-sync.png)
 
 </div>
 
