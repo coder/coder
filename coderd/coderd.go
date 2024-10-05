@@ -40,6 +40,7 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -608,6 +609,14 @@ func New(options *Options) *API {
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
 	}
+
+	// Start a background process that rotates keys.
+	err = cryptokeys.StartRotator(api.ctx, api.Logger.Named("keyrotator"), api.Database)
+	if err != nil {
+		api.Logger.Fatal(api.ctx, "start key rotator", slog.Error(err))
+	}
+
+	api.oauthConvertKeycache = cryptokeys.NewDBCache(api.Logger.Named("oauth_convert_keycache"), api.Database, database.CryptoKeyFeatureOidcConvert)
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
 		Database:              options.Database,
@@ -1389,6 +1398,11 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
+
+	// resumeTokenKeycache is used to fetch and cache keys used for signing JWTs
+	// oauthConvertKeycache is used to fetch and cache keys used for signing JWTs
+	// during OAuth conversions. See userauth.go.convertUserToOauth.
+	oauthConvertKeycache cryptokeys.Keycache
 }
 
 // Close waits for all WebSocket connections to drain before returning.

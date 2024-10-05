@@ -15,7 +15,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -23,6 +24,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
+	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -49,7 +53,7 @@ const (
 )
 
 type OAuthConvertStateClaims struct {
-	jwt.RegisteredClaims
+	jwt.Claims
 
 	UserID        uuid.UUID          `json:"user_id"`
 	State         string             `json:"state"`
@@ -149,11 +153,11 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	// Eg: Developers with more than 1 deployment.
 	now := time.Now()
 	claims := &OAuthConvertStateClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
+		Claims: jwt.Claims{
 			Issuer:    api.DeploymentID,
 			Subject:   stateString,
 			Audience:  []string{user.ID.String()},
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Minute * 5)),
+			Expiry:    jwt.NewNumericDate(now.Add(time.Minute * 5)),
 			NotBefore: jwt.NewNumericDate(now.Add(time.Second * -1)),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ID:        uuid.NewString(),
@@ -164,9 +168,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		ToLoginType:   req.ToType,
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	// Key must be a byte slice, not an array. So make sure to include the [:]
-	tokenString, err := token.SignedString(api.OAuthSigningKey[:])
+	token, err := jwtutils.Sign(dbauthz.AsKeyRotator(ctx), api.oauthConvertKeycache, claims)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error signing state jwt.",
@@ -176,8 +178,8 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = database.AuditOAuthConvertState{
-		CreatedAt:     claims.IssuedAt.Time,
-		ExpiresAt:     claims.ExpiresAt.Time,
+		CreatedAt:     claims.IssuedAt.Time(),
+		ExpiresAt:     claims.Expiry.Time(),
 		FromLoginType: database.LoginType(claims.FromLoginType),
 		ToLoginType:   database.LoginType(claims.ToLoginType),
 		UserID:        claims.UserID,
@@ -186,8 +188,8 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	http.SetCookie(rw, &http.Cookie{
 		Name:     OAuthConvertCookieValue,
 		Path:     "/",
-		Value:    tokenString,
-		Expires:  claims.ExpiresAt.Time,
+		Value:    token,
+		Expires:  claims.Expiry.Time(),
 		Secure:   api.SecureAuthCookie,
 		HttpOnly: true,
 		// Must be SameSite to work on the redirected auth flow from the
@@ -196,7 +198,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	})
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OAuthConversionResponse{
 		StateString: stateString,
-		ExpiresAt:   claims.ExpiresAt.Time,
+		ExpiresAt:   claims.Expiry.Time(),
 		ToType:      claims.ToLoginType,
 		UserID:      claims.UserID,
 	})
@@ -1675,10 +1677,8 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 	var claims OAuthConvertStateClaims
-	token, err := jwt.ParseWithClaims(jwtCookie.Value, &claims, func(_ *jwt.Token) (interface{}, error) {
-		return api.OAuthSigningKey[:], nil
-	})
-	if xerrors.Is(err, jwt.ErrSignatureInvalid) || !token.Valid {
+	err = jwtutils.Verify(dbauthz.AsKeyRotator(ctx), api.oauthConvertKeycache, jwtCookie.Value, &claims)
+	if xerrors.Is(err, cryptokeys.ErrKeyNotFound) || xerrors.Is(err, cryptokeys.ErrKeyInvalid) || xerrors.Is(err, jose.ErrCryptoFailure) {
 		// These errors are probably because the user is mixing 2 coder deployments.
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusBadRequest,
@@ -1707,7 +1707,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	oauthConvertAudit.UserID = claims.UserID
 	oauthConvertAudit.Old = user
 
-	if claims.RegisteredClaims.Issuer != api.DeploymentID {
+	if claims.Issuer != api.DeploymentID {
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusForbidden,
 			Msg:  "Request to convert login type failed. Issuer mismatch. Found a cookie from another coder deployment, please try again.",

@@ -228,6 +228,24 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	// See cryptokeys package.
+	subjectCryptoKey = rbac.Subject{
+		FriendlyName: "Crypto Key Rotator",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "keyrotator"},
+				DisplayName: "Key Rotator",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceCryptoKey.Type: {policy.WildcardSymbol, policy.ActionRead},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		FriendlyName: "System",
 		ID:           uuid.Nil.String(),
@@ -279,6 +297,11 @@ func AsAutostart(ctx context.Context) context.Context {
 // for unhanger.Detector to function.
 func AsHangDetector(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectHangDetector)
+}
+
+// AsKeyRotator returns a context with an actor that has permissions required for rotating crypto keys.
+func AsKeyRotator(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectCryptoKey)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions

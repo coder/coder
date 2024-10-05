@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/quartz"
 )
@@ -54,6 +55,8 @@ func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 // It ensures there's at least one valid key per feature prior to returning.
 // Canceling the provided context will stop the background process.
 func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) error {
+	//nolint:gocritic // KeyRotator can only rotate crypto keys.
+	ctx = dbauthz.AsSystemRestricted(ctx)
 	kr := &rotator{
 		db:          db,
 		logger:      logger,
