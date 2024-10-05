@@ -685,6 +685,7 @@ func enumerateAllTemplates(t *testing.T) ([]string, error) {
 }
 
 func TestNotificationTemplatesCanRender(t *testing.T) {
+func TestNotificationTemplates_Golden(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
