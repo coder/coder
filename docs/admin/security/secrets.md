@@ -2,7 +2,7 @@
 
 <blockquote class="info">
 This article explains how to use secrets in a workspace. To authenticate the
-workspace provisioner, see <a href="/admin/auth">this</a>.
+workspace provisioner, see <a href="../users">this</a>.
 </blockquote>
 
 Coder is open-minded about how you get your secrets into your workspaces.

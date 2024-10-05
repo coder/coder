@@ -61,7 +61,7 @@ In offline and restricted deploymnets, there are 2 ways to fetch modules.
 
 ### Artifactory
 
-Air gapped users can clone the [coder/modules](htpps://github.com/coder/modules)
+Air gapped users can clone the [coder/modules](https://github.com/coder/modules)
 repo and publish a
 [local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
 to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
