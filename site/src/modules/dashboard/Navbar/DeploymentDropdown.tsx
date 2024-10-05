@@ -114,7 +114,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			{canViewAllUsers && (
 				<MenuItem
 					component={NavLink}
-					to={canViewOrganizations ? `/deployment${linkToUsers}` : linkToUsers}
+					to={linkToUsers}
 					css={styles.menuItem}
 					onClick={onPopoverClose}
 				>

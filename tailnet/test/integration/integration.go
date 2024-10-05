@@ -373,7 +373,7 @@ http {
 // and creates a tailnet.Conn which will only use DERP to connect to the peer.
 func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
 	return startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(me.ID), 128)},
+		Addresses:           []netip.Prefix{tailnet.TailscaleServicePrefix.PrefixFromUUID(me.ID)},
 		DERPMap:             derpMap,
 		BlockEndpoints:      true,
 		Logger:              logger,
@@ -389,7 +389,7 @@ func StartClientDERP(t *testing.T, logger slog.Logger, serverURL *url.URL, derpM
 // only use DERP WebSocket fallback.
 func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
 	return startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(me.ID), 128)},
+		Addresses:           []netip.Prefix{tailnet.TailscaleServicePrefix.PrefixFromUUID(me.ID)},
 		DERPMap:             derpMap,
 		BlockEndpoints:      true,
 		Logger:              logger,
@@ -406,7 +406,7 @@ func StartClientDERPWebSockets(t *testing.T, logger slog.Logger, serverURL *url.
 // connection to be established between the two peers.
 func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, derpMap *tailcfg.DERPMap, me, peer Client) *tailnet.Conn {
 	conn := startClientOptions(t, logger, serverURL, me, peer, &tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IPFromUUID(me.ID), 128)},
+		Addresses:           []netip.Prefix{tailnet.TailscaleServicePrefix.PrefixFromUUID(me.ID)},
 		DERPMap:             derpMap,
 		BlockEndpoints:      false,
 		Logger:              logger,
@@ -418,7 +418,7 @@ func StartClientDirect(t *testing.T, logger slog.Logger, serverURL *url.URL, der
 	})
 
 	// Wait for direct connection to be established.
-	peerIP := tailnet.IPFromUUID(peer.ID)
+	peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
 	require.Eventually(t, func() bool {
 		t.Log("attempting ping to peer to judge direct connection")
 		ctx := testutil.Context(t, testutil.WaitShort)

@@ -3628,6 +3628,14 @@ func (q *querier) UpdateUserGithubComUserID(ctx context.Context, arg database.Up
 	return q.db.UpdateUserGithubComUserID(ctx, arg)
 }
 
+func (q *querier) UpdateUserHashedOneTimePasscode(ctx context.Context, arg database.UpdateUserHashedOneTimePasscodeParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+
+	return q.db.UpdateUserHashedOneTimePasscode(ctx, arg)
+}
+
 func (q *querier) UpdateUserHashedPassword(ctx context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	user, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
