@@ -960,13 +960,15 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				return
 			}
 
-			wantBody, err := os.ReadFile(bodyGoldenFile)
-			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
-			wantTitle, err := os.ReadFile(titleGoldenFile)
-			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
+			hint := "run \"DB=ci make update-golden-files\" and commit the changes"
 
-			require.Equal(t, string(wantBody), body, "body should be equal")
-			require.Equal(t, string(wantTitle), title, "title should be equal")
+			wantBody, err := os.ReadFile(bodyGoldenFile)
+			require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+			wantTitle, err := os.ReadFile(titleGoldenFile)
+			require.NoError(t, err, fmt.Sprintf("missing golden notification title file. %s", hint))
+
+			require.Equal(t, string(wantBody), body, "rendered template body does not match golden file. If this is expected, %s", hint)
+			require.Equal(t, string(wantTitle), title, "rendered template title does not match golden file. If this is expected, %s", hint)
 		})
 	}
 }
