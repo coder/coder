@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -276,15 +277,17 @@ func Test_ResolveRequest(t *testing.T) {
 					_ = w.Body.Close()
 
 					require.Equal(t, &workspaceapps.SignedToken{
+						Claims: jwt.Claims{
+							Expiry: jwt.NewNumericDate(token.Expiry.Time()),
+						},
 						Request:     req,
-						Expiry:      token.Expiry, // ignored to avoid flakiness
 						UserID:      me.ID,
 						WorkspaceID: workspace.ID,
 						AgentID:     agentID,
 						AppURL:      appURL,
 					}, token)
 					require.NotZero(t, token.Expiry)
-					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry, time.Minute)
+					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry.Time(), time.Minute)
 
 					// Check that the token was set in the response and is valid.
 					require.Len(t, w.Cookies(), 1)
@@ -292,10 +295,10 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, codersdk.SignedAppTokenCookie, cookie.Name)
 					require.Equal(t, req.BasePath, cookie.Path)
 
-					parsedToken, err := api.AppSecurityKey.VerifySignedToken(cookie.Value)
+					parsedToken, err := api.workspaceAppsKeyCache.VerifySignedToken(cookie.Value)
 					require.NoError(t, err)
 					// normalize expiry
-					require.WithinDuration(t, token.Expiry, parsedToken.Expiry, 2*time.Second)
+					require.WithinDuration(t, token.Expiry.Time(), parsedToken.Expiry.Time(), 2*time.Second)
 					parsedToken.Expiry = token.Expiry
 					require.Equal(t, token, &parsedToken)
 
@@ -314,7 +317,7 @@ func Test_ResolveRequest(t *testing.T) {
 					})
 					require.True(t, ok)
 					// normalize expiry
-					require.WithinDuration(t, token.Expiry, secondToken.Expiry, 2*time.Second)
+					require.WithinDuration(t, token.Expiry.Time(), secondToken.Expiry.Time(), 2*time.Second)
 					secondToken.Expiry = token.Expiry
 					require.Equal(t, token, secondToken)
 				}
@@ -540,7 +543,9 @@ func Test_ResolveRequest(t *testing.T) {
 				// App name differs
 				AppSlugOrPort: appNamePublic,
 			}).Normalize(),
-			Expiry:      time.Now().Add(time.Minute),
+			Claims: jwt.Claims{
+				Expiry: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+			},
 			UserID:      me.ID,
 			WorkspaceID: workspace.ID,
 			AgentID:     agentID,

@@ -5,15 +5,16 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
@@ -37,12 +38,15 @@ func NewInsecureTestResumeTokenProvider() ResumeTokenProvider {
 	if err != nil {
 		panic(err)
 	}
-	return NewResumeTokenKeyProvider(key, quartz.NewReal(), time.Hour)
+	return NewResumeTokenKeyProvider(jwtutils.StaticKeyManager{
+		ID:  uuid.New().String(),
+		Key: key,
+	}, quartz.NewReal(), time.Hour)
 }
 
 type ResumeTokenProvider interface {
-	GenerateResumeToken(peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error)
-	VerifyResumeToken(token string) (uuid.UUID, error)
+	GenerateResumeToken(ctx context.Context, peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error)
+	VerifyResumeToken(ctx context.Context, token string) (uuid.UUID, error)
 }
 
 type ResumeTokenSigningKey [64]byte
@@ -98,12 +102,12 @@ func ResumeTokenSigningKeyFromDatabase(ctx context.Context, db ResumeTokenSignin
 }
 
 type ResumeTokenKeyProvider struct {
-	key    ResumeTokenSigningKey
+	key    jwtutils.SigningKeyManager
 	clock  quartz.Clock
 	expiry time.Duration
 }
 
-func NewResumeTokenKeyProvider(key ResumeTokenSigningKey, clock quartz.Clock, expiry time.Duration) ResumeTokenProvider {
+func NewResumeTokenKeyProvider(key jwtutils.SigningKeyManager, clock quartz.Clock, expiry time.Duration) ResumeTokenProvider {
 	if expiry <= 0 {
 		expiry = DefaultResumeTokenExpiry
 	}
@@ -115,45 +119,27 @@ func NewResumeTokenKeyProvider(key ResumeTokenSigningKey, clock quartz.Clock, ex
 }
 
 type resumeTokenPayload struct {
+	jwt.Claims
 	PeerID uuid.UUID `json:"sub"`
 	Expiry int64     `json:"exp"`
 }
 
-func (p ResumeTokenKeyProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
+func (p ResumeTokenKeyProvider) GenerateResumeToken(ctx context.Context, peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
 	exp := p.clock.Now().Add(p.expiry)
 	payload := resumeTokenPayload{
 		PeerID: peerID,
-		Expiry: exp.Unix(),
-	}
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, xerrors.Errorf("marshal payload to JSON: %w", err)
-	}
-
-	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: resumeTokenSigningAlgorithm,
-		Key:       p.key[:],
-	}, &jose.SignerOptions{
-		ExtraHeaders: map[jose.HeaderKey]interface{}{
-			"kid": resumeTokenSigningKeyID.String(),
+		Claims: jwt.Claims{
+			Expiry: jwt.NewNumericDate(exp),
 		},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("create signer: %w", err)
 	}
 
-	signedObject, err := signer.Sign(payloadBytes)
+	token, err := jwtutils.Sign(ctx, p.key, payload)
 	if err != nil {
 		return nil, xerrors.Errorf("sign payload: %w", err)
 	}
 
-	serialized, err := signedObject.CompactSerialize()
-	if err != nil {
-		return nil, xerrors.Errorf("serialize JWS: %w", err)
-	}
-
 	return &proto.RefreshResumeTokenResponse{
-		Token:     serialized,
+		Token:     token,
 		RefreshIn: durationpb.New(p.expiry / 2),
 		ExpiresAt: timestamppb.New(exp),
 	}, nil
@@ -162,35 +148,13 @@ func (p ResumeTokenKeyProvider) GenerateResumeToken(peerID uuid.UUID) (*proto.Re
 // VerifyResumeToken parses a signed tailnet resume token with the given key and
 // returns the payload. If the token is invalid or expired, an error is
 // returned.
-func (p ResumeTokenKeyProvider) VerifyResumeToken(str string) (uuid.UUID, error) {
-	object, err := jose.ParseSigned(str)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("parse JWS: %w", err)
-	}
-	if len(object.Signatures) != 1 {
-		return uuid.Nil, xerrors.New("expected 1 signature")
-	}
-	if object.Signatures[0].Header.Algorithm != string(resumeTokenSigningAlgorithm) {
-		return uuid.Nil, xerrors.Errorf("expected token signing algorithm to be %q, got %q", resumeTokenSigningAlgorithm, object.Signatures[0].Header.Algorithm)
-	}
-	if object.Signatures[0].Header.KeyID != resumeTokenSigningKeyID.String() {
-		return uuid.Nil, xerrors.Errorf("expected token key ID to be %q, got %q", resumeTokenSigningKeyID, object.Signatures[0].Header.KeyID)
-	}
-
-	output, err := object.Verify(p.key[:])
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("verify JWS: %w", err)
-	}
-
+func (p ResumeTokenKeyProvider) VerifyResumeToken(ctx context.Context, str string) (uuid.UUID, error) {
 	var tok resumeTokenPayload
-	err = json.Unmarshal(output, &tok)
+	err := jwtutils.Verify(ctx, p.key, str, &tok, jwtutils.WithVerifyExpected(jwt.Expected{
+		Time: p.clock.Now(),
+	}))
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("unmarshal payload: %w", err)
+		return uuid.Nil, xerrors.Errorf("verify payload: %w", err)
 	}
-	exp := time.Unix(tok.Expiry, 0)
-	if exp.Before(p.clock.Now()) {
-		return uuid.Nil, xerrors.New("signed resume token expired")
-	}
-
 	return tok.PeerID, nil
 }

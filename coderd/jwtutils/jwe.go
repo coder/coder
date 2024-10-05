@@ -15,6 +15,11 @@ const (
 	encryptContentAlgo = jose.A256GCM
 )
 
+type EncryptingKeyManager interface {
+	EncryptKeyProvider
+	DecryptKeyProvider
+}
+
 type EncryptKeyProvider interface {
 	EncryptingKey(ctx context.Context) (id string, key interface{}, err error)
 }
@@ -63,6 +68,12 @@ func Encrypt(ctx context.Context, e EncryptKeyProvider, claims Claims) (string, 
 	}
 
 	return compact, nil
+}
+
+func WithDecryptExpected(expected jwt.Expected) func(*DecryptOptions) {
+	return func(opts *DecryptOptions) {
+		opts.RegisteredClaims = expected
+	}
 }
 
 // DecryptOptions are options for decrypting a JWE.
@@ -118,4 +129,31 @@ func Decrypt(ctx context.Context, d DecryptKeyProvider, token string, claims Cla
 	}
 
 	return claims.Validate(options.RegisteredClaims)
+}
+
+type StaticKeyManager struct {
+	ID  string
+	Key interface{}
+}
+
+func (s StaticKeyManager) SigningKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKeyManager) VerifyingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
+}
+
+func (s StaticKeyManager) EncryptingKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKeyManager) DecryptingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
 }

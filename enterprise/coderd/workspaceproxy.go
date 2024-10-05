@@ -700,7 +700,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
-		AppSecurityKey:      api.AppSecurityKey.String(),
 		DERPMeshKey:         api.DERPServer.MeshKey(),
 		DERPRegionID:        regionID,
 		DERPMap:             api.AGPL.DERPMap(),

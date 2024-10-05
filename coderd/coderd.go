@@ -186,9 +186,7 @@ type Options struct {
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
-	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
-	AppSecurityKey workspaceapps.SecurityKey
 	// CoordinatorResumeTokenProvider is used to provide and validate resume
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
@@ -445,6 +443,14 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
+	appSigningKeyCache, err := cryptokeys.NewSigningCache(options.Logger.Named("app_signing_key_cache"), options.Database, database.CryptoKeyFeatureWorkspaceAppsToken)
+	if err != nil {
+		options.Logger.Fatal(ctx, "failed to initialize app signing key cache", slog.Error(err))
+	}
+	appEncryptingKeyCache, err := cryptokeys.NewEncryptionCache(options.Logger.Named("app_encrypting_key_cache"), options.Database, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
+	if err != nil {
+		options.Logger.Fatal(ctx, "failed to initialize app encrypting key cache", slog.Error(err))
+	}
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -465,7 +471,7 @@ func New(options *Options) *API {
 			options.DeploymentValues,
 			oauthConfigs,
 			options.AgentInactiveDisconnectTimeout,
-			options.AppSecurityKey,
+			appSigningKeyCache,
 		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
@@ -620,6 +626,7 @@ func New(options *Options) *API {
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize oauth convert key cache", slog.Error(err))
 	}
+	api.workspaceAppsKeyCache = appEncryptingKeyCache
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
 		Database:              options.Database,
@@ -640,9 +647,6 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
-	if options.AppSecurityKey.IsZero() {
-		api.Logger.Fatal(api.ctx, "app security key cannot be zero")
-	}
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: workspaceAppsLogger,
 
@@ -654,11 +658,12 @@ func New(options *Options) *API {
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
-		AppSecurityKey:      options.AppSecurityKey,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
-		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
+		DisablePathApps:      options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie:     options.DeploymentValues.SecureAuthCookie.Value(),
+		Signer:               appSigningKeyCache,
+		EncryptingKeyManager: appEncryptingKeyCache,
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -1405,7 +1410,8 @@ type API struct {
 	// resumeTokenKeycache is used to fetch and cache keys used for signing JWTs
 	// oauthConvertKeycache is used to fetch and cache keys used for signing JWTs
 	// during OAuth conversions. See userauth.go.convertUserToOauth.
-	oauthConvertKeycache cryptokeys.SigningKeycache
+	oauthConvertKeycache  cryptokeys.SigningKeycache
+	workspaceAppsKeyCache cryptokeys.EncryptionKeycache
 }
 
 // Close waits for all WebSocket connections to drain before returning.

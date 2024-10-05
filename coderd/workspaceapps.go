@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -122,8 +123,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Encrypt the API key.
-	encryptedAPIKey, err := api.AppSecurityKey.EncryptAPIKey(workspaceapps.EncryptedAPIKeyPayload{
+	encryptedAPIKey, err := jwtutils.Encrypt(ctx, api.workspaceAppsKeyCache, workspaceapps.EncryptedAPIKeyPayload{
 		APIKey: cookie.Value,
 	})
 	if err != nil {

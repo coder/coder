@@ -853,7 +853,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	)
 	if resumeToken != "" {
 		var err error
-		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(resumeToken)
+		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: workspacesdk.CoordinateAPIInvalidResumeToken,

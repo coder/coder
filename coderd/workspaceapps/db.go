@@ -18,9 +18,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 // DBTokenProvider provides authentication and authorization for workspace apps
@@ -35,12 +37,12 @@ type DBTokenProvider struct {
 	DeploymentValues              *codersdk.DeploymentValues
 	OAuth2Configs                 *httpmw.OAuth2Configs
 	WorkspaceAgentInactiveTimeout time.Duration
-	SigningKey                    SecurityKey
+	Signer                        jwtutils.SigningKeyManager
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, signingKey SecurityKey) SignedTokenProvider {
+func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, signer jwtutils.SigningKeyManager) SignedTokenProvider {
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
 	}
@@ -53,12 +55,12 @@ func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authoriz
 		DeploymentValues:              cfg,
 		OAuth2Configs:                 oauth2Cfgs,
 		WorkspaceAgentInactiveTimeout: workspaceAgentInactiveTimeout,
-		SigningKey:                    signingKey,
+		Signer:                        signer,
 	}
 }
 
 func (p *DBTokenProvider) FromRequest(r *http.Request) (*SignedToken, bool) {
-	return FromRequest(r, p.SigningKey)
+	return FromRequest(r, p.Signer)
 }
 
 func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {
@@ -70,7 +72,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
 	appReq := issueReq.AppRequest.Normalize()
-	err := appReq.Validate()
+	err := appReq.Check()
 	if err != nil {
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "invalid app request")
 		return nil, "", false
@@ -211,8 +213,10 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	}
 
 	// Sign the token.
-	token.Expiry = time.Now().Add(DefaultTokenExpiry)
-	tokenStr, err := p.SigningKey.SignToken(token)
+	token.Claims = jwt.Claims{
+		Expiry: jwt.NewNumericDate(time.Now().Add(DefaultTokenExpiry)),
+	}
+	tokenStr, err := jwtutils.Sign(ctx, p.Signer, token)
 	if err != nil {
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "generate token")
 		return nil, "", false

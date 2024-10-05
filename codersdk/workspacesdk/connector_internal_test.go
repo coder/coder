@@ -25,6 +25,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -61,7 +62,7 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 		CoordPtr:                &coordPtr,
 		DERPMapUpdateFrequency:  time.Millisecond,
 		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
-		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
+		NetworkTelemetryHandler: func([]*proto.TelemetryEvent) {},
 		ResumeTokenProvider:     tailnet.NewInsecureTestResumeTokenProvider(),
 	})
 	require.NoError(t, err)
@@ -165,13 +166,17 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	clock := quartz.NewMock(t)
 	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
 	require.NoError(t, err)
-	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(resumeTokenSigningKey, clock, time.Hour)
+	mgr := jwtutils.StaticKeyManager{
+		ID:  uuid.New().String(),
+		Key: resumeTokenSigningKey,
+	}
+	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour)
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
 		DERPMapUpdateFrequency:  time.Millisecond,
 		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
-		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
+		NetworkTelemetryHandler: func([]*proto.TelemetryEvent) {},
 		ResumeTokenProvider:     resumeTokenProvider,
 	})
 	require.NoError(t, err)
@@ -190,7 +195,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 		t.Logf("received resume token: %s", resumeToken)
 		assert.Equal(t, expectResumeToken, resumeToken)
 		if resumeToken != "" {
-			peerID, err = resumeTokenProvider.VerifyResumeToken(resumeToken)
+			peerID, err = resumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
 			assert.NoError(t, err, "failed to parse resume token")
 			if err != nil {
 				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
@@ -280,13 +285,17 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	clock := quartz.NewMock(t)
 	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
 	require.NoError(t, err)
-	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(resumeTokenSigningKey, clock, time.Hour)
+	mgr := jwtutils.StaticKeyManager{
+		ID:  uuid.New().String(),
+		Key: resumeTokenSigningKey,
+	}
+	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour)
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
 		DERPMapUpdateFrequency:  time.Millisecond,
 		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
-		NetworkTelemetryHandler: func(batch []*proto.TelemetryEvent) {},
+		NetworkTelemetryHandler: func(_ []*proto.TelemetryEvent) {},
 		ResumeTokenProvider:     resumeTokenProvider,
 	})
 	require.NoError(t, err)

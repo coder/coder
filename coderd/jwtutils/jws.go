@@ -24,6 +24,27 @@ const (
 	signingAlgo = jose.HS512
 )
 
+type StaticKeyManager struct {
+	ID  string
+	Key interface{}
+}
+
+func (s StaticKeyManager) SigningKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKeyManager) VerifyingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
+}
+
+type SigningKeyManager interface {
+	SigningKeyProvider
+	VerifyKeyProvider
+}
+
 type SigningKeyProvider interface {
 	SigningKey(ctx context.Context) (id string, key interface{}, err error)
 }
@@ -73,6 +94,12 @@ func Sign(ctx context.Context, s SigningKeyProvider, claims Claims) (string, err
 type VerifyOptions struct {
 	RegisteredClaims   jwt.Expected
 	SignatureAlgorithm jose.SignatureAlgorithm
+}
+
+func WithVerifyExpected(expected jwt.Expected) func(*VerifyOptions) {
+	return func(opts *VerifyOptions) {
+		opts.RegisteredClaims = expected
+	}
 }
 
 // Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.

@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -121,17 +122,18 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		id := uuid.New()
 		clock := quartz.NewMock(t)
-		provider := tailnet.NewResumeTokenKeyProvider(key, clock, tailnet.DefaultResumeTokenExpiry)
-		token, err := provider.GenerateResumeToken(id)
+		provider := tailnet.NewResumeTokenKeyProvider(newKeySigner(key), clock, tailnet.DefaultResumeTokenExpiry)
+		token, err := provider.GenerateResumeToken(ctx, id)
 		require.NoError(t, err)
 		require.NotNil(t, token)
 		require.NotEmpty(t, token.Token)
 		require.Equal(t, tailnet.DefaultResumeTokenExpiry/2, token.RefreshIn.AsDuration())
 		require.WithinDuration(t, clock.Now().Add(tailnet.DefaultResumeTokenExpiry), token.ExpiresAt.AsTime(), time.Second)
 
-		gotID, err := provider.VerifyResumeToken(token.Token)
+		gotID, err := provider.VerifyResumeToken(ctx, token.Token)
 		require.NoError(t, err)
 		require.Equal(t, id, gotID)
 	})
@@ -139,10 +141,11 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 	t.Run("Expired", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		id := uuid.New()
 		clock := quartz.NewMock(t)
-		provider := tailnet.NewResumeTokenKeyProvider(key, clock, tailnet.DefaultResumeTokenExpiry)
-		token, err := provider.GenerateResumeToken(id)
+		provider := tailnet.NewResumeTokenKeyProvider(newKeySigner(key), clock, tailnet.DefaultResumeTokenExpiry)
+		token, err := provider.GenerateResumeToken(ctx, id)
 		require.NoError(t, err)
 		require.NotNil(t, token)
 		require.NotEmpty(t, token.Token)
@@ -152,30 +155,39 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 		// Advance time past expiry
 		_ = clock.Advance(tailnet.DefaultResumeTokenExpiry + time.Second)
 
-		_, err = provider.VerifyResumeToken(token.Token)
+		_, err = provider.VerifyResumeToken(ctx, token.Token)
 		require.ErrorContains(t, err, "expired")
 	})
 
 	t.Run("InvalidToken", func(t *testing.T) {
 		t.Parallel()
 
-		provider := tailnet.NewResumeTokenKeyProvider(key, quartz.NewMock(t), tailnet.DefaultResumeTokenExpiry)
-		_, err := provider.VerifyResumeToken("invalid")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		provider := tailnet.NewResumeTokenKeyProvider(newKeySigner(key), quartz.NewMock(t), tailnet.DefaultResumeTokenExpiry)
+		_, err := provider.VerifyResumeToken(ctx, "invalid")
 		require.ErrorContains(t, err, "parse JWS")
 	})
 
 	t.Run("VerifyError", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		// Generate a resume token with a different key
 		otherKey, err := tailnet.GenerateResumeTokenSigningKey()
 		require.NoError(t, err)
-		otherProvider := tailnet.NewResumeTokenKeyProvider(otherKey, quartz.NewMock(t), tailnet.DefaultResumeTokenExpiry)
-		token, err := otherProvider.GenerateResumeToken(uuid.New())
+		otherProvider := tailnet.NewResumeTokenKeyProvider(newKeySigner(otherKey), quartz.NewMock(t), tailnet.DefaultResumeTokenExpiry)
+		token, err := otherProvider.GenerateResumeToken(ctx, uuid.New())
 		require.NoError(t, err)
 
-		provider := tailnet.NewResumeTokenKeyProvider(key, quartz.NewMock(t), tailnet.DefaultResumeTokenExpiry)
-		_, err = provider.VerifyResumeToken(token.Token)
+		provider := tailnet.NewResumeTokenKeyProvider(newKeySigner(key), quartz.NewMock(t), tailnet.DefaultResumeTokenExpiry)
+		_, err = provider.VerifyResumeToken(ctx, token.Token)
 		require.ErrorContains(t, err, "verify JWS")
 	})
+}
+
+func newKeySigner(key tailnet.ResumeTokenSigningKey) jwtutils.SigningKeyManager {
+	return jwtutils.StaticKeyManager{
+		ID:  uuid.New().String(),
+		Key: key,
+	}
 }

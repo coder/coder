@@ -90,10 +90,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// AppSecurityKey is a 96-byte key used to sign JWTs and encrypt JWEs for
-// workspace app tokens in tests.
-var AppSecurityKey = must(workspaceapps.KeyFromString("6465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e2077617320686572"))
-
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
 	// server's URL. Setting this may result in unexpected behavior (especially
@@ -525,7 +521,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			DeploymentOptions:                  codersdk.DeploymentOptionsWithoutSecrets(options.DeploymentValues.Options()),
 			UpdateCheckOptions:                 options.UpdateCheckOptions,
 			SwaggerEndpoint:                    options.SwaggerEndpoint,
-			AppSecurityKey:                     AppSecurityKey,
 			SSHConfig:                          options.ConfigSSH,
 			HealthcheckFunc:                    options.HealthcheckFunc,
 			HealthcheckTimeout:                 options.HealthcheckTimeout,
