@@ -2,6 +2,7 @@ package cryptokeys
 
 import (
 	"database/sql"
+	"strconv"
 	"testing"
 	"time"
 
@@ -11,13 +12,12 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
-func Test_Verifying(t *testing.T) {
+func Test_version(t *testing.T) {
 	t.Parallel()
 
 	t.Run("HitsCache", func(t *testing.T) {
@@ -35,7 +35,7 @@ func Test_Verifying(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 32,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 		}
@@ -44,13 +44,13 @@ func Test_Verifying(t *testing.T) {
 			32: expectedKey,
 		}
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 		k.keys = cache
 
-		got, err := k.Verifying(ctx, 32)
+		secret, err := k.sequence(ctx, keyID(expectedKey))
 		require.NoError(t, err)
-		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
+		require.Equal(t, decodedSecret(t, expectedKey), secret)
 	})
 
 	t.Run("MissesCache", func(t *testing.T) {
@@ -69,20 +69,19 @@ func Test_Verifying(t *testing.T) {
 			Sequence: 33,
 			StartsAt: clock.Now(),
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 		}
 
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{expectedKey}, nil)
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 
-		got, err := k.Verifying(ctx, 33)
+		got, err := k.sequence(ctx, keyID(expectedKey))
 		require.NoError(t, err)
-		require.Equal(t, db2sdk.CryptoKey(expectedKey), got)
-		require.Equal(t, db2sdk.CryptoKey(expectedKey), db2sdk.CryptoKey(k.latestKey))
+		require.Equal(t, decodedSecret(t, expectedKey), got)
 	})
 
 	t.Run("InvalidCachedKey", func(t *testing.T) {
@@ -101,7 +100,7 @@ func Test_Verifying(t *testing.T) {
 				Feature:  database.CryptoKeyFeatureWorkspaceApps,
 				Sequence: 32,
 				Secret: sql.NullString{
-					String: "secret",
+					String: mustGenerateKey(t),
 					Valid:  true,
 				},
 				DeletesAt: sql.NullTime{
@@ -111,11 +110,11 @@ func Test_Verifying(t *testing.T) {
 			},
 		}
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 		k.keys = cache
 
-		_, err := k.Verifying(ctx, 32)
+		_, err := k.sequence(ctx, "32")
 		require.ErrorIs(t, err, ErrKeyInvalid)
 	})
 
@@ -134,7 +133,7 @@ func Test_Verifying(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 32,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			DeletesAt: sql.NullTime{
@@ -144,15 +143,15 @@ func Test_Verifying(t *testing.T) {
 		}
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{invalidKey}, nil)
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 
-		_, err := k.Verifying(ctx, 32)
+		_, err := k.sequence(ctx, keyID(invalidKey))
 		require.ErrorIs(t, err, ErrKeyInvalid)
 	})
 }
 
-func Test_Signing(t *testing.T) {
+func Test_latest(t *testing.T) {
 	t.Parallel()
 
 	t.Run("HitsCache", func(t *testing.T) {
@@ -170,19 +169,20 @@ func Test_Signing(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 32,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now(),
 		}
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 
 		k.latestKey = latestKey
 
-		got, err := k.Signing(ctx)
+		id, secret, err := k.latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, db2sdk.CryptoKey(latestKey), got)
+		require.Equal(t, keyID(latestKey), id)
+		require.Equal(t, decodedSecret(t, latestKey), secret)
 	})
 
 	t.Run("InvalidCachedKey", func(t *testing.T) {
@@ -200,7 +200,7 @@ func Test_Signing(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 33,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now(),
@@ -210,7 +210,7 @@ func Test_Signing(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 32,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now().Add(-time.Hour),
@@ -222,13 +222,14 @@ func Test_Signing(t *testing.T) {
 
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{latestKey}, nil)
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 		k.latestKey = invalidKey
 
-		got, err := k.Signing(ctx)
+		id, secret, err := k.latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, db2sdk.CryptoKey(latestKey), got)
+		require.Equal(t, keyID(latestKey), id)
+		require.Equal(t, decodedSecret(t, latestKey), secret)
 	})
 
 	t.Run("UsesActiveKey", func(t *testing.T) {
@@ -246,7 +247,7 @@ func Test_Signing(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 32,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now().Add(time.Hour),
@@ -256,7 +257,7 @@ func Test_Signing(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 33,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now(),
@@ -264,12 +265,13 @@ func Test_Signing(t *testing.T) {
 
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{inactiveKey, activeKey}, nil)
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 
-		got, err := k.Signing(ctx)
+		id, secret, err := k.latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, db2sdk.CryptoKey(activeKey), got)
+		require.Equal(t, keyID(activeKey), id)
+		require.Equal(t, decodedSecret(t, activeKey), secret)
 	})
 
 	t.Run("NoValidKeys", func(t *testing.T) {
@@ -287,7 +289,7 @@ func Test_Signing(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 32,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now().Add(time.Hour),
@@ -297,7 +299,7 @@ func Test_Signing(t *testing.T) {
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 33,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now().Add(-time.Hour),
@@ -309,10 +311,10 @@ func Test_Signing(t *testing.T) {
 
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{inactiveKey, invalidKey}, nil)
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 
-		_, err := k.Signing(ctx)
+		_, _, err := k.latest(ctx)
 		require.ErrorIs(t, err, ErrKeyInvalid)
 	})
 }
@@ -331,14 +333,14 @@ func Test_clear(t *testing.T) {
 			logger = slogtest.Make(t, nil)
 		)
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 
 		activeKey := database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 33,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now(),
@@ -346,7 +348,7 @@ func Test_clear(t *testing.T) {
 
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{activeKey}, nil)
 
-		_, err := k.Signing(ctx)
+		_, _, err := k.latest(ctx)
 		require.NoError(t, err)
 
 		dur, wait := clock.AdvanceNext()
@@ -367,14 +369,14 @@ func Test_clear(t *testing.T) {
 			logger = slogtest.Make(t, nil)
 		)
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 
 		key := database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 32,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now(),
@@ -386,9 +388,10 @@ func Test_clear(t *testing.T) {
 		// timer is reset and doesn't fire after another five minute.
 		clock.Advance(time.Minute * 5)
 
-		latest, err := k.Signing(ctx)
+		id, secret, err := k.latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, db2sdk.CryptoKey(key), latest)
+		require.Equal(t, keyID(key), id)
+		require.Equal(t, decodedSecret(t, key), secret)
 
 		// Advancing the clock now should require 10 minutes
 		// before the timer fires again.
@@ -415,14 +418,14 @@ func Test_clear(t *testing.T) {
 
 		trap := clock.Trap().Now("clear")
 
-		k := NewDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
+		k := newDBCache(logger, mockDB, database.CryptoKeyFeatureWorkspaceApps, WithDBCacheClock(clock))
 		defer k.Close()
 
 		key := database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureWorkspaceApps,
 			Sequence: 32,
 			Secret: sql.NullString{
-				String: "secret",
+				String: mustGenerateKey(t),
 				Valid:  true,
 			},
 			StartsAt: clock.Now(),
@@ -431,9 +434,10 @@ func Test_clear(t *testing.T) {
 		mockDB.EXPECT().GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps).Return([]database.CryptoKey{key}, nil).Times(2)
 
 		// Move us past the initial timer.
-		latest, err := k.Signing(ctx)
+		id, secret, err := k.latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, db2sdk.CryptoKey(key), latest)
+		require.Equal(t, keyID(key), id)
+		require.Equal(t, decodedSecret(t, key), secret)
 		// Null these out so that we refetch.
 		k.keys = nil
 		k.latestKey = database.CryptoKey{}
@@ -445,9 +449,10 @@ func Test_clear(t *testing.T) {
 		call := trap.MustWait(ctx)
 
 		// Refetch keys.
-		latest, err = k.Signing(ctx)
+		id, secret, err = k.latest(ctx)
 		require.NoError(t, err)
-		require.Equal(t, db2sdk.CryptoKey(key), latest)
+		require.Equal(t, keyID(key), id)
+		require.Equal(t, decodedSecret(t, key), secret)
 
 		// Let the rest of the timer function run.
 		// It should see that we have refetched keys and
@@ -464,4 +469,22 @@ func Test_clear(t *testing.T) {
 		require.Len(t, k.keys, 0)
 		require.Equal(t, database.CryptoKey{}, k.latestKey)
 	})
+}
+
+func mustGenerateKey(t *testing.T) string {
+	t.Helper()
+	key, err := generateKey(64)
+	require.NoError(t, err)
+	return key
+}
+
+func keyID(key database.CryptoKey) string {
+	return strconv.FormatInt(int64(key.Sequence), 10)
+}
+
+func decodedSecret(t *testing.T, key database.CryptoKey) []byte {
+	t.Helper()
+	decoded, err := key.DecodeString()
+	require.NoError(t, err)
+	return decoded
 }

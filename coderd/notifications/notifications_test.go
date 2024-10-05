@@ -895,6 +895,16 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateUserRequestedOneTimePasscode",
+			id:   notifications.TemplateUserRequestedOneTimePasscode,
+			payload: types.MessagePayload{
+				UserName: "Bobby",
+				Labels: map[string]string{
+					"one_time_passcode": "fad9020b-6562-4cdb-87f1-0486f1bea415",
+				},
+			},
+		},
 	}
 
 	allTemplates, err := enumerateAllTemplates(t)

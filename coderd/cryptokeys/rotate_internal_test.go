@@ -588,9 +588,9 @@ func requireKey(t *testing.T, key database.CryptoKey, feature database.CryptoKey
 
 	switch key.Feature {
 	case database.CryptoKeyFeatureOidcConvert:
-		require.Len(t, secret, 32)
+		require.Len(t, secret, 64)
 	case database.CryptoKeyFeatureWorkspaceApps:
-		require.Len(t, secret, 96)
+		require.Len(t, secret, 32)
 	case database.CryptoKeyFeatureTailnetResume:
 		require.Len(t, secret, 64)
 	default:

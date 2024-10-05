@@ -24,7 +24,14 @@ import {
 	WorkspaceBuildDataSkeleton,
 } from "modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import type { FC } from "react";
+import {
+	type CSSProperties,
+	type FC,
+	type HTMLProps,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { Link } from "react-router-dom";
 import { displayWorkspaceBuildDuration } from "utils/workspace";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
@@ -144,7 +151,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 					))}
 				</Sidebar>
 
-				<div css={{ height: "100%", overflowY: "auto", width: "100%" }}>
+				<ScrollArea>
 					<Tabs active={tabState.value}>
 						<TabsList>
 							<TabLink to={`?${LOGS_TAB_KEY}=build`} value="build">
@@ -197,9 +204,48 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 							agent={selectedAgent!}
 						/>
 					)}
-				</div>
+				</ScrollArea>
 			</div>
 		</DashboardFullPage>
+	);
+};
+
+const ScrollArea: FC<HTMLProps<HTMLDivElement>> = (props) => {
+	// TODO: Use only CSS to set the height of the content.
+	// Note: On Safari, when content is rendered inside a flex container and needs
+	// to scroll, the parent container must have a height set. Achieving this may
+	// require significant refactoring of the layout components where we currently
+	// use height and min-height set to 100%.
+	// Issue: https://github.com/coder/coder/issues/9687
+	// Reference: https://stackoverflow.com/questions/43381836/height100-works-in-chrome-but-not-in-safari
+	const contentRef = useRef<HTMLDivElement>(null);
+	const [height, setHeight] = useState<CSSProperties["height"]>("100%");
+	useLayoutEffect(() => {
+		const contentEl = contentRef.current;
+		if (!contentEl) {
+			return;
+		}
+
+		const resizeObserver = new ResizeObserver(() => {
+			const parentEl = contentEl.parentElement;
+			if (!parentEl) {
+				return;
+			}
+			setHeight(parentEl.clientHeight);
+		});
+		resizeObserver.observe(document.body);
+
+		return () => {
+			resizeObserver.disconnect();
+		};
+	}, []);
+
+	return (
+		<div
+			ref={contentRef}
+			css={{ height, overflowY: "auto", width: "100%" }}
+			{...props}
+		/>
 	);
 };
 
