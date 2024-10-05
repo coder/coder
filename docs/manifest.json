@@ -164,7 +164,7 @@
 					"title": "Workspace Lifecycle",
 					"description": "Cost control with workspace schedules",
 					"path": "./user-guides/workspace-lifecycle.md",
-					"icon_path": "./images/icons/stopwatch.svg"
+					"icon_path": "./images/icons/circle-dot.svg"
 				},
 				{
 					"title": "Dotfiles",
