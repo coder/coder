@@ -77,7 +77,7 @@ While you can inject secrets into the workspace via environment variables, you
 can also show them in the Workspace UI with
 [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
 
-![Secrets UI](../../images/secret-metadata-ui.png)
+![Secrets UI](../../images/admin/secret-metadata.PNG)
 
 Can be produced with
 
@@ -91,8 +91,12 @@ resource "twilio_iam_api_key" "api_key" {
 resource "coder_metadata" "twilio_key" {
   resource_id = twilio_iam_api_key.api_key.id
   item {
-    key = "secret"
-    value = twilio_iam_api_key.api_key.secret
+    key   = "Username"
+    value = "Administrator"
+  }
+  item {
+    key       = "Password"
+    value     = twilio_iam_api_key.api_key.secret
     sensitive = true
   }
 }
