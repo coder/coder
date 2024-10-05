@@ -15,6 +15,6 @@ vulnerability.
 
 ---
 
-| Description                                                                                                                             | Severity | Fix                                                            | Vulnerable Versions |
-| --------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | ------------------- |
-| [API tokens of deleted users not invalidated](https://github.com/coder/coder/blob/main/docs/security/0001_user_apikeys_invalidation.md) | HIGH     | [v0.23.0](https://github.com/coder/coder/releases/tag/v0.23.0) | v0.8.25 - v0.22.2   |
+| Description                                                                                                                                   | Severity | Fix                                                            | Vulnerable Versions |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | ------------------- |
+| [API tokens of deleted users not invalidated](https://github.com/coder/coder/blob/main/docs/admin/security/0001_user_apikeys_invalidation.md) | HIGH     | [v0.23.0](https://github.com/coder/coder/releases/tag/v0.23.0) | v0.8.25 - v0.22.2   |
