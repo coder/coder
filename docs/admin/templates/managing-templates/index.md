@@ -24,8 +24,8 @@ here!
 
 ![Starter templates](../../../images/start/starter-templates.png)
 
-If you prefer to use Coder on the [command line](../../reference/cli/index.md),
-`coder templates init`.
+If you prefer to use Coder on the
+[command line](../../../reference/cli/index.md), `coder templates init`.
 
 > Coder starter templates are also available on our
 > [GitHub repo](https://github.com/coder/coder/tree/main/examples/templates).
