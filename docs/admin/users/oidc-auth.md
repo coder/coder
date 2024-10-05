@@ -135,8 +135,8 @@ CODER_DISABLE_PASSWORD_AUTH=true
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are
 [suspended](./index.md#suspend-a-user) and are not deleted.
-[Configure](./configure.md) your SCIM application with an auth key and supply it
-the Coder server.
+[Configure](../setup/index.md) your SCIM application with an auth key and supply
+it the Coder server.
 
 ```env
 CODER_SCIM_AUTH_HEADER="your-api-key"
