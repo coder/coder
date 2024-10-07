@@ -51,7 +51,7 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 
 	return (
 		<Filter
-			learnMoreLink={docs("/admin/audit-logs#filtering-logs")}
+			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}
 			presets={PRESET_FILTERS}
 			isLoading={menus.user.isInitializing}
 			filter={filter}

@@ -143,7 +143,9 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 						</HelpTooltipText>
 						<HelpTooltipLinksGroup>
 							<HelpTooltipLink
-								href={docs("/templates/parameters#ephemeral-parameters")}
+								href={docs(
+									"/admin/templates/extending-templates/parameters#ephemeral-parameters",
+								)}
 							>
 								Read the docs
 							</HelpTooltipLink>

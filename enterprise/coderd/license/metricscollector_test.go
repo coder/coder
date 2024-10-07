@@ -27,7 +27,7 @@ func TestCollectLicenseMetrics(t *testing.T) {
 		userLimit   = 7
 	)
 	sut.Entitlements = entitlements.New()
-	sut.Entitlements.Update(func(entitlements *codersdk.Entitlements) {
+	sut.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
 		entitlements.Features[codersdk.FeatureUserLimit] = codersdk.Feature{
 			Enabled: true,
 			Actual:  ptr.Int64(actualUsers),

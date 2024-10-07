@@ -27,10 +27,10 @@ export const WorkspaceHelpTooltip: FC = () => {
 				<HelpTooltipTitle>{Language.workspaceTooltipTitle}</HelpTooltipTitle>
 				<HelpTooltipText>{Language.workspaceTooltipText}</HelpTooltipText>
 				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/workspaces")}>
+					<HelpTooltipLink href={docs("/user-guides")}>
 						{Language.workspaceTooltipLink1}
 					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/ides")}>
+					<HelpTooltipLink href={docs("/user-guides/workspace-access")}>
 						{Language.workspaceTooltipLink2}
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>

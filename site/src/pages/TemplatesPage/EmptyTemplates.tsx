@@ -55,7 +55,7 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 						Templates are written in Terraform and describe the infrastructure
 						for workspaces. You can start using a starter template below or{" "}
 						<Link
-							href={docs("/templates/tutorial")}
+							href={docs("/admin/templates/creating-templates")}
 							target="_blank"
 							rel="noreferrer"
 						>

@@ -75,7 +75,7 @@ const TemplateHelpTooltip: FC = () => {
 				<HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
 				<HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
 				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/templates")}>
+					<HelpTooltipLink href={docs("/admin/templates")}>
 						{Language.templateTooltipLink}
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
