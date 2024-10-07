@@ -320,8 +320,8 @@ importers:
         specifier: 7.5.8
         version: 7.5.8
       '@types/ssh2':
-        specifier: 1.15.0
-        version: 1.15.0
+        specifier: 1.15.1
+        version: 1.15.1
       '@types/ua-parser-js':
         specifier: 0.7.36
         version: 0.7.36
@@ -371,8 +371,8 @@ importers:
         specifier: 7.8.1
         version: 7.8.1
       ssh2:
-        specifier: 1.15.0
-        version: 1.15.0
+        specifier: 1.16.0
+        version: 1.16.0
       storybook:
         specifier: 8.3.5
         version: 8.3.5
@@ -2480,8 +2480,8 @@ packages:
   '@types/serve-static@1.15.2':
     resolution: {integrity: sha512-J2LqtvFYCzaj8pVYKw8klQXrLLk7TBZmQ4ShlcdkELFKGwGMfevMLneMMRkMgZxotOD9wg497LpC7O8PcvAmfw==}
 
-  '@types/ssh2@1.15.0':
-    resolution: {integrity: sha512-YcT8jP5F8NzWeevWvcyrrLB3zcneVjzYY9ZDSMAMboI+2zR1qYWFhwsyOFVzT7Jorn67vqxC0FRiw8YyG9P1ww==}
+  '@types/ssh2@1.15.1':
+    resolution: {integrity: sha512-ZIbEqKAsi5gj35y4P4vkJYly642wIbY6PqoN0xiyQGshKUGXR9WQjF/iF9mXBQ8uBKy3ezfsCkcoHKhd0BzuDA==}
 
   '@types/stack-utils@2.0.1':
     resolution: {integrity: sha512-Hl219/BT5fLAaz6NDkSuhzasy49dwQS/DSdu4MdggFB8zcXv7vflBI3xp7FEmkmdDkBUI2bPUNeMttp2knYdxw==}
@@ -5334,8 +5334,8 @@ packages:
   sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
 
-  ssh2@1.15.0:
-    resolution: {integrity: sha512-C0PHgX4h6lBxYx7hcXwu3QWdh4tg6tZZsTfXcdvc5caW/EMxaB4H9dWsl7qk+F7LAW762hp8VbXOX7x4xUYvEw==}
+  ssh2@1.16.0:
+    resolution: {integrity: sha512-r1X4KsBGedJqo7h8F5c4Ybpcr5RjyP+aWIG007uBPRjmdQWfEiVLzSK71Zji1B9sKxwaCvD8y8cwSkYrlLiRRg==}
     engines: {node: '>=10.16.0'}
 
   stack-utils@2.0.6:
@@ -8463,7 +8463,7 @@ snapshots:
       '@types/mime': 3.0.1
       '@types/node': 20.16.10
 
-  '@types/ssh2@1.15.0':
+  '@types/ssh2@1.15.1':
     dependencies:
       '@types/node': 18.19.0
 
@@ -11903,7 +11903,7 @@ snapshots:
 
   sprintf-js@1.0.3: {}
 
-  ssh2@1.15.0:
+  ssh2@1.16.0:
     dependencies:
       asn1: 0.2.6
       bcrypt-pbkdf: 1.0.2
