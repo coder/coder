@@ -1,5 +1,6 @@
 # About
 
+<!-- Warning for docs contributors: The first route in manifest.json must be titled "About" for the static landing page to work correctly. -->
 Coder is a self-hosted, open source, cloud development environment that works
 with any cloud, IDE, OS, Git provider, and IDP.
 
