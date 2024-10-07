@@ -8,7 +8,7 @@ on:
   schedule:
     - cron: '27 7 * * 3'
   push:
-    branches: [ "main", "atif/ossf-badge" ]
+    branches: [ "main" ]
 
 # Declare default permissions as read only.
 permissions: read-all
