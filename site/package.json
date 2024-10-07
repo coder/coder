@@ -41,7 +41,7 @@
 		"@emotion/styled": "11.13.0",
 		"@fastly/performance-observer-polyfill": "2.0.0",
 		"@fontsource-variable/inter": "5.0.15",
-		"@fontsource/ibm-plex-mono": "5.0.5",
+		"@fontsource/ibm-plex-mono": "5.1.0",
 		"@monaco-editor/react": "4.6.0",
 		"@mui/icons-material": "5.16.7",
 		"@mui/lab": "5.0.0-alpha.173",
