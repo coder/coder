@@ -179,7 +179,7 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 	t.Parallel()
 
 	layout := insightsTimeLayout
-	sydneyLoc, err := time.LoadLocation("Australia/Sydney") // Random location
+	sydneyLoc, err := time.LoadLocation("America/Los_Angeles") // Random location
 	require.NoError(t, err)
 
 	now := time.Now().In(sydneyLoc)
