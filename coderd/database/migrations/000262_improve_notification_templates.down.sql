@@ -6,7 +6,7 @@ WHERE
 
 UPDATE notification_templates
 SET
-	body_template = REPLACE(body_template::text, E'Hi {{.UserName}},\n', 'Hi {{.UserName}},')::text
+body_template = E'Hi {{.UserName}},\nUser account **{{.Labels.activated_account_name}}** has been activated.'
 WHERE
 	id = '9f5af851-8408-4e73-a7a1-c6502ba46689';
 
