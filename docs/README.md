@@ -1,4 +1,4 @@
-# What is Coder
+# About
 
 Coder is a self-hosted, open source, cloud development environment that works
 with any cloud, IDE, OS, Git provider, and IDP.
