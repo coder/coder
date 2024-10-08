@@ -977,8 +977,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			wantTitle, err := os.ReadFile(titleGoldenFile)
 			require.NoError(t, err, fmt.Sprintf("missing golden notification title file. %s", hint))
 
-			require.Equal(t, string(wantBody), body, "rendered template body does not match golden file. If this is expected, %s", hint)
-			require.Equal(t, string(wantTitle), title, "rendered template title does not match golden file. If this is expected, %s", hint)
+			require.Equal(t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
+			require.Equal(t, string(wantTitle), title, fmt.Sprintf("rendered template title does not match golden file. If this is expected, %s", hint))
 		})
 	}
 }
