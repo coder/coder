@@ -774,7 +774,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"deleted_account_name": "bobby",
+					"deleted_account_name":      "bobby",
+					"deleted_account_user_name": "william tables",
+					"account_deleter_user_name": "rob",
 				},
 			},
 		},
@@ -784,7 +786,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"suspended_account_name": "bobby",
+					"suspended_account_name":      "bobby",
+					"suspended_account_user_name": "william tables",
+					"account_suspender_user_name": "rob",
 				},
 			},
 		},
@@ -794,7 +798,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"activated_account_name": "bobby",
+					"activated_account_name":      "bobby",
+					"activated_account_user_name": "william tables",
+					"account_activator_user_name": "rob",
 				},
 			},
 		},
@@ -804,7 +810,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"suspended_account_name": "bobby",
+					"suspended_account_name":      "bobby",
+					"account_suspender_user_name": "rob",
 				},
 			},
 		},
@@ -814,7 +821,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"activated_account_name": "bobby",
+					"activated_account_name":      "bobby",
+					"account_activator_user_name": "rob",
 				},
 			},
 		},
@@ -824,8 +832,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"name":      "bobby-template",
-					"initiator": "rob",
+					"name":         "bobby-template",
+					"display_name": "Bobby's Template",
+					"initiator":    "rob",
 				},
 			},
 		},
