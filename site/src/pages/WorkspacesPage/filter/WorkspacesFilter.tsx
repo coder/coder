@@ -90,7 +90,9 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			isLoading={menus.status.isInitializing}
 			filter={filter}
 			error={error}
-			learnMoreLink={docs("/workspaces#workspace-filtering")}
+			learnMoreLink={docs(
+				"/user-guides/workspace-management#workspace-filtering",
+			)}
 			options={
 				<>
 					{menus.user && <UserMenu width={width} menu={menus.user} />}

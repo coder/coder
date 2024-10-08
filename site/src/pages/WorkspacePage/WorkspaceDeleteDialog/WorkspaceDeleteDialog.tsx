@@ -128,7 +128,9 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 												delete a failed workspace. Resources such as volumes and
 												virtual machines will not be destroyed.&nbsp;
 												<Link
-													href={docs("/workspaces#workspace-resources")}
+													href={docs(
+														"/user-guides/workspace-management#workspace-resources",
+													)}
 													target="_blank"
 													rel="noreferrer"
 												>

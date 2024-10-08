@@ -312,9 +312,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 											<Button
 												startIcon={<LaunchOutlined />}
 												component="a"
-												href={docs(
-													`/admin/auth#${type.toLowerCase()}-sync-enterprise-premium`,
-												)}
+												href={docs("/admin/users/idp-sync")}
 												target="_blank"
 											>
 												How to setup IdP {type} sync
@@ -403,7 +401,7 @@ const LegacyGroupSyncHeader: FC = () => {
 							configure IdP sync via the CLI, which enables sync to be
 							configured for any organization, and for those settings to be
 							persisted without manually setting environment variables.{" "}
-							<Link href={docs("/admin/auth#group-sync-enterprise-premium")}>
+							<Link href={docs("/admin/users/idp-sync")}>
 								Learn more&hellip;
 							</Link>
 						</HelpTooltipText>

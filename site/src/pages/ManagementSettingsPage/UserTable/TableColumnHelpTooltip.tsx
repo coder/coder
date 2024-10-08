@@ -24,7 +24,7 @@ export const Language = {
 		text:
 			"Coder role-based access control (RBAC) provides fine-grained access management. " +
 			"View our docs on how to use the available roles.",
-		links: [{ text: "User Roles", href: docs("/admin/users#roles") }],
+		links: [{ text: "User Roles", href: docs("/admin/users/groups-roles") }],
 	},
 
 	groups: {
@@ -32,7 +32,7 @@ export const Language = {
 		text:
 			"Groups can be used with template RBAC to give groups of users access " +
 			"to specific templates. View our docs on how to use groups.",
-		links: [{ text: "User Groups", href: docs("/admin/groups") }],
+		links: [{ text: "User Groups", href: docs("/admin/users/groups-roles") }],
 	},
 } as const satisfies Record<ColumnHeader, TooltipData>;
 

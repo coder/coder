@@ -41,7 +41,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 			<SettingsHeader
 				title="General"
 				description="Information about your Coder deployment."
-				docsHref={docs("/admin/configure")}
+				docsHref={docs("/admin/setup")}
 			/>
 			<Stack spacing={4}>
 				{Boolean(deploymentDAUsError) && (
