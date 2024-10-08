@@ -51,7 +51,7 @@ type AgentConnOptions struct {
 }
 
 func (c *AgentConn) agentAddress() netip.Addr {
-	return tailnet.IPFromUUID(c.opts.AgentID)
+	return tailnet.TailscaleServicePrefix.AddrFromUUID(c.opts.AgentID)
 }
 
 // AwaitReachable waits for the agent to be reachable.

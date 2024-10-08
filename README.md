@@ -26,6 +26,8 @@
 [![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
 [![godoc](https://pkg.go.dev/badge/github.com/coder/coder.svg)](https://pkg.go.dev/github.com/coder/coder)
 [![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder/v2)](https://goreportcard.com/report/github.com/coder/coder/v2)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511/badge)](https://www.bestpractices.dev/projects/9511)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://api.securityscorecards.dev/projects/github.com/coder/coder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
 
 </div>
@@ -111,6 +113,7 @@ We are always working on new integrations. Please feel free to open an issue and
 - [**Module Registry**](https://registry.coder.com): Extend development environments with common use-cases
 - [**Kubernetes Log Stream**](https://github.com/coder/coder-logstream-kube): Stream Kubernetes Pod events to the Coder startup logs
 - [**Self-Hosted VS Code Extension Marketplace**](https://github.com/coder/code-marketplace): A private extension marketplace that works in restricted or airgapped networks integrating with [code-server](https://github.com/coder/code-server).
+- [**Setup Coder**](https://github.com/marketplace/actions/setup-coder): An action to setup coder CLI in GitHub workflows.
 
 ### Community
 

@@ -249,7 +249,7 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// THEN: the webhook is received by the mock server and has the expected contents
 	payload := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, sent)
-	require.EqualValues(t, "1.0", payload.Version)
+	require.EqualValues(t, "1.1", payload.Version)
 	require.Equal(t, *msgID, payload.MsgID)
 	require.Equal(t, payload.Payload.Labels, input)
 	require.Equal(t, payload.Payload.UserEmail, email)
@@ -892,6 +892,16 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+		},
+		{
+			name: "TemplateUserRequestedOneTimePasscode",
+			id:   notifications.TemplateUserRequestedOneTimePasscode,
+			payload: types.MessagePayload{
+				UserName: "Bobby",
+				Labels: map[string]string{
+					"one_time_passcode": "fad9020b-6562-4cdb-87f1-0486f1bea415",
 				},
 			},
 		},

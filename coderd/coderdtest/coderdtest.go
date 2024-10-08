@@ -128,6 +128,9 @@ type Options struct {
 	LoginRateLimit int
 	FilesRateLimit int
 
+	// OneTimePasscodeValidityPeriod specifies how long a one time passcode should be valid for.
+	OneTimePasscodeValidityPeriod time.Duration
+
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon    bool
 	ProvisionerDaemonTags       map[string]string
@@ -309,6 +312,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	if options.NotificationsEnqueuer == nil {
 		options.NotificationsEnqueuer = &testutil.FakeNotificationsEnqueuer{}
+	}
+
+	if options.OneTimePasscodeValidityPeriod == 0 {
+		options.OneTimePasscodeValidityPeriod = testutil.WaitLong
 	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
@@ -530,6 +537,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			DatabaseRolluper:                   options.DatabaseRolluper,
 			WorkspaceUsageTracker:              wuTracker,
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
+			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
 		}
 }
 

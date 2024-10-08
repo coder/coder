@@ -133,7 +133,7 @@ export const PublishTemplateVersionDialog: FC<
 										<HelpTooltipLinksGroup>
 											<HelpTooltipLink
 												href={docs(
-													"/templates/general-settings#require-automatic-updates-enterprise",
+													"/admin/templates/managing-templates#template-update-policies-enterprise-premium",
 												)}
 											>
 												{Language.activeVersionHelpBody}

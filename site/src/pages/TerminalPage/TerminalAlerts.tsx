@@ -81,7 +81,7 @@ export const ErrorScriptAlert: FC = () => {
 			, we recommend reloading this session and{" "}
 			<Link
 				title=" debugging the startup script"
-				href={docs("/templates#debugging-the-startup-script")}
+				href={docs("/admin/templates/troubleshooting#startup-script-issues")}
 				target="_blank"
 				rel="noreferrer"
 			>
@@ -90,7 +90,9 @@ export const ErrorScriptAlert: FC = () => {
 			because{" "}
 			<Link
 				title="your workspace may be incomplete."
-				href={docs("/templates#your-workspace-may-be-incomplete")}
+				href={docs(
+					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+				)}
 				target="_blank"
 				rel="noreferrer"
 			>
@@ -111,7 +113,9 @@ export const LoadingScriptsAlert: FC = () => {
 			but{" "}
 			<Link
 				title="your workspace may be incomplete."
-				href={docs("/templates#your-workspace-may-be-incomplete")}
+				href={docs(
+					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+				)}
 				target="_blank"
 				rel="noreferrer"
 			>
@@ -133,7 +137,9 @@ export const LoadedScriptsAlert: FC = () => {
 			this{" "}
 			<Link
 				title="session was started before the startup scripts finished"
-				href={docs("/templates#your-workspace-may-be-incomplete")}
+				href={docs(
+					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
+				)}
 				target="_blank"
 				rel="noreferrer"
 			>

@@ -303,7 +303,9 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	if comment.router == "/updatecheck" ||
 		comment.router == "/buildinfo" ||
 		comment.router == "/" ||
-		comment.router == "/users/login" {
+		comment.router == "/users/login" ||
+		comment.router == "/users/otp/request" ||
+		comment.router == "/users/otp/change-password" {
 		return // endpoints do not require authorization
 	}
 	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")

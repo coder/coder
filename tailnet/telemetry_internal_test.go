@@ -18,7 +18,7 @@ func TestTelemetryStore(t *testing.T) {
 	t.Run("CreateEvent", func(t *testing.T) {
 		t.Parallel()
 
-		remotePrefix := netip.PrefixFrom(IP(), 128)
+		remotePrefix := TailscaleServicePrefix.RandomPrefix()
 		remoteIP := remotePrefix.Addr()
 		application := "test"
 
@@ -31,16 +31,16 @@ func TestTelemetryStore(t *testing.T) {
 				{
 					ID: 1,
 					Addresses: []netip.Prefix{
-						netip.PrefixFrom(IP(), 128),
-						netip.PrefixFrom(IP(), 128),
+						TailscaleServicePrefix.RandomPrefix(),
+						TailscaleServicePrefix.RandomPrefix(),
 					},
 				},
 				{
 					ID: 2,
 					Addresses: []netip.Prefix{
 						remotePrefix,
-						netip.PrefixFrom(IP(), 128),
-						netip.PrefixFrom(IP(), 128),
+						TailscaleServicePrefix.RandomPrefix(),
+						TailscaleServicePrefix.RandomPrefix(),
 					},
 				},
 			},

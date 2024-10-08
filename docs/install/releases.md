@@ -28,7 +28,7 @@ stable receives patches only for security issues or CVEs.
 - May not include the latest features
 - All bugfixes and security patches are supported
 
-### Security Supported
+### Security Support
 
 - In-product security vulnerabilities and CVEs are supported
 
@@ -52,15 +52,13 @@ pages.
 
 ## Release schedule
 
-You can expect a release on the first Tuesday of every month excluding January.
-We skip this release to allow ample time for our team members and customers to
-return from the Holiday season.
-
 | Release name | Release Date       | Status           |
 | ------------ | ------------------ | ---------------- |
+| 2.9.x        | March 07, 2024     | Not Supported    |
+| 2.10.x       | April 03, 2024     | Not Supported    |
 | 2.11.x       | May 07, 2024       | Not Supported    |
 | 2.12.x       | June 04, 2024      | Not Supported    |
-| 2.13.x       | July 02, 2024      | Security Support |
+| 2.13.x       | July 02, 2024      | Not Supported    |
 | 2.14.x       | August 06, 2024    | Security Support |
 | 2.15.x       | September 03, 2024 | Stable           |
 | 2.16.x       | October 01, 2024   | Mainline         |

@@ -8,12 +8,12 @@ import {
 import type { CustomRoleRequest } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { useOrganizationSettings } from "../ManagementSettingsLayout";
 import CreateEditRolePageView from "./CreateEditRolePageView";
 
 export const CreateEditRolePage: FC = () => {
@@ -23,7 +23,7 @@ export const CreateEditRolePage: FC = () => {
 		organization: string;
 		roleName: string;
 	};
-	const { organizations } = useOrganizationSettings();
+	const { organizations } = useManagementSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 	const createOrganizationRoleMutation = useMutation(

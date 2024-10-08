@@ -11,8 +11,6 @@ tags: [vm, linux, aws, persistent-vm]
 
 Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/workspaces) with this example template.
 
-<!-- TODO: Add screenshot -->
-
 ## Prerequisites
 
 ### Authentication

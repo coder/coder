@@ -42,18 +42,11 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 					themes={[themes.dark, themes.light]}
 					onSelect={() => onChangeTheme("auto")}
 				/>
-
 				<ThemePreviewButton
 					displayName="Dark"
 					active={currentTheme === "dark"}
 					theme={themes.dark}
 					onSelect={() => onChangeTheme("dark")}
-				/>
-				<ThemePreviewButton
-					displayName="Dark blue"
-					active={currentTheme === "darkBlue"}
-					theme={themes.darkBlue}
-					onSelect={() => onChangeTheme("darkBlue")}
 				/>
 				<ThemePreviewButton
 					displayName="Light"

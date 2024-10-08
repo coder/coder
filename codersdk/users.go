@@ -243,6 +243,18 @@ type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
 
+// RequestOneTimePasscodeRequest enables callers to request a one-time-passcode to change their password.
+type RequestOneTimePasscodeRequest struct {
+	Email string `json:"email" validate:"required,email" format:"email"`
+}
+
+// ChangePasswordWithOneTimePasscodeRequest enables callers to change their password when they've forgotten it.
+type ChangePasswordWithOneTimePasscodeRequest struct {
+	Email           string `json:"email" validate:"required,email" format:"email"`
+	Password        string `json:"password" validate:"required"`
+	OneTimePasscode string `json:"one_time_passcode" validate:"required"`
+}
+
 type OAuthConversionResponse struct {
 	StateString string    `json:"state_string"`
 	ExpiresAt   time.Time `json:"expires_at" format:"date-time"`
@@ -548,6 +560,34 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 		return LoginWithPasswordResponse{}, err
 	}
 	return resp, nil
+}
+
+func (c *Client) RequestOneTimePasscode(ctx context.Context, req RequestOneTimePasscodeRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/otp/request", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
+func (c *Client) ChangePasswordWithOneTimePasscode(ctx context.Context, req ChangePasswordWithOneTimePasscodeRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/otp/change-password", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
 }
 
 // ConvertLoginType will send a request to convert the user from password

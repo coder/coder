@@ -65,7 +65,9 @@ describe("WorkspaceBuildPage", () => {
 
 	test("shows selected agent logs", async () => {
 		const server = new WS(
-			`ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/logs?follow&after=0`,
+			`ws://localhost/api/v2/workspaceagents/${
+				MockWorkspaceAgent.id
+			}/logs?follow&after=0`,
 		);
 		renderWithAuth(<WorkspaceBuildPage />, {
 			route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}/builds/${MockWorkspace.latest_build.build_number}?${LOGS_TAB_KEY}=${MockWorkspaceAgent.id}`,
