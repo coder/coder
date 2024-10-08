@@ -113,6 +113,7 @@ We are always working on new integrations. Please feel free to open an issue and
 - [**Module Registry**](https://registry.coder.com): Extend development environments with common use-cases
 - [**Kubernetes Log Stream**](https://github.com/coder/coder-logstream-kube): Stream Kubernetes Pod events to the Coder startup logs
 - [**Self-Hosted VS Code Extension Marketplace**](https://github.com/coder/code-marketplace): A private extension marketplace that works in restricted or airgapped networks integrating with [code-server](https://github.com/coder/code-server).
+- [**Setup Coder**](https://github.com/marketplace/actions/setup-coder): An action to setup coder CLI in GitHub workflows.
 
 ### Community
 
