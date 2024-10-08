@@ -1128,6 +1128,7 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 			map[string]string{
 				"name":                     workspace.Name,
 				"template_name":            template.Name,
+				"template_display_name":    template.DisplayName,
 				"template_version_name":    templateVersion.Name,
 				"initiator":                build.InitiatorByUsername,
 				"workspace_owner_username": workspaceOwner.Username,
