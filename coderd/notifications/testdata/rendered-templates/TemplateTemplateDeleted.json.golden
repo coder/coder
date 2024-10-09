@@ -2,10 +2,10 @@
   "_version": "1.1",
   "notification_name": "Template Deleted",
   "notification_template_id": "29a09665-2a4c-403f-9648-54301670e7be",
-  "user_id": "bb698abb-1d96-4e09-bcc6-aaa8ef756320",
-  "user_email": "testuser@coder.com",
-  "user_name": "Test User",
-  "user_username": "testuser",
+  "user_id": "00000000-0000-0000-0000-000000000000",
+  "user_email": "bobby@coder.com",
+  "user_name": "Bobby",
+  "user_username": "bobby",
   "actions": [
     {
       "label": "View templates",
@@ -13,7 +13,7 @@
     }
   ],
   "labels": {
-    "_body": "Hi Test User,\n\nThe template **bobby-template** was deleted by **rob**.\n\nThe template's display name was **Bobby's Template**.",
+    "_body": "Hi Bobby,\n\nThe template **bobby-template** was deleted by **rob**.\n\nThe template's display name was **Bobby's Template**.",
     "_title": "Template \"bobby-template\" deleted",
     "display_name": "Bobby's Template",
     "initiator": "rob",

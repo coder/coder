@@ -1,0 +1,27 @@
+{
+  "_version": "1.1",
+  "notification_name": "Workspace Deleted",
+  "notification_template_id": "f517da0b-cdc9-410f-ab89-a86107c420ed",
+  "user_id": "00000000-0000-0000-0000-000000000000",
+  "user_email": "bobby@coder.com",
+  "user_name": "Bobby",
+  "user_username": "bobby",
+  "actions": [
+    {
+      "label": "View workspaces",
+      "url": "http://test.com/workspaces"
+    },
+    {
+      "label": "View templates",
+      "url": "http://test.com/templates"
+    }
+  ],
+  "labels": {
+    "_body": "Hi Bobby,\n\nYour workspace **bobby-workspace** was deleted.\n\nThe specified reason was \"**autodeleted due to dormancy (autobuild)**\".",
+    "_title": "Workspace \"bobby-workspace\" deleted",
+    "initiator": "autobuild",
+    "name": "bobby-workspace",
+    "reason": "autodeleted due to dormancy"
+  },
+  "data": null
+}

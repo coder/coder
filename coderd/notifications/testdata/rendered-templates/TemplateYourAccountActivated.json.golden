@@ -2,10 +2,10 @@
   "_version": "1.1",
   "notification_name": "Your account has been activated",
   "notification_template_id": "1a6a6bea-ee0a-43e2-9e7c-eabdb53730e4",
-  "user_id": "f6266a4d-bc5f-4789-98f4-838f63f577d1",
-  "user_email": "testuser@coder.com",
-  "user_name": "Test User",
-  "user_username": "testuser",
+  "user_id": "00000000-0000-0000-0000-000000000000",
+  "user_email": "bobby@coder.com",
+  "user_name": "Bobby",
+  "user_username": "bobby",
   "actions": [
     {
       "label": "Open Coder",
@@ -13,7 +13,7 @@
     }
   ],
   "labels": {
-    "_body": "Hi Test User,\n\nYour account **bobby** has been activated by **rob**.",
+    "_body": "Hi Bobby,\n\nYour account **bobby** has been activated by **rob**.",
     "_title": "Your account \"bobby\" has been activated",
     "account_activator_user_name": "rob",
     "activated_account_name": "bobby"

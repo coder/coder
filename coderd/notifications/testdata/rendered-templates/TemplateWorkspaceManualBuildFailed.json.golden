@@ -2,10 +2,10 @@
   "_version": "1.1",
   "notification_name": "Workspace Manual Build Failed",
   "notification_template_id": "2faeee0f-26cb-4e96-821c-85ccb9f71513",
-  "user_id": "d1baee94-c5cf-4daf-a00d-2c3ac8041d38",
-  "user_email": "testuser@coder.com",
-  "user_name": "Test User",
-  "user_username": "testuser",
+  "user_id": "00000000-0000-0000-0000-000000000000",
+  "user_email": "bobby@coder.com",
+  "user_name": "Bobby",
+  "user_username": "bobby",
   "actions": [
     {
       "label": "View build",
@@ -13,7 +13,7 @@
     }
   ],
   "labels": {
-    "_body": "Hi Test User,\n\nA manual build of the workspace **bobby-workspace** using the template **bobby-template** failed (version: **bobby-template-version**).\n\nThe template's display name was **William's Template**. The workspace build was initiated by **joe**.",
+    "_body": "Hi Bobby,\n\nA manual build of the workspace **bobby-workspace** using the template **bobby-template** failed (version: **bobby-template-version**).\n\nThe template's display name was **William's Template**. The workspace build was initiated by **joe**.",
     "_title": "Workspace \"bobby-workspace\" manual build failed",
     "initiator": "joe",
     "name": "bobby-workspace",

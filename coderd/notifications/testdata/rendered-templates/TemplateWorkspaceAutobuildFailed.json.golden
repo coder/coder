@@ -2,18 +2,18 @@
   "_version": "1.1",
   "notification_name": "Workspace Autobuild Failed",
   "notification_template_id": "381df2a9-c0c0-4749-420f-80a9280c66f9",
-  "user_id": "bde72088-2e02-45a9-a2bf-6e26242b6964",
-  "user_email": "testuser@coder.com",
-  "user_name": "Test User",
-  "user_username": "testuser",
+  "user_id": "00000000-0000-0000-0000-000000000000",
+  "user_email": "bobby@coder.com",
+  "user_name": "Bobby",
+  "user_username": "bobby",
   "actions": [
     {
       "label": "View workspace",
-      "url": "http://test.com/@testuser/bobby-workspace"
+      "url": "http://test.com/@bobby/bobby-workspace"
     }
   ],
   "labels": {
-    "_body": "Hi Test User,\n\nAutomatic build of your workspace **bobby-workspace** failed.\n\nThe specified reason was \"**autostart**\".",
+    "_body": "Hi Bobby,\n\nAutomatic build of your workspace **bobby-workspace** failed.\n\nThe specified reason was \"**autostart**\".",
     "_title": "Workspace \"bobby-workspace\" autobuild failed",
     "name": "bobby-workspace",
     "reason": "autostart"

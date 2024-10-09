@@ -699,7 +699,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceDeleted",
 			id:   notifications.TemplateWorkspaceDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":      "bobby-workspace",
 					"reason":    "autodeleted due to dormancy",
@@ -711,7 +713,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceAutobuildFailed",
 			id:   notifications.TemplateWorkspaceAutobuildFailed,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":   "bobby-workspace",
 					"reason": "autostart",
@@ -722,7 +726,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceDormant",
 			id:   notifications.TemplateWorkspaceDormant,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "breached the template's threshold for inactivity",
@@ -736,7 +742,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceAutoUpdated",
 			id:   notifications.TemplateWorkspaceAutoUpdated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_version_name":    "1.0",
@@ -748,7 +756,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceMarkedForDeletion",
 			id:   notifications.TemplateWorkspaceMarkedForDeletion,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "template updated to new dormancy policy",
@@ -761,7 +771,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"created_account_name":      "bobby",
 					"created_account_user_name": "William Tables",
@@ -773,7 +785,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountDeleted",
 			id:   notifications.TemplateUserAccountDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"deleted_account_name":      "bobby",
 					"deleted_account_user_name": "william tables",
@@ -785,7 +799,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountSuspended",
 			id:   notifications.TemplateUserAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"suspended_account_name":      "bobby",
 					"suspended_account_user_name": "william tables",
@@ -797,7 +813,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountActivated",
 			id:   notifications.TemplateUserAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"activated_account_name":      "bobby",
 					"activated_account_user_name": "william tables",
@@ -809,7 +827,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateYourAccountSuspended",
 			id:   notifications.TemplateYourAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"suspended_account_name":      "bobby",
 					"account_suspender_user_name": "rob",
@@ -820,7 +840,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateYourAccountActivated",
 			id:   notifications.TemplateYourAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"activated_account_name":      "bobby",
 					"account_activator_user_name": "rob",
@@ -831,7 +853,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateTemplateDeleted",
 			id:   notifications.TemplateTemplateDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":         "bobby-template",
 					"display_name": "Bobby's Template",
@@ -843,7 +867,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceManualBuildFailed",
 			id:   notifications.TemplateWorkspaceManualBuildFailed,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
@@ -859,7 +885,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceBuildsFailedReport",
 			id:   notifications.TemplateWorkspaceBuildsFailedReport,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"template_name":         "bobby-first-template",
 					"template_display_name": "Bobby First Template",
@@ -910,7 +938,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserRequestedOneTimePasscode",
 			id:   notifications.TemplateUserRequestedOneTimePasscode,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"one_time_passcode": "fad9020b-6562-4cdb-87f1-0486f1bea415",
 				},
@@ -941,9 +971,19 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 			adminClient, _, api := coderdtest.NewWithAPI(t, nil)
 			db := api.Database
-			firstUserResponse := coderdtest.CreateFirstUser(t, adminClient)
-			user, err := adminClient.User(ctx, firstUserResponse.UserID.String())
-			require.NoError(t, err)
+			firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+			_, user := coderdtest.CreateAnotherUserMutators(
+				t,
+				adminClient,
+				firstUser.OrganizationID,
+				[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+				func(r *codersdk.CreateUserRequestWithOrgs) {
+					r.Username = tc.payload.UserUsername
+					r.Email = tc.payload.UserEmail
+					r.Name = tc.payload.UserName
+				},
+			)
 
 			manager, err := notifications.NewManager(
 				defaultNotificationsConfig(database.NotificationMethodSmtp),
@@ -1308,6 +1348,14 @@ func (f *goldenFileHandler) Dispatcher(payload types.MessagePayload, title, body
 		partialName := strings.Split(f.t.Name(), "/")[1]
 		goldenFile := filepath.Join("testdata", "rendered-templates", partialName+".json.golden")
 
+		// UserIDs change on every test run. We need to set it to a known value to compare golden files.
+		payload.UserID = "00000000-0000-0000-0000-000000000000"
+
+		// The following is done by the stmp handler during dispatch.
+		// By doing it here we get an accurate golden representation of
+		// what would have been sent. We don't need to maintain parity
+		// with how the SMTP handler does it. We just need an accurate
+		// representation of the payload, and the rendered body and title.
 		payload.Labels["_body"] = body
 		payload.Labels["_title"] = title
 

@@ -2,13 +2,13 @@
   "_version": "1.1",
   "notification_name": "Your account has been suspended",
   "notification_template_id": "6a2f0609-9b69-4d36-a989-9f5925b6cbff",
-  "user_id": "efa9b662-1c70-45b9-b1c5-830ba6f05222",
-  "user_email": "testuser@coder.com",
-  "user_name": "Test User",
-  "user_username": "testuser",
+  "user_id": "00000000-0000-0000-0000-000000000000",
+  "user_email": "bobby@coder.com",
+  "user_name": "Bobby",
+  "user_username": "bobby",
   "actions": [],
   "labels": {
-    "_body": "Hi Test User,\n\nYour account **bobby** has been suspended by **rob**.",
+    "_body": "Hi Bobby,\n\nYour account **bobby** has been suspended by **rob**.",
     "_title": "Your account \"bobby\" has been suspended",
     "account_suspender_user_name": "rob",
     "suspended_account_name": "bobby"
