@@ -967,6 +967,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			// nolint:gocritic // Unit test.
 			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 
 			adminClient, _, api := coderdtest.NewWithAPI(t, nil)
@@ -1025,7 +1026,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 			err = manager.Stop(ctx)
 			require.NoError(t, err)
-
 		})
 	}
 }
@@ -1359,7 +1359,7 @@ func (f *goldenFileHandler) Dispatcher(payload types.MessagePayload, title, body
 			require.NoError(f.t, err, "want no error creating golden file directory")
 			err = os.WriteFile(goldenFile, payloadJSON, 0o600)
 			require.NoError(f.t, err, "want no error writing body golden file")
-			return
+			return false, nil
 		}
 
 		const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
