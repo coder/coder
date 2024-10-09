@@ -1025,14 +1025,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 			err = manager.Stop(ctx)
 			require.NoError(t, err)
-			// title, err := render.GoTemplate(titleTmpl, tc.payload, defaultHelpers())
-			// require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
-			// require.NoError(t, err, "failed to render notification title template")
-			// require.NotEmpty(t, title, "title should not be empty")
-
-			// body, err := render.GoTemplate(bodyTmpl, tc.payload, defaultHelpers())
-			// require.NoError(t, err, "failed to render notification body template")
-			// require.NotEmpty(t, body, "body should not be empty")
 
 		})
 	}
