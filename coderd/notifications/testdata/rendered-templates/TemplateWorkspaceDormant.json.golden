@@ -1,0 +1,25 @@
+{
+  "_version": "1.1",
+  "notification_name": "Workspace Marked as Dormant",
+  "notification_template_id": "0ea69165-ec14-4314-91f1-69566ac3c5a0",
+  "user_id": "4bf300d5-b3c6-4673-9bed-cd4a2cfe6a75",
+  "user_email": "testuser@coder.com",
+  "user_name": "Test User",
+  "user_username": "testuser",
+  "actions": [
+    {
+      "label": "View workspace",
+      "url": "http://test.com/@testuser/bobby-workspace"
+    }
+  ],
+  "labels": {
+    "_body": "Hi Test User,\n\nYour workspace **bobby-workspace** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of breached the template's threshold for inactivity.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after 24 hours of inactivity.\nTo prevent deletion, use your workspace with the link below.",
+    "_title": "Workspace \"bobby-workspace\" marked as dormant",
+    "dormancyHours": "24",
+    "initiator": "autobuild",
+    "name": "bobby-workspace",
+    "reason": "breached the template's threshold for inactivity",
+    "timeTilDormant": "24 hours"
+  },
+  "data": null
+}

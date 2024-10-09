@@ -1,0 +1,24 @@
+{
+  "_version": "1.1",
+  "notification_name": "Workspace Marked for Deletion",
+  "notification_template_id": "51ce2fdf-c9ca-4be1-8d70-628674f9bc42",
+  "user_id": "6b57b167-ac12-4948-a3d3-f1d1002e1ad0",
+  "user_email": "testuser@coder.com",
+  "user_name": "Test User",
+  "user_username": "testuser",
+  "actions": [
+    {
+      "label": "View workspace",
+      "url": "http://test.com/@testuser/bobby-workspace"
+    }
+  ],
+  "labels": {
+    "_body": "Hi Test User,\n\nYour workspace **bobby-workspace** has been marked for **deletion** after 24 hours of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of template updated to new dormancy policy.\nTo prevent deletion, use your workspace with the link below.",
+    "_title": "Workspace \"bobby-workspace\" marked for deletion",
+    "dormancyHours": "24",
+    "name": "bobby-workspace",
+    "reason": "template updated to new dormancy policy",
+    "timeTilDormant": "24 hours"
+  },
+  "data": null
+}

@@ -1,0 +1,16 @@
+{
+  "_version": "1.1",
+  "notification_name": "One-Time Passcode",
+  "notification_template_id": "62f86a30-2330-4b61-a26d-311ff3b608cf",
+  "user_id": "a218d7ba-85a6-462e-a954-a3ac6609b211",
+  "user_email": "testuser@coder.com",
+  "user_name": "Test User",
+  "user_username": "testuser",
+  "actions": [],
+  "labels": {
+    "_body": "Hi Test User,\n\nA request to reset the password for your Coder account has been made. Your one-time passcode is:\n\n**fad9020b-6562-4cdb-87f1-0486f1bea415**\n\nIf you did not request to reset your password, you can ignore this message.",
+    "_title": "Your One-Time Passcode for Coder.",
+    "one_time_passcode": "fad9020b-6562-4cdb-87f1-0486f1bea415"
+  },
+  "data": null
+}

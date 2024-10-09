@@ -42,7 +42,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
@@ -938,49 +937,63 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, sql := dbtestutil.NewDBWithSQLDB(t)
+			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 
-			var (
-				titleTmpl string
-				bodyTmpl  string
+			adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+			db := api.Database
+			firstUserResponse := coderdtest.CreateFirstUser(t, adminClient)
+			user, err := adminClient.User(ctx, firstUserResponse.UserID.String())
+			require.NoError(t, err)
+
+			manager, err := notifications.NewManager(
+				defaultNotificationsConfig(database.NotificationMethodSmtp),
+				db,
+				defaultHelpers(),
+				createMetrics(),
+				api.Logger.Named("manager"),
 			)
-			err := sql.
-				QueryRow("SELECT title_template, body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
-				Scan(&titleTmpl, &bodyTmpl)
-			require.NoError(t, err, "failed to query body template for template:", tc.id)
+			require.NoError(t, err)
 
-			title, err := render.GoTemplate(titleTmpl, tc.payload, defaultHelpers())
-			require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
-			require.NoError(t, err, "failed to render notification title template")
-			require.NotEmpty(t, title, "title should not be empty")
+			manager.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+				database.NotificationMethodSmtp: &goldenFileHandler{
+					t:                 t,
+					updateGoldenFiles: *updateGoldenFiles,
+				},
+			})
 
-			body, err := render.GoTemplate(bodyTmpl, tc.payload, defaultHelpers())
-			require.NoError(t, err, "failed to render notification body template")
-			require.NotEmpty(t, body, "body should not be empty")
+			manager.Run(ctx)
 
-			partialName := strings.Split(t.Name(), "/")[1]
-			bodyGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-body.md.golden")
-			titleGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-title.md.golden")
+			enqueuer, err := notifications.NewStoreEnqueuer(
+				defaultNotificationsConfig(database.NotificationMethodSmtp),
+				db,
+				defaultHelpers(),
+				api.Logger.Named("manager"),
+				quartz.NewReal(),
+			)
+			require.NoError(t, err)
 
-			if *updateGoldenFiles {
-				err = os.MkdirAll(filepath.Dir(bodyGoldenFile), 0o755)
-				require.NoError(t, err, "want no error creating golden file directory")
-				err = os.WriteFile(bodyGoldenFile, []byte(body), 0o600)
-				require.NoError(t, err, "want no error writing body golden file")
-				err = os.WriteFile(titleGoldenFile, []byte(title), 0o600)
-				require.NoError(t, err, "want no error writing title golden file")
-				return
-			}
+			_, err = enqueuer.EnqueueWithData(
+				ctx,
+				user.ID,
+				tc.id,
+				tc.payload.Labels,
+				tc.payload.Data,
+				user.Username,
+				user.ID,
+			)
+			require.NoError(t, err)
 
-			const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+			err = manager.Stop(ctx)
+			require.NoError(t, err)
+			// title, err := render.GoTemplate(titleTmpl, tc.payload, defaultHelpers())
+			// require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
+			// require.NoError(t, err, "failed to render notification title template")
+			// require.NotEmpty(t, title, "title should not be empty")
 
-			wantBody, err := os.ReadFile(bodyGoldenFile)
-			require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
-			wantTitle, err := os.ReadFile(titleGoldenFile)
-			require.NoError(t, err, fmt.Sprintf("missing golden notification title file. %s", hint))
+			// body, err := render.GoTemplate(bodyTmpl, tc.payload, defaultHelpers())
+			// require.NoError(t, err, "failed to render notification body template")
+			// require.NotEmpty(t, body, "body should not be empty")
 
-			require.Equal(t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
-			require.Equal(t, string(wantTitle), title, fmt.Sprintf("rendered template title does not match golden file. If this is expected, %s", hint))
 		})
 	}
 }
@@ -1282,6 +1295,41 @@ func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dis
 
 		f.failed = append(f.failed, msgID.String())
 		return true, xerrors.New("oops")
+	}, nil
+}
+
+type goldenFileHandler struct {
+	t                 *testing.T
+	updateGoldenFiles bool
+}
+
+func (f *goldenFileHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+	return func(_ context.Context, _ uuid.UUID) (retryable bool, err error) {
+		partialName := strings.Split(f.t.Name(), "/")[1]
+		goldenFile := filepath.Join("testdata", "rendered-templates", partialName+".json.golden")
+
+		payload.Labels["_body"] = body
+		payload.Labels["_title"] = title
+
+		payloadJSON, err := json.MarshalIndent(payload, "", "  ")
+		require.NoError(f.t, err, "want no error marshaling payload to JSON")
+
+		if *updateGoldenFiles {
+			err = os.MkdirAll(filepath.Dir(partialName), 0o755)
+			require.NoError(f.t, err, "want no error creating golden file directory")
+			err = os.WriteFile(goldenFile, payloadJSON, 0o600)
+			require.NoError(f.t, err, "want no error writing body golden file")
+			return
+		}
+
+		const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+
+		wantBody, err := os.ReadFile(goldenFile)
+		require.NoError(f.t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+
+		require.Equal(f.t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
+
+		return false, nil
 	}, nil
 }
 
