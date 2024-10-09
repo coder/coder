@@ -18,6 +18,15 @@ Use --always-prompt to change the parameter values of the workspace.
 
 ## Options
 
+### --build-option
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string-array</code>        |
+| Environment | <code>$CODER_BUILD_OPTION</code> |
+
+Build option value in the format "name=value".
+
 ### --build-options
 
 |      |                   |

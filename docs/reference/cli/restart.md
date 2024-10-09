@@ -20,6 +20,15 @@ coder restart [flags] <workspace>
 
 Bypass prompts.
 
+### --build-option
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string-array</code>        |
+| Environment | <code>$CODER_BUILD_OPTION</code> |
+
+Build option value in the format "name=value".
+
 ### --build-options
 
 |      |                   |
