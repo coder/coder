@@ -18,15 +18,6 @@ Use --always-prompt to change the parameter values of the workspace.
 
 ## Options
 
-### --build-option
-
-|             |                                  |
-| ----------- | -------------------------------- |
-| Type        | <code>string-array</code>        |
-| Environment | <code>$CODER_BUILD_OPTION</code> |
-
-Build option value in the format "name=value".
-
 ### --build-options
 
 |      |                   |
@@ -34,6 +25,24 @@ Build option value in the format "name=value".
 | Type | <code>bool</code> |
 
 Prompt for one-time build options defined with ephemeral parameters.
+
+### --ephemeral-parameter
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string-array</code>               |
+| Environment | <code>$CODER_EPHEMERAL_PARAMETER</code> |
+
+Define ephemeral parameters in the format "name=value".
+
+### --prompt-ephemeral-parameters
+
+|             |                                                 |
+| ----------- | ----------------------------------------------- |
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_PROMPT_EPHEMERAL_PARAMETERS</code> |
+
+Prompt for values of ephemeral parameters described in the template.
 
 ### --parameter
 
