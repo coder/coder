@@ -972,7 +972,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				return
 			}
 
-			hint := "run \"DB=ci make update-golden-files\" and commit the changes"
+			const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
 
 			wantBody, err := os.ReadFile(bodyGoldenFile)
 			require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))

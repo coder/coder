@@ -14,7 +14,7 @@ UPDATE notification_templates
 SET
 	body_template = E'Hi {{.UserName}},\nUser account **{{.Labels.activated_account_name}}** has been activated.'
 WHERE
-    id = '9f5af851-8408-4e73-a7a1-c6502ba46689';
+	id = '9f5af851-8408-4e73-a7a1-c6502ba46689';
 
 UPDATE notification_templates
 SET
@@ -24,13 +24,13 @@ WHERE
 
 UPDATE notification_templates
 SET
-    body_template = E'Hi {{.UserName}},\n\New user account **{{.Labels.created_account_name}}** has been created.'
+	body_template = E'Hi {{.UserName}},\n\New user account **{{.Labels.created_account_name}}** has been created.'
 WHERE
 	id = '4e19c0ac-94e1-4532-9515-d1801aa283b2';
 
 UPDATE notification_templates
 SET
-    body_template = E'Hi {{.UserName}},\n\nUser account **{{.Labels.deleted_account_name}}** has been deleted.'
+	body_template = E'Hi {{.UserName}},\n\nUser account **{{.Labels.deleted_account_name}}** has been deleted.'
 WHERE
 	id = 'f44d9314-ad03-4bc8-95d0-5cad491da6b6';
 
@@ -43,9 +43,10 @@ WHERE
 
 UPDATE notification_templates
 SET body_template = E'Hi {{.UserName}}\n' ||
-                    E'Your workspace **{{.Labels.name}}** has been updated automatically to the latest template version ({{.Labels.template_version_name}}).\n' ||
-                    E'Reason for update: **{{.Labels.template_version_message}}**'
-WHERE id = 'c34a0c09-0704-4cac-bd1c-0c0146811c2b';
+					E'Your workspace **{{.Labels.name}}** has been updated automatically to the latest template version ({{.Labels.template_version_name}}).\n' ||
+					E'Reason for update: **{{.Labels.template_version_message}}**'
+WHERE
+	id = 'c34a0c09-0704-4cac-bd1c-0c0146811c2b';
 
 UPDATE notification_templates
 SET
@@ -55,7 +56,7 @@ WHERE
 
 UPDATE notification_templates
 SET
-    body_template = E'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}{{ if .Labels.initiator }} ({{ .Labels.initiator }}){{end}}**".'
+	body_template = E'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}{{ if .Labels.initiator }} ({{ .Labels.initiator }}){{end}}**".'
 WHERE
 	id = 'f517da0b-cdc9-410f-ab89-a86107c420ed';
 
@@ -78,6 +79,6 @@ WHERE
 
 UPDATE notification_templates
 SET
-    body_template = E'Hi {{.UserName}},\n\nA manual build of the workspace **{{.Labels.name}}** using the template **{{.Labels.template_name}}** failed (version: **{{.Labels.template_version_name}}**).\nThe workspace build was initiated by **{{.Labels.initiator}}**.'
+	body_template = E'Hi {{.UserName}},\n\nA manual build of the workspace **{{.Labels.name}}** using the template **{{.Labels.template_name}}** failed (version: **{{.Labels.template_version_name}}**).\nThe workspace build was initiated by **{{.Labels.initiator}}**.'
 WHERE
 	id = '2faeee0f-26cb-4e96-821c-85ccb9f71513';
