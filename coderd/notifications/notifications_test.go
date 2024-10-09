@@ -764,7 +764,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"created_account_name": "bobby",
+					"created_account_name":      "bobby",
+					"created_account_user_name": "William Tables",
+					"account_creator":           "rob",
 				},
 			},
 		},
