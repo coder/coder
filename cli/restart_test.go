@@ -60,7 +60,7 @@ func TestRestart(t *testing.T) {
 		require.NoError(t, err, "execute failed")
 	})
 
-	t.Run("BuildOptions", func(t *testing.T) {
+	t.Run("PromptEphemeralParameters", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -72,7 +72,7 @@ func TestRestart(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		inv, root := clitest.New(t, "restart", workspace.Name, "--build-options")
+		inv, root := clitest.New(t, "restart", workspace.Name, "--prompt-ephemeral-parameters")
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -114,7 +114,7 @@ func TestRestart(t *testing.T) {
 		})
 	})
 
-	t.Run("BuildOptionFlags", func(t *testing.T) {
+	t.Run("EphemeralParameterFlags", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -127,7 +127,7 @@ func TestRestart(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, root := clitest.New(t, "restart", workspace.Name,
-			"--build-option", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
+			"--ephemeral-parameter", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
