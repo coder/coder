@@ -201,6 +201,28 @@
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects",
 							"path": "./admin/setup/telemetry.md"
+						},
+						{
+							"title": "Reverse Proxy",
+							"description": "Learn how to host Coder behind a reverse proxy",
+							"path": "./admin/setup/reverse-proxy/index.md",
+							"children": [
+								{
+									"title": "Apache",
+									"description": "Learn how to configure Coder to use Apache as a reverse proxy",
+									"path": "./admin/setup/reverse-proxy/apache/index.md"
+								},
+								{
+									"title": "Caddy",
+									"description": "Learn how to configure Coder to use Caddy as a reverse proxy",
+									"path": "./admin/setup/reverse-proxy/caddy/index.md"
+								},
+								{
+									"title": "NGINX",
+									"description": "Learn how to configure Coder to use NGINX as a reverse proxy",
+									"path": "./admin/setup/reverse-proxy/nginx/index.md"
+								}
+							]
 						}
 					]
 				},

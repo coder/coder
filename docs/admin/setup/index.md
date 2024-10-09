@@ -61,9 +61,9 @@ The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and
 accompanying configuration flags. However, Coder can also run behind a
 reverse-proxy to terminate TLS certificates from LetsEncrypt.
 
-- [Apache](./web-server/apache/index.md)
-- [Caddy](./web-server/caddy/index.md)
-- [NGINX](./web-server/nginx/index.md)
+- [Apache](./reverse-proxy/apache/index.md)
+- [Caddy](./reverse-proxy/caddy/index.md)
+- [NGINX](./reverse-proxy/nginx/index.md)
 
 ### Kubernetes TLS configuration
 

@@ -11,7 +11,8 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 1. [Install Docker](https://docs.docker.com/engine/install/) and
    [Docker Compose](https://docs.docker.com/compose/install/)
 
-1. Start with our example configuration
+1. Start with our
+   [example configuration](https://github.com/coder/coder/blob/main/docs/admin/setup/reverse-proxy/caddy/docker-compose.yaml)
 
    ```shell
    # Create a project folder
@@ -24,7 +25,9 @@ certificates, you'll need a domain name that resolves to your Caddy server.
    mv /tmp/coder/docs/admin/setup/web-server/caddy $(pwd)
    ```
 
-1. Modify the [Caddyfile](./Caddyfile) and change the following values:
+1. Modify the
+   [Caddyfile](https://github.com/coder/coder/blob/main/docs/admin/setup/reverse-proxy/caddy/Caddyfile)
+   and change the following values:
 
    - `localhost:3000`: Change to `coder:7080` (Coder container on Docker
      network)

@@ -62,7 +62,7 @@ troubleshooting.
 
 ### How do I configure NGINX as the reverse proxy in front of Coder?
 
-[This doc](../admin/setup/web-server/nginx/index.md) in our repo explains in
+[This doc](../admin/setup/reverse-proxy/nginx/index.md) in our repo explains in
 detail how to configure NGINX with Coder so that our Tailscale Wireguard
 networking functions properly.
 
