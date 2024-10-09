@@ -10,6 +10,10 @@ OPTIONS:
           Always prompt all parameters. Does not pull parameter values from
           existing workspace.
 
+      --build-option string-array, $CODER_BUILD_OPTION
+          Build option value in the format "name=value".
+          DEPRECATED: Use --ephemeral-parameter instead.
+
       --build-options bool
           Prompt for one-time build options defined with ephemeral parameters.
           DEPRECATED: Use --prompt-ephemeral-parameters instead.
