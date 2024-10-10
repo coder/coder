@@ -635,6 +635,11 @@
 			"icon_path": "./images/icons/generic.svg",
 			"children": [
 				{
+					"title": "Get started with Coder",
+					"description": "Learn how to install and run Coder quickly",
+					"path": "./tutorials/quickstart.md"
+				},
+				{
 					"title": "Write a Template from Scratch",
 					"description": "Learn how to author Coder templates",
 					"path": "./tutorials/template-from-scratch.md"
