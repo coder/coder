@@ -40,7 +40,6 @@ func (wpf *workspaceParameterFlags) cliEphemeralParameters() []serpent.Option {
 			Env:         "CODER_BUILD_OPTION",
 			Description: `Build option value in the format "name=value".`,
 			UseInstead:  []serpent.Option{{Flag: "ephemeral-parameter"}},
-			Hidden:      true,
 			Value:       serpent.StringArrayOf(&wpf.ephemeralParameters),
 		},
 		// Deprecated - replaced with prompt-ephemeral-parameters

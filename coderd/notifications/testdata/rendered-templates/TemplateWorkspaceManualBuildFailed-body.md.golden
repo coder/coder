@@ -1,4 +1,5 @@
 Hi Bobby,
 
 A manual build of the workspace **bobby-workspace** using the template **bobby-template** failed (version: **bobby-template-version**).
-The workspace build was initiated by **joe**.
+
+The template's display name was **William's Template**. The workspace build was initiated by **joe**.
