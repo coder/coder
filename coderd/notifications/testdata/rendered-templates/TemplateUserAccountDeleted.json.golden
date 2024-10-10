@@ -1,0 +1,23 @@
+{
+  "_version": "1.1",
+  "notification_name": "User account deleted",
+  "notification_template_id": "f44d9314-ad03-4bc8-95d0-5cad491da6b6",
+  "user_id": "00000000-0000-0000-0000-000000000000",
+  "user_email": "bobby@coder.com",
+  "user_name": "Bobby",
+  "user_username": "bobby",
+  "actions": [
+    {
+      "label": "View accounts",
+      "url": "http://test.com/deployment/users?filter=status%3Aactive"
+    }
+  ],
+  "labels": {
+    "_body": "Hi Bobby,\n\nUser account **bobby** has been deleted.\n\nThe deleted account belonged to **william tables** and was deleted by **rob**.",
+    "_title": "User account \"bobby\" deleted",
+    "account_deleter_user_name": "rob",
+    "deleted_account_name": "bobby",
+    "deleted_account_user_name": "william tables"
+  },
+  "data": null
+}

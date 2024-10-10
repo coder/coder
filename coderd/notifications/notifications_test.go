@@ -42,7 +42,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
@@ -700,7 +699,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceDeleted",
 			id:   notifications.TemplateWorkspaceDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":      "bobby-workspace",
 					"reason":    "autodeleted due to dormancy",
@@ -712,7 +713,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceAutobuildFailed",
 			id:   notifications.TemplateWorkspaceAutobuildFailed,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":   "bobby-workspace",
 					"reason": "autostart",
@@ -723,7 +726,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceDormant",
 			id:   notifications.TemplateWorkspaceDormant,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "breached the template's threshold for inactivity",
@@ -737,7 +742,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceAutoUpdated",
 			id:   notifications.TemplateWorkspaceAutoUpdated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_version_name":    "1.0",
@@ -749,7 +756,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceMarkedForDeletion",
 			id:   notifications.TemplateWorkspaceMarkedForDeletion,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "template updated to new dormancy policy",
@@ -762,7 +771,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"created_account_name":      "bobby",
 					"created_account_user_name": "William Tables",
@@ -774,7 +785,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountDeleted",
 			id:   notifications.TemplateUserAccountDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"deleted_account_name":      "bobby",
 					"deleted_account_user_name": "william tables",
@@ -786,7 +799,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountSuspended",
 			id:   notifications.TemplateUserAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"suspended_account_name":      "bobby",
 					"suspended_account_user_name": "william tables",
@@ -798,7 +813,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountActivated",
 			id:   notifications.TemplateUserAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"activated_account_name":      "bobby",
 					"activated_account_user_name": "william tables",
@@ -810,7 +827,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateYourAccountSuspended",
 			id:   notifications.TemplateYourAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"suspended_account_name":      "bobby",
 					"account_suspender_user_name": "rob",
@@ -821,7 +840,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateYourAccountActivated",
 			id:   notifications.TemplateYourAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"activated_account_name":      "bobby",
 					"account_activator_user_name": "rob",
@@ -832,7 +853,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateTemplateDeleted",
 			id:   notifications.TemplateTemplateDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":         "bobby-template",
 					"display_name": "Bobby's Template",
@@ -844,7 +867,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceManualBuildFailed",
 			id:   notifications.TemplateWorkspaceManualBuildFailed,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
@@ -860,7 +885,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceBuildsFailedReport",
 			id:   notifications.TemplateWorkspaceBuildsFailedReport,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"template_name":         "bobby-first-template",
 					"template_display_name": "Bobby First Template",
@@ -911,7 +938,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserRequestedOneTimePasscode",
 			id:   notifications.TemplateUserRequestedOneTimePasscode,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"one_time_passcode": "fad9020b-6562-4cdb-87f1-0486f1bea415",
 				},
@@ -938,49 +967,68 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, sql := dbtestutil.NewDBWithSQLDB(t)
+			// nolint:gocritic // Unit test.
+			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 
-			var (
-				titleTmpl string
-				bodyTmpl  string
+			adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+			db := api.Database
+			firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+			_, user := coderdtest.CreateAnotherUserMutators(
+				t,
+				adminClient,
+				firstUser.OrganizationID,
+				[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+				func(r *codersdk.CreateUserRequestWithOrgs) {
+					r.Username = tc.payload.UserUsername
+					r.Email = tc.payload.UserEmail
+					r.Name = tc.payload.UserName
+				},
 			)
-			err := sql.
-				QueryRow("SELECT title_template, body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
-				Scan(&titleTmpl, &bodyTmpl)
-			require.NoError(t, err, "failed to query body template for template:", tc.id)
 
-			title, err := render.GoTemplate(titleTmpl, tc.payload, defaultHelpers())
-			require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
-			require.NoError(t, err, "failed to render notification title template")
-			require.NotEmpty(t, title, "title should not be empty")
-
-			body, err := render.GoTemplate(bodyTmpl, tc.payload, defaultHelpers())
-			require.NoError(t, err, "failed to render notification body template")
-			require.NotEmpty(t, body, "body should not be empty")
+			manager, err := notifications.NewManager(
+				defaultNotificationsConfig(database.NotificationMethodSmtp),
+				db,
+				defaultHelpers(),
+				createMetrics(),
+				api.Logger.Named("manager"),
+			)
+			require.NoError(t, err)
 
 			partialName := strings.Split(t.Name(), "/")[1]
-			bodyGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-body.md.golden")
-			titleGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-title.md.golden")
+			goldenFile := filepath.Join("testdata", "rendered-templates", partialName+".json.golden")
+			manager.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+				database.NotificationMethodSmtp: &goldenFileHandler{
+					t:                 t,
+					goldenFileName:    goldenFile,
+					updateGoldenFiles: *updateGoldenFiles,
+				},
+			})
 
-			if *updateGoldenFiles {
-				err = os.MkdirAll(filepath.Dir(bodyGoldenFile), 0o755)
-				require.NoError(t, err, "want no error creating golden file directory")
-				err = os.WriteFile(bodyGoldenFile, []byte(body), 0o600)
-				require.NoError(t, err, "want no error writing body golden file")
-				err = os.WriteFile(titleGoldenFile, []byte(title), 0o600)
-				require.NoError(t, err, "want no error writing title golden file")
-				return
-			}
+			manager.Run(ctx)
 
-			const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+			enqueuer, err := notifications.NewStoreEnqueuer(
+				defaultNotificationsConfig(database.NotificationMethodSmtp),
+				db,
+				defaultHelpers(),
+				api.Logger.Named("manager"),
+				quartz.NewReal(),
+			)
+			require.NoError(t, err)
 
-			wantBody, err := os.ReadFile(bodyGoldenFile)
-			require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
-			wantTitle, err := os.ReadFile(titleGoldenFile)
-			require.NoError(t, err, fmt.Sprintf("missing golden notification title file. %s", hint))
+			_, err = enqueuer.EnqueueWithData(
+				ctx,
+				user.ID,
+				tc.id,
+				tc.payload.Labels,
+				tc.payload.Data,
+				user.Username,
+				user.ID,
+			)
+			require.NoError(t, err)
 
-			require.Equal(t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
-			require.Equal(t, string(wantTitle), title, fmt.Sprintf("rendered template title does not match golden file. If this is expected, %s", hint))
+			err = manager.Stop(ctx)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -1282,6 +1330,47 @@ func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dis
 
 		f.failed = append(f.failed, msgID.String())
 		return true, xerrors.New("oops")
+	}, nil
+}
+
+type goldenFileHandler struct {
+	t                 *testing.T
+	goldenFileName    string
+	updateGoldenFiles bool
+}
+
+func (f *goldenFileHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+	return func(_ context.Context, _ uuid.UUID) (retryable bool, err error) {
+		// UserIDs change on every test run. We need to set it to a known value to compare golden files.
+		payload.UserID = "00000000-0000-0000-0000-000000000000"
+
+		// The following is done by the stmp handler during dispatch.
+		// By doing it here we get an accurate golden representation of
+		// what would have been sent. We don't need to maintain parity
+		// with how the SMTP handler does it. We just need an accurate
+		// representation of the payload, and the rendered body and title.
+		payload.Labels["_body"] = body
+		payload.Labels["_title"] = title
+
+		payloadJSON, err := json.MarshalIndent(payload, "", "  ")
+		require.NoError(f.t, err, "want no error marshaling payload to JSON")
+
+		if *updateGoldenFiles {
+			err = os.MkdirAll(filepath.Dir(f.goldenFileName), 0o755)
+			require.NoError(f.t, err, "want no error creating golden file directory")
+			err = os.WriteFile(f.goldenFileName, payloadJSON, 0o600)
+			require.NoError(f.t, err, "want no error writing body golden file")
+			return false, nil
+		}
+
+		const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+
+		wantBody, err := os.ReadFile(f.goldenFileName)
+		require.NoError(f.t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+
+		require.Equal(f.t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
+
+		return false, nil
 	}, nil
 }
 
