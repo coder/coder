@@ -52,6 +52,8 @@ type CoordinatorV2 interface {
 type Node struct {
 	// ID is used to identify the connection.
 	ID tailcfg.NodeID `json:"id"`
+	// Name is the FQDN of the node with trailing dot (e.g. "node.example.com.")
+	Name string `json:"name"`
 	// AsOf is the time the node was created.
 	AsOf time.Time `json:"as_of"`
 	// Key is the Wireguard public key of the node.
@@ -432,10 +434,15 @@ func (c *coordinator) Coordinate(
 	reqs := make(chan *proto.CoordinateRequest, RequestBufferSize)
 	resps := make(chan *proto.CoordinateResponse, ResponseBufferSize)
 
+	fqdn := ""
+	if named, ok := a.(NamedCoordinatee); ok {
+		fqdn = named.FQDN()
+	}
 	p := &peer{
 		logger: logger,
 		id:     id,
 		name:   name,
+		fqdn:   fqdn,
 		resps:  resps,
 		reqs:   reqs,
 		auth:   a,
@@ -582,6 +589,7 @@ func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
 	}
 
 	if req.UpdateSelf != nil {
+		p.mutateReceivedNode(req.UpdateSelf.Node)
 		err := c.nodeUpdateLocked(p, req.UpdateSelf.Node)
 		if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
 			return nil
@@ -876,6 +884,7 @@ type HTMLDebug struct {
 type HTMLPeer struct {
 	ID           uuid.UUID
 	Name         string
+	FQDN         string
 	CreatedAge   time.Duration
 	LastWriteAge time.Duration
 	Overwrites   int
@@ -912,6 +921,7 @@ tr {
 			<tr style="margin-top:4px">
 				<th>Name</th>
 				<th>ID</th>
+				<th>FQDN</th>
 				<th>Created Age</th>
 				<th>Last Write Age</th>
 				<th>Overwrites</th>
@@ -921,6 +931,7 @@ tr {
 			<tr style="margin-top:4px">
 				<td>{{ .Name }}</td>
 				<td>{{ .ID }}</td>
+				<td>{{ .FQDN }}</td>
 				<td>{{ .CreatedAge }}</td>
 				<td>{{ .LastWriteAge }} ago</td>
 				<td>{{ .Overwrites }}</td>

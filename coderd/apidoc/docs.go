@@ -10420,10 +10420,12 @@ const docTemplate = `{
                 "example",
                 "auto-fill-parameters",
                 "notifications",
-                "workspace-usage"
+                "workspace-usage",
+                "coder-vpn"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentCoderVPN": "Enables the Coder VPN feature and all related functionality.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -10432,7 +10434,8 @@ const docTemplate = `{
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
-                "ExperimentWorkspaceUsage"
+                "ExperimentWorkspaceUsage",
+                "ExperimentCoderVPN"
             ]
         },
         "codersdk.ExternalAuth": {
