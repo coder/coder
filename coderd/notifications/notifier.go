@@ -22,6 +22,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+const (
+	NotificationsDefaultLogoURL = "https://coder.com/coder-logo-horizontal.png"
+	NotificationsDefaultAppName = "Coder"
+)
+
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {

@@ -447,6 +447,8 @@ func TestSMTP(t *testing.T) {
 			helpers := map[string]any{
 				"base_url":     func() string { return "http://test.com" },
 				"current_year": func() string { return "2024" },
+				"logo_url":     func() string { return "https://logo.company" },
+				"app_name":     func() string { return "TestCompany" },
 			}
 			handler := dispatch.NewSMTPHandler(tc.cfg, helpers, logger.Named("smtp"))
 
