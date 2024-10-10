@@ -64,9 +64,21 @@ func (r *RootCmd) createToken() *serpent.Command {
 				userID = user
 			}
 
-			parsedLifetime, err := extendedParseDuration(tokenLifetime)
-			if err != nil {
-				return xerrors.Errorf("parse lifetime: %w", err)
+			var parsedLifetime time.Duration
+			var err error
+
+			if tokenLifetime == "" {
+				tokenConfig, err := client.GetTokenConfig(inv.Context(), userID)
+				if err != nil {
+					return xerrors.Errorf("get token config: %w", err)
+				}
+
+				parsedLifetime = tokenConfig.MaxTokenLifetime
+			} else {
+				parsedLifetime, err = extendedParseDuration(tokenLifetime)
+				if err != nil {
+					return xerrors.Errorf("parse lifetime: %w", err)
+				}
 			}
 
 			res, err := client.CreateToken(inv.Context(), userID, codersdk.CreateTokenRequest{
@@ -88,7 +100,6 @@ func (r *RootCmd) createToken() *serpent.Command {
 			Flag:        "lifetime",
 			Env:         "CODER_TOKEN_LIFETIME",
 			Description: "Specify a duration for the lifetime of the token.",
-			Default:     (time.Hour * 24 * 30).String(),
 			Value:       serpent.StringOf(&tokenLifetime),
 		},
 		{
