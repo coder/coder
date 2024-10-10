@@ -1820,7 +1820,7 @@ func TestNotifications(t *testing.T) {
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: pd.OrganizationID})
 
 		template := dbgen.Template(t, db, database.Template{
-			Name: "template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
+			Name: "template", DisplayName: "William's Template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
 		})
 		workspace := dbgen.Workspace(t, db, database.Workspace{
 			TemplateID: template.ID, OwnerID: user.ID, OrganizationID: pd.OrganizationID,
@@ -1860,6 +1860,7 @@ func TestNotifications(t *testing.T) {
 		assert.Contains(t, notifEnq.Sent[0].Targets, user.ID)
 		assert.Equal(t, workspace.Name, notifEnq.Sent[0].Labels["name"])
 		assert.Equal(t, template.Name, notifEnq.Sent[0].Labels["template_name"])
+		assert.Equal(t, template.DisplayName, notifEnq.Sent[0].Labels["template_display_name"])
 		assert.Equal(t, version.Name, notifEnq.Sent[0].Labels["template_version_name"])
 		assert.Equal(t, user.Username, notifEnq.Sent[0].Labels["initiator"])
 		assert.Equal(t, user.Username, notifEnq.Sent[0].Labels["workspace_owner_username"])

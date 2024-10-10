@@ -700,6 +700,21 @@
 					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
+					"title": "Use Apache as a Reverse Proxy",
+					"description": "Learn how to use Apache as a reverse proxy",
+					"path": "./tutorials/reverse-proxy-apache.md"
+				},
+				{
+					"title": "Use Caddy as a Reverse Proxy",
+					"description": "Learn how to use Caddy as a reverse proxy",
+					"path": "./tutorials/reverse-proxy-caddy.md"
+				},
+				{
+					"title": "Use NGINX as a Reverse Proxy",
+					"description": "Learn how to use NGINX as a reverse proxy",
+					"path": "./tutorials/reverse-proxy-nginx.md"
+				},
+				{
 					"title": "FAQs",
 					"description": "Miscellaneous FAQs from our community",
 					"path": "./tutorials/faqs.md"

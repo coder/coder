@@ -11,31 +11,101 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 1. [Install Docker](https://docs.docker.com/engine/install/) and
    [Docker Compose](https://docs.docker.com/compose/install/)
 
-1. Start with our example configuration
+2. Create a `docker-compose.yaml` file and add the following:
 
-   ```shell
-   # Create a project folder
-   cd $HOME
-   mkdir coder-with-caddy
-   cd coder-with-caddy
+   ```yaml
+   services:
+   coder:
+   	image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
+   	environment:
+   		CODER_PG_CONNECTION_URL: "postgresql://${POSTGRES_USER:-username}:${POSTGRES_PASSWORD:-password}@database/${POSTGRES_DB:-coder}?sslmode=disable"
+   		CODER_HTTP_ADDRESS: "0.0.0.0:7080"
+   		# You'll need to set CODER_ACCESS_URL to an IP or domain
+   		# that workspaces can reach. This cannot be localhost
+   		# or 127.0.0.1 for non-Docker templates!
+   		CODER_ACCESS_URL: "${CODER_ACCESS_URL}"
+   		# Optional) Enable wildcard apps/dashboard port forwarding
+   		CODER_WILDCARD_ACCESS_URL: "${CODER_WILDCARD_ACCESS_URL}"
+   		# If the coder user does not have write permissions on
+   		# the docker socket, you can uncomment the following
+   		# lines and set the group ID to one that has write
+   		# permissions on the docker socket.
+   		#group_add:
+   		#  - "998" # docker group on host
+   	volumes:
+   		- /var/run/docker.sock:/var/run/docker.sock
+   	depends_on:
+   		database:
+   		condition: service_healthy
 
-   # Clone coder/coder and copy the Caddy example
-   git clone https://github.com/coder/coder /tmp/coder
-   mv /tmp/coder/docs/admin/setup/web-server/caddy $(pwd)
+   database:
+   	image: "postgres:16"
+   	ports:
+   		- "5432:5432"
+   	environment:
+   		POSTGRES_USER: ${POSTGRES_USER:-username} # The PostgreSQL user (useful to connect to the database)
+   		POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password} # The PostgreSQL password (useful to connect to the database)
+   		POSTGRES_DB: ${POSTGRES_DB:-coder} # The PostgreSQL default database (automatically created at first launch)
+   	volumes:
+   		- coder_data:/var/lib/postgresql/data # Use "docker volume rm coder_coder_data" to reset Coder
+   	healthcheck:
+   		test:
+   		[
+   			"CMD-SHELL",
+   			"pg_isready -U ${POSTGRES_USER:-username} -d ${POSTGRES_DB:-coder}",
+   		]
+   		interval: 5s
+   		timeout: 5s
+   		retries: 5
+
+   caddy:
+   	image: caddy:2.6.2
+   	ports:
+   		- "80:80"
+   		- "443:443"
+   		- "443:443/udp"
+   	volumes:
+   		- $PWD/Caddyfile:/etc/caddy/Caddyfile
+   		- caddy_data:/data
+   		- caddy_config:/config
+
+   volumes:
+   	coder_data:
+   	caddy_data:
+   	caddy_config:
    ```
 
-1. Modify the [Caddyfile](./Caddyfile) and change the following values:
+3. Create a `Caddyfile` and add the following:
 
-   - `localhost:3000`: Change to `coder:7080` (Coder container on Docker
-     network)
+   ```caddyfile
+   {
+   	on_demand_tls {
+   		ask http://example.com
+   	}
+   }
+
+   coder.example.com, *.coder.example.com {
+     reverse_proxy coder:7080
+     tls {
+       	on_demand
+         issuer acme {
+            email email@example.com
+         }
+     	}
+   }
+   ```
+
+   Here;
+
+   - `coder:7080` is the address of the Coder container on the Docker network.
+   - `coder.example.com` is the domain name you're using for Coder.
+   - `*.coder.example.com` is the domain name for wildcard apps, commonly used
+     for [dashboard port forwarding](../admin/networking/port-forwarding.md).
+     This is optional and can be removed.
    - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL
      (does not have to be Coder admin email)
-   - `coder.example.com`: Domain name you're using for Coder.
-   - `*.coder.example.com`: Domain name for wildcard apps, commonly used for
-     [dashboard port forwarding](../../../networking/port-forwarding.md). This
-     is optional and can be removed.
 
-1. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the
+4. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the
    domain you're using in your Caddyfile.
 
    ```shell
@@ -46,11 +116,23 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 
 ### Standalone
 
-1. If you haven't already, [install Coder](../../../../install/index.md)
+1. If you haven't already, [install Coder](../install/index.md)
 
 2. Install [Caddy Server](https://caddyserver.com/docs/install)
 
-3. Copy our sample [Caddyfile](./Caddyfile) and change the following values:
+3. Copy our sample `Caddyfile` and change the following values:
+
+   ```caddyfile
+   {
+   	on_demand_tls {
+   		ask http://example.com
+   	}
+   }
+
+   coder.example.com, *.coder.example.com {
+     reverse_proxy coder:7080
+   }
+   ```
 
    > If you're installed Caddy as a system package, update the default Caddyfile
    > with `vim /etc/caddy/Caddyfile`
@@ -59,14 +141,14 @@ certificates, you'll need a domain name that resolves to your Caddy server.
      (does not have to be Coder admin email)
    - `coder.example.com`: Domain name you're using for Coder.
    - `*.coder.example.com`: Domain name for wildcard apps, commonly used for
-     [dashboard port forwarding](../../../networking/port-forwarding.md). This
+     [dashboard port forwarding](../admin/networking/port-forwarding.md). This
      is optional and can be removed.
    - `localhost:3000`: Address Coder is running on. Modify this if you changed
      `CODER_HTTP_ADDRESS` in the Coder configuration.
    - _DO NOT CHANGE the `ask http://example.com` line! Doing so will result in
      your certs potentially not being generated._
 
-4. [Configure Coder](../../index.md) and change the following values:
+4. [Configure Coder](../admin/setup/index.md) and change the following values:
 
    - `CODER_ACCESS_URL`: root domain (e.g. `https://coder.example.com`)
    - `CODER_WILDCARD_ACCESS_URL`: wildcard domain (e.g. `*.example.com`).
@@ -116,7 +198,7 @@ By default, this configuration uses Caddy's
 [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls) to
 generate a certificate for each subdomain (e.g. `app1.coder.example.com`,
 `app2.coder.example.com`). When users visit new subdomains, such as accessing
-[ports on a workspace](../../../networking/port-forwarding.md), the request will
+[ports on a workspace](../admin/networking/port-forwarding.md), the request will
 take an additional 5-30 seconds since a new certificate is being generated.
 
 For production deployments, we recommend configuring Caddy to generate a

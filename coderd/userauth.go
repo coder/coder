@@ -1481,14 +1481,15 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 					Username:        params.Username,
 					OrganizationIDs: orgIDs,
 				},
-				LoginType: params.LoginType,
+				LoginType:          params.LoginType,
+				accountCreatorName: "oauth",
 			})
 			if err != nil {
 				return xerrors.Errorf("create user: %w", err)
 			}
 		}
 
-		// Activate dormant user on sigin
+		// Activate dormant user on sign-in
 		if user.Status == database.UserStatusDormant {
 			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
