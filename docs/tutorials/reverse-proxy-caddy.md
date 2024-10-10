@@ -133,6 +133,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
      reverse_proxy coder:7080
    }
    ```
+
    > If you're installed Caddy as a system package, update the default Caddyfile
    > with `vim /etc/caddy/Caddyfile`
 
