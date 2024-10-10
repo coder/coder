@@ -25,6 +25,7 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch/mock_smtp"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -420,7 +421,7 @@ func TestSMTP(t *testing.T) {
 
 			tc.cfg.ForceTLS = serpent.Bool(tc.useTLS)
 
-			backend := NewBackend(Config{
+			backend := mock_smtp.NewBackend(Config{
 				AuthMechanisms: tc.authMechs,
 
 				AcceptedIdentity: tc.cfg.Auth.Identity.String(),
@@ -431,7 +432,7 @@ func TestSMTP(t *testing.T) {
 			})
 
 			// Create a mock SMTP server which conditionally listens for plain or TLS connections.
-			srv, listen, err := createMockSMTPServer(backend, tc.useTLS)
+			srv, listen, err := mock_smtp.CreateMockSMTPServer(backend, tc.useTLS)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				// We expect that the server has already been closed in the test
@@ -546,7 +547,7 @@ func TestSMTPGolden(t *testing.T) {
 		body    string
 	}{
 		{
-			name: "TemplateWorkspaceDeleted",
+			name: "_body",
 			cfg: codersdk.NotificationsEmailConfig{
 				Hello: hello,
 				From:  from,

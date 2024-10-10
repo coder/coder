@@ -1,4 +1,4 @@
-package dispatch_test
+package mock_smtp
 
 import (
 	"crypto/tls"
@@ -162,7 +162,7 @@ func (*Session) Reset() {}
 func (*Session) Logout() error { return nil }
 
 // nolint:revive // Yes, useTLS is a control flag.
-func createMockSMTPServer(be *Backend, useTLS bool) (*smtp.Server, net.Listener, error) {
+func CreateMockSMTPServer(be *Backend, useTLS bool) (*smtp.Server, net.Listener, error) {
 	// nolint:gosec
 	tlsCfg := &tls.Config{
 		GetCertificate: readCert,
