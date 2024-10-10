@@ -684,7 +684,7 @@ func enumerateAllTemplates(t *testing.T) ([]string, error) {
 	return out, nil
 }
 
-func TestNotificationTemplatesCanRender(t *testing.T) {
+func TestNotificationTemplates_Golden(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
@@ -764,7 +764,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"created_account_name": "bobby",
+					"created_account_name":      "bobby",
+					"created_account_user_name": "William Tables",
+					"account_creator":           "rob",
 				},
 			},
 		},
@@ -774,7 +776,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"deleted_account_name": "bobby",
+					"deleted_account_name":      "bobby",
+					"deleted_account_user_name": "william tables",
+					"account_deleter_user_name": "rob",
 				},
 			},
 		},
@@ -784,7 +788,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"suspended_account_name": "bobby",
+					"suspended_account_name":      "bobby",
+					"suspended_account_user_name": "william tables",
+					"account_suspender_user_name": "rob",
 				},
 			},
 		},
@@ -794,7 +800,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"activated_account_name": "bobby",
+					"activated_account_name":      "bobby",
+					"activated_account_user_name": "william tables",
+					"account_activator_user_name": "rob",
 				},
 			},
 		},
@@ -804,7 +812,8 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"suspended_account_name": "bobby",
+					"suspended_account_name":      "bobby",
+					"account_suspender_user_name": "rob",
 				},
 			},
 		},
@@ -814,7 +823,8 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"activated_account_name": "bobby",
+					"activated_account_name":      "bobby",
+					"account_activator_user_name": "rob",
 				},
 			},
 		},
@@ -824,8 +834,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			payload: types.MessagePayload{
 				UserName: "Bobby",
 				Labels: map[string]string{
-					"name":      "bobby-template",
-					"initiator": "rob",
+					"name":         "bobby-template",
+					"display_name": "Bobby's Template",
+					"initiator":    "rob",
 				},
 			},
 		},
@@ -837,6 +848,7 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
+					"template_display_name":    "William's Template",
 					"template_version_name":    "bobby-template-version",
 					"initiator":                "joe",
 					"workspace_owner_username": "mrbobby",
@@ -960,13 +972,15 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				return
 			}
 
-			wantBody, err := os.ReadFile(bodyGoldenFile)
-			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
-			wantTitle, err := os.ReadFile(titleGoldenFile)
-			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
+			const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
 
-			require.Equal(t, string(wantBody), body, "body should be equal")
-			require.Equal(t, string(wantTitle), title, "title should be equal")
+			wantBody, err := os.ReadFile(bodyGoldenFile)
+			require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+			wantTitle, err := os.ReadFile(titleGoldenFile)
+			require.NoError(t, err, fmt.Sprintf("missing golden notification title file. %s", hint))
+
+			require.Equal(t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
+			require.Equal(t, string(wantTitle), title, fmt.Sprintf("rendered template title does not match golden file. If this is expected, %s", hint))
 		})
 	}
 }

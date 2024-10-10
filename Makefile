@@ -667,6 +667,7 @@ update-golden-files: \
 	enterprise/tailnet/testdata/.gen-golden \
 	tailnet/testdata/.gen-golden \
 	coderd/.gen-golden \
+	coderd/notifications/.gen-golden \
 	provisioner/terraform/testdata/.gen-golden
 .PHONY: update-golden-files
 
@@ -696,6 +697,10 @@ helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/t
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
 	go test ./coderd -run="Test.*Golden$$" -update
+	touch "$@"
+
+coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)
+	go test ./coderd/notifications -run="Test.*Golden$$" -update
 	touch "$@"
 
 provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
