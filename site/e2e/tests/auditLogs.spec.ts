@@ -1,15 +1,11 @@
 import { expect, test } from "@playwright/test";
-import {
-	createTemplate,
-	createWorkspace,
-	requiresEnterpriseLicense,
-} from "../helpers";
+import { createTemplate, createWorkspace, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("inspecting and filtering audit logs", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	const userName = "admin";
 	// Do some stuff that should show up in the audit logs

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { setupApiCalls } from "../api";
 import { expectUrl } from "../expectUrl";
-import { requiresEnterpriseLicense } from "../helpers";
+import { requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {
@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("create and delete organization", async ({ page, baseURL }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	// Create an organization
 	await page.goto(`${baseURL}/organizations/new`, {

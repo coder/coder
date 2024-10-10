@@ -507,10 +507,10 @@ jobs:
       fail-fast: false
       matrix:
         variant:
-          - enterprise: false
+          - premium: false
             name: test-e2e
-          - enterprise: true
-            name: test-e2e-enterprise
+          - premium: true
+            name: test-e2e-premium
     name: ${{ matrix.variant.name }}
     steps:
       - name: Checkout
@@ -534,20 +534,20 @@ jobs:
       - run: pnpm playwright:install
         working-directory: site
 
-      # Run tests that don't require an enterprise license without an enterprise license
+      # Run tests that don't require a premium license without a premium license
       - run: pnpm playwright:test --forbid-only --workers 1
-        if: ${{ !matrix.variant.enterprise }}
+        if: ${{ !matrix.variant.premium }}
         env:
           DEBUG: pw:api
         working-directory: site
 
-      # Run all of the tests with an enterprise license
+      # Run all of the tests with a premium license
       - run: pnpm playwright:test --forbid-only --workers 1
-        if: ${{ matrix.variant.enterprise }}
+        if: ${{ matrix.variant.premium }}
         env:
           DEBUG: pw:api
-          CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
-          CODER_E2E_REQUIRE_ENTERPRISE_TESTS: "1"
+          CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
+          CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
         working-directory: site
         # Temporarily allow these to fail so that I can gather data about which
         # tests are failing.
@@ -557,7 +557,7 @@ jobs:
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@v4
         with:
-          name: failed-test-videos${{ matrix.variant.enterprise && '-enterprise' || '-agpl' }}
+          name: failed-test-videos${{ matrix.variant.premium && '-premium' || '-agpl' }}
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
@@ -565,7 +565,7 @@ jobs:
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@v4
         with:
-          name: debug-pprof-dumps${{ matrix.variant.enterprise && '-enterprise' || '-agpl'  }}
+          name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || '-agpl'  }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 

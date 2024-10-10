@@ -34,10 +34,10 @@ export const gitAuth = {
 	installationsPath: "/installations",
 };
 
-export const requireEnterpriseTests = Boolean(
-	process.env.CODER_E2E_REQUIRE_ENTERPRISE_TESTS,
+export const requirePremiumTests = Boolean(
+	process.env.CODER_E2E_REQUIRE_PREMIUM_TESTS,
 );
-export const enterpriseLicense = process.env.CODER_E2E_ENTERPRISE_LICENSE ?? "";
+export const license = process.env.CODER_E2E_LICENSE ?? "";
 
 // Disabling terraform tests is optional for environments without Docker + Terraform.
 // By default, we opt into these tests.

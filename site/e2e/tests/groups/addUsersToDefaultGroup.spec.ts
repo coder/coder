@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createUser, getCurrentOrgId, setupApiCalls } from "../../api";
-import { requiresEnterpriseLicense } from "../../helpers";
+import { requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
@@ -11,7 +11,7 @@ test(`Every user should be automatically added to the default '${DEFAULT_GROUP_N
 	page,
 	baseURL,
 }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 	await setupApiCalls(page);
 	const orgId = await getCurrentOrgId();
 	const numberOfMembers = 3;

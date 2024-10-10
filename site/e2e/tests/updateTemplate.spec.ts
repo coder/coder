@@ -3,7 +3,7 @@ import { expectUrl } from "../expectUrl";
 import {
 	createGroup,
 	createTemplate,
-	requiresEnterpriseLicense,
+	requiresLicense,
 	updateTemplateSettings,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
@@ -21,7 +21,7 @@ test("template update with new name redirects on successful submit", async ({
 });
 
 test("add and remove a group", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	const templateName = await createTemplate(page);
 	const groupName = await createGroup(page);
@@ -52,7 +52,7 @@ test("add and remove a group", async ({ page }) => {
 });
 
 test("require latest version", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	const templateName = await createTemplate(page);
 

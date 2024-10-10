@@ -16,9 +16,9 @@ import {
 	agentPProfPort,
 	coderMain,
 	coderPort,
-	enterpriseLicense,
+	license,
 	prometheusPort,
-	requireEnterpriseTests,
+	requirePremiumTests,
 	requireTerraformTests,
 } from "./constants";
 import { expectUrl } from "./expectUrl";
@@ -35,13 +35,13 @@ import {
 	type RichParameter,
 } from "./provisionerGenerated";
 
-// requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
-export function requiresEnterpriseLicense() {
-	if (requireEnterpriseTests) {
+// requiresLicense will skip the test if we're not running with a license added
+export function requiresLicense() {
+	if (requirePremiumTests) {
 		return;
 	}
 
-	test.skip(!enterpriseLicense);
+	test.skip(!license);
 }
 
 // requireTerraformProvisioner by default is enabled.

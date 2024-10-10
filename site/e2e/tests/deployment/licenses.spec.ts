@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { requiresEnterpriseLicense } from "../../helpers";
+import { requiresLicense } from "../../helpers";
 
 test("license was added successfully", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
 	const firstLicense = page.locator(".licenses > .license-card", {

@@ -1,9 +1,9 @@
 import { chromium, expect, test } from "@playwright/test";
 import { expectUrl } from "../../expectUrl";
-import { randomName, requiresEnterpriseLicense } from "../../helpers";
+import { randomName, requiresLicense } from "../../helpers";
 
 test("set application name", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	await page.goto("/deployment/appearance", { waitUntil: "domcontentloaded" });
 
@@ -33,7 +33,7 @@ test("set application name", async ({ page }) => {
 });
 
 test("set application logo", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	await page.goto("/deployment/appearance", { waitUntil: "domcontentloaded" });
 
@@ -61,7 +61,7 @@ test("set application logo", async ({ page }) => {
 });
 
 test("set service banner", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	await page.goto("/deployment/appearance", { waitUntil: "domcontentloaded" });
 
