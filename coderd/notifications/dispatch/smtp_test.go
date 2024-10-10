@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -519,6 +522,133 @@ func TestSMTP(t *testing.T) {
 
 			require.NoError(t, srv.Shutdown(ctx))
 			wg.Wait()
+		})
+	}
+}
+
+func TestSMTPGolden(t *testing.T) {
+	t.Parallel()
+
+	const (
+		username = "bob"
+		password = "🤫"
+
+		hello = "localhost"
+		from  = "system@coder.com"
+	)
+
+	tcs := []struct {
+		name    string
+		cfg     codersdk.NotificationsEmailConfig
+		payload types.MessagePayload
+		// TODO: should this be part of the payload:
+		subject string
+		body    string
+	}{
+		{
+			name: "TemplateWorkspaceDeleted",
+			cfg: codersdk.NotificationsEmailConfig{
+				Hello: hello,
+				From:  from,
+
+				Auth: codersdk.NotificationsEmailAuthConfig{
+					Username: username,
+					Password: password,
+				},
+			},
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"name":      "bobby-workspace",
+					"reason":    "autodeleted due to dormancy",
+					"initiator": "autobuild",
+				},
+			},
+			subject: "Workspace bobby-workspace has been deleted",
+			body:    "Workspace bobby-workspace has been deleted due to dormancy by autobuild.",
+		},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			backend := NewBackend(Config{
+				AuthMechanisms: []string{sasl.Login},
+
+				AcceptedIdentity: tc.cfg.Auth.Identity.String(),
+				AcceptedUsername: username,
+				AcceptedPassword: password,
+			})
+
+			// Create a mock SMTP server which conditionally listens for plain or TLS connections.
+			srv, listen, err := createMockSMTPServer(backend, false)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				// We expect that the server has already been closed in the test
+				assert.ErrorIs(t, srv.Shutdown(ctx), smtp.ErrServerClosed)
+			})
+
+			var hp serpent.HostPort
+			require.NoError(t, hp.Set(listen.Addr().String()))
+			tc.cfg.Smarthost = hp
+
+			// Start mock SMTP server in the background.
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				assert.NoError(t, srv.Serve(listen))
+			}()
+
+			// Wait for the server to become pingable.
+			require.Eventually(t, func() bool {
+				cl, err := pingClient(listen, false, tc.cfg.TLS.StartTLS.Value())
+				if err != nil {
+					t.Logf("smtp not yet dialable: %s", err)
+					return false
+				}
+
+				if err = cl.Noop(); err != nil {
+					t.Logf("smtp not yet noopable: %s", err)
+					return false
+				}
+
+				if err = cl.Close(); err != nil {
+					t.Logf("smtp didn't close properly: %s", err)
+					return false
+				}
+
+				return true
+			}, testutil.WaitShort, testutil.IntervalFast)
+
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+			helpers := map[string]any{
+				"base_url":     func() string { return "http://test.com" },
+				"current_year": func() string { return "2024" },
+			}
+			handler := dispatch.NewSMTPHandler(tc.cfg, helpers, logger.Named("smtp"))
+			dispatchFn, err := handler.Dispatcher(tc.payload, tc.subject, tc.body)
+			require.NoError(t, err)
+			msgID := uuid.New()
+			retryable, err := dispatchFn(ctx, msgID)
+			require.NoError(t, err)
+			require.False(t, retryable)
+
+			msg := backend.LastMessage()
+
+			// msgJSON, err := json.MarshalIndent(msg, "", "  ")
+			// require.NoError(t, err, "want no error marshaling payload to JSON")
+
+			partialName := strings.Split(t.Name(), "/")[1]
+			goldenFile := filepath.Join("testdata", "rendered-templates", partialName+".golden.html")
+			// TODO: add flag to update golden files
+			err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+			require.NoError(t, err, "want no error creating golden file directory")
+			err = os.WriteFile(goldenFile, []byte(msg.Contents), 0o600)
+			require.NoError(t, err, "want no error writing body golden file")
 		})
 	}
 }

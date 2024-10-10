@@ -995,9 +995,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			partialName := strings.Split(t.Name(), "/")[1]
+			goldenFile := filepath.Join("testdata", "rendered-templates", partialName+".json.golden")
 			manager.WithHandlers(map[database.NotificationMethod]notifications.Handler{
 				database.NotificationMethodSmtp: &goldenFileHandler{
 					t:                 t,
+					goldenFileName:    goldenFile,
 					updateGoldenFiles: *updateGoldenFiles,
 				},
 			})
@@ -1332,14 +1335,12 @@ func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dis
 
 type goldenFileHandler struct {
 	t                 *testing.T
+	goldenFileName    string
 	updateGoldenFiles bool
 }
 
 func (f *goldenFileHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
 	return func(_ context.Context, _ uuid.UUID) (retryable bool, err error) {
-		partialName := strings.Split(f.t.Name(), "/")[1]
-		goldenFile := filepath.Join("testdata", "rendered-templates", partialName+".json.golden")
-
 		// UserIDs change on every test run. We need to set it to a known value to compare golden files.
 		payload.UserID = "00000000-0000-0000-0000-000000000000"
 
@@ -1355,16 +1356,16 @@ func (f *goldenFileHandler) Dispatcher(payload types.MessagePayload, title, body
 		require.NoError(f.t, err, "want no error marshaling payload to JSON")
 
 		if *updateGoldenFiles {
-			err = os.MkdirAll(filepath.Dir(partialName), 0o755)
+			err = os.MkdirAll(filepath.Dir(f.goldenFileName), 0o755)
 			require.NoError(f.t, err, "want no error creating golden file directory")
-			err = os.WriteFile(goldenFile, payloadJSON, 0o600)
+			err = os.WriteFile(f.goldenFileName, payloadJSON, 0o600)
 			require.NoError(f.t, err, "want no error writing body golden file")
 			return false, nil
 		}
 
 		const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
 
-		wantBody, err := os.ReadFile(goldenFile)
+		wantBody, err := os.ReadFile(f.goldenFileName)
 		require.NoError(f.t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
 
 		require.Equal(f.t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
