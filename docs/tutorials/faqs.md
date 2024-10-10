@@ -62,9 +62,9 @@ troubleshooting.
 
 ### How do I configure NGINX as the reverse proxy in front of Coder?
 
-[This doc](../admin/setup/web-server/nginx/index.md) in our repo explains in
-detail how to configure NGINX with Coder so that our Tailscale Wireguard
-networking functions properly.
+[This tutorial](./reverse-proxy-nginx.md) in our docs explains in detail how to
+configure NGINX with Coder so that our Tailscale Wireguard networking functions
+properly.
 
 ### How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?
 
