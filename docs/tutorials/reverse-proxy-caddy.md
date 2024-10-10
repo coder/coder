@@ -77,7 +77,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 
 3. Create a `Caddyfile` and add the following:
 
-   ```
+   ```caddyfile
    {
    	on_demand_tls {
    		ask http://example.com
@@ -116,12 +116,23 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 
 ### Standalone
 
-1. If you haven't already, [install Coder](../../../../install/index.md)
+1. If you haven't already, [install Coder](../install/index.md)
 
 2. Install [Caddy Server](https://caddyserver.com/docs/install)
 
-3. Copy our sample [Caddyfile](./Caddyfile) and change the following values:
+3. Copy our sample `Caddyfile` and change the following values:
 
+   ```caddyfile
+   {
+   	on_demand_tls {
+   		ask http://example.com
+   	}
+   }
+
+   coder.example.com, *.coder.example.com {
+     reverse_proxy coder:7080
+   }
+   ```
    > If you're installed Caddy as a system package, update the default Caddyfile
    > with `vim /etc/caddy/Caddyfile`
 
