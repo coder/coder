@@ -7473,6 +7473,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspacebuilds/{workspacebuild}/timings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace build timings by ID",
+                "operationId": "get-workspace-build-timings-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceproxies": {
             "get": {
                 "security": [
@@ -8506,7 +8541,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceTimings"
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
                         }
                     }
                 }
@@ -8936,6 +8971,31 @@ const docTemplate = `{
             ],
             "properties": {
                 "license": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AgentScriptTiming": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -14684,6 +14744,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceBuildTimings": {
+            "type": "object",
+            "properties": {
+                "agent_script_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentScriptTiming"
+                    }
+                },
+                "provisioner_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceConnectionLatencyMS": {
             "type": "object",
             "properties": {
@@ -14926,17 +15003,6 @@ const docTemplate = `{
                 "WorkspaceStatusDeleting",
                 "WorkspaceStatusDeleted"
             ]
-        },
-        "codersdk.WorkspaceTimings": {
-            "type": "object",
-            "properties": {
-                "provisioner_timings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
-                    }
-                }
-            }
         },
         "codersdk.WorkspaceTransition": {
             "type": "string",

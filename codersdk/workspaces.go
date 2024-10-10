@@ -626,32 +626,17 @@ func (c *Client) UnfavoriteWorkspace(ctx context.Context, workspaceID uuid.UUID)
 	return nil
 }
 
-type ProvisionerTiming struct {
-	JobID     uuid.UUID `json:"job_id" format:"uuid"`
-	StartedAt time.Time `json:"started_at" format:"date-time"`
-	EndedAt   time.Time `json:"ended_at" format:"date-time"`
-	Stage     string    `json:"stage"`
-	Source    string    `json:"source"`
-	Action    string    `json:"action"`
-	Resource  string    `json:"resource"`
-}
-
-type WorkspaceTimings struct {
-	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
-	// TODO: Add AgentScriptTimings when it is done https://github.com/coder/coder/issues/14630
-}
-
-func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceTimings, error) {
+func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceBuildTimings, error) {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/timings", id.String())
 	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return WorkspaceTimings{}, err
+		return WorkspaceBuildTimings{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkspaceTimings{}, ReadBodyAsError(res)
+		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
 	}
-	var timings WorkspaceTimings
+	var timings WorkspaceBuildTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }
 
