@@ -654,10 +654,3 @@ func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceT
 	var timings WorkspaceTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }
-
-// WorkspaceNotifyChannel is the PostgreSQL NOTIFY
-// channel to listen for updates on. The payload is empty,
-// because the size of a workspace payload can be very large.
-func WorkspaceNotifyChannel(id uuid.UUID) string {
-	return fmt.Sprintf("workspace:%s", id)
-}

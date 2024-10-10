@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -295,12 +296,15 @@ func TestAcquireJob(t *testing.T) {
 
 			startPublished := make(chan struct{})
 			var closed bool
-			closeStartSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-				if !closed {
-					close(startPublished)
-					closed = true
-				}
-			})
+			closeStartSubscribe, err := ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+				wspubsub.HandleWorkspaceEvent(func(_ context.Context, e wspubsub.WorkspaceEvent) {
+					if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+						if !closed {
+							close(startPublished)
+							closed = true
+						}
+					}
+				}))
 			require.NoError(t, err)
 			defer closeStartSubscribe()
 
@@ -398,9 +402,12 @@ func TestAcquireJob(t *testing.T) {
 			})
 
 			stopPublished := make(chan struct{})
-			closeStopSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-				close(stopPublished)
-			})
+			closeStopSubscribe, err := ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+				wspubsub.HandleWorkspaceEvent(func(_ context.Context, e wspubsub.WorkspaceEvent) {
+					if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+						close(stopPublished)
+					}
+				}))
 			require.NoError(t, err)
 			defer closeStopSubscribe()
 
@@ -874,12 +881,11 @@ func TestFailJob(t *testing.T) {
 			auditor: auditor,
 		})
 		org := dbgen.Organization(t, db, database.Organization{})
-		workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
+		workspace := dbgen.Workspace(t, db, database.Workspace{
 			ID:               uuid.New(),
 			AutomaticUpdates: database.AutomaticUpdatesNever,
 			OrganizationID:   org.ID,
 		})
-		require.NoError(t, err)
 		buildID := uuid.New()
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: buildID,
@@ -889,6 +895,7 @@ func TestFailJob(t *testing.T) {
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Input:         input,
+			InitiatorID:   workspace.OwnerID,
 			Provisioner:   database.ProvisionerTypeEcho,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod: database.ProvisionerStorageMethodFile,
@@ -897,6 +904,7 @@ func TestFailJob(t *testing.T) {
 		err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:          buildID,
 			WorkspaceID: workspace.ID,
+			InitiatorID: workspace.OwnerID,
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
 			JobID:       job.ID,
@@ -913,9 +921,12 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 
 		publishedWorkspace := make(chan struct{})
-		closeWorkspaceSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-			close(publishedWorkspace)
-		})
+		closeWorkspaceSubscribe, err := ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+			wspubsub.HandleWorkspaceEvent(func(_ context.Context, e wspubsub.WorkspaceEvent) {
+				if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+					close(publishedWorkspace)
+				}
+			}))
 		require.NoError(t, err)
 		defer closeWorkspaceSubscribe()
 		publishedLogs := make(chan struct{})
@@ -1279,13 +1290,15 @@ func TestCompleteJob(t *testing.T) {
 				})
 				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 					WorkspaceID:       workspace.ID,
+					InitiatorID:       user.ID,
 					TemplateVersionID: version.ID,
 					Transition:        c.transition,
 					Reason:            database.BuildReasonInitiator,
 				})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					FileID: file.ID,
-					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					FileID:      file.ID,
+					InitiatorID: user.ID,
+					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 						WorkspaceBuildID: build.ID,
 					})),
@@ -1302,9 +1315,12 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 
 				publishedWorkspace := make(chan struct{})
-				closeWorkspaceSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), func(_ context.Context, _ []byte) {
-					close(publishedWorkspace)
-				})
+				closeWorkspaceSubscribe, err := ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+					wspubsub.HandleWorkspaceEvent(func(_ context.Context, e wspubsub.WorkspaceEvent) {
+						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+							close(publishedWorkspace)
+						}
+					}))
 				require.NoError(t, err)
 				defer closeWorkspaceSubscribe()
 				publishedLogs := make(chan struct{})
@@ -1643,8 +1659,9 @@ func TestNotifications(t *testing.T) {
 					Reason:            tc.deletionReason,
 				})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					FileID: file.ID,
-					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					FileID:      file.ID,
+					InitiatorID: initiator.ID,
+					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 						WorkspaceBuildID: build.ID,
 					})),
@@ -1761,8 +1778,9 @@ func TestNotifications(t *testing.T) {
 					Reason:            tc.buildReason,
 				})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					FileID: file.ID,
-					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					FileID:      file.ID,
+					InitiatorID: initiator.ID,
+					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 						WorkspaceBuildID: build.ID,
 					})),
@@ -1833,6 +1851,7 @@ func TestNotifications(t *testing.T) {
 		})
 		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 			FileID:         dbgen.File(t, db, database.File{CreatedBy: user.ID}).ID,
+			InitiatorID:    user.ID,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			Input:          must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{WorkspaceBuildID: build.ID})),
 			OrganizationID: pd.OrganizationID,
