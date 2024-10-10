@@ -181,6 +181,39 @@ func isDigit(s string) bool {
 	}) == -1
 }
 
+// extendedParseDuration is a more lenient version of parseDuration that allows
+// for more flexible input formats.
+// It allows for some extra units:
+//   - d (days)
+//   - y (years)
+func extendedParseDuration(raw string) (time.Duration, error) {
+	var duration time.Duration
+	var err error
+
+	switch {
+	case strings.HasSuffix(raw, "d"):
+		nbDays, err := strconv.Atoi(strings.TrimSuffix(raw, "d"))
+		if err != nil {
+			return 0, xerrors.Errorf("invalid duration: %q", raw)
+		}
+		duration = time.Duration(nbDays) * 24 * time.Hour
+	case strings.HasSuffix(raw, "y"):
+		nbYears, err := strconv.Atoi(strings.TrimSuffix(raw, "y"))
+		if err != nil {
+			return 0, xerrors.Errorf("invalid duration: %q", raw)
+		}
+		duration = time.Duration(nbYears) * 365 * 24 * time.Hour
+	default:
+		duration, err = time.ParseDuration(raw)
+	}
+
+	if err != nil {
+		return 0, xerrors.Errorf("invalid duration: %q", raw)
+	}
+	return duration, nil
+}
+
+// parseTime attempts to parse a time (no date) from the given string using a number of layouts.
 // parseTime attempts to parse a time (no date) from the given string using a number of layouts.
 func parseTime(s string) (time.Time, error) {
 	// Try a number of possible layouts.

@@ -41,6 +41,34 @@ func TestDurationDisplay(t *testing.T) {
 	}
 }
 
+func TestExtendedParseDuration(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		Duration   string
+		Expected   time.Duration
+		ExpectedOk bool
+	}{
+		{"1d", 24 * time.Hour, true},
+		{"1y", 365 * 24 * time.Hour, true},
+		{"10s", 10 * time.Second, true},
+		{"1m", 1 * time.Minute, true},
+		{"20h", 20 * time.Hour, true},
+		{"10y10d10s", 0, false},
+	} {
+		testCase := testCase
+		t.Run(testCase.Duration, func(t *testing.T) {
+			t.Parallel()
+			actual, err := extendedParseDuration(testCase.Duration)
+			if testCase.ExpectedOk {
+				require.NoError(t, err)
+				assert.Equal(t, testCase.Expected, actual)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}
+
 func TestRelative(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, relative(time.Minute), "in 1m")
