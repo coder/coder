@@ -1,4 +1,4 @@
-package mock_smtp
+package mocksmtp
 
 import (
 	"crypto/tls"
