@@ -1111,9 +1111,11 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				var msg *mocksmtp.Message
 				require.Eventually(t, func() bool {
 					msg = backend.LastMessage()
-					return msg != nil
+					return msg != nil && len(msg.Contents) > 0
 				}, testutil.WaitShort, testutil.IntervalFast)
-				require.NotNil(t, msg, "want a message to be sent")
+
+				// require.NotNil(t, msg, "want a message to be sent")
+				// require.NotEmpty(t, msg.Contents, "want a non-empty message")
 
 				body := normalizeGoldenEmail([]byte(msg.Contents))
 
@@ -1225,7 +1227,12 @@ func normalizeGoldenEmail(content []byte) []byte {
 	dateRegex := regexp.MustCompile(`Date: .+`)
 	messageIDRegex := regexp.MustCompile(`Message-Id: .+`)
 	boundaryRegex := regexp.MustCompile(`boundary=([0-9a-zA-Z]+)`)
-	boundary := boundaryRegex.FindSubmatch(content)[1]
+	submatches := boundaryRegex.FindSubmatch(content)
+	if len(submatches) == 0 {
+		return content
+	}
+
+	boundary := submatches[1]
 
 	content = dateRegex.ReplaceAll(content, []byte("Date: "+constantDate))
 	content = messageIDRegex.ReplaceAll(content, []byte("Message-Id: "+constantMessageID))
