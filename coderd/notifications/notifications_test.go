@@ -1165,7 +1165,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					wantBody, err := os.ReadFile(goldenFile)
 					require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
 					require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
-
 				}))
 				t.Cleanup(server.Close)
 
