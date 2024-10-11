@@ -1107,21 +1107,24 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				require.NoError(t, err)
 
 				// Wait for the message to be fetched
-				time.Sleep(notificationCfg.FetchInterval.Value())
+				var msg *mock_smtp.Message
+				require.Eventually(t, func() bool {
+					msg = backend.LastMessage()
+					return msg != nil
+				}, testutil.WaitShort, testutil.IntervalFast)
+				require.NotNil(t, msg, "want a message to be sent")
 
 				err = smtpManager.Stop(ctx)
 				require.NoError(t, err)
 
-				msg := backend.LastMessage()
-				require.NotNil(t, msg, "want a message to be sent")
-
 				partialName := strings.Split(t.Name(), "/")[1]
-				goldenFile := filepath.Join("testdata", "rendered-templates", "smtp", partialName+".golden.html")
-				// TODO: add flag to update golden files
-				err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
-				require.NoError(t, err, "want no error creating golden file directory")
-				err = os.WriteFile(goldenFile, []byte(msg.Contents), 0o600)
-				require.NoError(t, err, "want no error writing body golden file")
+				goldenFile := filepath.Join("testdata", "rendered-templates", "smtp", partialName+".html.golden")
+				if *updateGoldenFiles {
+					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+					require.NoError(t, err, "want no error creating golden file directory")
+					err = os.WriteFile(goldenFile, []byte(msg.Contents), 0o600)
+					require.NoError(t, err, "want no error writing body golden file")
+				}
 			})
 
 			t.Run("webhook", func(t *testing.T) {
@@ -1158,12 +1161,13 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					require.NoError(t, err)
 
 					partialName := strings.Split(t.Name(), "/")[1]
-					goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".golden.json")
-					// TODO: add flag to update golden files
-					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
-					require.NoError(t, err, "want no error creating golden file directory")
-					err = os.WriteFile(goldenFile, prettyJSON.Bytes(), 0o600)
-					require.NoError(t, err, "want no error writing body golden file")
+					goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".json.golden")
+					if *updateGoldenFiles {
+						err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+						require.NoError(t, err, "want no error creating golden file directory")
+						err = os.WriteFile(goldenFile, prettyJSON.Bytes(), 0o600)
+						require.NoError(t, err, "want no error writing body golden file")
+					}
 
 					w.WriteHeader(http.StatusOK)
 				}))
