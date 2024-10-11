@@ -1,11 +1,11 @@
 {
   "_version": "1.1",
-  "msg_id": "af88d7f4-cb57-4baf-afc3-01e41a57164a",
+  "msg_id": "bd14c03f-fc48-4ca1-9b46-9201e732e657",
   "payload": {
     "_version": "1.1",
     "notification_name": "Workspace Manual Build Failed",
     "notification_template_id": "2faeee0f-26cb-4e96-821c-85ccb9f71513",
-    "user_id": "9766302b-44d8-4e38-84fc-2817969c6790",
+    "user_id": "5c34a281-2fda-4064-ac0a-88979c2c5bd2",
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",

@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: Workspace "bobby-workspace" marked as dormant
-Message-Id: 7eac38f6-49c5-4bfe-9aef-ecb97ba2301f@blush-whale-48
-Date: Fri, 11 Oct 2024 08:47:20 +0000
-Content-Type: multipart/alternative;  boundary=a10a7cffac232483ab8b79adbccbf93e2b633a8a800770fa7c887ad07581
+Message-Id: 034ab939-ef9f-4d40-b356-9a3fe50fa43a@blush-whale-48
+Date: Fri, 11 Oct 2024 09:03:06 +0000
+Content-Type: multipart/alternative;  boundary=0ddb9c71df3785fb8bf571c38008ccf50a655b2572464aaba406d6b9b5d2
 MIME-Version: 1.0
 
---a10a7cffac232483ab8b79adbccbf93e2b633a8a800770fa7c887ad07581
+--0ddb9c71df3785fb8bf571c38008ccf50a655b2572464aaba406d6b9b5d2
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -23,7 +23,7 @@ To prevent deletion, use your workspace with the link below.
 
 View workspace: http://test.com/@bobby/bobby-workspace
 
---a10a7cffac232483ab8b79adbccbf93e2b633a8a800770fa7c887ad07581
+--0ddb9c71df3785fb8bf571c38008ccf50a655b2572464aaba406d6b9b5d2
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -87,4 +87,4 @@ settings</a></p>
   </body>
 </html>
 
---a10a7cffac232483ab8b79adbccbf93e2b633a8a800770fa7c887ad07581--
+--0ddb9c71df3785fb8bf571c38008ccf50a655b2572464aaba406d6b9b5d2--

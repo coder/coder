@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "64d6e886-c75d-474c-b0cc-a0c2ee7d7b9f",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "User account activated",
+    "notification_template_id": "9f5af851-8408-4e73-a7a1-c6502ba46689",
+    "user_id": "0c91b12d-2732-4122-abe3-cee2bf64f1c2",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View accounts",
+        "url": "http://test.com/deployment/users?filter=status%3Aactive"
+      }
+    ],
+    "labels": {
+      "account_activator_user_name": "rob",
+      "activated_account_name": "bobby",
+      "activated_account_user_name": "william tables"
+    },
+    "data": null
+  },
+  "title": "User account \"bobby\" activated",
+  "title_markdown": "User account \"bobby\" activated",
+  "body": "Hi Bobby,\n\nUser account bobby has been activated.\n\nThe newly activated account belongs to william tables and was activated by rob.",
+  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been activated.\n\nThe newly activated account belongs to **william tables** and was activated by **rob**."
+}

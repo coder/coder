@@ -984,30 +984,29 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
+			// Spin up the DB
+			db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
+				adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+				db := api.Database
+				firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+				_, user := coderdtest.CreateAnotherUserMutators(
+					t,
+					adminClient,
+					firstUser.OrganizationID,
+					[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+					func(r *codersdk.CreateUserRequestWithOrgs) {
+						r.Username = tc.payload.UserUsername
+						r.Email = tc.payload.UserEmail
+						r.Name = tc.payload.UserName
+					},
+				)
+				return &db, &api.Logger, &user
+			}()
 			t.Run("smtp", func(t *testing.T) {
 				t.Parallel()
 				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-
-				// Spin up the DB
-				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
-					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
-					db := api.Database
-					firstUser := coderdtest.CreateFirstUser(t, adminClient)
-
-					_, user := coderdtest.CreateAnotherUserMutators(
-						t,
-						adminClient,
-						firstUser.OrganizationID,
-						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
-						func(r *codersdk.CreateUserRequestWithOrgs) {
-							r.Username = tc.payload.UserUsername
-							r.Email = tc.payload.UserEmail
-							r.Name = tc.payload.UserName
-						},
-					)
-					return &db, &api.Logger, &user
-				}()
 
 				// smtp config shared between client and server
 				smtpConfig := codersdk.NotificationsEmailConfig{
@@ -1137,26 +1136,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				t.Parallel()
 				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-
-				// Spin up the DB
-				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
-					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
-					db := api.Database
-					firstUser := coderdtest.CreateFirstUser(t, adminClient)
-
-					_, user := coderdtest.CreateAnotherUserMutators(
-						t,
-						adminClient,
-						firstUser.OrganizationID,
-						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
-						func(r *codersdk.CreateUserRequestWithOrgs) {
-							r.Username = tc.payload.UserUsername
-							r.Email = tc.payload.UserEmail
-							r.Name = tc.payload.UserName
-						},
-					)
-					return &db, &api.Logger, &user
-				}()
 
 				// Spin up the mock webhook server
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

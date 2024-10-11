@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: Workspace "bobby-workspace" marked for deletion
-Message-Id: 7b69076f-5ff7-464e-b900-e9cf196b833b@blush-whale-48
-Date: Fri, 11 Oct 2024 08:47:19 +0000
-Content-Type: multipart/alternative;  boundary=4a5d477affccf7f0e3204afecf0fd5dff7967619853c65b8d7361f84d4e9
+Message-Id: 24d9a559-ab86-41ce-89b4-281b0815f95e@blush-whale-48
+Date: Fri, 11 Oct 2024 09:03:06 +0000
+Content-Type: multipart/alternative;  boundary=2d0f93482ad27ef16601523ee4474bd3e1d9dfc889a02e7c3e41eab2524b
 MIME-Version: 1.0
 
---4a5d477affccf7f0e3204afecf0fd5dff7967619853c65b8d7361f84d4e9
+--2d0f93482ad27ef16601523ee4474bd3e1d9dfc889a02e7c3e41eab2524b
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -20,7 +20,7 @@ To prevent deletion, use your workspace with the link below.
 
 View workspace: http://test.com/@bobby/bobby-workspace
 
---4a5d477affccf7f0e3204afecf0fd5dff7967619853c65b8d7361f84d4e9
+--2d0f93482ad27ef16601523ee4474bd3e1d9dfc889a02e7c3e41eab2524b
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -81,4 +81,4 @@ e2fdf-c9ca-4be1-8d70-628674f9bc42" style=3D"color: #2563eb; text-decoration=
   </body>
 </html>
 
---4a5d477affccf7f0e3204afecf0fd5dff7967619853c65b8d7361f84d4e9--
+--2d0f93482ad27ef16601523ee4474bd3e1d9dfc889a02e7c3e41eab2524b--

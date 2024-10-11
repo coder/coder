@@ -1,11 +1,11 @@
 {
   "_version": "1.1",
-  "msg_id": "61237bb8-5d56-4c16-b9a8-c56d405cb852",
+  "msg_id": "f14e06d6-0798-4027-9b05-a1c818a02099",
   "payload": {
     "_version": "1.1",
     "notification_name": "Workspace Deleted",
     "notification_template_id": "f517da0b-cdc9-410f-ab89-a86107c420ed",
-    "user_id": "ff5ba700-51c0-491d-bcda-cd76791dd451",
+    "user_id": "78daa6f4-11d6-4d81-a8d4-87a335730c08",
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",

@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: Template "bobby-template" deleted
-Message-Id: 594e3030-3739-4fbe-9b87-d0a938643421@blush-whale-48
-Date: Fri, 11 Oct 2024 08:47:19 +0000
-Content-Type: multipart/alternative;  boundary=447921ad2714ac4f86104675f6509e2680c989166680aa4f7cae88d6750f
+Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
+Date: Fri, 11 Oct 2024 09:03:06 +0000
+Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---447921ad2714ac4f86104675f6509e2680c989166680aa4f7cae88d6750f
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -19,7 +19,7 @@ The template's display name was Bobby's Template.
 
 View templates: http://test.com/templates
 
---447921ad2714ac4f86104675f6509e2680c989166680aa4f7cae88d6750f
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -80,4 +80,4 @@ settings</a></p>
   </body>
 </html>
 
---447921ad2714ac4f86104675f6509e2680c989166680aa4f7cae88d6750f--
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4--

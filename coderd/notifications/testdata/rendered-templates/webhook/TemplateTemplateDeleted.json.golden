@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "8400889e-b369-4237-ad18-809d82e778fd",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "Template Deleted",
+    "notification_template_id": "29a09665-2a4c-403f-9648-54301670e7be",
+    "user_id": "37a2f3a5-ce78-4da7-8ee4-0a985ce5dad1",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View templates",
+        "url": "http://test.com/templates"
+      }
+    ],
+    "labels": {
+      "display_name": "Bobby's Template",
+      "initiator": "rob",
+      "name": "bobby-template"
+    },
+    "data": null
+  },
+  "title": "Template \"bobby-template\" deleted",
+  "title_markdown": "Template \"bobby-template\" deleted",
+  "body": "Hi Bobby,\n\nThe template bobby-template was deleted by rob.\n\nThe template's display name was Bobby's Template.",
+  "body_markdown": "Hi Bobby,\n\nThe template **bobby-template** was deleted by **rob**.\n\nThe template's display name was **Bobby's Template**."
+}
