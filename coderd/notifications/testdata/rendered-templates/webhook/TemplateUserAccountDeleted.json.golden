@@ -16,14 +16,14 @@
       }
     ],
     "labels": {
-      "account_deleter_user_name": "rob",
       "deleted_account_name": "bobby",
-      "deleted_account_user_name": "william tables"
+      "deleted_account_user_name": "William Tables",
+      "initiator": "rob"
     },
     "data": null
   },
   "title": "User account \"bobby\" deleted",
   "title_markdown": "User account \"bobby\" deleted",
-  "body": "Hi Bobby,\n\nUser account bobby has been deleted.\n\nThe deleted account belonged to william tables and was deleted by rob.",
-  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been deleted.\n\nThe deleted account belonged to **william tables** and was deleted by **rob**."
+  "body": "Hi Bobby,\n\nUser account bobby has been deleted.\n\nThe deleted account belonged to William Tables and was deleted by rob.",
+  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been deleted.\n\nThe deleted account belonged to **William Tables** and was deleted by **rob**."
 }

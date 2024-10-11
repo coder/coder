@@ -794,7 +794,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Labels: map[string]string{
 					"created_account_name":      "bobby",
 					"created_account_user_name": "William Tables",
-					"account_creator":           "rob",
+					"initiator":                 "rob",
 				},
 			},
 		},
@@ -807,8 +807,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"deleted_account_name":      "bobby",
-					"deleted_account_user_name": "william tables",
-					"account_deleter_user_name": "rob",
+					"deleted_account_user_name": "William Tables",
+					"initiator":                 "rob",
 				},
 			},
 		},
@@ -821,8 +821,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"suspended_account_name":      "bobby",
-					"suspended_account_user_name": "william tables",
-					"account_suspender_user_name": "rob",
+					"suspended_account_user_name": "William Tables",
+					"initiator":                   "rob",
 				},
 			},
 		},
@@ -835,8 +835,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"activated_account_name":      "bobby",
-					"activated_account_user_name": "william tables",
-					"account_activator_user_name": "rob",
+					"activated_account_user_name": "William Tables",
+					"initiator":                   "rob",
 				},
 			},
 		},
@@ -848,8 +848,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"suspended_account_name":      "bobby",
-					"account_suspender_user_name": "rob",
+					"suspended_account_name": "bobby",
+					"initiator":              "rob",
 				},
 			},
 		},
@@ -861,8 +861,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"activated_account_name":      "bobby",
-					"account_activator_user_name": "rob",
+					"activated_account_name": "bobby",
+					"initiator":              "rob",
 				},
 			},
 		},

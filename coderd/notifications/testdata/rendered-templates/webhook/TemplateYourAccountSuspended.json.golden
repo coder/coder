@@ -11,7 +11,7 @@
     "user_username": "bobby",
     "actions": [],
     "labels": {
-      "account_suspender_user_name": "rob",
+      "initiator": "rob",
       "suspended_account_name": "bobby"
     },
     "data": null

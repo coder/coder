@@ -604,7 +604,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 			map[string]string{
 				"deleted_account_name":      user.Username,
 				"deleted_account_user_name": user.Name,
-				"account_deleter_user_name": accountDeleter.Name,
+				"initiator":                 accountDeleter.Name,
 			},
 			"api-users-delete",
 			user.ID,
@@ -918,7 +918,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 		labels = map[string]string{
 			"suspended_account_name":      targetUser.Username,
 			"suspended_account_user_name": targetUser.Name,
-			"account_suspender_user_name": actingUserName,
+			"initiator":                   actingUserName,
 		}
 		adminTemplateID = notifications.TemplateUserAccountSuspended
 		personalTemplateID = notifications.TemplateYourAccountSuspended
@@ -926,7 +926,7 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 		labels = map[string]string{
 			"activated_account_name":      targetUser.Username,
 			"activated_account_user_name": targetUser.Name,
-			"account_activator_user_name": actingUserName,
+			"initiator":                   actingUserName,
 		}
 		adminTemplateID = notifications.TemplateUserAccountActivated
 		personalTemplateID = notifications.TemplateYourAccountActivated
@@ -1407,7 +1407,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			map[string]string{
 				"created_account_name":      user.Username,
 				"created_account_user_name": user.Name,
-				"account_creator":           req.accountCreatorName,
+				"initiator":                 req.accountCreatorName,
 			}, "api-users-create",
 			user.ID,
 		); err != nil {

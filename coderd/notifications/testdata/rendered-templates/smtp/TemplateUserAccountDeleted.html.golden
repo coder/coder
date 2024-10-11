@@ -14,7 +14,7 @@ Hi Bobby,
 
 User account bobby has been deleted.
 
-The deleted account belonged to william tables and was deleted by rob.
+The deleted account belonged to William Tables and was deleted by rob.
 
 
 View accounts: http://test.com/deployment/users?filter=3Dstatus%3Aactive
@@ -51,7 +51,7 @@ argin: 8px 0 32px; line-height: 1.5;">
 
 <p>User account <strong>bobby</strong> has been deleted.</p>
 
-<p>The deleted account belonged to <strong>william tables</strong> and was =
+<p>The deleted account belonged to <strong>William Tables</strong> and was =
 deleted by <strong>rob</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">

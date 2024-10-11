@@ -16,8 +16,8 @@
       }
     ],
     "labels": {
-      "account_activator_user_name": "rob",
-      "activated_account_name": "bobby"
+      "activated_account_name": "bobby",
+      "initiator": "rob"
     },
     "data": null
   },

@@ -16,14 +16,14 @@
       }
     ],
     "labels": {
-      "account_suspender_user_name": "rob",
+      "initiator": "rob",
       "suspended_account_name": "bobby",
-      "suspended_account_user_name": "william tables"
+      "suspended_account_user_name": "William Tables"
     },
     "data": null
   },
   "title": "User account \"bobby\" suspended",
   "title_markdown": "User account \"bobby\" suspended",
-  "body": "Hi Bobby,\n\nUser account bobby has been suspended.\n\nThe newly suspended account belongs to william tables and was suspended by rob.",
-  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been suspended.\n\nThe newly suspended account belongs to **william tables** and was suspended by **rob**."
+  "body": "Hi Bobby,\n\nUser account bobby has been suspended.\n\nThe newly suspended account belongs to William Tables and was suspended by rob.",
+  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been suspended.\n\nThe newly suspended account belongs to **William Tables** and was suspended by **rob**."
 }
