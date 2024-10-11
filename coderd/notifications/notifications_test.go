@@ -1125,7 +1125,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				if *updateGoldenFiles {
 					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
 					require.NoError(t, err, "want no error creating golden file directory")
-					err = os.WriteFile(goldenFile, body, 0o600)
+					err = os.WriteFile(goldenFile, []byte(body), 0o600)
 					require.NoError(t, err, "want no error writing body golden file")
 					return
 				}
@@ -1225,7 +1225,7 @@ func normalizeGoldenEmail(content []byte) []byte {
 
 	dateRegex := regexp.MustCompile(`Date: .+`)
 	messageIDRegex := regexp.MustCompile(`Message-Id: .+`)
-	boundaryRegex := regexp.MustCompile(`boundary=(.+)`)
+	boundaryRegex := regexp.MustCompile(`boundary=([0-9a-zA-Z]+)`)
 	boundary := boundaryRegex.FindSubmatch(content)[1]
 
 	content = dateRegex.ReplaceAll(content, []byte("Date: "+constantDate))
