@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: Workspace "bobby-workspace" marked as dormant
-Message-Id: 034ab939-ef9f-4d40-b356-9a3fe50fa43a@blush-whale-48
+Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
-Content-Type: multipart/alternative;  boundary=0ddb9c71df3785fb8bf571c38008ccf50a655b2572464aaba406d6b9b5d2
+Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---0ddb9c71df3785fb8bf571c38008ccf50a655b2572464aaba406d6b9b5d2
+--f50cfd8467c183909c83829e40866199dd75521170ab78a589d2997c1a3f
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -23,7 +23,7 @@ To prevent deletion, use your workspace with the link below.
 
 View workspace: http://test.com/@bobby/bobby-workspace
 
---0ddb9c71df3785fb8bf571c38008ccf50a655b2572464aaba406d6b9b5d2
+--f50cfd8467c183909c83829e40866199dd75521170ab78a589d2997c1a3f
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -87,4 +87,4 @@ settings</a></p>
   </body>
 </html>
 
---0ddb9c71df3785fb8bf571c38008ccf50a655b2572464aaba406d6b9b5d2--
+--f50cfd8467c183909c83829e40866199dd75521170ab78a589d2997c1a3f--

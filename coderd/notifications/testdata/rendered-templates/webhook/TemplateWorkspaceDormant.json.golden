@@ -1,11 +1,11 @@
 {
   "_version": "1.1",
-  "msg_id": "0203cfea-c559-4e29-a0ca-b88218df57ef",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
     "_version": "1.1",
     "notification_name": "Workspace Marked as Dormant",
-    "notification_template_id": "0ea69165-ec14-4314-91f1-69566ac3c5a0",
-    "user_id": "428dd40d-3f51-4e1a-8a28-5d2e6fe8f323",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",

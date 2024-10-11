@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: Workspace "bobby-workspace" autobuild failed
-Message-Id: 6305d418-20e5-4dc7-83f1-9d8ad735b6b2@blush-whale-48
+Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
-Content-Type: multipart/alternative;  boundary=d56d3764d42cbbc7e0ca6b63ac5b20b5dbe48f1f95ec3f5cc9857bf4ef85
+Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---d56d3764d42cbbc7e0ca6b63ac5b20b5dbe48f1f95ec3f5cc9857bf4ef85
+--715a44de21bb450061035597981181e8ac3262375a751a6a6028843c53f5
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -19,7 +19,7 @@ The specified reason was "autostart".
 
 View workspace: http://test.com/@bobby/bobby-workspace
 
---d56d3764d42cbbc7e0ca6b63ac5b20b5dbe48f1f95ec3f5cc9857bf4ef85
+--715a44de21bb450061035597981181e8ac3262375a751a6a6028843c53f5
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -79,4 +79,4 @@ df2a9-c0c0-4749-420f-80a9280c66f9" style=3D"color: #2563eb; text-decoration=
   </body>
 </html>
 
---d56d3764d42cbbc7e0ca6b63ac5b20b5dbe48f1f95ec3f5cc9857bf4ef85--
+--715a44de21bb450061035597981181e8ac3262375a751a6a6028843c53f5--

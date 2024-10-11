@@ -1,11 +1,11 @@
 {
   "_version": "1.1",
-  "msg_id": "6c60d9dc-36b2-4f93-a19d-4e7308820ede",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
     "_version": "1.1",
     "notification_name": "Your account has been suspended",
-    "notification_template_id": "6a2f0609-9b69-4d36-a989-9f5925b6cbff",
-    "user_id": "c97b703e-203e-4db4-ad18-29136f6ffb80",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",

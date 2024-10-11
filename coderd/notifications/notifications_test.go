@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -1114,6 +1115,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				}, testutil.WaitShort, testutil.IntervalFast)
 				require.NotNil(t, msg, "want a message to be sent")
 
+				body := constantifyGoldenEmail([]byte(msg.Contents))
+
 				err = smtpManager.Stop(ctx)
 				require.NoError(t, err)
 
@@ -1122,14 +1125,14 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				if *updateGoldenFiles {
 					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
 					require.NoError(t, err, "want no error creating golden file directory")
-					err = os.WriteFile(goldenFile, []byte(msg.Contents), 0o600)
+					err = os.WriteFile(goldenFile, body, 0o600)
 					require.NoError(t, err, "want no error writing body golden file")
 					return
 				}
 
 				wantBody, err := os.ReadFile(goldenFile)
 				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
-				require.Equal(t, string(wantBody), msg.Contents, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
+				require.Equal(t, string(wantBody), string(body), fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
 			})
 
 			t.Run("webhook", func(t *testing.T) {
@@ -1145,12 +1148,14 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					err = json.Indent(&prettyJSON, body, "", "  ")
 					require.NoError(t, err)
 
+					content := constantifyGoldenWebhook(prettyJSON.Bytes())
+
 					partialName := strings.Split(t.Name(), "/")[1]
 					goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".json.golden")
 					if *updateGoldenFiles {
 						err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
 						require.NoError(t, err, "want no error creating golden file directory")
-						err = os.WriteFile(goldenFile, prettyJSON.Bytes(), 0o600)
+						err = os.WriteFile(goldenFile, content, 0o600)
 						require.NoError(t, err, "want no error writing body golden file")
 						w.WriteHeader(http.StatusOK)
 						return
@@ -1209,6 +1214,32 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			})
 		})
 	}
+}
+
+func constantifyGoldenEmail(content []byte) []byte {
+	const (
+		constantDate      = "Fri, 11 Oct 2024 09:03:06 +0000"
+		constantMessageID = "02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48"
+		constantBoundary  = "bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4"
+	)
+
+	dateRegex := regexp.MustCompile(`Date: .+`)
+	messageIDRegex := regexp.MustCompile(`Message-Id: .+`)
+	boundaryRegex := regexp.MustCompile(`boundary=.+`)
+
+	content = dateRegex.ReplaceAll(content, []byte("Date: "+constantDate))
+	content = messageIDRegex.ReplaceAll(content, []byte("Message-Id: "+constantMessageID))
+	content = boundaryRegex.ReplaceAll(content, []byte("boundary="+constantBoundary))
+
+	return content
+}
+
+func constantifyGoldenWebhook(content []byte) []byte {
+	const constantUUID = "00000000-0000-0000-0000-000000000000"
+	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	content = uuidRegex.ReplaceAll(content, []byte(constantUUID))
+
+	return content
 }
 
 // TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template

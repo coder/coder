@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: Workspace "bobby-workspace" manual build failed
-Message-Id: 9e1a8c51-ba7a-476a-8841-78c5311113c7@blush-whale-48
+Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
-Content-Type: multipart/alternative;  boundary=aa5483a898ac4c112833763b8a7f0434ae1a507d213a3f0fb105b638d517
+Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---aa5483a898ac4c112833763b8a7f0434ae1a507d213a3f0fb105b638d517
+--dbf85892c2e844136150393b08284629ffe02296ae5af159433eeab0d892
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -21,7 +21,7 @@ The template's display name was William's Template. The workspace build was=
 
 View build: http://test.com/@mrbobby/bobby-workspace/builds/3
 
---aa5483a898ac4c112833763b8a7f0434ae1a507d213a3f0fb105b638d517
+--dbf85892c2e844136150393b08284629ffe02296ae5af159433eeab0d892
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -83,4 +83,4 @@ eee0f-26cb-4e96-821c-85ccb9f71513" style=3D"color: #2563eb; text-decoration=
   </body>
 </html>
 
---aa5483a898ac4c112833763b8a7f0434ae1a507d213a3f0fb105b638d517--
+--dbf85892c2e844136150393b08284629ffe02296ae5af159433eeab0d892--

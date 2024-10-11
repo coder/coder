@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: User account "bobby" deleted
-Message-Id: 170b30b6-f691-4b13-919e-80818944aeb1@blush-whale-48
+Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
-Content-Type: multipart/alternative;  boundary=de0048dbc8bca99bd1ab342049c61f4476f453b1e1d73d2875a4bcde73ee
+Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---de0048dbc8bca99bd1ab342049c61f4476f453b1e1d73d2875a4bcde73ee
+--998f5d0d0246082bf54bca704425fc986f82ade768328b250c250b4f4d80
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -19,7 +19,7 @@ The deleted account belonged to william tables and was deleted by rob.
 
 View accounts: http://test.com/deployment/users?filter=3Dstatus%3Aactive
 
---de0048dbc8bca99bd1ab342049c61f4476f453b1e1d73d2875a4bcde73ee
+--998f5d0d0246082bf54bca704425fc986f82ade768328b250c250b4f4d80
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -80,4 +80,4 @@ d9314-ad03-4bc8-95d0-5cad491da6b6" style=3D"color: #2563eb; text-decoration=
   </body>
 </html>
 
---de0048dbc8bca99bd1ab342049c61f4476f453b1e1d73d2875a4bcde73ee--
+--998f5d0d0246082bf54bca704425fc986f82ade768328b250c250b4f4d80--
