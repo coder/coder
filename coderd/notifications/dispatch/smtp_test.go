@@ -2,7 +2,6 @@ package dispatch_test
 
 import (
 	"bytes"
-	_ "embed"
 	"fmt"
 	"log"
 	"sync"
@@ -46,9 +45,9 @@ func TestSMTP(t *testing.T) {
 		subject = "This is the subject"
 		body    = "This is the body"
 
-		caFile   = "fixtures/ca.crt"
-		certFile = "fixtures/server.crt"
-		keyFile  = "fixtures/server.key"
+		caFile   = "mock_smtp/fixtures/ca.crt"
+		certFile = "mock_smtp/fixtures/server.crt"
+		keyFile  = "mock_smtp/fixtures/server.key"
 	)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
@@ -124,7 +123,7 @@ func TestSMTP(t *testing.T) {
 
 				Auth: codersdk.NotificationsEmailAuthConfig{
 					Username:     username,
-					PasswordFile: "fixtures/password.txt",
+					PasswordFile: "mock_smtp/fixtures/password.txt",
 				},
 			},
 			toAddrs:          []string{to},
@@ -340,14 +339,14 @@ func TestSMTP(t *testing.T) {
 			cfg: codersdk.NotificationsEmailConfig{
 				TLS: codersdk.NotificationsEmailTLSConfig{
 					CAFile:   caFile,
-					CertFile: "fixtures/nope.cert",
+					CertFile: "mock_smtp/fixtures/nope.cert",
 					KeyFile:  keyFile,
 				},
 			},
 			// not using full error message here since it differs on *nix and Windows:
 			// *nix: no such file or directory
 			// Windows: The system cannot find the file specified.
-			expectedErr: "open fixtures/nope.cert:",
+			expectedErr: "open mock_smtp/fixtures/nope.cert:",
 			retryable:   true,
 		},
 		{
@@ -357,13 +356,13 @@ func TestSMTP(t *testing.T) {
 				TLS: codersdk.NotificationsEmailTLSConfig{
 					CAFile:   caFile,
 					CertFile: certFile,
-					KeyFile:  "fixtures/nope.key",
+					KeyFile:  "mock_smtp/fixtures/nope.key",
 				},
 			},
 			// not using full error message here since it differs on *nix and Windows:
 			// *nix: no such file or directory
 			// Windows: The system cannot find the file specified.
-			expectedErr: "open fixtures/nope.key:",
+			expectedErr: "open mock_smtp/fixtures/nope.key:",
 			retryable:   true,
 		},
 		/**
