@@ -6,7 +6,7 @@ Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---ee29141f0e810ffae5cfb3e9238a272350b29db90d1624a8136ef9017bbe
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -17,7 +17,7 @@ Your account bobby has been activated by rob.
 
 Open Coder: http://test.com
 
---ee29141f0e810ffae5cfb3e9238a272350b29db90d1624a8136ef9017bbe
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -75,4 +75,4 @@ a6bea-ee0a-43e2-9e7c-eabdb53730e4" style=3D"color: #2563eb; text-decoration=
   </body>
 </html>
 
---ee29141f0e810ffae5cfb3e9238a272350b29db90d1624a8136ef9017bbe--
+--7b52fa32f187a77847c0b7dcadecc42881a3d6033289856c80d46b27c295--

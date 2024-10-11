@@ -6,7 +6,7 @@ Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---715a44de21bb450061035597981181e8ac3262375a751a6a6028843c53f5
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -19,7 +19,7 @@ The specified reason was "autostart".
 
 View workspace: http://test.com/@bobby/bobby-workspace
 
---715a44de21bb450061035597981181e8ac3262375a751a6a6028843c53f5
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -79,4 +79,4 @@ df2a9-c0c0-4749-420f-80a9280c66f9" style=3D"color: #2563eb; text-decoration=
   </body>
 </html>
 
---715a44de21bb450061035597981181e8ac3262375a751a6a6028843c53f5--
+--1ddc9ed5515d31aca71cb6ca481dce7b297c99004328bd84668bb8721c8c--

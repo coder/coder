@@ -1115,7 +1115,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				}, testutil.WaitShort, testutil.IntervalFast)
 				require.NotNil(t, msg, "want a message to be sent")
 
-				body := constantifyGoldenEmail([]byte(msg.Contents))
+				body := normalizeGoldenEmail([]byte(msg.Contents))
 
 				err = smtpManager.Stop(ctx)
 				require.NoError(t, err)
@@ -1216,7 +1216,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 	}
 }
 
-func constantifyGoldenEmail(content []byte) []byte {
+func normalizeGoldenEmail(content []byte) []byte {
 	const (
 		constantDate      = "Fri, 11 Oct 2024 09:03:06 +0000"
 		constantMessageID = "02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48"
@@ -1225,11 +1225,12 @@ func constantifyGoldenEmail(content []byte) []byte {
 
 	dateRegex := regexp.MustCompile(`Date: .+`)
 	messageIDRegex := regexp.MustCompile(`Message-Id: .+`)
-	boundaryRegex := regexp.MustCompile(`boundary=.+`)
+	boundaryRegex := regexp.MustCompile(`boundary=(.+)`)
+	boundary := boundaryRegex.FindSubmatch(content)[1]
 
 	content = dateRegex.ReplaceAll(content, []byte("Date: "+constantDate))
 	content = messageIDRegex.ReplaceAll(content, []byte("Message-Id: "+constantMessageID))
-	content = boundaryRegex.ReplaceAll(content, []byte("boundary="+constantBoundary))
+	content = bytes.ReplaceAll(content, boundary, []byte(constantBoundary))
 
 	return content
 }

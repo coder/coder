@@ -6,7 +6,7 @@ Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---dbf85892c2e844136150393b08284629ffe02296ae5af159433eeab0d892
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -21,7 +21,7 @@ The template's display name was William's Template. The workspace build was=
 
 View build: http://test.com/@mrbobby/bobby-workspace/builds/3
 
---dbf85892c2e844136150393b08284629ffe02296ae5af159433eeab0d892
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -83,4 +83,4 @@ eee0f-26cb-4e96-821c-85ccb9f71513" style=3D"color: #2563eb; text-decoration=
   </body>
 </html>
 
---dbf85892c2e844136150393b08284629ffe02296ae5af159433eeab0d892--
+--c5454084fc2a92215bf9a4fe7dde7700b6b7decd47e8eacbb4a32a3629dc--

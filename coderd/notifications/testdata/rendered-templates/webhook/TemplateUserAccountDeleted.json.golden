@@ -1,11 +1,11 @@
 {
   "_version": "1.1",
-  "msg_id": "3f997656-aef7-4f1f-bf4c-b77896ad0fa1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
     "_version": "1.1",
     "notification_name": "User account deleted",
-    "notification_template_id": "f44d9314-ad03-4bc8-95d0-5cad491da6b6",
-    "user_id": "0308cdf5-a046-43bb-9e87-8a5053e53eb7",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",

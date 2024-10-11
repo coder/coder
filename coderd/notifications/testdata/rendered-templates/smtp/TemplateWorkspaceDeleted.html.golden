@@ -6,7 +6,7 @@ Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---fcea2c9aa7fac008c94a71712284022745e09cc7d7243ed564b03fa9182f
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -21,7 +21,7 @@ View workspaces: http://test.com/workspaces
 
 View templates: http://test.com/templates
 
---fcea2c9aa7fac008c94a71712284022745e09cc7d7243ed564b03fa9182f
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -87,4 +87,4 @@ settings</a></p>
   </body>
 </html>
 
---fcea2c9aa7fac008c94a71712284022745e09cc7d7243ed564b03fa9182f--
+--a351ac59bf3516b291c349f148cf3c9080070ff8299496dccbfd4d5ad743--

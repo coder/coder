@@ -1,11 +1,11 @@
 {
   "_version": "1.1",
-  "msg_id": "a059b846-92c0-41dc-a64a-832f0035ecd3",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
   "payload": {
     "_version": "1.1",
     "notification_name": "User account activated",
-    "notification_template_id": "9f5af851-8408-4e73-a7a1-c6502ba46689",
-    "user_id": "e0a02b9f-3d4f-4f62-b4b3-cfaf2177d651",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",

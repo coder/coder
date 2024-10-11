@@ -6,7 +6,7 @@ Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 MIME-Version: 1.0
 
---f50cfd8467c183909c83829e40866199dd75521170ab78a589d2997c1a3f
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -23,7 +23,7 @@ To prevent deletion, use your workspace with the link below.
 
 View workspace: http://test.com/@bobby/bobby-workspace
 
---f50cfd8467c183909c83829e40866199dd75521170ab78a589d2997c1a3f
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -87,4 +87,4 @@ settings</a></p>
   </body>
 </html>
 
---f50cfd8467c183909c83829e40866199dd75521170ab78a589d2997c1a3f--
+--0d857ed2f89760f121d91688b38e543d8932aa89442ad23fe0da9c01c936--
