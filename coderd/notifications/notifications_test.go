@@ -1142,13 +1142,15 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				// Spin up the mock webhook server
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+
 					body, err := io.ReadAll(r.Body)
 					require.NoError(t, err)
 					var prettyJSON bytes.Buffer
 					err = json.Indent(&prettyJSON, body, "", "  ")
 					require.NoError(t, err)
 
-					content := constantifyGoldenWebhook(prettyJSON.Bytes())
+					content := normalizeGoldenWebhook(prettyJSON.Bytes())
 
 					partialName := strings.Split(t.Name(), "/")[1]
 					goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".json.golden")
@@ -1157,15 +1159,13 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 						require.NoError(t, err, "want no error creating golden file directory")
 						err = os.WriteFile(goldenFile, content, 0o600)
 						require.NoError(t, err, "want no error writing body golden file")
-						w.WriteHeader(http.StatusOK)
 						return
 					}
 
 					wantBody, err := os.ReadFile(goldenFile)
 					require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
-					require.Equal(t, string(wantBody), prettyJSON, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
+					require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
 
-					w.WriteHeader(http.StatusOK)
 				}))
 				t.Cleanup(server.Close)
 
@@ -1235,7 +1235,7 @@ func normalizeGoldenEmail(content []byte) []byte {
 	return content
 }
 
-func constantifyGoldenWebhook(content []byte) []byte {
+func normalizeGoldenWebhook(content []byte) []byte {
 	const constantUUID = "00000000-0000-0000-0000-000000000000"
 	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
 	content = uuidRegex.ReplaceAll(content, []byte(constantUUID))
