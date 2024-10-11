@@ -1,0 +1,28 @@
+{
+  "_version": "1.1",
+  "msg_id": "a8c39bf1-0287-4504-b9a0-c10ad7cb4bec",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "Your account has been activated",
+    "notification_template_id": "1a6a6bea-ee0a-43e2-9e7c-eabdb53730e4",
+    "user_id": "add943c4-3625-4539-aa42-7746d62dfc96",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "Open Coder",
+        "url": "http://test.com"
+      }
+    ],
+    "labels": {
+      "account_activator_user_name": "rob",
+      "activated_account_name": "bobby"
+    },
+    "data": null
+  },
+  "title": "Your account \"bobby\" has been activated",
+  "title_markdown": "Your account \"bobby\" has been activated",
+  "body": "Hi Bobby,\n\nYour account bobby has been activated by rob.",
+  "body_markdown": "Hi Bobby,\n\nYour account **bobby** has been activated by **rob**."
+}

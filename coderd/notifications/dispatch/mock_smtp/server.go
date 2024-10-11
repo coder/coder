@@ -203,3 +203,19 @@ func readCert(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 
 	return &crt, nil
 }
+
+func PingClient(listen net.Listener, useTLS bool, startTLS bool) (*smtp.Client, error) {
+	tlsCfg := &tls.Config{
+		// nolint:gosec // It's a test.
+		InsecureSkipVerify: true,
+	}
+
+	switch {
+	case useTLS:
+		return smtp.DialTLS(listen.Addr().String(), tlsCfg)
+	case startTLS:
+		return smtp.DialStartTLS(listen.Addr().String(), tlsCfg)
+	default:
+		return smtp.Dial(listen.Addr().String())
+	}
+}

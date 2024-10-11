@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "8a9a8b0e-4d58-4ccb-850d-01aee95ca1ff",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "User account created",
+    "notification_template_id": "4e19c0ac-94e1-4532-9515-d1801aa283b2",
+    "user_id": "f10e40f9-0230-4764-bd76-fb5d6dbeda78",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View accounts",
+        "url": "http://test.com/deployment/users?filter=status%3Aactive"
+      }
+    ],
+    "labels": {
+      "account_creator": "rob",
+      "created_account_name": "bobby",
+      "created_account_user_name": "William Tables"
+    },
+    "data": null
+  },
+  "title": "User account \"bobby\" created",
+  "title_markdown": "User account \"bobby\" created",
+  "body": "Hi Bobby,\n\nNew user account bobby has been created.\n\nThis new user account was created for William Tables by rob.",
+  "body_markdown": "Hi Bobby,\n\nNew user account **bobby** has been created.\n\nThis new user account was created for **William Tables** by **rob**."
+}

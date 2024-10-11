@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "58f1bc95-7dfd-45fe-8a58-e8c940f47cbc",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "Workspace Updated Automatically",
+    "notification_template_id": "c34a0c09-0704-4cac-bd1c-0c0146811c2b",
+    "user_id": "d90e9b53-d3b1-4f2b-a4eb-efd61442cbb6",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View workspace",
+        "url": "http://test.com/@bobby/bobby-workspace"
+      }
+    ],
+    "labels": {
+      "name": "bobby-workspace",
+      "template_version_message": "template now includes catnip",
+      "template_version_name": "1.0"
+    },
+    "data": null
+  },
+  "title": "Workspace \"bobby-workspace\" updated automatically",
+  "title_markdown": "Workspace \"bobby-workspace\" updated automatically",
+  "body": "Hi Bobby,\n\nYour workspace bobby-workspace has been updated automatically to the latest template version (1.0).\n\nReason for update: template now includes catnip.",
+  "body_markdown": "Hi Bobby,\n\nYour workspace **bobby-workspace** has been updated automatically to the latest template version (1.0).\n\nReason for update: **template now includes catnip**."
+}

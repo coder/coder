@@ -1,0 +1,23 @@
+{
+  "_version": "1.1",
+  "msg_id": "12ee9ab1-a216-437c-a947-9126caffa515",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "Your account has been suspended",
+    "notification_template_id": "6a2f0609-9b69-4d36-a989-9f5925b6cbff",
+    "user_id": "91875bd4-1abb-468b-95fe-5861774a8d71",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [],
+    "labels": {
+      "account_suspender_user_name": "rob",
+      "suspended_account_name": "bobby"
+    },
+    "data": null
+  },
+  "title": "Your account \"bobby\" has been suspended",
+  "title_markdown": "Your account \"bobby\" has been suspended",
+  "body": "Hi Bobby,\n\nYour account bobby has been suspended by rob.",
+  "body_markdown": "Hi Bobby,\n\nYour account **bobby** has been suspended by **rob**."
+}

@@ -2,11 +2,9 @@ package dispatch_test
 
 import (
 	"bytes"
-	"crypto/tls"
 	_ "embed"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -421,7 +419,7 @@ func TestSMTP(t *testing.T) {
 
 			tc.cfg.ForceTLS = serpent.Bool(tc.useTLS)
 
-			backend := mock_smtp.NewBackend(Config{
+			backend := mock_smtp.NewBackend(mock_smtp.Config{
 				AuthMechanisms: tc.authMechs,
 
 				AcceptedIdentity: tc.cfg.Auth.Identity.String(),
@@ -464,7 +462,7 @@ func TestSMTP(t *testing.T) {
 
 			// Wait for the server to become pingable.
 			require.Eventually(t, func() bool {
-				cl, err := pingClient(listen, tc.useTLS, tc.cfg.TLS.StartTLS.Value())
+				cl, err := mock_smtp.PingClient(listen, tc.useTLS, tc.cfg.TLS.StartTLS.Value())
 				if err != nil {
 					t.Logf("smtp not yet dialable: %s", err)
 					return false
@@ -576,7 +574,7 @@ func TestSMTPGolden(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 
-			backend := NewBackend(Config{
+			backend := mock_smtp.NewBackend(mock_smtp.Config{
 				AuthMechanisms: []string{sasl.Login},
 
 				AcceptedIdentity: tc.cfg.Auth.Identity.String(),
@@ -585,7 +583,7 @@ func TestSMTPGolden(t *testing.T) {
 			})
 
 			// Create a mock SMTP server which conditionally listens for plain or TLS connections.
-			srv, listen, err := createMockSMTPServer(backend, false)
+			srv, listen, err := mock_smtp.CreateMockSMTPServer(backend, false)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				// We expect that the server has already been closed in the test
@@ -606,7 +604,7 @@ func TestSMTPGolden(t *testing.T) {
 
 			// Wait for the server to become pingable.
 			require.Eventually(t, func() bool {
-				cl, err := pingClient(listen, false, tc.cfg.TLS.StartTLS.Value())
+				cl, err := mock_smtp.PingClient(listen, false, tc.cfg.TLS.StartTLS.Value())
 				if err != nil {
 					t.Logf("smtp not yet dialable: %s", err)
 					return false
@@ -651,21 +649,5 @@ func TestSMTPGolden(t *testing.T) {
 			err = os.WriteFile(goldenFile, []byte(msg.Contents), 0o600)
 			require.NoError(t, err, "want no error writing body golden file")
 		})
-	}
-}
-
-func pingClient(listen net.Listener, useTLS bool, startTLS bool) (*smtp.Client, error) {
-	tlsCfg := &tls.Config{
-		// nolint:gosec // It's a test.
-		InsecureSkipVerify: true,
-	}
-
-	switch {
-	case useTLS:
-		return smtp.DialTLS(listen.Addr().String(), tlsCfg)
-	case startTLS:
-		return smtp.DialStartTLS(listen.Addr().String(), tlsCfg)
-	default:
-		return smtp.Dial(listen.Addr().String())
 	}
 }
