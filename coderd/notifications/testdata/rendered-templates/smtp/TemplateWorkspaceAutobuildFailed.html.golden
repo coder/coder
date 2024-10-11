@@ -1,25 +1,25 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: Template "bobby-template" deleted
-Message-Id: f7c231e3-3c60-40f9-87e4-e2187c33f61c@blush-whale-48
-Date: Fri, 11 Oct 2024 07:07:47 +0000
-Content-Type: multipart/alternative;  boundary=c2b474e4ddaacbd4a99ed66399f8163284628d966bbbe1d7e78b3dc7fd9f
+Subject: Workspace "bobby-workspace" autobuild failed
+Message-Id: 6f923006-7d0d-4754-9d37-175df97de68a@blush-whale-48
+Date: Fri, 11 Oct 2024 08:47:20 +0000
+Content-Type: multipart/alternative;  boundary=e2d2f921b2a16b9438a715de73cb6942bc52777cf2fe2e2335c24e35fb7d
 MIME-Version: 1.0
 
---c2b474e4ddaacbd4a99ed66399f8163284628d966bbbe1d7e78b3dc7fd9f
+--e2d2f921b2a16b9438a715de73cb6942bc52777cf2fe2e2335c24e35fb7d
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-The template bobby-template was deleted by rob.
+Automatic build of your workspace bobby-workspace failed.
 
-The template's display name was Bobby's Template.
+The specified reason was "autostart".
 
 
-View templates: http://test.com/templates
+View workspace: http://test.com/@bobby/bobby-workspace
 
---c2b474e4ddaacbd4a99ed66399f8163284628d966bbbe1d7e78b3dc7fd9f
+--e2d2f921b2a16b9438a715de73cb6942bc52777cf2fe2e2335c24e35fb7d
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -29,7 +29,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Template "bobby-template" deleted</title>
+    <title>Workspace "bobby-workspace" autobuild failed</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -44,23 +44,22 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Template "bobby-template" deleted
+        Workspace "bobby-workspace" autobuild failed
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
 
-<p>The template <strong>bobby-template</strong> was deleted by <strong>rob<=
-/strong>.</p>
+<p>Automatic build of your workspace <strong>bobby-workspace</strong> faile=
+d.</p>
 
-<p>The template&rsquo;s display name was <strong>Bobby&rsquo;s Template</st=
-rong>.</p>
+<p>The specified reason was &ldquo;<strong>autostart</strong>&rdquo;.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/templates" style=3D"display: inline-bloc=
-k; padding: 13px 24px; background-color: #020617; color: #f8fafc; text-deco=
-ration: none; border-radius: 8px; margin: 0 4px;">
-          View templates
+        <a href=3D"http://test.com/@bobby/bobby-workspace" style=3D"display=
+: inline-block; padding: 13px 24px; background-color: #020617; color: #f8fa=
+fc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
+          View workspace
         </a>
        =20
       </div>
@@ -72,12 +71,12 @@ ttp://test.com</a></p>
         <p><a href=3D"http://test.com/settings/notifications" style=3D"colo=
 r: #2563eb; text-decoration: none;">Click here to manage your notification =
 settings</a></p>
-        <p><a href=3D"http://test.com/settings/notifications?disabled=3D29a=
-09665-2a4c-403f-9648-54301670e7be" style=3D"color: #2563eb; text-decoration=
+        <p><a href=3D"http://test.com/settings/notifications?disabled=3D381=
+df2a9-c0c0-4749-420f-80a9280c66f9" style=3D"color: #2563eb; text-decoration=
 : none;">Stop receiving emails like this</a></p>
       </div>
     </div>
   </body>
 </html>
 
---c2b474e4ddaacbd4a99ed66399f8163284628d966bbbe1d7e78b3dc7fd9f--
+--e2d2f921b2a16b9438a715de73cb6942bc52777cf2fe2e2335c24e35fb7d--

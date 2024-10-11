@@ -1,27 +1,25 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: User account "bobby" suspended
-Message-Id: a8116eb1-a491-4ad5-8046-3439a8c7c2bb@blush-whale-48
-Date: Fri, 11 Oct 2024 07:07:48 +0000
-Content-Type: multipart/alternative;  boundary=f966987bcfd6e14cfb8c13b387636b8bf5598e59aebd7645be43727ff3d3
+Subject: Template "bobby-template" deleted
+Message-Id: 594e3030-3739-4fbe-9b87-d0a938643421@blush-whale-48
+Date: Fri, 11 Oct 2024 08:47:19 +0000
+Content-Type: multipart/alternative;  boundary=447921ad2714ac4f86104675f6509e2680c989166680aa4f7cae88d6750f
 MIME-Version: 1.0
 
---f966987bcfd6e14cfb8c13b387636b8bf5598e59aebd7645be43727ff3d3
+--447921ad2714ac4f86104675f6509e2680c989166680aa4f7cae88d6750f
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-User account bobby has been suspended.
+The template bobby-template was deleted by rob.
 
-The newly suspended account belongs to william tables and was suspended by =
-rob.
+The template's display name was Bobby's Template.
 
 
-View suspended accounts: http://test.com/deployment/users?filter=3Dstatus%3=
-Asuspended
+View templates: http://test.com/templates
 
---f966987bcfd6e14cfb8c13b387636b8bf5598e59aebd7645be43727ff3d3
+--447921ad2714ac4f86104675f6509e2680c989166680aa4f7cae88d6750f
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -31,7 +29,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>User account "bobby" suspended</title>
+    <title>Template "bobby-template" deleted</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -46,23 +44,23 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        User account "bobby" suspended
+        Template "bobby-template" deleted
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
 
-<p>User account <strong>bobby</strong> has been suspended.</p>
+<p>The template <strong>bobby-template</strong> was deleted by <strong>rob<=
+/strong>.</p>
 
-<p>The newly suspended account belongs to <strong>william tables</strong> a=
-nd was suspended by <strong>rob</strong>.</p>
+<p>The template&rsquo;s display name was <strong>Bobby&rsquo;s Template</st=
+rong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/deployment/users?filter=3Dstatus%3Asuspe=
-nded" style=3D"display: inline-block; padding: 13px 24px; background-color:=
- #020617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin=
-: 0 4px;">
-          View suspended accounts
+        <a href=3D"http://test.com/templates" style=3D"display: inline-bloc=
+k; padding: 13px 24px; background-color: #020617; color: #f8fafc; text-deco=
+ration: none; border-radius: 8px; margin: 0 4px;">
+          View templates
         </a>
        =20
       </div>
@@ -74,12 +72,12 @@ ttp://test.com</a></p>
         <p><a href=3D"http://test.com/settings/notifications" style=3D"colo=
 r: #2563eb; text-decoration: none;">Click here to manage your notification =
 settings</a></p>
-        <p><a href=3D"http://test.com/settings/notifications?disabled=3Db02=
-ddd82-4733-4d02-a2d7-c36f3598997d" style=3D"color: #2563eb; text-decoration=
+        <p><a href=3D"http://test.com/settings/notifications?disabled=3D29a=
+09665-2a4c-403f-9648-54301670e7be" style=3D"color: #2563eb; text-decoration=
 : none;">Stop receiving emails like this</a></p>
       </div>
     </div>
   </body>
 </html>
 
---f966987bcfd6e14cfb8c13b387636b8bf5598e59aebd7645be43727ff3d3--
+--447921ad2714ac4f86104675f6509e2680c989166680aa4f7cae88d6750f--

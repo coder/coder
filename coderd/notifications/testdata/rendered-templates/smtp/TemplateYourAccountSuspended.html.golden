@@ -1,25 +1,21 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: User account "bobby" created
-Message-Id: de6644cd-9024-4022-bcd2-26e2e16ad7a9@blush-whale-48
-Date: Fri, 11 Oct 2024 07:07:47 +0000
-Content-Type: multipart/alternative;  boundary=554f2d9c541e7f980805085bf6318568f21a41b0b102c0538e52c1faf36f
+Subject: Your account "bobby" has been suspended
+Message-Id: 343918fb-d0a5-4f56-bd78-c3b6b69bdc35@blush-whale-48
+Date: Fri, 11 Oct 2024 08:47:21 +0000
+Content-Type: multipart/alternative;  boundary=d9cb9c933e63b78261d6dc46623e61d8586e8f282898d3cf2d6a890ea428
 MIME-Version: 1.0
 
---554f2d9c541e7f980805085bf6318568f21a41b0b102c0538e52c1faf36f
+--d9cb9c933e63b78261d6dc46623e61d8586e8f282898d3cf2d6a890ea428
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-New user account bobby has been created.
-
-This new user account was created for William Tables by rob.
+Your account bobby has been suspended by rob.
 
 
-View accounts: http://test.com/deployment/users?filter=3Dstatus%3Aactive
-
---554f2d9c541e7f980805085bf6318568f21a41b0b102c0538e52c1faf36f
+--d9cb9c933e63b78261d6dc46623e61d8586e8f282898d3cf2d6a890ea428
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -29,7 +25,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>User account "bobby" created</title>
+    <title>Your account "bobby" has been suspended</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -44,24 +40,15 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        User account "bobby" created
+        Your account "bobby" has been suspended
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
 
-<p>New user account <strong>bobby</strong> has been created.</p>
-
-<p>This new user account was created for <strong>William Tables</strong> by=
- <strong>rob</strong>.</p>
+<p>Your account <strong>bobby</strong> has been suspended by <strong>rob</s=
+trong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
-       =20
-        <a href=3D"http://test.com/deployment/users?filter=3Dstatus%3Aactiv=
-e" style=3D"display: inline-block; padding: 13px 24px; background-color: #0=
-20617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0=
- 4px;">
-          View accounts
-        </a>
        =20
       </div>
       <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=
@@ -72,12 +59,12 @@ ttp://test.com</a></p>
         <p><a href=3D"http://test.com/settings/notifications" style=3D"colo=
 r: #2563eb; text-decoration: none;">Click here to manage your notification =
 settings</a></p>
-        <p><a href=3D"http://test.com/settings/notifications?disabled=3D4e1=
-9c0ac-94e1-4532-9515-d1801aa283b2" style=3D"color: #2563eb; text-decoration=
+        <p><a href=3D"http://test.com/settings/notifications?disabled=3D6a2=
+f0609-9b69-4d36-a989-9f5925b6cbff" style=3D"color: #2563eb; text-decoration=
 : none;">Stop receiving emails like this</a></p>
       </div>
     </div>
   </body>
 </html>
 
---554f2d9c541e7f980805085bf6318568f21a41b0b102c0538e52c1faf36f--
+--d9cb9c933e63b78261d6dc46623e61d8586e8f282898d3cf2d6a890ea428--

@@ -1,11 +1,11 @@
 {
   "_version": "1.1",
-  "msg_id": "58f1bc95-7dfd-45fe-8a58-e8c940f47cbc",
+  "msg_id": "c4d7beb1-af71-4d06-b857-f33848c6c7a3",
   "payload": {
     "_version": "1.1",
     "notification_name": "Workspace Updated Automatically",
     "notification_template_id": "c34a0c09-0704-4cac-bd1c-0c0146811c2b",
-    "user_id": "d90e9b53-d3b1-4f2b-a4eb-efd61442cbb6",
+    "user_id": "5d049111-4dde-44f5-bcaa-df91ffa623e2",
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",

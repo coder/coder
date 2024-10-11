@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: Workspace builds failed for template "Bobby First Template"
-Message-Id: 016fdea9-c110-4400-b4ee-01226ba4cca6@blush-whale-48
-Date: Fri, 11 Oct 2024 07:07:49 +0000
-Content-Type: multipart/alternative;  boundary=efa4000d6a58234bb16aadeb7154404af355eee48b6c092305731104fb86
+Message-Id: e0da8dbd-8c83-4316-80a4-d5c38588d078@blush-whale-48
+Date: Fri, 11 Oct 2024 08:47:20 +0000
+Content-Type: multipart/alternative;  boundary=be4e7b4085c012c76c863f28373423efe1f6867f3e3a32fe861b745a26c1
 MIME-Version: 1.0
 
---efa4000d6a58234bb16aadeb7154404af355eee48b6c092305731104fb86
+--be4e7b4085c012c76c863f28373423efe1f6867f3e3a32fe861b745a26c1
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -36,7 +36,7 @@ We recommend reviewing these issues to ensure future builds are successful.
 View workspaces: http://test.com/workspaces?filter=3Dtemplate%3Abobby-first=
 -template
 
---efa4000d6a58234bb16aadeb7154404af355eee48b6c092305731104fb86
+--be4e7b4085c012c76c863f28373423efe1f6867f3e3a32fe861b745a26c1
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -123,4 +123,4 @@ settings</a></p>
   </body>
 </html>
 
---efa4000d6a58234bb16aadeb7154404af355eee48b6c092305731104fb86--
+--be4e7b4085c012c76c863f28373423efe1f6867f3e3a32fe861b745a26c1--

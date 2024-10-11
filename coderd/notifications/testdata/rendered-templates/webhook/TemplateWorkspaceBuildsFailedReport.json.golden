@@ -1,11 +1,11 @@
 {
   "_version": "1.1",
-  "msg_id": "527a83b3-c5ad-449d-9e51-f4b680a33655",
+  "msg_id": "3bead610-6bb2-4e5a-a1e9-b1d7710be8b8",
   "payload": {
     "_version": "1.1",
     "notification_name": "Report: Workspace Builds Failed For Template",
     "notification_template_id": "34a20db2-e9cc-4a93-b0e4-8569699d7a00",
-    "user_id": "7f78ad2c-8a9b-4f1b-82a1-50890b8c0f14",
+    "user_id": "bffed10b-d7bb-4588-a536-da8001ca31a0",
     "user_email": "bobby@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",

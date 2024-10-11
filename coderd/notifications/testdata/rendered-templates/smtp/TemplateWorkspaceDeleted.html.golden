@@ -1,12 +1,12 @@
 From: system@coder.com
 To: bobby@coder.com
 Subject: Workspace "bobby-workspace" deleted
-Message-Id: 3755291a-a7af-4d98-849d-31cc268420ad@blush-whale-48
-Date: Fri, 11 Oct 2024 07:07:48 +0000
-Content-Type: multipart/alternative;  boundary=a2ac3693060ec5a6eec4291417263bc512450a8a12175f14357e39c5897d
+Message-Id: 4a2693d0-217d-4b5f-93dd-ddd01f468754@blush-whale-48
+Date: Fri, 11 Oct 2024 08:47:20 +0000
+Content-Type: multipart/alternative;  boundary=433a452845ca4849cfd341dacc13786c1370a43411418f886679b0f31c67
 MIME-Version: 1.0
 
---a2ac3693060ec5a6eec4291417263bc512450a8a12175f14357e39c5897d
+--433a452845ca4849cfd341dacc13786c1370a43411418f886679b0f31c67
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
@@ -21,7 +21,7 @@ View workspaces: http://test.com/workspaces
 
 View templates: http://test.com/templates
 
---a2ac3693060ec5a6eec4291417263bc512450a8a12175f14357e39c5897d
+--433a452845ca4849cfd341dacc13786c1370a43411418f886679b0f31c67
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -87,4 +87,4 @@ settings</a></p>
   </body>
 </html>
 
---a2ac3693060ec5a6eec4291417263bc512450a8a12175f14357e39c5897d--
+--433a452845ca4849cfd341dacc13786c1370a43411418f886679b0f31c67--

@@ -1,25 +1,27 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: User account "bobby" deleted
-Message-Id: 4c0b275e-1407-44de-a19c-dace68e6b569@blush-whale-48
-Date: Fri, 11 Oct 2024 07:07:48 +0000
-Content-Type: multipart/alternative;  boundary=0a4f71d4690a1db88c14d9c076d11c45d7ad9f9a3296c118dc38acf001be
+Subject: User account "bobby" suspended
+Message-Id: ab5f31a2-db2a-4e79-ac9d-d0f8a00724ad@blush-whale-48
+Date: Fri, 11 Oct 2024 08:47:21 +0000
+Content-Type: multipart/alternative;  boundary=819d44b7bb641ccf7500ad9f4b8ec0f5a30bb8e366c06d5ce48ad3bda838
 MIME-Version: 1.0
 
---0a4f71d4690a1db88c14d9c076d11c45d7ad9f9a3296c118dc38acf001be
+--819d44b7bb641ccf7500ad9f4b8ec0f5a30bb8e366c06d5ce48ad3bda838
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-User account bobby has been deleted.
+User account bobby has been suspended.
 
-The deleted account belonged to william tables and was deleted by rob.
+The newly suspended account belongs to william tables and was suspended by =
+rob.
 
 
-View accounts: http://test.com/deployment/users?filter=3Dstatus%3Aactive
+View suspended accounts: http://test.com/deployment/users?filter=3Dstatus%3=
+Asuspended
 
---0a4f71d4690a1db88c14d9c076d11c45d7ad9f9a3296c118dc38acf001be
+--819d44b7bb641ccf7500ad9f4b8ec0f5a30bb8e366c06d5ce48ad3bda838
 Content-Transfer-Encoding: quoted-printable
 Content-Type: text/html; charset=UTF-8
 
@@ -29,7 +31,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>User account "bobby" deleted</title>
+    <title>User account "bobby" suspended</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -44,23 +46,23 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        User account "bobby" deleted
+        User account "bobby" suspended
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
 
-<p>User account <strong>bobby</strong> has been deleted.</p>
+<p>User account <strong>bobby</strong> has been suspended.</p>
 
-<p>The deleted account belonged to <strong>william tables</strong> and was =
-deleted by <strong>rob</strong>.</p>
+<p>The newly suspended account belongs to <strong>william tables</strong> a=
+nd was suspended by <strong>rob</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
-        <a href=3D"http://test.com/deployment/users?filter=3Dstatus%3Aactiv=
-e" style=3D"display: inline-block; padding: 13px 24px; background-color: #0=
-20617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0=
- 4px;">
-          View accounts
+        <a href=3D"http://test.com/deployment/users?filter=3Dstatus%3Asuspe=
+nded" style=3D"display: inline-block; padding: 13px 24px; background-color:=
+ #020617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin=
+: 0 4px;">
+          View suspended accounts
         </a>
        =20
       </div>
@@ -72,12 +74,12 @@ ttp://test.com</a></p>
         <p><a href=3D"http://test.com/settings/notifications" style=3D"colo=
 r: #2563eb; text-decoration: none;">Click here to manage your notification =
 settings</a></p>
-        <p><a href=3D"http://test.com/settings/notifications?disabled=3Df44=
-d9314-ad03-4bc8-95d0-5cad491da6b6" style=3D"color: #2563eb; text-decoration=
+        <p><a href=3D"http://test.com/settings/notifications?disabled=3Db02=
+ddd82-4733-4d02-a2d7-c36f3598997d" style=3D"color: #2563eb; text-decoration=
 : none;">Stop receiving emails like this</a></p>
       </div>
     </div>
   </body>
 </html>
 
---0a4f71d4690a1db88c14d9c076d11c45d7ad9f9a3296c118dc38acf001be--
+--819d44b7bb641ccf7500ad9f4b8ec0f5a30bb8e366c06d5ce48ad3bda838--

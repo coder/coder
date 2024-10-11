@@ -703,6 +703,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		hello = "localhost"
 
 		from = "system@coder.com"
+		hint = "run \"DB=ci make update-golden-files\" and commit the changes"
 	)
 
 	tests := []struct {
@@ -1124,7 +1125,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					require.NoError(t, err, "want no error creating golden file directory")
 					err = os.WriteFile(goldenFile, []byte(msg.Contents), 0o600)
 					require.NoError(t, err, "want no error writing body golden file")
+					return
 				}
+
+				wantBody, err := os.ReadFile(goldenFile)
+				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				require.Equal(t, string(wantBody), msg.Contents, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
 			})
 
 			t.Run("webhook", func(t *testing.T) {
@@ -1167,7 +1173,13 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 						require.NoError(t, err, "want no error creating golden file directory")
 						err = os.WriteFile(goldenFile, prettyJSON.Bytes(), 0o600)
 						require.NoError(t, err, "want no error writing body golden file")
+						w.WriteHeader(http.StatusOK)
+						return
 					}
+
+					wantBody, err := os.ReadFile(goldenFile)
+					require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+					require.Equal(t, string(wantBody), prettyJSON, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
 
 					w.WriteHeader(http.StatusOK)
 				}))
@@ -1517,47 +1529,6 @@ func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dis
 
 		f.failed = append(f.failed, msgID.String())
 		return true, xerrors.New("oops")
-	}, nil
-}
-
-type goldenFileHandler struct {
-	t                 *testing.T
-	goldenFileName    string
-	updateGoldenFiles bool
-}
-
-func (f *goldenFileHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	return func(_ context.Context, _ uuid.UUID) (retryable bool, err error) {
-		// UserIDs change on every test run. We need to set it to a known value to compare golden files.
-		payload.UserID = "00000000-0000-0000-0000-000000000000"
-
-		// The following is done by the stmp handler during dispatch.
-		// By doing it here we get an accurate golden representation of
-		// what would have been sent. We don't need to maintain parity
-		// with how the SMTP handler does it. We just need an accurate
-		// representation of the payload, and the rendered body and title.
-		payload.Labels["_body"] = body
-		payload.Labels["_title"] = title
-
-		payloadJSON, err := json.MarshalIndent(payload, "", "  ")
-		require.NoError(f.t, err, "want no error marshaling payload to JSON")
-
-		if *updateGoldenFiles {
-			err = os.MkdirAll(filepath.Dir(f.goldenFileName), 0o755)
-			require.NoError(f.t, err, "want no error creating golden file directory")
-			err = os.WriteFile(f.goldenFileName, payloadJSON, 0o600)
-			require.NoError(f.t, err, "want no error writing body golden file")
-			return false, nil
-		}
-
-		const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
-
-		wantBody, err := os.ReadFile(f.goldenFileName)
-		require.NoError(f.t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
-
-		require.Equal(f.t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
-
-		return false, nil
 	}, nil
 }
 
