@@ -237,7 +237,6 @@ data "cloudinit_config" "user_data" {
   }
 }
 
-# TODO: replace this with the new thing
 # This is useful for debugging the startup script. Left here for reference.
 # resource local_file "startup_script" {
 #   content  = data.cloudinit_config.user_data.rendered
@@ -262,9 +261,6 @@ resource "aws_instance" "vm" {
   lifecycle {
     ignore_changes = [ami]
   }
-
-  # TODO: remove
-  key_name = "phorcys-roflpad"
 }
 
 resource "aws_ec2_instance_state" "vm" {
@@ -314,11 +310,6 @@ resource "coder_metadata" "info" {
   item {
     key   = "ssh_pubkey"
     value = data.coder_parameter.ssh_pubkey.value
-  }
-  # TODO: remove
-  item {
-    key = "cloudinit_config"
-    value = base64encode(data.cloudinit_config.user_data.rendered)
   }
   item {
     key   = "repo_url"
