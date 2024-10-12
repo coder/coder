@@ -210,7 +210,7 @@ data "cloudinit_config" "user_data" {
     content_type = "text/cloud-config"
 
     content = templatefile("${path.module}/cloud-init/cloud-config.yaml.tftpl", {
-      hostname = local.hostname
+      hostname   = local.hostname
       linux_user = local.linux_user
 
       ssh_pubkey = data.coder_parameter.ssh_pubkey.value
@@ -222,7 +222,7 @@ data "cloudinit_config" "user_data" {
     content_type = "text/x-shellscript"
 
     content = templatefile("${path.module}/cloud-init/userdata.sh.tftpl", {
-      hostname = local.hostname
+      hostname   = local.hostname
       linux_user = local.linux_user
 
       # If we have a cached image, use the cached image's environment variables.
