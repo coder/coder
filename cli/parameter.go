@@ -52,7 +52,7 @@ func (wpf *workspaceParameterFlags) cliEphemeralParameters() []serpent.Option {
 		{
 			Flag:        "ephemeral-parameter",
 			Env:         "CODER_EPHEMERAL_PARAMETER",
-			Description: `Define ephemeral parameters in the format "name=value".`,
+			Description: `Set the value of ephemeral parameters defined in the template. The format is "name=value".`,
 			Value:       serpent.StringArrayOf(&wpf.ephemeralParameters),
 		},
 		{
