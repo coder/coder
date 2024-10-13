@@ -58,7 +58,7 @@ func (wpf *workspaceParameterFlags) cliEphemeralParameters() []serpent.Option {
 		{
 			Flag:        "prompt-ephemeral-parameters",
 			Env:         "CODER_PROMPT_EPHEMERAL_PARAMETERS",
-			Description: "Prompt for values of ephemeral parameters described in the template.",
+			Description: "Prompt to set values of ephemeral parameters defined in the template. If a value has been set via --ephemeral-parameter, it will not be prompted for.",
 			Value:       serpent.BoolOf(&wpf.promptEphemeralParameters),
 		},
 	}
