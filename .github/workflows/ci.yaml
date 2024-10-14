@@ -499,7 +499,8 @@ jobs:
         working-directory: site
 
   test-e2e:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && (matrix.variant.enterprise && 'depot-ubuntu-22.04' || 'depot-ubuntu-22.04-4') || 'ubuntu-latest' }}
+    # test-e2e fails on 2-core 8GB runners, so we use the 4-core 16GB runner
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
