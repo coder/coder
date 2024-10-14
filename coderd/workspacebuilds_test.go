@@ -1184,7 +1184,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 }
 
 func TestWorkspaceBuildTimings(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	// Setup the test environment with a template and version
 	db, pubsub := dbtestutil.NewDB(t)
