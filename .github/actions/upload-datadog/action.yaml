@@ -1,5 +1,6 @@
 name: Upload tests to datadog
-if: always()
+description: |
+  Uploads the test results to datadog.
 inputs:
   api-key:
     description: "Datadog API key"

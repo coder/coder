@@ -10,11 +10,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -23,18 +25,16 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/xerrors"
-
-	"github.com/coder/quartz"
-
+	"github.com/emersion/go-sasl"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/serpent"
-
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -42,12 +42,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/render"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch/smtptest"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -691,6 +693,16 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on the notification templates added by migrations in the database")
 	}
 
+	const (
+		username = "bob"
+		password = "🤫"
+
+		hello = "localhost"
+
+		from = "system@coder.com"
+		hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+	)
+
 	tests := []struct {
 		name    string
 		id      uuid.UUID
@@ -700,7 +712,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceDeleted",
 			id:   notifications.TemplateWorkspaceDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":      "bobby-workspace",
 					"reason":    "autodeleted due to dormancy",
@@ -712,7 +726,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceAutobuildFailed",
 			id:   notifications.TemplateWorkspaceAutobuildFailed,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":   "bobby-workspace",
 					"reason": "autostart",
@@ -723,7 +739,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceDormant",
 			id:   notifications.TemplateWorkspaceDormant,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "breached the template's threshold for inactivity",
@@ -737,7 +755,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceAutoUpdated",
 			id:   notifications.TemplateWorkspaceAutoUpdated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_version_name":    "1.0",
@@ -749,7 +769,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceMarkedForDeletion",
 			id:   notifications.TemplateWorkspaceMarkedForDeletion,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "template updated to new dormancy policy",
@@ -762,11 +784,13 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"created_account_name":      "bobby",
 					"created_account_user_name": "William Tables",
-					"account_creator":           "rob",
+					"initiator":                 "rob",
 				},
 			},
 		},
@@ -774,11 +798,13 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountDeleted",
 			id:   notifications.TemplateUserAccountDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"deleted_account_name":      "bobby",
-					"deleted_account_user_name": "william tables",
-					"account_deleter_user_name": "rob",
+					"deleted_account_user_name": "William Tables",
+					"initiator":                 "rob",
 				},
 			},
 		},
@@ -786,11 +812,13 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountSuspended",
 			id:   notifications.TemplateUserAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"suspended_account_name":      "bobby",
-					"suspended_account_user_name": "william tables",
-					"account_suspender_user_name": "rob",
+					"suspended_account_user_name": "William Tables",
+					"initiator":                   "rob",
 				},
 			},
 		},
@@ -798,11 +826,13 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserAccountActivated",
 			id:   notifications.TemplateUserAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"activated_account_name":      "bobby",
-					"activated_account_user_name": "william tables",
-					"account_activator_user_name": "rob",
+					"activated_account_user_name": "William Tables",
+					"initiator":                   "rob",
 				},
 			},
 		},
@@ -810,10 +840,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateYourAccountSuspended",
 			id:   notifications.TemplateYourAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
-					"suspended_account_name":      "bobby",
-					"account_suspender_user_name": "rob",
+					"suspended_account_name": "bobby",
+					"initiator":              "rob",
 				},
 			},
 		},
@@ -821,10 +853,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateYourAccountActivated",
 			id:   notifications.TemplateYourAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
-					"activated_account_name":      "bobby",
-					"account_activator_user_name": "rob",
+					"activated_account_name": "bobby",
+					"initiator":              "rob",
 				},
 			},
 		},
@@ -832,7 +866,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateTemplateDeleted",
 			id:   notifications.TemplateTemplateDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":         "bobby-template",
 					"display_name": "Bobby's Template",
@@ -844,7 +880,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceManualBuildFailed",
 			id:   notifications.TemplateWorkspaceManualBuildFailed,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
@@ -860,7 +898,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateWorkspaceBuildsFailedReport",
 			id:   notifications.TemplateWorkspaceBuildsFailedReport,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"template_name":         "bobby-first-template",
 					"template_display_name": "Bobby First Template",
@@ -911,7 +951,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			name: "TemplateUserRequestedOneTimePasscode",
 			id:   notifications.TemplateUserRequestedOneTimePasscode,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"one_time_passcode": "fad9020b-6562-4cdb-87f1-0486f1bea415",
 				},
@@ -919,6 +961,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		},
 	}
 
+	// We must have a test case for every notification_template. This is enforced below:
 	allTemplates, err := enumerateAllTemplates(t)
 	require.NoError(t, err)
 	for _, name := range allTemplates {
@@ -938,51 +981,301 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, sql := dbtestutil.NewDBWithSQLDB(t)
+			t.Run("smtp", func(t *testing.T) {
+				t.Parallel()
 
-			var (
-				titleTmpl string
-				bodyTmpl  string
-			)
-			err := sql.
-				QueryRow("SELECT title_template, body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
-				Scan(&titleTmpl, &bodyTmpl)
-			require.NoError(t, err, "failed to query body template for template:", tc.id)
+				// Spin up the DB
+				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
+					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+					db := api.Database
+					firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
-			title, err := render.GoTemplate(titleTmpl, tc.payload, defaultHelpers())
-			require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
-			require.NoError(t, err, "failed to render notification title template")
-			require.NotEmpty(t, title, "title should not be empty")
+					_, user := coderdtest.CreateAnotherUserMutators(
+						t,
+						adminClient,
+						firstUser.OrganizationID,
+						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+						func(r *codersdk.CreateUserRequestWithOrgs) {
+							r.Username = tc.payload.UserUsername
+							r.Email = tc.payload.UserEmail
+							r.Name = tc.payload.UserName
+						},
+					)
+					return &db, &api.Logger, &user
+				}()
 
-			body, err := render.GoTemplate(bodyTmpl, tc.payload, defaultHelpers())
-			require.NoError(t, err, "failed to render notification body template")
-			require.NotEmpty(t, body, "body should not be empty")
+				// nolint:gocritic // Unit test.
+				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 
-			partialName := strings.Split(t.Name(), "/")[1]
-			bodyGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-body.md.golden")
-			titleGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-title.md.golden")
+				// smtp config shared between client and server
+				smtpConfig := codersdk.NotificationsEmailConfig{
+					Hello: hello,
+					From:  from,
 
-			if *updateGoldenFiles {
-				err = os.MkdirAll(filepath.Dir(bodyGoldenFile), 0o755)
-				require.NoError(t, err, "want no error creating golden file directory")
-				err = os.WriteFile(bodyGoldenFile, []byte(body), 0o600)
-				require.NoError(t, err, "want no error writing body golden file")
-				err = os.WriteFile(titleGoldenFile, []byte(title), 0o600)
-				require.NoError(t, err, "want no error writing title golden file")
-				return
-			}
+					Auth: codersdk.NotificationsEmailAuthConfig{
+						Username: username,
+						Password: password,
+					},
+				}
 
-			const hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+				// Spin up the mock SMTP server
+				backend := smtptest.NewBackend(smtptest.Config{
+					AuthMechanisms: []string{sasl.Login},
 
-			wantBody, err := os.ReadFile(bodyGoldenFile)
-			require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
-			wantTitle, err := os.ReadFile(titleGoldenFile)
-			require.NoError(t, err, fmt.Sprintf("missing golden notification title file. %s", hint))
+					AcceptedIdentity: smtpConfig.Auth.Identity.String(),
+					AcceptedUsername: username,
+					AcceptedPassword: password,
+				})
 
-			require.Equal(t, string(wantBody), body, fmt.Sprintf("rendered template body does not match golden file. If this is expected, %s", hint))
-			require.Equal(t, string(wantTitle), title, fmt.Sprintf("rendered template title does not match golden file. If this is expected, %s", hint))
+				// Create a mock SMTP server which conditionally listens for plain or TLS connections.
+				srv, listen, err := smtptest.CreateMockSMTPServer(backend, false)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					err := srv.Shutdown(ctx)
+					require.NoError(t, err)
+				})
+
+				var hp serpent.HostPort
+				require.NoError(t, hp.Set(listen.Addr().String()))
+				smtpConfig.Smarthost = hp
+
+				// Start mock SMTP server in the background.
+				var wg sync.WaitGroup
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					assert.NoError(t, srv.Serve(listen))
+				}()
+
+				// Wait for the server to become pingable.
+				require.Eventually(t, func() bool {
+					cl, err := smtptest.PingClient(listen, false, smtpConfig.TLS.StartTLS.Value())
+					if err != nil {
+						t.Logf("smtp not yet dialable: %s", err)
+						return false
+					}
+
+					if err = cl.Noop(); err != nil {
+						t.Logf("smtp not yet noopable: %s", err)
+						return false
+					}
+
+					if err = cl.Close(); err != nil {
+						t.Logf("smtp didn't close properly: %s", err)
+						return false
+					}
+
+					return true
+				}, testutil.WaitShort, testutil.IntervalFast)
+
+				smtpCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+				smtpCfg.SMTP = smtpConfig
+
+				smtpManager, err := notifications.NewManager(
+					smtpCfg,
+					*db,
+					defaultHelpers(),
+					createMetrics(),
+					logger.Named("manager"),
+				)
+				require.NoError(t, err)
+
+				smtpManager.Run(ctx)
+
+				notificationCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+
+				smtpEnqueuer, err := notifications.NewStoreEnqueuer(
+					notificationCfg,
+					*db,
+					defaultHelpers(),
+					logger.Named("enqueuer"),
+					quartz.NewReal(),
+				)
+				require.NoError(t, err)
+
+				_, err = smtpEnqueuer.EnqueueWithData(
+					ctx,
+					user.ID,
+					tc.id,
+					tc.payload.Labels,
+					tc.payload.Data,
+					user.Username,
+					user.ID,
+				)
+				require.NoError(t, err)
+
+				// Wait for the message to be fetched
+				var msg *smtptest.Message
+				require.Eventually(t, func() bool {
+					msg = backend.LastMessage()
+					return msg != nil && len(msg.Contents) > 0
+				}, testutil.WaitShort, testutil.IntervalFast)
+
+				body := normalizeGoldenEmail([]byte(msg.Contents))
+
+				err = smtpManager.Stop(ctx)
+				require.NoError(t, err)
+
+				partialName := strings.Split(t.Name(), "/")[1]
+				goldenFile := filepath.Join("testdata", "rendered-templates", "smtp", partialName+".html.golden")
+				if *updateGoldenFiles {
+					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+					require.NoError(t, err, "want no error creating golden file directory")
+					err = os.WriteFile(goldenFile, body, 0o600)
+					require.NoError(t, err, "want no error writing body golden file")
+					return
+				}
+
+				wantBody, err := os.ReadFile(goldenFile)
+				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				require.Empty(
+					t,
+					cmp.Diff(wantBody, body),
+					fmt.Sprintf("golden file mismatch: %s. If this is expected, %s. (-want +got). ", goldenFile, hint),
+				)
+			})
+
+			t.Run("webhook", func(t *testing.T) {
+				t.Parallel()
+
+				// Spin up the DB
+				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
+					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+					db := api.Database
+					firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+					_, user := coderdtest.CreateAnotherUserMutators(
+						t,
+						adminClient,
+						firstUser.OrganizationID,
+						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+						func(r *codersdk.CreateUserRequestWithOrgs) {
+							r.Username = tc.payload.UserUsername
+							r.Email = tc.payload.UserEmail
+							r.Name = tc.payload.UserName
+						},
+					)
+					return &db, &api.Logger, &user
+				}()
+
+				// nolint:gocritic // Unit test.
+				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+
+				// Spin up the mock webhook server
+				var body []byte
+				var readErr error
+				var webhookReceived bool
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+
+					body, readErr = io.ReadAll(r.Body)
+					webhookReceived = true
+				}))
+				t.Cleanup(server.Close)
+
+				endpoint, err := url.Parse(server.URL)
+				require.NoError(t, err)
+
+				webhookCfg := defaultNotificationsConfig(database.NotificationMethodWebhook)
+
+				webhookCfg.Webhook = codersdk.NotificationsWebhookConfig{
+					Endpoint: *serpent.URLOf(endpoint),
+				}
+
+				webhookManager, err := notifications.NewManager(
+					webhookCfg,
+					*db,
+					defaultHelpers(),
+					createMetrics(),
+					logger.Named("manager"),
+				)
+				require.NoError(t, err)
+
+				webhookManager.Run(ctx)
+
+				httpEnqueuer, err := notifications.NewStoreEnqueuer(
+					defaultNotificationsConfig(database.NotificationMethodWebhook),
+					*db,
+					defaultHelpers(),
+					logger.Named("enqueuer"),
+					quartz.NewReal(),
+				)
+				require.NoError(t, err)
+
+				_, err = httpEnqueuer.EnqueueWithData(
+					ctx,
+					user.ID,
+					tc.id,
+					tc.payload.Labels,
+					tc.payload.Data,
+					user.Username,
+					user.ID,
+				)
+				require.NoError(t, err)
+
+				require.Eventually(t, func() bool {
+					return webhookReceived
+				}, testutil.WaitShort, testutil.IntervalFast)
+
+				require.NoError(t, err)
+
+				// Handle the body that was read in the http server here.
+				// We need to do it here because we can't call require.* in a separate goroutine, such as the http server handler
+				require.NoError(t, readErr)
+				var prettyJSON bytes.Buffer
+				err = json.Indent(&prettyJSON, body, "", "  ")
+				require.NoError(t, err)
+
+				content := normalizeGoldenWebhook(prettyJSON.Bytes())
+
+				partialName := strings.Split(t.Name(), "/")[1]
+				goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".json.golden")
+				if *updateGoldenFiles {
+					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+					require.NoError(t, err, "want no error creating golden file directory")
+					err = os.WriteFile(goldenFile, content, 0o600)
+					require.NoError(t, err, "want no error writing body golden file")
+					return
+				}
+
+				wantBody, err := os.ReadFile(goldenFile)
+				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
+			})
 		})
 	}
+}
+
+func normalizeGoldenEmail(content []byte) []byte {
+	const (
+		constantDate      = "Fri, 11 Oct 2024 09:03:06 +0000"
+		constantMessageID = "02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48"
+		constantBoundary  = "bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4"
+	)
+
+	dateRegex := regexp.MustCompile(`Date: .+`)
+	messageIDRegex := regexp.MustCompile(`Message-Id: .+`)
+	boundaryRegex := regexp.MustCompile(`boundary=([0-9a-zA-Z]+)`)
+	submatches := boundaryRegex.FindSubmatch(content)
+	if len(submatches) == 0 {
+		return content
+	}
+
+	boundary := submatches[1]
+
+	content = dateRegex.ReplaceAll(content, []byte("Date: "+constantDate))
+	content = messageIDRegex.ReplaceAll(content, []byte("Message-Id: "+constantMessageID))
+	content = bytes.ReplaceAll(content, boundary, []byte(constantBoundary))
+
+	return content
+}
+
+func normalizeGoldenWebhook(content []byte) []byte {
+	const constantUUID = "00000000-0000-0000-0000-000000000000"
+	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	content = uuidRegex.ReplaceAll(content, []byte(constantUUID))
+
+	return content
 }
 
 // TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template

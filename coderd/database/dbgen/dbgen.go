@@ -189,6 +189,49 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 	return agt
 }
 
+func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
+	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, database.InsertWorkspaceAgentScriptsParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		LogSourceID:      []uuid.UUID{takeFirst(orig.LogSourceID, uuid.New())},
+		LogPath:          []string{takeFirst(orig.LogPath, "")},
+		Script:           []string{takeFirst(orig.Script, "")},
+		Cron:             []string{takeFirst(orig.Cron, "")},
+		StartBlocksLogin: []bool{takeFirst(orig.StartBlocksLogin, false)},
+		RunOnStart:       []bool{takeFirst(orig.RunOnStart, false)},
+		RunOnStop:        []bool{takeFirst(orig.RunOnStop, false)},
+		TimeoutSeconds:   []int32{takeFirst(orig.TimeoutSeconds, 0)},
+		DisplayName:      []string{takeFirst(orig.DisplayName, "")},
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+	})
+	require.NoError(t, err, "insert workspace agent script")
+	require.NotEmpty(t, scripts, "insert workspace agent script returned no scripts")
+	return scripts[0]
+}
+
+func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, script database.WorkspaceAgentScript, count int) []database.WorkspaceAgentScriptTiming {
+	timings := make([]database.WorkspaceAgentScriptTiming, count)
+	for i := range count {
+		timings[i] = WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+			ScriptID: script.ID,
+		})
+	}
+	return timings
+}
+
+func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.WorkspaceAgentScriptTiming) database.WorkspaceAgentScriptTiming {
+	timing, err := db.InsertWorkspaceAgentScriptTimings(genCtx, database.InsertWorkspaceAgentScriptTimingsParams{
+		StartedAt: takeFirst(orig.StartedAt, dbtime.Now()),
+		EndedAt:   takeFirst(orig.EndedAt, dbtime.Now()),
+		Stage:     takeFirst(orig.Stage, database.WorkspaceAgentScriptTimingStageStart),
+		ScriptID:  takeFirst(orig.ScriptID, uuid.New()),
+		ExitCode:  takeFirst(orig.ExitCode, 0),
+		Status:    takeFirst(orig.Status, database.WorkspaceAgentScriptTimingStatusOk),
+	})
+	require.NoError(t, err, "insert workspace agent script")
+	return timing
+}
+
 func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
 	t.Helper()
 
@@ -935,10 +978,28 @@ func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) databas
 	return key
 }
 
-func ProvisionerJobTimings(t testing.TB, db database.Store, seed database.InsertProvisionerJobTimingsParams) []database.ProvisionerJobTiming {
-	timings, err := db.InsertProvisionerJobTimings(genCtx, seed)
-	require.NoError(t, err, "insert provisioner job timings")
+func ProvisionerJobTimings(t testing.TB, db database.Store, build database.WorkspaceBuild, count int) []database.ProvisionerJobTiming {
+	timings := make([]database.ProvisionerJobTiming, count)
+	for i := range count {
+		timings[i] = provisionerJobTiming(t, db, database.ProvisionerJobTiming{
+			JobID: build.JobID,
+		})
+	}
 	return timings
+}
+
+func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
+	timing, err := db.InsertProvisionerJobTimings(genCtx, database.InsertProvisionerJobTimingsParams{
+		JobID:     takeFirst(seed.JobID, uuid.New()),
+		StartedAt: []time.Time{takeFirst(seed.StartedAt, dbtime.Now())},
+		EndedAt:   []time.Time{takeFirst(seed.EndedAt, dbtime.Now())},
+		Stage:     []database.ProvisionerJobTimingStage{takeFirst(seed.Stage, database.ProvisionerJobTimingStageInit)},
+		Source:    []string{takeFirst(seed.Source, "source")},
+		Action:    []string{takeFirst(seed.Action, "action")},
+		Resource:  []string{takeFirst(seed.Resource, "resource")},
+	})
+	require.NoError(t, err, "insert provisioner job timing")
+	return timing[0]
 }
 
 func must[V any](v V, err error) V {

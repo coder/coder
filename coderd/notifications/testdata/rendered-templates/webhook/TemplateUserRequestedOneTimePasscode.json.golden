@@ -1,0 +1,22 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "One-Time Passcode",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [],
+    "labels": {
+      "one_time_passcode": "00000000-0000-0000-0000-000000000000"
+    },
+    "data": null
+  },
+  "title": "Your One-Time Passcode for Coder.",
+  "title_markdown": "Your One-Time Passcode for Coder.",
+  "body": "Hi Bobby,\n\nA request to reset the password for your Coder account has been made. Your one-time passcode is:\n\n00000000-0000-0000-0000-000000000000\n\nIf you did not request to reset your password, you can ignore this message.",
+  "body_markdown": "Hi Bobby,\n\nA request to reset the password for your Coder account has been made. Your one-time passcode is:\n\n**00000000-0000-0000-0000-000000000000**\n\nIf you did not request to reset your password, you can ignore this message."
+}
