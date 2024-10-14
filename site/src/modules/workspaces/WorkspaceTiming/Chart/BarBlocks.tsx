@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
-import { type FC, useLayoutEffect, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 
 const spaceBetweenBlocks = 4;
 const moreIconSize = 18;
@@ -14,7 +14,8 @@ export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
 	const [availableWidth, setAvailableWidth] = useState<number>(0);
 	const blocksRef = useRef<HTMLDivElement>(null);
 
-	useLayoutEffect(() => {
+	// Fix: When using useLayoutEffect, Chromatic fails to calculate the right width.
+	useEffect(() => {
 		if (availableWidth || !blocksRef.current) {
 			return;
 		}
