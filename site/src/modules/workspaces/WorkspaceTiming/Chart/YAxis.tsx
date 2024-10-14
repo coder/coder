@@ -2,9 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import type { FC, HTMLProps } from "react";
 import { XAxisLabelsHeight, XAxisRowsGap } from "./constants";
 
-// Predicting the caption height is necessary to add appropriate spacing to the
-// grouped bars, ensuring alignment with the sidebar labels.
-export const YAxisCaptionHeight = 20;
 export const YAxisWidth = 200;
 export const YAxisSidePadding = 16;
 
@@ -40,25 +37,30 @@ const styles = {
 	root: {
 		width: YAxisWidth,
 		flexShrink: 0,
-		padding: YAxisSidePadding,
-		paddingTop: XAxisLabelsHeight,
 	},
 	caption: (theme) => ({
-		height: YAxisCaptionHeight,
+		height: XAxisLabelsHeight,
 		display: "flex",
 		alignItems: "center",
+		justifyContent: "end",
+		borderBottom: `1px solid ${theme.palette.divider}`,
 		fontSize: 10,
 		fontWeight: 500,
 		color: theme.palette.text.secondary,
+		paddingLeft: YAxisSidePadding,
+		paddingRight: YAxisSidePadding,
+		position: "sticky",
+		top: 0,
+		background: theme.palette.background.default,
 	}),
 	labels: {
 		margin: 0,
-		padding: 0,
 		listStyle: "none",
 		display: "flex",
 		flexDirection: "column",
 		gap: XAxisRowsGap,
 		textAlign: "right",
+		padding: YAxisSidePadding,
 	},
 	label: {
 		display: "flex",

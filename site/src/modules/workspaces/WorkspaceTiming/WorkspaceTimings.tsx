@@ -1,59 +1,62 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import type { ProvisionerTiming } from "api/typesGenerated";
+import type { AgentScriptTiming, ProvisionerTiming } from "api/typesGenerated";
 import { type FC, useState } from "react";
-import { type BaseTiming, combineTimings } from "./Chart/utils";
 import { ResourcesChart } from "./ResourcesChart";
-import { StagesChart, stages } from "./StagesChart";
+import { type StageCategory, StagesChart, stages } from "./StagesChart";
+import { mergeTimeRanges, type TimeRange } from "./Chart/utils";
+import { ScriptsChart } from "./ScriptsChart";
 
 type TimingView =
-	| { name: "stages" }
+	| { name: "default" }
 	| {
-			name: "resources";
+			name: "detailed";
 			stage: string;
-			category: string;
+			category: StageCategory;
 			filter: string;
 	  };
 
 type WorkspaceTimingsProps = {
 	provisionerTimings: readonly ProvisionerTiming[];
+	agentScriptTimings: readonly AgentScriptTiming[];
 };
 
 export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	provisionerTimings,
+	agentScriptTimings,
 }) => {
-	const [view, setView] = useState<TimingView>({ name: "stages" });
+	const [view, setView] = useState<TimingView>({ name: "default" });
+	const timings = [...provisionerTimings, ...agentScriptTimings];
 
 	return (
 		<div css={styles.panelBody}>
-			{view.name === "stages" && (
+			{view.name === "default" && (
 				<StagesChart
 					timings={stages.map((s) => {
-						const stageTimings = provisionerTimings.filter(
-							(t) => t.stage === s.name,
-						);
-						const combinedStageTiming = combineTimings(
-							stageTimings.map(provisionerToBaseTiming),
-						);
+						const stageTimings = timings.filter((t) => t.stage === s.name);
+						const stageRange =
+							stageTimings.length === 0
+								? undefined
+								: mergeTimeRanges(stageTimings.map(extractRange));
 						return {
-							...combinedStageTiming,
+							range: stageRange,
 							name: s.name,
-							category: s.category,
+							categoryID: s.categoryID,
 							resources: stageTimings.length,
 						};
 					})}
 					onSelectStage={(t, category) => {
-						setView({ name: "resources", stage: t.name, category, filter: "" });
+						setView({ name: "detailed", stage: t.name, category, filter: "" });
 					}}
 				/>
 			)}
 
-			{view.name === "resources" && (
+			{view.name === "detailed" && view.category.id === "provisioning" && (
 				<ResourcesChart
 					timings={provisionerTimings
 						.filter((t) => t.stage === view.stage)
 						.map((t) => {
 							return {
-								...provisionerToBaseTiming(t),
+								range: extractRange(t),
 								name: t.resource,
 								source: t.source,
 								action: t.action,
@@ -62,7 +65,26 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 					category={view.category}
 					stage={view.stage}
 					onBack={() => {
-						setView({ name: "stages" });
+						setView({ name: "default" });
+					}}
+				/>
+			)}
+
+			{view.name === "detailed" && view.category.id === "workspaceBoot" && (
+				<ScriptsChart
+					timings={agentScriptTimings
+						.filter((t) => t.stage === view.stage)
+						.map((t) => {
+							return {
+								range: extractRange(t),
+								name: t.display_name,
+								status: t.status,
+							};
+						})}
+					category={view.category}
+					stage={view.stage}
+					onBack={() => {
+						setView({ name: "default" });
 					}}
 				/>
 			)}
@@ -70,12 +92,12 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	);
 };
 
-const provisionerToBaseTiming = (
-	provisioner: ProvisionerTiming,
-): BaseTiming => {
+const extractRange = (
+	timing: ProvisionerTiming | AgentScriptTiming,
+): TimeRange => {
 	return {
-		startedAt: new Date(provisioner.started_at),
-		endedAt: new Date(provisioner.ended_at),
+		startedAt: new Date(timing.started_at),
+		endedAt: new Date(timing.ended_at),
 	};
 };
 

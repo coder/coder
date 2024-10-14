@@ -14,7 +14,7 @@ import {
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
-import { XAxis, XAxisRow, XAxisRows, XAxisSections } from "./Chart/XAxis";
+import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
 	YAxisCaption,
@@ -23,13 +23,14 @@ import {
 	YAxisSection,
 } from "./Chart/YAxis";
 import {
-	type BaseTiming,
 	calcDuration,
 	calcOffset,
-	combineTimings,
 	formatTime,
 	makeTicks,
+	mergeTimeRanges,
+	type TimeRange,
 } from "./Chart/utils";
+import type { StageCategory } from "./StagesChart";
 
 const legendsByAction: Record<string, ChartLegend> = {
 	"state refresh": {
@@ -58,14 +59,15 @@ const legendsByAction: Record<string, ChartLegend> = {
 	},
 };
 
-type ResourceTiming = BaseTiming & {
+type ResourceTiming = {
 	name: string;
 	source: string;
 	action: string;
+	range: TimeRange;
 };
 
 export type ResourcesChartProps = {
-	category: string;
+	category: StageCategory;
 	stage: string;
 	timings: ResourceTiming[];
 	onBack: () => void;
@@ -77,7 +79,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 	timings,
 	onBack,
 }) => {
-	const generalTiming = combineTimings(timings);
+	const generalTiming = mergeTimeRanges(timings.map((t) => t.range));
 	const totalTime = calcDuration(generalTiming);
 	const [ticks, scale] = makeTicks(totalTime);
 	const [filter, setFilter] = useState("");
@@ -94,7 +96,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 				<ChartBreadcrumbs
 					breadcrumbs={[
 						{
-							label: category,
+							label: category.name,
 							onClick: onBack,
 						},
 						{
@@ -124,28 +126,28 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 				</YAxis>
 
 				<XAxis ticks={ticks} scale={scale}>
-					<XAxisSections>
-						<XAxisRows>
-							{visibleTimings.map((t) => {
-								return (
-									<XAxisRow
-										key={t.name}
-										yAxisLabelId={encodeURIComponent(t.name)}
-									>
-										<ResourceTooltip timing={t}>
-											<Bar
-												value={calcDuration(t)}
-												offset={calcOffset(t, generalTiming)}
-												scale={scale}
-												colors={legendsByAction[t.action].colors}
-											/>
-										</ResourceTooltip>
-										{formatTime(calcDuration(t))}
-									</XAxisRow>
-								);
-							})}
-						</XAxisRows>
-					</XAxisSections>
+					<XAxisSection>
+						{visibleTimings.map((t) => {
+							const duration = calcDuration(t.range);
+
+							return (
+								<XAxisRow
+									key={t.name}
+									yAxisLabelId={encodeURIComponent(t.name)}
+								>
+									<ResourceTooltip timing={t}>
+										<Bar
+											value={duration}
+											offset={calcOffset(t.range, generalTiming)}
+											scale={scale}
+											colors={legendsByAction[t.action].colors}
+										/>
+									</ResourceTooltip>
+									{formatTime(duration)}
+								</XAxisRow>
+							);
+						})}
+					</XAxisSection>
 				</XAxis>
 			</ChartContent>
 		</Chart>

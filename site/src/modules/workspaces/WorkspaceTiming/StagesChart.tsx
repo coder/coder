@@ -2,17 +2,11 @@ import { css } from "@emotion/css";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
-import type { FC, PropsWithChildren } from "react";
+import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { BarBlocks } from "./Chart/BarBlocks";
 import { Chart, ChartContent } from "./Chart/Chart";
-import {
-	XAxis,
-	XAxisMinWidth,
-	XAxisRow,
-	XAxisRows,
-	XAxisSections,
-} from "./Chart/XAxis";
+import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
 	YAxisCaption,
@@ -21,30 +15,40 @@ import {
 	YAxisSection,
 } from "./Chart/YAxis";
 import {
-	type BaseTiming,
 	calcDuration,
 	calcOffset,
-	combineTimings,
 	formatTime,
 	makeTicks,
+	mergeTimeRanges,
+	type TimeRange,
 } from "./Chart/utils";
 
-// TODO: Add "workspace boot" when scripting timings are done.
-const stageCategories = ["provisioning"] as const;
-
-type StageCategory = (typeof stageCategories)[number];
-
-type Stage = {
+export type StageCategory = {
 	name: string;
-	category: StageCategory;
+	id: "provisioning" | "workspaceBoot";
+};
+
+const stageCategories: StageCategory[] = [
+	{
+		name: "provisioning",
+		id: "provisioning",
+	},
+	{
+		name: "workspace boot",
+		id: "workspaceBoot",
+	},
+] as const;
+
+export type Stage = {
+	name: string;
+	categoryID: StageCategory["id"];
 	tooltip: { title: string; description: string };
 };
 
-// TODO: Export provisioning stages from the BE to the generated types.
 export const stages: Stage[] = [
 	{
 		name: "init",
-		category: "provisioning",
+		categoryID: "provisioning",
 		tooltip: {
 			title: "Terraform initialization",
 			description: "Download providers & modules.",
@@ -52,7 +56,7 @@ export const stages: Stage[] = [
 	},
 	{
 		name: "plan",
-		category: "provisioning",
+		categoryID: "provisioning",
 		tooltip: {
 			title: "Terraform plan",
 			description:
@@ -61,7 +65,7 @@ export const stages: Stage[] = [
 	},
 	{
 		name: "graph",
-		category: "provisioning",
+		categoryID: "provisioning",
 		tooltip: {
 			title: "Terraform graph",
 			description:
@@ -70,16 +74,24 @@ export const stages: Stage[] = [
 	},
 	{
 		name: "apply",
-		category: "provisioning",
+		categoryID: "provisioning",
 		tooltip: {
 			title: "Terraform apply",
 			description:
 				"Execute terraform plan to create/modify/delete resources into desired states.",
 		},
 	},
+	{
+		name: "start",
+		categoryID: "workspaceBoot",
+		tooltip: {
+			title: "Start",
+			description: "Scripts executed when the agent is starting.",
+		},
+	},
 ];
 
-type StageTiming = BaseTiming & {
+type StageTiming = {
 	name: string;
 	/**
 	 * Represents the number of resources included in this stage. This value is
@@ -92,7 +104,13 @@ type StageTiming = BaseTiming & {
 	 * together in the chart. For example, all provisioning stages are grouped
 	 * together.
 	 */
-	category: StageCategory;
+	categoryID: StageCategory["id"];
+	/**
+	 * Represents the time range of the stage. This value is used to calculate the
+	 * duration of the stage and to position the stage within the chart. This can
+	 * be undefined if a stage has no timing data.
+	 */
+	range: TimeRange | undefined;
 };
 
 export type StagesChartProps = {
@@ -104,8 +122,10 @@ export const StagesChart: FC<StagesChartProps> = ({
 	timings,
 	onSelectStage,
 }) => {
-	const generalTiming = combineTimings(timings);
-	const totalTime = calcDuration(generalTiming);
+	const totalRange = mergeTimeRanges(
+		timings.map((t) => t.range).filter((t) => t !== undefined),
+	);
+	const totalTime = calcDuration(totalRange);
 	const [ticks, scale] = makeTicks(totalTime);
 
 	return (
@@ -113,11 +133,13 @@ export const StagesChart: FC<StagesChartProps> = ({
 			<ChartContent>
 				<YAxis>
 					{stageCategories.map((c) => {
-						const stagesInCategory = stages.filter((s) => s.category === c);
+						const stagesInCategory = stages.filter(
+							(s) => s.categoryID === c.id,
+						);
 
 						return (
-							<YAxisSection key={c}>
-								<YAxisCaption>{c}</YAxisCaption>
+							<YAxisSection key={c.id}>
+								<YAxisCaption>{c.name}</YAxisCaption>
 								<YAxisLabels>
 									{stagesInCategory.map((stage) => (
 										<YAxisLabel
@@ -139,45 +161,53 @@ export const StagesChart: FC<StagesChartProps> = ({
 				</YAxis>
 
 				<XAxis ticks={ticks} scale={scale}>
-					<XAxisSections>
-						{stageCategories.map((category) => {
-							const timingsInCategory = timings.filter(
-								(t) => t.category === category,
-							);
-							return (
-								<XAxisRows key={category}>
-									{timingsInCategory.map((t) => {
-										const value = calcDuration(t);
-										const offset = calcOffset(t, generalTiming);
-
+					{stageCategories.map((category) => {
+						const stageTimings = timings.filter(
+							(t) => t.categoryID === category.id,
+						);
+						return (
+							<XAxisSection key={category.id}>
+								{stageTimings.map((t) => {
+									// If the stage has no timing data, we just want to render an empty row
+									if (t.range === undefined) {
 										return (
 											<XAxisRow
 												key={t.name}
 												yAxisLabelId={encodeURIComponent(t.name)}
-											>
-												{/** We only want to expand stages with more than one resource */}
-												{t.resources > 1 ? (
-													<ClickableBar
-														scale={scale}
-														value={value}
-														offset={offset}
-														onClick={() => {
-															onSelectStage(t, category);
-														}}
-													>
-														<BarBlocks count={t.resources} />
-													</ClickableBar>
-												) : (
-													<Bar scale={scale} value={value} offset={offset} />
-												)}
-												{formatTime(calcDuration(t))}
-											</XAxisRow>
+											/>
 										);
-									})}
-								</XAxisRows>
-							);
-						})}
-					</XAxisSections>
+									}
+
+									const value = calcDuration(t.range);
+									const offset = calcOffset(t.range, totalRange);
+
+									return (
+										<XAxisRow
+											key={t.name}
+											yAxisLabelId={encodeURIComponent(t.name)}
+										>
+											{/** We only want to expand stages with more than one resource */}
+											{t.resources > 1 ? (
+												<ClickableBar
+													scale={scale}
+													value={value}
+													offset={offset}
+													onClick={() => {
+														onSelectStage(t, category);
+													}}
+												>
+													<BarBlocks count={t.resources} />
+												</ClickableBar>
+											) : (
+												<Bar scale={scale} value={value} offset={offset} />
+											)}
+											{formatTime(calcDuration(t.range))}
+										</XAxisRow>
+									);
+								})}
+							</XAxisSection>
+						);
+					})}
 				</XAxis>
 			</ChartContent>
 		</Chart>

@@ -7,6 +7,7 @@ const meta: Meta<typeof WorkspaceTimings> = {
 	component: WorkspaceTimings,
 	args: {
 		provisionerTimings: WorkspaceTimingsResponse.provisioner_timings,
+		agentScriptTimings: WorkspaceTimingsResponse.agent_script_timings,
 	},
 	decorators: [
 		(Story) => {

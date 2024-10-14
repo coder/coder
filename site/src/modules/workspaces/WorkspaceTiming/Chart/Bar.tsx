@@ -30,7 +30,7 @@ export const Bar = forwardRef<HTMLDivElement, BarProps>(
 	({ colors, scale, value, offset, ...htmlProps }, ref) => {
 		return (
 			<div
-				css={barCss({ colors, scale, value, offset })}
+				css={barCSS({ colors, scale, value, offset })}
 				{...htmlProps}
 				ref={ref}
 			/>
@@ -45,7 +45,7 @@ export const ClickableBar = forwardRef<HTMLButtonElement, ClickableBarProps>(
 		return (
 			<button
 				type="button"
-				css={[...barCss({ colors, scale, value, offset }), styles.clickable]}
+				css={[...barCSS({ colors, scale, value, offset }), styles.clickable]}
 				{...htmlProps}
 				ref={ref}
 			/>
@@ -53,7 +53,7 @@ export const ClickableBar = forwardRef<HTMLButtonElement, ClickableBarProps>(
 	},
 );
 
-export const barCss = ({
+export const barCSS = ({
 	scale,
 	value,
 	colors,
@@ -76,7 +76,8 @@ const styles = {
 		borderColor: theme.palette.divider,
 		backgroundColor: theme.palette.background.default,
 		borderRadius: 8,
-		height: 32,
+		// The bar should fill the row height.
+		height: "inherit",
 		display: "flex",
 		padding: 0,
 		minWidth: 8,

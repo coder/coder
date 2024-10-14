@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { type FC, type HTMLProps, useLayoutEffect, useRef } from "react";
-import { YAxisCaptionHeight } from "./YAxis";
 import { CSSVars, XAxisLabelsHeight, XAxisRowsGap } from "./constants";
 import { formatTime } from "./utils";
+import { YAxisSidePadding } from "./YAxis";
 
 export const XAxisMinWidth = 130;
 export const XAxisSidePadding = 16;
@@ -69,12 +69,8 @@ export const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
 	);
 };
 
-export const XAxisSections: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <div css={styles.sections} {...props} />;
-};
-
-export const XAxisRows: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <div css={styles.rows} {...props} />;
+export const XAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
+	return <section css={styles.section} {...props} />;
 };
 
 type XAxisRowProps = HTMLProps<HTMLDivElement> & {
@@ -164,21 +160,27 @@ const styles = {
 		flexShrink: 0,
 		color: theme.palette.text.secondary,
 	}),
-	sections: {
-		flex: 1,
-	},
-	rows: {
+
+	section: (theme) => ({
 		display: "flex",
 		flexDirection: "column",
 		gap: XAxisRowsGap,
-		padding: `${YAxisCaptionHeight}px ${XAxisSidePadding}px`,
-	},
+		padding: `${XAxisSidePadding}px ${XAxisSidePadding}px 24px`,
+
+		// Keep spacing aligned with the Y axis.
+		"&:not(:first-of-type)": {
+			marginTop: 32 - 1,
+			paddingTop: YAxisSidePadding,
+			borderTop: `1px dashed ${theme.palette.divider}`,
+		},
+	}),
 	row: {
 		display: "flex",
 		alignItems: "center",
 		width: "fit-content",
 		gap: 8,
 		cursor: "pointer",
+		height: 32,
 	},
 	grid: {
 		display: "flex",

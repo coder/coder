@@ -1,30 +1,27 @@
-export type BaseTiming = {
+export type TimeRange = {
 	startedAt: Date;
 	endedAt: Date;
 };
 
-export const combineTimings = (timings: BaseTiming[]): BaseTiming => {
-	// If there are no timings, return a timing with the same start and end
-	// times. This prevents the chart from breaking when calculating the start and
-	// end times from an empty array.
-	if (timings.length === 0) {
-		return { startedAt: new Date(), endedAt: new Date() };
-	}
-
-	const sortedDurations = timings
+/**
+ * Combines multiple timings into a single timing that spans the entire duration
+ * of the input timings.
+ */
+export const mergeTimeRanges = (ranges: TimeRange[]): TimeRange => {
+	const sortedDurations = ranges
 		.slice()
 		.sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
 	const start = sortedDurations[0].startedAt;
 
-	const sortedEndDurations = timings
+	const sortedEndDurations = ranges
 		.slice()
 		.sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime());
 	const end = sortedEndDurations[sortedEndDurations.length - 1].endedAt;
 	return { startedAt: start, endedAt: end };
 };
 
-export const calcDuration = (timing: BaseTiming): number => {
-	return timing.endedAt.getTime() - timing.startedAt.getTime();
+export const calcDuration = (range: TimeRange): number => {
+	return range.endedAt.getTime() - range.startedAt.getTime();
 };
 
 // When displaying the chart we must consider the time intervals to display the
@@ -55,9 +52,6 @@ export const formatTime = (time: number): string => {
 	return `${time.toLocaleString()}ms`;
 };
 
-export const calcOffset = (
-	timing: BaseTiming,
-	generalTiming: BaseTiming,
-): number => {
-	return timing.startedAt.getTime() - generalTiming.startedAt.getTime();
+export const calcOffset = (range: TimeRange, baseRange: TimeRange): number => {
+	return range.startedAt.getTime() - baseRange.startedAt.getTime();
 };
