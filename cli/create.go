@@ -22,10 +22,11 @@ import (
 
 func (r *RootCmd) create() *serpent.Command {
 	var (
-		templateName  string
-		startAt       string
-		stopAfter     time.Duration
-		workspaceName string
+		templateName    string
+		templateVersion string
+		startAt         string
+		stopAfter       time.Duration
+		workspaceName   string
 
 		parameterFlags     workspaceParameterFlags
 		autoUpdates        string
@@ -202,6 +203,14 @@ func (r *RootCmd) create() *serpent.Command {
 				templateVersionID = template.ActiveVersionID
 			}
 
+			if len(templateVersion) > 0 {
+				version, err := client.TemplateVersionByName(inv.Context(), template.ID, templateVersion)
+				if err != nil {
+					return xerrors.Errorf("get template version by name: %w", err)
+				}
+				templateVersionID = version.ID
+			}
+
 			// If the user specified an organization via a flag or env var, the template **must**
 			// be in that organization. Otherwise, we should throw an error.
 			orgValue, orgValueSource := orgContext.ValueSource(inv)
@@ -313,6 +322,12 @@ func (r *RootCmd) create() *serpent.Command {
 			Env:           "CODER_TEMPLATE_NAME",
 			Description:   "Specify a template name.",
 			Value:         serpent.StringOf(&templateName),
+		},
+		serpent.Option{
+			Flag:        "template-version",
+			Env:         "CODER_TEMPLATE_VERSION",
+			Description: "Specify a template version name.",
+			Value:       serpent.StringOf(&templateVersion),
 		},
 		serpent.Option{
 			Flag:        "start-at",

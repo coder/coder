@@ -1,0 +1,126 @@
+From: system@coder.com
+To: bobby@coder.com
+Subject: Workspace builds failed for template "Bobby First Template"
+Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
+Date: Fri, 11 Oct 2024 09:03:06 +0000
+Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
+MIME-Version: 1.0
+
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset=UTF-8
+
+Hi Bobby,
+
+Template Bobby First Template has failed to build 4/55 times over the last =
+week.
+
+Report:
+
+bobby-template-version-1 failed 3 times:
+
+mtojek / workspace-1 / #1234 (http://test.com/@mtojek/workspace-1/builds/12=
+34)
+johndoe / my-workspace-3 / #5678 (http://test.com/@johndoe/my-workspace-3/b=
+uilds/5678)
+jack / workwork / #774 (http://test.com/@jack/workwork/builds/774)
+
+bobby-template-version-2 failed 1 time:
+
+ben / cool-workspace / #8888 (http://test.com/@ben/cool-workspace/builds/88=
+88)
+
+We recommend reviewing these issues to ensure future builds are successful.
+
+
+View workspaces: http://test.com/workspaces?filter=3Dtemplate%3Abobby-first=
+-template
+
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=UTF-8
+
+<!doctype html>
+<html lang=3D"en">
+  <head>
+    <meta charset=3D"UTF-8" />
+    <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
+=3D1.0" />
+    <title>Workspace builds failed for template "Bobby First Template"</tit=
+le>
+  </head>
+  <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
+ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
+l', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; color: #020617=
+; background: #f8fafc;">
+    <div style=3D"max-width: 600px; margin: 20px auto; padding: 60px; borde=
+r: 1px solid #e2e8f0; border-radius: 8px; background-color: #fff; text-alig=
+n: left; font-size: 14px; line-height: 1.5;">
+      <div style=3D"text-align: center;">
+        <img src=3D"https://coder.com/coder-logo-horizontal.png" alt=3D"Cod=
+er Logo" style=3D"height: 40px;" />
+      </div>
+      <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
+argin: 8px 0 32px; line-height: 1.5;">
+        Workspace builds failed for template "Bobby First Template"
+      </h1>
+      <div style=3D"line-height: 1.5;">
+        <p>Hi Bobby,</p>
+
+<p>Template <strong>Bobby First Template</strong> has failed to build <sup>=
+4</sup>&frasl;<sub>55</sub> times over the last week.</p>
+
+<p><strong>Report:</strong></p>
+
+<p><strong>bobby-template-version-1</strong> failed 3 times:</p>
+
+<ul>
+<li><a href=3D"http://test.com/@mtojek/workspace-1/builds/1234">mtojek / wo=
+rkspace-1 / #1234</a><br>
+</li>
+<li><a href=3D"http://test.com/@johndoe/my-workspace-3/builds/5678">johndoe=
+ / my-workspace-3 / #5678</a><br>
+</li>
+<li><a href=3D"http://test.com/@jack/workwork/builds/774">jack / workwork /=
+ #774</a><br>
+</li>
+</ul>
+
+<p><strong>bobby-template-version-2</strong> failed 1 time:</p>
+
+<ul>
+<li><a href=3D"http://test.com/@ben/cool-workspace/builds/8888">ben / cool-=
+workspace / #8888</a><br>
+</li>
+</ul>
+
+<p>We recommend reviewing these issues to ensure future builds are successf=
+ul.</p>
+      </div>
+      <div style=3D"text-align: center; margin-top: 32px;">
+       =20
+        <a href=3D"http://test.com/workspaces?filter=3Dtemplate%3Abobby-fir=
+st-template" style=3D"display: inline-block; padding: 13px 24px; background=
+-color: #020617; color: #f8fafc; text-decoration: none; border-radius: 8px;=
+ margin: 0 4px;">
+          View workspaces
+        </a>
+       =20
+      </div>
+      <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=
+e: 12px; margin-top: 64px; padding-top: 24px; line-height: 1.6;">
+        <p>&copy;&nbsp;2024&nbsp;Coder. All rights reserved&nbsp;-&nbsp;<a =
+href=3D"http://test.com" style=3D"color: #2563eb; text-decoration: none;">h=
+ttp://test.com</a></p>
+        <p><a href=3D"http://test.com/settings/notifications" style=3D"colo=
+r: #2563eb; text-decoration: none;">Click here to manage your notification =
+settings</a></p>
+        <p><a href=3D"http://test.com/settings/notifications?disabled=3D34a=
+20db2-e9cc-4a93-b0e4-8569699d7a00" style=3D"color: #2563eb; text-decoration=
+: none;">Stop receiving emails like this</a></p>
+      </div>
+    </div>
+  </body>
+</html>
+
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4--

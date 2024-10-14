@@ -194,7 +194,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Password:        createUser.Password,
 			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
-		LoginType: database.LoginTypePassword,
+		LoginType:          database.LoginTypePassword,
+		accountCreatorName: "coder",
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -479,10 +480,22 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apiKey := httpmw.APIKey(r)
+
+	accountCreator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Unable to determine the details of the actor creating the account.",
+		})
+		return
+	}
+
 	user, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequestWithOrgs: req,
 		LoginType:                 loginType,
+		accountCreatorName:        accountCreator.Name,
 	})
+
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You are not authorized to create users.",
@@ -576,11 +589,24 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apiKey := httpmw.APIKey(r)
+
+	accountDeleter, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Unable to determine the details of the actor deleting the account.",
+		})
+		return
+	}
+
 	for _, u := range userAdmins {
 		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountDeleted,
 			map[string]string{
-				"deleted_account_name": user.Username,
-			}, "api-users-delete",
+				"deleted_account_name":      user.Username,
+				"deleted_account_user_name": user.Name,
+				"initiator":                 accountDeleter.Name,
+			},
+			"api-users-delete",
 			user.ID,
 		); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about deleted user", slog.F("deleted_user", user.Username), slog.Error(err))
@@ -844,6 +870,14 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			}
 		}
 
+		actingUser, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Unable to determine the details of the actor creating the account.",
+			})
+			return
+		}
+
 		targetUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
@@ -858,7 +892,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 		aReq.New = targetUser
 
-		err = api.notifyUserStatusChanged(ctx, user, status)
+		err = api.notifyUserStatusChanged(ctx, actingUser.Name, user, status)
 		if err != nil {
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
 		}
@@ -871,24 +905,33 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
+
 		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(targetUser, organizations))
 	}
 }
 
-func (api *API) notifyUserStatusChanged(ctx context.Context, user database.User, status database.UserStatus) error {
-	var key string
+func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName string, targetUser database.User, status database.UserStatus) error {
+	var labels map[string]string
 	var adminTemplateID, personalTemplateID uuid.UUID
 	switch status {
 	case database.UserStatusSuspended:
-		key = "suspended_account_name"
+		labels = map[string]string{
+			"suspended_account_name":      targetUser.Username,
+			"suspended_account_user_name": targetUser.Name,
+			"initiator":                   actingUserName,
+		}
 		adminTemplateID = notifications.TemplateUserAccountSuspended
 		personalTemplateID = notifications.TemplateYourAccountSuspended
 	case database.UserStatusActive:
-		key = "activated_account_name"
+		labels = map[string]string{
+			"activated_account_name":      targetUser.Username,
+			"activated_account_user_name": targetUser.Name,
+			"initiator":                   actingUserName,
+		}
 		adminTemplateID = notifications.TemplateUserAccountActivated
 		personalTemplateID = notifications.TemplateYourAccountActivated
 	default:
-		api.Logger.Error(ctx, "user status is not supported", slog.F("username", user.Username), slog.F("user_status", string(status)))
+		api.Logger.Error(ctx, "user status is not supported", slog.F("username", targetUser.Username), slog.F("user_status", string(status)))
 		return xerrors.Errorf("unable to notify admins as the user's status is unsupported")
 	}
 
@@ -900,21 +943,17 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, user database.User,
 	// Send notifications to user admins and affected user
 	for _, u := range userAdmins {
 		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, adminTemplateID,
-			map[string]string{
-				key: user.Username,
-			}, "api-put-user-status",
-			user.ID,
+			labels, "api-put-user-status",
+			targetUser.ID,
 		); err != nil {
-			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
+			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", targetUser.Username), slog.Error(err))
 		}
 	}
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, user.ID, personalTemplateID,
-		map[string]string{
-			key: user.Username,
-		}, "api-put-user-status",
-		user.ID,
+	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, targetUser.ID, personalTemplateID,
+		labels, "api-put-user-status",
+		targetUser.ID,
 	); err != nil {
-		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", user.Username), slog.Error(err))
+		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", targetUser.Username), slog.Error(err))
 	}
 	return nil
 }
@@ -1280,8 +1319,9 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 type CreateUserRequest struct {
 	codersdk.CreateUserRequestWithOrgs
-	LoginType         database.LoginType
-	SkipNotifications bool
+	LoginType          database.LoginType
+	SkipNotifications  bool
+	accountCreatorName string
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
@@ -1365,13 +1405,16 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	for _, u := range userAdmins {
 		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
 			map[string]string{
-				"created_account_name": user.Username,
+				"created_account_name":      user.Username,
+				"created_account_user_name": user.Name,
+				"initiator":                 req.accountCreatorName,
 			}, "api-users-create",
 			user.ID,
 		); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Username), slog.Error(err))
 		}
 	}
+
 	return user, err
 }
 

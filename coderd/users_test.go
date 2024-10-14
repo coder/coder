@@ -489,13 +489,16 @@ func TestNotifyDeletedUser(t *testing.T) {
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
 		})
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		firstUserResponse := coderdtest.CreateFirstUser(t, adminClient)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		firstUser, err := adminClient.User(ctx, firstUserResponse.UserID.String())
+		require.NoError(t, err)
+
 		user, err := adminClient.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
+			OrganizationIDs: []uuid.UUID{firstUserResponse.OrganizationID},
 			Email:           "another@user.org",
 			Username:        "someone-else",
 			Password:        "SomeSecurePassword!",
@@ -510,9 +513,11 @@ func TestNotifyDeletedUser(t *testing.T) {
 		require.Len(t, notifyEnq.Sent, 2)
 		// notifyEnq.Sent[0] is create account event
 		require.Equal(t, notifications.TemplateUserAccountDeleted, notifyEnq.Sent[1].TemplateID)
-		require.Equal(t, firstUser.UserID, notifyEnq.Sent[1].UserID)
+		require.Equal(t, firstUser.ID, notifyEnq.Sent[1].UserID)
 		require.Contains(t, notifyEnq.Sent[1].Targets, user.ID)
 		require.Equal(t, user.Username, notifyEnq.Sent[1].Labels["deleted_account_name"])
+		require.Equal(t, user.Name, notifyEnq.Sent[1].Labels["deleted_account_user_name"])
+		require.Equal(t, firstUser.Name, notifyEnq.Sent[1].Labels["initiator"])
 	})
 
 	t.Run("UserAdminNotified", func(t *testing.T) {
