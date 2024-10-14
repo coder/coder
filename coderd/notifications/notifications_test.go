@@ -1083,7 +1083,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				require.NoError(t, err)
 
 				smtpManager.Run(ctx)
-				time.Sleep(time.Second)
 
 				notificationCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
 
