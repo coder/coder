@@ -1,8 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import MoreHorizOutlined from "@mui/icons-material/MoreHorizOutlined";
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useLayoutEffect, useRef, useState } from "react";
 
-const sidePadding = 8;
 const spaceBetweenBlocks = 4;
 const moreIconSize = 18;
 const blockSize = 20;
@@ -12,26 +11,21 @@ type BarBlocksProps = {
 };
 
 export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
-	const [parentWidth, setParentWidth] = useState<number>();
+	const [availableWidth, setAvailableWidth] = useState<number>(0);
 	const blocksRef = useRef<HTMLDivElement>(null);
 
-	useEffect(() => {
-		if (!blocksRef.current || parentWidth) {
+	useLayoutEffect(() => {
+		if (availableWidth || !blocksRef.current) {
 			return;
 		}
-		const parentEl = blocksRef.current.parentElement;
-		if (!parentEl) {
-			throw new Error("BarBlocks must be a child of a Bar");
-		}
-		setParentWidth(parentEl.clientWidth);
-	}, [parentWidth]);
+		setAvailableWidth(blocksRef.current.clientWidth);
+	}, [availableWidth]);
 
 	const totalSpaceBetweenBlocks = (count - 1) * spaceBetweenBlocks;
-	const freeSize = parentWidth ? parentWidth - sidePadding * 2 : 0;
 	const necessarySize = blockSize * count + totalSpaceBetweenBlocks;
-	const hasSpacing = necessarySize <= freeSize;
+	const hasSpacing = necessarySize <= availableWidth;
 	const nOfPossibleBlocks = Math.floor(
-		(freeSize - moreIconSize) / (blockSize + spaceBetweenBlocks),
+		(availableWidth - moreIconSize) / (blockSize + spaceBetweenBlocks),
 	);
 	const nOfBlocks = hasSpacing ? count : nOfPossibleBlocks;
 
@@ -54,13 +48,12 @@ const styles = {
 		display: "flex",
 		width: "100%",
 		height: "100%",
-		padding: sidePadding,
 		gap: spaceBetweenBlocks,
 		alignItems: "center",
 	},
 	block: {
 		borderRadius: 4,
-		height: 16,
+		height: 18,
 		backgroundColor: "#082F49",
 		border: "1px solid #38BDF8",
 		flexShrink: 0,

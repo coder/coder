@@ -79,7 +79,7 @@ const styles = {
 		// The bar should fill the row height.
 		height: "inherit",
 		display: "flex",
-		padding: 0,
+		padding: 7,
 		minWidth: 8,
 	}),
 	clickable: {

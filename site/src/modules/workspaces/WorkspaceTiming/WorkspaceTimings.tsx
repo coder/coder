@@ -42,6 +42,9 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 							name: s.name,
 							categoryID: s.categoryID,
 							resources: stageTimings.length,
+							error: stageTimings.some(
+								(t) => "status" in t && t.status === "exit_failure",
+							),
 						};
 					})}
 					onSelectStage={(t, category) => {

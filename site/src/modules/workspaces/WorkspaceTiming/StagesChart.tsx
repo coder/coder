@@ -22,6 +22,7 @@ import {
 	mergeTimeRanges,
 	type TimeRange,
 } from "./Chart/utils";
+import { ErrorSharp } from "@mui/icons-material";
 
 export type StageCategory = {
 	name: string;
@@ -111,6 +112,11 @@ type StageTiming = {
 	 * be undefined if a stage has no timing data.
 	 */
 	range: TimeRange | undefined;
+	/**
+	 * Display an error icon within the bar to indicate when a stage has failed.
+	 * This is used in the agent scripts stage.
+	 */
+	error?: boolean;
 };
 
 export type StagesChartProps = {
@@ -196,6 +202,15 @@ export const StagesChart: FC<StagesChartProps> = ({
 														onSelectStage(t, category);
 													}}
 												>
+													{t.error && (
+														<ErrorSharp
+															css={{
+																fontSize: 18,
+																color: "#F87171",
+																marginRight: 4,
+															}}
+														/>
+													)}
 													<BarBlocks count={t.resources} />
 												</ClickableBar>
 											) : (
