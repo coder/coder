@@ -204,8 +204,8 @@ CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_t
 CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```
 
-To support regex matching for paths (e.g. github\.com/org), you'll need to
-add this to the
+To support regex matching for paths (e.g. github\.com/org), you'll need to add
+this to the
 [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
 
 ```shell
