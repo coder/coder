@@ -1641,6 +1641,16 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 
 ```json
 {
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"exit_code": 0,
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z",
+			"status": "string"
+		}
+	],
 	"provisioner_timings": [
 		{
 			"action": "string",
@@ -1657,9 +1667,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                           |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceTimings](schemas.md#codersdkworkspacetimings) |
+| Status | Meaning                                                 | Description | Schema                                                                     |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuildTimings](schemas.md#codersdkworkspacebuildtimings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
