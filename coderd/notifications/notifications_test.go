@@ -48,7 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/dispatch/mocksmtp"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch/smtptest"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
@@ -1021,7 +1021,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				}
 
 				// Spin up the mock SMTP server
-				backend := mocksmtp.NewBackend(mocksmtp.Config{
+				backend := smtptest.NewBackend(smtptest.Config{
 					AuthMechanisms: []string{sasl.Login},
 
 					AcceptedIdentity: smtpConfig.Auth.Identity.String(),
@@ -1030,7 +1030,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				})
 
 				// Create a mock SMTP server which conditionally listens for plain or TLS connections.
-				srv, listen, err := mocksmtp.CreateMockSMTPServer(backend, false)
+				srv, listen, err := smtptest.CreateMockSMTPServer(backend, false)
 				require.NoError(t, err)
 				t.Cleanup(func() {
 					err := srv.Shutdown(ctx)
@@ -1051,7 +1051,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				// Wait for the server to become pingable.
 				require.Eventually(t, func() bool {
-					cl, err := mocksmtp.PingClient(listen, false, smtpConfig.TLS.StartTLS.Value())
+					cl, err := smtptest.PingClient(listen, false, smtpConfig.TLS.StartTLS.Value())
 					if err != nil {
 						t.Logf("smtp not yet dialable: %s", err)
 						return false
@@ -1107,7 +1107,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				require.NoError(t, err)
 
 				// Wait for the message to be fetched
-				var msg *mocksmtp.Message
+				var msg *smtptest.Message
 				require.Eventually(t, func() bool {
 					msg = backend.LastMessage()
 					return msg != nil && len(msg.Contents) > 0

@@ -19,7 +19,7 @@ import (
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/dispatch/mocksmtp"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch/smtptest"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -45,9 +45,9 @@ func TestSMTP(t *testing.T) {
 		subject = "This is the subject"
 		body    = "This is the body"
 
-		caFile   = "mocksmtp/fixtures/ca.crt"
-		certFile = "mocksmtp/fixtures/server.crt"
-		keyFile  = "mocksmtp/fixtures/server.key"
+		caFile   = "smtptest/fixtures/ca.crt"
+		certFile = "smtptest/fixtures/server.crt"
+		keyFile  = "smtptest/fixtures/server.key"
 	)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
@@ -123,7 +123,7 @@ func TestSMTP(t *testing.T) {
 
 				Auth: codersdk.NotificationsEmailAuthConfig{
 					Username:     username,
-					PasswordFile: "mocksmtp/fixtures/password.txt",
+					PasswordFile: "smtptest/fixtures/password.txt",
 				},
 			},
 			toAddrs:          []string{to},
@@ -339,14 +339,14 @@ func TestSMTP(t *testing.T) {
 			cfg: codersdk.NotificationsEmailConfig{
 				TLS: codersdk.NotificationsEmailTLSConfig{
 					CAFile:   caFile,
-					CertFile: "mocksmtp/fixtures/nope.cert",
+					CertFile: "smtptest/fixtures/nope.cert",
 					KeyFile:  keyFile,
 				},
 			},
 			// not using full error message here since it differs on *nix and Windows:
 			// *nix: no such file or directory
 			// Windows: The system cannot find the file specified.
-			expectedErr: "open mocksmtp/fixtures/nope.cert:",
+			expectedErr: "open smtptest/fixtures/nope.cert:",
 			retryable:   true,
 		},
 		{
@@ -356,13 +356,13 @@ func TestSMTP(t *testing.T) {
 				TLS: codersdk.NotificationsEmailTLSConfig{
 					CAFile:   caFile,
 					CertFile: certFile,
-					KeyFile:  "mocksmtp/fixtures/nope.key",
+					KeyFile:  "smtptest/fixtures/nope.key",
 				},
 			},
 			// not using full error message here since it differs on *nix and Windows:
 			// *nix: no such file or directory
 			// Windows: The system cannot find the file specified.
-			expectedErr: "open mocksmtp/fixtures/nope.key:",
+			expectedErr: "open smtptest/fixtures/nope.key:",
 			retryable:   true,
 		},
 		/**
@@ -415,7 +415,7 @@ func TestSMTP(t *testing.T) {
 
 			tc.cfg.ForceTLS = serpent.Bool(tc.useTLS)
 
-			backend := mocksmtp.NewBackend(mocksmtp.Config{
+			backend := smtptest.NewBackend(smtptest.Config{
 				AuthMechanisms: tc.authMechs,
 
 				AcceptedIdentity: tc.cfg.Auth.Identity.String(),
@@ -426,7 +426,7 @@ func TestSMTP(t *testing.T) {
 			})
 
 			// Create a mock SMTP server which conditionally listens for plain or TLS connections.
-			srv, listen, err := mocksmtp.CreateMockSMTPServer(backend, tc.useTLS)
+			srv, listen, err := smtptest.CreateMockSMTPServer(backend, tc.useTLS)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				// We expect that the server has already been closed in the test
@@ -458,7 +458,7 @@ func TestSMTP(t *testing.T) {
 
 			// Wait for the server to become pingable.
 			require.Eventually(t, func() bool {
-				cl, err := mocksmtp.PingClient(listen, tc.useTLS, tc.cfg.TLS.StartTLS.Value())
+				cl, err := smtptest.PingClient(listen, tc.useTLS, tc.cfg.TLS.StartTLS.Value())
 				if err != nil {
 					t.Logf("smtp not yet dialable: %s", err)
 					return false
