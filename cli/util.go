@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -182,34 +183,44 @@ func isDigit(s string) bool {
 }
 
 // extendedParseDuration is a more lenient version of parseDuration that allows
-// for more flexible input formats.
+// for more flexible input formats and cumulative durations.
 // It allows for some extra units:
 //   - d (days)
 //   - y (years)
 func extendedParseDuration(raw string) (time.Duration, error) {
 	var duration time.Duration
-	var err error
 
-	switch {
-	case strings.HasSuffix(raw, "d"):
-		nbDays, err := strconv.Atoi(strings.TrimSuffix(raw, "d"))
-		if err != nil {
-			return 0, xerrors.Errorf("invalid duration: %q", raw)
-		}
-		duration = time.Duration(nbDays) * 24 * time.Hour
-	case strings.HasSuffix(raw, "y"):
-		nbYears, err := strconv.Atoi(strings.TrimSuffix(raw, "y"))
-		if err != nil {
-			return 0, xerrors.Errorf("invalid duration: %q", raw)
-		}
-		duration = time.Duration(nbYears) * 365 * 24 * time.Hour
-	default:
-		duration, err = time.ParseDuration(raw)
+	// Regular expression to match any characters that do not match the expected duration format
+	invalidCharRe := regexp.MustCompile(`[^0-9|nsuµhdym]+`)
+	if invalidCharRe.MatchString(raw) {
+		return 0, xerrors.Errorf("invalid duration format: %q", raw)
 	}
 
-	if err != nil {
-		return 0, xerrors.Errorf("invalid duration: %q", raw)
+	// Regular expression to match numbers followed by 'd', 'y', or time units
+	re := regexp.MustCompile(`(\d+)(ns|us|µs|ms|s|m|h|d|y)`)
+	matches := re.FindAllStringSubmatch(raw, -1)
+
+	for _, match := range matches {
+		num, err := strconv.Atoi(match[1])
+		if err != nil {
+			return 0, xerrors.Errorf("invalid duration: %q", match[1])
+		}
+		switch match[2] {
+		case "d":
+			duration += time.Duration(num) * 24 * time.Hour
+		case "y":
+			duration += time.Duration(num) * 8760 * time.Hour
+		case "h", "m", "s", "ns", "us", "µs", "ms":
+			partDuration, err := time.ParseDuration(match[0])
+			if err != nil {
+				return 0, xerrors.Errorf("invalid duration: %q", match[0])
+			}
+			duration += partDuration
+		default:
+			return 0, xerrors.Errorf("invalid duration unit: %q", match[2])
+		}
 	}
+
 	return duration, nil
 }
 

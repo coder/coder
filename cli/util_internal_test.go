@@ -53,7 +53,10 @@ func TestExtendedParseDuration(t *testing.T) {
 		{"10s", 10 * time.Second, true},
 		{"1m", 1 * time.Minute, true},
 		{"20h", 20 * time.Hour, true},
-		{"10y10d10s", 0, false},
+		{"10y10d10s", 10*365*24*time.Hour + 10*24*time.Hour + 10*time.Second, true},
+		{"10ms", 10 * time.Millisecond, true},
+		{"5y10d10s5y2ms8ms", 10*365*24*time.Hour + 10*24*time.Hour + 10*time.Second + 10*time.Millisecond, true},
+		{"10yz10d10s", 0, false},
 	} {
 		testCase := testCase
 		t.Run(testCase.Duration, func(t *testing.T) {
