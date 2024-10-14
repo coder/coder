@@ -185,8 +185,8 @@ func isDigit(s string) bool {
 // extendedParseDuration is a more lenient version of parseDuration that allows
 // for more flexible input formats and cumulative durations.
 // It allows for some extra units:
-//   - d (days)
-//   - y (years)
+//   - d (days, interpreted as 24h)
+//   - y (years, interpreted as 8_760h)
 //
 // FIXME: handle fractional values as discussed in https://github.com/coder/coder/pull/15040#discussion_r1799261736
 func extendedParseDuration(raw string) (time.Duration, error) {
