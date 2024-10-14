@@ -187,17 +187,19 @@ func isDigit(s string) bool {
 // It allows for some extra units:
 //   - d (days)
 //   - y (years)
+//
+// FIXME: handle fractional values as discussed in https://github.com/coder/coder/pull/15040#discussion_r1799261736
 func extendedParseDuration(raw string) (time.Duration, error) {
 	var duration time.Duration
 
 	// Regular expression to match any characters that do not match the expected duration format
-	invalidCharRe := regexp.MustCompile(`[^0-9|nsuµhdym]+`)
+	invalidCharRe := regexp.MustCompile(`[^0-9|nsuµhdym-]+`)
 	if invalidCharRe.MatchString(raw) {
 		return 0, xerrors.Errorf("invalid duration format: %q", raw)
 	}
 
 	// Regular expression to match numbers followed by 'd', 'y', or time units
-	re := regexp.MustCompile(`(\d+)(ns|us|µs|ms|s|m|h|d|y)`)
+	re := regexp.MustCompile(`(-?\d+)(ns|us|µs|ms|s|m|h|d|y)`)
 	matches := re.FindAllStringSubmatch(raw, -1)
 
 	for _, match := range matches {
