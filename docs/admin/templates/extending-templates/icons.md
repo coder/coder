@@ -57,7 +57,7 @@ repository on
 [GitHub](https://github.com/coder/coder/tree/main/site/static/icon).
 
 You can also view the entire list, with search and previews, by navigating to
-/icons on your Coder deployment. E.g. [https://coder.example.com/icons](#). This
+`/icons` on your Coder deployment. E.g. `https://coder.example.com/icons`. This
 can be particularly useful in airgapped deployments.
 
 ![The icon gallery](../../../images/icons-gallery.png)
