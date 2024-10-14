@@ -67,17 +67,21 @@ func (r *RootCmd) createToken() *serpent.Command {
 			var parsedLifetime time.Duration
 			var err error
 
-			if tokenLifetime == "" {
-				tokenConfig, err := client.GetTokenConfig(inv.Context(), userID)
-				if err != nil {
-					return xerrors.Errorf("get token config: %w", err)
-				}
+			tokenConfig, err := client.GetTokenConfig(inv.Context(), userID)
+			if err != nil {
+				return xerrors.Errorf("get token config: %w", err)
+			}
 
+			if tokenLifetime == "" {
 				parsedLifetime = tokenConfig.MaxTokenLifetime
 			} else {
 				parsedLifetime, err = extendedParseDuration(tokenLifetime)
 				if err != nil {
 					return xerrors.Errorf("parse lifetime: %w", err)
+				}
+
+				if parsedLifetime > tokenConfig.MaxTokenLifetime {
+					return xerrors.Errorf("lifetime (%s) is greater than the maximum allowed lifetime (%s)", parsedLifetime, tokenConfig.MaxTokenLifetime)
 				}
 			}
 
