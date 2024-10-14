@@ -11,9 +11,9 @@ We support two release channels:
 [mainline](https://github.com/coder/coder/releases/tag/v2.16.0) for the bleeding
 edge version of Coder and
 [stable](https://github.com/coder/coder/releases/latest) for those with lower
-tolerance for fault. We field our mainline releases
-publicly for one month before promoting them to stable. The version prior to
-stable receives patches only for security issues or CVEs.
+tolerance for fault. We field our mainline releases publicly for one month
+before promoting them to stable. The version prior to stable receives patches
+only for security issues or CVEs.
 
 ### Mainline releases
 
