@@ -1360,6 +1360,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		})
 
 		// Then: return a response with empty agent script timings
+		// trigger build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
