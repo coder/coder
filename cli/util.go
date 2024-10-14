@@ -190,10 +190,21 @@ func isDigit(s string) bool {
 //
 // FIXME: handle fractional values as discussed in https://github.com/coder/coder/pull/15040#discussion_r1799261736
 func extendedParseDuration(raw string) (time.Duration, error) {
-	var duration time.Duration
+	var d int64
+	isPositive := true
+
+	// handle negative durations by checking for a leading '-'
+	if strings.HasPrefix(raw, "-") {
+		raw = raw[1:]
+		isPositive = false
+	}
+
+	if raw == "" {
+		return 0, xerrors.Errorf("invalid duration: %q", raw)
+	}
 
 	// Regular expression to match any characters that do not match the expected duration format
-	invalidCharRe := regexp.MustCompile(`[^0-9|nsuµhdym-]+`)
+	invalidCharRe := regexp.MustCompile(`[^0-9|nsuµhdym]+`)
 	if invalidCharRe.MatchString(raw) {
 		return 0, xerrors.Errorf("invalid duration format: %q", raw)
 	}
@@ -203,30 +214,46 @@ func extendedParseDuration(raw string) (time.Duration, error) {
 	matches := re.FindAllStringSubmatch(raw, -1)
 
 	for _, match := range matches {
-		num, err := strconv.Atoi(match[1])
+		var num int64
+		num, err := strconv.ParseInt(match[1], 10, 0)
 		if err != nil {
 			return 0, xerrors.Errorf("invalid duration: %q", match[1])
 		}
+
 		switch match[2] {
 		case "d":
-			duration += time.Duration(num) * 24 * time.Hour
+			// we want to check if d + num * int64(24*time.Hour) would overflow
+			if d > (1<<63-1)-num*int64(24*time.Hour) {
+				return 0, xerrors.Errorf("invalid duration: %q", raw)
+			}
+			d += num * int64(24*time.Hour)
 		case "y":
-			duration += time.Duration(num) * 8760 * time.Hour
+			// we want to check if d + num * int64(8760*time.Hour) would overflow
+			if d > (1<<63-1)-num*int64(8760*time.Hour) {
+				return 0, xerrors.Errorf("invalid duration: %q", raw)
+			}
+			d += num * int64(8760*time.Hour)
 		case "h", "m", "s", "ns", "us", "µs", "ms":
 			partDuration, err := time.ParseDuration(match[0])
 			if err != nil {
 				return 0, xerrors.Errorf("invalid duration: %q", match[0])
 			}
-			duration += partDuration
+			if d > (1<<63-1)-int64(partDuration) {
+				return 0, xerrors.Errorf("invalid duration: %q", raw)
+			}
+			d += int64(partDuration)
 		default:
 			return 0, xerrors.Errorf("invalid duration unit: %q", match[2])
 		}
 	}
 
-	return duration, nil
+	if !isPositive {
+		return -time.Duration(d), nil
+	}
+
+	return time.Duration(d), nil
 }
 
-// parseTime attempts to parse a time (no date) from the given string using a number of layouts.
 // parseTime attempts to parse a time (no date) from the given string using a number of layouts.
 func parseTime(s string) (time.Time, error) {
 	// Try a number of possible layouts.
