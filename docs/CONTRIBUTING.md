@@ -247,10 +247,12 @@ be applied selectively or to discourage anyone from contributing.
 
 ## Releases
 
-Coder releases are initiated via [`./scripts/release.sh`](../scripts/release.sh)
+Coder releases are initiated via
+[`./scripts/release.sh`](https://github.com/coder/coder/blob/main/scripts/release.sh)
 and automated via GitHub Actions. Specifically, the
-[`release.yaml`](../.github/workflows/release.yaml) workflow. They are created
-based on the current [`main`](https://github.com/coder/coder/tree/main) branch.
+[`release.yaml`](https://github.com/coder/coder/blob/main/.github/workflows/release.yaml)
+workflow. They are created based on the current
+[`main`](https://github.com/coder/coder/tree/main) branch.
 
 The release notes for a release are automatically generated from commit titles
 and metadata from PRs that are merged into `main`.
@@ -258,9 +260,10 @@ and metadata from PRs that are merged into `main`.
 ### Creating a release
 
 The creation of a release is initiated via
-[`./scripts/release.sh`](../scripts/release.sh). This script will show a preview
-of the release that will be created, and if you choose to continue, create and
-push the tag which will trigger the creation of the release via GitHub Actions.
+[`./scripts/release.sh`](https://github.com/coder/coder/blob/main/scripts/release.sh).
+This script will show a preview of the release that will be created, and if you
+choose to continue, create and push the tag which will trigger the creation of
+the release via GitHub Actions.
 
 See `./scripts/release.sh --help` for more information.
 
@@ -314,6 +317,9 @@ Breaking changes can be triggered in two ways:
   label to a PR that has, or will be, merged into `main`.
 
 ### Security
+
+> If you find a vulnerability, **DO NOT FILE AN ISSUE**. Instead, send an email
+> to security@coder.com.
 
 The
 [`security`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Asecurity)

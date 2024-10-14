@@ -343,7 +343,7 @@ export const MockUsers: User[] = [
 		last_seen_at: "2024-09-05T12:27:22.098297Z",
 		status: "active",
 		login_type: "oidc",
-		theme_preference: "darkBlue",
+		theme_preference: "dark",
 		organization_ids: ["703f72a1-76f6-4f89-9de6-8a3989693fe5"],
 		roles: [
 			{
@@ -423,7 +423,7 @@ export const MockUsers: User[] = [
 		last_seen_at: "2024-09-05T07:24:39.324649Z",
 		status: "active",
 		login_type: "oidc",
-		theme_preference: "darkBlue",
+		theme_preference: "dark",
 		organization_ids: ["703f72a1-76f6-4f89-9de6-8a3989693fe5"],
 		roles: [
 			{

@@ -25,6 +25,7 @@ import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/Wo
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
+import { isEmojiUrl } from "utils/appearance";
 import { displayDormantDeletion } from "utils/dormant";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
@@ -158,7 +159,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						workspaceName={workspace.name}
 						templateIconUrl={workspace.template_icon}
 						rootTemplateUrl={templateLink}
-						templateVersionName={workspace.template_name}
+						templateVersionName={workspace.latest_build.template_version_name}
 						templateVersionDisplayName={workspace.template_display_name}
 						latestBuildVersionName={
 							workspace.latest_build.template_version_name
@@ -297,11 +298,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
 				transformOrigin={{ vertical: "top", horizontal: "center" }}
 			>
-				<AvatarData
-					title={ownerName}
-					subtitle="Owner"
-					avatar={ownerAvatarUrl}
-				/>
+				<AvatarData title={ownerName} subtitle="Owner" src={ownerAvatarUrl} />
 			</HelpTooltipContent>
 		</Popover>
 	);
@@ -348,9 +345,15 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					subtitle="Organization"
 					avatar={
 						orgIconUrl && (
-							<ExternalAvatar src={orgIconUrl} variant="square" fitImage />
+							<ExternalAvatar
+								src={orgIconUrl}
+								title={orgName}
+								variant={isEmojiUrl(orgIconUrl) ? "square" : "circular"}
+								fitImage
+							/>
 						)
 					}
+					imgFallbackText={orgName}
 				/>
 			</HelpTooltipContent>
 		</Popover>
@@ -409,8 +412,14 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						</Link>
 					}
 					avatar={
-						<ExternalAvatar src={templateIconUrl} variant="square" fitImage />
+						<ExternalAvatar
+							src={templateIconUrl}
+							title={workspaceName}
+							variant={isEmojiUrl(templateIconUrl) ? "square" : "circular"}
+							fitImage
+						/>
 					}
+					imgFallbackText={templateVersionDisplayName}
 				/>
 			</HelpTooltipContent>
 		</Popover>

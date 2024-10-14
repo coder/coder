@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1517,10 +1518,12 @@ func TestAgent_Lifecycle(t *testing.T) {
 			agentsdk.Manifest{
 				DERPMap: derpMap,
 				Scripts: []codersdk.WorkspaceAgentScript{{
+					ID:         uuid.New(),
 					LogPath:    "coder-startup-script.log",
 					Script:     "echo 1",
 					RunOnStart: true,
 				}, {
+					ID:        uuid.New(),
 					LogPath:   "coder-shutdown-script.log",
 					Script:    "echo " + expected,
 					RunOnStop: true,
@@ -1812,20 +1815,45 @@ func TestAgent_Dial(t *testing.T) {
 
 			go func() {
 				defer close(done)
-				c, err := l.Accept()
-				if assert.NoError(t, err, "accept connection") {
-					defer c.Close()
-					testAccept(ctx, t, c)
+				for range 2 {
+					c, err := l.Accept()
+					if assert.NoError(t, err, "accept connection") {
+						testAccept(ctx, t, c)
+						_ = c.Close()
+					}
 				}
 			}()
 
+			agentID := uuid.UUID{0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}
 			//nolint:dogsled
-			agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
+				AgentID: agentID,
+			}, 0)
 			require.True(t, agentConn.AwaitReachable(ctx))
 			conn, err := agentConn.DialContext(ctx, l.Addr().Network(), l.Addr().String())
 			require.NoError(t, err)
-			defer conn.Close()
 			testDial(ctx, t, conn)
+			err = conn.Close()
+			require.NoError(t, err)
+
+			// also connect via the CoderServicePrefix, to test that we can reach the agent on this
+			// IP. This will be required for CoderVPN.
+			_, rawPort, _ := net.SplitHostPort(l.Addr().String())
+			port, _ := strconv.ParseUint(rawPort, 10, 16)
+			ipp := netip.AddrPortFrom(tailnet.CoderServicePrefix.AddrFromUUID(agentID), uint16(port))
+
+			switch l.Addr().Network() {
+			case "tcp":
+				conn, err = agentConn.Conn.DialContextTCP(ctx, ipp)
+			case "udp":
+				conn, err = agentConn.Conn.DialContextUDP(ctx, ipp)
+			default:
+				t.Fatalf("unknown network: %s", l.Addr().Network())
+			}
+			require.NoError(t, err)
+			testDial(ctx, t, conn)
+			err = conn.Close()
+			require.NoError(t, err)
 		})
 	}
 }
@@ -1878,7 +1906,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	// Setup a client connection.
 	newClientConn := func(derpMap *tailcfg.DERPMap, name string) *workspacesdk.AgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
-			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			DERPMap:   derpMap,
 			Logger:    logger.Named(name),
 		})
@@ -2370,7 +2398,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		_ = agnt.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.TailscaleServicePrefix.RandomAddr(), 128)},
 		DERPMap:   metadata.DERPMap,
 		Logger:    logger.Named("client"),
 	})

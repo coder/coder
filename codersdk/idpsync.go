@@ -60,3 +60,40 @@ func (c *Client) PatchGroupIDPSyncSettings(ctx context.Context, orgID string, re
 	var resp GroupSyncSettings
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+type RoleSyncSettings struct {
+	// Field selects the claim field to be used as the created user's
+	// groups. If the group field is the empty string, then no group updates
+	// will ever come from the OIDC provider.
+	Field string `json:"field"`
+	// Mapping maps from an OIDC group --> Coder organization role
+	Mapping map[string][]string `json:"mapping"`
+}
+
+func (c *Client) RoleIDPSyncSettings(ctx context.Context, orgID string) (RoleSyncSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/roles", orgID), nil)
+	if err != nil {
+		return RoleSyncSettings{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return RoleSyncSettings{}, ReadBodyAsError(res)
+	}
+	var resp RoleSyncSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) PatchRoleIDPSyncSettings(ctx context.Context, orgID string, req RoleSyncSettings) (RoleSyncSettings, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/roles", orgID), req)
+	if err != nil {
+		return RoleSyncSettings{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return RoleSyncSettings{}, ReadBodyAsError(res)
+	}
+	var resp RoleSyncSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}

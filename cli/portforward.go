@@ -29,6 +29,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 		tcpForwards      []string // <port>:<port>
 		udpForwards      []string // <port>:<port>
 		disableAutostart bool
+		appearanceConfig codersdk.AppearanceConfig
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
@@ -60,6 +61,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
+			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -88,8 +90,9 @@ func (r *RootCmd) portForward() *serpent.Command {
 			}
 
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
-				Fetch: client.WorkspaceAgent,
-				Wait:  false,
+				Fetch:   client.WorkspaceAgent,
+				Wait:    false,
+				DocsURL: appearanceConfig.DocsURL,
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)

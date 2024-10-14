@@ -692,6 +692,42 @@ class ApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * @param organization Can be the organization's ID or name
+	 */
+	getProvisionerDaemonGroupsByOrganization = async (
+		organization: string,
+	): Promise<TypesGen.ProvisionerKeyDaemons[]> => {
+		const response = await this.axios.get<TypesGen.ProvisionerKeyDaemons[]>(
+			`/api/v2/organizations/${organization}/provisionerkeys/daemons`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
+	 */
+	getGroupIdpSyncSettingsByOrganization = async (
+		organization: string,
+	): Promise<TypesGen.GroupSyncSettings> => {
+		const response = await this.axios.get<TypesGen.GroupSyncSettings>(
+			`/api/v2/organizations/${organization}/settings/idpsync/groups`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
+	 */
+	getRoleIdpSyncSettingsByOrganization = async (
+		organization: string,
+	): Promise<TypesGen.RoleSyncSettings> => {
+		const response = await this.axios.get<TypesGen.RoleSyncSettings>(
+			`/api/v2/organizations/${organization}/settings/idpsync/roles`,
+		);
+		return response.data;
+	};
+
 	getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
 		const response = await this.axios.get<TypesGen.Template>(
 			`/api/v2/templates/${templateId}`,
@@ -1801,6 +1837,7 @@ class ApiMethods {
 			if (isAxiosError(ex) && ex.response?.status === 404) {
 				return {
 					application_name: "",
+					docs_url: "",
 					logo_url: "",
 					announcement_banners: [],
 					service_banner: {

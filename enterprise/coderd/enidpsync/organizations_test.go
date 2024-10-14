@@ -70,7 +70,7 @@ func TestOrganizationSync(t *testing.T) {
 	}
 
 	entitled := entitlements.New()
-	entitled.Update(func(entitlements *codersdk.Entitlements) {
+	entitled.Modify(func(entitlements *codersdk.Entitlements) {
 		entitlements.Features[codersdk.FeatureMultipleOrganizations] = codersdk.Feature{
 			Entitlement: codersdk.EntitlementEntitled,
 			Enabled:     true,

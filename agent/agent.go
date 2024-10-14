@@ -82,7 +82,6 @@ type Options struct {
 	SSHMaxTimeout                time.Duration
 	TailnetListenPort            uint16
 	Subsystems                   []codersdk.AgentSubsystem
-	Addresses                    []netip.Prefix
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
@@ -180,7 +179,6 @@ func New(options Options) Agent {
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
 		subsystems:                         options.Subsystems,
-		addresses:                          options.Addresses,
 		syscaller:                          options.Syscaller,
 		modifiedProcs:                      options.ModifiedProcesses,
 		processManagementTick:              options.ProcessManagementTick,
@@ -250,7 +248,6 @@ type agent struct {
 	lifecycleLastReportedIndex int // Keeps track of the last lifecycle state we successfully reported.
 
 	network       *tailnet.Conn
-	addresses     []netip.Prefix
 	statsReporter *statsReporter
 	logSender     *agentsdk.LogSender
 
@@ -941,7 +938,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 			}
 
-			err = a.scriptRunner.Init(manifest.Scripts)
+			err = a.scriptRunner.Init(manifest.Scripts, aAPI.ScriptCompleted)
 			if err != nil {
 				return xerrors.Errorf("init script runner: %w", err)
 			}
@@ -949,9 +946,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				start := time.Now()
 				// here we use the graceful context because the script runner is not directly tied
 				// to the agent API.
-				err := a.scriptRunner.Execute(a.gracefulCtx, func(script codersdk.WorkspaceAgentScript) bool {
-					return script.RunOnStart
-				})
+				err := a.scriptRunner.Execute(a.gracefulCtx, agentscripts.ExecuteStartScripts)
 				// Measure the time immediately after the script has finished
 				dur := time.Since(start).Seconds()
 				if err != nil {
@@ -1114,15 +1109,14 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	return updated, nil
 }
 
-func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
-	if len(a.addresses) == 0 {
-		return []netip.Prefix{
-			// This is the IP that should be used primarily.
-			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
-		}
+func (*agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
+	return []netip.Prefix{
+		// This is the IP that should be used primarily.
+		tailnet.TailscaleServicePrefix.PrefixFromUUID(agentID),
+		// We'll need this address for CoderVPN, but aren't using it from clients until that feature
+		// is ready
+		tailnet.CoderServicePrefix.PrefixFromUUID(agentID),
 	}
-
-	return a.addresses
 }
 
 func (a *agent) trackGoroutine(fn func()) error {
@@ -1844,9 +1838,7 @@ func (a *agent) Close() error {
 	a.gracefulCancel()
 
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
-	err = a.scriptRunner.Execute(a.hardCtx, func(script codersdk.WorkspaceAgentScript) bool {
-		return script.RunOnStop
-	})
+	err = a.scriptRunner.Execute(a.hardCtx, agentscripts.ExecuteStopScripts)
 	if err != nil {
 		a.logger.Warn(a.hardCtx, "shutdown script(s) failed", slog.Error(err))
 		if errors.Is(err, agentscripts.ErrTimeout) {

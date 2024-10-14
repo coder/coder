@@ -25,7 +25,7 @@ const (
 )
 
 type Batcher interface {
-	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error
+	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats, usage bool) error
 }
 
 // DBBatcher holds a buffer of agent stats and periodically flushes them to
@@ -138,6 +138,7 @@ func (b *DBBatcher) Add(
 	userID uuid.UUID,
 	workspaceID uuid.UUID,
 	st *agentproto.Stats,
+	usage bool,
 ) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -165,6 +166,7 @@ func (b *DBBatcher) Add(
 	b.buf.SessionCountReconnectingPTY = append(b.buf.SessionCountReconnectingPTY, st.SessionCountReconnectingPty)
 	b.buf.SessionCountSSH = append(b.buf.SessionCountSSH, st.SessionCountSsh)
 	b.buf.ConnectionMedianLatencyMS = append(b.buf.ConnectionMedianLatencyMS, st.ConnectionMedianLatencyMs)
+	b.buf.Usage = append(b.buf.Usage, usage)
 
 	// If the buffer is over 80% full, signal the flusher to flush immediately.
 	// We want to trigger flushes early to reduce the likelihood of
@@ -279,6 +281,7 @@ func (b *DBBatcher) initBuf(size int) {
 		SessionCountReconnectingPTY: make([]int64, 0, b.batchSize),
 		SessionCountSSH:             make([]int64, 0, b.batchSize),
 		ConnectionMedianLatencyMS:   make([]float64, 0, b.batchSize),
+		Usage:                       make([]bool, 0, b.batchSize),
 	}
 
 	b.connectionsByProto = make([]map[string]int64, 0, size)
@@ -302,5 +305,6 @@ func (b *DBBatcher) resetBuf() {
 	b.buf.SessionCountReconnectingPTY = b.buf.SessionCountReconnectingPTY[:0]
 	b.buf.SessionCountSSH = b.buf.SessionCountSSH[:0]
 	b.buf.ConnectionMedianLatencyMS = b.buf.ConnectionMedianLatencyMS[:0]
+	b.buf.Usage = b.buf.Usage[:0]
 	b.connectionsByProto = b.connectionsByProto[:0]
 }

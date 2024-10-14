@@ -128,6 +128,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 					"scripts": [
 						{
 							"cron": "string",
+							"display_name": "string",
+							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"log_path": "string",
 							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 							"run_on_start": true,
@@ -311,6 +313,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 					"scripts": [
 						{
 							"cron": "string",
+							"display_name": "string",
+							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"log_path": "string",
 							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 							"run_on_start": true,
@@ -633,6 +637,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 				"scripts": [
 					{
 						"cron": "string",
+						"display_name": "string",
+						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 						"log_path": "string",
 						"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 						"run_on_start": true,
@@ -738,6 +744,8 @@ Status Code **200**
 | `»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_start`              | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -924,6 +932,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 					"scripts": [
 						{
 							"cron": "string",
+							"display_name": "string",
+							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"log_path": "string",
 							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 							"run_on_start": true,
@@ -978,6 +988,63 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 | Status | Meaning                                                 | Description | Schema                                                       |
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace build timings by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/timings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspacebuilds/{workspacebuild}/timings`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+| ---------------- | ---- | ------------ | -------- | ------------------ |
+| `workspacebuild` | path | string(uuid) | true     | Workspace build ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"exit_code": 0,
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z",
+			"status": "string"
+		}
+	],
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                     |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuildTimings](schemas.md#codersdkworkspacebuildtimings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1112,6 +1179,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 						"scripts": [
 							{
 								"cron": "string",
+								"display_name": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,
@@ -1254,6 +1323,8 @@ Status Code **200**
 | `»»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» run_on_start`              | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1494,6 +1565,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 					"scripts": [
 						{
 							"cron": "string",
+							"display_name": "string",
+							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"log_path": "string",
 							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 							"run_on_start": true,

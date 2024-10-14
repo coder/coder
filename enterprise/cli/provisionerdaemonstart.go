@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -73,32 +72,30 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, agpl.InterruptSignals...)
 			defer interruptCancel()
 
-			// This can fail to get the current organization
-			// if the client is not authenticated as a user,
-			// like when only PSK is provided.
-			// This will be cleaner once PSK is replaced
-			// with org scoped authentication tokens.
-			org, err := orgContext.Selected(inv, client)
-			if err != nil {
-				var cErr *codersdk.Error
-				if !errors.As(err, &cErr) || cErr.StatusCode() != http.StatusUnauthorized {
-					return xerrors.Errorf("current organization: %w", err)
-				}
+			orgID := uuid.Nil
+			if preSharedKey == "" && provisionerKey == "" {
+				// We can only select an organization if using user auth
+				org, err := orgContext.Selected(inv, client)
+				if err != nil {
+					var cErr *codersdk.Error
+					if !errors.As(err, &cErr) || cErr.StatusCode() != http.StatusUnauthorized {
+						return xerrors.Errorf("current organization: %w", err)
+					}
 
-				if preSharedKey == "" && provisionerKey == "" {
 					return xerrors.New("must provide a pre-shared key or provisioner key when not authenticated as a user")
 				}
 
-				org = codersdk.Organization{MinimalOrganization: codersdk.MinimalOrganization{ID: uuid.Nil}}
-				if orgContext.FlagSelect != "" {
-					// If we are using PSK, we can't fetch the organization
-					// to validate org name so we need the user to provide
-					// a valid organization ID.
-					orgID, err := uuid.Parse(orgContext.FlagSelect)
-					if err != nil {
-						return xerrors.New("must provide an org ID when not authenticated as a user and organization is specified")
-					}
-					org = codersdk.Organization{MinimalOrganization: codersdk.MinimalOrganization{ID: orgID}}
+				orgID = org.ID
+			} else if orgContext.FlagSelect != "" {
+				return xerrors.New("cannot provide --org value with --psk or --key flags")
+			}
+
+			if provisionerKey != "" {
+				if preSharedKey != "" {
+					return xerrors.New("cannot provide both provisioner key --key and pre-shared key --psk")
+				}
+				if len(rawTags) > 0 {
+					return xerrors.New("cannot provide tags when using provisioner key")
 				}
 			}
 
@@ -113,19 +110,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 
 			if err := validateProvisionerDaemonName(name); err != nil {
 				return err
-			}
-
-			if provisionerKey != "" {
-				if preSharedKey != "" {
-					return xerrors.New("cannot provide both provisioner key --key and pre-shared key --psk")
-				}
-				if len(rawTags) > 0 {
-					return xerrors.New("cannot provide tags when using provisioner key")
-				}
-				err = provisionerkey.Validate(provisionerKey)
-				if err != nil {
-					return xerrors.Errorf("validate provisioner key: %w", err)
-				}
 			}
 
 			logOpts := []clilog.Option{
@@ -232,7 +216,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 					},
 					Tags:           tags,
 					PreSharedKey:   preSharedKey,
-					Organization:   org.ID,
+					Organization:   orgID,
 					ProvisionerKey: provisionerKey,
 				})
 			}, &provisionerd.Options{
@@ -281,6 +265,12 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		},
 	}
 
+	keyOption := serpent.Option{
+		Flag:        "key",
+		Env:         "CODER_PROVISIONER_DAEMON_KEY",
+		Description: "Provisioner key to authenticate with Coder server.",
+		Value:       serpent.StringOf(&provisionerKey),
+	}
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "cache-dir",
@@ -316,14 +306,9 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			Env:         "CODER_PROVISIONER_DAEMON_PSK",
 			Description: "Pre-shared key to authenticate with Coder server.",
 			Value:       serpent.StringOf(&preSharedKey),
+			UseInstead:  []serpent.Option{keyOption},
 		},
-		{
-			Flag:        "key",
-			Env:         "CODER_PROVISIONER_DAEMON_KEY",
-			Description: "Provisioner key to authenticate with Coder server.",
-			Value:       serpent.StringOf(&provisionerKey),
-			Hidden:      true,
-		},
+		keyOption,
 		{
 			Flag:        "name",
 			Env:         "CODER_PROVISIONER_DAEMON_NAME",

@@ -158,13 +158,19 @@ func ProtoFromScripts(scripts []codersdk.WorkspaceAgentScript) []*proto.Workspac
 }
 
 func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.WorkspaceAgentScript, error) {
-	id, err := uuid.FromBytes(protoScript.LogSourceId)
+	id, err := uuid.FromBytes(protoScript.Id)
 	if err != nil {
 		return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("parse id: %w", err)
 	}
 
+	logSourceID, err := uuid.FromBytes(protoScript.LogSourceId)
+	if err != nil {
+		return codersdk.WorkspaceAgentScript{}, xerrors.Errorf("parse log source id: %w", err)
+	}
+
 	return codersdk.WorkspaceAgentScript{
-		LogSourceID:      id,
+		ID:               id,
+		LogSourceID:      logSourceID,
 		LogPath:          protoScript.LogPath,
 		Script:           protoScript.Script,
 		Cron:             protoScript.Cron,
@@ -172,11 +178,13 @@ func AgentScriptFromProto(protoScript *proto.WorkspaceAgentScript) (codersdk.Wor
 		RunOnStop:        protoScript.RunOnStop,
 		StartBlocksLogin: protoScript.StartBlocksLogin,
 		Timeout:          protoScript.Timeout.AsDuration(),
+		DisplayName:      protoScript.DisplayName,
 	}, nil
 }
 
 func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScript {
 	return &proto.WorkspaceAgentScript{
+		Id:               s.ID[:],
 		LogSourceId:      s.LogSourceID[:],
 		LogPath:          s.LogPath,
 		Script:           s.Script,
@@ -185,6 +193,7 @@ func ProtoFromScript(s codersdk.WorkspaceAgentScript) *proto.WorkspaceAgentScrip
 		RunOnStop:        s.RunOnStop,
 		StartBlocksLogin: s.StartBlocksLogin,
 		Timeout:          durationpb.New(s.Timeout),
+		DisplayName:      s.DisplayName,
 	}
 }
 

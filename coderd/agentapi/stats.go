@@ -74,6 +74,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		workspaceAgent,
 		getWorkspaceAgentByIDRow.TemplateName,
 		req.Stats,
+		false,
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("report agent stats: %w", err)

@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type RoleParams struct {
@@ -41,8 +42,26 @@ func (AGPLIDPSync) SiteRoleSyncEnabled() bool {
 	return false
 }
 
-func (s AGPLIDPSync) RoleSyncSettings() runtimeconfig.RuntimeEntry[*RoleSyncSettings] {
-	return s.Role
+func (s AGPLIDPSync) UpdateRoleSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error {
+	orgResolver := s.Manager.OrganizationResolver(db, orgID)
+	err := s.SyncSettings.Role.SetRuntimeValue(ctx, orgResolver, &settings)
+	if err != nil {
+		return xerrors.Errorf("update role sync settings: %w", err)
+	}
+
+	return nil
+}
+
+func (s AGPLIDPSync) RoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*RoleSyncSettings, error) {
+	rlv := s.Manager.OrganizationResolver(db, orgID)
+	settings, err := s.Role.Resolve(ctx, rlv)
+	if err != nil {
+		if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
+			return nil, xerrors.Errorf("resolve role sync settings: %w", err)
+		}
+		return &RoleSyncSettings{}, nil
+	}
+	return settings, nil
 }
 
 func (s AGPLIDPSync) ParseRoleClaims(_ context.Context, _ jwt.MapClaims) (RoleParams, *HTTPError) {
@@ -85,15 +104,12 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 		allExpected := make([]rbac.RoleIdentifier, 0)
 		for _, member := range orgMemberships {
 			orgID := member.OrganizationMember.OrganizationID
-			orgResolver := s.Manager.OrganizationResolver(tx, orgID)
-			settings, err := s.RoleSyncSettings().Resolve(ctx, orgResolver)
+			settings, err := s.RoleSyncSettings(ctx, orgID, tx)
 			if err != nil {
-				if !xerrors.Is(err, runtimeconfig.ErrEntryNotFound) {
-					return xerrors.Errorf("resolve group sync settings: %w", err)
-				}
 				// No entry means no role syncing for this organization
 				continue
 			}
+
 			if settings.Field == "" {
 				// Explicitly disabled role sync for this organization
 				continue
@@ -261,14 +277,7 @@ func (AGPLIDPSync) RolesFromClaim(field string, claims jwt.MapClaims) ([]string,
 	return parsedRoles, nil
 }
 
-type RoleSyncSettings struct {
-	// Field selects the claim field to be used as the created user's
-	// groups. If the group field is the empty string, then no group updates
-	// will ever come from the OIDC provider.
-	Field string `json:"field"`
-	// Mapping maps from an OIDC group --> Coder organization role
-	Mapping map[string][]string `json:"mapping"`
-}
+type RoleSyncSettings codersdk.RoleSyncSettings
 
 func (s *RoleSyncSettings) Set(v string) error {
 	return json.Unmarshal([]byte(v), s)

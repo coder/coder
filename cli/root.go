@@ -411,7 +411,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
-			Description: "Suppress opening the browser after logging in.",
+			Description: "Suppress opening the browser when logging in, or starting the server.",
 			Value:       serpent.BoolOf(&r.noOpen),
 			Hidden:      true,
 			Group:       globalGroup,
@@ -657,7 +657,12 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 	}
 
 	// No org selected, and we are more than 1? Return an error.
-	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>.")
+	validOrgs := make([]string, 0, len(orgs))
+	for _, org := range orgs {
+		validOrgs = append(validOrgs, org.Name)
+	}
+
+	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>. Choose from: %s", strings.Join(validOrgs, ", "))
 }
 
 func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {
@@ -685,6 +690,19 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 		return codersdk.Workspace{}, err
 	}
 	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
+}
+
+func initAppearance(client *codersdk.Client, outConfig *codersdk.AppearanceConfig) serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			cfg, _ := client.Appearance(inv.Context())
+			if cfg.DocsURL == "" {
+				cfg.DocsURL = codersdk.DefaultDocsURL()
+			}
+			*outConfig = cfg
+			return next(inv)
+		}
+	}
 }
 
 // createConfig consumes the global configuration flag to produce a config root.

@@ -199,6 +199,10 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				if val != nil {
 					v = *val
 				}
+			case *time.Duration:
+				if val != nil {
+					v = val.String()
+				}
 			case fmt.Stringer:
 				if val != nil {
 					v = val.String()

@@ -349,6 +349,30 @@
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
 
+## codersdk.AgentScriptTiming
+
+```json
+{
+	"display_name": "string",
+	"ended_at": "2019-08-24T14:15:22Z",
+	"exit_code": 0,
+	"stage": "string",
+	"started_at": "2019-08-24T14:15:22Z",
+	"status": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `display_name` | string  | false    |              |             |
+| `ended_at`     | string  | false    |              |             |
+| `exit_code`    | integer | false    |              |             |
+| `stage`        | string  | false    |              |             |
+| `started_at`   | string  | false    |              |             |
+| `status`       | string  | false    |              |             |
+
 ## codersdk.AgentSubsystem
 
 ```json
@@ -391,6 +415,7 @@
 		}
 	],
 	"application_name": "string",
+	"docs_url": "string",
 	"logo_url": "string",
 	"service_banner": {
 		"background_color": "string",
@@ -413,6 +438,7 @@
 | ---------------------- | ------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
 | `announcement_banners` | array of [codersdk.BannerConfig](#codersdkbannerconfig) | false    |              |                                                                     |
 | `application_name`     | string                                                  | false    |              |                                                                     |
+| `docs_url`             | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 | `support_links`        | array of [codersdk.LinkConfig](#codersdklinkconfig)     | false    |              |                                                                     |
@@ -928,6 +954,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `autostart` |
 | `autostop`  |
 
+## codersdk.ChangePasswordWithOneTimePasscodeRequest
+
+```json
+{
+	"email": "user@example.com",
+	"one_time_passcode": "string",
+	"password": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+| ------------------- | ------ | -------- | ------------ | ----------- |
+| `email`             | string | true     |              |             |
+| `one_time_passcode` | string | true     |              |             |
+| `password`          | string | true     |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -1403,6 +1447,44 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `template_id`           | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
 | `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
 | `ttl_ms`                | integer                                                                       | false    |              |                                                                                                         |
+
+## codersdk.CryptoKey
+
+```json
+{
+	"deletes_at": "2019-08-24T14:15:22Z",
+	"feature": "workspace_apps",
+	"secret": "string",
+	"sequence": 0,
+	"starts_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type                                                   | Required | Restrictions | Description |
+| ------------ | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `deletes_at` | string                                                 | false    |              |             |
+| `feature`    | [codersdk.CryptoKeyFeature](#codersdkcryptokeyfeature) | false    |              |             |
+| `secret`     | string                                                 | false    |              |             |
+| `sequence`   | integer                                                | false    |              |             |
+| `starts_at`  | string                                                 | false    |              |             |
+
+## codersdk.CryptoKeyFeature
+
+```json
+"workspace_apps"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value            |
+| ---------------- |
+| `workspace_apps` |
+| `oidc_convert`   |
+| `tailnet_resume` |
 
 ## codersdk.CustomRoleRequest
 
@@ -1902,6 +1984,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"secure_auth_cookie": true,
 		"session_lifetime": {
 			"default_duration": 0,
+			"default_token_lifetime": 0,
 			"disable_expiry_refresh": true,
 			"max_token_lifetime": 0
 		},
@@ -2328,6 +2411,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"secure_auth_cookie": true,
 	"session_lifetime": {
 		"default_duration": 0,
+		"default_token_lifetime": 0,
 		"disable_expiry_refresh": true,
 		"max_token_lifetime": 0
 	},
@@ -2554,8 +2638,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ---------------------- |
 | `example`              |
 | `auto-fill-parameters` |
-| `multi-organization`   |
-| `custom-roles`         |
 | `notifications`        |
 | `workspace-usage`      |
 
@@ -2894,6 +2976,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ------ |
 | `user` |
 | `oidc` |
+
+## codersdk.GroupSyncSettings
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
+### Properties
+
+| Name                         | Type                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                            |
+| ---------------------------- | ------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auto_create_missing_groups` | boolean                        | false    |              | Auto create missing groups controls whether groups returned by the OIDC provider are automatically created in Coder if they are missing.                                                                                                                                               |
+| `field`                      | string                         | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider.                                                                                                            |
+| `legacy_group_name_mapping`  | object                         | false    |              | Legacy group name mapping is deprecated. It remaps an IDP group name to a Coder group name. Since configuration is now done at runtime, group IDs are used to account for group renames. For legacy configurations, this config option has to remain. Deprecated: Use Mapping instead. |
+| » `[any property]`           | string                         | false    |              |                                                                                                                                                                                                                                                                                        |
+| `mapping`                    | object                         | false    |              | Mapping maps from an OIDC group --> Coder group ID                                                                                                                                                                                                                                     |
+| » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
+| `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
 
 ## codersdk.Healthcheck
 
@@ -4142,14 +4254,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `created_at`       | string | false    |              |             |
-| `id`               | string | false    |              |             |
-| `name`             | string | false    |              |             |
-| `organization`     | string | false    |              |             |
-| `tags`             | object | false    |              |             |
-| » `[any property]` | string | false    |              |             |
+| Name           | Type                                                       | Required | Restrictions | Description |
+| -------------- | ---------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`   | string                                                     | false    |              |             |
+| `id`           | string                                                     | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `organization` | string                                                     | false    |              |             |
+| `tags`         | [codersdk.ProvisionerKeyTags](#codersdkprovisionerkeytags) | false    |              |             |
 
 ## codersdk.ProvisionerKeyDaemons
 
@@ -4191,6 +4302,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | --------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `daemons` | array of [codersdk.ProvisionerDaemon](#codersdkprovisionerdaemon) | false    |              |             |
 | `key`     | [codersdk.ProvisionerKey](#codersdkprovisionerkey)                | false    |              |             |
+
+## codersdk.ProvisionerKeyTags
+
+```json
+{
+	"property1": "string",
+	"property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+| ---------------- | ------ | -------- | ------------ | ----------- |
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.ProvisionerLogLevel
 
@@ -4354,6 +4480,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `assign_org_role`         |
 | `assign_role`             |
 | `audit_log`               |
+| `crypto_key`              |
 | `debug_info`              |
 | `deployment_config`       |
 | `deployment_stats`        |
@@ -4551,6 +4678,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `region_id`        | integer | false    |              | Region ID is the region of the replica.                            |
 | `relay_address`    | string  | false    |              | Relay address is the accessible address to relay DERP connections. |
 
+## codersdk.RequestOneTimePasscodeRequest
+
+```json
+{
+	"email": "user@example.com"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `email` | string | true     |              |             |
+
 ## codersdk.ResolveAutostartResponse
 
 ```json
@@ -4660,6 +4801,26 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 | `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
 
+## codersdk.RoleSyncSettings
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	}
+}
+```
+
+### Properties
+
+| Name               | Type            | Required | Restrictions | Description                                                                                                                                                                 |
+| ------------------ | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `field`            | string          | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider. |
+| `mapping`          | object          | false    |              | Mapping maps from an OIDC group --> Coder organization role                                                                                                                 |
+| » `[any property]` | array of string | false    |              |                                                                                                                                                                             |
+
 ## codersdk.SSHConfig
 
 ```json
@@ -4721,6 +4882,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
 	"default_duration": 0,
+	"default_token_lifetime": 0,
 	"disable_expiry_refresh": true,
 	"max_token_lifetime": 0
 }
@@ -4730,7 +4892,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Name                     | Type    | Required | Restrictions | Description                                                                                                                                                                        |
 | ------------------------ | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default_duration`       | integer | false    |              | Default duration is for api keys, not tokens.                                                                                                                                      |
+| `default_duration`       | integer | false    |              | Default duration is only for browser, workspace app and oauth sessions.                                                                                                            |
+| `default_token_lifetime` | integer | false    |              |                                                                                                                                                                                    |
 | `disable_expiry_refresh` | boolean | false    |              | Disable expiry refresh will disable automatically refreshing api keys when they are used from the api. This means the api key lifetime at creation is the lifetime of the api key. |
 | `max_token_lifetime`     | integer | false    |              |                                                                                                                                                                                    |
 
@@ -6397,6 +6560,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"scripts": [
 							{
 								"cron": "string",
+								"display_name": "string",
+								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 								"log_path": "string",
 								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 								"run_on_start": true,
@@ -6576,6 +6741,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 	"scripts": [
 		{
 			"cron": "string",
+			"display_name": "string",
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 			"log_path": "string",
 			"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 			"run_on_start": true,
@@ -6844,6 +7011,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
 	"cron": "string",
+	"display_name": "string",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"log_path": "string",
 	"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 	"run_on_start": true,
@@ -6859,6 +7028,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name                 | Type    | Required | Restrictions | Description |
 | -------------------- | ------- | -------- | ------------ | ----------- |
 | `cron`               | string  | false    |              |             |
+| `display_name`       | string  | false    |              |             |
+| `id`                 | string  | false    |              |             |
 | `log_path`           | string  | false    |              |             |
 | `log_source_id`      | string  | false    |              |             |
 | `run_on_start`       | boolean | false    |              |             |
@@ -7087,6 +7258,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 					"scripts": [
 						{
 							"cron": "string",
+							"display_name": "string",
+							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 							"log_path": "string",
 							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 							"run_on_start": true,
@@ -7198,6 +7371,41 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ------- | ------ | -------- | ------------ | ----------- |
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
+
+## codersdk.WorkspaceBuildTimings
+
+```json
+{
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"exit_code": 0,
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z",
+			"status": "string"
+		}
+	],
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                              | Required | Restrictions | Description |
+| ---------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `agent_script_timings` | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming) | false    |              |             |
+| `provisioner_timings`  | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
 
 ## codersdk.WorkspaceConnectionLatencyMS
 
@@ -7422,6 +7630,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"scripts": [
 				{
 					"cron": "string",
+					"display_name": "string",
+					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 					"log_path": "string",
 					"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 					"run_on_start": true,
@@ -7523,30 +7733,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `canceled`  |
 | `deleting`  |
 | `deleted`   |
-
-## codersdk.WorkspaceTimings
-
-```json
-{
-	"provisioner_timings": [
-		{
-			"action": "string",
-			"ended_at": "2019-08-24T14:15:22Z",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"resource": "string",
-			"source": "string",
-			"stage": "string",
-			"started_at": "2019-08-24T14:15:22Z"
-		}
-	]
-}
-```
-
-### Properties
-
-| Name                  | Type                                                              | Required | Restrictions | Description |
-| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `provisioner_timings` | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
 
 ## codersdk.WorkspaceTransition
 
@@ -7682,6 +7868,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 								"scripts": [
 									{
 										"cron": "string",
+										"display_name": "string",
+										"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 										"log_path": "string",
 										"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
 										"run_on_start": true,
@@ -8964,36 +9152,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `severity` | `warning` |
 | `severity` | `error`   |
 
-## idpsync.GroupSyncSettings
-
-```json
-{
-	"auto_create_missing_groups": true,
-	"field": "string",
-	"legacy_group_name_mapping": {
-		"property1": "string",
-		"property2": "string"
-	},
-	"mapping": {
-		"property1": ["string"],
-		"property2": ["string"]
-	},
-	"regex_filter": {}
-}
-```
-
-### Properties
-
-| Name                         | Type                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                            |
-| ---------------------------- | ------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auto_create_missing_groups` | boolean                        | false    |              | Auto create missing groups controls whether groups returned by the OIDC provider are automatically created in Coder if they are missing.                                                                                                                                               |
-| `field`                      | string                         | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider.                                                                                                            |
-| `legacy_group_name_mapping`  | object                         | false    |              | Legacy group name mapping is deprecated. It remaps an IDP group name to a Coder group name. Since configuration is now done at runtime, group IDs are used to account for group renames. For legacy configurations, this config option has to remain. Deprecated: Use Mapping instead. |
-| » `[any property]`           | string                         | false    |              |                                                                                                                                                                                                                                                                                        |
-| `mapping`                    | object                         | false    |              | Mapping maps from an OIDC group --> Coder group ID                                                                                                                                                                                                                                     |
-| » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
-| `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
-
 ## key.NodePublic
 
 ```json
@@ -9726,6 +9884,28 @@ _None_
 | `derp_force_websockets`      | boolean                            | false    |              |             |
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
+
+## wsproxysdk.CryptoKeysResponse
+
+```json
+{
+	"crypto_keys": [
+		{
+			"deletes_at": "2019-08-24T14:15:22Z",
+			"feature": "workspace_apps",
+			"secret": "string",
+			"sequence": 0,
+			"starts_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name          | Type                                              | Required | Restrictions | Description |
+| ------------- | ------------------------------------------------- | -------- | ------------ | ----------- |
+| `crypto_keys` | array of [codersdk.CryptoKey](#codersdkcryptokey) | false    |              |             |
 
 ## wsproxysdk.DeregisterWorkspaceProxyRequest
 

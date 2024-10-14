@@ -2,6 +2,7 @@ package dbgen
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -185,6 +187,49 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 	})
 	require.NoError(t, err, "insert workspace agent")
 	return agt
+}
+
+func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {
+	scripts, err := db.InsertWorkspaceAgentScripts(genCtx, database.InsertWorkspaceAgentScriptsParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		LogSourceID:      []uuid.UUID{takeFirst(orig.LogSourceID, uuid.New())},
+		LogPath:          []string{takeFirst(orig.LogPath, "")},
+		Script:           []string{takeFirst(orig.Script, "")},
+		Cron:             []string{takeFirst(orig.Cron, "")},
+		StartBlocksLogin: []bool{takeFirst(orig.StartBlocksLogin, false)},
+		RunOnStart:       []bool{takeFirst(orig.RunOnStart, false)},
+		RunOnStop:        []bool{takeFirst(orig.RunOnStop, false)},
+		TimeoutSeconds:   []int32{takeFirst(orig.TimeoutSeconds, 0)},
+		DisplayName:      []string{takeFirst(orig.DisplayName, "")},
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+	})
+	require.NoError(t, err, "insert workspace agent script")
+	require.NotEmpty(t, scripts, "insert workspace agent script returned no scripts")
+	return scripts[0]
+}
+
+func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, script database.WorkspaceAgentScript, count int) []database.WorkspaceAgentScriptTiming {
+	timings := make([]database.WorkspaceAgentScriptTiming, count)
+	for i := range count {
+		timings[i] = WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+			ScriptID: script.ID,
+		})
+	}
+	return timings
+}
+
+func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.WorkspaceAgentScriptTiming) database.WorkspaceAgentScriptTiming {
+	timing, err := db.InsertWorkspaceAgentScriptTimings(genCtx, database.InsertWorkspaceAgentScriptTimingsParams{
+		StartedAt: takeFirst(orig.StartedAt, dbtime.Now()),
+		EndedAt:   takeFirst(orig.EndedAt, dbtime.Now()),
+		Stage:     takeFirst(orig.Stage, database.WorkspaceAgentScriptTimingStageStart),
+		ScriptID:  takeFirst(orig.ScriptID, uuid.New()),
+		ExitCode:  takeFirst(orig.ExitCode, 0),
+		Status:    takeFirst(orig.Status, database.WorkspaceAgentScriptTimingStatusOk),
+	})
+	require.NoError(t, err, "insert workspace agent script")
+	return timing
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
@@ -801,6 +846,7 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		SessionCountReconnectingPTY: []int64{takeFirst(orig.SessionCountReconnectingPTY, 0)},
 		SessionCountSSH:             []int64{takeFirst(orig.SessionCountSSH, 0)},
 		ConnectionMedianLatencyMS:   []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
+		Usage:                       []bool{takeFirst(orig.Usage, false)},
 	}
 	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
@@ -823,6 +869,7 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		SessionCountJetBrains:       params.SessionCountJetBrains[0],
 		SessionCountReconnectingPTY: params.SessionCountReconnectingPTY[0],
 		SessionCountSSH:             params.SessionCountSSH[0],
+		Usage:                       params.Usage[0],
 	}
 }
 
@@ -893,10 +940,66 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 	return role
 }
 
-func ProvisionerJobTimings(t testing.TB, db database.Store, seed database.InsertProvisionerJobTimingsParams) []database.ProvisionerJobTiming {
-	timings, err := db.InsertProvisionerJobTimings(genCtx, seed)
-	require.NoError(t, err, "insert provisioner job timings")
+func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) database.CryptoKey {
+	t.Helper()
+
+	seed.Feature = takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceApps)
+
+	// An empty string for the secret is interpreted as
+	// a caller wanting a new secret to be generated.
+	// To generate a key with a NULL secret set Valid=false
+	// and String to a non-empty string.
+	if seed.Secret.String == "" {
+		secret, err := newCryptoKeySecret(seed.Feature)
+		require.NoError(t, err, "generate secret")
+		seed.Secret = sql.NullString{
+			String: secret,
+			Valid:  true,
+		}
+	}
+
+	key, err := db.InsertCryptoKey(genCtx, database.InsertCryptoKeyParams{
+		Sequence:    takeFirst(seed.Sequence, 123),
+		Secret:      seed.Secret,
+		SecretKeyID: takeFirst(seed.SecretKeyID, sql.NullString{}),
+		Feature:     seed.Feature,
+		StartsAt:    takeFirst(seed.StartsAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert crypto key")
+
+	if seed.DeletesAt.Valid {
+		key, err = db.UpdateCryptoKeyDeletesAt(genCtx, database.UpdateCryptoKeyDeletesAtParams{
+			Feature:   key.Feature,
+			Sequence:  key.Sequence,
+			DeletesAt: sql.NullTime{Time: seed.DeletesAt.Time, Valid: true},
+		})
+		require.NoError(t, err, "update crypto key deletes_at")
+	}
+	return key
+}
+
+func ProvisionerJobTimings(t testing.TB, db database.Store, build database.WorkspaceBuild, count int) []database.ProvisionerJobTiming {
+	timings := make([]database.ProvisionerJobTiming, count)
+	for i := range count {
+		timings[i] = provisionerJobTiming(t, db, database.ProvisionerJobTiming{
+			JobID: build.JobID,
+		})
+	}
 	return timings
+}
+
+func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
+	timing, err := db.InsertProvisionerJobTimings(genCtx, database.InsertProvisionerJobTimingsParams{
+		JobID:     takeFirst(seed.JobID, uuid.New()),
+		StartedAt: []time.Time{takeFirst(seed.StartedAt, dbtime.Now())},
+		EndedAt:   []time.Time{takeFirst(seed.EndedAt, dbtime.Now())},
+		Stage:     []database.ProvisionerJobTimingStage{takeFirst(seed.Stage, database.ProvisionerJobTimingStageInit)},
+		Source:    []string{takeFirst(seed.Source, "source")},
+		Action:    []string{takeFirst(seed.Action, "action")},
+		Resource:  []string{takeFirst(seed.Resource, "resource")},
+	})
+	require.NoError(t, err, "insert provisioner job timing")
+	return timing[0]
 }
 
 func must[V any](v V, err error) V {
@@ -941,4 +1044,25 @@ func takeFirst[Value comparable](values ...Value) Value {
 	return takeFirstF(values, func(v Value) bool {
 		return v != empty
 	})
+}
+
+func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
+	switch feature {
+	case database.CryptoKeyFeatureWorkspaceApps:
+		return generateCryptoKey(32)
+	case database.CryptoKeyFeatureOidcConvert:
+		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureTailnetResume:
+		return generateCryptoKey(64)
+	}
+	return "", xerrors.Errorf("unknown feature: %s", feature)
+}
+
+func generateCryptoKey(length int) (string, error) {
+	b := make([]byte, length)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", xerrors.Errorf("rand read: %w", err)
+	}
+	return hex.EncodeToString(b), nil
 }

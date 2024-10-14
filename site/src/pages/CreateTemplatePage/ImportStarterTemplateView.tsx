@@ -27,17 +27,12 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
 	isCreating,
 }) => {
 	const navigate = useNavigate();
-	const { entitlements, experiments } = useDashboard();
-	const { multiple_organizations: organizationsEnabled } =
-		useFeatureVisibility();
+	const { entitlements, showOrganizations } = useDashboard();
 	const [searchParams] = useSearchParams();
 	const templateExamplesQuery = useQuery(templateExamples());
 	const templateExample = templateExamplesQuery.data?.find(
 		(e) => e.id === searchParams.get("exampleId")!,
 	);
-
-	const showOrganizationPicker =
-		experiments.includes("multi-organization") && organizationsEnabled;
 
 	const isLoading = templateExamplesQuery.isLoading;
 	const loadingError = templateExamplesQuery.error;
@@ -77,7 +72,7 @@ export const ImportStarterTemplateView: FC<CreateTemplatePageViewProps> = ({
 			onCancel={() => navigate(-1)}
 			jobError={isJobError ? error.job.error : undefined}
 			logs={templateVersionLogsQuery.data}
-			showOrganizationPicker={showOrganizationPicker}
+			showOrganizationPicker={showOrganizations}
 			onSubmit={async (formData) => {
 				await onCreateTemplate({
 					organization: formData.organization,

@@ -52,9 +52,14 @@ func NewStoreEnqueuer(cfg codersdk.NotificationsConfig, store Store, helpers tem
 	}, nil
 }
 
+// Enqueue queues a notification message for later delivery, assumes no structured input data.
+func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+	return s.EnqueueWithData(ctx, userID, templateID, labels, nil, createdBy, targets...)
+}
+
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
-func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (s *StoreEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	metadata, err := s.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -69,7 +74,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 		dispatchMethod = metadata.CustomMethod.NotificationMethod
 	}
 
-	payload, err := s.buildPayload(metadata, labels)
+	payload, err := s.buildPayload(metadata, labels, data)
 	if err != nil {
 		s.log.Warn(ctx, "failed to build payload", slog.F("template_id", templateID), slog.F("user_id", userID), slog.Error(err))
 		return nil, xerrors.Errorf("enqueue notification (payload build): %w", err)
@@ -119,7 +124,7 @@ func (s *StoreEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUI
 // buildPayload creates the payload that the notification will for variable substitution and/or routing.
 // The payload contains information about the recipient, the event that triggered the notification, and any subsequent
 // actions which can be taken by the recipient.
-func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRow, labels map[string]string) (*types.MessagePayload, error) {
+func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRow, labels map[string]string, data map[string]any) (*types.MessagePayload, error) {
 	payload := types.MessagePayload{
 		Version: "1.1",
 
@@ -132,6 +137,8 @@ func (s *StoreEnqueuer) buildPayload(metadata database.FetchNewMessageMetadataRo
 		UserUsername: metadata.UserUsername,
 
 		Labels: labels,
+		Data:   data,
+
 		// No actions yet
 	}
 
@@ -159,6 +166,11 @@ func NewNoopEnqueuer() *NoopEnqueuer {
 }
 
 func (*NoopEnqueuer) Enqueue(context.Context, uuid.UUID, uuid.UUID, map[string]string, string, ...uuid.UUID) (*uuid.UUID, error) {
+	// nolint:nilnil // irrelevant.
+	return nil, nil
+}
+
+func (*NoopEnqueuer) EnqueueWithData(context.Context, uuid.UUID, uuid.UUID, map[string]string, map[string]any, string, ...uuid.UUID) (*uuid.UUID, error) {
 	// nolint:nilnil // irrelevant.
 	return nil, nil
 }

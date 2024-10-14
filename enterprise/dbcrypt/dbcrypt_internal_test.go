@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
@@ -346,6 +347,158 @@ func TestExternalAuthLinks(t *testing.T) {
 			var derr *DecryptFailedError
 			require.ErrorAs(t, err, &derr, "expected a decrypt error")
 		})
+	})
+}
+
+func TestCryptoKeys(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("InsertCryptoKey", func(t *testing.T) {
+		t.Parallel()
+
+		db, crypt, ciphers := setup(t)
+		key := dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		require.Equal(t, "test", key.Secret.String)
+
+		key, err := db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		})
+		require.NoError(t, err)
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
+	})
+
+	t.Run("GetCryptoKeys", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		keys, err := crypt.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, "test", keys[0].Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].SecretKeyID.String)
+
+		keys, err = db.GetCryptoKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		requireEncryptedEquals(t, ciphers[0], keys[0].Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].SecretKeyID.String)
+	})
+
+	t.Run("GetLatestCryptoKeyByFeature", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		key, err := crypt.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		require.NoError(t, err)
+		require.Equal(t, "test", key.Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+
+		key, err = db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+	})
+
+	t.Run("GetCryptoKeyByFeatureAndSequence", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		key := dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		key, err := crypt.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: key.Sequence,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "test", key.Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+
+		key, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: key.Sequence,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+	})
+
+	t.Run("UpdateCryptoKeyDeletesAt", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		key := dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Secret: sql.NullString{String: "test", Valid: true},
+		})
+		key, err := crypt.UpdateCryptoKeyDeletesAt(ctx, database.UpdateCryptoKeyDeletesAtParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+			DeletesAt: sql.NullTime{
+				Time:  time.Now().Add(time.Hour),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "test", key.Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+	})
+
+	t.Run("GetCryptoKeysByFeature", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		expected := dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Sequence: 2,
+			Feature:  database.CryptoKeyFeatureTailnetResume,
+			Secret:   sql.NullString{String: "test", Valid: true},
+		})
+		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 43,
+		})
+		keys, err := crypt.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureTailnetResume)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, "test", keys[0].Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].SecretKeyID.String)
+		require.Equal(t, expected.Sequence, keys[0].Sequence)
+		require.Equal(t, expected.Feature, keys[0].Feature)
+
+		keys, err = db.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureTailnetResume)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		requireEncryptedEquals(t, ciphers[0], keys[0].Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].SecretKeyID.String)
+		require.Equal(t, expected.Sequence, keys[0].Sequence)
+		require.Equal(t, expected.Feature, keys[0].Feature)
+	})
+
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		key := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Secret: sql.NullString{
+				String: fakeBase64RandomData(t, 32),
+				Valid:  true,
+			},
+			SecretKeyID: sql.NullString{
+				String: ciphers[0].HexDigest(),
+				Valid:  true,
+			},
+		})
+		_, err := crypt.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		})
+		require.Error(t, err, "expected an error")
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
 	})
 }
 

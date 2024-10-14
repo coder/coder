@@ -147,9 +147,13 @@ func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 
 	pkDaemons := []codersdk.ProvisionerKeyDaemons{}
 	for _, key := range sdkKeys {
-		// currently we exclude user-auth from this list
+		// The key.OrganizationID for the `user-auth` key is hardcoded to
+		// the default org in the database and we are overwriting it here
+		// to be the correct org we used to query the list.
+		// This will be changed when we update the `user-auth` keys to be
+		// directly tied to a user ID.
 		if key.ID.String() == codersdk.ProvisionerKeyIDUserAuth {
-			continue
+			key.OrganizationID = organization.ID
 		}
 		daemons := []codersdk.ProvisionerDaemon{}
 		for _, daemon := range recentDaemons {
@@ -204,7 +208,7 @@ func convertProvisionerKeys(dbKeys []database.ProvisionerKey) []codersdk.Provisi
 			CreatedAt:      dbKey.CreatedAt,
 			OrganizationID: dbKey.OrganizationID,
 			Name:           dbKey.Name,
-			Tags:           dbKey.Tags,
+			Tags:           codersdk.ProvisionerKeyTags(dbKey.Tags),
 			// HashedSecret - never include the access token in the API response
 		})
 	}

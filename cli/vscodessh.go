@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -133,10 +134,20 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				return xerrors.Errorf("unknown wait value %q", waitEnum)
 			}
 
+			appearanceCfg, err := client.Appearance(ctx)
+			if err != nil {
+				var sdkErr *codersdk.Error
+				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
+					return xerrors.Errorf("get appearance config: %w", err)
+				}
+				appearanceCfg.DocsURL = codersdk.DefaultDocsURL()
+			}
+
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:     client.WorkspaceAgent,
 				FetchLogs: client.WorkspaceAgentLogsAfter,
 				Wait:      wait,
+				DocsURL:   appearanceCfg.DocsURL,
 			})
 			if err != nil {
 				if xerrors.Is(err, context.Canceled) {

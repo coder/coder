@@ -20,15 +20,11 @@ func TestEnterpriseMembers(t *testing.T) {
 
 	t.Run("Remove", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
+					codersdk.FeatureTemplateRBAC:          1,
 				},
 			},
 		})
@@ -39,6 +35,21 @@ func TestEnterpriseMembers(t *testing.T) {
 		_, user := coderdtest.CreateAnotherUser(t, owner, secondOrg.ID)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Groups exist to ensure a user removed from the org loses their
+		// group access.
+		g1, err := orgAdminClient.CreateGroup(ctx, secondOrg.ID, codersdk.CreateGroupRequest{
+			Name:        "foo",
+			DisplayName: "Foo",
+		})
+		require.NoError(t, err)
+
+		g2, err := orgAdminClient.CreateGroup(ctx, secondOrg.ID, codersdk.CreateGroupRequest{
+			Name:        "bar",
+			DisplayName: "Bar",
+		})
+		require.NoError(t, err)
+
 		// Verify the org of 3 members
 		members, err := orgAdminClient.OrganizationMembers(ctx, secondOrg.ID)
 		require.NoError(t, err)
@@ -46,6 +57,25 @@ func TestEnterpriseMembers(t *testing.T) {
 		require.ElementsMatch(t,
 			[]uuid.UUID{first.UserID, user.ID, orgAdmin.ID},
 			db2sdk.List(members, onlyIDs))
+
+		// Add the member to some groups
+		_, err = orgAdminClient.PatchGroup(ctx, g1.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user.ID.String()},
+		})
+		require.NoError(t, err)
+
+		_, err = orgAdminClient.PatchGroup(ctx, g2.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Verify group membership
+		userGroups, err := orgAdminClient.Groups(ctx, codersdk.GroupArguments{
+			HasMember: user.ID.String(),
+		})
+		require.NoError(t, err)
+		// Everyone group + 2 groups
+		require.Len(t, userGroups, 3)
 
 		// Delete a member
 		err = orgAdminClient.DeleteOrganizationMember(ctx, secondOrg.ID, user.Username)
@@ -57,17 +87,19 @@ func TestEnterpriseMembers(t *testing.T) {
 		require.ElementsMatch(t,
 			[]uuid.UUID{first.UserID, orgAdmin.ID},
 			db2sdk.List(members, onlyIDs))
+
+		// User should now belong to 0 groups
+		userGroups, err = orgAdminClient.Groups(ctx, codersdk.GroupArguments{
+			HasMember: user.ID.String(),
+		})
+		require.NoError(t, err)
+		require.Len(t, userGroups, 0)
 	})
 
 	t.Run("PostUser", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
@@ -103,12 +135,7 @@ func TestEnterpriseMembers(t *testing.T) {
 
 	t.Run("PostUserNotExists", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
@@ -132,12 +159,7 @@ func TestEnterpriseMembers(t *testing.T) {
 	t.Run("ListNotInOrg", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,

@@ -267,7 +267,7 @@ func handleTestSubprocess(t *testing.T) {
 
 			if me.ShouldRunTests {
 				// Wait for connectivity.
-				peerIP := tailnet.IPFromUUID(peer.ID)
+				peerIP := tailnet.TailscaleServicePrefix.AddrFromUUID(peer.ID)
 				if !conn.AwaitReachable(testutil.Context(t, testutil.WaitLong), peerIP) {
 					t.Fatalf("peer %v did not become reachable", peerIP)
 				}

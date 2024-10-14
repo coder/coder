@@ -334,6 +334,7 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 			failedAttempts = 0
 			ticker         = time.NewTicker(l.opts.Interval)
 		)
+
 		for {
 			var respCh chan RegisterWorkspaceProxyResponse
 			select {
@@ -376,6 +377,7 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 				l.failureFn(xerrors.New("app security key has changed, proxy must be restarted"))
 				return
 			}
+
 			if originalRes.DERPMeshKey != resp.DERPMeshKey {
 				l.failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
 				return
@@ -578,6 +580,27 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 	go rma.respLoop()
 
 	return ma, nil
+}
+
+type CryptoKeysResponse struct {
+	CryptoKeys []codersdk.CryptoKey `json:"crypto_keys"`
+}
+
+func (c *Client) CryptoKeys(ctx context.Context) (CryptoKeysResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		"/api/v2/workspaceproxies/me/crypto-keys",
+		nil,
+	)
+	if err != nil {
+		return CryptoKeysResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return CryptoKeysResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp CryptoKeysResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 type remoteMultiAgentHandler struct {

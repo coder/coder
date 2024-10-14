@@ -13,10 +13,7 @@ export const useUserFilterMenu = ({
 	value,
 	onChange,
 	enabled,
-}: Pick<
-	UseFilterMenuOptions<SelectFilterOption>,
-	"value" | "onChange" | "enabled"
->) => {
+}: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
 	const { user: me } = useAuthenticated();
 
 	const addMeAsFirstOption = (options: readonly SelectFilterOption[]) => {

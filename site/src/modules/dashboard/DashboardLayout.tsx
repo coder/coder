@@ -84,7 +84,9 @@ export const DashboardLayout: FC = () => {
 							<p>
 								Coder {updateCheck.data?.version} is now available. View the{" "}
 								<Link href={updateCheck.data?.url}>release notes</Link> and{" "}
-								<Link href={docs("/admin/upgrade")}>upgrade instructions</Link>{" "}
+								<Link href={docs("/install/upgrade")}>
+									upgrade instructions
+								</Link>{" "}
 								for more information.
 							</p>
 						</div>

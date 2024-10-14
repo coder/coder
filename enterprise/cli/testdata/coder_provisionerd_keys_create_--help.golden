@@ -9,5 +9,8 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
+  -t, --tag string-array, $CODER_PROVISIONERD_TAGS
+          Tags to filter provisioner jobs by.
+
 ———
 Run `coder --help` for a list of global options.

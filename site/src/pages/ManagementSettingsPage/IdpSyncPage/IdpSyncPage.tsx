@@ -1,62 +1,59 @@
-import AddIcon from "@mui/icons-material/AddOutlined";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
+import { groupsByOrganization } from "api/queries/groups";
+import {
+	groupIdpSyncSettings,
+	roleIdpSyncSettings,
+} from "api/queries/organizations";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link as RouterLink } from "react-router-dom";
+import { useQueries } from "react-query";
+import { useParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
 
-const mockOIDCConfig = {
-	allow_signups: true,
-	client_id: "test",
-	client_secret: "test",
-	client_key_file: "test",
-	client_cert_file: "test",
-	email_domain: [],
-	issuer_url: "test",
-	scopes: [],
-	ignore_email_verified: true,
-	username_field: "",
-	name_field: "",
-	email_field: "",
-	auth_url_params: {},
-	ignore_user_info: true,
-	organization_field: "",
-	organization_mapping: {},
-	organization_assign_default: true,
-	group_auto_create: false,
-	group_regex_filter: "^Coder-.*$",
-	group_allow_list: [],
-	groups_field: "groups",
-	group_mapping: { group1: "developers", group2: "admin", group3: "auditors" },
-	user_role_field: "roles",
-	user_role_mapping: { role1: ["role1", "role2"] },
-	user_roles_default: [],
-	sign_in_text: "",
-	icon_url: "",
-	signups_disabled_text: "string",
-	skip_issuer_checks: true,
-};
-
 export const IdpSyncPage: FC = () => {
-	// feature visibility and permissions to be implemented when integrating with backend
-	// const feats = useFeatureVisibility();
-	// const { organization: organizationName } = useParams() as {
-	// 	organization: string;
-	// };
-	// const { organizations } = useOrganizationSettings();
-	// const organization = organizations?.find((o) => o.name === organizationName);
-	// const permissionsQuery = useQuery(organizationPermissions(organization?.id));
-	// const permissions = permissionsQuery.data;
+	const { organization: organizationName } = useParams() as {
+		organization: string;
+	};
+	// IdP sync does not have its own entitlement and is based on templace_rbac
+	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
+	const { organizations } = useManagementSettings();
+	const organization = organizations?.find((o) => o.name === organizationName);
 
-	// if (!permissions) {
-	// 	return <Loader />;
-	// }
+	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery] =
+		useQueries({
+			queries: [
+				groupIdpSyncSettings(organizationName),
+				roleIdpSyncSettings(organizationName),
+				groupsByOrganization(organizationName),
+			],
+		});
+
+	if (!organization) {
+		return <EmptyState message="Organization not found" />;
+	}
+
+	const error =
+		groupIdpSyncSettingsQuery.error ||
+		roleIdpSyncSettingsQuery.error ||
+		groupsQuery.error;
+
+	const groupsMap = new Map<string, string>();
+	if (groupsQuery.data) {
+		for (const group of groupsQuery.data) {
+			groupsMap.set(group.id, group.display_name || group.name);
+		}
+	}
 
 	return (
 		<>
@@ -71,25 +68,37 @@ export const IdpSyncPage: FC = () => {
 			>
 				<SettingsHeader
 					title="IdP Sync"
-					description="Group and role sync mappings (configured outside Coder)."
+					description="Group and role sync mappings (configured using Coder CLI)."
 					tooltip={<IdpSyncHelpTooltip />}
 				/>
-				<Stack direction="row" spacing={2}>
-					<Button
-						startIcon={<LaunchOutlined />}
-						component="a"
-						href={docs("/admin/auth#group-sync-enterprise")}
-						target="_blank"
-					>
-						Setup IdP Sync
-					</Button>
-					<Button component={RouterLink} startIcon={<AddIcon />} to="export">
-						Export Policy
-					</Button>
-				</Stack>
+				<Button
+					startIcon={<LaunchOutlined />}
+					component="a"
+					href={docs("/admin/users/idp-sync")}
+					target="_blank"
+				>
+					Setup IdP Sync
+				</Button>
 			</Stack>
-
-			<IdpSyncPageView oidcConfig={mockOIDCConfig} />
+			<ChooseOne>
+				<Cond condition={!isIdpSyncEnabled}>
+					<Paywall
+						message="IdP Sync"
+						description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
+						documentationLink={docs("/admin/users/idp-sync")}
+					/>
+				</Cond>
+				<Cond>
+					<IdpSyncPageView
+						groupSyncSettings={groupIdpSyncSettingsQuery.data}
+						roleSyncSettings={roleIdpSyncSettingsQuery.data}
+						groups={groupsQuery.data}
+						groupsMap={groupsMap}
+						organization={organization}
+						error={error}
+					/>
+				</Cond>
+			</ChooseOne>
 		</>
 	);
 };

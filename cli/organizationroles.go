@@ -24,7 +24,6 @@ func (r *RootCmd) organizationRoles(orgContext *OrganizationContext) *serpent.Co
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Hidden: true,
 		Children: []*serpent.Command{
 			r.showOrganizationRoles(orgContext),
 			r.editOrganizationRole(orgContext),

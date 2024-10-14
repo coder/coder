@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { useTheme } from "@emotion/react";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -9,85 +9,192 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import type { OIDCConfig } from "api/typesGenerated";
+import type {
+	Group,
+	GroupSyncSettings,
+	Organization,
+	RoleSyncSettings,
+} from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Paywall } from "components/Paywall/Paywall";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipText,
+	HelpTooltipTitle,
+	HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
+import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import type { FC } from "react";
+import { useSearchParams } from "react-router-dom";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
+import { ExportPolicyButton } from "./ExportPolicyButton";
+import { IdpPillList } from "./IdpPillList";
 
-export type IdpSyncPageViewProps = {
-	oidcConfig: OIDCConfig | undefined;
-};
+interface IdpSyncPageViewProps {
+	groupSyncSettings: GroupSyncSettings | undefined;
+	roleSyncSettings: RoleSyncSettings | undefined;
+	groups: Group[] | undefined;
+	groupsMap: Map<string, string>;
+	organization: Organization;
+	error?: unknown;
+}
 
-export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
-	const theme = useTheme();
-	const {
-		groups_field,
-		user_role_field,
-		group_regex_filter,
-		group_auto_create,
-	} = oidcConfig || {};
+export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
+	groupSyncSettings,
+	roleSyncSettings,
+	groups,
+	groupsMap,
+	organization,
+	error,
+}) => {
+	const [searchParams] = useSearchParams();
+
+	const getGroupNames = (groupIds: readonly string[]) => {
+		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
+	};
+
+	const tab = searchParams.get("tab") || "groups";
+
+	const groupMappingCount = groupSyncSettings?.mapping
+		? Object.entries(groupSyncSettings.mapping).length
+		: 0;
+	const legacyGroupMappingCount = groupSyncSettings?.legacy_group_name_mapping
+		? Object.entries(groupSyncSettings.legacy_group_name_mapping).length
+		: 0;
+	const roleMappingCount = roleSyncSettings?.mapping
+		? Object.entries(roleSyncSettings.mapping).length
+		: 0;
+
+	if (error) {
+		return <ErrorAlert error={error} />;
+	}
+
+	if (!groupSyncSettings || !roleSyncSettings || !groups) {
+		return <Loader />;
+	}
+
 	return (
 		<>
-			<ChooseOne>
-				<Cond condition={false}>
-					<Paywall
-						message="IdP Sync"
-						description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
-						documentationLink={docs("/admin/groups")}
-					/>
-				</Cond>
-				<Cond>
-					<Stack spacing={2} css={styles.fields}>
-						{/* Semantically fieldset is used for forms. In the future this screen will allow
-						 updates to these fields in a form */}
-						<fieldset css={styles.box}>
-							<legend css={styles.legend}>Groups</legend>
-							<Stack direction={"row"} alignItems={"center"} spacing={8}>
+			<Stack spacing={2}>
+				<Tabs active={tab}>
+					<TabsList>
+						<TabLink to="?tab=groups" value="groups">
+							Group Sync Settings
+						</TabLink>
+						<TabLink to="?tab=roles" value="roles">
+							Role Sync Settings
+						</TabLink>
+					</TabsList>
+				</Tabs>
+				{tab === "groups" ? (
+					<>
+						<div css={styles.fields}>
+							<Stack direction="row" alignItems="center" spacing={6}>
 								<IdpField
-									name={"Sync Field"}
-									fieldText={groups_field}
-									showStatusIndicator
+									name="Sync Field"
+									fieldText={groupSyncSettings?.field}
+									showDisabled
 								/>
 								<IdpField
-									name={"Regex Filter"}
-									fieldText={group_regex_filter}
+									name="Regex Filter"
+									fieldText={
+										typeof groupSyncSettings?.regex_filter === "string"
+											? groupSyncSettings.regex_filter
+											: "none"
+									}
 								/>
 								<IdpField
-									name={"Auto Create"}
-									fieldText={group_auto_create?.toString()}
-								/>
-							</Stack>
-						</fieldset>
-						<fieldset css={styles.box}>
-							<legend css={styles.legend}>Roles</legend>
-							<Stack direction={"row"} alignItems={"center"} spacing={3}>
-								<IdpField
-									name={"Sync Field"}
-									fieldText={user_role_field}
-									showStatusIndicator
+									name="Auto Create"
+									fieldText={
+										groupSyncSettings?.field
+											? String(groupSyncSettings?.auto_create_missing_groups)
+											: "n/a"
+									}
 								/>
 							</Stack>
-						</fieldset>
-					</Stack>
-					<Stack spacing={6}>
-						<IdpMappingTable
-							type="Role"
-							isEmpty={Boolean(
-								!oidcConfig?.user_role_mapping ||
-									Object.entries(oidcConfig?.user_role_mapping).length === 0,
-							)}
+						</div>
+						<Stack
+							direction="row"
+							alignItems="baseline"
+							justifyContent="space-between"
+							css={styles.tableInfo}
 						>
-							{oidcConfig?.user_role_mapping &&
-								Object.entries(oidcConfig.user_role_mapping)
+							<TableRowCount count={groupMappingCount} type="groups" />
+							<ExportPolicyButton
+								syncSettings={groupSyncSettings}
+								organization={organization}
+								type="groups"
+							/>
+						</Stack>
+						<Stack spacing={6}>
+							<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
+								{groupSyncSettings?.mapping &&
+									Object.entries(groupSyncSettings.mapping)
+										.sort()
+										.map(([idpGroup, groups]) => (
+											<GroupRow
+												key={idpGroup}
+												idpGroup={idpGroup}
+												coderGroup={getGroupNames(groups)}
+											/>
+										))}
+							</IdpMappingTable>
+							{groupSyncSettings?.legacy_group_name_mapping && (
+								<section>
+									<LegacyGroupSyncHeader />
+									<IdpMappingTable
+										type="Group"
+										isEmpty={legacyGroupMappingCount === 0}
+									>
+										{Object.entries(groupSyncSettings.legacy_group_name_mapping)
+											.sort()
+											.map(([idpGroup, groupId]) => (
+												<GroupRow
+													key={idpGroup}
+													idpGroup={idpGroup}
+													coderGroup={getGroupNames([groupId])}
+												/>
+											))}
+									</IdpMappingTable>
+								</section>
+							)}
+						</Stack>
+					</>
+				) : (
+					<>
+						<div css={styles.fields}>
+							<IdpField
+								name="Sync Field"
+								fieldText={roleSyncSettings?.field}
+								showDisabled
+							/>
+						</div>
+						<Stack
+							direction="row"
+							alignItems="baseline"
+							justifyContent="space-between"
+							css={styles.tableInfo}
+						>
+							<TableRowCount count={roleMappingCount} type="roles" />
+							<ExportPolicyButton
+								syncSettings={roleSyncSettings}
+								organization={organization}
+								type="roles"
+							/>
+						</Stack>
+						<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
+							{roleSyncSettings?.mapping &&
+								Object.entries(roleSyncSettings.mapping)
 									.sort()
 									.map(([idpRole, roles]) => (
 										<RoleRow
@@ -97,27 +204,9 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 										/>
 									))}
 						</IdpMappingTable>
-						<IdpMappingTable
-							type="Group"
-							isEmpty={Boolean(
-								!oidcConfig?.group_mapping ||
-									Object.entries(oidcConfig?.group_mapping).length === 0,
-							)}
-						>
-							{oidcConfig?.user_role_mapping &&
-								Object.entries(oidcConfig.group_mapping)
-									.sort()
-									.map(([idpGroup, group]) => (
-										<GroupRow
-											key={idpGroup}
-											idpGroup={idpGroup}
-											coderGroup={group}
-										/>
-									))}
-						</IdpMappingTable>
-					</Stack>
-				</Cond>
-			</ChooseOne>
+					</>
+				)}
+			</Stack>
 		</>
 	);
 };
@@ -125,34 +214,63 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({ oidcConfig }) => {
 interface IdpFieldProps {
 	name: string;
 	fieldText: string | undefined;
-	showStatusIndicator?: boolean;
+	showDisabled?: boolean;
 }
 
 const IdpField: FC<IdpFieldProps> = ({
 	name,
 	fieldText,
-	showStatusIndicator = false,
+	showDisabled = false,
 }) => {
 	return (
-		<span css={{ display: "flex", alignItems: "center", gap: "16px" }}>
-			<h4>{name}</h4>
-			<p css={styles.field}>
-				{fieldText ||
-					(showStatusIndicator && (
-						<div
-							css={{
-								display: "flex",
-								alignItems: "center",
-								gap: "8px",
-								height: 0,
-							}}
-						>
-							<StatusIndicator color="error" />
-							<p>disabled</p>
-						</div>
-					))}
-			</p>
+		<span
+			css={{
+				display: "flex",
+				alignItems: "center",
+				gap: "16px",
+			}}
+		>
+			<p css={styles.fieldLabel}>{name}</p>
+			{fieldText ? (
+				<p css={styles.fieldText}>{fieldText}</p>
+			) : (
+				showDisabled && (
+					<div
+						css={{
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							height: 0,
+						}}
+					>
+						<StatusIndicator color="error" />
+						<p>disabled</p>
+					</div>
+				)
+			)}
 		</span>
+	);
+};
+
+interface TableRowCountProps {
+	count: number;
+	type: string;
+}
+
+const TableRowCount: FC<TableRowCountProps> = ({ count, type }) => {
+	return (
+		<div
+			css={(theme) => ({
+				margin: 0,
+				fontSize: 13,
+				color: theme.palette.text.secondary,
+				"& strong": {
+					color: theme.palette.text.primary,
+				},
+			})}
+		>
+			Showing <strong>{count}</strong> {type}
+		</div>
 	);
 };
 
@@ -174,7 +292,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 			<Table>
 				<TableHead>
 					<TableRow>
-						<TableCell width="45%">Idp {type}</TableCell>
+						<TableCell width="45%">IdP {type}</TableCell>
 						<TableCell width="55%">Coder {type}</TableCell>
 					</TableRow>
 				</TableHead>
@@ -194,7 +312,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 											<Button
 												startIcon={<LaunchOutlined />}
 												component="a"
-												href={docs("/admin/auth#group-sync-enterprise")}
+												href={docs("/admin/users/idp-sync")}
 												target="_blank"
 											>
 												How to setup IdP {type} sync
@@ -215,28 +333,32 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 
 interface GroupRowProps {
 	idpGroup: string;
-	coderGroup: string;
+	coderGroup: readonly string[];
 }
 
 const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
 	return (
 		<TableRow data-testid={`group-${idpGroup}`}>
 			<TableCell>{idpGroup}</TableCell>
-			<TableCell>{coderGroup}</TableCell>
+			<TableCell>
+				<IdpPillList roles={coderGroup} />
+			</TableCell>
 		</TableRow>
 	);
 };
 
 interface RoleRowProps {
 	idpRole: string;
-	coderRoles: ReadonlyArray<string>;
+	coderRoles: readonly string[];
 }
 
 const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles }) => {
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
 			<TableCell>{idpRole}</TableCell>
-			<TableCell>coderRoles Placeholder</TableCell>
+			<TableCell>
+				<IdpPillList roles={coderRoles} />
+			</TableCell>
 		</TableRow>
 	);
 };
@@ -259,23 +381,52 @@ const TableLoader = () => {
 	);
 };
 
+const LegacyGroupSyncHeader: FC = () => {
+	return (
+		<h4
+			css={{
+				fontSize: 20,
+				fontWeight: 500,
+			}}
+		>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>Legacy Group Sync Settings</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>Legacy Group Sync Settings</HelpTooltipTitle>
+						<HelpTooltipText>
+							These settings were configured using environment variables, and
+							only apply to the default organization. It is now recommended to
+							configure IdP sync via the CLI, which enables sync to be
+							configured for any organization, and for those settings to be
+							persisted without manually setting environment variables.{" "}
+							<Link href={docs("/admin/users/idp-sync")}>
+								Learn more&hellip;
+							</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
 const styles = {
-	field: (theme) => ({
-		color: theme.palette.text.secondary,
+	fieldText: {
 		fontFamily: MONOSPACE_FONT_FAMILY,
+		whiteSpace: "nowrap",
+		paddingBottom: ".02rem",
+	},
+	fieldLabel: (theme) => ({
+		color: theme.palette.text.secondary,
 	}),
 	fields: () => ({
-		marginBottom: "60px",
+		marginLeft: 16,
+		fontSize: 14,
 	}),
-	legend: () => ({
-		padding: "0px 6px",
-		fontWeight: 600,
-	}),
-	box: (theme) => ({
-		border: "1px solid",
-		borderColor: theme.palette.divider,
-		padding: "0px 20px",
-		borderRadius: 8,
+	tableInfo: () => ({
+		marginBottom: 16,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 

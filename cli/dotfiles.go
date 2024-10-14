@@ -203,7 +203,7 @@ func (r *RootCmd) dotfiles() *serpent.Command {
 				}
 
 				if fi.Mode()&0o111 == 0 {
-					return xerrors.Errorf("script %q is not executable. See https://coder.com/docs/dotfiles for information on how to resolve the issue.", script)
+					return xerrors.Errorf("script %q does not have execute permissions", script)
 				}
 
 				// it is safe to use a variable command here because it's from

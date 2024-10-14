@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder provisionerd keys list [flags]
 
-  List provisioner keys
+  List provisioner keys in an organization
 
   Aliases: ls
 

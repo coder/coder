@@ -32,6 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -55,13 +56,15 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/coderd/entitlements"
-	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
+
+	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/notifications/reports"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -238,7 +241,8 @@ func enablePrometheus(
 	afterCtx(ctx, closeInsightsMetricsCollector)
 
 	if vals.Prometheus.CollectAgentStats {
-		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value())
+		experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
+		closeAgentStatsFunc, err := prometheusmetrics.AgentStats(ctx, logger, options.PrometheusRegistry, options.Database, time.Now(), 0, options.DeploymentValues.Prometheus.AggregateAgentStatsBy.Value(), experiments.Enabled(codersdk.ExperimentWorkspaceUsage))
 		if err != nil {
 			return nil, xerrors.Errorf("register agent stats prometheus metric: %w", err)
 		}
@@ -481,8 +485,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			// A newline is added before for visibility in terminal output.
-			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", vals.AccessURL.String())
+			accessURL := vals.AccessURL.String()
+			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+				Border(lipgloss.DoubleBorder()).
+				Align(lipgloss.Center).
+				Padding(0, 3).
+				BorderForeground(lipgloss.Color("12")).
+				Render(fmt.Sprintf("View the Web UI:\n%s",
+					pretty.Sprint(cliui.DefaultStyles.Hyperlink, accessURL))))
+			if buildinfo.HasSite() {
+				err = openURL(inv, accessURL)
+				if err == nil {
+					cliui.Infof(inv.Stdout, "Opening local browser... You can disable this by passing --no-open.\n")
+				}
+			}
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -627,7 +643,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 								"new version of coder available",
 								slog.F("new_version", r.Version),
 								slog.F("url", r.URL),
-								slog.F("upgrade_instructions", "https://coder.com/docs/admin/upgrade"),
+								slog.F("upgrade_instructions", fmt.Sprintf("%s/admin/upgrade", vals.DocsURL.String())),
 							)
 						}
 					},
@@ -668,10 +684,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				options.OIDCConfig = oc
 			}
-
-			experiments := coderd.ReadExperiments(
-				options.Logger, options.DeploymentValues.Experiments.Value(),
-			)
 
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
 			// nil, that case of the select will just never fire, but it's important not to have a
@@ -853,7 +865,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer options.Telemetry.Close()
 			} else {
-				logger.Warn(ctx, `telemetry disabled, unable to notify of security issues. Read more: https://coder.com/docs/admin/telemetry`)
+				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/telemetry`, vals.DocsURL.String()))
 			}
 
 			// This prevents the pprof import from being accidentally deleted.
@@ -936,6 +948,33 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("write config url: %w", err)
 			}
 
+			// Manage notifications.
+			cfg := options.DeploymentValues.Notifications
+			metrics := notifications.NewMetrics(options.PrometheusRegistry)
+			helpers := templateHelpers(options)
+
+			// The enqueuer is responsible for enqueueing notifications to the given store.
+			enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+			}
+			options.NotificationsEnqueuer = enqueuer
+
+			// The notification manager is responsible for:
+			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+			//   - keeping the store updated with status updates
+			notificationsManager, err := notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+			}
+
+			// nolint:gocritic // TODO: create own role.
+			notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
+
+			// Run report generator to distribute periodic reports.
+			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+			defer notificationReportGenerator.Close()
+
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to
 			// avoid leaving dangling goroutines waiting for the
@@ -991,34 +1030,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			)
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
-
-			// Manage notifications.
-			var (
-				notificationsManager *notifications.Manager
-			)
-			if experiments.Enabled(codersdk.ExperimentNotifications) {
-				cfg := options.DeploymentValues.Notifications
-				metrics := notifications.NewMetrics(options.PrometheusRegistry)
-				helpers := templateHelpers(options)
-
-				// The enqueuer is responsible for enqueueing notifications to the given store.
-				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
-				}
-				options.NotificationsEnqueuer = enqueuer
-
-				// The notification manager is responsible for:
-				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
-				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
-				}
-
-				// nolint:gocritic // TODO: create own role.
-				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
-			}
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
@@ -1139,19 +1150,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
 
-			if notificationsManager != nil {
-				// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
-				// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
-				// their leases expire after a period of time and will be re-queued for sending.
-				// See CODER_NOTIFICATIONS_LEASE_PERIOD.
-				cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
-				err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
-				if err != nil {
-					cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
-						"this may result in duplicate notifications being sent: %s\n", err)
-				} else {
-					cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
-				}
+			// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
+			// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
+			// their leases expire after a period of time and will be re-queued for sending.
+			// See CODER_NOTIFICATIONS_LEASE_PERIOD.
+			cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
+			err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
+					"this may result in duplicate notifications being sent: %s\n", err)
+			} else {
+				cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
 			}
 
 			// Shut down provisioners before waiting for WebSockets
@@ -1432,6 +1441,7 @@ func newProvisionerDaemon(
 
 	// Omit any duplicates
 	provisionerTypes = slice.Unique(provisionerTypes)
+	provisionerLogger := logger.Named(fmt.Sprintf("provisionerd-%s", name))
 
 	// Populate the connector with the supported types.
 	connector := provisionerd.LocalProvisioners{}
@@ -1488,7 +1498,7 @@ func newProvisionerDaemon(
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
 						Listener:      terraformServer,
-						Logger:        logger.Named("terraform"),
+						Logger:        provisionerLogger,
 						WorkDirectory: workDir,
 					},
 					CachePath: tfDir,
@@ -1513,7 +1523,7 @@ func newProvisionerDaemon(
 		// in provisionerdserver.go to learn more!
 		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, provisionerTypes)
 	}, &provisionerd.Options{
-		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
+		Logger:              provisionerLogger,
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Connector:           connector,

@@ -217,7 +217,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	agent_api_version: "1.0",
 	provisioner_api_version: "1.1",
 	external_url: "file:///mock-url",
-	version: "v99.999.9999+c9cdf14",
+	version: "v2.99.99",
 	dashboard_url: "https:///mock-url",
 	workspace_proxy: false,
 	upgrade_message: "My custom upgrade message",
@@ -318,19 +318,23 @@ export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
 	organization_id: MockOrganization.id,
 };
 
-export const MockOrganizationAuditorRole: TypesGen.Role = {
+export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	name: "organization-auditor",
 	display_name: "Organization Auditor",
+	assignable: true,
+	built_in: false,
 	site_permissions: [],
 	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
 };
 
-export const MockRoleWithOrgPermissions: TypesGen.Role = {
+export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
 	organization_id: MockOrganization.id,
+	assignable: true,
+	built_in: false,
 	site_permissions: [],
 	organization_permissions: [
 		{
@@ -451,38 +455,6 @@ export const MockAssignableSiteRoles = [
 	assignableRole(MockAuditorRole, true),
 ];
 
-export const MockOIDCConfig: TypesGen.OIDCConfig = {
-	allow_signups: true,
-	client_id: "test",
-	client_secret: "test",
-	client_key_file: "test",
-	client_cert_file: "test",
-	email_domain: [],
-	issuer_url: "test",
-	scopes: [],
-	ignore_email_verified: true,
-	username_field: "",
-	name_field: "",
-	email_field: "",
-	auth_url_params: {},
-	ignore_user_info: true,
-	organization_field: "",
-	organization_mapping: {},
-	organization_assign_default: true,
-	group_auto_create: false,
-	group_regex_filter: "^Coder-.*$",
-	group_allow_list: [],
-	groups_field: "groups",
-	group_mapping: { group1: "developers", group2: "admin", group3: "auditors" },
-	user_role_field: "roles",
-	user_role_mapping: { role1: ["role1", "role2"] },
-	user_roles_default: [],
-	sign_in_text: "",
-	icon_url: "",
-	signups_disabled_text: "string",
-	skip_issuer_checks: true,
-};
-
 export const MockMemberPermissions = {
 	viewAuditLog: false,
 };
@@ -575,23 +547,85 @@ export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	tags: { scope: "organization" },
 };
 
+export const MockProvisionerBuiltinKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000001",
+	name: "built-in",
+};
+
+export const MockProvisionerUserAuthKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000002",
+	name: "user-auth",
+};
+
+export const MockProvisionerPskKey: TypesGen.ProvisionerKey = {
+	...MockProvisionerKey,
+	id: "00000000-0000-0000-0000-000000000003",
+	name: "psk",
+};
+
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	id: "test-provisioner",
+	key_id: MockProvisionerBuiltinKey.id,
 	organization_id: MockOrganization.id,
 	name: "Test Provisioner",
 	provisioners: ["echo"],
 	tags: { scope: "organization" },
 	version: MockBuildInfo.version,
 	api_version: MockBuildInfo.provisioner_api_version,
+	last_seen_at: new Date().toISOString(),
+};
+
+export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-user-auth-provisioner",
+	key_id: MockProvisionerUserAuthKey.id,
+	name: `${MockUser.name}'s provisioner`,
+	tags: { scope: "user" },
+};
+
+export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-psk-provisioner",
+	key_id: MockProvisionerPskKey.id,
+	name: "Test psk provisioner",
+};
+
+export const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-key-provisioner",
+	key_id: MockProvisionerKey.id,
+	organization_id: MockProvisionerKey.organization,
+	name: "Test key provisioner",
+	tags: MockProvisionerKey.tags,
+};
+
+export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-provisioner-2",
+	name: "Test Provisioner 2",
 	key_id: MockProvisionerKey.id,
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
-	...MockProvisioner,
+	...MockUserAuthProvisioner,
 	id: "test-user-provisioner",
 	name: "Test User Provisioner",
 	tags: { scope: "user", owner: "12345678-abcd-1234-abcd-1234567890abcd" },
+};
+
+export const MockProvisionerWithTags: TypesGen.ProvisionerDaemon = {
+	...MockProvisioner,
+	id: "test-provisioner-tags",
+	name: "Test Provisioner with tags",
+	tags: {
+		...MockProvisioner.tags,
+		都市: "ユタ",
+		きっぷ: "yes",
+		ちいさい: "no",
+	},
 };
 
 export const MockProvisionerJob: TypesGen.ProvisionerJob = {
@@ -842,6 +876,7 @@ export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
 };
 
 export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
+	id: "08eaca83-1221-4fad-b882-d1136981f54d",
 	log_source_id: MockWorkspaceAgentLogSource.id,
 	cron: "",
 	log_path: "",
@@ -850,6 +885,7 @@ export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	script: "echo 'hello world'",
 	start_blocks_login: false,
 	timeout: 0,
+	display_name: "Say Hello",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
@@ -2569,10 +2605,67 @@ export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	budget: 100,
 };
 
+export const MockGroupSyncSettings: TypesGen.GroupSyncSettings = {
+	field: "group-test",
+	mapping: {
+		"idp-group-1": [
+			"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+			"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+		],
+		"idp-group-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce0"],
+	},
+	regex_filter: "@[a-zA-Z0-9_]+",
+	auto_create_missing_groups: false,
+};
+
+export const MockLegacyMappingGroupSyncSettings: TypesGen.GroupSyncSettings = {
+	...MockGroupSyncSettings,
+	mapping: {},
+	legacy_group_name_mapping: {
+		"idp-group-1": "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+		"idp-group-2": "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+	},
+};
+
+export const MockGroupSyncSettings2: TypesGen.GroupSyncSettings = {
+	field: "group-test",
+	mapping: {
+		"idp-group-1": [
+			"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+			"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e3",
+		],
+		"idp-group-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce2"],
+	},
+	regex_filter: "@[a-zA-Z0-9_]+",
+	auto_create_missing_groups: false,
+};
+
+export const MockRoleSyncSettings: TypesGen.RoleSyncSettings = {
+	field: "role-test",
+	mapping: {
+		"idp-role-1": ["admin", "developer"],
+		"idp-role-2": ["auditor"],
+	},
+};
+
 export const MockGroup: TypesGen.Group = {
 	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
 	name: "Front-End",
 	display_name: "Front-End",
+	avatar_url: "https://example.com",
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
+	members: [MockUser, MockUser2],
+	quota_allowance: 5,
+	source: "user",
+	total_member_count: 2,
+};
+
+export const MockGroup2: TypesGen.Group = {
+	id: "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+	name: "developer",
+	display_name: "",
 	avatar_url: "https://example.com",
 	organization_id: MockOrganization.id,
 	organization_name: MockOrganization.name,
@@ -2669,6 +2762,7 @@ export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
 		enabled: false,
 	},
 	announcement_banners: [],
+	docs_url: "https://coder.com/docs/@main/",
 };
 
 export const MockWorkspaceBuildParameter1: TypesGen.WorkspaceBuildParameter = {

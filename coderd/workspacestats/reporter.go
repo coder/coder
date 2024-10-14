@@ -118,7 +118,7 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 	return nil
 }
 
-func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.Workspace, workspaceAgent database.WorkspaceAgent, templateName string, stats *agentproto.Stats) error {
+func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.Workspace, workspaceAgent database.WorkspaceAgent, templateName string, stats *agentproto.Stats, usage bool) error {
 	if stats.ConnectionCount > 0 {
 		var nextAutostart time.Time
 		if workspace.AutostartSchedule.String != "" {
@@ -143,7 +143,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
-		err := r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats)
+		err := r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
 		if err != nil {
 			r.opts.Logger.Error(ctx, "add agent stats to batcher", slog.Error(err))
 			return xerrors.Errorf("insert workspace agent stats batch: %w", err)

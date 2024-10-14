@@ -55,9 +55,9 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	}
 
 	const hasMultipleOrganizations = organizationsQuery.data.length > 1;
-	const organizationsEnabled =
-		experimentsQuery.data.includes("multi-organization") &&
-		selectFeatureVisibility(entitlementsQuery.data).multiple_organizations;
+	const organizationsEnabled = selectFeatureVisibility(
+		entitlementsQuery.data,
+	).multiple_organizations;
 
 	return (
 		<DashboardContext.Provider

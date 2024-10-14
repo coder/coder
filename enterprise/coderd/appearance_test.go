@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -230,6 +229,25 @@ func TestCustomSupportLinks(t *testing.T) {
 	require.Equal(t, supportLinks, appr.SupportLinks)
 }
 
+func TestCustomDocsURL(t *testing.T) {
+	t.Parallel()
+
+	testURLRawString := "http://google.com"
+	testURL, err := url.Parse(testURLRawString)
+	require.NoError(t, err)
+	cfg := coderdtest.DeploymentValues(t)
+	cfg.DocsURL = *serpent.URLOf(testURL)
+	adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true, Options: &coderdtest.Options{DeploymentValues: cfg}})
+	anotherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	appr, err := anotherClient.Appearance(ctx)
+	require.NoError(t, err)
+	require.Equal(t, testURLRawString, appr.DocsURL)
+}
+
 func TestDefaultSupportLinksWithCustomDocsUrl(t *testing.T) {
 	t.Parallel()
 
@@ -247,7 +265,7 @@ func TestDefaultSupportLinksWithCustomDocsUrl(t *testing.T) {
 
 	appr, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.Equal(t, appearance.DefaultSupportLinks(testURLRawString), appr.SupportLinks)
+	require.Equal(t, codersdk.DefaultSupportLinks(testURLRawString), appr.SupportLinks)
 }
 
 func TestDefaultSupportLinks(t *testing.T) {
@@ -262,5 +280,5 @@ func TestDefaultSupportLinks(t *testing.T) {
 
 	appr, err := anotherClient.Appearance(ctx)
 	require.NoError(t, err)
-	require.Equal(t, appearance.DefaultSupportLinks(""), appr.SupportLinks)
+	require.Equal(t, codersdk.DefaultSupportLinks(codersdk.DefaultDocsURL()), appr.SupportLinks)
 }

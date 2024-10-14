@@ -67,6 +67,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 						display: "flex",
 						flexWrap: "wrap",
 						gap: 12,
+						justifyContent: "right",
 					}}
 				>
 					<Tooltip title="Scope">

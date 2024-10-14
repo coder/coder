@@ -18,8 +18,6 @@ func (r *RootCmd) createOrganization() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "create <organization name>",
 		Short: "Create a new organization.",
-		// This action is currently irreversible, so it's hidden until we have a way to delete organizations.
-		Hidden: true,
 		Middleware: serpent.Chain(
 			r.InitClient(client),
 			serpent.RequireNArgs(1),

@@ -1,0 +1,15 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations roles
+
+  Manage organization roles.
+
+  Aliases: role
+
+SUBCOMMANDS:
+    edit    Edit an organization custom role
+    show    Show role(s)
+
+———
+Run `coder --help` for a list of global options.

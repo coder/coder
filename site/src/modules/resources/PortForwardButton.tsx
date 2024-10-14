@@ -235,7 +235,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 					>
 						<HelpTooltipTitle>Listening Ports</HelpTooltipTitle>
 						<HelpTooltipLink
-							href={docs("/networking/port-forwarding#dashboard")}
+							href={docs("admin/networking/port-forwarding#dashboard")}
 						>
 							Learn more
 						</HelpTooltipLink>

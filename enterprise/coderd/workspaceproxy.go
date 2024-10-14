@@ -17,6 +17,7 @@ import (
 	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -708,6 +709,33 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	})
 
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+}
+
+// workspaceProxyCryptoKeys is used to fetch signing keys for the workspace proxy.
+//
+// This is called periodically by the proxy in the background (every 10m per
+// replica) to ensure that the proxy has the latest signing keys.
+//
+// @Summary Get workspace proxy crypto keys
+// @ID get-workspace-proxy-crypto-keys
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} wsproxysdk.CryptoKeysResponse
+// @Router /workspaceproxies/me/crypto-keys [get]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	keys, err := api.Database.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, wsproxysdk.CryptoKeysResponse{
+		CryptoKeys: db2sdk.CryptoKeys(keys),
+	})
 }
 
 // @Summary Deregister workspace proxy

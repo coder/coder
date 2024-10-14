@@ -3155,7 +3155,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/idpsync.GroupSyncSettings"
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
                         }
                     }
                 }
@@ -3188,7 +3188,75 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/idpsync.GroupSyncSettings"
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/settings/idpsync/roles": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get role IdP Sync settings by organization",
+                "operationId": "get-role-idp-sync-settings-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update role IdP Sync settings by organization",
+                "operationId": "update-role-idp-sync-settings-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
                         }
                     }
                 }
@@ -5181,6 +5249,62 @@ const docTemplate = `{
                 "responses": {
                     "307": {
                         "description": "Temporary Redirect"
+                    }
+                }
+            }
+        },
+        "/users/otp/change-password": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Change password with a one-time passcode",
+                "operationId": "change-password-with-a-one-time-passcode",
+                "parameters": [
+                    {
+                        "description": "Change password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChangePasswordWithOneTimePasscodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/users/otp/request": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Request one-time passcode",
+                "operationId": "request-one-time-passcode",
+                "parameters": [
+                    {
+                        "description": "One-time passcode request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RequestOneTimePasscodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -7349,6 +7473,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspacebuilds/{workspacebuild}/timings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace build timings by ID",
+                "operationId": "get-workspace-build-timings-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceproxies": {
             "get": {
                 "security": [
@@ -7465,6 +7624,34 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/me/crypto-keys": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxy crypto keys",
+                "operationId": "get-workspace-proxy-crypto-keys",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.CryptoKeysResponse"
+                        }
                     }
                 },
                 "x-apidocgen": {
@@ -8354,7 +8541,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceTimings"
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
                         }
                     }
                 }
@@ -8788,6 +8975,31 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentScriptTiming": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentSubsystem": {
             "type": "string",
             "enum": [
@@ -8820,6 +9032,9 @@ const docTemplate = `{
                     }
                 },
                 "application_name": {
+                    "type": "string"
+                },
+                "docs_url": {
                     "type": "string"
                 },
                 "logo_url": {
@@ -9193,6 +9408,26 @@ const docTemplate = `{
                 "BuildReasonAutostart",
                 "BuildReasonAutostop"
             ]
+        },
+        "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "one_time_passcode",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "one_time_passcode": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
@@ -9749,6 +9984,41 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CryptoKey": {
+            "type": "object",
+            "properties": {
+                "deletes_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "feature": {
+                    "$ref": "#/definitions/codersdk.CryptoKeyFeature"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "sequence": {
+                    "type": "integer"
+                },
+                "starts_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.CryptoKeyFeature": {
+            "type": "string",
+            "enum": [
+                "workspace_apps",
+                "oidc_convert",
+                "tailnet_resume"
+            ],
+            "x-enum-varnames": [
+                "CryptoKeyFeatureWorkspaceApp",
+                "CryptoKeyFeatureOIDCConvert",
+                "CryptoKeyFeatureTailnetResume"
+            ]
+        },
         "codersdk.CustomRoleRequest": {
             "type": "object",
             "properties": {
@@ -10209,24 +10479,18 @@ const docTemplate = `{
             "enum": [
                 "example",
                 "auto-fill-parameters",
-                "multi-organization",
-                "custom-roles",
                 "notifications",
                 "workspace-usage"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentCustomRoles": "Allows creating runtime custom roles.",
                 "ExperimentExample": "This isn't used for anything.",
-                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
-                "ExperimentMultiOrganization",
-                "ExperimentCustomRoles",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage"
             ]
@@ -10522,6 +10786,44 @@ const docTemplate = `{
                 "GroupSourceUser",
                 "GroupSourceOIDC"
             ]
+        },
+        "codersdk.GroupSyncSettings": {
+            "type": "object",
+            "properties": {
+                "auto_create_missing_groups": {
+                    "description": "AutoCreateMissing controls whether groups returned by the OIDC provider\nare automatically created in Coder if they are missing.",
+                    "type": "boolean"
+                },
+                "field": {
+                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "type": "string"
+                },
+                "legacy_group_name_mapping": {
+                    "description": "LegacyNameMapping is deprecated. It remaps an IDP group name to\na Coder group name. Since configuration is now done at runtime,\ngroup IDs are used to account for group renames.\nFor legacy configurations, this config option has to remain.\nDeprecated: Use Mapping instead.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "mapping": {
+                    "description": "Mapping maps from an OIDC group --\u003e Coder group ID",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "regex_filter": {
+                    "description": "RegexFilter is a regular expression that filters the groups returned by\nthe OIDC provider. Any group not matched by this regex will be ignored.\nIf the group filter is nil, then no group filtering will occur.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/regexp.Regexp"
+                        }
+                    ]
+                }
+            }
         },
         "codersdk.Healthcheck": {
             "type": "object",
@@ -11748,10 +12050,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "tags": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "$ref": "#/definitions/codersdk.ProvisionerKeyTags"
                 }
             }
         },
@@ -11767,6 +12066,12 @@ const docTemplate = `{
                 "key": {
                     "$ref": "#/definitions/codersdk.ProvisionerKey"
                 }
+            }
+        },
+        "codersdk.ProvisionerKeyTags": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
             }
         },
         "codersdk.ProvisionerLogLevel": {
@@ -11921,6 +12226,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "crypto_key",
                 "debug_info",
                 "deployment_config",
                 "deployment_stats",
@@ -11953,6 +12259,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceCryptoKey",
                 "ResourceDebugInfo",
                 "ResourceDeploymentConfig",
                 "ResourceDeploymentStats",
@@ -12135,6 +12442,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.RequestOneTimePasscodeRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                }
+            }
+        },
         "codersdk.ResolveAutostartResponse": {
             "type": "object",
             "properties": {
@@ -12238,6 +12557,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.RoleSyncSettings": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "type": "string"
+                },
+                "mapping": {
+                    "description": "Mapping maps from an OIDC group --\u003e Coder organization role",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "codersdk.SSHConfig": {
             "type": "object",
             "properties": {
@@ -12289,7 +12627,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default_duration": {
-                    "description": "DefaultDuration is for api keys, not tokens.",
+                    "description": "DefaultDuration is only for browser, workspace app and oauth sessions.",
+                    "type": "integer"
+                },
+                "default_token_lifetime": {
                     "type": "integer"
                 },
                 "disable_expiry_refresh": {
@@ -14127,6 +14468,13 @@ const docTemplate = `{
                 "cron": {
                     "type": "string"
                 },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "log_path": {
                     "type": "string"
                 },
@@ -14396,6 +14744,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceBuildTimings": {
+            "type": "object",
+            "properties": {
+                "agent_script_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentScriptTiming"
+                    }
+                },
+                "provisioner_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceConnectionLatencyMS": {
             "type": "object",
             "properties": {
@@ -14638,17 +15003,6 @@ const docTemplate = `{
                 "WorkspaceStatusDeleting",
                 "WorkspaceStatusDeleted"
             ]
-        },
-        "codersdk.WorkspaceTimings": {
-            "type": "object",
-            "properties": {
-                "provisioner_timings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
-                    }
-                }
-            }
         },
         "codersdk.WorkspaceTransition": {
             "type": "string",
@@ -15253,44 +15607,6 @@ const docTemplate = `{
                 }
             }
         },
-        "idpsync.GroupSyncSettings": {
-            "type": "object",
-            "properties": {
-                "auto_create_missing_groups": {
-                    "description": "AutoCreateMissing controls whether groups returned by the OIDC provider\nare automatically created in Coder if they are missing.",
-                    "type": "boolean"
-                },
-                "field": {
-                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
-                    "type": "string"
-                },
-                "legacy_group_name_mapping": {
-                    "description": "LegacyNameMapping is deprecated. It remaps an IDP group name to\na Coder group name. Since configuration is now done at runtime,\ngroup IDs are used to account for group renames.\nFor legacy configurations, this config option has to remain.\nDeprecated: Use Mapping instead.",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "mapping": {
-                    "description": "Mapping maps from an OIDC group --\u003e Coder group ID",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "regex_filter": {
-                    "description": "RegexFilter is a regular expression that filters the groups returned by\nthe OIDC provider. Any group not matched by this regex will be ignored.\nIf the group filter is nil, then no group filtering will occur.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/regexp.Regexp"
-                        }
-                    ]
-                }
-            }
-        },
         "key.NodePublic": {
             "type": "object"
         },
@@ -15850,6 +16166,17 @@ const docTemplate = `{
                 },
                 "disable_direct_connections": {
                     "type": "boolean"
+                }
+            }
+        },
+        "wsproxysdk.CryptoKeysResponse": {
+            "type": "object",
+            "properties": {
+                "crypto_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CryptoKey"
+                    }
                 }
             }
         },

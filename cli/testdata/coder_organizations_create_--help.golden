@@ -1,0 +1,13 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations create [flags] <organization name>
+
+  Create a new organization.
+
+OPTIONS:
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.

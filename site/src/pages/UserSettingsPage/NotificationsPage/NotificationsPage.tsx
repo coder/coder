@@ -99,6 +99,7 @@ export const NotificationsPage: FC = () => {
 				title="Notifications"
 				description="Configure your notification preferences. Icons on the right of each notification indicate delivery method, either SMTP or Webhook."
 				layout="fluid"
+				featureStage="beta"
 			>
 				{ready ? (
 					<Stack spacing={4}>

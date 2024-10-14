@@ -19,7 +19,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 	t.Parallel()
 
 	entitled := entitlements.New()
-	entitled.Update(func(entitlements *codersdk.Entitlements) {
+	entitled.Modify(func(entitlements *codersdk.Entitlements) {
 		entitlements.Features[codersdk.FeatureTemplateRBAC] = codersdk.Feature{
 			Entitlement: codersdk.EntitlementEntitled,
 			Enabled:     true,

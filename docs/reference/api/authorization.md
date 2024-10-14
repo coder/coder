@@ -112,6 +112,72 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
 
+## Change password with a one-time passcode
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/otp/change-password \
+  -H 'Content-Type: application/json'
+```
+
+`POST /users/otp/change-password`
+
+> Body parameter
+
+```json
+{
+	"email": "user@example.com",
+	"one_time_passcode": "string",
+	"password": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                             | Required | Description             |
+| ------ | ---- | ---------------------------------------------------------------------------------------------------------------- | -------- | ----------------------- |
+| `body` | body | [codersdk.ChangePasswordWithOneTimePasscodeRequest](schemas.md#codersdkchangepasswordwithonetimepasscoderequest) | true     | Change password request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+## Request one-time passcode
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/otp/request \
+  -H 'Content-Type: application/json'
+```
+
+`POST /users/otp/request`
+
+> Body parameter
+
+```json
+{
+	"email": "user@example.com"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                       | Required | Description               |
+| ------ | ---- | ------------------------------------------------------------------------------------------ | -------- | ------------------------- |
+| `body` | body | [codersdk.RequestOneTimePasscodeRequest](schemas.md#codersdkrequestonetimepasscoderequest) | true     | One-time passcode request |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
 ## Convert user from password to oauth authentication
 
 ### Code samples

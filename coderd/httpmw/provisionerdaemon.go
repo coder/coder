@@ -20,10 +20,9 @@ func ProvisionerDaemonAuthenticated(r *http.Request) bool {
 }
 
 type ExtractProvisionerAuthConfig struct {
-	DB              database.Store
-	Optional        bool
-	PSK             string
-	MultiOrgEnabled bool
+	DB       database.Store
+	Optional bool
+	PSK      string
 }
 
 func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) func(next http.Handler) http.Handler {
@@ -37,18 +36,6 @@ func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) fu
 					return
 				}
 				httpapi.Write(ctx, w, code, response)
-			}
-
-			if !opts.MultiOrgEnabled {
-				if opts.PSK == "" {
-					handleOptional(http.StatusUnauthorized, codersdk.Response{
-						Message: "External provisioner daemons not enabled",
-					})
-					return
-				}
-
-				fallbackToPSK(ctx, opts.PSK, next, w, r, handleOptional)
-				return
 			}
 
 			psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)

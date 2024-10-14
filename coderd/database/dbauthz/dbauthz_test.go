@@ -551,26 +551,6 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
-	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-		t := dbgen.ProvisionerJobTimings(s.T(), db, database.InsertProvisionerJobTimingsParams{
-			JobID:     j.ID,
-			StartedAt: []time.Time{dbtime.Now(), dbtime.Now()},
-			EndedAt:   []time.Time{dbtime.Now(), dbtime.Now()},
-			Stage: []database.ProvisionerJobTimingStage{
-				database.ProvisionerJobTimingStageInit,
-				database.ProvisionerJobTimingStagePlan,
-			},
-			Source:   []string{"source1", "source2"},
-			Action:   []string{"action1", "action2"},
-			Resource: []string{"resource1", "resource2"},
-		})
-		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
-	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
@@ -1186,6 +1166,12 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.UpdateUserHashedPasswordParams{
 			ID: u.ID,
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns()
+	}))
+	s.Run("UpdateUserHashedOneTimePasscode", s.Subtest(func(db database.Store, check *expects) {
+		u := dbgen.User(s.T(), db, database.User{})
+		check.Args(database.UpdateUserHashedOneTimePasscodeParams{
+			ID: u.ID,
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateUserQuietHoursSchedule", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -2253,6 +2239,61 @@ func (s *MethodTestSuite) TestDBCrypt() {
 	}))
 }
 
+func (s *MethodTestSuite) TestCryptoKeys() {
+	s.Run("GetCryptoKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().
+			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
+	s.Run("InsertCryptoKey", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertCryptoKeyParams{
+			Feature: database.CryptoKeyFeatureWorkspaceApps,
+		}).
+			Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
+	}))
+	s.Run("DeleteCryptoKey", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.DeleteCryptoKeyParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionDelete)
+	}))
+	s.Run("GetCryptoKeyByFeatureAndSequence", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.GetCryptoKeyByFeatureAndSequenceParams{
+			Feature:  key.Feature,
+			Sequence: key.Sequence,
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionRead).Returns(key)
+	}))
+	s.Run("GetLatestCryptoKeyByFeature", s.Subtest(func(db database.Store, check *expects) {
+		dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.CryptoKeyFeatureWorkspaceApps).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
+	s.Run("UpdateCryptoKeyDeletesAt", s.Subtest(func(db database.Store, check *expects) {
+		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Sequence: 4,
+		})
+		check.Args(database.UpdateCryptoKeyDeletesAtParams{
+			Feature:   key.Feature,
+			Sequence:  key.Sequence,
+			DeletesAt: sql.NullTime{Time: time.Now(), Valid: true},
+		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
+	}))
+	s.Run("GetCryptoKeysByFeature", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.CryptoKeyFeatureWorkspaceApps).
+			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+	}))
+}
+
 func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpdateUserLinkedID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
@@ -2581,6 +2622,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("InsertWorkspaceAppStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAppStatsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("InsertWorkspaceAgentScriptTimings", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertWorkspaceAgentScriptTimingsParams{
+			ScriptID: uuid.New(),
+			Stage:    database.WorkspaceAgentScriptTimingStageStart,
+			Status:   database.WorkspaceAgentScriptTimingStatusOk,
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
 	s.Run("InsertWorkspaceAgentScripts", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentScriptsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
@@ -2630,6 +2678,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetDeploymentWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
+	s.Run("GetDeploymentWorkspaceAgentUsageStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
 	s.Run("GetDeploymentWorkspaceStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
 	}))
@@ -2666,7 +2717,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetWorkspaceAgentStatsAndLabels", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
+	s.Run("GetWorkspaceAgentUsageStatsAndLabels", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
 	s.Run("GetWorkspaceAgentStats", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(time.Time{}).Asserts()
+	}))
+	s.Run("GetWorkspaceAgentUsageStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()
 	}))
 	s.Run("GetWorkspaceProxyByHostname", s.Subtest(func(db database.Store, check *expects) {
@@ -2767,6 +2824,68 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Key:   "test",
 			Value: "value",
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetFailedWorkspaceBuildsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetFailedWorkspaceBuildsByTemplateIDParams{
+			TemplateID: uuid.New(),
+			Since:      dbtime.Now(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetNotificationReportGeneratorLogByTemplate", s.Subtest(func(db database.Store, check *expects) {
+		_ = db.UpsertNotificationReportGeneratorLog(context.Background(), database.UpsertNotificationReportGeneratorLogParams{
+			NotificationTemplateID: notifications.TemplateWorkspaceBuildsFailedReport,
+			LastGeneratedAt:        dbtime.Now(),
+		})
+		check.Args(notifications.TemplateWorkspaceBuildsFailedReport).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceBuildStatsByTemplates", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("UpsertNotificationReportGeneratorLog", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertNotificationReportGeneratorLogParams{
+			NotificationTemplateID: uuid.New(),
+			LastGeneratedAt:        dbtime.Now(),
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
+		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		t := dbgen.ProvisionerJobTimings(s.T(), db, b, 2)
+		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
+	}))
+	s.Run("GetWorkspaceAgentScriptTimingsByBuildID", s.Subtest(func(db database.Store, check *expects) {
+		workspace := dbgen.Workspace(s.T(), db, database.Workspace{})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: job.ID, WorkspaceID: workspace.ID})
+		resource := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		script := dbgen.WorkspaceAgentScript(s.T(), db, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
+		})
+		timing := dbgen.WorkspaceAgentScriptTiming(s.T(), db, database.WorkspaceAgentScriptTiming{
+			ScriptID: script.ID,
+		})
+		rows := []database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
+			{
+				StartedAt:   timing.StartedAt,
+				EndedAt:     timing.EndedAt,
+				Stage:       timing.Stage,
+				ScriptID:    timing.ScriptID,
+				ExitCode:    timing.ExitCode,
+				Status:      timing.Status,
+				DisplayName: script.DisplayName,
+			},
+		}
+		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
 	}))
 }
 

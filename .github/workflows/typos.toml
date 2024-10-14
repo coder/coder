@@ -22,6 +22,7 @@ pn = "pn"
 EDE = "EDE"
 # HELO is an SMTP command
 HELO = "HELO"
+LKE = "LKE"
 
 [files]
 extend-exclude = [
@@ -40,4 +41,6 @@ extend-exclude = [
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
 	"provisioner/terraform/testdata/**",
+	# notifications' golden files confuse the detector because of quoted-printable encoding
+	"coderd/notifications/testdata/**"
 ]

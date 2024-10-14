@@ -58,7 +58,7 @@ export const Paywall: FC<PaywallProps> = ({
 				</ul>
 				<div css={styles.learnButton}>
 					<Button
-						href={docs("/enterprise")}
+						href={docs("/licensing")}
 						target="_blank"
 						rel="noreferrer"
 						startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}

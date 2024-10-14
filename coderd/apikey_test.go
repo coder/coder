@@ -45,8 +45,8 @@ func TestTokenCRUD(t *testing.T) {
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
 	// expires_at should default to 30 days
-	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*29*24))
-	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*31*24))
+	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
+	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
 	require.Equal(t, codersdk.APIKeyScopeAll, keys[0].Scope)
 
 	// no update
@@ -115,8 +115,8 @@ func TestDefaultTokenDuration(t *testing.T) {
 	require.NoError(t, err)
 	keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 	require.NoError(t, err)
-	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*29*24))
-	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*31*24))
+	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
+	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
 }
 
 func TestTokenUserSetMaxLifetime(t *testing.T) {
@@ -142,6 +142,27 @@ func TestTokenUserSetMaxLifetime(t *testing.T) {
 		Lifetime: time.Hour * 24 * 8,
 	})
 	require.ErrorContains(t, err, "lifetime must be less")
+}
+
+func TestTokenCustomDefaultLifetime(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.DefaultTokenDuration = serpent.Duration(time.Hour * 12)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dc,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+	require.NoError(t, err)
+
+	tokens, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	require.EqualValues(t, dc.Sessions.DefaultTokenDuration.Value().Seconds(), tokens[0].LifetimeSeconds)
 }
 
 func TestSessionExpiry(t *testing.T) {
@@ -223,4 +244,28 @@ func TestAPIKey_Deleted(t *testing.T) {
 	var apiErr *codersdk.Error
 	require.ErrorAs(t, err, &apiErr)
 	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+}
+
+func TestAPIKey_SetDefault(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	dc := coderdtest.DeploymentValues(t)
+	dc.Sessions.DefaultTokenDuration = serpent.Duration(time.Hour * 12)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:         db,
+		Pubsub:           pubsub,
+		DeploymentValues: dc,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	token, err := client.CreateAPIKey(ctx, owner.UserID.String())
+	require.NoError(t, err)
+	split := strings.Split(token.Key, "-")
+	apiKey1, err := db.GetAPIKeyByID(ctx, split[0])
+	require.NoError(t, err)
+	require.EqualValues(t, dc.Sessions.DefaultTokenDuration.Value().Seconds(), apiKey1.LifetimeSeconds)
 }

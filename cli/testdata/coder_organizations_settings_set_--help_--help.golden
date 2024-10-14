@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations settings set
+
+  Update specified organization setting.
+
+    - Update group sync settings.:
+  
+       $ coder organization settings set groupsync < input.json
+
+SUBCOMMANDS:
+    group-sync    Group sync settings to sync groups from an IdP.
+    role-sync     Role sync settings to sync organization roles from an IdP.
+
+———
+Run `coder --help` for a list of global options.

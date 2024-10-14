@@ -18,7 +18,6 @@ func (r *RootCmd) organizations() *serpent.Command {
 		Use:     "organizations [subcommand]",
 		Short:   "Organization related commands",
 		Aliases: []string{"organization", "org", "orgs"},
-		Hidden:  true, // Hidden until these commands are complete.
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -27,6 +26,7 @@ func (r *RootCmd) organizations() *serpent.Command {
 			r.createOrganization(),
 			r.organizationMembers(orgContext),
 			r.organizationRoles(orgContext),
+			r.organizationSettings(orgContext),
 		},
 	}
 

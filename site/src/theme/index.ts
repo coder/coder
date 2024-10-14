@@ -3,7 +3,6 @@ import type { Theme as MuiTheme } from "@mui/material/styles";
 import type * as monaco from "monaco-editor";
 import type { Branding } from "./branding";
 import dark from "./dark";
-import darkBlue from "./darkBlue";
 import type { NewTheme } from "./experimental";
 import type { ExternalImageModeStyles } from "./externalImages";
 import light from "./light";
@@ -22,7 +21,7 @@ export interface Theme extends Omit<MuiTheme, "palette"> {
 	/** Theme properties that we're testing out but haven't committed to. */
 	experimental: NewTheme;
 
-	//** Theme colors related to marketing */
+	/** Theme colors related to marketing */
 	branding: Branding;
 
 	monaco: monaco.editor.IStandaloneThemeData;
@@ -33,7 +32,6 @@ export const DEFAULT_THEME = "dark";
 
 const theme = {
 	dark,
-	darkBlue,
 	light,
 } satisfies Record<string, Theme>;
 

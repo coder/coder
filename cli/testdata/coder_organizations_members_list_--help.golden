@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations members list [flags]
+
+  List all organization members
+
+OPTIONS:
+  -c, --column [username|name|user id|organization id|created at|updated at|organization roles] (default: username,organization roles)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

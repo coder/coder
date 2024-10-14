@@ -20,11 +20,12 @@ type StatsBatcher struct {
 	LastUserID      uuid.UUID
 	LastWorkspaceID uuid.UUID
 	LastStats       *agentproto.Stats
+	LastUsage       bool
 }
 
 var _ workspacestats.Batcher = &StatsBatcher{}
 
-func (b *StatsBatcher) Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats) error {
+func (b *StatsBatcher) Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats, usage bool) error {
 	b.Mu.Lock()
 	defer b.Mu.Unlock()
 	b.Called++
@@ -34,5 +35,6 @@ func (b *StatsBatcher) Add(now time.Time, agentID uuid.UUID, templateID uuid.UUI
 	b.LastUserID = userID
 	b.LastWorkspaceID = workspaceID
 	b.LastStats = st
+	b.LastUsage = usage
 	return nil
 }

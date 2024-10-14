@@ -10,11 +10,10 @@ import {
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { ManagementSettingsLayout } from "./modules/management/ManagementSettingsLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
-import { DeploySettingsLayout } from "./pages/DeploySettingsPage/DeploySettingsLayout";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
-import { ManagementSettingsLayout } from "./pages/ManagementSettingsPage/ManagementSettingsLayout";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
@@ -96,61 +95,61 @@ const SettingsGroupPage = lazy(
 const GeneralSettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/GeneralSettingsPage/GeneralSettingsPage"
+			"./pages/DeploymentSettingsPage/GeneralSettingsPage/GeneralSettingsPage"
 		),
 );
 const SecuritySettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/SecuritySettingsPage/SecuritySettingsPage"
+			"./pages/DeploymentSettingsPage/SecuritySettingsPage/SecuritySettingsPage"
 		),
 );
 const AppearanceSettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/AppearanceSettingsPage/AppearanceSettingsPage"
+			"./pages/DeploymentSettingsPage/AppearanceSettingsPage/AppearanceSettingsPage"
 		),
 );
 const UserAuthSettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"
+			"./pages/DeploymentSettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"
 		),
 );
 const ExternalAuthSettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/ExternalAuthSettingsPage/ExternalAuthSettingsPage"
+			"./pages/DeploymentSettingsPage/ExternalAuthSettingsPage/ExternalAuthSettingsPage"
 		),
 );
 const OAuth2AppsSettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/OAuth2AppsSettingsPage/OAuth2AppsSettingsPage"
+			"./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/OAuth2AppsSettingsPage"
 		),
 );
 const EditOAuth2AppPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/OAuth2AppsSettingsPage/EditOAuth2AppPage"
+			"./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/EditOAuth2AppPage"
 		),
 );
 const CreateOAuth2AppPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/OAuth2AppsSettingsPage/CreateOAuth2AppPage"
+			"./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/CreateOAuth2AppPage"
 		),
 );
 const NetworkSettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/NetworkSettingsPage/NetworkSettingsPage"
+			"./pages/DeploymentSettingsPage/NetworkSettingsPage/NetworkSettingsPage"
 		),
 );
 const ObservabilitySettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/ObservabilitySettingsPage/ObservabilitySettingsPage"
+			"./pages/DeploymentSettingsPage/ObservabilitySettingsPage/ObservabilitySettingsPage"
 		),
 );
 const ExternalAuthPage = lazy(
@@ -169,8 +168,8 @@ const TemplateVersionPage = lazy(
 const TemplateVersionEditorPage = lazy(
 	() => import("./pages/TemplateVersionEditorPage/TemplateVersionEditorPage"),
 );
-const CreateTemplatesGalleryPage = lazy(
-	() => import("./pages/CreateTemplatesGalleryPage/CreateTemplatesGalleryPage"),
+const CreateTemplateGalleryPage = lazy(
+	() => import("./pages/CreateTemplateGalleryPage/CreateTemplateGalleryPage"),
 );
 const StarterTemplatePage = lazy(
 	() => import("pages/StarterTemplatePage/StarterTemplatePage"),
@@ -215,12 +214,14 @@ const TemplateSettingsPage = lazy(
 const LicensesSettingsPage = lazy(
 	() =>
 		import(
-			"./pages/DeploySettingsPage/LicensesSettingsPage/LicensesSettingsPage"
+			"./pages/DeploymentSettingsPage/LicensesSettingsPage/LicensesSettingsPage"
 		),
 );
 const AddNewLicensePage = lazy(
 	() =>
-		import("./pages/DeploySettingsPage/LicensesSettingsPage/AddNewLicensePage"),
+		import(
+			"./pages/DeploymentSettingsPage/LicensesSettingsPage/AddNewLicensePage"
+		),
 );
 const CreateOrganizationPage = lazy(
 	() => import("./pages/ManagementSettingsPage/CreateOrganizationPage"),
@@ -282,7 +283,9 @@ const UserNotificationsPage = lazy(
 );
 const DeploymentNotificationsPage = lazy(
 	() =>
-		import("./pages/DeploySettingsPage/NotificationsPage/NotificationsPage"),
+		import(
+			"./pages/DeploymentSettingsPage/NotificationsPage/NotificationsPage"
+		),
 );
 
 const RoutesWithSuspense = () => {
@@ -359,7 +362,7 @@ export const router = createBrowserRouter(
 					<Route path="/workspaces" element={<WorkspacesPage />} />
 
 					<Route path="/starter-templates">
-						<Route index element={<CreateTemplatesGalleryPage />} />
+						<Route index element={<CreateTemplateGalleryPage />} />
 						<Route path=":exampleId" element={<StarterTemplatePage />} />
 					</Route>
 
@@ -413,7 +416,7 @@ export const router = createBrowserRouter(
 						</Route>
 					</Route>
 
-					<Route path="/deployment" element={<DeploySettingsLayout />}>
+					<Route path="/deployment" element={<ManagementSettingsLayout />}>
 						<Route path="general" element={<GeneralSettingsPage />} />
 						<Route path="licenses" element={<LicensesSettingsPage />} />
 						<Route path="licenses/add" element={<AddNewLicensePage />} />

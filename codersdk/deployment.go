@@ -454,8 +454,10 @@ type SessionLifetime struct {
 	// creation is the lifetime of the api key.
 	DisableExpiryRefresh serpent.Bool `json:"disable_expiry_refresh,omitempty" typescript:",notnull"`
 
-	// DefaultDuration is for api keys, not tokens.
+	// DefaultDuration is only for browser, workspace app and oauth sessions.
 	DefaultDuration serpent.Duration `json:"default_duration" typescript:",notnull"`
+
+	DefaultTokenDuration serpent.Duration `json:"default_token_lifetime,omitempty" typescript:",notnull"`
 
 	MaximumTokenDuration serpent.Duration `json:"max_token_lifetime,omitempty" typescript:",notnull"`
 }
@@ -774,6 +776,46 @@ func DefaultCacheDir() string {
 	return filepath.Join(defaultCacheDir, "coder")
 }
 
+func DefaultSupportLinks(docsURL string) []LinkConfig {
+	version := buildinfo.Version()
+	buildInfo := fmt.Sprintf("Version: [`%s`](%s)", version, buildinfo.ExternalURL())
+
+	return []LinkConfig{
+		{
+			Name:   "Documentation",
+			Target: docsURL,
+			Icon:   "docs",
+		},
+		{
+			Name:   "Report a bug",
+			Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=" + buildInfo,
+			Icon:   "bug",
+		},
+		{
+			Name:   "Join the Coder Discord",
+			Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
+			Icon:   "chat",
+		},
+		{
+			Name:   "Star the Repo",
+			Target: "https://github.com/coder/coder",
+			Icon:   "star",
+		},
+	}
+}
+
+func removeTrailingVersionInfo(v string) string {
+	return strings.Split(strings.Split(v, "-")[0], "+")[0]
+}
+
+func DefaultDocsURL() string {
+	version := removeTrailingVersionInfo(buildinfo.Version())
+	if version == "v0.0.0" {
+		return "https://coder.com/docs"
+	}
+	return "https://coder.com/docs/@" + version
+}
+
 // DeploymentConfig contains both the deployment values and how they're set.
 type DeploymentConfig struct {
 	Values  *DeploymentValues `json:"config,omitempty"`
@@ -992,6 +1034,7 @@ when required by your organization's security policy.`,
 			Name:        "Docs URL",
 			Description: "Specifies the custom docs URL.",
 			Value:       &c.DocsURL,
+			Default:     DefaultDocsURL(),
 			Flag:        "docs-url",
 			Env:         "CODER_DOCS_URL",
 			Group:       &deploymentGroupNetworking,
@@ -1999,6 +2042,16 @@ when required by your organization's security policy.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Default Token Lifetime",
+			Description: "The default lifetime duration for API tokens. This value is used when creating a token without specifying a duration, such as when authenticating the CLI or an IDE plugin.",
+			Flag:        "default-token-lifetime",
+			Env:         "CODER_DEFAULT_TOKEN_LIFETIME",
+			Default:     (7 * 24 * time.Hour).String(),
+			Value:       &c.Sessions.DefaultTokenDuration,
+			YAML:        "defaultTokenLifetime",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name:        "Enable swagger endpoint",
 			Description: "Expose the swagger endpoint via /swagger.",
 			Flag:        "swagger-enable",
@@ -2725,6 +2778,7 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 type AppearanceConfig struct {
 	ApplicationName string `json:"application_name"`
 	LogoURL         string `json:"logo_url"`
+	DocsURL         string `json:"docs_url"`
 	// Deprecated: ServiceBanner has been replaced by AnnouncementBanners.
 	ServiceBanner       BannerConfig   `json:"service_banner"`
 	AnnouncementBanners []BannerConfig `json:"announcement_banners"`
@@ -2843,8 +2897,6 @@ const (
 	// Add new experiments here!
 	ExperimentExample            Experiment = "example"              // This isn't used for anything.
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentMultiOrganization  Experiment = "multi-organization"   // Requires organization context for interactions, default org is assumed.
-	ExperimentCustomRoles        Experiment = "custom-roles"         // Allows creating runtime custom roles.
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 )
@@ -2853,7 +2905,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{ExperimentNotifications}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -3052,4 +3104,33 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 
 	var sshConfig SSHConfigResponse
 	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
+}
+
+type CryptoKeyFeature string
+
+const (
+	CryptoKeyFeatureWorkspaceApp  CryptoKeyFeature = "workspace_apps"
+	CryptoKeyFeatureOIDCConvert   CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+)
+
+type CryptoKey struct {
+	Feature   CryptoKeyFeature `json:"feature"`
+	Secret    string           `json:"secret"`
+	DeletesAt time.Time        `json:"deletes_at" format:"date-time"`
+	Sequence  int32            `json:"sequence"`
+	StartsAt  time.Time        `json:"starts_at" format:"date-time"`
+}
+
+func (c CryptoKey) CanSign(now time.Time) bool {
+	now = now.UTC()
+	isAfterStartsAt := !c.StartsAt.IsZero() && !now.Before(c.StartsAt)
+	return isAfterStartsAt && c.CanVerify(now)
+}
+
+func (c CryptoKey) CanVerify(now time.Time) bool {
+	now = now.UTC()
+	hasSecret := c.Secret != ""
+	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
+	return hasSecret && beforeDelete
 }

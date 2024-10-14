@@ -36,11 +36,12 @@ type speedtestTableItem struct {
 
 func (r *RootCmd) speedtest() *serpent.Command {
 	var (
-		direct    bool
-		duration  time.Duration
-		direction string
-		pcapFile  string
-		formatter = cliui.NewOutputFormatter(
+		direct           bool
+		duration         time.Duration
+		direction        string
+		pcapFile         string
+		appearanceConfig codersdk.AppearanceConfig
+		formatter        = cliui.NewOutputFormatter(
 			cliui.ChangeFormatterData(cliui.TableFormat([]speedtestTableItem{}, []string{"Interval", "Throughput"}), func(data any) (any, error) {
 				res, ok := data.(SpeedtestResult)
 				if !ok {
@@ -72,6 +73,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
+			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -87,8 +89,9 @@ func (r *RootCmd) speedtest() *serpent.Command {
 			}
 
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
-				Fetch: client.WorkspaceAgent,
-				Wait:  false,
+				Fetch:   client.WorkspaceAgent,
+				Wait:    false,
+				DocsURL: appearanceConfig.DocsURL,
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)

@@ -46,7 +46,7 @@ func TestDeploymentInsights(t *testing.T) {
 	require.NoError(t, err)
 
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	rollupEvents := make(chan dbrollup.Event)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                  db,
@@ -127,7 +127,7 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                  db,
 		Pubsub:                    ps,
@@ -225,7 +225,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                  db,
 		Pubsub:                    ps,
@@ -706,7 +706,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						SessionCountJetbrains:       stat.sessionCountJetBrains,
 						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
 						SessionCountSsh:             stat.sessionCountSSH,
-					})
+					}, false)
 					require.NoError(t, err, "want no error inserting agent stats")
 					createdAt = createdAt.Add(30 * time.Second)
 				}
@@ -1605,7 +1605,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						SessionCountJetbrains:       stat.sessionCountJetBrains,
 						SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
 						SessionCountSsh:             stat.sessionCountSSH,
-					})
+					}, false)
 					require.NoError(t, err, "want no error inserting agent stats")
 					createdAt = createdAt.Add(30 * time.Second)
 				}

@@ -49,6 +49,9 @@ type appearanceFetcher struct {
 }
 
 func newAppearanceFetcher(store database.Store, links []codersdk.LinkConfig, docsURL, coderVersion string) agpl.Fetcher {
+	if docsURL == "" {
+		docsURL = codersdk.DefaultDocsURL()
+	}
 	return &appearanceFetcher{
 		database:     store,
 		supportLinks: links,
@@ -94,7 +97,8 @@ func (f *appearanceFetcher) Fetch(ctx context.Context) (codersdk.AppearanceConfi
 		ApplicationName:     applicationName,
 		LogoURL:             logoURL,
 		AnnouncementBanners: []codersdk.BannerConfig{},
-		SupportLinks:        agpl.DefaultSupportLinks(f.docsURL),
+		SupportLinks:        codersdk.DefaultSupportLinks(f.docsURL),
+		DocsURL:             f.docsURL,
 	}
 
 	if announcementBannersJSON != "" {
