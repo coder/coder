@@ -33,6 +33,7 @@ import (
 
 	"github.com/coder/quartz"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 	"github.com/stretchr/testify/assert"
@@ -985,27 +986,29 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Spin up the DB
-			db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
-				adminClient, _, api := coderdtest.NewWithAPI(t, nil)
-				db := api.Database
-				firstUser := coderdtest.CreateFirstUser(t, adminClient)
-
-				_, user := coderdtest.CreateAnotherUserMutators(
-					t,
-					adminClient,
-					firstUser.OrganizationID,
-					[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
-					func(r *codersdk.CreateUserRequestWithOrgs) {
-						r.Username = tc.payload.UserUsername
-						r.Email = tc.payload.UserEmail
-						r.Name = tc.payload.UserName
-					},
-				)
-				return &db, &api.Logger, &user
-			}()
 			t.Run("smtp", func(t *testing.T) {
 				t.Parallel()
+
+				// Spin up the DB
+				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
+					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+					db := api.Database
+					firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+					_, user := coderdtest.CreateAnotherUserMutators(
+						t,
+						adminClient,
+						firstUser.OrganizationID,
+						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+						func(r *codersdk.CreateUserRequestWithOrgs) {
+							r.Username = tc.payload.UserUsername
+							r.Email = tc.payload.UserEmail
+							r.Name = tc.payload.UserName
+						},
+					)
+					return &db, &api.Logger, &user
+				}()
+
 				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 
@@ -1133,39 +1136,48 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				wantBody, err := os.ReadFile(goldenFile)
 				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
-				require.Equal(t, string(wantBody), string(body), fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
+				require.Empty(
+					t,
+					cmp.Diff(wantBody, body),
+					fmt.Sprintf("golden file mismatch: %s. If this is expected, %s. (-want +got). ", goldenFile, hint),
+				)
 			})
 
 			t.Run("webhook", func(t *testing.T) {
 				t.Parallel()
+
+				// Spin up the DB
+				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
+					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+					db := api.Database
+					firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+					_, user := coderdtest.CreateAnotherUserMutators(
+						t,
+						adminClient,
+						firstUser.OrganizationID,
+						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+						func(r *codersdk.CreateUserRequestWithOrgs) {
+							r.Username = tc.payload.UserUsername
+							r.Email = tc.payload.UserEmail
+							r.Name = tc.payload.UserName
+						},
+					)
+					return &db, &api.Logger, &user
+				}()
+
 				// nolint:gocritic // Unit test.
 				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 
 				// Spin up the mock webhook server
+				var body []byte
+				var readErr error
+				var webhookReceived bool
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusOK)
 
-					body, err := io.ReadAll(r.Body)
-					require.NoError(t, err)
-					var prettyJSON bytes.Buffer
-					err = json.Indent(&prettyJSON, body, "", "  ")
-					require.NoError(t, err)
-
-					content := normalizeGoldenWebhook(prettyJSON.Bytes())
-
-					partialName := strings.Split(t.Name(), "/")[1]
-					goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".json.golden")
-					if *updateGoldenFiles {
-						err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
-						require.NoError(t, err, "want no error creating golden file directory")
-						err = os.WriteFile(goldenFile, content, 0o600)
-						require.NoError(t, err, "want no error writing body golden file")
-						return
-					}
-
-					wantBody, err := os.ReadFile(goldenFile)
-					require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
-					require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
+					body, readErr = io.ReadAll(r.Body)
+					webhookReceived = true
 				}))
 				t.Cleanup(server.Close)
 
@@ -1209,8 +1221,34 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				)
 				require.NoError(t, err)
 
-				err = webhookManager.Stop(ctx)
+				require.Eventually(t, func() bool {
+					return webhookReceived
+				}, testutil.WaitShort, testutil.IntervalFast)
+
 				require.NoError(t, err)
+
+				// Handle the body that was read in the http server here.
+				// We need to do it here because we can't call require.* in a separate goroutine, such as the http server handler
+				require.NoError(t, readErr)
+				var prettyJSON bytes.Buffer
+				err = json.Indent(&prettyJSON, body, "", "  ")
+				require.NoError(t, err)
+
+				content := normalizeGoldenWebhook(prettyJSON.Bytes())
+
+				partialName := strings.Split(t.Name(), "/")[1]
+				goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".json.golden")
+				if *updateGoldenFiles {
+					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+					require.NoError(t, err, "want no error creating golden file directory")
+					err = os.WriteFile(goldenFile, content, 0o600)
+					require.NoError(t, err, "want no error writing body golden file")
+					return
+				}
+
+				wantBody, err := os.ReadFile(goldenFile)
+				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
 			})
 		})
 	}
