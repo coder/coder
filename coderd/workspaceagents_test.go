@@ -560,7 +560,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
 	mgr := jwtutils.StaticKeyManager{
 		ID:  uuid.New().String(),
-		Key: resumeTokenSigningKey,
+		Key: resumeTokenSigningKey[:],
 	}
 	require.NoError(t, err)
 	resumeTokenProvider := newResumeTokenRecordingProvider(

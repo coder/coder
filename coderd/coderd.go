@@ -250,6 +250,11 @@ type Options struct {
 
 	// OneTimePasscodeValidityPeriod specifies how long a one time passcode should be valid for.
 	OneTimePasscodeValidityPeriod time.Duration
+
+	// Keycaches
+	AppSigningKeyCache    cryptokeys.SigningKeycache
+	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
+	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 }
 
 // @title Coder API
@@ -621,12 +626,6 @@ func New(options *Options) *API {
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "start key rotator", slog.Error(err))
 	}
-
-	api.oauthConvertKeycache, err = cryptokeys.NewSigningCache(api.Logger.Named("oauth_convert_keycache"), api.Database, database.CryptoKeyFeatureOIDCConvert)
-	if err != nil {
-		api.Logger.Fatal(api.ctx, "failed to initialize oauth convert key cache", slog.Error(err))
-	}
-	api.workspaceAppsKeyCache = appEncryptingKeyCache
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
 		Database:              options.Database,
@@ -1406,12 +1405,6 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-
-	// resumeTokenKeycache is used to fetch and cache keys used for signing JWTs
-	// oauthConvertKeycache is used to fetch and cache keys used for signing JWTs
-	// during OAuth conversions. See userauth.go.convertUserToOauth.
-	oauthConvertKeycache  cryptokeys.SigningKeycache
-	workspaceAppsKeyCache cryptokeys.EncryptionKeycache
 }
 
 // Close waits for all WebSocket connections to drain before returning.

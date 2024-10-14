@@ -13,6 +13,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/go-jose/go-jose/v4/jwt"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -22,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 // DBTokenProvider provides authentication and authorization for workspace apps

@@ -130,30 +130,3 @@ func Decrypt(ctx context.Context, d DecryptKeyProvider, token string, claims Cla
 
 	return claims.Validate(options.RegisteredClaims)
 }
-
-type StaticKeyManager struct {
-	ID  string
-	Key interface{}
-}
-
-func (s StaticKeyManager) SigningKey(_ context.Context) (string, interface{}, error) {
-	return s.ID, s.Key, nil
-}
-
-func (s StaticKeyManager) VerifyingKey(_ context.Context, id string) (interface{}, error) {
-	if id != s.ID {
-		return nil, xerrors.Errorf("invalid id %q", id)
-	}
-	return s.Key, nil
-}
-
-func (s StaticKeyManager) EncryptingKey(_ context.Context) (string, interface{}, error) {
-	return s.ID, s.Key, nil
-}
-
-func (s StaticKeyManager) DecryptingKey(_ context.Context, id string) (interface{}, error) {
-	if id != s.ID {
-		return nil, xerrors.Errorf("invalid id %q", id)
-	}
-	return s.Key, nil
-}

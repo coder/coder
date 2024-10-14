@@ -231,6 +231,8 @@ func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
 	switch feature {
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return generateKey(32)
+	case database.CryptoKeyFeatureWorkspaceAppsToken:
+		return generateKey(64)
 	case database.CryptoKeyFeatureOIDCConvert:
 		return generateKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
@@ -251,6 +253,8 @@ func generateKey(length int) (string, error) {
 func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 	switch feature {
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
+		return WorkspaceAppsTokenDuration
+	case database.CryptoKeyFeatureWorkspaceAppsToken:
 		return WorkspaceAppsTokenDuration
 	case database.CryptoKeyFeatureOIDCConvert:
 		return OIDCConvertTokenDuration

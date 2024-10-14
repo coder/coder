@@ -123,7 +123,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	encryptedAPIKey, err := jwtutils.Encrypt(ctx, api.workspaceAppsKeyCache, workspaceapps.EncryptedAPIKeyPayload{
+	encryptedAPIKey, err := jwtutils.Encrypt(ctx, api.AppEncryptionKeyCache, workspaceapps.EncryptedAPIKeyPayload{
 		APIKey: cookie.Value,
 	})
 	if err != nil {

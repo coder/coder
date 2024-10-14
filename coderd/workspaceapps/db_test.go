@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -295,7 +296,8 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, codersdk.SignedAppTokenCookie, cookie.Name)
 					require.Equal(t, req.BasePath, cookie.Path)
 
-					parsedToken, err := api.workspaceAppsKeyCache.VerifySignedToken(cookie.Value)
+					var parsedToken workspaceapps.SignedToken
+					err := jwtutils.Verify(ctx, api.AppSigningKeyCache, cookie.Value, &parsedToken)
 					require.NoError(t, err)
 					// normalize expiry
 					require.WithinDuration(t, token.Expiry.Time(), parsedToken.Expiry.Time(), 2*time.Second)
@@ -551,7 +553,8 @@ func Test_ResolveRequest(t *testing.T) {
 			AgentID:     agentID,
 			AppURL:      appURL,
 		}
-		badTokenStr, err := api.AppSecurityKey.SignToken(badToken)
+
+		badTokenStr, err := jwtutils.Sign(ctx, api.AppSigningKeyCache, badToken)
 		require.NoError(t, err)
 
 		req := (workspaceapps.Request{
@@ -594,7 +597,8 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Len(t, cookies, 1)
 		require.Equal(t, cookies[0].Name, codersdk.SignedAppTokenCookie)
 		require.NotEqual(t, cookies[0].Value, badTokenStr)
-		parsedToken, err := api.AppSecurityKey.VerifySignedToken(cookies[0].Value)
+		var parsedToken workspaceapps.SignedToken
+		err = jwtutils.Verify(ctx, api.AppSigningKeyCache, cookies[0].Value, &parsedToken)
 		require.NoError(t, err)
 		require.Equal(t, appNameOwner, parsedToken.AppSlugOrPort)
 	})

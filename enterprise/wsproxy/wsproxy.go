@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -92,7 +93,9 @@ type Options struct {
 	// from the dashboardURL. This should only be used in development.
 	AllowAllCors bool
 
-	StatsCollectorOptions workspaceapps.StatsCollectorOptions
+	StatsCollectorOptions           workspaceapps.StatsCollectorOptions
+	WorkspaceAppsEncryptionKeycache cryptokeys.EncryptionKeycache
+	WorkspaceAppsSigningKeycache    cryptokeys.SigningKeycache
 }
 
 func (o *Options) Validate() error {
@@ -240,11 +243,6 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("handle register: %w", err)
 	}
 
-	secKey, err := workspaceapps.KeyFromString(regResp.AppSecurityKey)
-	if err != nil {
-		return nil, xerrors.Errorf("parse app security key: %w", err)
-	}
-
 	agentProvider, err := coderd.NewServerTailnet(ctx,
 		s.Logger,
 		nil,
@@ -277,14 +275,14 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		HostnameRegex: opts.AppHostnameRegex,
 		RealIPConfig:  opts.RealIPConfig,
 		SignedTokenProvider: &TokenProvider{
-			DashboardURL: opts.DashboardURL,
-			AccessURL:    opts.AccessURL,
-			AppHostname:  opts.AppHostname,
-			Client:       client,
-			SecurityKey:  secKey,
-			Logger:       s.Logger.Named("proxy_token_provider"),
+			DashboardURL:  opts.DashboardURL,
+			AccessURL:     opts.AccessURL,
+			AppHostname:   opts.AppHostname,
+			Client:        client,
+			SigningKey:    opts.WorkspaceAppsSigningKeycache,
+			EncryptingKey: opts.WorkspaceAppsEncryptionKeycache,
+			Logger:        s.Logger.Named("proxy_token_provider"),
 		},
-		AppSecurityKey: secKey,
 
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,

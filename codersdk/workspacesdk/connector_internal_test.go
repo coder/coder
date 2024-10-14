@@ -168,7 +168,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	require.NoError(t, err)
 	mgr := jwtutils.StaticKeyManager{
 		ID:  uuid.New().String(),
-		Key: resumeTokenSigningKey,
+		Key: resumeTokenSigningKey[:],
 	}
 	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour)
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
@@ -287,7 +287,7 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	require.NoError(t, err)
 	mgr := jwtutils.StaticKeyManager{
 		ID:  uuid.New().String(),
-		Key: resumeTokenSigningKey,
+		Key: resumeTokenSigningKey[:],
 	}
 	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour)
 	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{

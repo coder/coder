@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
+
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/go-jose/go-jose/v4/jwt"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"

@@ -188,6 +188,6 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 func newKeySigner(key tailnet.ResumeTokenSigningKey) jwtutils.SigningKeyManager {
 	return jwtutils.StaticKeyManager{
 		ID:  uuid.New().String(),
-		Key: key,
+		Key: key[:],
 	}
 }
