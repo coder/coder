@@ -448,14 +448,6 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
-	appSigningKeyCache, err := cryptokeys.NewSigningCache(options.Logger.Named("app_signing_key_cache"), options.Database, database.CryptoKeyFeatureWorkspaceAppsToken)
-	if err != nil {
-		options.Logger.Fatal(ctx, "failed to initialize app signing key cache", slog.Error(err))
-	}
-	appEncryptingKeyCache, err := cryptokeys.NewEncryptionCache(options.Logger.Named("app_encrypting_key_cache"), options.Database, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
-	if err != nil {
-		options.Logger.Fatal(ctx, "failed to initialize app encrypting key cache", slog.Error(err))
-	}
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -476,7 +468,7 @@ func New(options *Options) *API {
 			options.DeploymentValues,
 			oauthConfigs,
 			options.AgentInactiveDisconnectTimeout,
-			appSigningKeyCache,
+			options.AppSigningKeyCache,
 		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
@@ -661,8 +653,8 @@ func New(options *Options) *API {
 
 		DisablePathApps:      options.DeploymentValues.DisablePathApps.Value(),
 		SecureAuthCookie:     options.DeploymentValues.SecureAuthCookie.Value(),
-		Signer:               appSigningKeyCache,
-		EncryptingKeyManager: appEncryptingKeyCache,
+		Signer:               options.AppSigningKeyCache,
+		EncryptingKeyManager: options.AppEncryptionKeyCache,
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

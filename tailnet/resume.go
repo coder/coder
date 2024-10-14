@@ -21,14 +21,7 @@ import (
 
 const (
 	DefaultResumeTokenExpiry = 24 * time.Hour
-
-	resumeTokenSigningAlgorithm = jose.HS512
 )
-
-// resumeTokenSigningKeyID is a fixed key ID for the resume token signing key.
-// If/when we add support for multiple keys (e.g. key rotation), this will move
-// to the database instead.
-var resumeTokenSigningKeyID = uuid.MustParse("97166747-9309-4d7f-9071-a230e257c2a4")
 
 // NewInsecureTestResumeTokenProvider returns a ResumeTokenProvider that uses a
 // random key with short expiry for testing purposes. If any errors occur while
@@ -40,7 +33,7 @@ func NewInsecureTestResumeTokenProvider() ResumeTokenProvider {
 	}
 	return NewResumeTokenKeyProvider(jwtutils.StaticKeyManager{
 		ID:  uuid.New().String(),
-		Key: key,
+		Key: key[:],
 	}, quartz.NewReal(), time.Hour)
 }
 

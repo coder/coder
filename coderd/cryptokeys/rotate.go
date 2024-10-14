@@ -56,7 +56,7 @@ func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 // Canceling the provided context will stop the background process.
 func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) error {
 	//nolint:gocritic // KeyRotator can only rotate crypto keys.
-	ctx = dbauthz.AsSystemRestricted(ctx)
+	ctx = dbauthz.AsKeyRotator(ctx)
 	kr := &rotator{
 		db:          db,
 		logger:      logger,
