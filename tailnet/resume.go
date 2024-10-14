@@ -3,11 +3,8 @@ package tailnet
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
-	"encoding/hex"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -53,47 +50,6 @@ func GenerateResumeTokenSigningKey() (ResumeTokenSigningKey, error) {
 	return key, nil
 }
 
-type ResumeTokenSigningKeyDatabaseStore interface {
-	GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error)
-	UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, key string) error
-}
-
-// ResumeTokenSigningKeyFromDatabase retrieves the coordinator resume token
-// signing key from the database. If the key is not found, a new key is
-// generated and inserted into the database.
-func ResumeTokenSigningKeyFromDatabase(ctx context.Context, db ResumeTokenSigningKeyDatabaseStore) (ResumeTokenSigningKey, error) {
-	var resumeTokenKey ResumeTokenSigningKey
-	resumeTokenKeyStr, err := db.GetCoordinatorResumeTokenSigningKey(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		return resumeTokenKey, xerrors.Errorf("get coordinator resume token key: %w", err)
-	}
-	if decoded, err := hex.DecodeString(resumeTokenKeyStr); err != nil || len(decoded) != len(resumeTokenKey) {
-		newKey, err := GenerateResumeTokenSigningKey()
-		if err != nil {
-			return resumeTokenKey, xerrors.Errorf("generate fresh coordinator resume token key: %w", err)
-		}
-
-		resumeTokenKeyStr = hex.EncodeToString(newKey[:])
-		err = db.UpsertCoordinatorResumeTokenSigningKey(ctx, resumeTokenKeyStr)
-		if err != nil {
-			return resumeTokenKey, xerrors.Errorf("insert freshly generated coordinator resume token key to database: %w", err)
-		}
-	}
-
-	resumeTokenKeyBytes, err := hex.DecodeString(resumeTokenKeyStr)
-	if err != nil {
-		return resumeTokenKey, xerrors.Errorf("decode coordinator resume token key from database: %w", err)
-	}
-	if len(resumeTokenKeyBytes) != len(resumeTokenKey) {
-		return resumeTokenKey, xerrors.Errorf("coordinator resume token key in database is not the correct length, expect %d got %d", len(resumeTokenKey), len(resumeTokenKeyBytes))
-	}
-	copy(resumeTokenKey[:], resumeTokenKeyBytes)
-	if resumeTokenKey == [64]byte{} {
-		return resumeTokenKey, xerrors.Errorf("coordinator resume token key in database is empty")
-	}
-	return resumeTokenKey, nil
-}
-
 type ResumeTokenKeyProvider struct {
 	key    jwtutils.SigningKeyManager
 	clock  quartz.Clock
@@ -111,19 +67,11 @@ func NewResumeTokenKeyProvider(key jwtutils.SigningKeyManager, clock quartz.Cloc
 	}
 }
 
-type resumeTokenPayload struct {
-	jwt.Claims
-	PeerID uuid.UUID `json:"sub"`
-	Expiry int64     `json:"exp"`
-}
-
 func (p ResumeTokenKeyProvider) GenerateResumeToken(ctx context.Context, peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
 	exp := p.clock.Now().Add(p.expiry)
-	payload := resumeTokenPayload{
-		PeerID: peerID,
-		Claims: jwt.Claims{
-			Expiry: jwt.NewNumericDate(exp),
-		},
+	payload := jwt.Claims{
+		Subject: peerID.String(),
+		Expiry:  jwt.NewNumericDate(exp),
 	}
 
 	token, err := jwtutils.Sign(ctx, p.key, payload)
@@ -142,12 +90,16 @@ func (p ResumeTokenKeyProvider) GenerateResumeToken(ctx context.Context, peerID 
 // returns the payload. If the token is invalid or expired, an error is
 // returned.
 func (p ResumeTokenKeyProvider) VerifyResumeToken(ctx context.Context, str string) (uuid.UUID, error) {
-	var tok resumeTokenPayload
+	var tok jwt.Claims
 	err := jwtutils.Verify(ctx, p.key, str, &tok, jwtutils.WithVerifyExpected(jwt.Expected{
 		Time: p.clock.Now(),
 	}))
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("verify payload: %w", err)
 	}
-	return tok.PeerID, nil
+	parsed, err := uuid.Parse(tok.Subject)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("parse peerID from token: %w", err)
+	}
+	return parsed, nil
 }
