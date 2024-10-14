@@ -25,23 +25,16 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
-
 	"github.com/emersion/go-sasl"
-
-	"github.com/coder/quartz"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/serpent"
-
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -55,6 +48,8 @@ import (
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -1115,9 +1110,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					msg = backend.LastMessage()
 					return msg != nil && len(msg.Contents) > 0
 				}, testutil.WaitShort, testutil.IntervalFast)
-
-				// require.NotNil(t, msg, "want a message to be sent")
-				// require.NotEmpty(t, msg.Contents, "want a non-empty message")
 
 				body := normalizeGoldenEmail([]byte(msg.Contents))
 
