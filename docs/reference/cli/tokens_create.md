@@ -16,9 +16,8 @@ coder tokens create [flags]
 
 |             |                                    |
 | ----------- | ---------------------------------- |
-| Type        | <code>duration</code>              |
+| Type        | <code>string</code>                |
 | Environment | <code>$CODER_TOKEN_LIFETIME</code> |
-| Default     | <code>720h0m0s</code>              |
 
 Specify a duration for the lifetime of the token.
 
