@@ -142,7 +142,7 @@ export const WorkspaceParametersPageView: FC<
 						cta={
 							<Button
 								component="a"
-								href={docs("/templates/parameters")}
+								href={docs("/admin/templates/extending-templates/parameters")}
 								startIcon={<OpenInNewOutlined />}
 								variant="contained"
 								target="_blank"

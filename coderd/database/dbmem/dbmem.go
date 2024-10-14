@@ -5793,6 +5793,69 @@ func (q *FakeQuerier) GetWorkspaceAgentPortShare(_ context.Context, arg database
 	return database.WorkspaceAgentPortShare{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	build, err := q.GetWorkspaceBuildByID(ctx, id)
+	if err != nil {
+		return nil, xerrors.Errorf("get build: %w", err)
+	}
+
+	resources, err := q.GetWorkspaceResourcesByJobID(ctx, build.JobID)
+	if err != nil {
+		return nil, xerrors.Errorf("get resources: %w", err)
+	}
+	resourceIDs := make([]uuid.UUID, 0, len(resources))
+	for _, res := range resources {
+		resourceIDs = append(resourceIDs, res.ID)
+	}
+
+	agents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("get agents: %w", err)
+	}
+	agentIDs := make([]uuid.UUID, 0, len(agents))
+	for _, agent := range agents {
+		agentIDs = append(agentIDs, agent.ID)
+	}
+
+	scripts, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, agentIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("get scripts: %w", err)
+	}
+	scriptIDs := make([]uuid.UUID, 0, len(scripts))
+	for _, script := range scripts {
+		scriptIDs = append(scriptIDs, script.ID)
+	}
+
+	rows := []database.GetWorkspaceAgentScriptTimingsByBuildIDRow{}
+	for _, t := range q.workspaceAgentScriptTimings {
+		if !slice.Contains(scriptIDs, t.ScriptID) {
+			continue
+		}
+
+		var script database.WorkspaceAgentScript
+		for _, s := range scripts {
+			if s.ID == t.ScriptID {
+				script = s
+				break
+			}
+		}
+
+		rows = append(rows, database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
+			ScriptID:    t.ScriptID,
+			StartedAt:   t.StartedAt,
+			EndedAt:     t.EndedAt,
+			ExitCode:    t.ExitCode,
+			Stage:       t.Stage,
+			Status:      t.Status,
+			DisplayName: script.DisplayName,
+		})
+	}
+	return rows, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7844,28 +7907,19 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) error {
+func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return err
+		return database.WorkspaceAgentScriptTiming{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings,
-		//nolint:gosimple // Stop the linter complaining about changing the type of `arg`.
-		database.WorkspaceAgentScriptTiming{
-			ScriptID:  arg.ScriptID,
-			StartedAt: arg.StartedAt,
-			EndedAt:   arg.EndedAt,
-			ExitCode:  arg.ExitCode,
-			Stage:     arg.Stage,
-			Status:    arg.Status,
-		},
-	)
+	timing := database.WorkspaceAgentScriptTiming(arg)
+	q.workspaceAgentScriptTimings = append(q.workspaceAgentScriptTimings, timing)
 
-	return nil
+	return timing, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
@@ -9077,6 +9131,26 @@ func (q *FakeQuerier) UpdateUserGithubComUserID(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateUserHashedOneTimePasscode(_ context.Context, arg database.UpdateUserHashedOneTimePasscodeParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.HashedOneTimePasscode = arg.HashedOneTimePasscode
+		user.OneTimePasscodeExpiresAt = arg.OneTimePasscodeExpiresAt
+		q.users[i] = user
+	}
+	return nil
+}
+
 func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -9090,6 +9164,8 @@ func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.U
 			continue
 		}
 		user.HashedPassword = arg.HashedPassword
+		user.HashedOneTimePasscode = nil
+		user.OneTimePasscodeExpiresAt = sql.NullTime{}
 		q.users[i] = user
 		return nil
 	}

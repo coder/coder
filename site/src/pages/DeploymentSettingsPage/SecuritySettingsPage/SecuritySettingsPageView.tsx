@@ -51,7 +51,9 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					title="Browser Only Connections"
 					secondary
 					description="Block all workspace access via SSH, port forward, and other non-browser connections."
-					docsHref={docs("/networking#browser-only-connections-enterprise")}
+					docsHref={docs(
+						"/admin/networking#browser-only-connections-enterprise-premium",
+					)}
 				/>
 
 				<Badges>

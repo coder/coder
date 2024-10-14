@@ -349,6 +349,30 @@
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
 
+## codersdk.AgentScriptTiming
+
+```json
+{
+	"display_name": "string",
+	"ended_at": "2019-08-24T14:15:22Z",
+	"exit_code": 0,
+	"stage": "string",
+	"started_at": "2019-08-24T14:15:22Z",
+	"status": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `display_name` | string  | false    |              |             |
+| `ended_at`     | string  | false    |              |             |
+| `exit_code`    | integer | false    |              |             |
+| `stage`        | string  | false    |              |             |
+| `started_at`   | string  | false    |              |             |
+| `status`       | string  | false    |              |             |
+
 ## codersdk.AgentSubsystem
 
 ```json
@@ -929,6 +953,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `initiator` |
 | `autostart` |
 | `autostop`  |
+
+## codersdk.ChangePasswordWithOneTimePasscodeRequest
+
+```json
+{
+	"email": "user@example.com",
+	"one_time_passcode": "string",
+	"password": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+| ------------------- | ------ | -------- | ------------ | ----------- |
+| `email`             | string | true     |              |             |
+| `one_time_passcode` | string | true     |              |             |
+| `password`          | string | true     |              |             |
 
 ## codersdk.ConnectionLatency
 
@@ -4636,6 +4678,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `region_id`        | integer | false    |              | Region ID is the region of the replica.                            |
 | `relay_address`    | string  | false    |              | Relay address is the accessible address to relay DERP connections. |
 
+## codersdk.RequestOneTimePasscodeRequest
+
+```json
+{
+	"email": "user@example.com"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+| ------- | ------ | -------- | ------------ | ----------- |
+| `email` | string | true     |              |             |
+
 ## codersdk.ResolveAutostartResponse
 
 ```json
@@ -7316,6 +7372,41 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `name`  | string | false    |              |             |
 | `value` | string | false    |              |             |
 
+## codersdk.WorkspaceBuildTimings
+
+```json
+{
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"exit_code": 0,
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z",
+			"status": "string"
+		}
+	],
+	"provisioner_timings": [
+		{
+			"action": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+			"resource": "string",
+			"source": "string",
+			"stage": "string",
+			"started_at": "2019-08-24T14:15:22Z"
+		}
+	]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                              | Required | Restrictions | Description |
+| ---------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `agent_script_timings` | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming) | false    |              |             |
+| `provisioner_timings`  | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
+
 ## codersdk.WorkspaceConnectionLatencyMS
 
 ```json
@@ -7642,30 +7733,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `canceled`  |
 | `deleting`  |
 | `deleted`   |
-
-## codersdk.WorkspaceTimings
-
-```json
-{
-	"provisioner_timings": [
-		{
-			"action": "string",
-			"ended_at": "2019-08-24T14:15:22Z",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"resource": "string",
-			"source": "string",
-			"stage": "string",
-			"started_at": "2019-08-24T14:15:22Z"
-		}
-	]
-}
-```
-
-### Properties
-
-| Name                  | Type                                                              | Required | Restrictions | Description |
-| --------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `provisioner_timings` | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
 
 ## codersdk.WorkspaceTransition
 

@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "User account activated",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View accounts",
+        "url": "http://test.com/deployment/users?filter=status%3Aactive"
+      }
+    ],
+    "labels": {
+      "activated_account_name": "bobby",
+      "activated_account_user_name": "William Tables",
+      "initiator": "rob"
+    },
+    "data": null
+  },
+  "title": "User account \"bobby\" activated",
+  "title_markdown": "User account \"bobby\" activated",
+  "body": "Hi Bobby,\n\nUser account bobby has been activated.\n\nThe newly activated account belongs to William Tables and was activated by rob.",
+  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been activated.\n\nThe newly activated account belongs to **William Tables** and was activated by **rob**."
+}
