@@ -1214,16 +1214,15 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		ActiveVersionID: version.ID,
 		CreatedBy:       owner.UserID,
 	})
-	ws := dbgen.Workspace(t, db, database.Workspace{
-		OwnerID:        owner.UserID,
-		OrganizationID: owner.OrganizationID,
-		TemplateID:     template.ID,
-	})
 
-	// Create a build to attach timings
-	var buildNumber int32
+	// Tests will run in parallel. To avoid conflicts and race conditions on the
+	// build number, each test will have its own workspace and build.
 	makeBuild := func() database.WorkspaceBuild {
-		buildNumber++
+		ws := dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     template.ID,
+		})
 		jobID := uuid.New()
 		job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			ID:             jobID,
@@ -1235,7 +1234,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			TemplateVersionID: version.ID,
 			InitiatorID:       owner.UserID,
 			JobID:             job.ID,
-			BuildNumber:       buildNumber,
+			BuildNumber:       1,
 		})
 	}
 
