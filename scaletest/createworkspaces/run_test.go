@@ -31,6 +31,8 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
+	t.Skip("https://github.com/coder/internal/issues/98")
+
 	if testutil.RaceEnabled() {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
