@@ -200,8 +200,7 @@ func Test_Runner(t *testing.T) {
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
-				ExpectOutput: "hello world",
-				LogOutput:    false,
+				LogOutput: true,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -209,8 +208,10 @@ func Test_Runner(t *testing.T) {
 
 			logs := bytes.NewBuffer(nil)
 			err := runner.Run(ctx, "1", logs)
-			logStr := logs.String()
-			t.Log("Runner logs:\n\n" + logStr)
+			require.NoError(t, err)
+
+			tr := testutil.NewTerminalReader(t, logs)
+			err = tr.ReadUntilString(ctx, "hello world")
 			require.NoError(t, err)
 		})
 
