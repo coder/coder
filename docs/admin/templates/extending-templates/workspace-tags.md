@@ -70,13 +70,15 @@ the workspace owner to change a provisioner group (due to different tags). In
 most cases, `coder_parameter`s backing `coder_workspace_tags` should be marked
 as immutable and set only once, during workspace creation.
 
-**We recommend only using the following as inputs for `coder_workspace_tags`:**
+We recommend using only the following as inputs for `coder_workspace_tags`:
 
-- Static values (e.g. `"developers"`),
-- Template variables (e.g. `var.az`),
-- Coder parameters (e.g. `data.coder_parameter.runtime_selector.value`).
+|                    | Example |
+|:-------------------|:--------|
+| Static values      | `developers` |
+| Template variables | `var.az` |
+| Coder parameters   | `data.coder_parameter.runtime_selector.value` |
 
-Passing template tags in from other data sources may have undesired effects!
+Passing template tags in from other data sources may have undesired effects.
 
 ### HCL syntax
 
