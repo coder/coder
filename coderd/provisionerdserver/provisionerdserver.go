@@ -1124,16 +1124,17 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 	}
 
 	for _, templateAdmin := range templateAdmins {
+		templateNameLabel := template.DisplayName
+		if templateNameLabel == "" {
+			templateNameLabel = template.Name
+		}
 		labels := map[string]string{
 			"name":                     workspace.Name,
-			"template_name":            template.DisplayName,
+			"template_name":            templateNameLabel,
 			"template_version_name":    templateVersion.Name,
 			"initiator":                build.InitiatorByUsername,
 			"workspace_owner_username": workspaceOwner.Username,
 			"workspace_build_number":   strconv.Itoa(int(build.BuildNumber)),
-		}
-		if template.DisplayName == "" {
-			labels["template_name"] = template.Name
 		}
 		if _, err := s.NotificationsEnqueuer.Enqueue(ctx, templateAdmin.ID, notifications.TemplateWorkspaceManualBuildFailed,
 			labels, "provisionerdserver",

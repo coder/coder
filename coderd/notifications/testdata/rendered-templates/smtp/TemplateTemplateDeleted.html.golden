@@ -1,6 +1,6 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: Template "bobby-template" deleted
+Subject: Template "Bobby's Template" deleted
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -12,9 +12,7 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-The template bobby-template was deleted by rob.
-
-The template's display name was Bobby's Template.
+The template Bobby's Template was deleted by rob.
 
 
 View templates: http://test.com/templates
@@ -29,7 +27,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Template "bobby-template" deleted</title>
+    <title>Template "Bobby's Template" deleted</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -44,16 +42,13 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Template "bobby-template" deleted
+        Template "Bobby's Template" deleted
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
 
-<p>The template <strong>bobby-template</strong> was deleted by <strong>rob<=
-/strong>.</p>
-
-<p>The template&rsquo;s display name was <strong>Bobby&rsquo;s Template</st=
-rong>.</p>
+<p>The template <strong>Bobby&rsquo;s Template</strong> was deleted by <str=
+ong>rob</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
