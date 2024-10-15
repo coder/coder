@@ -44,7 +44,7 @@ type CryptoKeyCache struct {
 	refreshCancel context.CancelFunc
 	fetcher       Fetcher
 	logger        slog.Logger
-	feature       database.CryptoKeyFeature
+	feature       codersdk.CryptoKeyFeature
 
 	mu        sync.Mutex
 	keys      map[int32]codersdk.CryptoKey
@@ -65,7 +65,7 @@ func WithDBCacheClock(clock quartz.Clock) DBCacheOption {
 
 // NewSigningCache creates a new DBCache. Close should be called to
 // release resources associated with its internal timer.
-func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature database.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (SigningKeycache, error) {
+func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature codersdk.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (SigningKeycache, error) {
 	if !isSigningKeyFeature(feature) {
 		return nil, ErrInvalidFeature
 	}
@@ -73,7 +73,7 @@ func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, f
 	return newDBCache(ctx, logger, fetcher, feature, opts...)
 }
 
-func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature database.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (EncryptionKeycache, error) {
+func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature codersdk.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (EncryptionKeycache, error) {
 	if !isEncryptionKeyFeature(feature) {
 		return nil, ErrInvalidFeature
 	}
@@ -81,7 +81,7 @@ func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher
 	return newDBCache(ctx, logger, fetcher, feature, opts...)
 }
 
-func newDBCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature database.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (*CryptoKeyCache, error) {
+func newDBCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature codersdk.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (*CryptoKeyCache, error) {
 	cache := &CryptoKeyCache{
 		clock:   quartz.NewReal(),
 		logger:  logger,
@@ -178,13 +178,13 @@ func (d *CryptoKeyCache) VerifyingKey(ctx context.Context, sequence string) (int
 	return key.Secret, nil
 }
 
-func isEncryptionKeyFeature(feature database.CryptoKeyFeature) bool {
-	return feature == database.CryptoKeyFeatureWorkspaceApps
+func isEncryptionKeyFeature(feature codersdk.CryptoKeyFeature) bool {
+	return feature == codersdk.CryptoKeyFeatureWorkspaceApp
 }
 
-func isSigningKeyFeature(feature database.CryptoKeyFeature) bool {
+func isSigningKeyFeature(feature codersdk.CryptoKeyFeature) bool {
 	switch feature {
-	case database.CryptoKeyFeatureTailnetResume, database.CryptoKeyFeatureOidcConvert:
+	case codersdk.CryptoKeyFeatureTailnetResume, codersdk.CryptoKeyFeatureOIDCConvert:
 		return true
 	default:
 		return false
