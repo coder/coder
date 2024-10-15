@@ -4,7 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -109,10 +113,32 @@ func (s *server) Plan(
 	initTimings.ingest(createInitTimingsEvent(timingInitStart))
 
 	err = e.init(ctx, killCtx, sess)
+
 	if err != nil {
 		initTimings.ingest(createInitTimingsEvent(timingInitErrored))
 
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
+
+		// Special handling for "text file busy" c.f. https://github.com/coder/coder/issues/14726
+		// We believe this might be due to some race condition that prevents the
+		// terraform-provider-coder process from exiting.  When terraform tries to install the
+		// provider during this init, it copies over the local cache. Normally this isn't an issue,
+		// but if the terraform-provider-coder process is still running from a previous build, Linux
+		// returns "text file busy" error when attempting to open the file.
+		//
+		// Capturing the stack trace from the process should help us figure out why it has not
+		// exited.  We'll drop these diagnostics in a CRITICAL log so that operators are likely to
+		// notice, and also because it indicates this provisioner could be permanently broken and
+		// require a restart.
+		var errTFB *textFileBusyError
+		if xerrors.As(err, &errTFB) {
+			stacktrace := tryGettingCoderProviderStacktrace(sess)
+			s.logger.Critical(ctx, "init: text file busy",
+				slog.Error(errTFB),
+				slog.F("stderr", errTFB.stderr),
+				slog.F("provider_coder_stacktrace", stacktrace),
+			)
+		}
 		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
 	}
 
@@ -279,4 +305,40 @@ func logTerraformEnvVars(sink logSink) {
 			)
 		}
 	}
+}
+
+// tryGettingCoderProviderStacktrace attempts to dial a special pprof endpoint we added to
+// terraform-provider-coder in https://github.com/coder/terraform-provider-coder/pull/295 which
+// shipped in v1.0.4.  It will return the stacktraces of the provider, which will hopefully allow us
+// to figure out why it hasn't exited.
+func tryGettingCoderProviderStacktrace(sess *provisionersdk.Session) string {
+	path := filepath.Clean(filepath.Join(sess.WorkDirectory, "../.coder/pprof"))
+	sess.Logger.Info(sess.Context(), "attempting to get stack traces", slog.F("path", path))
+	c := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				d := net.Dialer{}
+				return d.DialContext(ctx, "unix", path)
+			},
+		},
+	}
+	req, err := http.NewRequestWithContext(sess.Context(), http.MethodGet,
+		"http://localhost/debug/pprof/goroutine?debug=2", nil)
+	if err != nil {
+		sess.Logger.Error(sess.Context(), "error creating GET request", slog.Error(err))
+		return ""
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		// Only log at Info here, since we only added the pprof endpoint to terraform-provider-coder
+		// in v1.0.4
+		sess.Logger.Info(sess.Context(), "could not GET stack traces", slog.Error(err))
+		return ""
+	}
+	defer resp.Body.Close()
+	stacktraces, err := io.ReadAll(resp.Body)
+	if err != nil {
+		sess.Logger.Error(sess.Context(), "could not read stack traces", slog.Error(err))
+	}
+	return string(stacktraces)
 }
