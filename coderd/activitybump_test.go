@@ -164,6 +164,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 					updatedAfter = dbtime.Now()
 					return hasBumped
 				},
+				//nolint: gocritic // maxTimeDrift is a testutil time
 				maxTimeDrift, testutil.IntervalFast,
 				"deadline %v never updated", firstDeadline,
 			)
