@@ -5,6 +5,8 @@ import (
 	"io"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var (
@@ -13,6 +15,10 @@ var (
 	ErrClosed         = xerrors.New("closed")
 	ErrInvalidFeature = xerrors.New("invalid feature for this operation")
 )
+
+type Fetcher interface {
+	Fetch(ctx context.Context) ([]codersdk.CryptoKey, error)
+}
 
 type EncryptionKeycache interface {
 	// EncryptingKey returns the latest valid key for encrypting payloads. A valid

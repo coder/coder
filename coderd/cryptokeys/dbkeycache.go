@@ -2,6 +2,7 @@ package cryptokeys
 
 import (
 	"context"
+	"encoding/hex"
 	"strconv"
 	"sync"
 	"time"
@@ -10,257 +11,171 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
-// never represents the maximum value for a time.Duration.
-const never = 1<<63 - 1
+const (
+	// latestSequence is a special sequence number that represents the latest key.
+	latestSequence = -1
+	// refreshInterval is the interval at which the key cache will refresh.
+	refreshInterval = time.Minute * 10
+)
 
-// dbCache implements Keycache for callers with access to the database.
-type dbCache struct {
-	db      database.Store
-	feature database.CryptoKeyFeature
-	logger  slog.Logger
-	clock   quartz.Clock
-
-	// The following are initialized by NewDBCache.
-	keysMu    sync.RWMutex
-	keys      map[int32]database.CryptoKey
-	latestKey database.CryptoKey
-	timer     *quartz.Timer
-	// invalidateAt is the time at which the keys cache should be invalidated.
-	invalidateAt time.Time
-	closed       bool
+type DBFetcher struct {
+	DB      database.Store
+	Feature database.CryptoKeyFeature
 }
 
-type DBCacheOption func(*dbCache)
+func (d *DBFetcher) Fetch(ctx context.Context) ([]codersdk.CryptoKey, error) {
+	keys, err := d.DB.GetCryptoKeysByFeature(ctx, d.Feature)
+	if err != nil {
+		return nil, xerrors.Errorf("get crypto keys by feature: %w", err)
+	}
+
+	return db2sdk.CryptoKeys(keys), nil
+}
+
+// CryptoKeyCache implements Keycache for callers with access to the database.
+type CryptoKeyCache struct {
+	clock         quartz.Clock
+	refreshCtx    context.Context
+	refreshCancel context.CancelFunc
+	fetcher       Fetcher
+	logger        slog.Logger
+	feature       database.CryptoKeyFeature
+
+	mu        sync.Mutex
+	keys      map[int32]codersdk.CryptoKey
+	lastFetch time.Time
+	refresher *quartz.Timer
+	fetching  bool
+	closed    bool
+	cond      *sync.Cond
+}
+
+type DBCacheOption func(*CryptoKeyCache)
 
 func WithDBCacheClock(clock quartz.Clock) DBCacheOption {
-	return func(d *dbCache) {
+	return func(d *CryptoKeyCache) {
 		d.clock = clock
 	}
 }
 
 // NewSigningCache creates a new DBCache. Close should be called to
 // release resources associated with its internal timer.
-func NewSigningCache(logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*dbCache)) (SigningKeycache, error) {
+func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature database.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (SigningKeycache, error) {
 	if !isSigningKeyFeature(feature) {
 		return nil, ErrInvalidFeature
 	}
 
-	return newDBCache(logger, db, feature, opts...), nil
+	return newDBCache(ctx, logger, fetcher, feature, opts...)
 }
 
-func NewEncryptionCache(logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*dbCache)) (EncryptionKeycache, error) {
+func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature database.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (EncryptionKeycache, error) {
 	if !isEncryptionKeyFeature(feature) {
 		return nil, ErrInvalidFeature
 	}
 
-	return newDBCache(logger, db, feature, opts...), nil
+	return newDBCache(ctx, logger, fetcher, feature, opts...)
 }
 
-func newDBCache(logger slog.Logger, db database.Store, feature database.CryptoKeyFeature, opts ...func(*dbCache)) *dbCache {
-	d := &dbCache{
-		db:      db,
-		feature: feature,
+func newDBCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature database.CryptoKeyFeature, opts ...func(*CryptoKeyCache)) (*CryptoKeyCache, error) {
+	cache := &CryptoKeyCache{
 		clock:   quartz.NewReal(),
 		logger:  logger,
+		fetcher: fetcher,
+		feature: feature,
 	}
 
 	for _, opt := range opts {
-		opt(d)
+		opt(cache)
 	}
 
-	// Initialize the timer. This will get properly initialized the first time we fetch.
-	d.timer = d.clock.AfterFunc(never, d.clear)
+	cache.cond = sync.NewCond(&cache.mu)
+	cache.refreshCtx, cache.refreshCancel = context.WithCancel(ctx)
+	cache.refresher = cache.clock.AfterFunc(refreshInterval, cache.refresh)
 
-	return d
+	keys, err := cache.cryptoKeys(ctx)
+	if err != nil {
+		cache.refreshCancel()
+		return nil, xerrors.Errorf("initial fetch: %w", err)
+	}
+	cache.keys = keys
+	return cache, nil
 }
 
-func (d *dbCache) EncryptingKey(ctx context.Context) (id string, key interface{}, err error) {
+func (d *CryptoKeyCache) EncryptingKey(ctx context.Context) (string, interface{}, error) {
 	if !isEncryptionKeyFeature(d.feature) {
 		return "", nil, ErrInvalidFeature
 	}
 
-	return d.latest(ctx)
+	key, err := d.cryptoKey(ctx, latestSequence)
+	if err != nil {
+		return "", nil, xerrors.Errorf("crypto key: %w", err)
+	}
+
+	secret, err := hex.DecodeString(key.Secret)
+	if err != nil {
+		return "", nil, xerrors.Errorf("decode key: %w", err)
+	}
+
+	return strconv.FormatInt(int64(key.Sequence), 10), secret, nil
 }
 
-func (d *dbCache) DecryptingKey(ctx context.Context, id string) (key interface{}, err error) {
+func (d *CryptoKeyCache) DecryptingKey(ctx context.Context, id string) (interface{}, error) {
 	if !isEncryptionKeyFeature(d.feature) {
 		return nil, ErrInvalidFeature
 	}
 
-	return d.sequence(ctx, id)
+	i, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, xerrors.Errorf("parse id: %w", err)
+	}
+
+	key, err := d.cryptoKey(ctx, int32(i))
+	if err != nil {
+		return nil, xerrors.Errorf("crypto key: %w", err)
+	}
+
+	secret, err := hex.DecodeString(key.Secret)
+	if err != nil {
+		return nil, xerrors.Errorf("decode key: %w", err)
+	}
+
+	return secret, nil
 }
 
-func (d *dbCache) SigningKey(ctx context.Context) (id string, key interface{}, err error) {
+func (d *CryptoKeyCache) SigningKey(ctx context.Context) (string, interface{}, error) {
 	if !isSigningKeyFeature(d.feature) {
 		return "", nil, ErrInvalidFeature
 	}
 
-	return d.latest(ctx)
+	key, err := d.cryptoKey(ctx, latestSequence)
+	if err != nil {
+		return "", nil, xerrors.Errorf("crypto key: %w", err)
+	}
+
+	return strconv.FormatInt(int64(key.Sequence), 10), key.Secret, nil
 }
 
-func (d *dbCache) VerifyingKey(ctx context.Context, id string) (key interface{}, err error) {
+func (d *CryptoKeyCache) VerifyingKey(ctx context.Context, sequence string) (interface{}, error) {
 	if !isSigningKeyFeature(d.feature) {
 		return nil, ErrInvalidFeature
 	}
 
-	return d.sequence(ctx, id)
-}
-
-// sequence returns the CryptoKey with the given sequence number, provided that
-// it is neither deleted nor has breached its deletion date. It should only be
-// used for verifying or decrypting payloads. To sign/encrypt call Signing.
-func (d *dbCache) sequence(ctx context.Context, id string) (interface{}, error) {
-	sequence, err := strconv.ParseInt(id, 10, 32)
+	i, err := strconv.ParseInt(sequence, 10, 64)
 	if err != nil {
-		return nil, xerrors.Errorf("expecting sequence number got %q: %w", id, err)
+		return nil, xerrors.Errorf("parse id: %w", err)
 	}
 
-	d.keysMu.RLock()
-	if d.closed {
-		d.keysMu.RUnlock()
-		return nil, ErrClosed
-	}
-
-	now := d.clock.Now()
-	key, ok := d.keys[int32(sequence)]
-	d.keysMu.RUnlock()
-	if ok {
-		return checkKey(key, now)
-	}
-
-	d.keysMu.Lock()
-	defer d.keysMu.Unlock()
-
-	if d.closed {
-		return nil, ErrClosed
-	}
-
-	key, ok = d.keys[int32(sequence)]
-	if ok {
-		return checkKey(key, now)
-	}
-
-	err = d.fetch(ctx)
+	key, err := d.cryptoKey(ctx, int32(i))
 	if err != nil {
-		return nil, xerrors.Errorf("fetch: %w", err)
+		return nil, xerrors.Errorf("crypto key: %w", err)
 	}
 
-	key, ok = d.keys[int32(sequence)]
-	if !ok {
-		return nil, ErrKeyNotFound
-	}
-
-	return checkKey(key, now)
-}
-
-// latest returns the latest valid key for signing. A valid key is one that is
-// both past its start time and before its deletion time.
-func (d *dbCache) latest(ctx context.Context) (string, interface{}, error) {
-	d.keysMu.RLock()
-
-	if d.closed {
-		d.keysMu.RUnlock()
-		return "", nil, ErrClosed
-	}
-
-	latest := d.latestKey
-	d.keysMu.RUnlock()
-
-	now := d.clock.Now()
-	if latest.CanSign(now) {
-		return idSecret(latest)
-	}
-
-	d.keysMu.Lock()
-	defer d.keysMu.Unlock()
-
-	if d.closed {
-		return "", nil, ErrClosed
-	}
-
-	if d.latestKey.CanSign(now) {
-		return idSecret(d.latestKey)
-	}
-
-	// Refetch all keys for this feature so we can find the latest valid key.
-	err := d.fetch(ctx)
-	if err != nil {
-		return "", nil, xerrors.Errorf("fetch: %w", err)
-	}
-
-	return idSecret(d.latestKey)
-}
-
-// clear invalidates the cache. This forces the subsequent call to fetch fresh keys.
-func (d *dbCache) clear() {
-	now := d.clock.Now("DBCache", "clear")
-	d.keysMu.Lock()
-	defer d.keysMu.Unlock()
-	// Check if we raced with a fetch. It's possible that the timer fired and we
-	// lost the race to the mutex. We want to avoid invalidating
-	// a cache that was just refetched.
-	if now.Before(d.invalidateAt) {
-		return
-	}
-	d.keys = nil
-	d.latestKey = database.CryptoKey{}
-}
-
-// fetch fetches all keys for the given feature and determines the latest key.
-// It must be called while holding the keysMu lock.
-func (d *dbCache) fetch(ctx context.Context) error {
-	keys, err := d.db.GetCryptoKeysByFeature(ctx, d.feature)
-	if err != nil {
-		return xerrors.Errorf("get crypto keys by feature: %w", err)
-	}
-
-	now := d.clock.Now()
-	_ = d.timer.Reset(time.Minute * 10)
-	d.invalidateAt = now.Add(time.Minute * 10)
-
-	cache := make(map[int32]database.CryptoKey)
-	var latest database.CryptoKey
-	for _, key := range keys {
-		cache[key.Sequence] = key
-		if key.CanSign(now) && key.Sequence > latest.Sequence {
-			latest = key
-		}
-	}
-
-	if len(cache) == 0 {
-		return ErrKeyNotFound
-	}
-
-	if !latest.CanSign(now) {
-		return ErrKeyInvalid
-	}
-
-	d.keys, d.latestKey = cache, latest
-	return nil
-}
-
-func checkKey(key database.CryptoKey, now time.Time) (interface{}, error) {
-	if !key.CanVerify(now) {
-		return nil, ErrKeyInvalid
-	}
-
-	return key.DecodeString()
-}
-
-func (d *dbCache) Close() error {
-	d.keysMu.Lock()
-	defer d.keysMu.Unlock()
-
-	if d.closed {
-		return nil
-	}
-
-	d.timer.Stop()
-	d.closed = true
-	return nil
+	return key.Secret, nil
 }
 
 func isEncryptionKeyFeature(feature database.CryptoKeyFeature) bool {
@@ -283,4 +198,155 @@ func idSecret(k database.CryptoKey) (string, interface{}, error) {
 	}
 
 	return strconv.FormatInt(int64(k.Sequence), 10), key, nil
+}
+
+func (k *CryptoKeyCache) cryptoKey(ctx context.Context, sequence int32) (codersdk.CryptoKey, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if k.closed {
+		return codersdk.CryptoKey{}, ErrClosed
+	}
+
+	var key codersdk.CryptoKey
+	var ok bool
+	for key, ok = k.key(sequence); !ok && k.fetching && !k.closed; {
+		k.cond.Wait()
+	}
+
+	if k.closed {
+		return codersdk.CryptoKey{}, ErrClosed
+	}
+
+	if ok {
+		return checkKey(key, sequence, k.clock.Now())
+	}
+
+	k.fetching = true
+	k.mu.Unlock()
+
+	keys, err := k.cryptoKeys(ctx)
+	if err != nil {
+		return codersdk.CryptoKey{}, xerrors.Errorf("get keys: %w", err)
+	}
+
+	k.mu.Lock()
+	k.lastFetch = k.clock.Now()
+	k.refresher.Reset(refreshInterval)
+	k.keys = keys
+	k.fetching = false
+	k.cond.Broadcast()
+
+	key, ok = k.key(sequence)
+	if !ok {
+		return codersdk.CryptoKey{}, ErrKeyNotFound
+	}
+
+	return checkKey(key, sequence, k.clock.Now())
+}
+
+func (k *CryptoKeyCache) key(sequence int32) (codersdk.CryptoKey, bool) {
+	if sequence == latestSequence {
+		return k.keys[latestSequence], k.keys[latestSequence].CanSign(k.clock.Now())
+	}
+
+	key, ok := k.keys[sequence]
+	return key, ok
+}
+
+func checkKey(key codersdk.CryptoKey, sequence int32, now time.Time) (codersdk.CryptoKey, error) {
+	if sequence == latestSequence {
+		if !key.CanSign(now) {
+			return codersdk.CryptoKey{}, ErrKeyInvalid
+		}
+		return key, nil
+	}
+
+	if !key.CanVerify(now) {
+		return codersdk.CryptoKey{}, ErrKeyInvalid
+	}
+
+	return key, nil
+}
+
+// refresh fetches the keys and updates the cache.
+func (k *CryptoKeyCache) refresh() {
+	now := k.clock.Now("CryptoKeyCache", "refresh")
+	k.mu.Lock()
+
+	if k.closed {
+		k.mu.Unlock()
+		return
+	}
+
+	// If something's already fetching, we don't need to do anything.
+	if k.fetching {
+		k.mu.Unlock()
+		return
+	}
+
+	// There's a window we must account for where the timer fires while a fetch
+	// is ongoing but prior to the timer getting reset. In this case we want to
+	// avoid double fetching.
+	if now.Sub(k.lastFetch) < refreshInterval {
+		k.mu.Unlock()
+		return
+	}
+
+	k.fetching = true
+
+	k.mu.Unlock()
+	keys, err := k.cryptoKeys(k.refreshCtx)
+	if err != nil {
+		k.logger.Error(k.refreshCtx, "fetch crypto keys", slog.Error(err))
+		return
+	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.lastFetch = k.clock.Now()
+	k.refresher.Reset(refreshInterval)
+	k.keys = keys
+	k.fetching = false
+	k.cond.Broadcast()
+}
+
+// cryptoKeys queries the control plane for the crypto keys.
+// Outside of initialization, this should only be called by fetch.
+func (k *CryptoKeyCache) cryptoKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, error) {
+	keys, err := k.fetcher.Fetch(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("crypto keys: %w", err)
+	}
+	cache := toKeyMap(keys, k.clock.Now())
+	return cache, nil
+}
+
+func toKeyMap(keys []codersdk.CryptoKey, now time.Time) map[int32]codersdk.CryptoKey {
+	m := make(map[int32]codersdk.CryptoKey)
+	var latest codersdk.CryptoKey
+	for _, key := range keys {
+		m[key.Sequence] = key
+		if key.Sequence > latest.Sequence && key.CanSign(now) {
+			m[latestSequence] = key
+		}
+	}
+	return m
+}
+
+func (k *CryptoKeyCache) Close() error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	if k.closed {
+		return nil
+	}
+
+	k.closed = true
+	k.refreshCancel()
+	k.refresher.Stop()
+	k.cond.Broadcast()
+
+	return nil
 }

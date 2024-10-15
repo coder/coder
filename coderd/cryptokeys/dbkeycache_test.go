@@ -31,10 +31,11 @@ func TestDBKeyCache(t *testing.T) {
 			t.Parallel()
 
 			var (
-				db, _  = dbtestutil.NewDB(t)
-				clock  = quartz.NewMock(t)
-				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				db, _   = dbtestutil.NewDB(t)
+				clock   = quartz.NewMock(t)
+				ctx     = testutil.Context(t, testutil.WaitShort)
+				logger  = slogtest.Make(t, nil)
+				fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
 			)
 
 			key := dbgen.CryptoKey(t, db, database.CryptoKey{
@@ -43,7 +44,7 @@ func TestDBKeyCache(t *testing.T) {
 				StartsAt: clock.Now().UTC(),
 			})
 
-			k, err := cryptokeys.NewSigningCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
+			k, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
 			require.NoError(t, err)
 			defer k.Close()
 
@@ -56,13 +57,14 @@ func TestDBKeyCache(t *testing.T) {
 			t.Parallel()
 
 			var (
-				db, _  = dbtestutil.NewDB(t)
-				clock  = quartz.NewMock(t)
-				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				db, _   = dbtestutil.NewDB(t)
+				clock   = quartz.NewMock(t)
+				ctx     = testutil.Context(t, testutil.WaitShort)
+				logger  = slogtest.Make(t, nil)
+				fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
 			)
 
-			k, err := cryptokeys.NewSigningCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
+			k, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
 			require.NoError(t, err)
 			defer k.Close()
 
@@ -75,10 +77,11 @@ func TestDBKeyCache(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db, _  = dbtestutil.NewDB(t)
-			clock  = quartz.NewMock(t)
-			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, nil)
+			db, _   = dbtestutil.NewDB(t)
+			clock   = quartz.NewMock(t)
+			ctx     = testutil.Context(t, testutil.WaitShort)
+			logger  = slogtest.Make(t, nil)
+			fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
 		)
 
 		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
@@ -99,7 +102,7 @@ func TestDBKeyCache(t *testing.T) {
 			StartsAt: clock.Now().UTC(),
 		})
 
-		k, err := cryptokeys.NewSigningCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
+		k, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
 		require.NoError(t, err)
 		defer k.Close()
 
@@ -113,10 +116,11 @@ func TestDBKeyCache(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db, _  = dbtestutil.NewDB(t)
-			clock  = quartz.NewMock(t)
-			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, nil)
+			db, _   = dbtestutil.NewDB(t)
+			clock   = quartz.NewMock(t)
+			ctx     = testutil.Context(t, testutil.WaitShort)
+			logger  = slogtest.Make(t, nil)
+			fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
 		)
 
 		expectedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
@@ -125,7 +129,7 @@ func TestDBKeyCache(t *testing.T) {
 			StartsAt: clock.Now(),
 		})
 
-		k, err := cryptokeys.NewSigningCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
+		k, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
 		require.NoError(t, err)
 		defer k.Close()
 
@@ -151,17 +155,18 @@ func TestDBKeyCache(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db, _  = dbtestutil.NewDB(t)
-			clock  = quartz.NewMock(t)
-			logger = slogtest.Make(t, nil)
-			ctx    = testutil.Context(t, testutil.WaitShort)
+			db, _   = dbtestutil.NewDB(t)
+			clock   = quartz.NewMock(t)
+			logger  = slogtest.Make(t, nil)
+			fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
+			ctx     = testutil.Context(t, testutil.WaitShort)
 		)
 
-		_, err := cryptokeys.NewSigningCache(logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+		_, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
 		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
 
 		// Instantiate a signing cache and try to use it as an encryption cache.
-		sc, err := cryptokeys.NewSigningCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
+		sc, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
 		require.NoError(t, err)
 		defer sc.Close()
 
@@ -178,17 +183,18 @@ func TestDBKeyCache(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db, _  = dbtestutil.NewDB(t)
-			clock  = quartz.NewMock(t)
-			logger = slogtest.Make(t, nil)
-			ctx    = testutil.Context(t, testutil.WaitShort)
+			db, _   = dbtestutil.NewDB(t)
+			clock   = quartz.NewMock(t)
+			logger  = slogtest.Make(t, nil)
+			fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
+			ctx     = testutil.Context(t, testutil.WaitShort)
 		)
 
-		_, err := cryptokeys.NewEncryptionCache(logger, db, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
+		_, err := cryptokeys.NewEncryptionCache(ctx, logger, fetcher, database.CryptoKeyFeatureOidcConvert, cryptokeys.WithDBCacheClock(clock))
 		require.ErrorIs(t, err, cryptokeys.ErrInvalidFeature)
 
 		// Instantiate an encryption cache and try to use it as a signing cache.
-		ec, err := cryptokeys.NewEncryptionCache(logger, db, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
+		ec, err := cryptokeys.NewEncryptionCache(ctx, logger, fetcher, database.CryptoKeyFeatureWorkspaceApps, cryptokeys.WithDBCacheClock(clock))
 		require.NoError(t, err)
 		defer ec.Close()
 
