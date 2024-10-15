@@ -179,7 +179,7 @@ func (r *RootCmd) templateVersionsPromote() *serpent.Command {
 	)
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
-		Use:   "promote",
+		Use:   "promote --template=<template_name> --template-version=<template_version_name>",
 		Short: "Promote a template version to active.",
 		Long:  "Promote an existing template version to be the active version for the specified template.",
 		Middleware: serpent.Chain(
