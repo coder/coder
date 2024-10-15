@@ -94,7 +94,7 @@ coder provisioner start \
   --tag environment=kubernetes
 ```
 
-Note: Any user can start [user-scoped provisioners](#User-scoped-Provisioners),
+Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners),
 but this will also require a template on your deployment with the corresponding
 tags.
 

@@ -58,9 +58,10 @@ terminating processes started by it or terminating the startup script itself (on
 Linux, `ps` and `kill` are useful tools).
 
 For tips on how to write a startup script that doesn't run forever, see the
-[`startup_script`](#startup_script) section. For more ways to override the
-startup script behavior, see the
-[`startup_script_behavior`](#startup_script_behavior) section.
+[`startup_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
+section. For more ways to override the startup script behavior, see the
+[`startup_script_behavior`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior)
+section.
 
 Template authors can also set the
 [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior)
@@ -75,9 +76,9 @@ be aware that programs, files, or settings may be missing from your workspace.
 This can happen if the
 [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
 is still running or has exited with a non-zero status (see
-[startup script error](#startup-script-error)). No action is necessary, but you
-may want to
-[start a new shell session](#session-was-started-before-the-startup-script-finished-web-terminal)
+[startup script error](#startup-script-exited-with-an-error)). No action is
+necessary, but you may want to
+[start a new shell session](#session-was-started-before-the-startup-script-finished)
 after it has completed or check the
 [startup script logs](#debugging-the-startup-script) to see if there are any
 issues.

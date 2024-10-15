@@ -27,13 +27,13 @@ Give your template a name, description, and icon and press `Create template`.
 
 > **⚠️ Note**: If template creation fails, Coder is likely not authorized to
 > deploy infrastructure in the given location. Learn how to configure
-> [provisioner authentication](#TODO).
+> [provisioner authentication](./extending-templates/provider-authentication.md).
 
 ### CLI
 
 You can the [Coder CLI](../../install/cli.md) to manage templates for Coder.
-After [logging in](#TODO) to your deployment, create a folder to store your
-templates:
+After [logging in](../../reference/cli/login.md) to your deployment, create a
+folder to store your templates:
 
 ```sh
 # This snippet applies to macOS and Linux only
