@@ -28,8 +28,5 @@
 			"pattern": "wireguard.com"
 		}
 	],
-	"aliveStatusCodes": [
-		200,
-		0
-	]
+	"aliveStatusCodes": [200, 0]
 }
