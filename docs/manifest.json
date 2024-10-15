@@ -8,9 +8,9 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Tour Coder",
-					"description": "Tour Coder by creating a deployment with Docker",
-					"path": "./start/coder-tour.md"
+					"title": "Coder quickstart",
+					"description": "Try it out for yourself",
+					"path": "./tutorials/quickstart.md"
 				},
 				{
 					"title": "Screenshots",

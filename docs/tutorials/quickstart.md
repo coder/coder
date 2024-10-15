@@ -174,7 +174,7 @@ Go to **Templates** and select **Create Workspace** and continue from Step 7 in
 
 After that, you can try to:
 
-- [Customize templates](../admin/templates/extending-templates//index.md)
+- [Customize templates](../admin/templates/extending-templates/index.md)
 - [Enable Prometheus metrics](../admin/integrations/prometheus.md)
 - [Deploy to Google Cloud Platform (GCP)](../install/cloud/compute-engine.md)
 
