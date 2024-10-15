@@ -125,6 +125,15 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			}
 
 			var updatedAfter time.Time
+			// waitedFor is purely for debugging failed tests. If a test fails,
+			// it helps to know how long it took for the deadline bump to be
+			// detected. The longer this takes, the more likely time drift will
+			// affect the results.
+			waitedFor := time.Now()
+			// lastChecked is for logging within the Eventually loop.
+			// Debouncing log lines to every second to prevent spam.
+			lastChecked := time.Now()
+
 			// The Deadline bump occurs asynchronously.
 			require.Eventuallyf(t,
 				func() bool {
@@ -133,12 +142,23 @@ func TestWorkspaceActivityBump(t *testing.T) {
 					updatedAfter = dbtime.Now()
 					if workspace.LatestBuild.Deadline.Time.Equal(firstDeadline) {
 						updatedAfter = time.Now()
+						if time.Since(lastChecked) > time.Second {
+							t.Logf("deadline still not updated, will continue to check: deadline=%v", workspace.LatestBuild.Deadline.Time)
+							lastChecked = time.Now()
+						}
 						return false
 					}
 					return true
 				},
-				testutil.WaitLong, testutil.IntervalFast,
+				testutil.WaitMedium, testutil.IntervalFast,
 				"deadline %v never updated", firstDeadline,
+			)
+
+			// This log line helps establish how long it took for the deadline
+			// to be detected as bumped.
+			t.Logf("deadline bump detected: %v, waited for %s",
+				workspace.LatestBuild.Deadline.Time,
+				time.Since(waitedFor),
 			)
 
 			require.Greater(t, workspace.LatestBuild.Deadline.Time, updatedAfter)
@@ -156,7 +176,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				firstDeadline, workspace.LatestBuild.Deadline.Time, now,
 				now.Sub(workspace.LatestBuild.Deadline.Time),
 			)
-			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, testutil.WaitShort)
+			require.WithinDuration(t, now.Add(ttl), workspace.LatestBuild.Deadline.Time, testutil.WaitShort)
 		}
 	}
 
