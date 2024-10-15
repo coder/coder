@@ -6,6 +6,8 @@ import type { FC } from "react";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
 import { Language } from "./SignInForm";
+import Link from "@mui/material/Link";
+import { Link as RouterLink } from "react-router-dom";
 
 type PasswordSignInFormProps = {
 	onSubmit: (credentials: { email: string; password: string }) => void;
@@ -65,6 +67,17 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 				>
 					{Language.passwordSignIn}
 				</LoadingButton>
+				<Link
+					component={RouterLink}
+					to="/reset-password"
+					css={{
+						fontSize: 12,
+						fontWeight: 500,
+						lineHeight: "16px",
+					}}
+				>
+					Forgot password?
+				</Link>
 			</Stack>
 		</form>
 	);

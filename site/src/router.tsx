@@ -287,6 +287,9 @@ const DeploymentNotificationsPage = lazy(
 			"./pages/DeploymentSettingsPage/NotificationsPage/NotificationsPage"
 		),
 );
+const ResetPasswordPage = lazy(
+	() => import("./pages/ResetPasswordPage/ResetPasswordPage"),
+);
 
 const RoutesWithSuspense = () => {
 	return (
@@ -348,6 +351,7 @@ export const router = createBrowserRouter(
 		<Route element={<RoutesWithSuspense />}>
 			<Route path="login" element={<LoginPage />} />
 			<Route path="setup" element={<SetupPage />} />
+			<Route path="reset-password" element={<ResetPasswordPage />} />
 
 			{/* Dashboard routes */}
 			<Route element={<RequireAuth />}>

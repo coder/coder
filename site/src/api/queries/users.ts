@@ -253,3 +253,9 @@ export const updateAppearanceSettings = (
 		},
 	};
 };
+
+export const requestOneTimePassword = () => {
+	return {
+		mutationFn: API.requestOneTimePassword,
+	};
+};

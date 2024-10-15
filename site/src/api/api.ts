@@ -2167,6 +2167,12 @@ class ApiMethods {
 		);
 		return res.data;
 	};
+
+	requestOneTimePassword = async (
+		req: TypesGen.RequestOneTimePasscodeRequest,
+	) => {
+		await this.axios.post<void>("/api/v2/users/otp/request", req);
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
