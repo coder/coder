@@ -128,7 +128,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			// be increased. Since it could have been bumped at the intial
 			maxTimeDrift := testutil.WaitMedium
 
-			var updatedAfter time.Time
+			updatedAfter := dbtime.Now()
 			// waitedFor is purely for debugging failed tests. If a test fails,
 			// it helps to know how long it took for the deadline bump to be
 			// detected. The longer this takes, the more likely time drift will
@@ -148,18 +148,21 @@ func TestWorkspaceActivityBump(t *testing.T) {
 					checks++
 					workspace, err = client.Workspace(ctx, workspace.ID)
 					require.NoError(t, err)
-					updatedAfter = dbtime.Now()
 
-					if workspace.LatestBuild.Deadline.Time.Equal(firstDeadline) {
-						updatedAfter = time.Now()
-						if time.Since(lastChecked) > time.Second {
-							avgCheckTime := time.Since(waitedFor) / time.Duration(checks)
-							t.Logf("deadline still not updated, will continue to check: avg_check_dur=%s checks=%d deadline=%v", avgCheckTime, checks, workspace.LatestBuild.Deadline.Time)
-							lastChecked = time.Now()
-						}
-						return false
+					hasBumped := !workspace.LatestBuild.Deadline.Time.Equal(firstDeadline)
+
+					// Always make sure to log this information, even on the last check.
+					// The last check is the most important, as if this loop is acting
+					// slow, the last check could be the cause of the failure.
+					if time.Since(lastChecked) > time.Second || hasBumped {
+						avgCheckTime := time.Since(waitedFor) / time.Duration(checks)
+						t.Logf("deadline detect: bumped=%t since_last_check=%s avg_check_dur=%s checks=%d deadline=%v",
+							hasBumped, time.Since(updatedAfter), avgCheckTime, checks, workspace.LatestBuild.Deadline.Time)
+						lastChecked = time.Now()
 					}
-					return true
+
+					updatedAfter = dbtime.Now()
+					return hasBumped
 				},
 				maxTimeDrift, testutil.IntervalFast,
 				"deadline %v never updated", firstDeadline,
