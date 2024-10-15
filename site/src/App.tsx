@@ -1,4 +1,7 @@
 import "./theme/globalFonts";
+import createCache from "@emotion/cache";
+import { CacheProvider } from "@emotion/react";
+import { StyledEngineProvider } from "@mui/material/styles";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
 	type FC,
@@ -15,9 +18,6 @@ import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { router } from "./router";
-import { StyledEngineProvider } from "@mui/material/styles";
-import createCache from "@emotion/cache";
-import { CacheProvider } from "@emotion/react";
 
 const defaultQueryClient = new QueryClient({
 	defaultOptions: {
