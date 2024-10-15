@@ -1669,7 +1669,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		}
 
 		score, niceErr := proc.Niceness(a.syscaller)
-		if !isBenignProcessErr(niceErr) {
+		if niceErr != nil && !isBenignProcessErr(niceErr) {
 			debouncer.Warn(ctx, "unable to get proc niceness",
 				slog.F("cmd", proc.Cmd()),
 				slog.F("pid", proc.PID),
@@ -1688,7 +1688,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 
 		if niceErr == nil {
 			err := proc.SetNiceness(a.syscaller, niceness)
-			if !isBenignProcessErr(err) {
+			if err != nil && !isBenignProcessErr(err) {
 				debouncer.Warn(ctx, "unable to set proc niceness",
 					slog.F("cmd", proc.Cmd()),
 					slog.F("pid", proc.PID),
@@ -1702,7 +1702,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		if oomScore != unsetOOMScore && oomScore != proc.OOMScoreAdj && !isCustomOOMScore(agentScore, proc) {
 			oomScoreStr := strconv.Itoa(oomScore)
 			err := afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte(oomScoreStr), 0o644)
-			if !isBenignProcessErr(err) {
+			if err != nil && !isBenignProcessErr(err) {
 				debouncer.Warn(ctx, "unable to set oom_score_adj",
 					slog.F("cmd", proc.Cmd()),
 					slog.F("pid", proc.PID),
