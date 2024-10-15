@@ -180,10 +180,11 @@ func Test_Runner(t *testing.T) {
 
 			logs := bytes.NewBuffer(nil)
 			err := runner.Run(ctx, "1", logs)
-			logStr := logs.String()
-			t.Log("Runner logs:\n\n" + logStr)
-			require.Error(t, err)
-			require.ErrorContains(t, err, "expected timeout")
+			require.NoError(t, err)
+
+			tr := testutil.NewTerminalReader(t, logs)
+			err = tr.ReadUntilString(ctx, "expected timeout")
+			require.NoError(t, err)
 		})
 	})
 
