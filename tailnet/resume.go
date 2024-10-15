@@ -63,7 +63,7 @@ func NewResumeTokenKeyProvider(key jwtutils.SigningKeyManager, clock quartz.Cloc
 	return ResumeTokenKeyProvider{
 		key:    key,
 		clock:  clock,
-		expiry: DefaultResumeTokenExpiry,
+		expiry: expiry,
 	}
 }
 

@@ -198,6 +198,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	r := chi.NewRouter()
 	s := &Server{
 		Options:            opts,

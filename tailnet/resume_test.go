@@ -54,10 +54,11 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 		require.Equal(t, tailnet.DefaultResumeTokenExpiry/2, token.RefreshIn.AsDuration())
 		require.WithinDuration(t, clock.Now().Add(tailnet.DefaultResumeTokenExpiry), token.ExpiresAt.AsTime(), time.Second)
 
-		// Advance time past expiry
-		_ = clock.Advance(tailnet.DefaultResumeTokenExpiry + time.Second)
+		// Advance time past expiry. Account for leeway.
+		_ = clock.Advance(tailnet.DefaultResumeTokenExpiry + time.Second*61)
 
 		_, err = provider.VerifyResumeToken(ctx, token.Token)
+		require.Error(t, err)
 		require.ErrorIs(t, err, jwt.ErrExpired)
 	})
 

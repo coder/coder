@@ -320,7 +320,6 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		}
 		registerRes1, err := proxyClient.RegisterWorkspaceProxy(ctx, req)
 		require.NoError(t, err)
-		require.NotEmpty(t, registerRes1.AppSecurityKey)
 		require.NotEmpty(t, registerRes1.DERPMeshKey)
 		require.EqualValues(t, 10001, registerRes1.DERPRegionID)
 		require.Empty(t, registerRes1.SiblingReplicas)
@@ -955,7 +954,7 @@ func TestGetCryptoKeys(t *testing.T) {
 			Name: testutil.GetRandomName(t),
 		})
 
-		keys, err := proxy.SDKClient.CryptoKeys(ctx)
+		keys, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppAPIKey)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
 		require.Equal(t, 2, len(keys.CryptoKeys))
@@ -987,7 +986,7 @@ func TestGetCryptoKeys(t *testing.T) {
 		client := wsproxysdk.New(cclient.URL)
 		client.SetSessionToken(cclient.SessionToken())
 
-		_, err := client.CryptoKeys(ctx)
+		_, err := client.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppAPIKey)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)

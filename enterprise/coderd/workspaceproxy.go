@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -720,13 +721,29 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
+// @Param feature query string true "Feature key"
 // @Success 200 {object} wsproxysdk.CryptoKeysResponse
 // @Router /workspaceproxies/me/crypto-keys [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	keys, err := api.Database.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
+	feature := database.CryptoKeyFeature(r.URL.Query().Get("feature"))
+	if feature == "" {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing feature query parameter.",
+		})
+		return
+	}
+
+	if !slices.Contains(database.AllCryptoKeyFeatureValues(), feature) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid feature: %q", feature),
+		})
+		return
+	}
+
+	keys, err := api.Database.GetCryptoKeysByFeature(ctx, feature)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
