@@ -182,11 +182,10 @@ func Test_Runner(t *testing.T) {
 
 			logs := bytes.NewBuffer(nil)
 			err := runner.Run(ctx, "1", logs)
-			require.NoError(t, err)
-
-			tr := testutil.NewTerminalReader(t, logs)
-			err = tr.ReadUntilString(ctx, "expected timeout")
-			require.NoError(t, err)
+			logStr := logs.String()
+			t.Log("Runner logs:\n\n" + logStr)
+			require.Error(t, err)
+			require.ErrorContains(t, err, "expected timeout")
 		})
 	})
 
@@ -228,7 +227,7 @@ func Test_Runner(t *testing.T) {
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
-				LogOutput: false,
+				LogOutput: true,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -236,7 +235,7 @@ func Test_Runner(t *testing.T) {
 
 			logs := bytes.NewBuffer(nil)
 			err := runner.Run(ctx, "1", logs)
-			require.Error(t, err)
+			require.NoError(t, err)
 
 			tr := testutil.NewTerminalReader(t, logs)
 			err = tr.ReadUntilString(ctx, "bello borld")
