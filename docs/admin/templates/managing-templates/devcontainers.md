@@ -25,9 +25,9 @@ Then developers enter their repository URL as a
 workspace. [Envbuilder](https://github.com/coder/envbuilder) clones the repo and
 builds a container from the `devcontainer.json` specified in the repo.
 
-When using the [Envbuilder Terraform provider](#provider), a previously built
-and cached image can be re-used directly, allowing instantaneous dev container
-starts.
+When using the [Envbuilder Terraform provider](#envbuilder-terraform-provider),
+a previously built and cached image can be re-used directly, allowing
+instantaneous dev container starts.
 
 Developers can edit the `devcontainer.json` in their workspace to rebuild to
 iterate on their development environments.
