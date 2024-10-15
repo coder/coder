@@ -74,7 +74,7 @@ We recommend using only the following as inputs for `coder_workspace_tags`:
 
 |                    | Example                                       |
 | :----------------- | :-------------------------------------------- |
-| Static values      | `developers`                                  |
+| Static values      | `"developers"`                                |
 | Template variables | `var.az`                                      |
 | Coder parameters   | `data.coder_parameter.runtime_selector.value` |
 
