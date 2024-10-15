@@ -124,6 +124,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				return
 			}
 
+			// maxTimeDrift is how long we are willing wait for a deadline to
+			// be increased. Since it could have been bumped at the intial
+			maxTimeDrift := testutil.WaitMedium
+
 			var updatedAfter time.Time
 			// waitedFor is purely for debugging failed tests. If a test fails,
 			// it helps to know how long it took for the deadline bump to be
@@ -132,25 +136,32 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			waitedFor := time.Now()
 			// lastChecked is for logging within the Eventually loop.
 			// Debouncing log lines to every second to prevent spam.
-			lastChecked := time.Now()
+			lastChecked := time.Time{}
+			// checks is for keeping track of the average check time.
+			// If CI is running slow, this could be useful to know checks
+			// are taking longer than expected.
+			checks := 0
 
 			// The Deadline bump occurs asynchronously.
 			require.Eventuallyf(t,
 				func() bool {
+					checks++
 					workspace, err = client.Workspace(ctx, workspace.ID)
 					require.NoError(t, err)
 					updatedAfter = dbtime.Now()
+
 					if workspace.LatestBuild.Deadline.Time.Equal(firstDeadline) {
 						updatedAfter = time.Now()
 						if time.Since(lastChecked) > time.Second {
-							t.Logf("deadline still not updated, will continue to check: deadline=%v", workspace.LatestBuild.Deadline.Time)
+							avgCheckTime := time.Since(waitedFor) / time.Duration(checks)
+							t.Logf("deadline still not updated, will continue to check: avg_check_dur=%s checks=%d deadline=%v", avgCheckTime, checks, workspace.LatestBuild.Deadline.Time)
 							lastChecked = time.Now()
 						}
 						return false
 					}
 					return true
 				},
-				testutil.WaitMedium, testutil.IntervalFast,
+				maxTimeDrift, testutil.IntervalFast,
 				"deadline %v never updated", firstDeadline,
 			)
 
@@ -176,7 +187,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				firstDeadline, workspace.LatestBuild.Deadline.Time, now,
 				now.Sub(workspace.LatestBuild.Deadline.Time),
 			)
-			require.WithinDuration(t, now.Add(ttl), workspace.LatestBuild.Deadline.Time, testutil.WaitShort)
+			require.WithinDuration(t, now.Add(ttl), workspace.LatestBuild.Deadline.Time, maxTimeDrift)
 		}
 	}
 
