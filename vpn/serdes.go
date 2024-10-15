@@ -103,12 +103,16 @@ func (s *serdes[_, _, _]) closeIdempotent() {
 	})
 }
 
+// Close closes the serdes
+// nolint: revive
 func (s *serdes[_, _, _]) Close() error {
 	s.closeIdempotent()
 	s.wg.Wait()
 	return nil
 }
 
+// start starts the goroutines that serialize and deserialize to the conn.
+// nolint: revive
 func (s *serdes[_, _, _]) start() {
 	s.wg.Add(2)
 	go func() {

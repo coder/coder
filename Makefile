@@ -507,7 +507,8 @@ gen: \
 	examples/examples.gen.json \
 	tailnet/tailnettest/coordinatormock.go \
 	tailnet/tailnettest/coordinateemock.go \
-	tailnet/tailnettest/multiagentmock.go
+	tailnet/tailnettest/multiagentmock.go \
+	coderd/database/pubsub/psmock/psmock.go
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
@@ -537,6 +538,7 @@ gen/mark-fresh:
 		tailnet/tailnettest/coordinatormock.go \
 		tailnet/tailnettest/coordinateemock.go \
 		tailnet/tailnettest/multiagentmock.go \
+		coderd/database/pubsub/psmock/psmock.go \
 		"
 
 	for file in $$files; do
