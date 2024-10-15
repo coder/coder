@@ -72,10 +72,10 @@ as immutable and set only once, during workspace creation.
 
 We recommend using only the following as inputs for `coder_workspace_tags`:
 
-|                    | Example |
-|:-------------------|:--------|
-| Static values      | `developers` |
-| Template variables | `var.az` |
+|                    | Example                                       |
+| :----------------- | :-------------------------------------------- |
+| Static values      | `developers`                                  |
+| Template variables | `var.az`                                      |
 | Coder parameters   | `data.coder_parameter.runtime_selector.value` |
 
 Passing template tags in from other data sources may have undesired effects.
