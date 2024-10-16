@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,6 +33,8 @@ import (
 type provisionerServeOptions struct {
 	binaryPath  string
 	exitTimeout time.Duration
+	workDir     string
+	logger      *slog.Logger
 }
 
 func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Context, proto.DRPCProvisionerClient) {
@@ -38,7 +42,13 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		opts = &provisionerServeOptions{}
 	}
 	cachePath := t.TempDir()
-	workDir := t.TempDir()
+	if opts.workDir == "" {
+		opts.workDir = t.TempDir()
+	}
+	if opts.logger == nil {
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		opts.logger = &logger
+	}
 	client, server := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverErr := make(chan error, 1)
@@ -55,8 +65,8 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		serverErr <- terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener:      server,
-				Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-				WorkDirectory: workDir,
+				Logger:        *opts.logger,
+				WorkDirectory: opts.workDir,
 			},
 			BinaryPath:  opts.binaryPath,
 			CachePath:   cachePath,
@@ -236,7 +246,7 @@ func TestProvision_CancelTimeout(t *testing.T) {
 	dir := t.TempDir()
 	binPath := filepath.Join(dir, "terraform")
 
-	// Example: exec /path/to/terrafork_fake_cancel.sh 1.2.1 apply "$@"
+	// Example: exec /path/to/terraform_fake_cancel.sh 1.2.1 apply "$@"
 	content := fmt.Sprintf("#!/bin/sh\nexec %q %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String())
 	err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
 	require.NoError(t, err)
@@ -280,6 +290,81 @@ func TestProvision_CancelTimeout(t *testing.T) {
 			break
 		}
 	}
+}
+
+// below we exec fake_text_file_busy.sh, which causes the kernel to execute it, and if more than
+// one process tries to do this, it can cause "text file busy" to be returned to us. In this test
+// we want to simulate "text file busy" getting logged by terraform, due to an issue with the
+// terraform-provider-coder
+// nolint: paralleltest
+func TestProvision_TextFileBusy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("This test uses unix sockets and is not supported on Windows")
+	}
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	fakeBin := filepath.Join(cwd, "testdata", "fake_text_file_busy.sh")
+
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "terraform")
+
+	// Example: exec /path/to/terraform_fake_cancel.sh 1.2.1 apply "$@"
+	content := fmt.Sprintf("#!/bin/sh\nexec %q %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String())
+	err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
+	require.NoError(t, err)
+
+	workDir := t.TempDir()
+
+	err = os.Mkdir(filepath.Join(workDir, ".coder"), 0o700)
+	require.NoError(t, err)
+	l, err := net.Listen("unix", filepath.Join(workDir, ".coder", "pprof"))
+	require.NoError(t, err)
+	defer l.Close()
+	handlerCalled := 0
+	// nolint: gosec
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/debug/pprof/goroutine", r.URL.Path)
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte("thestacks\n"))
+			assert.NoError(t, err)
+			handlerCalled++
+		}),
+	}
+	srvErr := make(chan error, 1)
+	go func() {
+		srvErr <- srv.Serve(l)
+	}()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		binaryPath:  binPath,
+		exitTimeout: time.Second,
+		workDir:     workDir,
+		logger:      &logger,
+	})
+
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: makeTar(t, nil),
+	})
+
+	err = sendPlan(sess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+
+	found := false
+	for {
+		msg, err := sess.Recv()
+		require.NoError(t, err)
+
+		if c := msg.GetPlan(); c != nil {
+			require.Contains(t, c.Error, "exit status 1")
+			found = true
+			break
+		}
+	}
+	require.True(t, found)
+	require.EqualValues(t, 1, handlerCalled)
 }
 
 func TestProvision(t *testing.T) {

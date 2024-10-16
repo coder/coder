@@ -1124,16 +1124,20 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 	}
 
 	for _, templateAdmin := range templateAdmins {
+		templateNameLabel := template.DisplayName
+		if templateNameLabel == "" {
+			templateNameLabel = template.Name
+		}
+		labels := map[string]string{
+			"name":                     workspace.Name,
+			"template_name":            templateNameLabel,
+			"template_version_name":    templateVersion.Name,
+			"initiator":                build.InitiatorByUsername,
+			"workspace_owner_username": workspaceOwner.Username,
+			"workspace_build_number":   strconv.Itoa(int(build.BuildNumber)),
+		}
 		if _, err := s.NotificationsEnqueuer.Enqueue(ctx, templateAdmin.ID, notifications.TemplateWorkspaceManualBuildFailed,
-			map[string]string{
-				"name":                     workspace.Name,
-				"template_name":            template.Name,
-				"template_display_name":    template.DisplayName,
-				"template_version_name":    templateVersion.Name,
-				"initiator":                build.InitiatorByUsername,
-				"workspace_owner_username": workspaceOwner.Username,
-				"workspace_build_number":   strconv.Itoa(int(build.BuildNumber)),
-			}, "provisionerdserver",
+			labels, "provisionerdserver",
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 		); err != nil {

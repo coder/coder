@@ -135,11 +135,15 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		return
 	}
 
+	templateNameLabel := template.DisplayName
+	if templateNameLabel == "" {
+		templateNameLabel = template.Name
+	}
+
 	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateDeleted,
 		map[string]string{
-			"name":         template.Name,
-			"display_name": template.DisplayName,
-			"initiator":    initiator.Username,
+			"name":      templateNameLabel,
+			"initiator": initiator.Username,
 		}, "api-templates-delete",
 		// Associate this notification with all the related entities.
 		template.ID, template.OrganizationID,
