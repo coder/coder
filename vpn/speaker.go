@@ -186,6 +186,7 @@ func (s *speaker[S, R, _]) recvFromSerdes() {
 	}
 }
 
+// Close closes the speaker
 // nolint: revive
 func (s *speaker[_, _, _]) Close() error {
 	s.cancel()
