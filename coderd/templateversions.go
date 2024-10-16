@@ -1342,6 +1342,8 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	}
 
 	// Ensures the "owner" is properly applied.
+	// TODO(Cian): We need to detect workspace_tags defined in the file and add
+	// them here.
 	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags)
 
 	if req.ExampleID != "" && req.FileID != uuid.Nil {
@@ -1474,7 +1476,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			FileID:         file.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          jobInput,
-			Tags:           tags,
+			Tags:           tags, // TODO(Cian): this needs to include workspace_tags defined in the file.
 			TraceMetadata: pqtype.NullRawMessage{
 				Valid:      true,
 				RawMessage: traceMetadataRaw,

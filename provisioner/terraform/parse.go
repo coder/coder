@@ -34,6 +34,8 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.WorkDirectory, diags))
 	}
 
+	// NOTE: we load workspace tags before loading terraform variables.
+	// We do not need to know the actual values here, just the expressions.
 	workspaceTags, err := s.loadWorkspaceTags(ctx, module)
 	if err != nil {
 		return provisionersdk.ParseErrorf("can't load workspace tags: %v", err)

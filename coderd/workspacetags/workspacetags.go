@@ -17,6 +17,8 @@ import (
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 // Validate ensures that any uses of the `coder_workspace_tags` data source only
@@ -33,27 +35,36 @@ func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype str
 	// TODO(cian): we need to detect if there are missing UserVariableValues.
 	// This is normally done by the provisioner, but we need to do it here.
 
-	memfs := afero.NewMemMapFs()
+	// Create a temporary directory
+	tmpDir, err := os.MkdirTemp("", "workspacetags-validate")
+	if err != nil {
+		return nil, xerrors.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Untar the file into the temporary directory
+	var rdr io.Reader
 	switch mimetype {
 	case "application/x-tar":
-		// untar the file into the filesystem
-		if err := untarFS(memfs, file); err != nil {
-			return nil, xerrors.Errorf("untar file: %w", err)
-		}
+		rdr = bytes.NewReader(file)
 	case "application/zip":
-		// TODO: convert to tar and untar
-		return nil, xerrors.New("zip files are not supported (yet)")
+		// TODO: convert to tar
+		return nil, xerrors.Errorf("todo: convert zip to tar")
 	default:
 		return nil, xerrors.Errorf("unsupported mimetype: %s", mimetype)
 	}
-	tfMemFS, ok := memfs.(tfconfig.FS)
-	if !ok {
-		return nil, xerrors.New("memfs is not a tfconfig.FS")
+
+	if err := provisionersdk.Untar(tmpDir, rdr); err != nil {
+		return nil, xerrors.Errorf("untar: %w", err)
 	}
-	module, diags := tfconfig.LoadModuleFromFilesystem(tfMemFS, "/")
+
+	module, diags := tfconfig.LoadModule(tmpDir)
 	if diags.HasErrors() {
 		return nil, xerrors.Errorf("load module: %s", diags.Error())
 	}
+
+	// TODO: this only gets us the expressions. We need to evaluate them.
+	// Example: var.region -> "us"
 	tags, err = loadWorkspaceTags(ctx, logger, module)
 	return tags, err
 }
