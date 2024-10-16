@@ -41,7 +41,7 @@ persistent environment from your main device, a tablet, or your phone.
    sudo usermod -aG docker $USER
    ```
 
-1. Update the group with `newgrp`:
+1. Log out and log back in so that your group membership is re-evaluated or run:
 
 ```shell
 newgrp docker
