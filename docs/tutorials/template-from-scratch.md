@@ -14,17 +14,12 @@ To follow this guide, you'll need:
   [Docker](https://docs.docker.com/get-docker/) and [Coder](../install/index.md)
   installed on it.
 
-> When setting up your computer or computing instance, make sure to install
-> Docker first, then Coder. Otherwise, you'll need to add the `coder` user to
-> the `docker` group.
+  - When setting up your computer or computing instance, make sure to install Docker first, then Coder. Otherwise, you'll need to add the `coder` user to the `docker` group.
 
 - The URL for your Coder instance. If you're running Coder locally, the default
   URL is [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
 - A text editor. For this tour, we use [GNU nano](https://nano-editor.org/).
-
-> Haven't written Terraform before? Check out Hashicorp's
-> [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 
 ## What's in a template
 
@@ -35,6 +30,9 @@ that the template needs. In this tour you'll also create a `Dockerfile`.
 Coder can provision all Terraform modules, resources, and properties. The Coder
 server essentially runs a `terraform apply` every time a workspace is created,
 started, or stopped.
+
+> Haven't written Terraform before? Check out Hashicorp's
+> [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 
 Here's a simplified diagram that shows the main parts of the template we'll
 create.
@@ -47,10 +45,8 @@ On your local computer, create a directory for your template and create the
 `Dockerfile`.
 
 ```sh
-mkdir template-tour
-cd template-tour
-mkdir build
-nano build/Dockerfile
+mkdir -p template-tour/build && cd $_
+nano Dockerfile
 ```
 
 You'll enter a simple `Dockerfile` that starts with the
@@ -72,7 +68,6 @@ RUN useradd --groups sudo --no-create-home --shell /bin/bash ${USER} \
 	&& chmod 0440 /etc/sudoers.d/${USER}
 USER ${USER}
 WORKDIR /home/${USER}
-
 ```
 
 Notice how `Dockerfile` adds a few things to the parent `ubuntu` image, which
@@ -83,7 +78,7 @@ your template needs later:
 
 ## 2. Set up template providers
 
-Now you can edit the Terraform file, which provisions the workspace's resources.
+Edit the Terraform file to provision the workspace's resources:
 
 ```shell
 nano main.tf
@@ -97,31 +92,28 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.8.3"
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.0.1"
     }
   }
 }
 
-provider "coder" {
-}
-
-provider "docker" {
-}
-
 locals {
-  username = data.coder_workspace.me.owner
+  username = data.coder_workspace_owner.me.name
 }
 
 data "coder_provisioner" "me" {
 }
 
-data "coder_workspace" "me" {
+provider "docker" {
 }
 
+provider "coder" {
+}
+
+data "coder_workspace" "me" {
+}
 ```
 
 Notice that the `provider` blocks for `coder` and `docker` are empty. In a more
@@ -132,8 +124,7 @@ The
 [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace)
 data source provides details about the state of a workspace, such as its name,
 owner, and so on. The data source also lets us know when a workspace is being
-started or stopped. We'll take advantage of this information in later steps to
-do these things:
+started or stopped. We'll take advantage of this information in later steps to:
 
 - Set some environment variables based on the workspace owner.
 - Manage ephemeral and persistent storage.
@@ -150,26 +141,25 @@ You do not need to have any open ports on the compute aspect, but the agent
 needs `curl` access to the Coder server. Remember that we installed `curl` in
 `Dockerfile`, earlier.
 
-This snippet creates the agent:
+Add this snippet below the last closing `}` in `main.tf` to create the agent:
 
 ```tf
 resource "coder_agent" "main" {
   arch                   = data.coder_provisioner.me.arch
   os                     = "linux"
-  startup_script_timeout = 180
   startup_script         = <<-EOT
     set -e
 
     # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 
   env = {
-    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner}"
-    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner}"
-    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
-    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
+    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
   }
 
   metadata {
@@ -188,11 +178,10 @@ resource "coder_agent" "main" {
     timeout      = 1
   }
 }
-
 ```
 
 Because Docker is running locally in the Coder server, there is no need to
-authenticate `coder_agent`. But if your `coder_agent` were running on a remote
+authenticate `coder_agent`. But if your `coder_agent` is running on a remote
 host, your template would need
 [authentication credentials](../admin/external-auth.md).
 
@@ -229,7 +218,7 @@ This is commonly used for
 [web IDEs](../user-guides/workspace-access/web-ides.md) such as
 [code-server](https://coder.com/docs/code-server), RStudio, and JupyterLab.
 
-To install and code-server in the workspace, remember that we installed it in
+To install code-server in the workspace, remember that we installed it in
 the `startup_script` argument in `coder_agent`. We make it available from a
 workspace with a `coder_app` resource. See
 [web IDEs](../user-guides/workspace-access/web-ides.md) for more examples.
@@ -250,11 +239,10 @@ resource "coder_app" "code-server" {
     threshold = 6
   }
 }
-
 ```
 
 You can also use a `coder_app` resource to link to external apps, such as links
-to wikis or cloud consoles.
+to wikis or cloud consoles:
 
 ```tf
 resource "coder_app" "coder-server-doc" {
@@ -264,7 +252,6 @@ resource "coder_app" "coder-server-doc" {
   url          = "https://coder.com/docs/code-server"
   external     = true
 }
-
 ```
 
 ## 5. Persistent and ephemeral resources
@@ -296,7 +283,6 @@ resource "docker_volume" "home_volume" {
     ignore_changes = all
   }
 }
-
 ```
 
 For details, see
@@ -305,7 +291,7 @@ For details, see
 ## 6. Set up the Docker container
 
 To set up our Docker container, our template has a `docker_image` resource that
-uses `build/Dockerfile`, which we created earlier.
+uses `build/Dockerfile`, which we created earlier:
 
 ```tf
 resource "docker_image" "main" {
@@ -320,7 +306,6 @@ resource "docker_image" "main" {
     dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
   }
 }
-
 ```
 
 Our `docker_container` resource uses `coder_workspace` `start_count` to start
@@ -331,7 +316,7 @@ resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.main.name
   # Uses lower() to avoid Docker restriction on container names.
-  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
   # Use the docker gateway if the access URL is 127.0.0.1
@@ -349,7 +334,6 @@ resource "docker_container" "workspace" {
     read_only      = false
   }
 }
-
 ```
 
 ## 7. Create the template in Coder
