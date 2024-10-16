@@ -1,0 +1,29 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "User account suspended",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "View suspended accounts",
+        "url": "http://test.com/deployment/users?filter=status%3Asuspended"
+      }
+    ],
+    "labels": {
+      "initiator": "rob",
+      "suspended_account_name": "bobby",
+      "suspended_account_user_name": "William Tables"
+    },
+    "data": null
+  },
+  "title": "User account \"bobby\" suspended",
+  "title_markdown": "User account \"bobby\" suspended",
+  "body": "Hi Bobby,\n\nUser account bobby has been suspended.\n\nThe newly suspended account belongs to William Tables and was suspended by rob.",
+  "body_markdown": "Hi Bobby,\n\nUser account **bobby** has been suspended.\n\nThe newly suspended account belongs to **William Tables** and was suspended by **rob**."
+}

@@ -17,6 +17,7 @@ specified:
 ```tf
 data "coder_workspace_tags" "custom_workspace_tags" {
   tags = {
+    "az"          = var.az
     "zone"        = "developers"
     "runtime"     = data.coder_parameter.runtime_selector.value
     "project_id"  = "PROJECT_${data.coder_parameter.project_name.value}"
@@ -50,6 +51,9 @@ added that can handle its combination of tags.
 Before releasing the template version with configurable workspace tags, ensure
 that every tag set is associated with at least one healthy provisioner.
 
+> [!NOTE] It may be useful to run at least one provisioner with no additional
+> tag restrictions that is able to take on any job.
+
 ### Parameters types
 
 Provisioners require job tags to be defined in plain string format. When a
@@ -65,6 +69,16 @@ A mutable `coder_parameter` can be dangerous for a workspace tag as it allows
 the workspace owner to change a provisioner group (due to different tags). In
 most cases, `coder_parameter`s backing `coder_workspace_tags` should be marked
 as immutable and set only once, during workspace creation.
+
+We recommend using only the following as inputs for `coder_workspace_tags`:
+
+|                    | Example                                       |
+| :----------------- | :-------------------------------------------- |
+| Static values      | `"developers"`                                |
+| Template variables | `var.az`                                      |
+| Coder parameters   | `data.coder_parameter.runtime_selector.value` |
+
+Passing template tags in from other data sources may have undesired effects.
 
 ### HCL syntax
 

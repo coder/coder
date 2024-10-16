@@ -174,3 +174,41 @@ func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) 
 	var params []WorkspaceBuildParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
+
+type ProvisionerTiming struct {
+	JobID     uuid.UUID `json:"job_id" format:"uuid"`
+	StartedAt time.Time `json:"started_at" format:"date-time"`
+	EndedAt   time.Time `json:"ended_at" format:"date-time"`
+	Stage     string    `json:"stage"`
+	Source    string    `json:"source"`
+	Action    string    `json:"action"`
+	Resource  string    `json:"resource"`
+}
+
+type AgentScriptTiming struct {
+	StartedAt   time.Time `json:"started_at" format:"date-time"`
+	EndedAt     time.Time `json:"ended_at" format:"date-time"`
+	ExitCode    int32     `json:"exit_code"`
+	Stage       string    `json:"stage"`
+	Status      string    `json:"status"`
+	DisplayName string    `json:"display_name"`
+}
+
+type WorkspaceBuildTimings struct {
+	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
+	AgentScriptTimings []AgentScriptTiming `json:"agent_script_timings"`
+}
+
+func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (WorkspaceBuildTimings, error) {
+	path := fmt.Sprintf("/api/v2/workspacebuilds/%s/timings", build.String())
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return WorkspaceBuildTimings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
+	}
+	var timings WorkspaceBuildTimings
+	return timings, json.NewDecoder(res.Body).Decode(&timings)
+}
