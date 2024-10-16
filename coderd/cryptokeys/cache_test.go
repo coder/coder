@@ -39,7 +39,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			now := clock.Now().UTC()
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
 				Secret:   generateKey(t, 64),
 				Sequence: 2,
 				StartsAt: now,
@@ -49,7 +49,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{expected},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			id, got, err := cache.SigningKey(ctx)
@@ -71,11 +71,11 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
 				Secret:   generateKey(t, 64),
 				Sequence: 12,
 				StartsAt: clock.Now().UTC(),
@@ -109,7 +109,7 @@ func TestCryptoKeyCache(t *testing.T) {
 			now := clock.Now().UTC()
 
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
 				Secret:   generateKey(t, 64),
 				Sequence: 1,
 				StartsAt: clock.Now().UTC(),
@@ -119,7 +119,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{
 					expected,
 					{
-						Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
+						Feature:   codersdk.CryptoKeyFeatureTailnetResume,
 						Secret:    generateKey(t, 64),
 						Sequence:  2,
 						StartsAt:  now.Add(-time.Second),
@@ -128,7 +128,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			id, got, err := cache.SigningKey(ctx)
@@ -150,7 +150,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp)
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume)
 			require.NoError(t, err)
 
 			_, _, err = cache.SigningKey(ctx)
@@ -172,7 +172,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			now := clock.Now().UTC()
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
 				Secret:   generateKey(t, 64),
 				Sequence: 12,
 				StartsAt: now,
@@ -181,7 +181,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{
 					expected,
 					{
-						Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+						Feature:  codersdk.CryptoKeyFeatureTailnetResume,
 						Secret:   generateKey(t, 64),
 						Sequence: 13,
 						StartsAt: now,
@@ -189,7 +189,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			got, err := cache.VerifyingKey(ctx, keyID(expected))
@@ -210,11 +210,11 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
 				Secret:   generateKey(t, 64),
 				Sequence: 12,
 				StartsAt: clock.Now().UTC(),
@@ -244,7 +244,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			now := clock.Now().UTC()
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
 				Secret:   generateKey(t, 64),
 				Sequence: 12,
 				StartsAt: now.Add(-time.Second),
@@ -256,7 +256,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			got, err := cache.VerifyingKey(ctx, keyID(expected))
@@ -276,7 +276,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			now := clock.Now().UTC()
 			expected := codersdk.CryptoKey{
-				Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
+				Feature:   codersdk.CryptoKeyFeatureTailnetResume,
 				Secret:    generateKey(t, 64),
 				Sequence:  12,
 				StartsAt:  now.Add(-time.Second),
@@ -289,7 +289,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			_, err = cache.VerifyingKey(ctx, keyID(expected))
@@ -310,7 +310,7 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{},
 			}
 
-			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			_, err = cache.VerifyingKey(ctx, "1")
@@ -329,7 +329,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		now := clock.Now().UTC()
 		expected := codersdk.CryptoKey{
-			Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
+			Feature:   codersdk.CryptoKeyFeatureTailnetResume,
 			Secret:    generateKey(t, 64),
 			Sequence:  12,
 			StartsAt:  now,
@@ -341,7 +341,7 @@ func TestCryptoKeyCache(t *testing.T) {
 			},
 		}
 
-		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 		require.NoError(t, err)
 
 		id, got, err := cache.SigningKey(ctx)
@@ -351,7 +351,7 @@ func TestCryptoKeyCache(t *testing.T) {
 		require.Equal(t, 1, ff.called)
 
 		newKey := codersdk.CryptoKey{
-			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
+			Feature:  codersdk.CryptoKeyFeatureTailnetResume,
 			Secret:   generateKey(t, 64),
 			Sequence: 13,
 			StartsAt: now,
@@ -392,7 +392,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		now := clock.Now().UTC()
 		expected := codersdk.CryptoKey{
-			Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
+			Feature:   codersdk.CryptoKeyFeatureTailnetResume,
 			Secret:    generateKey(t, 64),
 			Sequence:  12,
 			StartsAt:  now,
@@ -406,15 +406,15 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		// Create a trap that blocks when the refresh timer fires.
 		trap := clock.Trap().Now("refresh")
-		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 		require.NoError(t, err)
 
 		_, wait := clock.AdvanceNext()
 		trapped := trap.MustWait(ctx)
 
 		newKey := codersdk.CryptoKey{
-			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-			Secret:   "key2",
+			Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+			Secret:   generateKey(t, 64),
 			Sequence: 13,
 			StartsAt: now,
 		}
@@ -448,8 +448,8 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		now := clock.Now()
 		expected := codersdk.CryptoKey{
-			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-			Secret:   "key1",
+			Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+			Secret:   generateKey(t, 64),
 			Sequence: 12,
 			StartsAt: now,
 		}
@@ -459,7 +459,7 @@ func TestCryptoKeyCache(t *testing.T) {
 			},
 		}
 
-		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureWorkspaceApp, cryptokeys.WithCacheClock(clock))
+		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 		require.NoError(t, err)
 
 		id, got, err := cache.SigningKey(ctx)

@@ -13,7 +13,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -24,8 +23,6 @@ var (
 	ErrClosed         = xerrors.New("closed")
 	ErrInvalidFeature = xerrors.New("invalid feature for this operation")
 )
-
-var _ jwtutils.SigningKeyProvider = &cache{}
 
 type Fetcher interface {
 	Fetch(ctx context.Context) ([]codersdk.CryptoKey, error)
