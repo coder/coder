@@ -44,7 +44,7 @@
           name = "protoc-gen-go";
           owner = "protocolbuffers";
           repo = "protobuf-go";
-          rev = "v1.30.0"; 
+          rev = "v1.30.0";
           src = pkgs.fetchFromGitHub {
             owner = "protocolbuffers";
             repo = "protobuf-go";
@@ -54,11 +54,11 @@
           };
           subPackages = [ "cmd/protoc-gen-go" ];
           vendorHash = null;
-          proxyVendor = true;
-          preBuild = ''
-            export GOPROXY=https://proxy.golang.org,direct
-            go mod download
-          '';
+          # proxyVendor = true;
+          # preBuild = ''
+          #   export GOPROXY=https://proxy.golang.org,direct
+          #   go mod download
+          # '';
         };
 
         # The minimal set of packages to build Coder.
@@ -118,7 +118,9 @@
           zip
           zsh
           zstd
+          libuuid
         ];
+
 
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
@@ -170,9 +172,10 @@
             export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
             export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
           '';
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.libuuid ];
         };
         packages = {
-          proto_gen_go = proto_gen_go_1_30;  
+          proto_gen_go = proto_gen_go_1_30;
           all = pkgs.buildEnv {
             name = "all-packages";
             paths = devShellPackages;

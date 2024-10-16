@@ -202,8 +202,8 @@ importers:
         specifier: npm:@leeoniya/ufuzzy@1.0.10
         version: '@leeoniya/ufuzzy@1.0.10'
       undici:
-        specifier: 6.19.7
-        version: 6.19.7
+        specifier: 6.20.0
+        version: 6.20.0
       unique-names-generator:
         specifier: 4.7.1
         version: 4.7.1
@@ -349,6 +349,9 @@ importers:
       jest-environment-jsdom:
         specifier: 29.5.0
         version: 29.5.0(canvas@3.0.0-rc2)
+      jest-fixed-jsdom:
+        specifier: 0.0.4
+        version: 0.0.4(jest-environment-jsdom@29.5.0(canvas@3.0.0-rc2))
       jest-location-mock:
         specifier: 2.0.0
         version: 2.0.0
@@ -4176,6 +4179,12 @@ packages:
     resolution: {integrity: sha512-DOSwCRqXirTOyheM+4d5YZOrWcdu0LNZ87ewUoywbcb2XR4wKgqiG8vNeYwhjFMbEkfju7wx2GYH0P2gevGvFw==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
+  jest-fixed-jsdom@0.0.4:
+    resolution: {integrity: sha512-P9BVuU55UMoOSqNRTLKajmfFNNP/4W4P+fJYGpgmSkTJbyMzNwjNVBMDoUmFZkvWo4oi1/NXTyF0+hTO1yShBA==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      jest-environment-jsdom: '>=28.0.0'
+
   jest-get-type@29.4.3:
     resolution: {integrity: sha512-J5Xez4nRRMjk8emnTpWrlkyb9pfRQQanDrvWHhsR1+VUfbwxi30eVcZFlcdGInRibU4G5LwHXpI7IRHU0CY+gg==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -5755,8 +5764,8 @@ packages:
   undici-types@6.19.8:
     resolution: {integrity: sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==}
 
-  undici@6.19.7:
-    resolution: {integrity: sha512-HR3W/bMGPSr90i8AAp2C4DM3wChFdJPLrWYpIS++LxS8K+W535qftjt+4MyjNYHeWabMj1nvtmLIi7l++iq91A==}
+  undici@6.20.0:
+    resolution: {integrity: sha512-AITZfPuxubm31Sx0vr8bteSalEbs9wQb/BOBi9FPlD9Qpd6HxZ4Q0+hI742jBhkPb4RT2v5MQzaW5VhRVyj+9A==}
     engines: {node: '>=18.17'}
 
   unified@11.0.4:
@@ -10362,6 +10371,10 @@ snapshots:
       jest-mock: 29.7.0
       jest-util: 29.7.0
 
+  jest-fixed-jsdom@0.0.4(jest-environment-jsdom@29.5.0(canvas@3.0.0-rc2)):
+    dependencies:
+      jest-environment-jsdom: 29.5.0(canvas@3.0.0-rc2)
+
   jest-get-type@29.4.3: {}
 
   jest-get-type@29.6.3: {}
@@ -12339,7 +12352,7 @@ snapshots:
 
   undici-types@6.19.8: {}
 
-  undici@6.19.7: {}
+  undici@6.20.0: {}
 
   unified@11.0.4:
     dependencies:

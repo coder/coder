@@ -96,7 +96,7 @@
 		"tzdata": "1.0.40",
 		"ua-parser-js": "1.0.33",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
-		"undici": "6.19.7",
+		"undici": "6.20.1",
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
 		"yup": "1.4.0"
@@ -147,6 +147,7 @@
 		"jest": "29.7.0",
 		"jest-canvas-mock": "2.5.2",
 		"jest-environment-jsdom": "29.5.0",
+		"jest-fixed-jsdom": "0.0.4",
 		"jest-location-mock": "2.0.0",
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
