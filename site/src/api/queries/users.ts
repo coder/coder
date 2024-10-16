@@ -3,6 +3,7 @@ import type {
 	AuthorizationRequest,
 	GenerateAPIKeyResponse,
 	GetUsersResponse,
+	RequestOneTimePasscodeRequest,
 	UpdateUserAppearanceSettingsRequest,
 	UpdateUserPasswordRequest,
 	UpdateUserProfileRequest,
@@ -256,7 +257,8 @@ export const updateAppearanceSettings = (
 
 export const requestOneTimePassword = () => {
 	return {
-		mutationFn: API.requestOneTimePassword,
+		mutationFn: (req: RequestOneTimePasscodeRequest) =>
+			API.requestOneTimePassword(req),
 	};
 };
 

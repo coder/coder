@@ -30,7 +30,13 @@ const validationSchema = yup.object({
 		}),
 });
 
-const ChangePasswordPage: FC = () => {
+type ChangePasswordChangeProps = {
+	// This is used to prevent redirection when testing the page in Storybook and
+	// capturing Chromatic snapshots.
+	redirect?: boolean;
+};
+
+const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 	const navigate = useNavigate();
 	const applicationName = getApplicationName();
 	const changePasswordMutation = useMutation(changePasswordWithOTP());
@@ -54,7 +60,9 @@ const ChangePasswordPage: FC = () => {
 					password: values.password,
 				});
 				displaySuccess("Password reset successfully");
-				navigate("/login");
+				if (redirect) {
+					navigate("/login");
+				}
 			} catch (error) {
 				displayError(getErrorMessage(error, "Error resetting password"));
 			}
