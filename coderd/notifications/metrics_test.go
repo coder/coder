@@ -3,6 +3,7 @@ package notifications_test
 import (
 	"context"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -317,10 +318,12 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	})
 
 	handler := &fakeHandler{}
-	// Delayer will delay all dispatches by 2x fetch intervals to ensure we catch the requests inflight.
-	delayer := newDelayingHandler(cfg.FetchInterval.Value()*2, handler)
+	const msgCount = 2
+
+	// Barrier handler will wait until all notification messages are in-flight.
+	barrier := newBarrierHandler(msgCount, handler)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
-		method: delayer,
+		method: barrier,
 	})
 
 	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
@@ -329,7 +332,6 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	user := createSampleUser(t, api.Database)
 
 	// WHEN: notifications are enqueued which will succeed (and be delayed during dispatch)
-	const msgCount = 2
 	for i := 0; i < msgCount; i++ {
 		_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success", "i": strconv.Itoa(i)}, "test")
 		require.NoError(t, err)
@@ -342,6 +344,10 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), template.String())) == msgCount
 	}, testutil.WaitShort, testutil.IntervalFast)
+
+	for i := 0; i < msgCount; i++ {
+		barrier.wg.Done()
+	}
 
 	// Wait until the handler has dispatched the given notifications.
 	require.Eventually(t, func() bool {
@@ -493,27 +499,30 @@ func (u *updateSignallingInterceptor) BulkMarkNotificationMessagesFailed(ctx con
 	return u.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
 }
 
-type delayingHandler struct {
+type barrierHandler struct {
 	h notifications.Handler
 
-	delay time.Duration
+	wg *sync.WaitGroup
 }
 
-func newDelayingHandler(delay time.Duration, handler notifications.Handler) *delayingHandler {
-	return &delayingHandler{
-		delay: delay,
-		h:     handler,
+func newBarrierHandler(total int, handler notifications.Handler) *barrierHandler {
+	var wg sync.WaitGroup
+	wg.Add(total)
+
+	return &barrierHandler{
+		h:  handler,
+		wg: &wg,
 	}
 }
 
-func (d *delayingHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	deliverFn, err := d.h.Dispatcher(payload, title, body)
+func (bh *barrierHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+	deliverFn, err := bh.h.Dispatcher(payload, title, body)
 	if err != nil {
 		return nil, err
 	}
 
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		time.Sleep(d.delay)
+		bh.wg.Wait()
 
 		return deliverFn(ctx, msgID)
 	}, nil
