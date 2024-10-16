@@ -14,7 +14,9 @@ To follow this guide, you'll need:
   [Docker](https://docs.docker.com/get-docker/) and [Coder](../install/index.md)
   installed on it.
 
-  - When setting up your computer or computing instance, make sure to install Docker first, then Coder. Otherwise, you'll need to add the `coder` user to the `docker` group.
+  - When setting up your computer or computing instance, make sure to install
+    Docker first, then Coder. Otherwise, you'll need to add the `coder` user to
+    the `docker` group.
 
 - The URL for your Coder instance. If you're running Coder locally, the default
   URL is [http://127.0.0.1:3000](http://127.0.0.1:3000).
@@ -218,8 +220,8 @@ This is commonly used for
 [web IDEs](../user-guides/workspace-access/web-ides.md) such as
 [code-server](https://coder.com/docs/code-server), RStudio, and JupyterLab.
 
-To install code-server in the workspace, remember that we installed it in
-the `startup_script` argument in `coder_agent`. We make it available from a
+To install code-server in the workspace, remember that we installed it in the
+`startup_script` argument in `coder_agent`. We make it available from a
 workspace with a `coder_app` resource. See
 [web IDEs](../user-guides/workspace-access/web-ides.md) for more examples.
 
