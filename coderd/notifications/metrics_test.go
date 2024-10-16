@@ -225,6 +225,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	// GIVEN: a notification manager whose store updates are intercepted so we can read the number of pending updates set in the metric
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
+	cfg.FetchInterval = serpent.Duration(time.Millisecond * 50)
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
 
 	syncer := &syncInterceptor{Store: store}
@@ -232,6 +233,8 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().NewTicker("Manager", "storeSync")
 	defer trap.Close()
+	fetchTrap := mClock.Trap().TickerFunc("notifier", "fetchInterval")
+	defer fetchTrap.Close()
 	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), metrics, logger.Named("manager"),
 		notifications.WithTestClock(mClock))
 	require.NoError(t, err)
@@ -256,24 +259,27 @@ func TestPendingUpdatesMetric(t *testing.T) {
 
 	mgr.Run(ctx)
 	trap.MustWait(ctx).Release() // ensures ticker has been set
+	fetchTrap.MustWait(ctx).Release()
+
+	// Advance to the first fetch
+	mClock.Advance(cfg.FetchInterval.Value()).MustWait(ctx)
 
 	// THEN:
-	// Wait until the handler has dispatched the given notifications.
-	require.Eventually(t, func() bool {
+	// handler has dispatched the given notifications.
+	func() {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 
-		return len(handler.succeeded) == 1 && len(handler.failed) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+		require.Len(t, handler.succeeded, 1)
+		require.Len(t, handler.failed, 1)
+	}()
 
 	// Both handler calls should be pending in the metrics.
-	require.Eventually(t, func() bool {
-		return promtest.ToFloat64(metrics.PendingUpdates) == float64(2)
-	}, testutil.WaitShort, testutil.IntervalFast)
+	require.EqualValues(t, 2, promtest.ToFloat64(metrics.PendingUpdates))
 
 	// THEN:
 	// Trigger syncing updates
-	mClock.Advance(cfg.StoreSyncInterval.Value()).MustWait(ctx)
+	mClock.Advance(cfg.StoreSyncInterval.Value() - cfg.FetchInterval.Value()).MustWait(ctx)
 
 	// Wait until we intercept the calls to sync the pending updates to the store.
 	success := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateSuccess)
