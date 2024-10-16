@@ -1,6 +1,7 @@
 import { useTheme, type Interpolation, type Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
-import { Button, TextField } from "@mui/material";
+import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -27,10 +28,7 @@ const RequestOTPPage: FC = () => {
 					<CustomLogo />
 					{requestOTPMutation.isSuccess ? (
 						<RequestOTPSuccess
-							// When requestOTPMutation.isSuccess is true,
-							// requestOTPMutation.variables.email is defined
-							// biome-ignore lint/style/noNonNullAssertion: Read above
-							email={requestOTPMutation.variables!.email}
+							email={requestOTPMutation.variables?.email ?? ""}
 						/>
 					) : (
 						<RequestOTP

@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
-import { Button, TextField } from "@mui/material";
+import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
