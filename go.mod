@@ -208,7 +208,7 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/emersion/go-smtp v0.21.2
 	github.com/go-jose/go-jose/v4 v4.0.2
-	github.com/gomarkdown/markdown v0.0.0-20231222211730-1d6d20845b47
+	github.com/gomarkdown/markdown v0.0.0-20240930133441-72d49d9543d8
 	github.com/google/go-github/v61 v61.0.0
 	github.com/mocktools/go-smtp-mock/v2 v2.3.0
 	github.com/natefinch/atomic v1.0.1
