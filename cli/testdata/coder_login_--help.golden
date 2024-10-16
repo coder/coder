@@ -6,37 +6,16 @@ USAGE:
   Authenticate with Coder deployment
 
 OPTIONS:
-      --first-user-company-name string, $CODER_FIRST_USER_COMPANY_NAME
-          Specifies the company name of the user.
-
-      --first-user-country string, $CODER_FIRST_USER_COUNTRY
-          Specifies the country of the user.
-
-      --first-user-developers string, $CODER_FIRST_USER_DEVELOPERS
-          Specifies the number of developers.
-
       --first-user-email string, $CODER_FIRST_USER_EMAIL
           Specifies an email address to use if creating the first user for the
           deployment.
 
-      --first-user-first-name string, $CODER_FIRST_USER_FIRST_NAME
-          Specifies the first name of the user.
-
       --first-user-full-name string, $CODER_FIRST_USER_FULL_NAME
           Specifies a human-readable name for the first user of the deployment.
-
-      --first-user-job-title string, $CODER_FIRST_USER_JOB_TITLE
-          Specifies the job title of the user.
-
-      --first-user-last-name string, $CODER_FIRST_USER_LAST_NAME
-          Specifies the last name of the user.
 
       --first-user-password string, $CODER_FIRST_USER_PASSWORD
           Specifies a password to use if creating the first user for the
           deployment.
-
-      --first-user-phone-number string, $CODER_FIRST_USER_PHONE_NUMBER
-          Specifies the phone number of the user.
 
       --first-user-trial bool, $CODER_FIRST_USER_TRIAL
           Specifies whether a trial license should be provisioned for the Coder

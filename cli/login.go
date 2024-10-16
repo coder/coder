@@ -149,14 +149,6 @@ func (r *RootCmd) login() *serpent.Command {
 		password           string
 		trial              bool
 		useTokenForSession bool
-
-		firstName   string
-		lastName    string
-		phoneNumber string
-		jobTitle    string
-		companyName string
-		country     string
-		developers  string
 	)
 	cmd := &serpent.Command{
 		Use:        "login [<url>]",
@@ -275,45 +267,46 @@ func (r *RootCmd) login() *serpent.Command {
 					trial = v == "yes" || v == "y"
 				}
 
+				var trialInfo codersdk.CreateFirstUserTrialInfo
 				if trial {
-					if firstName == "" {
-						firstName, err = promptTrialInfo(inv, "firstName")
+					if trialInfo.FirstName == "" {
+						trialInfo.FirstName, err = promptTrialInfo(inv, "firstName")
 						if err != nil {
 							return err
 						}
 					}
-					if lastName == "" {
-						lastName, err = promptTrialInfo(inv, "lastName")
+					if trialInfo.LastName == "" {
+						trialInfo.LastName, err = promptTrialInfo(inv, "lastName")
 						if err != nil {
 							return err
 						}
 					}
-					if phoneNumber == "" {
-						phoneNumber, err = promptTrialInfo(inv, "phoneNumber")
+					if trialInfo.PhoneNumber == "" {
+						trialInfo.PhoneNumber, err = promptTrialInfo(inv, "phoneNumber")
 						if err != nil {
 							return err
 						}
 					}
-					if jobTitle == "" {
-						jobTitle, err = promptTrialInfo(inv, "jobTitle")
+					if trialInfo.JobTitle == "" {
+						trialInfo.JobTitle, err = promptTrialInfo(inv, "jobTitle")
 						if err != nil {
 							return err
 						}
 					}
-					if companyName == "" {
-						companyName, err = promptTrialInfo(inv, "companyName")
+					if trialInfo.CompanyName == "" {
+						trialInfo.CompanyName, err = promptTrialInfo(inv, "companyName")
 						if err != nil {
 							return err
 						}
 					}
-					if country == "" {
-						country, err = promptCountry(inv)
+					if trialInfo.Country == "" {
+						trialInfo.Country, err = promptCountry(inv)
 						if err != nil {
 							return err
 						}
 					}
-					if developers == "" {
-						developers, err = promptDevelopers(inv)
+					if trialInfo.Developers == "" {
+						trialInfo.Developers, err = promptDevelopers(inv)
 						if err != nil {
 							return err
 						}
@@ -321,20 +314,12 @@ func (r *RootCmd) login() *serpent.Command {
 				}
 
 				_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-					Email:    email,
-					Username: username,
-					Name:     name,
-					Password: password,
-					Trial:    trial,
-					TrialInfo: codersdk.CreateFirstUserTrialInfo{
-						FirstName:   firstName,
-						LastName:    lastName,
-						PhoneNumber: phoneNumber,
-						JobTitle:    jobTitle,
-						CompanyName: companyName,
-						Country:     country,
-						Developers:  developers,
-					},
+					Email:     email,
+					Username:  username,
+					Name:      name,
+					Password:  password,
+					Trial:     trial,
+					TrialInfo: trialInfo,
 				})
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
@@ -459,48 +444,6 @@ func (r *RootCmd) login() *serpent.Command {
 			Flag:        "use-token-as-session",
 			Description: "By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.",
 			Value:       serpent.BoolOf(&useTokenForSession),
-		},
-		{
-			Flag:        "first-user-first-name",
-			Env:         "CODER_FIRST_USER_FIRST_NAME",
-			Description: "Specifies the first name of the user.",
-			Value:       serpent.StringOf(&firstName),
-		},
-		{
-			Flag:        "first-user-last-name",
-			Env:         "CODER_FIRST_USER_LAST_NAME",
-			Description: "Specifies the last name of the user.",
-			Value:       serpent.StringOf(&lastName),
-		},
-		{
-			Flag:        "first-user-phone-number",
-			Env:         "CODER_FIRST_USER_PHONE_NUMBER",
-			Description: "Specifies the phone number of the user.",
-			Value:       serpent.StringOf(&phoneNumber),
-		},
-		{
-			Flag:        "first-user-job-title",
-			Env:         "CODER_FIRST_USER_JOB_TITLE",
-			Description: "Specifies the job title of the user.",
-			Value:       serpent.StringOf(&jobTitle),
-		},
-		{
-			Flag:        "first-user-company-name",
-			Env:         "CODER_FIRST_USER_COMPANY_NAME",
-			Description: "Specifies the company name of the user.",
-			Value:       serpent.StringOf(&companyName),
-		},
-		{
-			Flag:        "first-user-country",
-			Env:         "CODER_FIRST_USER_COUNTRY",
-			Description: "Specifies the country of the user.",
-			Value:       serpent.StringOf(&country),
-		},
-		{
-			Flag:        "first-user-developers",
-			Env:         "CODER_FIRST_USER_DEVELOPERS",
-			Description: "Specifies the number of developers.",
-			Value:       serpent.StringOf(&developers),
 		},
 	}
 	return cmd

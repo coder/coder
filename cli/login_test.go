@@ -281,16 +281,20 @@ func TestLogin(t *testing.T) {
 			"--first-user-email", coderdtest.FirstUserParams.Email,
 			"--first-user-password", coderdtest.FirstUserParams.Password,
 			"--first-user-trial",
-			"--first-user-first-name", coderdtest.TrialUserParams.FirstName,
-			"--first-user-last-name", coderdtest.TrialUserParams.LastName,
-			"--first-user-phone-number", coderdtest.TrialUserParams.PhoneNumber,
-			"--first-user-job-title", coderdtest.TrialUserParams.JobTitle,
-			"--first-user-company-name", coderdtest.TrialUserParams.CompanyName,
-			"--first-user-country", coderdtest.TrialUserParams.Country,
-			"--first-user-developers", coderdtest.TrialUserParams.Developers,
 		)
 		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
+		pty.ExpectMatch("firstName")
+		pty.WriteLine(coderdtest.TrialUserParams.FirstName)
+		pty.ExpectMatch("lastName")
+		pty.WriteLine(coderdtest.TrialUserParams.LastName)
+		pty.ExpectMatch("phoneNumber")
+		pty.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
+		pty.ExpectMatch("jobTitle")
+		pty.WriteLine(coderdtest.TrialUserParams.JobTitle)
+		pty.ExpectMatch("companyName")
+		pty.WriteLine(coderdtest.TrialUserParams.CompanyName)
+		// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
 		pty.ExpectMatch("Welcome to Coder")
 		w.RequireSuccess()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -316,17 +320,20 @@ func TestLogin(t *testing.T) {
 			"--first-user-email", coderdtest.FirstUserParams.Email,
 			"--first-user-password", coderdtest.FirstUserParams.Password,
 			"--first-user-trial",
-			"--first-user-first-name", coderdtest.TrialUserParams.FirstName,
-			"--first-user-last-name", coderdtest.TrialUserParams.LastName,
-			"--first-user-phone-number", coderdtest.TrialUserParams.PhoneNumber,
-			"--first-user-job-title", coderdtest.TrialUserParams.JobTitle,
-			"--first-user-company-name", coderdtest.TrialUserParams.CompanyName,
-			"--first-user-country", coderdtest.TrialUserParams.Country,
-			"--first-user-developers", coderdtest.TrialUserParams.Developers,
-			// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
 		)
 		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
+		pty.ExpectMatch("firstName")
+		pty.WriteLine(coderdtest.TrialUserParams.FirstName)
+		pty.ExpectMatch("lastName")
+		pty.WriteLine(coderdtest.TrialUserParams.LastName)
+		pty.ExpectMatch("phoneNumber")
+		pty.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
+		pty.ExpectMatch("jobTitle")
+		pty.WriteLine(coderdtest.TrialUserParams.JobTitle)
+		pty.ExpectMatch("companyName")
+		pty.WriteLine(coderdtest.TrialUserParams.CompanyName)
+		// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
 		pty.ExpectMatch("Welcome to Coder")
 		w.RequireSuccess()
 		ctx := testutil.Context(t, testutil.WaitShort)
