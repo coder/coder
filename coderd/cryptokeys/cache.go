@@ -101,16 +101,18 @@ func WithCacheClock(clock quartz.Clock) CacheOption {
 	}
 }
 
-// NewSigningCache instantiates a cache. Close should be called to
-// release resources associated with its internal timer.
-func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature codersdk.CryptoKeyFeature, opts ...func(*cache)) (SigningKeycache, error) {
+// NewSigningCache instantiates a cache. Close should be called to release resources
+// associated with its internal timer.
+func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher,
+	feature codersdk.CryptoKeyFeature, opts ...func(*cache)) (SigningKeycache, error) {
 	if !isSigningKeyFeature(feature) {
 		return nil, xerrors.Errorf("invalid feature: %s", feature)
 	}
 	return newCache(ctx, logger, fetcher, feature, opts...)
 }
 
-func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature codersdk.CryptoKeyFeature, opts ...func(*cache)) (EncryptionKeycache, error) {
+func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher,
+	feature codersdk.CryptoKeyFeature, opts ...func(*cache)) (EncryptionKeycache, error) {
 	if !isEncryptionKeyFeature(feature) {
 		return nil, xerrors.Errorf("invalid feature: %s", feature)
 	}
@@ -288,15 +290,14 @@ func checkKey(key codersdk.CryptoKey, sequence int32, now time.Time) (string, []
 func (c *cache) refresh() {
 	now := c.clock.Now("CryptoKeyCache", "refresh")
 	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if c.closed {
-		c.mu.Unlock()
 		return
 	}
 
 	// If something's already fetching, we don't need to do anything.
 	if c.fetching {
-		c.mu.Unlock()
 		return
 	}
 
@@ -304,7 +305,6 @@ func (c *cache) refresh() {
 	// is ongoing but prior to the timer getting reset. In this case we want to
 	// avoid double fetching.
 	if now.Sub(c.lastFetch) < refreshInterval {
-		c.mu.Unlock()
 		return
 	}
 
@@ -317,8 +317,8 @@ func (c *cache) refresh() {
 		return
 	}
 
+	// We don't defer an unlock here due to the deferred unlock at the top of the function.
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	c.lastFetch = c.clock.Now()
 	c.refresher.Reset(refreshInterval)
