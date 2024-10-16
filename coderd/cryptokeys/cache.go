@@ -3,6 +3,7 @@ package cryptokeys
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -108,6 +109,7 @@ func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher,
 	if !isSigningKeyFeature(feature) {
 		return nil, xerrors.Errorf("invalid feature: %s", feature)
 	}
+	logger = logger.Named(fmt.Sprintf("%s_signing_keycache", feature))
 	return newCache(ctx, logger, fetcher, feature, opts...)
 }
 
@@ -117,6 +119,7 @@ func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher
 	if !isEncryptionKeyFeature(feature) {
 		return nil, xerrors.Errorf("invalid feature: %s", feature)
 	}
+	logger = logger.Named(fmt.Sprintf("%s_encryption_keycache", feature))
 	return newCache(ctx, logger, fetcher, feature, opts...)
 }
 

@@ -3,10 +3,11 @@ package wsproxy
 import (
 	"context"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
-	"golang.org/x/xerrors"
 )
 
 var _ cryptokeys.Fetcher = &ProxyFetcher{}

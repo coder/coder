@@ -93,9 +93,7 @@ type Options struct {
 	// from the dashboardURL. This should only be used in development.
 	AllowAllCors bool
 
-	StatsCollectorOptions           workspaceapps.StatsCollectorOptions
-	WorkspaceAppsEncryptionKeycache cryptokeys.EncryptionKeycache
-	WorkspaceAppsSigningKeycache    cryptokeys.SigningKeycache
+	StatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 func (o *Options) Validate() error {
@@ -132,6 +130,9 @@ type Server struct {
 	// SDKClient is a client to the primary coderd instance authenticated with
 	// the moon's token.
 	SDKClient *wsproxysdk.Client
+
+	WorkspaceAppsEncryptionKeycache cryptokeys.EncryptionKeycache
+	WorkspaceAppsSigningKeycache    cryptokeys.SigningKeycache
 
 	// DERP
 	derpMesh                *derpmesh.Mesh
@@ -199,8 +200,28 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	encryptionCache, err := cryptokeys.NewEncryptionCache(ctx,
+		opts.Logger,
+		&ProxyFetcher{Client: client},
+		codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("create api key encryption cache: %w", err)
+	}
+	signingCache, err := cryptokeys.NewSigningCache(ctx,
+		opts.Logger,
+		&ProxyFetcher{Client: client},
+		codersdk.CryptoKeyFeatureWorkspaceAppsToken,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("create api token signing cache: %w", err)
+	}
+
 	r := chi.NewRouter()
 	s := &Server{
+		ctx:    ctx,
+		cancel: cancel,
+
 		Options:            opts,
 		Handler:            r,
 		DashboardURL:       opts.DashboardURL,
@@ -210,8 +231,6 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		SDKClient:          client,
 		derpMesh:           derpmesh.New(opts.Logger.Named("net.derpmesh"), derpServer, meshTLSConfig),
 		derpMeshTLSConfig:  meshTLSConfig,
-		ctx:                ctx,
-		cancel:             cancel,
 	}
 
 	// Register the workspace proxy with the primary coderd instance and start a
@@ -280,8 +299,8 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			AccessURL:     opts.AccessURL,
 			AppHostname:   opts.AppHostname,
 			Client:        client,
-			SigningKey:    opts.WorkspaceAppsSigningKeycache,
-			EncryptingKey: opts.WorkspaceAppsEncryptionKeycache,
+			SigningKey:    signingCache,
+			EncryptingKey: encryptionCache,
 			Logger:        s.Logger.Named("proxy_token_provider"),
 		},
 
@@ -432,6 +451,8 @@ func (s *Server) Close() error {
 		err = multierror.Append(err, agentProviderErr)
 	}
 	s.SDKClient.SDKClient.HTTPClient.CloseIdleConnections()
+	_ = s.WorkspaceAppsSigningKeycache.Close()
+	_ = s.WorkspaceAppsEncryptionKeycache.Close()
 	return err
 }
 

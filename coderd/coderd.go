@@ -461,7 +461,7 @@ func New(options *Options) *API {
 
 	if options.OIDCConvertKeyCache == nil {
 		options.OIDCConvertKeyCache, err = cryptokeys.NewSigningCache(ctx,
-			options.Logger.Named("oidc_convert_keycache"),
+			options.Logger,
 			fetcher,
 			codersdk.CryptoKeyFeatureOIDCConvert,
 		)
@@ -470,7 +470,7 @@ func New(options *Options) *API {
 
 	if options.AppSigningKeyCache == nil {
 		options.AppSigningKeyCache, err = cryptokeys.NewSigningCache(ctx,
-			options.Logger.Named("app_signing_keycache"),
+			options.Logger,
 			fetcher,
 			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
 		)
@@ -479,7 +479,7 @@ func New(options *Options) *API {
 
 	if options.AppEncryptionKeyCache == nil {
 		options.AppEncryptionKeyCache, err = cryptokeys.NewEncryptionCache(ctx,
-			options.Logger.Named("app_encryption_keycache"),
+			options.Logger,
 			fetcher,
 			codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		)
@@ -522,7 +522,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper:          options.DatabaseRolluper,
+		dbRolluper: options.DatabaseRolluper,
 	}
 
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
@@ -1474,6 +1474,9 @@ func (api *API) Close() error {
 	_ = api.agentProvider.Close()
 	_ = api.statsReporter.Close()
 	_ = api.NetworkTelemetryBatcher.Close()
+	_ = api.OIDCConvertKeyCache.Close()
+	_ = api.AppSigningKeyCache.Close()
+	_ = api.AppEncryptionKeyCache.Close()
 	return nil
 }
 
