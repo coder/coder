@@ -1,7 +1,6 @@
 import "./theme/globalFonts";
 import createCache from "@emotion/cache";
 import { CacheProvider } from "@emotion/react";
-import { StyledEngineProvider } from "@mui/material/styles";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
 	type FC,
@@ -72,23 +71,19 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	}, []);
 
 	return (
-		<StyledEngineProvider injectFirst>
-			<CacheProvider value={cache}>
-				<HelmetProvider>
-					<QueryClientProvider client={queryClient}>
-						<AuthProvider>
-							<ThemeProvider>
-								{children}
-								<GlobalSnackbar />
-							</ThemeProvider>
-						</AuthProvider>
-						{showDevtools && (
-							<ReactQueryDevtools initialIsOpen={showDevtools} />
-						)}
-					</QueryClientProvider>
-				</HelmetProvider>
-			</CacheProvider>
-		</StyledEngineProvider>
+		<CacheProvider value={cache}>
+			<HelmetProvider>
+				<QueryClientProvider client={queryClient}>
+					<AuthProvider>
+						<ThemeProvider>
+							{children}
+							<GlobalSnackbar />
+						</ThemeProvider>
+					</AuthProvider>
+					{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
+				</QueryClientProvider>
+			</HelmetProvider>
+		</CacheProvider>
 	);
 };
 
