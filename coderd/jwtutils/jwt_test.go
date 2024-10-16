@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -242,7 +243,7 @@ func TestJWS(t *testing.T) {
 			fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
 		)
 
-		cache, err := cryptokeys.NewSigningCache(ctx, log, fetcher, database.CryptoKeyFeatureOidcConvert)
+		cache, err := cryptokeys.NewSigningCache(ctx, log, fetcher, codersdk.CryptoKeyFeatureOIDCConvert)
 		require.NoError(t, err)
 
 		claims := testClaims{
@@ -333,7 +334,7 @@ func TestJWE(t *testing.T) {
 			fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
 		)
 
-		cache, err := cryptokeys.NewEncryptionCache(ctx, log, fetcher, database.CryptoKeyFeatureWorkspaceApps)
+		cache, err := cryptokeys.NewEncryptionCache(ctx, log, fetcher, codersdk.CryptoKeyFeatureWorkspaceApp)
 		require.NoError(t, err)
 
 		claims := testClaims{
