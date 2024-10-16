@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { randomName, requiresEnterpriseLicense } from "../../helpers";
+import { randomName, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 test("create group", async ({ page, baseURL }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 	await page.goto(`${baseURL}/groups`, { waitUntil: "domcontentloaded" });
 	await expect(page).toHaveTitle("Groups - Coder");
 
