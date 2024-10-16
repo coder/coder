@@ -536,14 +536,14 @@ jobs:
         working-directory: site
 
       # Run tests that don't require a premium license without a premium license
-      - run: pnpm playwright:test --forbid-only --workers 1
+      - run: pnpm playwright:test --forbid-only --workers ${{ matrix.variant.enterprise && '2' || '1' }}
         if: ${{ !matrix.variant.premium }}
         env:
           DEBUG: pw:api
         working-directory: site
 
       # Run all of the tests with a premium license
-      - run: pnpm playwright:test --forbid-only --workers 1
+      - run: pnpm playwright:test --forbid-only --workers ${{ matrix.variant.enterprise && '2' || '1' }}
         if: ${{ matrix.variant.premium }}
         env:
           DEBUG: pw:api
