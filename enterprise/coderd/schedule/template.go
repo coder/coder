@@ -136,7 +136,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	var (
 		template          database.Template
-		markedForDeletion []database.Workspace
+		markedForDeletion []database.WorkspaceTable
 	)
 	err = db.InTx(func(tx database.Store) error {
 		ctx, span := tracing.StartSpanWithName(ctx, "(*schedule.EnterpriseTemplateScheduleStore).Set()-InTx()")

@@ -355,7 +355,7 @@ func TestCSRFExempt(t *testing.T) {
 		// Create a workspace.
 		const agentSlug = "james"
 		const appSlug = "web"
-		wrk := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
+		wrk := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
 			OwnerID:        owner.ID,
 			OrganizationID: first.OrganizationID,
 		}).

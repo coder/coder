@@ -1217,7 +1217,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 	// Tests will run in parallel. To avoid conflicts and race conditions on the
 	// build number, each test will have its own workspace and build.
 	makeBuild := func() database.WorkspaceBuild {
-		ws := dbgen.Workspace(t, db, database.Workspace{
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        owner.UserID,
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     template.ID,
