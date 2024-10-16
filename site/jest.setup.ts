@@ -54,6 +54,20 @@ Object.defineProperty(global.self, "crypto", {
 	},
 });
 
+Object.defineProperty(window, "matchMedia", {
+	writable: true,
+	value: jest.fn().mockImplementation((query) => ({
+		matches: false,
+		media: query,
+		onchange: null,
+		addListener: jest.fn(), // Deprecated
+		removeListener: jest.fn(), // Deprecated
+		addEventListener: jest.fn(),
+		removeEventListener: jest.fn(),
+		dispatchEvent: jest.fn(),
+	})),
+});
+
 // Establish API mocking before all tests through MSW.
 beforeAll(() =>
 	server.listen({
