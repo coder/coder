@@ -2173,6 +2173,12 @@ class ApiMethods {
 	) => {
 		await this.axios.post<void>("/api/v2/users/otp/request", req);
 	};
+
+	changePasswordWithOTP = async (
+		req: TypesGen.ChangePasswordWithOneTimePasscodeRequest,
+	) => {
+		await this.axios.post<void>("/api/v2/users/otp/change-password", req);
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

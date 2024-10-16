@@ -12,14 +12,14 @@ import { requestOneTimePassword } from "api/queries/users";
 import { getErrorMessage } from "api/errors";
 import { displayError } from "components/GlobalSnackbar/utils";
 
-const ResetPasswordPage: FC = () => {
+const RequestOTPPage: FC = () => {
 	const applicationName = getApplicationName();
 	const requestOTPMutation = useMutation(requestOneTimePassword());
 
 	return (
 		<>
 			<Helmet>
-				<title>Reset Password - {applicationName}</title>
+				<title>Request Password Reset - {applicationName}</title>
 			</Helmet>
 
 			<div css={styles.root}>
@@ -171,4 +171,4 @@ const styles = {
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
 
-export default ResetPasswordPage;
+export default RequestOTPPage;

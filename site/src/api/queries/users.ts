@@ -259,3 +259,9 @@ export const requestOneTimePassword = () => {
 		mutationFn: API.requestOneTimePassword,
 	};
 };
+
+export const changePasswordWithOTP = () => {
+	return {
+		mutationFn: API.changePasswordWithOTP,
+	};
+};
