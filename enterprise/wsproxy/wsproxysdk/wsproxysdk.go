@@ -581,7 +581,7 @@ type CryptoKeysResponse struct {
 
 func (c *Client) CryptoKeys(ctx context.Context, feature codersdk.CryptoKeyFeature) (CryptoKeysResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		"/api/v2/workspaceproxies/me/crypto-keys",
+		"/api/v2/workspaceproxies/me/crypto-keys", nil,
 		codersdk.WithQueryParam("feature", string(feature)),
 	)
 	if err != nil {

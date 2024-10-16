@@ -167,7 +167,9 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		ToLoginType:   req.ToType,
 	}
 
-	token, err := jwtutils.Sign(dbauthz.AsKeyRotator(ctx), api.OIDCConvertKeyCache, claims)
+	//nolint:gocritic // We need to read the system signing key
+	// in order to sign the token.
+	token, err := jwtutils.Sign(dbauthz.AsKeyReader(ctx), api.OIDCConvertKeyCache, claims)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error signing state jwt.",
@@ -1676,7 +1678,10 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 	var claims OAuthConvertStateClaims
-	err = jwtutils.Verify(dbauthz.AsKeyRotator(ctx), api.OIDCConvertKeyCache, jwtCookie.Value, &claims)
+
+	//nolint:gocritic // We need to read the system signing key
+	// in order to verify the token.
+	err = jwtutils.Verify(dbauthz.AsKeyReader(ctx), api.OIDCConvertKeyCache, jwtCookie.Value, &claims)
 	if xerrors.Is(err, cryptokeys.ErrKeyNotFound) || xerrors.Is(err, cryptokeys.ErrKeyInvalid) || xerrors.Is(err, jose.ErrCryptoFailure) {
 		// These errors are probably because the user is mixing 2 coder deployments.
 		return database.User{}, idpsync.HTTPError{

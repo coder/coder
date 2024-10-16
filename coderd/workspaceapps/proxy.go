@@ -100,9 +100,8 @@ type Server struct {
 	HostnameRegex *regexp.Regexp
 	RealIPConfig  *httpmw.RealIPConfig
 
-	SignedTokenProvider  SignedTokenProvider
-	Signer               jwtutils.SigningKeyManager
-	EncryptingKeyManager jwtutils.EncryptingKeyManager
+	SignedTokenProvider SignedTokenProvider
+	APIKeyEncryptionKey jwtutils.EncryptingKeyManager
 
 	// DisablePathApps disables path-based apps. This is a security feature as path
 	// based apps share the same cookie as the dashboard, and are susceptible to XSS
@@ -181,7 +180,7 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 
 	// Exchange the encoded API key for a real one.
 	var payload EncryptedAPIKeyPayload
-	err := jwtutils.Decrypt(ctx, s.EncryptingKeyManager, encryptedAPIKey, &payload, jwtutils.WithDecryptExpected(jwt.Expected{
+	err := jwtutils.Decrypt(ctx, s.APIKeyEncryptionKey, encryptedAPIKey, &payload, jwtutils.WithDecryptExpected(jwt.Expected{
 		Time: time.Now(),
 	}))
 	if err != nil {

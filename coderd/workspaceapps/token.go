@@ -5,17 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
-)
-
-const (
-	tokenSigningAlgorithm     = jose.HS512
-	apiKeyEncryptionAlgorithm = jose.A256GCMKW
 )
 
 // SignedToken is the struct data contained inside a workspace app JWE. It

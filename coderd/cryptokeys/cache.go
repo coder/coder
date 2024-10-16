@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -77,12 +78,12 @@ func (d *DBFetcher) Fetch(ctx context.Context, feature codersdk.CryptoKeyFeature
 
 // cache implements the caching functionality for both signing and encryption keys.
 type cache struct {
-	clock         quartz.Clock
-	refreshCtx    context.Context
-	refreshCancel context.CancelFunc
-	fetcher       Fetcher
-	logger        slog.Logger
-	feature       codersdk.CryptoKeyFeature
+	ctx     context.Context
+	cancel  context.CancelFunc
+	clock   quartz.Clock
+	fetcher Fetcher
+	logger  slog.Logger
+	feature codersdk.CryptoKeyFeature
 
 	mu        sync.Mutex
 	keys      map[int32]codersdk.CryptoKey
@@ -136,12 +137,13 @@ func newCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature 
 	}
 
 	cache.cond = sync.NewCond(&cache.mu)
-	cache.refreshCtx, cache.refreshCancel = context.WithCancel(ctx)
+	//nolint:gocritic // We need to be able to read the keys in order to cache them.
+	cache.ctx, cache.cancel = context.WithCancel(dbauthz.AsKeyReader(ctx))
 	cache.refresher = cache.clock.AfterFunc(refreshInterval, cache.refresh)
 
-	keys, err := cache.cryptoKeys(ctx)
+	keys, err := cache.cryptoKeys(cache.ctx)
 	if err != nil {
-		cache.refreshCancel()
+		cache.cancel()
 		return nil, xerrors.Errorf("initial fetch: %w", err)
 	}
 	cache.keys = keys
@@ -205,7 +207,7 @@ func isEncryptionKeyFeature(feature codersdk.CryptoKeyFeature) bool {
 
 func isSigningKeyFeature(feature codersdk.CryptoKeyFeature) bool {
 	switch feature {
-	case codersdk.CryptoKeyFeatureTailnetResume, codersdk.CryptoKeyFeatureOIDCConvert:
+	case codersdk.CryptoKeyFeatureTailnetResume, codersdk.CryptoKeyFeatureOIDCConvert, codersdk.CryptoKeyFeatureWorkspaceAppsToken:
 		return true
 	default:
 		return false
@@ -315,9 +317,9 @@ func (c *cache) refresh() {
 	c.fetching = true
 
 	c.mu.Unlock()
-	keys, err := c.cryptoKeys(c.refreshCtx)
+	keys, err := c.cryptoKeys(c.ctx)
 	if err != nil {
-		c.logger.Error(c.refreshCtx, "fetch crypto keys", slog.Error(err))
+		c.logger.Error(c.ctx, "fetch crypto keys", slog.Error(err))
 		return
 	}
 
@@ -336,7 +338,7 @@ func (c *cache) refresh() {
 func (c *cache) cryptoKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, error) {
 	keys, err := c.fetcher.Fetch(ctx, c.feature)
 	if err != nil {
-		return nil, xerrors.Errorf("crypto keys: %w", err)
+		return nil, xerrors.Errorf("fetch: %w", err)
 	}
 	cache := toKeyMap(keys, c.clock.Now())
 	return cache, nil
@@ -363,7 +365,7 @@ func (c *cache) Close() error {
 	}
 
 	c.closed = true
-	c.refreshCancel()
+	c.cancel()
 	c.refresher.Stop()
 	c.cond.Broadcast()
 

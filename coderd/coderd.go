@@ -461,7 +461,7 @@ func New(options *Options) *API {
 
 	if options.OIDCConvertKeyCache == nil {
 		options.OIDCConvertKeyCache, err = cryptokeys.NewSigningCache(ctx,
-			options.Logger,
+			options.Logger.Named("oidc_convert_keycache"),
 			fetcher,
 			codersdk.CryptoKeyFeatureOIDCConvert,
 		)
@@ -470,7 +470,7 @@ func New(options *Options) *API {
 
 	if options.AppSigningKeyCache == nil {
 		options.AppSigningKeyCache, err = cryptokeys.NewSigningCache(ctx,
-			options.Logger,
+			options.Logger.Named("app_signing_keycache"),
 			fetcher,
 			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
 		)
@@ -683,10 +683,9 @@ func New(options *Options) *API {
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
-		DisablePathApps:      options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie:     options.DeploymentValues.SecureAuthCookie.Value(),
-		Signer:               options.AppSigningKeyCache,
-		EncryptingKeyManager: options.AppEncryptionKeyCache,
+		DisablePathApps:     options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie:    options.DeploymentValues.SecureAuthCookie.Value(),
+		APIKeyEncryptionKey: options.AppEncryptionKeyCache,
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

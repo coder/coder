@@ -19,14 +19,14 @@ type TokenProvider struct {
 	AccessURL    *url.URL
 	AppHostname  string
 
-	Client        *wsproxysdk.Client
-	SigningKey    jwtutils.SigningKeyManager
-	EncryptingKey jwtutils.EncryptingKeyManager
-	Logger        slog.Logger
+	Client              *wsproxysdk.Client
+	TokenSigningKey     jwtutils.SigningKeyManager
+	APIKeyEncryptionKey jwtutils.EncryptingKeyManager
+	Logger              slog.Logger
 }
 
 func (p *TokenProvider) FromRequest(r *http.Request) (*workspaceapps.SignedToken, bool) {
-	return workspaceapps.FromRequest(r, p.SigningKey)
+	return workspaceapps.FromRequest(r, p.TokenSigningKey)
 }
 
 func (p *TokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
@@ -45,7 +45,7 @@ func (p *TokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *ht
 
 	// Check that it verifies properly and matches the string.
 	var token workspaceapps.SignedToken
-	err = jwtutils.Verify(ctx, p.SigningKey, resp.SignedTokenStr, &token)
+	err = jwtutils.Verify(ctx, p.TokenSigningKey, resp.SignedTokenStr, &token)
 	if err != nil {
 		workspaceapps.WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "failed to verify newly generated signed token")
 		return nil, "", false
