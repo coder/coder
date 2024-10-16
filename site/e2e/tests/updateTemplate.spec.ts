@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { defaultOrganizationName } from "../constants";
 import { expectUrl } from "../expectUrl";
 import {
 	createGroup,
 	createTemplate,
-	requiresEnterpriseLicense,
+	requiresLicense,
 	updateTemplateSettings,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
@@ -14,23 +15,21 @@ test("template update with new name redirects on successful submit", async ({
 	page,
 }) => {
 	const templateName = await createTemplate(page);
-
 	await updateTemplateSettings(page, templateName, {
 		name: "new-name",
 	});
 });
 
 test("add and remove a group", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
-	const templateName = await createTemplate(page);
+	const orgName = defaultOrganizationName;
+	const templateName = await createTemplate(page, undefined, orgName);
 	const groupName = await createGroup(page);
 
-	await page.goto(`/templates/${templateName}/settings/permissions`, {
-		waitUntil: "domcontentloaded",
-	});
-	await expectUrl(page).toHavePathName(
-		`/templates/${templateName}/settings/permissions`,
+	await page.goto(
+		`/templates/${orgName}/${templateName}/settings/permissions`,
+		{ waitUntil: "domcontentloaded" },
 	);
 
 	// Type the first half of the group name
@@ -52,7 +51,7 @@ test("add and remove a group", async ({ page }) => {
 });
 
 test("require latest version", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	const templateName = await createTemplate(page);
 
