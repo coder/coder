@@ -43,9 +43,9 @@ persistent environment from your main device, a tablet, or your phone.
 
 1. Update the group with `newgrp`:
 
-  ```shell
-  newgrp docker
-  ```
+```shell
+newgrp docker
+```
 
 1. Install Coder:
 
