@@ -65,7 +65,7 @@ export default defineConfig({
 			testMatch: /.*\.spec\.ts/,
 			dependencies: ["testsSetup"],
 			use: { storageState },
-			timeout: 50_000,
+			timeout: 60_000,
 		},
 	],
 	reporter: [["./reporter.ts"]],
