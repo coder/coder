@@ -104,7 +104,8 @@ func WithCacheClock(clock quartz.Clock) CacheOption {
 // NewSigningCache instantiates a cache. Close should be called to release resources
 // associated with its internal timer.
 func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher,
-	feature codersdk.CryptoKeyFeature, opts ...func(*cache)) (SigningKeycache, error) {
+	feature codersdk.CryptoKeyFeature, opts ...func(*cache),
+) (SigningKeycache, error) {
 	if !isSigningKeyFeature(feature) {
 		return nil, xerrors.Errorf("invalid feature: %s", feature)
 	}
@@ -112,7 +113,8 @@ func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher,
 }
 
 func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher,
-	feature codersdk.CryptoKeyFeature, opts ...func(*cache)) (EncryptionKeycache, error) {
+	feature codersdk.CryptoKeyFeature, opts ...func(*cache),
+) (EncryptionKeycache, error) {
 	if !isEncryptionKeyFeature(feature) {
 		return nil, xerrors.Errorf("invalid feature: %s", feature)
 	}
