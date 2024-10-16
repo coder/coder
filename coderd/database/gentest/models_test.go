@@ -65,6 +65,20 @@ func TestViewSubsetWorkspaceBuild(t *testing.T) {
 	}
 }
 
+// TestViewSubsetWorkspace ensures WorkspaceTable is a subset of Workspace
+func TestViewSubsetWorkspace(t *testing.T) {
+	t.Parallel()
+	table := reflect.TypeOf(database.WorkspaceTable{})
+	joined := reflect.TypeOf(database.Workspace{})
+
+	tableFields := allFields(table)
+	joinedFields := allFields(joined)
+	if !assert.Subset(t, fieldNames(joinedFields), fieldNames(tableFields), "table is not subset") {
+		t.Log("Some fields were added to the Workspace Table without updating the 'workspaces_expanded' view.")
+		t.Log("See migration 000262_workspace_with_names.up.sql to create the view.")
+	}
+}
+
 func fieldNames(fields []reflect.StructField) []string {
 	names := make([]string, len(fields))
 	for i, field := range fields {
