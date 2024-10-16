@@ -2,7 +2,9 @@ package notifications
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"sync"
 	"text/template"
 
@@ -23,8 +25,8 @@ import (
 )
 
 const (
-	NotificationsDefaultLogoURL = "https://coder.com/coder-logo-horizontal.png"
-	NotificationsDefaultAppName = "Coder"
+	notificationsDefaultLogoURL = "https://coder.com/coder-logo-horizontal.png"
+	notificationsDefaultAppName = "Coder"
 )
 
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
@@ -227,6 +229,30 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	if !ok {
 		return nil, xerrors.Errorf("failed to resolve handler %q", msg.Method)
 	}
+
+	appName, err := n.store.GetApplicationName(ctx)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get application name: %w", err)
+		}
+		appName = notificationsDefaultAppName
+	}
+
+	logoURL, err := n.store.GetLogoURL(ctx)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get logo URL: %w", err)
+		}
+		logoURL = notificationsDefaultLogoURL
+	}
+
+	helpers := make(template.FuncMap)
+	for k, v := range n.helpers {
+		helpers[k] = v
+	}
+
+	helpers["app_name"] = func() string { return appName }
+	helpers["logo_url"] = func() string { return logoURL }
 
 	var title, body string
 	if title, err = render.GoTemplate(msg.TitleTemplate, payload, n.helpers); err != nil {
