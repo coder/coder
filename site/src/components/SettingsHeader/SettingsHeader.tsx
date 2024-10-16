@@ -26,23 +26,22 @@ export const SettingsHeader: FC<HeaderProps> = ({
 			<div css={{ maxWidth: 420, marginBottom: 24 }}>
 				<Stack direction="row" spacing={1} alignItems="center">
 					<h1
-						// css={[
-						// 	{
-						// 		fontSize: 32,
-						// 		fontWeight: 700,
-						// 		display: "flex",
-						// 		alignItems: "baseline",
-						// 		lineHeight: "initial",
-						// 		margin: 0,
-						// 		marginBottom: 4,
-						// 		gap: 8,
-						// 	},
-						// 	secondary && {
-						// 		fontSize: 24,
-						// 		fontWeight: 500,
-						// 	},
-						// ]}
-						className="text-3xl bg-white font-normal"
+						css={[
+							{
+								fontSize: 32,
+								fontWeight: 700,
+								display: "flex",
+								alignItems: "baseline",
+								lineHeight: "initial",
+								margin: 0,
+								marginBottom: 4,
+								gap: 8,
+							},
+							secondary && {
+								fontSize: 24,
+								fontWeight: 500,
+							},
+						]}
 					>
 						{title}
 					</h1>
@@ -57,7 +56,7 @@ export const SettingsHeader: FC<HeaderProps> = ({
 							lineHeight: "160%",
 						}}
 					>
-						lalkdsalk
+						{description}
 					</span>
 				)}
 			</div>
