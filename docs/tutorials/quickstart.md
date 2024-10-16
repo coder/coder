@@ -35,22 +35,17 @@ persistent environment from your main device, a tablet, or your phone.
    - [Linux instructions](https://docs.docker.com/desktop/install/linux-install/)
    - [Mac instructions](https://docs.docker.com/desktop/install/mac-install/)
 
-1. Set up the Docker daemon in rootless mode for your user to run Docker as a
-   non-privileged user:
-
-   ```shell
-   dockerd-rootless-setuptool.sh install
-   ```
-
-   Depending on your system's dependencies, you might need to run other commands
-   before you retry this step. Read the output of this command for further
-   instructions.
-
 1. Assign your user to the Docker group:
 
    ```shell
    sudo usermod -aG docker $USER
    ```
+
+1. Update the group with `newgrp`:
+
+  ```shell
+  newgrp docker
+  ```
 
 1. Install Coder:
 
