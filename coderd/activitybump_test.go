@@ -124,21 +124,56 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				return
 			}
 
-			var updatedAfter time.Time
+			// maxTimeDrift is how long we are willing wait for a deadline to
+			// be increased. Since it could have been bumped at the intial
+			maxTimeDrift := testutil.WaitMedium
+
+			updatedAfter := dbtime.Now()
+			// waitedFor is purely for debugging failed tests. If a test fails,
+			// it helps to know how long it took for the deadline bump to be
+			// detected. The longer this takes, the more likely time drift will
+			// affect the results.
+			waitedFor := time.Now()
+			// lastChecked is for logging within the Eventually loop.
+			// Debouncing log lines to every second to prevent spam.
+			lastChecked := time.Time{}
+			// checks is for keeping track of the average check time.
+			// If CI is running slow, this could be useful to know checks
+			// are taking longer than expected.
+			checks := 0
+
 			// The Deadline bump occurs asynchronously.
 			require.Eventuallyf(t,
 				func() bool {
+					checks++
 					workspace, err = client.Workspace(ctx, workspace.ID)
 					require.NoError(t, err)
-					updatedAfter = dbtime.Now()
-					if workspace.LatestBuild.Deadline.Time.Equal(firstDeadline) {
-						updatedAfter = time.Now()
-						return false
+
+					hasBumped := !workspace.LatestBuild.Deadline.Time.Equal(firstDeadline)
+
+					// Always make sure to log this information, even on the last check.
+					// The last check is the most important, as if this loop is acting
+					// slow, the last check could be the cause of the failure.
+					if time.Since(lastChecked) > time.Second || hasBumped {
+						avgCheckTime := time.Since(waitedFor) / time.Duration(checks)
+						t.Logf("deadline detect: bumped=%t since_last_check=%s avg_check_dur=%s checks=%d deadline=%v",
+							hasBumped, time.Since(updatedAfter), avgCheckTime, checks, workspace.LatestBuild.Deadline.Time)
+						lastChecked = time.Now()
 					}
-					return true
+
+					updatedAfter = dbtime.Now()
+					return hasBumped
 				},
-				testutil.WaitLong, testutil.IntervalFast,
+				//nolint: gocritic // maxTimeDrift is a testutil time
+				maxTimeDrift, testutil.IntervalFast,
 				"deadline %v never updated", firstDeadline,
+			)
+
+			// This log line helps establish how long it took for the deadline
+			// to be detected as bumped.
+			t.Logf("deadline bump detected: %v, waited for %s",
+				workspace.LatestBuild.Deadline.Time,
+				time.Since(waitedFor),
 			)
 
 			require.Greater(t, workspace.LatestBuild.Deadline.Time, updatedAfter)
@@ -156,7 +191,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				firstDeadline, workspace.LatestBuild.Deadline.Time, now,
 				now.Sub(workspace.LatestBuild.Deadline.Time),
 			)
-			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, testutil.WaitShort)
+			require.WithinDuration(t, now.Add(ttl), workspace.LatestBuild.Deadline.Time, maxTimeDrift)
 		}
 	}
 

@@ -27,7 +27,7 @@ Give your template a name, description, and icon and press `Create template`.
 
 > **⚠️ Note**: If template creation fails, Coder is likely not authorized to
 > deploy infrastructure in the given location. Learn how to configure
-> [provisioner authentication](../../admin/external-auth.md).
+> [provisioner authentication](./extending-templates/provider-authentication.md).
 
 ### CLI
 

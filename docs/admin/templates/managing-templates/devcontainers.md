@@ -37,7 +37,7 @@ iterate on their development environments.
 - [Devcontainers (Docker)](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)
   provisions a development container using Docker.
 - [Devcontainers (Kubernetes)](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)
-  provisioners a development container on the Kubernetes.
+  provisions a development container on the Kubernetes.
 - [Google Compute Engine (Devcontainer)](https://github.com/coder/coder/tree/main/examples/templates/gcp-devcontainer)
   runs a development container inside a single GCP instance. It also mounts the
   Docker socket from the VM inside the container to enable Docker inside the

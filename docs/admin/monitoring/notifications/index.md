@@ -77,7 +77,7 @@ can only be delivered to one method, and this method is configured globally with
 (default: `smtp`).
 
 Enterprise customers can configure which method to use for each of the supported
-[Events](#event-types); see the
+[Events](#workspace-events); see the
 [Preferences](#delivery-preferences-enterprise-premium) section below for more
 details.
 
