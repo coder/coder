@@ -2,23 +2,23 @@ import type { Interpolation, Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
+import { getErrorMessage } from "api/errors";
+import { changePasswordWithOTP } from "api/queries/users";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { getApplicationName } from "utils/appearance";
+import { useMutation } from "react-query";
 import {
 	Link as RouterLink,
 	useNavigate,
 	useSearchParams,
 } from "react-router-dom";
-import { useMutation } from "react-query";
-import { changePasswordWithOTP } from "api/queries/users";
-import { getErrorMessage } from "api/errors";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useFormik } from "formik";
-import * as yup from "yup";
+import { getApplicationName } from "utils/appearance";
 import { getFormHelpers } from "utils/formUtils";
+import * as yup from "yup";
 
 const validationSchema = yup.object({
 	password: yup.string().required("Password is required"),

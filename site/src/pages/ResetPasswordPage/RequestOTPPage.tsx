@@ -1,17 +1,17 @@
-import { useTheme, type Interpolation, type Theme } from "@emotion/react";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
+import { getErrorMessage } from "api/errors";
+import { requestOneTimePassword } from "api/queries/users";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { getApplicationName } from "utils/appearance";
-import { Link as RouterLink } from "react-router-dom";
 import { useMutation } from "react-query";
-import { requestOneTimePassword } from "api/queries/users";
-import { getErrorMessage } from "api/errors";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { Link as RouterLink } from "react-router-dom";
+import { getApplicationName } from "utils/appearance";
 
 const RequestOTPPage: FC = () => {
 	const applicationName = getApplicationName();

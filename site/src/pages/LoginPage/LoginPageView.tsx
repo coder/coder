@@ -1,13 +1,13 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
+import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Loader } from "components/Loader/Loader";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { retrieveRedirect } from "utils/redirect";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
-import { CustomLogo } from "components/CustomLogo/CustomLogo";
 
 export interface LoginPageViewProps {
 	authMethods: AuthMethods | undefined;

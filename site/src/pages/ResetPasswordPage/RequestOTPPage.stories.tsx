@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import RequestOTPPage from "./RequestOTPPage";
 import { spyOn, userEvent, within } from "@storybook/test";
 import { API } from "api/api";
 import { mockApiError } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
+import RequestOTPPage from "./RequestOTPPage";
 
 const meta: Meta<typeof RequestOTPPage> = {
 	title: "pages/ResetPasswordPage/RequestOTPPage",

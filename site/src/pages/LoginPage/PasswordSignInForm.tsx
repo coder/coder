@@ -1,13 +1,13 @@
 import LoadingButton from "@mui/lab/LoadingButton";
+import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
 import { Language } from "./SignInForm";
-import Link from "@mui/material/Link";
-import { Link as RouterLink } from "react-router-dom";
 
 type PasswordSignInFormProps = {
 	onSubmit: (credentials: { email: string; password: string }) => void;

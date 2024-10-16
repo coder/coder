@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import ChangePasswordPage from "./ChangePasswordPage";
-import { spyOn, userEvent, within, expect } from "@storybook/test";
+import { expect, spyOn, userEvent, within } from "@storybook/test";
 import { API } from "api/api";
 import { mockApiError } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
+import ChangePasswordPage from "./ChangePasswordPage";
 
 const meta: Meta<typeof ChangePasswordPage> = {
 	title: "pages/ResetPasswordPage/ChangePasswordPage",
