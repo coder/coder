@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/provisionersdk"
@@ -64,7 +65,12 @@ func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype str
 	// TODO: this only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
 	tags, err = loadWorkspaceTags(ctx, logger, module)
-	return tags, err
+
+	evalTags, err := evalProvisionerTags(tags, nil, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("eval provisioner tags: %w", err)
+	}
+	return evalTags, err
 }
 
 // --- BEGIN COPYPASTA FROM provisioner/terraform/parse.go --- //
@@ -172,4 +178,82 @@ var coderWorkspaceTagsSchema = &hcl.BodySchema{
 			Name: "tags",
 		},
 	},
+}
+
+// -- BEGIN COPYPASTA FROM coderd/wsbuilder/wsbuilder.go -- //
+func evalProvisionerTags(workspaceTags map[string]string, parameterNames, parameterValues []string) (map[string]string, error) {
+	tags := make(map[string]string)
+	evalCtx := buildParametersEvalContext(parameterNames, parameterValues)
+	for workspaceTagKey, workspaceTagValue := range workspaceTags {
+		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTagValue), "expression.hcl", hcl.InitialPos)
+		if diags.HasErrors() {
+			return nil, xerrors.Errorf("failed to parse workspace tag key %q value %q: %w", workspaceTagKey, workspaceTagValue, diags.Error())
+		}
+
+		val, diags := expr.Value(evalCtx)
+		if diags.HasErrors() {
+			return nil, xerrors.Errorf("failed to evaluate workspace tag key %q value %q: %w", workspaceTagKey, workspaceTagValue, diags.Error())
+		}
+
+		// Do not use "val.AsString()" as it can panic
+		str, err := ctyValueString(val)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to marshal workspace tag key %q value %q as string: %w", workspaceTagKey, workspaceTagValue, diags.Error())
+		}
+		tags[workspaceTagKey] = str
+	}
+	return tags, nil
+}
+
+func buildParametersEvalContext(names, values []string) *hcl.EvalContext {
+	m := map[string]cty.Value{}
+	for i, name := range names {
+		m[name] = cty.MapVal(map[string]cty.Value{
+			"value": cty.StringVal(values[i]),
+		})
+	}
+
+	if len(m) == 0 {
+		return nil // otherwise, panic: must not call MapVal with empty map
+	}
+
+	return &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"data": cty.MapVal(map[string]cty.Value{
+				"coder_parameter": cty.MapVal(m),
+			}),
+		},
+	}
+}
+
+type BuildError struct {
+	// Status is a suitable HTTP status code
+	Status  int
+	Message string
+	Wrapped error
+}
+
+func (e BuildError) Error() string {
+	return e.Wrapped.Error()
+}
+
+func (e BuildError) Unwrap() error {
+	return e.Wrapped
+}
+
+func ctyValueString(val cty.Value) (string, error) {
+	switch val.Type() {
+	case cty.Bool:
+		if val.True() {
+			return "true", nil
+		} else {
+			return "false", nil
+		}
+	case cty.Number:
+		return val.AsBigFloat().String(), nil
+	case cty.String:
+		return val.AsString(), nil
+	default:
+		return "", xerrors.Errorf("only primitive types are supported - bool, number, and string")
+	}
 }
