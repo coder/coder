@@ -199,7 +199,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		t.Parallel()
 
 		client, workspace, assertBumped := setupActivityTest(t)
-		Access - Control - Allow - Origin
+
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		conn, err := workspacesdk.New(client).
 			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
