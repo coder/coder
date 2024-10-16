@@ -331,7 +331,7 @@ func TestJWE(t *testing.T) {
 			})
 			log = slogtest.Make(t, nil)
 
-			fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureOidcConvert}
+			fetcher = &cryptokeys.DBFetcher{DB: db, Feature: database.CryptoKeyFeatureWorkspaceApps}
 		)
 
 		cache, err := cryptokeys.NewEncryptionCache(ctx, log, fetcher, codersdk.CryptoKeyFeatureWorkspaceApp)
