@@ -171,9 +171,9 @@ func createTar(t *testing.T, files map[string]string) []byte {
 		err := writer.WriteHeader(&tar.Header{
 			Name: path,
 			Size: int64(len(content)),
-			Uid:  65534,
-			Gid:  65534,
-			Mode: 0666,
+			Uid:  65534, // nobody
+			Gid:  65534, // nogroup
+			Mode: 0666,  // -rw-rw-rw-
 		})
 		require.NoError(t, err)
 

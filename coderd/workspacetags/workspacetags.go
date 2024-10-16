@@ -1,7 +1,6 @@
 package workspacetags
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
 	"io"
@@ -15,7 +14,6 @@ import (
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
-	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/provisionersdk"
@@ -174,36 +172,4 @@ var coderWorkspaceTagsSchema = &hcl.BodySchema{
 			Name: "tags",
 		},
 	},
-}
-
-func untarFS(fs afero.Fs, tarball []byte) error {
-	tr := tar.NewReader(bytes.NewReader(tarball))
-	for {
-		th, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return xerrors.Errorf("read tar archive: %w", err)
-		}
-		switch th.Typeflag {
-		case tar.TypeDir:
-			if err := fs.MkdirAll(th.Name, 0755); err != nil {
-				return xerrors.Errorf("mkdir %s: %w", th.Name, err)
-			}
-		case tar.TypeReg:
-			f, err := fs.OpenFile(th.Name, os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				return xerrors.Errorf("open %s: %w", th.Name, err)
-			}
-			defer f.Close()
-			if _, err := io.Copy(f, tr); err != nil {
-				return xerrors.Errorf("copy %s: %w", th.Name, err)
-			}
-			f.Close()
-		default:
-			return xerrors.Errorf("unsupported type: %s", th.Typeflag)
-		}
-	}
-	return nil
 }
