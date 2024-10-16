@@ -416,7 +416,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			OrganizationID: org.ID,
 			CreatedBy:      user1.ID,
 		})
-		workspace1 := dbgen.Workspace(t, db, database.Workspace{
+		workspace1 := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user1.ID,
 			OrganizationID: org.ID,
 			TemplateID:     template1.ID,
@@ -435,7 +435,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			CreatedBy:      user1.ID,
 			OrganizationID: org.ID,
 		})
-		workspace2 := dbgen.Workspace(t, db, database.Workspace{
+		workspace2 := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user2.ID,
 			OrganizationID: org.ID,
 			TemplateID:     template2.ID,
@@ -577,7 +577,7 @@ func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 		})
-		workspace := dbgen.Workspace(t, db, database.Workspace{
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
 			TemplateID:     template.ID,
@@ -1596,7 +1596,7 @@ func createTemplateVersion(t testing.TB, db database.Store, tpl database.Templat
 
 	dbgen.ProvisionerJob(t, db, nil, j)
 	if args.CreateWorkspace {
-		wrk := dbgen.Workspace(t, db, database.Workspace{
+		wrk := dbgen.Workspace(t, db, database.WorkspaceTable{
 			CreatedAt:      time.Time{},
 			UpdatedAt:      time.Time{},
 			OwnerID:        tpl.CreatedBy,

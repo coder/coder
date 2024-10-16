@@ -1700,6 +1700,39 @@ CREATE TABLE workspaces (
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
+CREATE VIEW workspaces_expanded AS
+ SELECT workspaces.id,
+    workspaces.created_at,
+    workspaces.updated_at,
+    workspaces.owner_id,
+    workspaces.organization_id,
+    workspaces.template_id,
+    workspaces.deleted,
+    workspaces.name,
+    workspaces.autostart_schedule,
+    workspaces.ttl,
+    workspaces.last_used_at,
+    workspaces.dormant_at,
+    workspaces.deleting_at,
+    workspaces.automatic_updates,
+    workspaces.favorite,
+    COALESCE(visible_users.avatar_url, ''::text) AS owner_avatar_url,
+    COALESCE(visible_users.username, ''::text) AS owner_username,
+    COALESCE(organizations.name, ''::text) AS organization_name,
+    COALESCE(organizations.display_name, ''::text) AS organization_display_name,
+    COALESCE(organizations.icon, ''::text) AS organization_icon,
+    COALESCE(organizations.description, ''::text) AS organization_description,
+    COALESCE(templates.name, ''::character varying) AS template_name,
+    COALESCE(templates.display_name, ''::character varying) AS template_display_name,
+    COALESCE(templates.icon, ''::character varying) AS template_icon,
+    COALESCE(templates.description, ''::character varying) AS template_description
+   FROM (((workspaces
+     LEFT JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
+     LEFT JOIN organizations ON ((workspaces.organization_id = organizations.id)))
+     LEFT JOIN templates ON ((workspaces.template_id = templates.id)));
+
+COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
+
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
