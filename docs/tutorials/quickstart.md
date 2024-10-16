@@ -50,8 +50,6 @@ persistent environment from your main device, a tablet, or your phone.
    You might need to log out and back in or restart the machine for changes to
    take effect.
 
-Log out and log back in so that your group membership is re-evaluated or run:
-
 1. Install Coder:
 
    ```shell
