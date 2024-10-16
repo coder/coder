@@ -55,7 +55,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -326,13 +325,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	auditor.Store(&options.Auditor)
 
-	oidcConvertKeyCache, err := cryptokeys.NewSigningCache(options.Logger.Named("oidc_convert_keycache"), options.Database, database.CryptoKeyFeatureOIDCConvert)
-	require.NoError(t, err)
-	appSigningKeyCache, err := cryptokeys.NewSigningCache(options.Logger.Named("app_signing_keycache"), options.Database, database.CryptoKeyFeatureWorkspaceAppsToken)
-	require.NoError(t, err)
-	appEncryptionKeyCache, err := cryptokeys.NewEncryptionCache(options.Logger.Named("app_encryption_keycache"), options.Database, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
-	require.NoError(t, err)
-
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
@@ -540,9 +532,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			WorkspaceUsageTracker:              wuTracker,
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
-			AppSigningKeyCache:                 appSigningKeyCache,
-			AppEncryptionKeyCache:              appEncryptionKeyCache,
-			OIDCConvertKeyCache:                oidcConvertKeyCache,
 		}
 }
 

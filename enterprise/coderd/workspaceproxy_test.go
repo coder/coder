@@ -954,7 +954,7 @@ func TestGetCryptoKeys(t *testing.T) {
 			Name: testutil.GetRandomName(t),
 		})
 
-		keys, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppAPIKey)
+		keys, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
 		require.Equal(t, 2, len(keys.CryptoKeys))
@@ -986,7 +986,7 @@ func TestGetCryptoKeys(t *testing.T) {
 		client := wsproxysdk.New(cclient.URL)
 		client.SetSessionToken(cclient.SessionToken())
 
-		_, err := client.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppAPIKey)
+		_, err := client.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)

@@ -448,6 +448,44 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
+
+	// Start a background process that rotates keys.
+	err = cryptokeys.StartRotator(ctx, options.Logger.Named("keyrotator"), options.Database)
+	if err != nil {
+		options.Logger.Fatal(ctx, "start key rotator", slog.Error(err))
+	}
+
+	fetcher := &cryptokeys.DBFetcher{
+		DB: options.Database,
+	}
+
+	if options.OIDCConvertKeyCache == nil {
+		options.OIDCConvertKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("oidc_convert_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureOIDCConvert,
+		)
+		must(options.Logger, "start oidc convert key cache", err)
+	}
+
+	if options.AppSigningKeyCache == nil {
+		options.AppSigningKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("app_signing_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
+		)
+		must(options.Logger, "start app signing key cache", err)
+	}
+
+	if options.AppEncryptionKeyCache == nil {
+		options.AppEncryptionKeyCache, err = cryptokeys.NewEncryptionCache(ctx,
+			options.Logger.Named("app_encryption_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
+		)
+		must(options.Logger, "start app encryption key cache", err)
+	}
+
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -484,7 +522,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper: options.DatabaseRolluper,
+		dbRolluper:          options.DatabaseRolluper,
 	}
 
 	f := appearance.NewDefaultFetcher(api.DeploymentValues.DocsURL.String())
@@ -611,12 +649,6 @@ func New(options *Options) *API {
 	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
-	}
-
-	// Start a background process that rotates keys.
-	err = cryptokeys.StartRotator(api.ctx, api.Logger.Named("keyrotator"), api.Database)
-	if err != nil {
-		api.Logger.Fatal(api.ctx, "start key rotator", slog.Error(err))
 	}
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -1611,4 +1643,10 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 		}
 	}
 	return exps
+}
+
+func must(logger slog.Logger, msg string, err error) {
+	if err != nil {
+		logger.Fatal(context.Background(), msg, slog.Error(err))
+	}
 }

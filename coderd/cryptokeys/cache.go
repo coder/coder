@@ -25,7 +25,7 @@ var (
 )
 
 type Fetcher interface {
-	Fetch(ctx context.Context) ([]codersdk.CryptoKey, error)
+	Fetch(ctx context.Context, feature codersdk.CryptoKeyFeature) ([]codersdk.CryptoKey, error)
 }
 
 type EncryptionKeycache interface {
@@ -62,12 +62,11 @@ const (
 )
 
 type DBFetcher struct {
-	DB      database.Store
-	Feature database.CryptoKeyFeature
+	DB database.Store
 }
 
-func (d *DBFetcher) Fetch(ctx context.Context) ([]codersdk.CryptoKey, error) {
-	keys, err := d.DB.GetCryptoKeysByFeature(ctx, d.Feature)
+func (d *DBFetcher) Fetch(ctx context.Context, feature codersdk.CryptoKeyFeature) ([]codersdk.CryptoKey, error) {
+	keys, err := d.DB.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeature(feature))
 	if err != nil {
 		return nil, xerrors.Errorf("get crypto keys by feature: %w", err)
 	}
@@ -198,7 +197,7 @@ func (c *cache) VerifyingKey(ctx context.Context, id string) (interface{}, error
 }
 
 func isEncryptionKeyFeature(feature codersdk.CryptoKeyFeature) bool {
-	return feature == codersdk.CryptoKeyFeatureWorkspaceApp
+	return feature == codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey
 }
 
 func isSigningKeyFeature(feature codersdk.CryptoKeyFeature) bool {
@@ -332,7 +331,7 @@ func (c *cache) refresh() {
 // cryptoKeys queries the control plane for the crypto keys.
 // Outside of initialization, this should only be called by fetch.
 func (c *cache) cryptoKeys(ctx context.Context) (map[int32]codersdk.CryptoKey, error) {
-	keys, err := c.fetcher.Fetch(ctx)
+	keys, err := c.fetcher.Fetch(ctx, c.feature)
 	if err != nil {
 		return nil, xerrors.Errorf("crypto keys: %w", err)
 	}

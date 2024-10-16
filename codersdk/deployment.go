@@ -3109,7 +3109,7 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 type CryptoKeyFeature string
 
 const (
-	CryptoKeyFeatureWorkspaceAppAPIKey CryptoKeyFeature = "workspace_apps_api_key"
+	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
 	//nolint:gosec // This denotes a type of key, not a literal.
 	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
 	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
