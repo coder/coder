@@ -1718,18 +1718,18 @@ CREATE VIEW workspaces_expanded AS
     workspaces.favorite,
     COALESCE(visible_users.avatar_url, ''::text) AS owner_avatar_url,
     COALESCE(visible_users.username, ''::text) AS owner_username,
-    COALESCE(organizations.name, ''::text) AS organization_name,
-    COALESCE(organizations.display_name, ''::text) AS organization_display_name,
-    COALESCE(organizations.icon, ''::text) AS organization_icon,
-    COALESCE(organizations.description, ''::text) AS organization_description,
-    COALESCE(templates.name, ''::character varying) AS template_name,
-    COALESCE(templates.display_name, ''::character varying) AS template_display_name,
-    COALESCE(templates.icon, ''::character varying) AS template_icon,
-    COALESCE(templates.description, ''::character varying) AS template_description
+    organizations.name AS organization_name,
+    organizations.display_name AS organization_display_name,
+    organizations.icon AS organization_icon,
+    organizations.description AS organization_description,
+    templates.name AS template_name,
+    templates.display_name AS template_display_name,
+    templates.icon AS template_icon,
+    templates.description AS template_description
    FROM (((workspaces
-     LEFT JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
-     LEFT JOIN organizations ON ((workspaces.organization_id = organizations.id)))
-     LEFT JOIN templates ON ((workspaces.template_id = templates.id)));
+     JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
+     JOIN organizations ON ((workspaces.organization_id = organizations.id)))
+     JOIN templates ON ((workspaces.template_id = templates.id)));
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 

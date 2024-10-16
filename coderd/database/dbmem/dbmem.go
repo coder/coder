@@ -549,6 +549,7 @@ func (q *FakeQuerier) extendWorkspace(w database.WorkspaceTable) database.Worksp
 	org, _ := slice.Find(q.organizations, func(o database.Organization) bool {
 		return o.ID == w.OrganizationID
 	})
+	extended.OrganizationName = org.Name
 	extended.OrganizationDescription = org.Description
 	extended.OrganizationDisplayName = org.DisplayName
 	extended.OrganizationIcon = org.Icon
