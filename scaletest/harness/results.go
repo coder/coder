@@ -27,14 +27,16 @@ type Results struct {
 
 // RunResult is the result of a single test run.
 type RunResult struct {
-	FullID     string           `json:"full_id"`
-	TestName   string           `json:"test_name"`
-	ID         string           `json:"id"`
-	Logs       string           `json:"logs"`
-	Error      error            `json:"error"`
-	StartedAt  time.Time        `json:"started_at"`
-	Duration   httpapi.Duration `json:"duration"`
-	DurationMS int64            `json:"duration_ms"`
+	FullID            string           `json:"full_id"`
+	TestName          string           `json:"test_name"`
+	ID                string           `json:"id"`
+	Logs              string           `json:"logs"`
+	Error             error            `json:"error"`
+	StartedAt         time.Time        `json:"started_at"`
+	Duration          httpapi.Duration `json:"duration"`
+	DurationMS        int64            `json:"duration_ms"`
+	TotalBytesRead    int64            `json:"total_bytes_read"`
+	TotalBytesWritten int64            `json:"total_bytes_written"`
 }
 
 // MarshalJSON implements json.Marhshaler for RunResult.
@@ -59,14 +61,16 @@ func (r *TestRun) Result() RunResult {
 	}
 
 	return RunResult{
-		FullID:     r.FullID(),
-		TestName:   r.testName,
-		ID:         r.id,
-		Logs:       r.logs.String(),
-		Error:      r.err,
-		StartedAt:  r.started,
-		Duration:   httpapi.Duration(r.duration),
-		DurationMS: r.duration.Milliseconds(),
+		FullID:            r.FullID(),
+		TestName:          r.testName,
+		ID:                r.id,
+		Logs:              r.logs.String(),
+		Error:             r.err,
+		StartedAt:         r.started,
+		Duration:          httpapi.Duration(r.duration),
+		DurationMS:        r.duration.Milliseconds(),
+		TotalBytesRead:    r.bytesRead,
+		TotalBytesWritten: r.bytesWritten,
 	}
 }
 
