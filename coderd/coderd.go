@@ -229,6 +229,8 @@ type Options struct {
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 
+	WorkspaceUpdatesProvider tailnet.WorkspaceUpdatesProvider
+
 	// This janky function is used in telemetry to parse fields out of the raw
 	// JWT. It needs to be passed through like this because license parsing is
 	// under the enterprise license, and can't be imported into AGPL.
@@ -598,12 +600,13 @@ func New(options *Options) *API {
 		panic("CoordinatorResumeTokenProvider is nil")
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                  api.Logger.Named("tailnetclient"),
-		CoordPtr:                &api.TailnetCoordinator,
-		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
-		DERPMapFn:               api.DERPMap,
-		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
-		ResumeTokenProvider:     api.Options.CoordinatorResumeTokenProvider,
+		Logger:                   api.Logger.Named("tailnetclient"),
+		CoordPtr:                 &api.TailnetCoordinator,
+		DERPMapUpdateFrequency:   api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:                api.DERPMap,
+		NetworkTelemetryHandler:  api.NetworkTelemetryBatcher.Handler,
+		ResumeTokenProvider:      api.Options.CoordinatorResumeTokenProvider,
+		WorkspaceUpdatesProvider: api.Options.WorkspaceUpdatesProvider,
 	})
 	if err != nil {
 		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
@@ -1018,6 +1021,7 @@ func New(options *Options) *API {
 				r.Route("/roles", func(r chi.Router) {
 					r.Get("/", api.AssignableSiteRoles)
 				})
+				r.Get("/me/tailnet", api.tailnet)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Post("/convert-login", api.postConvertLoginType)

@@ -842,26 +842,10 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Accept a resume_token query parameter to use the same peer ID.
-	var (
-		peerID      = uuid.New()
-		resumeToken = r.URL.Query().Get("resume_token")
-	)
-	if resumeToken != "" {
-		var err error
-		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(resumeToken)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
-				Detail:  err.Error(),
-				Validations: []codersdk.ValidationError{
-					{Field: "resume_token", Detail: workspacesdk.CoordinateAPIInvalidResumeToken},
-				},
-			})
-			return
-		}
-		api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
-			slog.F("peer_id", peerID.String()))
+	peerID, err := api.handleResumeToken(ctx, rw, r)
+	if err != nil {
+		// handleResumeToken has already written the response.
+		return
 	}
 
 	api.WebsocketWaitMutex.Lock()
@@ -889,6 +873,28 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
+}
+
+// handleResumeToken accepts a resume_token query parameter to use the same peer ID
+func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r *http.Request) (peerID uuid.UUID, err error) {
+	peerID = uuid.New()
+	resumeToken := r.URL.Query().Get("resume_token")
+	if resumeToken != "" {
+		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(resumeToken)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
+				Detail:  err.Error(),
+				Validations: []codersdk.ValidationError{
+					{Field: "resume_token", Detail: workspacesdk.CoordinateAPIInvalidResumeToken},
+				},
+			})
+			return peerID, err
+		}
+		api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
+			slog.F("peer_id", peerID.String()))
+	}
+	return peerID, err
 }
 
 // @Summary Post workspace agent log source
@@ -1458,6 +1464,72 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
+		return
+	}
+}
+
+// @Summary Coordinate multiple workspace agents
+// @ID coordinate-multiple-workspace-agents
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 101
+// @Router /users/me/tailnet [get]
+func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey, ok := httpmw.APIKeyOptional(r)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot use \"me\" without a valid session.",
+		})
+		return
+	}
+
+	version := "1.0"
+	qv := r.URL.Query().Get("version")
+	if qv != "" {
+		version = qv
+	}
+	if err := proto.CurrentVersion.Validate(version); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unknown or unsupported API version",
+			Validations: []codersdk.ValidationError{
+				{Field: "version", Detail: err.Error()},
+			},
+		})
+		return
+	}
+
+	peerID, err := api.handleResumeToken(ctx, rw, r)
+	if err != nil {
+		// handleResumeToken has already written the response.
+		return
+	}
+
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	go httpapi.Heartbeat(ctx, conn)
+	err = api.TailnetClientService.ServeUserClient(ctx, version, wsNetConn, tailnet.ServeUserClientOptions{
+		PeerID:          peerID,
+		UserID:          apiKey.UserID,
+		UpdatesProvider: api.WorkspaceUpdatesProvider,
+	})
+	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
 }

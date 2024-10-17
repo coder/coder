@@ -1,6 +1,7 @@
 package tailnet
 
 import (
+	"database/sql"
 	"net/netip"
 
 	"github.com/google/uuid"
@@ -88,6 +89,42 @@ func (a AgentCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
 		}
 	}
 
+	return nil
+}
+
+type ClientUserCoordinateeAuth struct {
+	UserID          uuid.UUID
+	UpdatesProvider WorkspaceUpdatesProvider
+}
+
+func (a ClientUserCoordinateeAuth) Authorize(req *proto.CoordinateRequest) error {
+	if tun := req.GetAddTunnel(); tun != nil {
+		uid, err := uuid.FromBytes(tun.Id)
+		if err != nil {
+			return xerrors.Errorf("parse add tunnel id: %w", err)
+		}
+		isOwner := a.UpdatesProvider.IsOwner(a.UserID, uid)
+		if !isOwner {
+			return xerrors.Errorf("workspace agent not found or you do not have permission: %w", sql.ErrNoRows)
+		}
+	}
+
+	if upd := req.GetUpdateSelf(); upd != nil {
+		for _, addrStr := range upd.Node.Addresses {
+			pre, err := netip.ParsePrefix(addrStr)
+			if err != nil {
+				return xerrors.Errorf("parse node address: %w", err)
+			}
+
+			if pre.Bits() != 128 {
+				return xerrors.Errorf("invalid address bits, expected 128, got %d", pre.Bits())
+			}
+		}
+	}
+
+	if rfh := req.GetReadyForHandshake(); rfh != nil {
+		return xerrors.Errorf("clients may not send ready_for_handshake")
+	}
 	return nil
 }
 

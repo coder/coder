@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -36,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -1861,6 +1863,127 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 	})
 }
 
+func TestOwnedWorkspacesCoordinate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	firstClient, closer, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Coordinator:              tailnet.NewCoordinator(logger),
+		IncludeProvisionerDaemon: true,
+	})
+	defer closer.Close()
+	firstUser := coderdtest.CreateFirstUser(t, firstClient)
+	user, _ := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
+
+	// Create a workspace
+	token := uuid.NewString()
+	resources, _ := buildWorkspaceWithAgent(t, user, firstUser.OrganizationID, token)
+
+	u, err := user.URL.Parse("/api/v2/users/me/tailnet")
+	require.NoError(t, err)
+	q := u.Query()
+	q.Set("version", "2.0")
+	u.RawQuery = q.Encode()
+
+	//nolint:bodyclose // websocket package closes this for you
+	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Coder-Session-Token": []string{user.SessionToken()},
+		},
+	})
+	if err != nil {
+		if resp.StatusCode != http.StatusSwitchingProtocols {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		require.NoError(t, err)
+	}
+	defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+	rpcClient, err := tailnet.NewDRPCClient(
+		websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+		logger,
+	)
+	require.NoError(t, err)
+
+	stream, err := rpcClient.WorkspaceUpdates(ctx, &tailnetproto.WorkspaceUpdatesRequest{})
+	require.NoError(t, err)
+
+	// Existing workspace
+	update, err := stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, update.UpsertedWorkspaces, 1)
+	require.Equal(t, update.UpsertedWorkspaces[0].Status, tailnetproto.Workspace_RUNNING)
+	wsID := update.UpsertedWorkspaces[0].Id
+
+	// Existing agent
+	require.Len(t, update.UpsertedAgents, 1)
+	require.Equal(t, update.UpsertedAgents[0].WorkspaceId, wsID)
+	require.EqualValues(t, update.UpsertedAgents[0].Id, resources[0].Agents[0].ID)
+
+	require.Len(t, update.DeletedWorkspaces, 0)
+	require.Len(t, update.DeletedAgents, 0)
+
+	// Build a second workspace
+	secondToken := uuid.NewString()
+	secondResources, secondWorkspace := buildWorkspaceWithAgent(t, user, firstUser.OrganizationID, secondToken)
+
+	// Workspace starting
+	update, err = stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, update.UpsertedWorkspaces, 1)
+	require.Equal(t, update.UpsertedWorkspaces[0].Status, tailnetproto.Workspace_STARTING)
+
+	require.Len(t, update.DeletedWorkspaces, 0)
+	require.Len(t, update.DeletedAgents, 0)
+	require.Len(t, update.UpsertedAgents, 0)
+
+	// Workspace running, agent created
+	update, err = stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, update.UpsertedWorkspaces, 1)
+	require.Equal(t, update.UpsertedWorkspaces[0].Status, tailnetproto.Workspace_RUNNING)
+	wsID = update.UpsertedWorkspaces[0].Id
+	require.Len(t, update.UpsertedAgents, 1)
+	require.Equal(t, update.UpsertedAgents[0].WorkspaceId, wsID)
+	require.EqualValues(t, update.UpsertedAgents[0].Id, secondResources[0].Agents[0].ID)
+
+	require.Len(t, update.DeletedWorkspaces, 0)
+	require.Len(t, update.DeletedAgents, 0)
+
+	_, err = user.CreateWorkspaceBuild(ctx, secondWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+	})
+	require.NoError(t, err)
+
+	// Wait for the workspace to be deleted
+	deletedAgents := make([]*tailnetproto.Agent, 0)
+	workspaceUpdates := make([]*tailnetproto.Workspace, 0)
+	require.Eventually(t, func() bool {
+		update, err = stream.Recv()
+		if err != nil {
+			return false
+		}
+		deletedAgents = append(deletedAgents, update.DeletedAgents...)
+		workspaceUpdates = append(workspaceUpdates, update.UpsertedWorkspaces...)
+		return len(update.DeletedWorkspaces) == 1 &&
+			bytes.Equal(update.DeletedWorkspaces[0].Id, wsID)
+	}, testutil.WaitMedium, testutil.IntervalSlow)
+
+	// We should have seen an update for the agent being deleted
+	require.Len(t, deletedAgents, 1)
+	require.EqualValues(t, deletedAgents[0].Id, secondResources[0].Agents[0].ID)
+
+	// But we may also see a 'pending' state transition before 'deleting'
+	deletingFound := false
+	for _, ws := range workspaceUpdates {
+		if bytes.Equal(ws.Id, wsID) && ws.Status == tailnetproto.Workspace_DELETING {
+			deletingFound = true
+		}
+	}
+	require.True(t, deletingFound)
+}
+
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
 	mp, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	require.NoError(t, err)
@@ -1879,4 +2002,19 @@ func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup
 	aAPI := agentproto.NewDRPCAgentClient(conn)
 	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
 	return err
+}
+
+func buildWorkspaceWithAgent(t *testing.T, client *codersdk.Client, orgID uuid.UUID, agentToken string) ([]codersdk.WorkspaceResource, codersdk.Workspace) {
+	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	_ = agenttest.New(t, client.URL, agentToken)
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+	return resources, workspace
 }
