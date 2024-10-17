@@ -1315,6 +1315,11 @@
 							"path": "reference/cli/templates_versions_list.md"
 						},
 						{
+							"title": "templates versions promote",
+							"description": "Promote a template version to active.",
+							"path": "reference/cli/templates_versions_promote.md"
+						},
+						{
 							"title": "templates versions unarchive",
 							"description": "Unarchive a template version(s).",
 							"path": "reference/cli/templates_versions_unarchive.md"
