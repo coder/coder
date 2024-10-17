@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,6 +40,8 @@ func defaultHelpers() map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return "http://test.com" },
 		"current_year": func() string { return "2024" },
+		"logo_url":     func() string { return "https://coder.com/coder-logo-horizontal.png" },
+		"app_name":     func() string { return "Coder" },
 	}
 }
 
@@ -67,9 +70,9 @@ func newDispatchInterceptor(h notifications.Handler) *dispatchInterceptor {
 	return &dispatchInterceptor{handler: h}
 }
 
-func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+func (i *dispatchInterceptor) Dispatcher(helpers template.FuncMap, payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		deliveryFn, err := i.handler.Dispatcher(payload, title, body)
+		deliveryFn, err := i.handler.Dispatcher(defaultHelpers(), payload, title, body)
 		if err != nil {
 			return false, err
 		}

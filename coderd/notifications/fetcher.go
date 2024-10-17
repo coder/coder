@@ -8,7 +8,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (n *notifier) FetchAppName(ctx context.Context) (string, error) {
+func (n *notifier) fetchAppName(ctx context.Context) (string, error) {
 	appName, err := n.store.GetApplicationName(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -19,7 +19,7 @@ func (n *notifier) FetchAppName(ctx context.Context) (string, error) {
 	return appName, nil
 }
 
-func (n *notifier) FetchLogoURL(ctx context.Context) (string, error) {
+func (n *notifier) fetchLogoURL(ctx context.Context) (string, error) {
 	logoURL, err := n.store.GetLogoURL(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -515,8 +516,8 @@ func newBarrierHandler(total int, handler notifications.Handler) *barrierHandler
 	}
 }
 
-func (bh *barrierHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	deliverFn, err := bh.h.Dispatcher(payload, title, body)
+func (bh *barrierHandler) Dispatcher(helpers template.FuncMap, payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+	deliverFn, err := bh.h.Dispatcher(helpers, payload, title, body)
 	if err != nil {
 		return nil, err
 	}

@@ -233,11 +233,11 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		helpers[k] = v
 	}
 
-	appName, err := n.FetchAppName(ctx)
+	appName, err := n.fetchAppName(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch app name: %w", err)
 	}
-	logoURL, err := n.FetchLogoURL(ctx)
+	logoURL, err := n.fetchLogoURL(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch logo URL: %w", err)
 	}
@@ -246,14 +246,14 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	helpers["logo_url"] = func() string { return logoURL }
 
 	var title, body string
-	if title, err = render.GoTemplate(msg.TitleTemplate, payload, n.helpers); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, payload, helpers); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, payload, n.helpers); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, payload, helpers); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return handler.Dispatcher(payload, title, body)
+	return handler.Dispatcher(helpers, payload, title, body)
 }
 
 // deliver sends a given notification message via its defined method.

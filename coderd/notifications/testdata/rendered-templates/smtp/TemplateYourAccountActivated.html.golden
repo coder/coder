@@ -37,12 +37,8 @@ l', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; color: #020617=
 r: 1px solid #e2e8f0; border-radius: 8px; background-color: #fff; text-alig=
 n: left; font-size: 14px; line-height: 1.5;">
       <div style=3D"text-align: center;">
-        <img src=3D"https://coder.com/coder-logo-horizontal.png" alt=3D"Log=
-o" style=3D"height: 40px;" />
-        <h1 style=3D"text-align: center; font-size: 36px; font-weight: 400;=
- margin: 8px 0 32px; line-height: 1.5;">
-          Coder
-        </h1>
+        <img src=3D"https://coder.com/coder-logo-horizontal.png" alt=3D"Cod=
+er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
