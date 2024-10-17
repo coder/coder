@@ -164,10 +164,25 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 	})
 
+	// TODO: @deansheather Configurable DNS suffix for agents.
+	fqdn := ""
+	if api.Experiments.Enabled(codersdk.ExperimentCoderVPN) {
+		// TODO: @deansheather What format do we want to use for this? This
+		// format avoids any potential conflicts with other users or workspaces.
+		//
+		// If in the future we want to allow for multiple DNS entries (perhaps
+		// based on the currently authed user or whether there are multiple
+		// agents in the workspace) we will need to use a different solution
+		// that doesn't bubble down into the
+		fqdn = fmt.Sprintf("%s--%s--%s.coder.", workspaceAgent.Name, workspace.Name, owner.Username)
+	}
 	streamID := tailnet.StreamID{
-		Name: fmt.Sprintf("%s-%s-%s", owner.Username, workspace.Name, workspaceAgent.Name),
+		Name: fmt.Sprintf("%s--%s--%s", workspaceAgent.Name, workspace.Name, owner.Username),
 		ID:   workspaceAgent.ID,
-		Auth: tailnet.AgentCoordinateeAuth{ID: workspaceAgent.ID},
+		Auth: tailnet.AgentCoordinateeAuth{
+			ID:        workspaceAgent.ID,
+			AgentFQDN: fqdn,
+		},
 	}
 	ctx = tailnet.WithStreamID(ctx, streamID)
 	ctx = agentapi.WithAPIVersion(ctx, version)
