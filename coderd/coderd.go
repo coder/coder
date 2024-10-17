@@ -449,12 +449,6 @@ func New(options *Options) *API {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
 
-	// Start a background process that rotates keys.
-	err = cryptokeys.StartRotator(ctx, options.Logger.Named("keyrotator"), options.Database)
-	if err != nil {
-		options.Logger.Fatal(ctx, "start key rotator", slog.Error(err))
-	}
-
 	fetcher := &cryptokeys.DBFetcher{
 		DB: options.Database,
 	}

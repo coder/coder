@@ -746,6 +746,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
 
+			// Start a background process that rotates keys.
+			err = cryptokeys.StartRotator(ctx, options.Logger.Named("keyrotator"), options.Database)
+			if err != nil {
+				return xerrors.Errorf("start key rotator: %w", err)
+			}
+
 			fetcher := &cryptokeys.DBFetcher{
 				DB: options.Database,
 			}
