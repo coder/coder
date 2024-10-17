@@ -53,6 +53,14 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "provisionerd_key",
+		expectedError: "",
+	},
+	{
+		name:          "provisionerd_psk_and_key",
+		expectedError: "",
+	},
+	{
 		name:          "extra_templates",
 		expectedError: "",
 	},
