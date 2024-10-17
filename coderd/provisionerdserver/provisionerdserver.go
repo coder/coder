@@ -39,7 +39,6 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
@@ -497,11 +496,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
-			Kind:          wspubsub.WorkspaceEventKindStateChange,
-			WorkspaceID:   workspace.ID,
-			WorkspaceName: ptr.Ref(workspace.Name),
-			Transition:    ptr.Ref(workspaceBuild.Transition),
-			JobStatus:     ptr.Ref(job.JobStatus),
+			Kind:        wspubsub.WorkspaceEventKindStateChange,
+			WorkspaceID: workspace.ID,
 		})
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("marshal workspace update event: %s", err))
@@ -1037,16 +1033,13 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		s.notifyWorkspaceBuildFailed(ctx, workspace, build)
 
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
-			Kind:          wspubsub.WorkspaceEventKindStateChange,
-			WorkspaceID:   workspace.ID,
-			WorkspaceName: ptr.Ref(workspace.Name),
-			Transition:    ptr.Ref(build.Transition),
-			JobStatus:     ptr.Ref(database.ProvisionerJobStatusFailed),
+			Kind:        wspubsub.WorkspaceEventKindStateChange,
+			WorkspaceID: workspace.ID,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal workspace update event: %s", err)
 		}
-		err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(build.InitiatorID), msg)
+		err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
@@ -1518,7 +1511,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 								s.Logger.Error(ctx, "marshal workspace update event", slog.Error(err))
 								break
 							}
-							if err := s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspaceBuild.InitiatorID), msg); err != nil {
+							if err := s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg); err != nil {
 								if s.lifecycleCtx.Err() != nil {
 									// If the server is shutting down, we don't want to log this error, nor wait around.
 									s.Logger.Debug(ctx, "stopping notifications due to server shutdown",
@@ -1636,16 +1629,13 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		}
 
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
-			Kind:          wspubsub.WorkspaceEventKindStateChange,
-			WorkspaceID:   workspace.ID,
-			WorkspaceName: ptr.Ref(workspace.Name),
-			Transition:    ptr.Ref(workspaceBuild.Transition),
-			JobStatus:     ptr.Ref(database.ProvisionerJobStatusSucceeded),
+			Kind:        wspubsub.WorkspaceEventKindStateChange,
+			WorkspaceID: workspace.ID,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("marshal workspace update event: %s", err)
 		}
-		err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspaceBuild.InitiatorID), msg)
+		err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace: %w", err)
 		}

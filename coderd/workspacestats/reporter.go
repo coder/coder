@@ -182,7 +182,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		return xerrors.Errorf("update stats in database: %w", err)
 	}
 	msg, err := json.Marshal(wspubsub.WorkspaceEvent{
-		Kind:        wspubsub.WorkspaceEventKindUpdatedStats,
+		Kind:        wspubsub.WorkspaceEventKindStatsUpdate,
 		WorkspaceID: workspace.ID,
 	})
 	if err != nil {
