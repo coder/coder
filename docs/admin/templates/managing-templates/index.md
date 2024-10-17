@@ -1,8 +1,8 @@
 # Working with templates
 
-You create and edit Coder templates as [Terraform](../../../start/coder-tour.md)
-configuration files (`.tf`) and any supporting files, like a README or
-configuration files for other services.
+You create and edit Coder templates as
+[Terraform](../../../tutorials/quickstart.md) configuration files (`.tf`) and
+any supporting files, like a README or configuration files for other services.
 
 ## Who creates templates?
 
