@@ -70,7 +70,7 @@ func newDispatchInterceptor(h notifications.Handler) *dispatchInterceptor {
 	return &dispatchInterceptor{handler: h}
 }
 
-func (i *dispatchInterceptor) Dispatcher(helpers template.FuncMap, payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+func (i *dispatchInterceptor) Dispatcher(_ template.FuncMap, payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		deliveryFn, err := i.handler.Dispatcher(defaultHelpers(), payload, title, body)
 		if err != nil {

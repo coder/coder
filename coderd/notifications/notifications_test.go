@@ -1414,12 +1414,12 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// GIVEN: a notification template which has a method explicitly set
 	var (
-		template      = notifications.TemplateWorkspaceDormant
+		tmplate       = notifications.TemplateWorkspaceDormant
 		defaultMethod = database.NotificationMethodSmtp
 		customMethod  = database.NotificationMethodWebhook
 	)
 	out, err := api.Database.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
-		ID:     template,
+		ID:     tmplate,
 		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
 	})
 	require.NoError(t, err)
@@ -1447,7 +1447,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
 	user := createSampleUser(t, api.Database)
-	msgID, err := enq.Enqueue(ctx, user.ID, template, map[string]string{}, "test")
+	msgID, err := enq.Enqueue(ctx, user.ID, tmplate, map[string]string{}, "test")
 	require.NoError(t, err)
 
 	// THEN: the notification should be received by the custom dispatch method
@@ -1562,7 +1562,7 @@ type fakeHandler struct {
 	succeeded, failed []string
 }
 
-func (f *fakeHandler) Dispatcher(helpers template.FuncMap, payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (f *fakeHandler) Dispatcher(_ template.FuncMap, payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(_ context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -1629,15 +1629,13 @@ func TestNotificationTemplates_GoldenWithCustomAppearance(t *testing.T) {
 		hint = "run \"DB=ci make update-golden-files\" and commit the changes"
 	)
 
-	var (
-		payload = types.MessagePayload{
-			Labels: map[string]string{
-				"name":      "bobby-workspace",
-				"reason":    "autodeleted due to dormancy",
-				"initiator": "autobuild",
-			},
-		}
-	)
+	payload := types.MessagePayload{
+		Labels: map[string]string{
+			"name":      "bobby-workspace",
+			"reason":    "autodeleted due to dormancy",
+			"initiator": "autobuild",
+		},
+	}
 
 	// Spin up the DB
 	db, logger, user := func() (database.Store, *slog.Logger, *codersdk.User) {

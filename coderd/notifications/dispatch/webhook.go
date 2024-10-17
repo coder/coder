@@ -42,7 +42,7 @@ func NewWebhookHandler(cfg codersdk.NotificationsWebhookConfig, log slog.Logger)
 	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{}}
 }
 
-func (w *WebhookHandler) Dispatcher(helpers template.FuncMap, payload types.MessagePayload, titleMarkdown, bodyMarkdown string) (DeliveryFunc, error) {
+func (w *WebhookHandler) Dispatcher(_ template.FuncMap, payload types.MessagePayload, titleMarkdown, bodyMarkdown string) (DeliveryFunc, error) {
 	if w.cfg.Endpoint.String() == "" {
 		return nil, xerrors.New("webhook endpoint not defined")
 	}
