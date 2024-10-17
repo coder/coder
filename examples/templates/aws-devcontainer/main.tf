@@ -6,6 +6,9 @@ terraform {
     aws = {
       source = "hashicorp/aws"
     }
+    cloudinit = {
+      source = "hashicorp/cloudinit"
+    }
     envbuilder = {
       source = "coder/envbuilder"
     }
@@ -153,13 +156,16 @@ data "aws_iam_instance_profile" "vm_instance_profile" {
 locals {
   # TODO: provide a way to pick the availability zone.
   aws_availability_zone = "${module.aws_region.value}a"
-  linux_user            = "coder"
-  # Name the container after the workspace and owner.
-  container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+
+  hostname   = lower(data.coder_workspace.me.name)
+  linux_user = "coder"
+
   # The devcontainer builder image is the image that will build the devcontainer.
   devcontainer_builder_image = data.coder_parameter.devcontainer_builder.value
+
   # We may need to authenticate with a registry. If so, the user will provide a path to a docker config.json.
   docker_config_json_base64 = try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, "")
+
   # The envbuilder provider requires a key-value map of environment variables. Build this here.
   envbuilder_env = {
     # ENVBUILDER_GIT_URL and ENVBUILDER_CACHE_REPO will be overridden by the provider
@@ -172,7 +178,7 @@ locals {
     # The agent init script is required for the agent to start up. We base64 encode it here
     # to avoid quoting issues.
     "ENVBUILDER_INIT_SCRIPT" : "echo ${base64encode(try(coder_agent.dev[0].init_script, ""))} | base64 -d | sh",
-    "ENVBUILDER_DOCKER_CONFIG_BASE64" : try(data.local_sensitive_file.cache_repo_dockerconfigjson[0].content_base64, ""),
+    "ENVBUILDER_DOCKER_CONFIG_BASE64" : local.docker_config_json_base64,
     # The fallback image is the image that will run if the devcontainer fails to build.
     "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
     # The following are used to push the image to the cache repo, if defined.
@@ -181,87 +187,6 @@ locals {
     # You can add other required environment variables here.
     # See: https://github.com/coder/envbuilder/?tab=readme-ov-file#environment-variables
   }
-  # If we have a cached image, use the cached image's environment variables. Otherwise, just use
-  # the environment variables we've defined above.
-  docker_env_input = try(envbuilder_cached_image.cached.0.env_map, local.envbuilder_env)
-  # Convert the above to the list of arguments for the Docker run command.
-  # The startup script will write this to a file, which the Docker run command will reference.
-  docker_env_list_base64 = base64encode(join("\n", [for k, v in local.docker_env_input : "${k}=${v}"]))
-  # Builder image will either be the builder image parameter, or the cached image, if cache is provided.
-  builder_image = try(envbuilder_cached_image.cached[0].image, data.coder_parameter.devcontainer_builder.value)
-  # User data to start the workspace.
-  user_data = <<-EOT
-  Content-Type: multipart/mixed; boundary="//"
-  MIME-Version: 1.0
-
-  --//
-  Content-Type: text/cloud-config; charset="us-ascii"
-  MIME-Version: 1.0
-  Content-Transfer-Encoding: 7bit
-  Content-Disposition: attachment; filename="cloud-config.txt"
-
-  #cloud-config
-  cloud_final_modules:
-  - [scripts-user, always]
-  hostname: ${lower(data.coder_workspace.me.name)}
-  users:
-  - name: ${local.linux_user}
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    shell: /bin/bash
-    ssh_authorized_keys:
-    - "${data.coder_parameter.ssh_pubkey.value}"
-  # Automatically grow the partition
-  growpart:
-    mode: auto
-    devices: ['/']
-    ignore_growroot_disabled: false
-
-  --//
-  Content-Type: text/x-shellscript; charset="us-ascii"
-  MIME-Version: 1.0
-  Content-Transfer-Encoding: 7bit
-  Content-Disposition: attachment; filename="userdata.txt"
-
-  #!/bin/bash
-  # Install Docker
-  if ! command -v docker &> /dev/null
-  then
-    echo "Docker not found, installing..."
-    curl -fsSL https://get.docker.com -o get-docker.sh && sh get-docker.sh 2>&1 >/dev/null
-    usermod -aG docker ${local.linux_user}
-    newgrp docker
-  else
-    echo "Docker is already installed."
-  fi
-
-  # Set up Docker credentials
-  mkdir -p "/home/${local.linux_user}/.docker"
-  if [ -n "${local.docker_config_json_base64}" ]; then
-     # Write the Docker config JSON to disk if it is provided.
-     printf "%s" "${local.docker_config_json_base64}" | base64 -d | tee "/home/${local.linux_user}/.docker/config.json"
-  else
-    # Assume that we're going to use the instance IAM role to pull from the cache repo if we need to.
-    # Set up the ecr credential helper.
-    apt-get update -y && apt-get install -y amazon-ecr-credential-helper
-    mkdir -p .docker
-    printf '{"credsStore": "ecr-login"}' | tee "/home/${local.linux_user}/.docker/config.json"
-  fi
-  chown -R ${local.linux_user}:${local.linux_user} "/home/${local.linux_user}/.docker"
-
-  # Write the container env to disk.
-  printf "%s" "${local.docker_env_list_base64}" | base64 -d | tee "/home/${local.linux_user}/env.txt"
-
-  # Start envbuilder
-  sudo -u coder docker run \
-    --rm \
-    --net=host \
-    -h ${lower(data.coder_workspace.me.name)} \
-    -v /home/${local.linux_user}/envbuilder:/workspaces \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    --env-file /home/${local.linux_user}/env.txt \
-    ${local.builder_image}
-  --//--
-  EOT
 }
 
 # Check for the presence of a prebuilt image in the cache repo
@@ -274,9 +199,47 @@ resource "envbuilder_cached_image" "cached" {
   extra_env     = local.envbuilder_env
 }
 
+data "cloudinit_config" "user_data" {
+  gzip          = false
+  base64_encode = false
+
+  boundary = "//"
+
+  part {
+    filename     = "cloud-config.yaml"
+    content_type = "text/cloud-config"
+
+    content = templatefile("${path.module}/cloud-init/cloud-config.yaml.tftpl", {
+      hostname   = local.hostname
+      linux_user = local.linux_user
+
+      ssh_pubkey = data.coder_parameter.ssh_pubkey.value
+    })
+  }
+
+  part {
+    filename     = "userdata.sh"
+    content_type = "text/x-shellscript"
+
+    content = templatefile("${path.module}/cloud-init/userdata.sh.tftpl", {
+      hostname   = local.hostname
+      linux_user = local.linux_user
+
+      # If we have a cached image, use the cached image's environment variables.
+      # Otherwise, just use the environment variables we've defined in locals.
+      environment = try(envbuilder_cached_image.cached[0].env_map, local.envbuilder_env)
+
+      # Builder image will either be the builder image parameter, or the cached image, if cache is provided.
+      builder_image = try(envbuilder_cached_image.cached[0].image, data.coder_parameter.devcontainer_builder.value)
+
+      docker_config_json_base64 = local.docker_config_json_base64
+    })
+  }
+}
+
 # This is useful for debugging the startup script. Left here for reference.
 # resource local_file "startup_script" {
-#   content  = local.user_data
+#   content  = data.cloudinit_config.user_data.rendered
 #   filename = "${path.module}/user_data.txt"
 # }
 
@@ -289,9 +252,9 @@ resource "aws_instance" "vm" {
     volume_size = data.coder_parameter.root_volume_size_gb.value
   }
 
-  user_data = local.user_data
+  user_data = data.cloudinit_config.user_data.rendered
   tags = {
-    Name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
+    Name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
     # Required if you are using our example policy, see template README
     Coder_Provisioned = "true"
   }
