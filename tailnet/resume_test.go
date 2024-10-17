@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -91,8 +91,8 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 	})
 }
 
-func newKeySigner(key tailnet.ResumeTokenSigningKey) jwtutils.StaticKeyManager {
-	return jwtutils.StaticKeyManager{
+func newKeySigner(key tailnet.ResumeTokenSigningKey) cryptokeys.StaticKey {
+	return cryptokeys.StaticKey{
 		ID:  uuid.New().String(),
 		Key: key[:],
 	}

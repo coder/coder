@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -100,8 +101,8 @@ type Server struct {
 	HostnameRegex *regexp.Regexp
 	RealIPConfig  *httpmw.RealIPConfig
 
-	SignedTokenProvider SignedTokenProvider
-	APIKeyEncryptionKey jwtutils.EncryptingKeyManager
+	SignedTokenProvider      SignedTokenProvider
+	APIKeyEncryptionKeycache cryptokeys.EncryptionKeycache
 
 	// DisablePathApps disables path-based apps. This is a security feature as path
 	// based apps share the same cookie as the dashboard, and are susceptible to XSS
@@ -180,7 +181,7 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 
 	// Exchange the encoded API key for a real one.
 	var payload EncryptedAPIKeyPayload
-	err := jwtutils.Decrypt(ctx, s.APIKeyEncryptionKey, encryptedAPIKey, &payload, jwtutils.WithDecryptExpected(jwt.Expected{
+	err := jwtutils.Decrypt(ctx, s.APIKeyEncryptionKeycache, encryptedAPIKey, &payload, jwtutils.WithDecryptExpected(jwt.Expected{
 		Time: time.Now(),
 	}))
 	if err != nil {

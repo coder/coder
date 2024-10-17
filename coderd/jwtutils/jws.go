@@ -24,27 +24,6 @@ const (
 	signingAlgo = jose.HS512
 )
 
-type StaticKeyManager struct {
-	ID  string
-	Key interface{}
-}
-
-func (s StaticKeyManager) SigningKey(_ context.Context) (string, interface{}, error) {
-	return s.ID, s.Key, nil
-}
-
-func (s StaticKeyManager) VerifyingKey(_ context.Context, id string) (interface{}, error) {
-	if id != s.ID {
-		return nil, xerrors.Errorf("invalid id %q", id)
-	}
-	return s.Key, nil
-}
-
-type SigningKeyManager interface {
-	SigningKeyProvider
-	VerifyKeyProvider
-}
-
 type SigningKeyProvider interface {
 	SigningKey(ctx context.Context) (id string, key interface{}, err error)
 }

@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
@@ -28,7 +29,7 @@ func NewInsecureTestResumeTokenProvider() ResumeTokenProvider {
 	if err != nil {
 		panic(err)
 	}
-	return NewResumeTokenKeyProvider(jwtutils.StaticKeyManager{
+	return NewResumeTokenKeyProvider(cryptokeys.StaticKey{
 		ID:  uuid.New().String(),
 		Key: key[:],
 	}, quartz.NewReal(), time.Hour)
@@ -51,12 +52,12 @@ func GenerateResumeTokenSigningKey() (ResumeTokenSigningKey, error) {
 }
 
 type ResumeTokenKeyProvider struct {
-	key    jwtutils.SigningKeyManager
+	key    cryptokeys.SigningKeycache
 	clock  quartz.Clock
 	expiry time.Duration
 }
 
-func NewResumeTokenKeyProvider(key jwtutils.SigningKeyManager, clock quartz.Clock, expiry time.Duration) ResumeTokenProvider {
+func NewResumeTokenKeyProvider(key cryptokeys.SigningKeycache, clock quartz.Clock, expiry time.Duration) ResumeTokenProvider {
 	if expiry <= 0 {
 		expiry = DefaultResumeTokenExpiry
 	}

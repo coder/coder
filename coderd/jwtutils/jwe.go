@@ -15,11 +15,6 @@ const (
 	encryptContentAlgo = jose.A256GCM
 )
 
-type EncryptingKeyManager interface {
-	EncryptKeyProvider
-	DecryptKeyProvider
-}
-
 type EncryptKeyProvider interface {
 	EncryptingKey(ctx context.Context) (id string, key interface{}, err error)
 }

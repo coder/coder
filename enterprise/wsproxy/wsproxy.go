@@ -303,21 +303,21 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		HostnameRegex: opts.AppHostnameRegex,
 		RealIPConfig:  opts.RealIPConfig,
 		SignedTokenProvider: &TokenProvider{
-			DashboardURL:        opts.DashboardURL,
-			AccessURL:           opts.AccessURL,
-			AppHostname:         opts.AppHostname,
-			Client:              client,
-			TokenSigningKey:     signingCache,
-			APIKeyEncryptionKey: encryptionCache,
-			Logger:              s.Logger.Named("proxy_token_provider"),
+			DashboardURL:             opts.DashboardURL,
+			AccessURL:                opts.AccessURL,
+			AppHostname:              opts.AppHostname,
+			Client:                   client,
+			TokenSigningKeycache:     signingCache,
+			APIKeyEncryptionKeycache: encryptionCache,
+			Logger:                   s.Logger.Named("proxy_token_provider"),
 		},
 
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
 
-		AgentProvider:       agentProvider,
-		StatsCollector:      workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
-		APIKeyEncryptionKey: encryptionCache,
+		AgentProvider:            agentProvider,
+		StatsCollector:           workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
+		APIKeyEncryptionKeycache: encryptionCache,
 	}
 
 	derpHandler := derphttp.Handler(derpServer)

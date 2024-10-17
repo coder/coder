@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -73,7 +72,7 @@ func (d *DBFetcher) Fetch(ctx context.Context, feature codersdk.CryptoKeyFeature
 		return nil, xerrors.Errorf("get crypto keys by feature: %w", err)
 	}
 
-	return db2sdk.CryptoKeys(keys), nil
+	return toSDKKeys(keys), nil
 }
 
 // cache implements the caching functionality for both signing and encryption keys.
@@ -377,4 +376,55 @@ func (c *cache) Close() error {
 	c.cond.Broadcast()
 
 	return nil
+}
+
+// StaticKey fulfills the SigningKeycache and EncryptionKeycache interfaces. Useful for testing.
+type StaticKey struct {
+	ID  string
+	Key interface{}
+}
+
+func (s StaticKey) SigningKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKey) VerifyingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
+}
+
+func (s StaticKey) EncryptingKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKey) DecryptingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
+}
+
+func (s StaticKey) Close() error {
+	return nil
+}
+
+// We have to do this to avoid a circular dependency on db2sdk (cryptokeys -> db2sdk -> tailnet -> cryptokeys)
+func toSDKKeys(keys []database.CryptoKey) []codersdk.CryptoKey {
+	into := make([]codersdk.CryptoKey, 0, len(keys))
+	for _, key := range keys {
+		into = append(into, toSDK(key))
+	}
+	return into
+}
+
+func toSDK(key database.CryptoKey) codersdk.CryptoKey {
+	return codersdk.CryptoKey{
+		Feature:   codersdk.CryptoKeyFeature(key.Feature),
+		Sequence:  key.Sequence,
+		StartsAt:  key.StartsAt,
+		DeletesAt: key.DeletesAt.Time,
+		Secret:    key.Secret.String,
+	}
 }

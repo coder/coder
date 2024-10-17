@@ -8,6 +8,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -54,7 +55,7 @@ type EncryptedAPIKeyPayload struct {
 
 // FromRequest returns the signed token from the request, if it exists and is
 // valid. The caller must check that the token matches the request.
-func FromRequest(r *http.Request, mgr jwtutils.SigningKeyManager) (*SignedToken, bool) {
+func FromRequest(r *http.Request, mgr cryptokeys.SigningKeycache) (*SignedToken, bool) {
 	// Get all signed app tokens from the request. This includes the query
 	// parameter and all matching cookies sent with the request. If there are
 	// somehow multiple signed app token cookies, we want to try all of them
