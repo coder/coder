@@ -1050,6 +1050,8 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	switch feature {
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return generateCryptoKey(32)
+	case database.CryptoKeyFeatureWorkspaceAppsToken:
+		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureOIDCConvert:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:

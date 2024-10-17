@@ -365,9 +365,11 @@ func Test_rotateKeys(t *testing.T) {
 
 		now := dbnow(clock)
 
-		// We'll test a scenario where one feature has no valid keys.
-		// Another has a key that should be rotate. And one that
-		// has a valid key that shouldn't trigger an action.
+		// We'll test a scenario where:
+		// - One feature has no valid keys.
+		// - One has a key that should be rotated.
+		// - One has a valid key that shouldn't trigger an action.
+		// - One has no keys at all.
 		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureTailnetResume,
 			StartsAt: now.Add(-keyDuration),
@@ -377,6 +379,7 @@ func Test_rotateKeys(t *testing.T) {
 				Valid:  false,
 			},
 		})
+		// Generate another deleted key to ensure we insert after the latest sequence.
 		deletedKey := dbgen.CryptoKey(t, db, database.CryptoKey{
 			Feature:  database.CryptoKeyFeatureTailnetResume,
 			StartsAt: now.Add(-keyDuration),
@@ -406,7 +409,7 @@ func Test_rotateKeys(t *testing.T) {
 
 		keys, err := db.GetCryptoKeys(ctx)
 		require.NoError(t, err)
-		require.Len(t, keys, 4)
+		require.Len(t, keys, 5)
 
 		kbf, err := keysByFeature(keys, database.AllCryptoKeyFeatureValues())
 		require.NoError(t, err)
@@ -418,12 +421,14 @@ func Test_rotateKeys(t *testing.T) {
 		// No existing key for tailnet resume should've
 		// caused a key to be inserted.
 		require.Len(t, kbf[database.CryptoKeyFeatureTailnetResume], 1)
+		require.Len(t, kbf[database.CryptoKeyFeatureWorkspaceAppsToken], 1)
 
 		oidcKey := kbf[database.CryptoKeyFeatureOIDCConvert][0]
 		tailnetKey := kbf[database.CryptoKeyFeatureTailnetResume][0]
+		appTokenKey := kbf[database.CryptoKeyFeatureWorkspaceAppsToken][0]
 		requireKey(t, oidcKey, database.CryptoKeyFeatureOIDCConvert, now, nullTime, validKey.Sequence)
 		requireKey(t, tailnetKey, database.CryptoKeyFeatureTailnetResume, now, nullTime, deletedKey.Sequence+1)
-
+		requireKey(t, appTokenKey, database.CryptoKeyFeatureWorkspaceAppsToken, now, nullTime, 1)
 		newKey := kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey][0]
 		oldKey := kbf[database.CryptoKeyFeatureWorkspaceAppsAPIKey][1]
 		if newKey.Sequence == rotatedKey.Sequence {
@@ -588,6 +593,8 @@ func requireKey(t *testing.T, key database.CryptoKey, feature database.CryptoKey
 
 	switch key.Feature {
 	case database.CryptoKeyFeatureOIDCConvert:
+		require.Len(t, secret, 64)
+	case database.CryptoKeyFeatureWorkspaceAppsToken:
 		require.Len(t, secret, 64)
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		require.Len(t, secret, 32)

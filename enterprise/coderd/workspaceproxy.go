@@ -34,6 +34,13 @@ import (
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 )
 
+// whitelistedCryptoKeyFeatures is a list of crypto key features that are
+// allowed to be queried with workspace proxies.
+var whitelistedCryptoKeyFeatures = []database.CryptoKeyFeature{
+	database.CryptoKeyFeatureWorkspaceAppsToken,
+	database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+}
+
 // forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
 // This is useful when a proxy is created or deleted. Errors will be logged.
 func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
@@ -736,7 +743,7 @@ func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if !slices.Contains(database.AllCryptoKeyFeatureValues(), feature) {
+	if !slices.Contains(whitelistedCryptoKeyFeatures, feature) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid feature: %q", feature),
 		})

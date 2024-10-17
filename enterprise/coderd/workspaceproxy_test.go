@@ -918,14 +918,14 @@ func TestGetCryptoKeys(t *testing.T) {
 			StartsAt: now.Add(-time.Hour),
 			Sequence: 2,
 		})
-		key1 := db2sdk.CryptoKey(expectedKey1)
+		encryptionKey := db2sdk.CryptoKey(expectedKey1)
 
 		expectedKey2 := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsToken,
 			StartsAt: now,
 			Sequence: 3,
 		})
-		key2 := db2sdk.CryptoKey(expectedKey2)
+		signingKey := db2sdk.CryptoKey(expectedKey2)
 
 		// Create a deleted key.
 		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
@@ -935,19 +935,7 @@ func TestGetCryptoKeys(t *testing.T) {
 				String: "secret1",
 				Valid:  false,
 			},
-			Sequence: 1,
-		})
-
-		// Create a key with different features.
-		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureTailnetResume,
-			StartsAt: now.Add(-time.Hour),
-			Sequence: 1,
-		})
-		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureOIDCConvert,
-			StartsAt: now.Add(-time.Hour),
-			Sequence: 1,
+			Sequence: 4,
 		})
 
 		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
@@ -957,8 +945,53 @@ func TestGetCryptoKeys(t *testing.T) {
 		keys, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
+		// 1 key is generated on startup, the other is the one we generated for our test.
 		require.Equal(t, 2, len(keys.CryptoKeys))
-		requireContainsKeys(t, keys.CryptoKeys, key1, key2)
+		requireContainsKeys(t, keys.CryptoKeys, encryptionKey)
+		requireNotContainsKeys(t, keys.CryptoKeys, signingKey)
+
+		keys, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsToken)
+		require.NoError(t, err)
+		require.NotEmpty(t, keys)
+		requireContainsKeys(t, keys.CryptoKeys, signingKey)
+		requireNotContainsKeys(t, keys.CryptoKeys, encryptionKey)
+	})
+
+	t.Run("InvalidFeature", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		_, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureOIDCConvert)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		_, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureTailnetResume)
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		_, err = proxy.SDKClient.CryptoKeys(ctx, "invalid")
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
@@ -992,6 +1025,18 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
+}
+
+func requireNotContainsKeys(t *testing.T, keys []codersdk.CryptoKey, unexpected ...codersdk.CryptoKey) {
+	t.Helper()
+
+	for _, expectedKey := range unexpected {
+		for _, key := range keys {
+			if key.Feature == expectedKey.Feature && key.Sequence == expectedKey.Sequence {
+				t.Fatalf("unexpected key %+v found", expectedKey)
+			}
+		}
+	}
 }
 
 func requireContainsKeys(t *testing.T, keys []codersdk.CryptoKey, expected ...codersdk.CryptoKey) {
