@@ -22,6 +22,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+const (
+	notificationsDefaultLogoURL = "https://coder.com/coder-logo-horizontal.png"
+	notificationsDefaultAppName = "Coder"
+)
+
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {
@@ -223,15 +228,32 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, xerrors.Errorf("failed to resolve handler %q", msg.Method)
 	}
 
+	helpers := make(template.FuncMap)
+	for k, v := range n.helpers {
+		helpers[k] = v
+	}
+
+	appName, err := n.fetchAppName(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch app name: %w", err)
+	}
+	logoURL, err := n.fetchLogoURL(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch logo URL: %w", err)
+	}
+
+	helpers["app_name"] = func() string { return appName }
+	helpers["logo_url"] = func() string { return logoURL }
+
 	var title, body string
-	if title, err = render.GoTemplate(msg.TitleTemplate, payload, n.helpers); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, payload, helpers); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, payload, n.helpers); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, payload, helpers); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return handler.Dispatcher(payload, title, body)
+	return handler.Dispatcher(helpers, payload, title, body)
 }
 
 // deliver sends a given notification message via its defined method.

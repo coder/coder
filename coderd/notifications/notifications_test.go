@@ -23,6 +23,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/emersion/go-sasl"
@@ -155,7 +156,7 @@ func TestSMTPDispatch(t *testing.T) {
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
-	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, defaultHelpers(), api.Logger.Named("smtp")))
+	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, api.Logger.Named("smtp")))
 	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
@@ -1413,12 +1414,12 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// GIVEN: a notification template which has a method explicitly set
 	var (
-		template      = notifications.TemplateWorkspaceDormant
+		tmplate       = notifications.TemplateWorkspaceDormant
 		defaultMethod = database.NotificationMethodSmtp
 		customMethod  = database.NotificationMethodWebhook
 	)
 	out, err := api.Database.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
-		ID:     template,
+		ID:     tmplate,
 		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
 	})
 	require.NoError(t, err)
@@ -1446,7 +1447,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
 	user := createSampleUser(t, api.Database)
-	msgID, err := enq.Enqueue(ctx, user.ID, template, map[string]string{}, "test")
+	msgID, err := enq.Enqueue(ctx, user.ID, tmplate, map[string]string{}, "test")
 	require.NoError(t, err)
 
 	// THEN: the notification should be received by the custom dispatch method
@@ -1561,7 +1562,7 @@ type fakeHandler struct {
 	succeeded, failed []string
 }
 
-func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (f *fakeHandler) Dispatcher(_ template.FuncMap, payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(_ context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -1609,4 +1610,184 @@ func (n *acquireSignalingInterceptor) AcquireNotificationMessages(ctx context.Co
 	messages, err := n.Store.AcquireNotificationMessages(ctx, params)
 	n.acquiredChan <- struct{}{}
 	return messages, err
+}
+
+func TestNotificationTemplates_GoldenWithCustomAppearance(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it relies on the notification templates added by migrations in the database")
+	}
+
+	const (
+		username = "bob"
+		password = "🤫"
+
+		hello = "localhost"
+
+		from = "system@coder.com"
+		hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+	)
+
+	payload := types.MessagePayload{
+		Labels: map[string]string{
+			"name":      "bobby-workspace",
+			"reason":    "autodeleted due to dormancy",
+			"initiator": "autobuild",
+		},
+	}
+
+	// Spin up the DB
+	db, logger, user := func() (database.Store, *slog.Logger, *codersdk.User) {
+		adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+		_, user := coderdtest.CreateAnotherUserMutators(
+			t,
+			adminClient,
+			firstUser.OrganizationID,
+			[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+			func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "bobby"
+				r.Email = "bobby@coder.com"
+				r.Name = "Bobby"
+			},
+		)
+		return api.Database, &api.Logger, &user
+	}()
+
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+
+	err := db.UpsertApplicationName(ctx, "CustomApplication")
+	require.NoError(t, err)
+
+	err = db.UpsertLogoURL(ctx, "https://custom.application")
+	require.NoError(t, err)
+
+	// smtp config shared between client and server
+	smtpConfig := codersdk.NotificationsEmailConfig{
+		Hello: hello,
+		From:  from,
+
+		Auth: codersdk.NotificationsEmailAuthConfig{
+			Username: username,
+			Password: password,
+		},
+	}
+
+	// Spin up the mock SMTP server
+	backend := smtptest.NewBackend(smtptest.Config{
+		AuthMechanisms: []string{sasl.Login},
+
+		AcceptedIdentity: smtpConfig.Auth.Identity.String(),
+		AcceptedUsername: username,
+		AcceptedPassword: password,
+	})
+
+	// Create a mock SMTP server which conditionally listens for plain or TLS connections.
+	srv, listen, err := smtptest.CreateMockSMTPServer(backend, false)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := srv.Shutdown(ctx)
+		require.NoError(t, err)
+	})
+
+	var hp serpent.HostPort
+	require.NoError(t, hp.Set(listen.Addr().String()))
+	smtpConfig.Smarthost = hp
+
+	// Start mock SMTP server in the background.
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		assert.NoError(t, srv.Serve(listen))
+	}()
+
+	// Wait for the server to become pingable.
+	require.Eventually(t, func() bool {
+		cl, err := smtptest.PingClient(listen, false, smtpConfig.TLS.StartTLS.Value())
+		if err != nil {
+			t.Logf("smtp not yet dialable: %s", err)
+			return false
+		}
+
+		if err = cl.Noop(); err != nil {
+			t.Logf("smtp not yet noopable: %s", err)
+			return false
+		}
+
+		if err = cl.Close(); err != nil {
+			t.Logf("smtp didn't close properly: %s", err)
+			return false
+		}
+
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	smtpCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+	smtpCfg.SMTP = smtpConfig
+
+	smtpManager, err := notifications.NewManager(
+		smtpCfg,
+		db,
+		defaultHelpers(),
+		createMetrics(),
+		logger.Named("manager"),
+	)
+	require.NoError(t, err)
+
+	smtpManager.Run(ctx)
+
+	notificationCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+
+	smtpEnqueuer, err := notifications.NewStoreEnqueuer(
+		notificationCfg,
+		db,
+		defaultHelpers(),
+		logger.Named("enqueuer"),
+		quartz.NewReal(),
+	)
+	require.NoError(t, err)
+
+	_, err = smtpEnqueuer.EnqueueWithData(
+		ctx,
+		user.ID,
+		notifications.TemplateWorkspaceDeleted,
+		payload.Labels,
+		payload.Data,
+		user.Username,
+		user.ID,
+	)
+	require.NoError(t, err)
+
+	// Wait for the message to be fetched
+	var msg *smtptest.Message
+	require.Eventually(t, func() bool {
+		msg = backend.LastMessage()
+		return msg != nil && len(msg.Contents) > 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	body := normalizeGoldenEmail([]byte(msg.Contents))
+
+	err = smtpManager.Stop(ctx)
+	require.NoError(t, err)
+
+	goldenFile := filepath.Join("testdata", "rendered-templates", "smtp", "TemplateWorkspaceDeleted_WithCustomAppearance.html.golden")
+
+	if *updateGoldenFiles {
+		err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+		require.NoError(t, err, "want no error creating golden file directory")
+		err = os.WriteFile(goldenFile, body, 0o600)
+		require.NoError(t, err, "want no error writing body golden file")
+	}
+
+	wantBody, err := os.ReadFile(goldenFile)
+	require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+	require.Empty(
+		t,
+		cmp.Diff(wantBody, body),
+		fmt.Sprintf("golden file mismatch: %s. If this is expected, %s. (-want +got). ", goldenFile, hint),
+	)
 }
