@@ -683,9 +683,9 @@ func New(options *Options) *API {
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
-		DisablePathApps:     options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie:    options.DeploymentValues.SecureAuthCookie.Value(),
-		APIKeyEncryptionKey: options.AppEncryptionKeyCache,
+		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie:         options.DeploymentValues.SecureAuthCookie.Value(),
+		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
