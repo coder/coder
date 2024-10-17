@@ -26,7 +26,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID: user.ID,
 			})
-			workspace = dbgen.Workspace(t, db, database.Workspace{
+			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID: user.ID,
 			})
 		)

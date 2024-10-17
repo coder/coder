@@ -267,7 +267,7 @@ func TestAcquireJob(t *testing.T) {
 				Required:          true,
 				Sensitive:         false,
 			})
-			workspace := dbgen.Workspace(t, db, database.Workspace{
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 				TemplateID:     template.ID,
 				OwnerID:        user.ID,
 				OrganizationID: pd.OrganizationID,
@@ -1263,7 +1263,7 @@ func TestCompleteJob(t *testing.T) {
 						Valid: true,
 					}
 				}
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					Ttl:            workspaceTTL,
 					OwnerID:        user.ID,
@@ -1622,7 +1622,7 @@ func TestNotifications(t *testing.T) {
 				template, err := db.GetTemplateByID(ctx, template.ID)
 				require.NoError(t, err)
 				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
@@ -1740,7 +1740,7 @@ func TestNotifications(t *testing.T) {
 					OrganizationID: pd.OrganizationID,
 				})
 				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
@@ -1822,7 +1822,7 @@ func TestNotifications(t *testing.T) {
 		template := dbgen.Template(t, db, database.Template{
 			Name: "template", DisplayName: "William's Template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
 		})
-		workspace := dbgen.Workspace(t, db, database.Workspace{
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 			TemplateID: template.ID, OwnerID: user.ID, OrganizationID: pd.OrganizationID,
 		})
 		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{

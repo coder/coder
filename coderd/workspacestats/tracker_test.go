@@ -149,7 +149,7 @@ func TestTracker_MultipleInstances(t *testing.T) {
 	numWorkspaces := 10
 	w := make([]dbfake.WorkspaceResponse, numWorkspaces)
 	for i := 0; i < numWorkspaces; i++ {
-		wr := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		wr := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        owner.UserID,
 			OrganizationID: owner.OrganizationID,
 			LastUsedAt:     now,
