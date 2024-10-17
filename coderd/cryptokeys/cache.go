@@ -155,6 +155,8 @@ func (c *cache) EncryptingKey(ctx context.Context) (string, interface{}, error) 
 		return "", nil, ErrInvalidFeature
 	}
 
+	//nolint:gocritic // cache can only rotate crypto keys.
+	ctx = dbauthz.AsKeyReader(ctx)
 	return c.cryptoKey(ctx, latestSequence)
 }
 
@@ -168,6 +170,8 @@ func (c *cache) DecryptingKey(ctx context.Context, id string) (interface{}, erro
 		return nil, xerrors.Errorf("parse id: %w", err)
 	}
 
+	//nolint:gocritic // cache can only rotate crypto keys.
+	ctx = dbauthz.AsKeyReader(ctx)
 	_, secret, err := c.cryptoKey(ctx, int32(seq))
 	if err != nil {
 		return nil, xerrors.Errorf("crypto key: %w", err)
@@ -180,6 +184,8 @@ func (c *cache) SigningKey(ctx context.Context) (string, interface{}, error) {
 		return "", nil, ErrInvalidFeature
 	}
 
+	//nolint:gocritic // cache can only rotate crypto keys.
+	ctx = dbauthz.AsKeyReader(ctx)
 	return c.cryptoKey(ctx, latestSequence)
 }
 
@@ -198,6 +204,8 @@ func (c *cache) VerifyingKey(ctx context.Context, id string) (interface{}, error
 		return nil, xerrors.Errorf("crypto key: %w", err)
 	}
 
+	//nolint:gocritic // cache can only rotate crypto keys.
+	ctx = dbauthz.AsKeyReader(ctx)
 	return secret, nil
 }
 
