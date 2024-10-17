@@ -1,5 +1,6 @@
 import { css } from "@emotion/css";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import ErrorSharp from "@mui/icons-material/ErrorSharp";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
 import type { FC } from "react";
@@ -15,14 +16,13 @@ import {
 	YAxisSection,
 } from "./Chart/YAxis";
 import {
+	type TimeRange,
 	calcDuration,
 	calcOffset,
 	formatTime,
 	makeTicks,
 	mergeTimeRanges,
-	type TimeRange,
 } from "./Chart/utils";
-import { ErrorSharp } from "@mui/icons-material";
 
 export type StageCategory = {
 	name: string;

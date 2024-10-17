@@ -23,12 +23,12 @@ import {
 	YAxisSection,
 } from "./Chart/YAxis";
 import {
+	type TimeRange,
 	calcDuration,
 	calcOffset,
 	formatTime,
 	makeTicks,
 	mergeTimeRanges,
-	type TimeRange,
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
 

@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { AgentScriptTiming, ProvisionerTiming } from "api/typesGenerated";
 import { type FC, useState } from "react";
+import { type TimeRange, mergeTimeRanges } from "./Chart/utils";
 import { ResourcesChart } from "./ResourcesChart";
-import { type StageCategory, StagesChart, stages } from "./StagesChart";
-import { mergeTimeRanges, type TimeRange } from "./Chart/utils";
 import { ScriptsChart } from "./ScriptsChart";
+import { type StageCategory, StagesChart, stages } from "./StagesChart";
 
 type TimingView =
 	| { name: "default" }

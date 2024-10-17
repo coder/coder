@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { type FC, type HTMLProps, useLayoutEffect, useRef } from "react";
+import { YAxisSidePadding } from "./YAxis";
 import { CSSVars, XAxisLabelsHeight, XAxisRowsGap } from "./constants";
 import { formatTime } from "./utils";
-import { YAxisSidePadding } from "./YAxis";
 
 export const XAxisMinWidth = 130;
 export const XAxisSidePadding = 16;
