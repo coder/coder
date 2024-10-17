@@ -2,9 +2,7 @@ package notifications
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"sync"
 	"text/template"
 
@@ -230,25 +228,18 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, xerrors.Errorf("failed to resolve handler %q", msg.Method)
 	}
 
-	appName, err := n.store.GetApplicationName(ctx)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get application name: %w", err)
-		}
-		appName = notificationsDefaultAppName
-	}
-
-	logoURL, err := n.store.GetLogoURL(ctx)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("get logo URL: %w", err)
-		}
-		logoURL = notificationsDefaultLogoURL
-	}
-
 	helpers := make(template.FuncMap)
 	for k, v := range n.helpers {
 		helpers[k] = v
+	}
+
+	appName, err := n.FetchAppName(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch app name: %w", err)
+	}
+	logoURL, err := n.FetchLogoURL(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch logo URL: %w", err)
 	}
 
 	helpers["app_name"] = func() string { return appName }
