@@ -191,20 +191,20 @@ CODER_EXTERNAL_AUTH_0_ID=primary-github
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_0_REGEX=github.com/org
+CODER_EXTERNAL_AUTH_0_REGEX=github\.com/org
 
 # Provider 2) github.example.com
 CODER_EXTERNAL_AUTH_1_ID=secondary-github
 CODER_EXTERNAL_AUTH_1_TYPE=github
 CODER_EXTERNAL_AUTH_1_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_1_REGEX=github.example.com
+CODER_EXTERNAL_AUTH_1_REGEX=github\.example\.com
 CODER_EXTERNAL_AUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```
 
-To support regex matching for paths (e.g. github.com/org), you'll need to add
+To support regex matching for paths (e.g. github\.com/org), you'll need to add
 this to the
 [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
 
