@@ -171,7 +171,7 @@ const styles = {
 		"&:not(:first-of-type)": {
 			marginTop: 32 - 1,
 			paddingTop: YAxisSidePadding,
-			borderTop: `1px dashed ${theme.palette.divider}`,
+			borderTop: `1px solid ${theme.palette.divider}`,
 		},
 	}),
 	row: {

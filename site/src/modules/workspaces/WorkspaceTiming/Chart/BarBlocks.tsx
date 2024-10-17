@@ -58,11 +58,13 @@ const styles = {
 		backgroundColor: "#082F49",
 		border: "1px solid #38BDF8",
 		flexShrink: 0,
+		flex: 1,
 	},
 	extraBlock: {
 		color: "#38BDF8",
 		lineHeight: 0,
 		flexShrink: 0,
+		flex: 1,
 
 		"& svg": {
 			fontSize: moreIconSize,

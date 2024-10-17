@@ -81,9 +81,22 @@ const styles = {
 		display: "flex",
 		padding: 7,
 		minWidth: 8,
+		// Increase hover area
+		position: "relative",
+		"&::after": {
+			content: '""',
+			position: "absolute",
+			top: -2,
+			right: -8,
+			bottom: -2,
+			left: -8,
+		},
 	}),
 	clickable: {
 		cursor: "pointer",
+		// We need to make the bar width at least 34px to allow the "..." icons to be displayed.
+		// The calculation is border * 1 + side paddings * 2 + icon width (which is 18px)
+		minWidth: 34,
 
 		"&:focus, &:hover, &:active": {
 			outline: "none",
