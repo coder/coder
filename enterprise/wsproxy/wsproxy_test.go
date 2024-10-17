@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"runtime/debug"
 	"testing"
 	"time"
 
@@ -322,11 +321,6 @@ resourceLoop:
 
 func TestDERPEndToEnd(t *testing.T) {
 	t.Parallel()
-	defer func() {
-		if r := recover(); r != nil {
-			debug.PrintStack()
-		}
-	}()
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{

@@ -198,14 +198,13 @@ func (c *cache) VerifyingKey(ctx context.Context, id string) (interface{}, error
 	if err != nil {
 		return nil, xerrors.Errorf("parse id: %w", err)
 	}
-
+	//nolint:gocritic // cache can only read crypto keys.
+	ctx = dbauthz.AsKeyReader(ctx)
 	_, secret, err := c.cryptoKey(ctx, int32(seq))
 	if err != nil {
 		return nil, xerrors.Errorf("crypto key: %w", err)
 	}
 
-	//nolint:gocritic // cache can only read crypto keys.
-	ctx = dbauthz.AsKeyReader(ctx)
 	return secret, nil
 }
 
