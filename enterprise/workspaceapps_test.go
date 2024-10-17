@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
 	"github.com/coder/coder/v2/codersdk"
@@ -36,6 +39,9 @@ func TestWorkspaceApps(t *testing.T) {
 			flushStatsCollectorCh <- flushStatsCollectorDone
 			<-flushStatsCollectorDone
 		}
+
+		db, pubsub := dbtestutil.NewDB(t)
+
 		client, _, _, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         deploymentValues,
@@ -51,12 +57,21 @@ func TestWorkspaceApps(t *testing.T) {
 					},
 				},
 				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
+				Database:                           db,
+				Pubsub:                             pubsub,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
+		})
+
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
+		})
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		})
 
 		return &apptest.Deployment{

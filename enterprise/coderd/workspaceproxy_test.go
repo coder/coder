@@ -608,11 +608,8 @@ func TestProxyRegisterDeregister(t *testing.T) {
 func TestIssueSignedAppToken(t *testing.T) {
 	t.Parallel()
 
-	db, pubsub := dbtestutil.NewDB(t)
-	client, user := coderdenttest.New(t, &coderdenttest.Options{
+	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			Database:                 db,
-			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -620,6 +617,10 @@ func TestIssueSignedAppToken(t *testing.T) {
 				codersdk.FeatureWorkspaceProxy: 1,
 			},
 		},
+	})
+
+	_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+		Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
 	})
 
 	// Create a workspace + apps
@@ -713,6 +714,10 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 	})
 	t.Cleanup(func() {
 		closer.Close()
+	})
+
+	_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+		Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
 	})
 
 	// Create a workspace + apps
@@ -945,16 +950,14 @@ func TestGetCryptoKeys(t *testing.T) {
 		keys, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
-		// 1 key is generated on startup, the other is the one we generated for our test.
-		require.Equal(t, 2, len(keys.CryptoKeys))
+		require.Equal(t, 1, len(keys.CryptoKeys))
 		requireContainsKeys(t, keys.CryptoKeys, encryptionKey)
-		requireNotContainsKeys(t, keys.CryptoKeys, signingKey)
 
 		keys, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsToken)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
+		require.Equal(t, 1, len(keys.CryptoKeys))
 		requireContainsKeys(t, keys.CryptoKeys, signingKey)
-		requireNotContainsKeys(t, keys.CryptoKeys, encryptionKey)
 	})
 
 	t.Run("InvalidFeature", func(t *testing.T) {
@@ -1025,18 +1028,6 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
-}
-
-func requireNotContainsKeys(t *testing.T, keys []codersdk.CryptoKey, unexpected ...codersdk.CryptoKey) {
-	t.Helper()
-
-	for _, expectedKey := range unexpected {
-		for _, key := range keys {
-			if key.Feature == expectedKey.Feature && key.Sequence == expectedKey.Sequence {
-				t.Fatalf("unexpected key %+v found", expectedKey)
-			}
-		}
-	}
 }
 
 func requireContainsKeys(t *testing.T, keys []codersdk.CryptoKey, expected ...codersdk.CryptoKey) {

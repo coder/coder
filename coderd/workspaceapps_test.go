@@ -11,7 +11,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -181,18 +180,24 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			db, pubsub := dbtestutil.NewDB(t)
-
 			accessURL, err := url.Parse(c.accessURL)
 			require.NoError(t, err)
 
-			client := coderdtest.New(t, &coderdtest.Options{
-				Database:    db,
-				Pubsub:      pubsub,
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				AccessURL:   accessURL,
 				AppHostname: c.appHostname,
 			})
 			_ = coderdtest.CreateFirstUser(t, client)
+
+			// Make sure there's a signing key!
+			_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+				Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
+			})
+
+			// Make sure there's an encryption key!
+			_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+				Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			})
 
 			// Disable redirects.
 			client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {

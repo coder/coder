@@ -20,6 +20,9 @@ import (
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
@@ -76,6 +79,7 @@ func Test_ResolveRequest(t *testing.T) {
 	deploymentValues.Dangerous.AllowPathAppSharing = true
 	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = true
 
+	db, pubsub := dbtestutil.NewDB(t)
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		AppHostname:                 "*.test.coder.com",
 		DeploymentValues:            deploymentValues,
@@ -91,13 +95,18 @@ func Test_ResolveRequest(t *testing.T) {
 				"CF-Connecting-IP",
 			},
 		},
+		Database: db,
+		Pubsub:   pubsub,
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	t.Cleanup(cancel)
+	_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+		Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	me, err := client.User(ctx, codersdk.Me)

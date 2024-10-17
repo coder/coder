@@ -406,7 +406,7 @@ func (s StaticKey) DecryptingKey(_ context.Context, id string) (interface{}, err
 	return s.Key, nil
 }
 
-func (s StaticKey) Close() error {
+func (StaticKey) Close() error {
 	return nil
 }
 

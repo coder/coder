@@ -1309,9 +1309,14 @@ func TestUserOIDC(t *testing.T) {
 			cfg.AllowSignups = true
 		})
 
-		client := coderdtest.New(t, &coderdtest.Options{
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			Auditor:    auditor,
 			OIDCConfig: cfg,
+		})
+
+		// Make sure there's a signing key!
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature: database.CryptoKeyFeatureOIDCConvert,
 		})
 
 		owner := coderdtest.CreateFirstUser(t, client)
