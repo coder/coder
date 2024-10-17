@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -173,4 +174,36 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 //	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
 func (a NameOrganizationPair) Value() (driver.Value, error) {
 	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
+}
+
+// AgentIDNamePair is used as a result tuple for workspace and agent rows.
+type AgentIDNamePair struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+}
+
+func (p *AgentIDNamePair) Scan(src interface{}) error {
+	var v string
+	switch a := src.(type) {
+	case []byte:
+		v = string(a)
+	case string:
+		v = a
+	default:
+		return xerrors.Errorf("unexpected type %T", src)
+	}
+	parts := strings.Split(strings.Trim(v, "()"), ",")
+	if len(parts) != 2 {
+		return xerrors.New("invalid format for AgentIDNamePair")
+	}
+	id, err := uuid.Parse(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return err
+	}
+	p.ID, p.Name = id, strings.TrimSpace(parts[1])
+	return nil
+}
+
+func (p AgentIDNamePair) Value() (driver.Value, error) {
+	return fmt.Sprintf(`(%s,%s)`, p.ID.String(), p.Name), nil
 }
