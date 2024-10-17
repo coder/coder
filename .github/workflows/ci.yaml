@@ -223,6 +223,12 @@ jobs:
           ./actionlint -color -shellcheck= -ignore "set-output"
         shell: bash
 
+      - name: Check for unstaged files
+        run: |
+          rm -f ./actionlint ./typos
+          ./scripts/check_unstaged.sh
+        shell: bash
+
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
