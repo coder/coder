@@ -1,0 +1,12 @@
+{{/*
+Deprecation notices:
+*/}}
+
+{{- if .Values.provisionerDaemon.pskSecretName }}
+* Provisioner Daemon PSKs are no longer recommended for use with external
+  provisioners. Consider migrating to scoped provisioner keys instead. For more
+  information, see: https://coder.com/docs/admin/provisioners#authentication
+{{- end }}
+
+Enjoy Coder! Please create an issue at https://github.com/coder/coder if you run
+into any problems! :)
