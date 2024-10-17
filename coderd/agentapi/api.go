@@ -46,8 +46,7 @@ type API struct {
 	*ScriptsAPI
 	*tailnet.DRPCService
 
-	mu                sync.Mutex
-	cachedWorkspaceID uuid.UUID
+	mu sync.Mutex
 }
 
 var _ agentproto.DRPCAgentServer = &API{}
@@ -83,9 +82,8 @@ type Options struct {
 
 func New(opts Options) *API {
 	api := &API{
-		opts:              opts,
-		mu:                sync.Mutex{},
-		cachedWorkspaceID: opts.WorkspaceID,
+		opts: opts,
+		mu:   sync.Mutex{},
 	}
 
 	api.ManifestAPI = &ManifestAPI{
@@ -199,44 +197,11 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 	return agent, nil
 }
 
-func (a *API) workspaceID(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-	a.mu.Lock()
-	if a.cachedWorkspaceID != uuid.Nil {
-		id := a.cachedWorkspaceID
-		a.mu.Unlock()
-		return id, nil
-	}
-
-	if agent == nil {
-		agnt, err := a.agent(ctx)
-		if err != nil {
-			return uuid.Nil, err
-		}
-		agent = &agnt
-	}
-
-	getWorkspaceAgentByIDRow, err := a.opts.Database.GetWorkspaceByAgentID(ctx, agent.ID)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get workspace by agent id %q: %w", agent.ID, err)
-	}
-
-	a.mu.Lock()
-	a.cachedWorkspaceID = getWorkspaceAgentByIDRow.Workspace.ID
-	a.mu.Unlock()
-	return getWorkspaceAgentByIDRow.Workspace.ID, nil
-}
-
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent) error {
-	workspaceID, err := a.workspaceID(ctx, agent)
-	if err != nil {
-		return err
-	}
-
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
-		Kind:        wspubsub.WorkspaceEventKindAgentUpdate,
-		WorkspaceID: workspaceID,
+		Kind:        kind,
+		WorkspaceID: a.opts.WorkspaceID,
 		AgentID:     &agent.ID,
-		AgentName:   &agent.Name,
 	})
 	return nil
 }

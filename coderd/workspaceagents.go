@@ -242,27 +242,19 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 			api.Logger.Warn(ctx, "failed to update workspace agent log overflow", slog.Error(err))
 		}
 
-		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+		workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to get workspace resource.",
+				Message: "Failed to get workspace.",
 				Detail:  err.Error(),
 			})
 			return
 		}
 
-		build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Internal error fetching workspace build job.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		api.publishWorkspaceUpdate(ctx, build.InitiatorID, wspubsub.WorkspaceEvent{
-			Kind:        wspubsub.WorkspaceEventKindLogs,
-			WorkspaceID: build.WorkspaceID,
+		api.publishWorkspaceUpdate(ctx, workspace.Workspace.OwnerID, wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentLogsUpdate,
+			WorkspaceID: workspace.Workspace.ID,
+			AgentID:     &workspaceAgent.ID,
 		})
 
 		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
@@ -282,27 +274,19 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 	if workspaceAgent.LogsLength == 0 {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
-		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+		workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to get workspace resource.",
+				Message: "Failed to get workspace.",
 				Detail:  err.Error(),
 			})
 			return
 		}
 
-		build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Internal error fetching workspace build job.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		api.publishWorkspaceUpdate(ctx, build.InitiatorID, wspubsub.WorkspaceEvent{
-			Kind:        wspubsub.WorkspaceEventKindLogs,
-			WorkspaceID: build.WorkspaceID,
+		api.publishWorkspaceUpdate(ctx, workspace.Workspace.OwnerID, wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentLogsUpdate,
+			WorkspaceID: workspace.Workspace.ID,
+			AgentID:     &workspaceAgent.ID,
 		})
 	}
 
@@ -434,14 +418,16 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 
 	// Subscribe to workspace to detect new builds.
 	closeSubscribeWorkspace, err := api.Pubsub.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-		wspubsub.HandleWorkspaceEvent(func(_ context.Context, e wspubsub.WorkspaceEvent) {
-			if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
-				select {
-				case workspaceNotifyCh <- struct{}{}:
-				default:
+		wspubsub.HandleWorkspaceEvent(
+			logger,
+			func(_ context.Context, e wspubsub.WorkspaceEvent) {
+				if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+					select {
+					case workspaceNotifyCh <- struct{}{}:
+					default:
+					}
 				}
-			}
-		}))
+			}))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to subscribe to workspace for log streaming.",
