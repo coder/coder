@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 func TestBatchUpdateAppHealths(t *testing.T) {
@@ -62,7 +63,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -100,7 +101,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -139,7 +140,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},

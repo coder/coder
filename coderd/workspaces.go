@@ -1703,12 +1703,14 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-		wspubsub.HandleWorkspaceEvent(func(ctx context.Context, payload wspubsub.WorkspaceEvent) {
-			if payload.WorkspaceID != workspace.ID {
-				return
-			}
-			sendUpdate(ctx, nil)
-		}))
+		wspubsub.HandleWorkspaceEvent(
+			api.Logger,
+			func(ctx context.Context, payload wspubsub.WorkspaceEvent) {
+				if payload.WorkspaceID != workspace.ID {
+					return
+				}
+				sendUpdate(ctx, nil)
+			}))
 	if err != nil {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
@@ -2065,6 +2067,13 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 }
 
 func (api *API) publishWorkspaceUpdate(ctx context.Context, ownerID uuid.UUID, event wspubsub.WorkspaceEvent) {
+	err := event.Validate()
+	if err != nil {
+		api.Logger.Warn(ctx, "invalid workspace update event",
+			slog.F("workspace_id", event.WorkspaceID),
+			slog.F("event_kind", event.Kind), slog.Error(err))
+		return
+	}
 	msg, err := json.Marshal(event)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to marshal workspace update",
