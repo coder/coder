@@ -116,7 +116,7 @@ func setup(t testing.TB, db database.Store, authToken uuid.UUID, mw func(http.Ha
 		ActiveVersionID: templateVersion.ID,
 		CreatedBy:       user.ID,
 	})
-	workspace := dbgen.Workspace(t, db, database.Workspace{
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 		TemplateID:     template.ID,

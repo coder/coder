@@ -31,7 +31,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 				UserID: user.ID,
 			})
 			tpl       = dbgen.Template(t, db, database.Template{})
-			workspace = dbgen.Workspace(t, db, database.Workspace{
+			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:    user.ID,
 				TemplateID: tpl.ID,
 			})

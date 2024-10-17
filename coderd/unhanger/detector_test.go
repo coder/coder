@@ -133,7 +133,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 			},
 			CreatedBy: user.ID,
 		})
-		workspace = dbgen.Workspace(t, db, database.Workspace{
+		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
 			TemplateID:     template.ID,
@@ -255,7 +255,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 			},
 			CreatedBy: user.ID,
 		})
-		workspace = dbgen.Workspace(t, db, database.Workspace{
+		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
 			TemplateID:     template.ID,
@@ -377,7 +377,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 			},
 			CreatedBy: user.ID,
 		})
-		workspace = dbgen.Workspace(t, db, database.Workspace{
+		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
 			TemplateID:     template.ID,

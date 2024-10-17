@@ -641,7 +641,7 @@ type workspaceBuildsData struct {
 	logSources       []database.WorkspaceAgentLogSource
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
+func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
