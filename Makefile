@@ -817,7 +817,7 @@ test-postgres-docker:
 
 # Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
 test-race:
-	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
+	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 -parallel 4 -p 4 ./...
 .PHONY: test-race
 
 test-tailnet-integration:
