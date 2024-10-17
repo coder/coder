@@ -19,7 +19,7 @@ declare module "@storybook/react" {
 		experiments?: Experiments;
 		showOrganizations?: boolean;
 		organizations?: Organization[];
-		queries?: { key: QueryKey; data: unknown }[];
+		queries?: { key: QueryKey; data: unknown; isError?: boolean }[];
 		webSocket?: WebSocketEvent[];
 		user?: User;
 		permissions?: Partial<Permissions>;
