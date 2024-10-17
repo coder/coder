@@ -13,6 +13,8 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
@@ -156,13 +158,15 @@ func TestUpdateStates(t *testing.T) {
 		// Ensure that pubsub notifications are sent.
 		notifyDescription := make(chan struct{})
 		ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-			wspubsub.HandleWorkspaceEvent(func(_ context.Context, e wspubsub.WorkspaceEvent) {
-				if e.Kind == wspubsub.WorkspaceEventKindUpdatedStats && e.WorkspaceID == workspace.ID {
-					go func() {
-						notifyDescription <- struct{}{}
-					}()
-				}
-			}))
+			wspubsub.HandleWorkspaceEvent(
+				slogtest.Make(t, nil),
+				func(_ context.Context, e wspubsub.WorkspaceEvent) {
+					if e.Kind == wspubsub.WorkspaceEventKindStatsUpdate && e.WorkspaceID == workspace.ID {
+						go func() {
+							notifyDescription <- struct{}{}
+						}()
+					}
+				}))
 
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
@@ -187,8 +191,7 @@ func TestUpdateStates(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			t.Error("timed out while waiting for pubsub notification")
-		case description := <-notifyDescription:
-			require.Equal(t, description, struct{}{})
+		case <-notifyDescription:
 		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})
@@ -501,13 +504,15 @@ func TestUpdateStates(t *testing.T) {
 		// Ensure that pubsub notifications are sent.
 		notifyDescription := make(chan struct{})
 		ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-			wspubsub.HandleWorkspaceEvent(func(_ context.Context, e wspubsub.WorkspaceEvent) {
-				if e.Kind == wspubsub.WorkspaceEventKindUpdatedStats && e.WorkspaceID == workspace.ID {
-					go func() {
-						notifyDescription <- struct{}{}
-					}()
-				}
-			}))
+			wspubsub.HandleWorkspaceEvent(
+				slogtest.Make(t, nil),
+				func(_ context.Context, e wspubsub.WorkspaceEvent) {
+					if e.Kind == wspubsub.WorkspaceEventKindStatsUpdate && e.WorkspaceID == workspace.ID {
+						go func() {
+							notifyDescription <- struct{}{}
+						}()
+					}
+				}))
 
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
@@ -530,8 +535,7 @@ func TestUpdateStates(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			t.Error("timed out while waiting for pubsub notification")
-		case description := <-notifyDescription:
-			require.Equal(t, description, struct{}{})
+		case <-notifyDescription:
 		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})

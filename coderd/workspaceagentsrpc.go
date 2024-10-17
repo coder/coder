@@ -133,12 +133,13 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 	closeCtx, closeCtxCancel := context.WithCancel(ctx)
 	defer closeCtxCancel()
-	monitor := api.startAgentYamuxMonitor(closeCtx, workspaceAgent, build, mux)
+	monitor := api.startAgentYamuxMonitor(closeCtx, workspace, workspaceAgent, build, mux)
 	defer monitor.close()
 
 	agentAPI := agentapi.New(agentapi.Options{
-		AgentID: workspaceAgent.ID,
-		OwnerID: workspace.OwnerID,
+		AgentID:     workspaceAgent.ID,
+		OwnerID:     workspace.OwnerID,
+		WorkspaceID: workspace.ID,
 
 		Ctx:                               api.ctx,
 		Log:                               logger,
@@ -162,7 +163,6 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		Experiments:               api.Experiments,
 
 		// Optional:
-		WorkspaceID:          build.WorkspaceID, // saves the extra lookup later
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 	})
 
@@ -227,11 +227,14 @@ func (y *yamuxPingerCloser) Ping(ctx context.Context) error {
 }
 
 func (api *API) startAgentYamuxMonitor(ctx context.Context,
-	workspaceAgent database.WorkspaceAgent, workspaceBuild database.WorkspaceBuild,
+	workspace database.Workspace,
+	workspaceAgent database.WorkspaceAgent,
+	workspaceBuild database.WorkspaceBuild,
 	mux *yamux.Session,
 ) *agentConnectionMonitor {
 	monitor := &agentConnectionMonitor{
 		apiCtx:            api.ctx,
+		workspace:         workspace,
 		workspaceAgent:    workspaceAgent,
 		workspaceBuild:    workspaceBuild,
 		conn:              &yamuxPingerCloser{mux: mux},
@@ -264,6 +267,7 @@ type agentConnectionMonitor struct {
 	apiCtx         context.Context
 	cancel         context.CancelFunc
 	wg             sync.WaitGroup
+	workspace      database.Workspace
 	workspaceAgent database.WorkspaceAgent
 	workspaceBuild database.WorkspaceBuild
 	conn           pingerCloser
@@ -395,11 +399,10 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 				)
 			}
 		}
-		m.updater.publishWorkspaceUpdate(finalCtx, m.workspaceBuild.InitiatorID, wspubsub.WorkspaceEvent{
-			Kind:        wspubsub.WorkspaceEventKindAgentUpdate,
+		m.updater.publishWorkspaceUpdate(finalCtx, m.workspace.OwnerID, wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
 			WorkspaceID: m.workspaceBuild.WorkspaceID,
 			AgentID:     &m.workspaceAgent.ID,
-			AgentName:   &m.workspaceAgent.Name,
 		})
 	}()
 	reason := "disconnect"
@@ -414,11 +417,10 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 		reason = err.Error()
 		return
 	}
-	m.updater.publishWorkspaceUpdate(ctx, m.workspaceBuild.InitiatorID, wspubsub.WorkspaceEvent{
-		Kind:        wspubsub.WorkspaceEventKindAgentUpdate,
+	m.updater.publishWorkspaceUpdate(ctx, m.workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
 		WorkspaceID: m.workspaceBuild.WorkspaceID,
 		AgentID:     &m.workspaceAgent.ID,
-		AgentName:   &m.workspaceAgent.Name,
 	})
 
 	ticker := time.NewTicker(m.pingPeriod)
@@ -453,11 +455,10 @@ func (m *agentConnectionMonitor) monitor(ctx context.Context) {
 			return
 		}
 		if connectionStatusChanged {
-			m.updater.publishWorkspaceUpdate(ctx, m.workspaceBuild.InitiatorID, wspubsub.WorkspaceEvent{
-				Kind:        wspubsub.WorkspaceEventKindAgentUpdate,
+			m.updater.publishWorkspaceUpdate(ctx, m.workspace.OwnerID, wspubsub.WorkspaceEvent{
+				Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
 				WorkspaceID: m.workspaceBuild.WorkspaceID,
 				AgentID:     &m.workspaceAgent.ID,
-				AgentName:   &m.workspaceAgent.Name,
 			})
 		}
 		err = checkBuildIsLatest(ctx, m.db, m.workspaceBuild)

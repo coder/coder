@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 func TestUpdateLifecycle(t *testing.T) {
@@ -72,7 +73,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -155,7 +156,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -234,7 +235,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				atomic.AddInt64(&publishCalled, 1)
 				return nil
 			},
@@ -307,7 +308,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},

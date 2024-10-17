@@ -176,7 +176,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 
 	// notify workspace update
 	msg, err := json.Marshal(wspubsub.WorkspaceEvent{
-		Kind:        wspubsub.WorkspaceEventKindUpdatedStats,
+		Kind:        wspubsub.WorkspaceEventKindStatsUpdate,
 		WorkspaceID: workspace.ID,
 	})
 	if err != nil {

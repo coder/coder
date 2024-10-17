@@ -15,6 +15,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 type contextKeyAPIVersion struct{}
@@ -28,7 +29,7 @@ type LifecycleAPI struct {
 	WorkspaceID              uuid.UUID
 	Database                 database.Store
 	Log                      slog.Logger
-	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent) error
+	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -118,7 +119,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
+		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
