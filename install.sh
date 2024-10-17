@@ -216,7 +216,7 @@ To run a Coder server:
   # Or just run the server directly
   $ coder server
 
-  Configuring Coder: https://coder.com/docs/admin/configure
+  Configuring Coder: https://coder.com/docs/admin/setup
 
 To connect to a Coder deployment:
 
