@@ -25,9 +25,9 @@ Then developers enter their repository URL as a
 workspace. [Envbuilder](https://github.com/coder/envbuilder) clones the repo and
 builds a container from the `devcontainer.json` specified in the repo.
 
-When using the [Envbuilder Terraform provider](#provider), a previously built
-and cached image can be re-used directly, allowing instantaneous dev container
-starts.
+When using the [Envbuilder Terraform provider](#envbuilder-terraform-provider),
+a previously built and cached image can be re-used directly, allowing
+instantaneous dev container starts.
 
 Developers can edit the `devcontainer.json` in their workspace to rebuild to
 iterate on their development environments.
@@ -37,7 +37,7 @@ iterate on their development environments.
 - [Devcontainers (Docker)](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)
   provisions a development container using Docker.
 - [Devcontainers (Kubernetes)](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)
-  provisioners a development container on the Kubernetes.
+  provisions a development container on the Kubernetes.
 - [Google Compute Engine (Devcontainer)](https://github.com/coder/coder/tree/main/examples/templates/gcp-devcontainer)
   runs a development container inside a single GCP instance. It also mounts the
   Docker socket from the VM inside the container to enable Docker inside the

@@ -160,7 +160,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		<-doneChan
 	})
 
-	t.Run("BuildOptions", func(t *testing.T) {
+	t.Run("PromptEphemeralParameters", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -186,7 +186,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		err := inv.Run()
 		assert.NoError(t, err)
 
-		inv, root = clitest.New(t, "update", workspaceName, "--build-options")
+		inv, root = clitest.New(t, "update", workspaceName, "--prompt-ephemeral-parameters")
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
@@ -211,7 +211,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		}
 		<-doneChan
 
-		// Verify if build option is set
+		// Verify if ephemeral parameter is set
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
@@ -225,7 +225,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		})
 	})
 
-	t.Run("BuildOptionFlags", func(t *testing.T) {
+	t.Run("EphemeralParameterFlags", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -247,7 +247,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		assert.NoError(t, err)
 
 		inv, root = clitest.New(t, "update", workspaceName,
-			"--build-option", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
+			"--ephemeral-parameter", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
@@ -261,7 +261,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		pty.ExpectMatch("Planning workspace")
 		<-doneChan
 
-		// Verify if build option is set
+		// Verify if ephemeral parameter is set
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 

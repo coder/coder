@@ -23,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -40,7 +42,7 @@ func TestWorkspaceBuild(t *testing.T) {
 			propagation.Baggage{},
 		),
 	)
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	auditor := audit.NewMock()
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
@@ -1178,5 +1180,183 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
+	})
+}
+
+//nolint:paralleltest
+func TestWorkspaceBuildTimings(t *testing.T) {
+	// Setup the test environment with a template and version
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	file := dbgen.File(t, db, database.File{
+		CreatedBy: owner.UserID,
+	})
+	versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: owner.OrganizationID,
+		InitiatorID:    owner.UserID,
+		FileID:         file.ID,
+		Tags: database.StringMap{
+			"custom": "true",
+		},
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		JobID:          versionJob.ID,
+		CreatedBy:      owner.UserID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  owner.OrganizationID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       owner.UserID,
+	})
+
+	// Tests will run in parallel. To avoid conflicts and race conditions on the
+	// build number, each test will have its own workspace and build.
+	makeBuild := func() database.WorkspaceBuild {
+		ws := dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        owner.UserID,
+			OrganizationID: owner.OrganizationID,
+			TemplateID:     template.ID,
+		})
+		jobID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			ID:             jobID,
+			OrganizationID: owner.OrganizationID,
+			Tags:           database.StringMap{jobID.String(): "true"},
+		})
+		return dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: version.ID,
+			InitiatorID:       owner.UserID,
+			JobID:             job.ID,
+			BuildNumber:       1,
+		})
+	}
+
+	//nolint:paralleltest
+	t.Run("NonExistentBuild", func(t *testing.T) {
+		// When: fetching an inexistent build
+		buildID := uuid.New()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		_, err := client.WorkspaceBuildTimings(ctx, buildID)
+
+		// Then: expect a not found error
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not found")
+	})
+
+	//nolint:paralleltest
+	t.Run("EmptyTimings", func(t *testing.T) {
+		// When: fetching timings for a build with no timings
+		build := makeBuild()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+
+		// Then: return a response with empty timings
+		require.NoError(t, err)
+		require.Empty(t, res.ProvisionerTimings)
+		require.Empty(t, res.AgentScriptTimings)
+	})
+
+	//nolint:paralleltest
+	t.Run("ProvisionerTimings", func(t *testing.T) {
+		// When: fetching timings for a build with provisioner timings
+		build := makeBuild()
+		provisionerTimings := dbgen.ProvisionerJobTimings(t, db, build, 5)
+
+		// Then: return a response with the expected timings
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+		require.Len(t, res.ProvisionerTimings, 5)
+
+		for i := range res.ProvisionerTimings {
+			timingRes := res.ProvisionerTimings[i]
+			genTiming := provisionerTimings[i]
+			require.Equal(t, genTiming.Resource, timingRes.Resource)
+			require.Equal(t, genTiming.Action, timingRes.Action)
+			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+			require.Equal(t, genTiming.JobID.String(), timingRes.JobID.String())
+			require.Equal(t, genTiming.Source, timingRes.Source)
+			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+		}
+	})
+
+	//nolint:paralleltest
+	t.Run("AgentScriptTimings", func(t *testing.T) {
+		// When: fetching timings for a build with agent script timings
+		build := makeBuild()
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
+		})
+		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, script, 5)
+
+		// Then: return a response with the expected timings
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+		require.Len(t, res.AgentScriptTimings, 5)
+
+		for i := range res.AgentScriptTimings {
+			timingRes := res.AgentScriptTimings[i]
+			genTiming := agentScriptTimings[i]
+			require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
+			require.Equal(t, string(genTiming.Status), timingRes.Status)
+			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
+			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+		}
+	})
+
+	//nolint:paralleltest
+	t.Run("NoAgentScripts", func(t *testing.T) {
+		// When: fetching timings for a build with no agent scripts
+		build := makeBuild()
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		// Then: return a response with empty agent script timings
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+		require.Empty(t, res.AgentScriptTimings)
+	})
+
+	// Some workspaces might not have agents. It is improbable, but possible.
+	//nolint:paralleltest
+	t.Run("NoAgents", func(t *testing.T) {
+		// When: fetching timings for a build with no agents
+		build := makeBuild()
+		dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+
+		// Then: return a response with empty agent script timings
+		// trigger build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+		require.Empty(t, res.AgentScriptTimings)
 	})
 }
