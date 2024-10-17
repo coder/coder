@@ -177,7 +177,7 @@ func (s *DRPCService) RefreshResumeToken(ctx context.Context, _ *proto.RefreshRe
 		return nil, xerrors.New("no Stream ID")
 	}
 
-	res, err := s.ResumeTokenProvider.GenerateResumeToken(streamID.ID)
+	res, err := s.ResumeTokenProvider.GenerateResumeToken(ctx, streamID.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("generate resume token: %w", err)
 	}

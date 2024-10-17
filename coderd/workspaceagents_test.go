@@ -28,6 +28,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -531,20 +532,20 @@ func newResumeTokenRecordingProvider(t testing.TB, underlying tailnet.ResumeToke
 	}
 }
 
-func (r *resumeTokenRecordingProvider) GenerateResumeToken(peerID uuid.UUID) (*tailnetproto.RefreshResumeTokenResponse, error) {
+func (r *resumeTokenRecordingProvider) GenerateResumeToken(ctx context.Context, peerID uuid.UUID) (*tailnetproto.RefreshResumeTokenResponse, error) {
 	select {
 	case r.generateCalls <- peerID:
-		return r.ResumeTokenProvider.GenerateResumeToken(peerID)
+		return r.ResumeTokenProvider.GenerateResumeToken(ctx, peerID)
 	default:
 		r.t.Error("generateCalls full")
 		return nil, xerrors.New("generateCalls full")
 	}
 }
 
-func (r *resumeTokenRecordingProvider) VerifyResumeToken(token string) (uuid.UUID, error) {
+func (r *resumeTokenRecordingProvider) VerifyResumeToken(ctx context.Context, token string) (uuid.UUID, error) {
 	select {
 	case r.verifyCalls <- token:
-		return r.ResumeTokenProvider.VerifyResumeToken(token)
+		return r.ResumeTokenProvider.VerifyResumeToken(ctx, token)
 	default:
 		r.t.Error("verifyCalls full")
 		return uuid.Nil, xerrors.New("verifyCalls full")
@@ -557,10 +558,14 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	clock := quartz.NewMock(t)
 	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
+	mgr := cryptokeys.StaticKey{
+		ID:  uuid.New().String(),
+		Key: resumeTokenSigningKey[:],
+	}
 	require.NoError(t, err)
 	resumeTokenProvider := newResumeTokenRecordingProvider(
 		t,
-		tailnet.NewResumeTokenKeyProvider(resumeTokenSigningKey, clock, time.Hour),
+		tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour),
 	)
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Coordinator:                    tailnet.NewCoordinator(logger),

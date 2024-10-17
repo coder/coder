@@ -13,13 +13,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -74,6 +79,7 @@ func Test_ResolveRequest(t *testing.T) {
 	deploymentValues.Dangerous.AllowPathAppSharing = true
 	deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = true
 
+	db, pubsub := dbtestutil.NewDB(t)
 	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		AppHostname:                 "*.test.coder.com",
 		DeploymentValues:            deploymentValues,
@@ -89,13 +95,18 @@ func Test_ResolveRequest(t *testing.T) {
 				"CF-Connecting-IP",
 			},
 		},
+		Database: db,
+		Pubsub:   pubsub,
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	t.Cleanup(cancel)
+	_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+		Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	me, err := client.User(ctx, codersdk.Me)
@@ -276,15 +287,17 @@ func Test_ResolveRequest(t *testing.T) {
 					_ = w.Body.Close()
 
 					require.Equal(t, &workspaceapps.SignedToken{
+						Claims: jwt.Claims{
+							Expiry: jwt.NewNumericDate(token.Expiry.Time()),
+						},
 						Request:     req,
-						Expiry:      token.Expiry, // ignored to avoid flakiness
 						UserID:      me.ID,
 						WorkspaceID: workspace.ID,
 						AgentID:     agentID,
 						AppURL:      appURL,
 					}, token)
 					require.NotZero(t, token.Expiry)
-					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry, time.Minute)
+					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry.Time(), time.Minute)
 
 					// Check that the token was set in the response and is valid.
 					require.Len(t, w.Cookies(), 1)
@@ -292,10 +305,11 @@ func Test_ResolveRequest(t *testing.T) {
 					require.Equal(t, codersdk.SignedAppTokenCookie, cookie.Name)
 					require.Equal(t, req.BasePath, cookie.Path)
 
-					parsedToken, err := api.AppSecurityKey.VerifySignedToken(cookie.Value)
+					var parsedToken workspaceapps.SignedToken
+					err := jwtutils.Verify(ctx, api.AppSigningKeyCache, cookie.Value, &parsedToken)
 					require.NoError(t, err)
 					// normalize expiry
-					require.WithinDuration(t, token.Expiry, parsedToken.Expiry, 2*time.Second)
+					require.WithinDuration(t, token.Expiry.Time(), parsedToken.Expiry.Time(), 2*time.Second)
 					parsedToken.Expiry = token.Expiry
 					require.Equal(t, token, &parsedToken)
 
@@ -314,7 +328,7 @@ func Test_ResolveRequest(t *testing.T) {
 					})
 					require.True(t, ok)
 					// normalize expiry
-					require.WithinDuration(t, token.Expiry, secondToken.Expiry, 2*time.Second)
+					require.WithinDuration(t, token.Expiry.Time(), secondToken.Expiry.Time(), 2*time.Second)
 					secondToken.Expiry = token.Expiry
 					require.Equal(t, token, secondToken)
 				}
@@ -540,13 +554,16 @@ func Test_ResolveRequest(t *testing.T) {
 				// App name differs
 				AppSlugOrPort: appNamePublic,
 			}).Normalize(),
-			Expiry:      time.Now().Add(time.Minute),
+			Claims: jwt.Claims{
+				Expiry: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+			},
 			UserID:      me.ID,
 			WorkspaceID: workspace.ID,
 			AgentID:     agentID,
 			AppURL:      appURL,
 		}
-		badTokenStr, err := api.AppSecurityKey.SignToken(badToken)
+
+		badTokenStr, err := jwtutils.Sign(ctx, api.AppSigningKeyCache, badToken)
 		require.NoError(t, err)
 
 		req := (workspaceapps.Request{
@@ -589,7 +606,8 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Len(t, cookies, 1)
 		require.Equal(t, cookies[0].Name, codersdk.SignedAppTokenCookie)
 		require.NotEqual(t, cookies[0].Value, badTokenStr)
-		parsedToken, err := api.AppSecurityKey.VerifySignedToken(cookies[0].Value)
+		var parsedToken workspaceapps.SignedToken
+		err = jwtutils.Verify(ctx, api.AppSigningKeyCache, cookies[0].Value, &parsedToken)
 		require.NoError(t, err)
 		require.Equal(t, appNameOwner, parsedToken.AppSlugOrPort)
 	})

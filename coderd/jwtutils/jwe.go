@@ -65,6 +65,12 @@ func Encrypt(ctx context.Context, e EncryptKeyProvider, claims Claims) (string, 
 	return compact, nil
 }
 
+func WithDecryptExpected(expected jwt.Expected) func(*DecryptOptions) {
+	return func(opts *DecryptOptions) {
+		opts.RegisteredClaims = expected
+	}
+}
+
 // DecryptOptions are options for decrypting a JWE.
 type DecryptOptions struct {
 	RegisteredClaims           jwt.Expected

@@ -40,6 +40,7 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -185,9 +186,7 @@ type Options struct {
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
-	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
-	AppSecurityKey workspaceapps.SecurityKey
 	// CoordinatorResumeTokenProvider is used to provide and validate resume
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
@@ -251,6 +250,11 @@ type Options struct {
 
 	// OneTimePasscodeValidityPeriod specifies how long a one time passcode should be valid for.
 	OneTimePasscodeValidityPeriod time.Duration
+
+	// Keycaches
+	AppSigningKeyCache    cryptokeys.SigningKeycache
+	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
+	OIDCConvertKeyCache   cryptokeys.SigningKeycache
 }
 
 // @title Coder API
@@ -444,6 +448,38 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
+
+	fetcher := &cryptokeys.DBFetcher{
+		DB: options.Database,
+	}
+
+	if options.OIDCConvertKeyCache == nil {
+		options.OIDCConvertKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("oidc_convert_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureOIDCConvert,
+		)
+		must(options.Logger, "start oidc convert key cache", err)
+	}
+
+	if options.AppSigningKeyCache == nil {
+		options.AppSigningKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("app_signing_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
+		)
+		must(options.Logger, "start app signing key cache", err)
+	}
+
+	if options.AppEncryptionKeyCache == nil {
+		options.AppEncryptionKeyCache, err = cryptokeys.NewEncryptionCache(ctx,
+			options.Logger,
+			fetcher,
+			codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
+		)
+		must(options.Logger, "start app encryption key cache", err)
+	}
+
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -464,7 +500,7 @@ func New(options *Options) *API {
 			options.DeploymentValues,
 			oauthConfigs,
 			options.AgentInactiveDisconnectTimeout,
-			options.AppSecurityKey,
+			options.AppSigningKeyCache,
 		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
@@ -628,9 +664,6 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
-	if options.AppSecurityKey.IsZero() {
-		api.Logger.Fatal(api.ctx, "app security key cannot be zero")
-	}
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: workspaceAppsLogger,
 
@@ -642,11 +675,11 @@ func New(options *Options) *API {
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
-		AppSecurityKey:      options.AppSecurityKey,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
-		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
+		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie:         options.DeploymentValues.SecureAuthCookie.Value(),
+		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -1434,6 +1467,9 @@ func (api *API) Close() error {
 	_ = api.agentProvider.Close()
 	_ = api.statsReporter.Close()
 	_ = api.NetworkTelemetryBatcher.Close()
+	_ = api.OIDCConvertKeyCache.Close()
+	_ = api.AppSigningKeyCache.Close()
+	_ = api.AppEncryptionKeyCache.Close()
 	return nil
 }
 
@@ -1603,4 +1639,10 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 		}
 	}
 	return exps
+}
+
+func must(logger slog.Logger, msg string, err error) {
+	if err != nil {
+		logger.Fatal(context.Background(), msg, slog.Error(err))
+	}
 }

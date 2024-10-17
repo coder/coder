@@ -320,7 +320,6 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		}
 		registerRes1, err := proxyClient.RegisterWorkspaceProxy(ctx, req)
 		require.NoError(t, err)
-		require.NotEmpty(t, registerRes1.AppSecurityKey)
 		require.NotEmpty(t, registerRes1.DERPMeshKey)
 		require.EqualValues(t, 10001, registerRes1.DERPRegionID)
 		require.Empty(t, registerRes1.SiblingReplicas)
@@ -609,11 +608,8 @@ func TestProxyRegisterDeregister(t *testing.T) {
 func TestIssueSignedAppToken(t *testing.T) {
 	t.Parallel()
 
-	db, pubsub := dbtestutil.NewDB(t)
-	client, user := coderdenttest.New(t, &coderdenttest.Options{
+	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			Database:                 db,
-			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -621,6 +617,10 @@ func TestIssueSignedAppToken(t *testing.T) {
 				codersdk.FeatureWorkspaceProxy: 1,
 			},
 		},
+	})
+
+	_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+		Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
 	})
 
 	// Create a workspace + apps
@@ -714,6 +714,10 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 	})
 	t.Cleanup(func() {
 		closer.Close()
+	})
+
+	_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+		Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
 	})
 
 	// Create a workspace + apps
@@ -915,51 +919,82 @@ func TestGetCryptoKeys(t *testing.T) {
 		now := time.Now()
 
 		expectedKey1 := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-time.Hour),
 			Sequence: 2,
 		})
-		key1 := db2sdk.CryptoKey(expectedKey1)
+		encryptionKey := db2sdk.CryptoKey(expectedKey1)
 
 		expectedKey2 := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsToken,
 			StartsAt: now,
 			Sequence: 3,
 		})
-		key2 := db2sdk.CryptoKey(expectedKey2)
+		signingKey := db2sdk.CryptoKey(expectedKey2)
 
 		// Create a deleted key.
 		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-time.Hour),
 			Secret: sql.NullString{
 				String: "secret1",
 				Valid:  false,
 			},
-			Sequence: 1,
-		})
-
-		// Create a key with different features.
-		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureTailnetResume,
-			StartsAt: now.Add(-time.Hour),
-			Sequence: 1,
-		})
-		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureOidcConvert,
-			StartsAt: now.Add(-time.Hour),
-			Sequence: 1,
+			Sequence: 4,
 		})
 
 		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
 			Name: testutil.GetRandomName(t),
 		})
 
-		keys, err := proxy.SDKClient.CryptoKeys(ctx)
+		keys, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
-		require.Equal(t, 2, len(keys.CryptoKeys))
-		requireContainsKeys(t, keys.CryptoKeys, key1, key2)
+		require.Equal(t, 1, len(keys.CryptoKeys))
+		requireContainsKeys(t, keys.CryptoKeys, encryptionKey)
+
+		keys, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsToken)
+		require.NoError(t, err)
+		require.NotEmpty(t, keys)
+		require.Equal(t, 1, len(keys.CryptoKeys))
+		requireContainsKeys(t, keys.CryptoKeys, signingKey)
+	})
+
+	t.Run("InvalidFeature", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		_, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureOIDCConvert)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		_, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureTailnetResume)
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		_, err = proxy.SDKClient.CryptoKeys(ctx, "invalid")
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
@@ -987,7 +1022,7 @@ func TestGetCryptoKeys(t *testing.T) {
 		client := wsproxysdk.New(cclient.URL)
 		client.SetSessionToken(cclient.SessionToken())
 
-		_, err := client.CryptoKeys(ctx)
+		_, err := client.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)

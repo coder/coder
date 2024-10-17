@@ -75,6 +75,12 @@ type VerifyOptions struct {
 	SignatureAlgorithm jose.SignatureAlgorithm
 }
 
+func WithVerifyExpected(expected jwt.Expected) func(*VerifyOptions) {
+	return func(opts *VerifyOptions) {
+		opts.RegisteredClaims = expected
+	}
+}
+
 // Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.
 func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claims, opts ...func(*VerifyOptions)) error {
 	options := VerifyOptions{

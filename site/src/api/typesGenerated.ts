@@ -2110,8 +2110,8 @@ export type BuildReason = "autostart" | "autostop" | "initiator"
 export const BuildReasons: BuildReason[] = ["autostart", "autostop", "initiator"]
 
 // From codersdk/deployment.go
-export type CryptoKeyFeature = "oidc_convert" | "tailnet_resume" | "workspace_apps"
-export const CryptoKeyFeatures: CryptoKeyFeature[] = ["oidc_convert", "tailnet_resume", "workspace_apps"]
+export type CryptoKeyFeature = "oidc_convert" | "tailnet_resume" | "workspace_apps_api_key" | "workspace_apps_token"
+export const CryptoKeyFeatures: CryptoKeyFeature[] = ["oidc_convert", "tailnet_resume", "workspace_apps_api_key", "workspace_apps_token"]
 
 // From codersdk/workspaceagents.go
 export type DisplayApp = "port_forwarding_helper" | "ssh_helper" | "vscode" | "vscode_insiders" | "web_terminal"
