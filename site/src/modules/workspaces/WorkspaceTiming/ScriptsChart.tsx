@@ -4,6 +4,8 @@ import {
 	Chart,
 	ChartBreadcrumbs,
 	ChartContent,
+	type ChartLegend,
+	ChartLegends,
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
@@ -24,6 +26,30 @@ import {
 	type TimeRange,
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
+
+const legendsByStatus: Record<string, ChartLegend> = {
+	ok: {
+		label: "success",
+		colors: {
+			fill: "#022C22",
+			stroke: "#BBF7D0",
+		},
+	},
+	exit_failure: {
+		label: "failure",
+		colors: {
+			fill: "#341B1D",
+			stroke: "#EF4547",
+		},
+	},
+	timeout: {
+		label: "timed out",
+		colors: {
+			fill: "#422006",
+			stroke: "#FDBA74",
+		},
+	},
+};
 
 type ScriptTiming = {
 	name: string;
@@ -49,6 +75,9 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 	const [ticks, scale] = makeTicks(totalTime);
 	const [filter, setFilter] = useState("");
 	const visibleTimings = timings.filter((t) => t.name.includes(filter));
+	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))].map(
+		(s) => legendsByStatus[s],
+	);
 
 	return (
 		<Chart>
@@ -69,6 +98,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 					value={filter}
 					onChange={setFilter}
 				/>
+				<ChartLegends legends={visibleLegends} />
 			</ChartToolbar>
 			<ChartContent>
 				<YAxis>
@@ -98,6 +128,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 										value={duration}
 										offset={calcOffset(t.range, generalTiming)}
 										scale={scale}
+										colors={legendsByStatus[t.status].colors}
 									/>
 
 									{formatTime(duration)}
