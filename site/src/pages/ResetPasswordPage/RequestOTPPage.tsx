@@ -4,6 +4,7 @@ import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { getErrorMessage } from "api/errors";
 import { requestOneTimePassword } from "api/queries/users";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
@@ -20,94 +21,99 @@ const RequestOTPPage: FC = () => {
 	return (
 		<>
 			<Helmet>
-				<title>Request Password Reset - {applicationName}</title>
+				<title>Reset Password - {applicationName}</title>
 			</Helmet>
 
-			<div css={styles.root}>
-				<main css={styles.container}>
-					<CustomLogo />
-					{requestOTPMutation.isSuccess ? (
-						<RequestOTPSuccess
-							email={requestOTPMutation.variables?.email ?? ""}
-						/>
-					) : (
-						<RequestOTP
-							isRequesting={requestOTPMutation.isLoading}
-							onRequest={async (email) => {
-								try {
-									await requestOTPMutation.mutateAsync({ email });
-								} catch (error) {
-									displayError(
-										getErrorMessage(error, "Error requesting password change"),
-									);
-								}
-							}}
-						/>
-					)}
-				</main>
-			</div>
+			<main css={styles.root}>
+				<CustomLogo css={styles.logo} />
+				{requestOTPMutation.isSuccess ? (
+					<RequestOTPSuccess
+						email={requestOTPMutation.variables?.email ?? ""}
+					/>
+				) : (
+					<RequestOTP
+						error={requestOTPMutation.error}
+						isRequesting={requestOTPMutation.isLoading}
+						onRequest={(email) => {
+							requestOTPMutation.mutate({ email });
+						}}
+					/>
+				)}
+			</main>
 		</>
 	);
 };
 
-const RequestOTP: FC<{
-	onRequest: (email: string) => Promise<void>;
+type RequestOTPProps = {
+	error: unknown;
+	onRequest: (email: string) => void;
 	isRequesting: boolean;
-}> = ({ onRequest, isRequesting }) => {
-	return (
-		<>
-			<h1
-				css={{
-					fontSize: 20,
-					fontWeight: 600,
-					lineHeight: "28px",
-				}}
-			>
-				Enter your email to reset the password
-			</h1>
-			<form
-				css={{ width: "100%" }}
-				onSubmit={async (e) => {
-					e.preventDefault();
-					const email = e.currentTarget.email.value;
-					await onRequest(email);
-				}}
-			>
-				<fieldset disabled={isRequesting}>
-					<Stack spacing={2.5}>
-						<TextField
-							name="email"
-							label="Email"
-							type="email"
-							autoFocus
-							required
-							fullWidth
-						/>
+};
 
-						<Stack spacing={1}>
-							<LoadingButton
-								loading={isRequesting}
-								type="submit"
-								size="large"
+const RequestOTP: FC<RequestOTPProps> = ({
+	error,
+	onRequest,
+	isRequesting,
+}) => {
+	return (
+		<div css={styles.container}>
+			<div>
+				<h1
+					css={{
+						margin: 0,
+						marginBottom: 24,
+						fontSize: 20,
+						fontWeight: 600,
+						lineHeight: "28px",
+					}}
+				>
+					Enter your email to reset the password
+				</h1>
+				{error ? <ErrorAlert error={error} css={{ marginBottom: 24 }} /> : null}
+				<form
+					css={{ width: "100%" }}
+					onSubmit={(e) => {
+						e.preventDefault();
+						const email = e.currentTarget.email.value;
+						onRequest(email);
+					}}
+				>
+					<fieldset disabled={isRequesting}>
+						<Stack spacing={2.5}>
+							<TextField
+								name="email"
+								label="Email"
+								type="email"
+								autoFocus
+								required
 								fullWidth
-								variant="contained"
-							>
-								Reset password
-							</LoadingButton>
-							<Button
-								component={RouterLink}
-								size="large"
-								fullWidth
-								variant="text"
-								to="/login"
-							>
-								Cancel
-							</Button>
+							/>
+
+							<Stack spacing={1}>
+								<LoadingButton
+									loading={isRequesting}
+									type="submit"
+									size="large"
+									fullWidth
+									variant="contained"
+								>
+									Reset password
+								</LoadingButton>
+								<Button
+									component={RouterLink}
+									size="large"
+									fullWidth
+									variant="text"
+									to="/login"
+								>
+									Cancel
+								</Button>
+							</Stack>
 						</Stack>
-					</Stack>
-				</fieldset>
-			</form>
-		</>
+					</fieldset>
+				</form>
+			</div>
+		</div>
 	);
 };
 
@@ -117,37 +123,53 @@ const RequestOTPSuccess: FC<{ email: string }> = ({ email }) => {
 	return (
 		<div
 			css={{
+				...styles.container,
+				maxWidth: 380,
 				fontWeight: 500,
 				fontSize: 14,
 				lineHeight: "24px",
-				maxWidth: 294,
-				margin: "auto",
 			}}
 		>
-			<p>We've sent a password reset link to the address below.</p>
-			<span css={{ fontWeight: 600 }}>{email}</span>
-			<p
-				css={{
-					fontSize: 12,
-					lineHeight: "16px",
-					color: theme.palette.text.secondary,
-				}}
-			>
-				Contact your deployment administrator if you encounter issues.
-			</p>
-			<Button component={RouterLink} to="/login">
-				Back to login
-			</Button>
+			<div>
+				<p css={{ margin: 0, marginBottom: 56 }}>
+					If the account{" "}
+					<span css={{ fontWeight: 600, color: theme.palette.text.secondary }}>
+						{email}
+					</span>{" "}
+					exists, you will get an email with instructions on resetting your
+					password.
+				</p>
+
+				<p
+					css={{
+						margin: 0,
+						fontSize: 12,
+						lineHeight: "16px",
+						color: theme.palette.text.secondary,
+						marginBottom: 48,
+					}}
+				>
+					Contact your deployment administrator if you encounter issues.
+				</p>
+
+				<Button component={RouterLink} to="/login">
+					Back to login
+				</Button>
+			</div>
 		</div>
 	);
 };
 
 const styles = {
+	logo: {
+		marginBottom: 40,
+	},
 	root: {
 		padding: 24,
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "center",
+		flexDirection: "column",
 		minHeight: "100%",
 		textAlign: "center",
 	},
@@ -157,7 +179,6 @@ const styles = {
 		display: "flex",
 		flexDirection: "column",
 		alignItems: "center",
-		gap: 16,
 	},
 	icon: {
 		fontSize: 64,

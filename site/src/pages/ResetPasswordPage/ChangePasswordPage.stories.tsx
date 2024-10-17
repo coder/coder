@@ -22,11 +22,10 @@ export const Success: Story = {
 		spyOn(API, "changePasswordWithOTP").mockResolvedValueOnce();
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		const newPasswordInput = await canvas.findByLabelText("New password *");
+		const newPasswordInput = await canvas.findByLabelText("Password *");
 		await user.type(newPasswordInput, "password");
-		const confirmPasswordInput = await canvas.findByLabelText(
-			"Confirm new password *",
-		);
+		const confirmPasswordInput =
+			await canvas.findByLabelText("Confirm password *");
 		await user.type(confirmPasswordInput, "password");
 		await user.click(canvas.getByRole("button", { name: /reset password/i }));
 		await canvas.findByText("Password reset successfully");
@@ -42,11 +41,10 @@ export const WrongConfirmationPassword: Story = {
 		);
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		const newPasswordInput = await canvas.findByLabelText("New password *");
+		const newPasswordInput = await canvas.findByLabelText("Password *");
 		await user.type(newPasswordInput, "password");
-		const confirmPasswordInput = await canvas.findByLabelText(
-			"Confirm new password *",
-		);
+		const confirmPasswordInput =
+			await canvas.findByLabelText("Confirm password *");
 		await user.type(confirmPasswordInput, "different-password");
 		await user.click(canvas.getByRole("button", { name: /reset password/i }));
 		await canvas.findByText("Passwords must match");
@@ -64,11 +62,10 @@ export const ServerError: Story = {
 		);
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		const newPasswordInput = await canvas.findByLabelText("New password *");
+		const newPasswordInput = await canvas.findByLabelText("Password *");
 		await user.type(newPasswordInput, "password");
-		const confirmPasswordInput = await canvas.findByLabelText(
-			"Confirm new password *",
-		);
+		const confirmPasswordInput =
+			await canvas.findByLabelText("Confirm password *");
 		await user.type(confirmPasswordInput, "password");
 		await user.click(canvas.getByRole("button", { name: /reset password/i }));
 		await canvas.findByText(serverError);

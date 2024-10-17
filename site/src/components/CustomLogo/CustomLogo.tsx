@@ -1,3 +1,4 @@
+import type { Interpolation, Theme } from "@emotion/react";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { FC } from "react";
 import { getApplicationName, getLogoURL } from "utils/appearance";
@@ -6,12 +7,13 @@ import { getApplicationName, getLogoURL } from "utils/appearance";
  * Enterprise customers can set a custom logo for their Coder application. Use
  * the custom logo wherever the Coder logo is used, if a custom one is provided.
  */
-export const CustomLogo: FC = () => {
+export const CustomLogo: FC<{ css?: Interpolation<Theme> }> = (props) => {
 	const applicationName = getApplicationName();
 	const logoURL = getLogoURL();
 
 	return logoURL ? (
 		<img
+			{...props}
 			alt={applicationName}
 			src={logoURL}
 			// This prevent browser to display the ugly error icon if the
@@ -26,6 +28,6 @@ export const CustomLogo: FC = () => {
 			className="application-logo"
 		/>
 	) : (
-		<CoderIcon css={{ fontSize: 64, fill: "white" }} />
+		<CoderIcon {...props} css={[{ fontSize: 64, fill: "white" }, props.css]} />
 	);
 };

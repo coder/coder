@@ -2,10 +2,10 @@ import type { Interpolation, Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import { getErrorMessage } from "api/errors";
 import { changePasswordWithOTP } from "api/queries/users";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
@@ -53,18 +53,14 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 			const email = searchParams.get("email") ?? "";
 			const otp = searchParams.get("otp") ?? "";
 
-			try {
-				await changePasswordMutation.mutateAsync({
-					email,
-					one_time_passcode: otp,
-					password: values.password,
-				});
-				displaySuccess("Password reset successfully");
-				if (redirect) {
-					navigate("/login");
-				}
-			} catch (error) {
-				displayError(getErrorMessage(error, "Error resetting password"));
+			await changePasswordMutation.mutateAsync({
+				email,
+				one_time_passcode: otp,
+				password: values.password,
+			});
+			displaySuccess("Password reset successfully");
+			if (redirect) {
+				navigate("/login");
 			}
 		},
 	});
@@ -78,9 +74,11 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 
 			<div css={styles.root}>
 				<main css={styles.container}>
-					<CustomLogo />
+					<CustomLogo css={styles.logo} />
 					<h1
 						css={{
+							margin: 0,
+							marginBottom: 24,
 							fontSize: 20,
 							fontWeight: 600,
 							lineHeight: "28px",
@@ -88,11 +86,17 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 					>
 						Choose a new password
 					</h1>
+					{changePasswordMutation.error ? (
+						<ErrorAlert
+							error={changePasswordMutation.error}
+							css={{ marginBottom: 24 }}
+						/>
+					) : null}
 					<form css={{ width: "100%" }} onSubmit={form.handleSubmit}>
 						<fieldset disabled={form.isSubmitting}>
 							<Stack spacing={2.5}>
 								<TextField
-									label="New password"
+									label="Password"
 									autoFocus
 									fullWidth
 									required
@@ -101,7 +105,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 								/>
 
 								<TextField
-									label="Confirm new password"
+									label="Confirm password"
 									fullWidth
 									required
 									type="password"
@@ -125,7 +129,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 										variant="text"
 										to="/login"
 									>
-										Cancel
+										Back to login
 									</Button>
 								</Stack>
 							</Stack>
@@ -138,11 +142,15 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 };
 
 const styles = {
+	logo: {
+		marginBottom: 40,
+	},
 	root: {
 		padding: 24,
 		display: "flex",
 		alignItems: "center",
 		justifyContent: "center",
+		flexDirection: "column",
 		minHeight: "100%",
 		textAlign: "center",
 	},
@@ -152,7 +160,6 @@ const styles = {
 		display: "flex",
 		flexDirection: "column",
 		alignItems: "center",
-		gap: 16,
 	},
 	icon: {
 		fontSize: 64,
