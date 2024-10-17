@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 
 	"cdr.dev/slog"
@@ -33,6 +34,7 @@ func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype str
 
 	// TODO(cian): we need to detect if there are missing UserVariableValues.
 	// This is normally done by the provisioner, but we need to do it here.
+	// EDIT: maybe hclsyntax.ParseExpression does this for us?
 
 	// Create a temporary directory
 	tmpDir, err := os.MkdirTemp("", "workspacetags-validate")
@@ -66,17 +68,95 @@ func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype str
 	// Example: var.region -> "us"
 	tags, err = loadWorkspaceTags(ctx, logger, module)
 
-	evalTags, err := evalProvisionerTags(tags, nil, nil)
+	varsDefaults, paramsDefaults, err := loadDefaults(ctx, logger, module)
+	if err != nil {
+		return nil, xerrors.Errorf("load defaults: %w", err)
+	}
+
+	evalContext := buildEvalContext(varsDefaults, paramsDefaults)
+
+	evalTags, err := evalProvisionerTags(evalContext, tags)
 	if err != nil {
 		return nil, xerrors.Errorf("eval provisioner tags: %w", err)
 	}
 	return evalTags, err
 }
 
+func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Module) (varsDefaults map[string]string, paramsDefaults map[string]string, err error) {
+	// iterate through module.Variables to get the default values for all
+	// variables.
+	varsDefaults = make(map[string]string)
+	for _, v := range module.Variables {
+		sv, err := interfaceToString(v.Default)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("can't convert variable default value to string: %v", err)
+		}
+		varsDefaults[v.Name] = sv
+	}
+
+	// iterate through module.DataResources to get the default values for all
+	// coder_parameter data resources.
+	paramsDefaults = make(map[string]string)
+	for _, dataResource := range module.DataResources {
+		if dataResource.Type != "coder_parameter" {
+			logger.Debug(ctx, "skip resource as it is not a coder_parameter", "resource_name", dataResource.Name, "resource_type", dataResource.Type)
+		}
+
+		var file *hcl.File
+		var diags hcl.Diagnostics
+		parser := hclparse.NewParser()
+
+		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
+			logger.Debug(ctx, "only .tf files can be parsed", "filename", dataResource.Pos.Filename)
+			continue
+		}
+
+		// We know in which HCL file is the data resource defined.
+		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
+		if diags.HasErrors() {
+			return nil, nil, xerrors.Errorf("can't parse the resource file %q: %s", dataResource.Pos.Filename, diags.Error())
+		}
+
+		// Parse root to find "coder_parameter".
+		content, _, diags := file.Body.PartialContent(rootTemplateSchema)
+		if diags.HasErrors() {
+			return nil, nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
+		}
+
+		// Iterate over blocks to locate the exact "coder_parameter" data resource.
+		for _, block := range content.Blocks {
+			if !slices.Equal(block.Labels, []string{"data", "coder_parameter", dataResource.Name}) {
+				continue
+			}
+
+			// Parse "coder_parameter" to find the default value.
+			resContent, _, diags := block.Body.PartialContent(coderParameterSchema)
+			if diags.HasErrors() {
+				return nil, nil, xerrors.Errorf(`can't parse the resource coder_parameter: %s`, diags.Error())
+			}
+
+			if _, ok := resContent.Attributes["default"]; !ok {
+				return nil, nil, xerrors.Errorf(`"default" attribute is required by coder_parameter`)
+			}
+
+			expr := resContent.Attributes["default"].Expr
+			value, err := previewFileContent(expr.Range())
+			if err != nil {
+				return nil, nil, xerrors.Errorf("can't preview the resource file: %v", err)
+			}
+
+			paramsDefaults[dataResource.Name] = value
+		}
+	}
+	return varsDefaults, paramsDefaults, nil
+}
+
 // --- BEGIN COPYPASTA FROM provisioner/terraform/parse.go --- //
 func loadWorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig.Module) (map[string]string, error) {
 	workspaceTags := map[string]string{}
 
+	// Now we have all the default values for variables and coder_parameters.
+	// We can use them to evaluate the workspace tags.
 	for _, dataResource := range module.DataResources {
 		if dataResource.Type != "coder_workspace_tags" {
 			logger.Debug(ctx, "skip resource as it is not a coder_workspace_tags", "resource_name", dataResource.Name, "resource_type", dataResource.Type)
@@ -95,7 +175,7 @@ func loadWorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig
 		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
 
 		if diags.HasErrors() {
-			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
+			return nil, xerrors.Errorf("can't parse the resource file %q: %s", dataResource.Pos.Filename, diags.Error())
 		}
 
 		// Parse root to find "coder_workspace_tags".
@@ -180,50 +260,68 @@ var coderWorkspaceTagsSchema = &hcl.BodySchema{
 	},
 }
 
+var coderParameterSchema = &hcl.BodySchema{
+	Attributes: []hcl.AttributeSchema{
+		{
+			Name: "default",
+		},
+	},
+}
+
 // -- BEGIN COPYPASTA FROM coderd/wsbuilder/wsbuilder.go -- //
-func evalProvisionerTags(workspaceTags map[string]string, parameterNames, parameterValues []string) (map[string]string, error) {
+func evalProvisionerTags(evalCtx *hcl.EvalContext, workspaceTags map[string]string) (map[string]string, error) {
 	tags := make(map[string]string)
-	evalCtx := buildParametersEvalContext(parameterNames, parameterValues)
 	for workspaceTagKey, workspaceTagValue := range workspaceTags {
 		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTagValue), "expression.hcl", hcl.InitialPos)
 		if diags.HasErrors() {
-			return nil, xerrors.Errorf("failed to parse workspace tag key %q value %q: %w", workspaceTagKey, workspaceTagValue, diags.Error())
+			return nil, xerrors.Errorf("failed to parse workspace tag key %q value %q: %s", workspaceTagKey, workspaceTagValue, diags.Error())
 		}
 
 		val, diags := expr.Value(evalCtx)
 		if diags.HasErrors() {
-			return nil, xerrors.Errorf("failed to evaluate workspace tag key %q value %q: %w", workspaceTagKey, workspaceTagValue, diags.Error())
+			return nil, xerrors.Errorf("failed to evaluate workspace tag key %q value %q: %s", workspaceTagKey, workspaceTagValue, diags.Error())
 		}
 
 		// Do not use "val.AsString()" as it can panic
 		str, err := ctyValueString(val)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to marshal workspace tag key %q value %q as string: %w", workspaceTagKey, workspaceTagValue, diags.Error())
+			return nil, xerrors.Errorf("failed to marshal workspace tag key %q value %q as string: %s", workspaceTagKey, workspaceTagValue, diags.Error())
 		}
 		tags[workspaceTagKey] = str
 	}
 	return tags, nil
 }
 
-func buildParametersEvalContext(names, values []string) *hcl.EvalContext {
-	m := map[string]cty.Value{}
-	for i, name := range names {
-		m[name] = cty.MapVal(map[string]cty.Value{
-			"value": cty.StringVal(values[i]),
+func buildEvalContext(varDefaults map[string]string, paramDefaults map[string]string) *hcl.EvalContext {
+	varDefaultsM := map[string]cty.Value{}
+	for varName, varDefault := range varDefaults {
+		varDefaultsM[varName] = cty.MapVal(map[string]cty.Value{
+			"value": cty.StringVal(varDefault),
 		})
 	}
 
-	if len(m) == 0 {
-		return nil // otherwise, panic: must not call MapVal with empty map
+	paramDefaultsM := map[string]cty.Value{}
+	for paramName, paramDefault := range paramDefaults {
+		paramDefaultsM[paramName] = cty.MapVal(map[string]cty.Value{
+			"value": cty.StringVal(paramDefault),
+		})
 	}
 
-	return &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"data": cty.MapVal(map[string]cty.Value{
-				"coder_parameter": cty.MapVal(m),
-			}),
-		},
+	evalCtx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{},
 	}
+	if len(varDefaultsM) != 0 {
+		evalCtx.Variables["var"] = cty.MapVal(map[string]cty.Value{
+			"coder_variable": cty.MapVal(varDefaultsM),
+		})
+	}
+	if len(paramDefaultsM) != 0 {
+		evalCtx.Variables["data"] = cty.MapVal(map[string]cty.Value{
+			"coder_parameter": cty.MapVal(paramDefaultsM),
+		})
+	}
+
+	return evalCtx
 }
 
 type BuildError struct {
@@ -255,5 +353,26 @@ func ctyValueString(val cty.Value) (string, error) {
 		return val.AsString(), nil
 	default:
 		return "", xerrors.Errorf("only primitive types are supported - bool, number, and string")
+	}
+}
+
+// -- END COPYPASTA FROM coderd/wsbuilder/wsbuilder.go -- //
+
+func interfaceToString(i interface{}) (string, error) {
+	switch v := i.(type) {
+	case nil:
+		return "", nil
+	case string:
+		return v, nil
+	case []byte:
+		return string(v), nil
+	case int:
+		return strconv.FormatInt(int64(v), 10), nil
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), nil
+	case bool:
+		return strconv.FormatBool(v), nil
+	default:
+		return "", xerrors.Errorf("unsupported type %T", v)
 	}
 }
