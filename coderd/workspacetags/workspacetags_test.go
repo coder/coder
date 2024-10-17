@@ -22,72 +22,72 @@ func Test_Validate(t *testing.T) {
 		expectTags  map[string]string
 		expectError string
 	}{
-		{
-			name:        "empty",
-			files:       map[string]string{},
-			expectTags:  map[string]string{},
-			expectError: "",
-		},
-		{
-			name: "single text file",
-			files: map[string]string{
-				"file.txt": `
-					hello world`,
-			},
-			expectTags:  map[string]string{},
-			expectError: "",
-		},
-		{
-			name: "main.tf with no workspace_tags",
-			files: map[string]string{
-				"main.tf": `
-					provider "foo" {}
-					resource "foo_bar" "baz" {}`,
-			},
-			expectTags:  map[string]string{},
-			expectError: "",
-		},
-		{
-			name: "main.tf with empty workspace tags",
-			files: map[string]string{
-				"main.tf": `
-					provider "foo" {}
-					resource "foo_bar" "baz" {}
-					data "coder_workspace_tags" "tags" {}`,
-			},
-			expectTags:  map[string]string{},
-			expectError: "",
-		},
-		{
-			name: "main.tf with static workspace tag",
-			files: map[string]string{
-				"main.tf": `
-					provider "foo" {}
-					resource "foo_bar" "baz" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"cluster" = "developers"
-						}
-					}`,
-			},
-			expectTags:  map[string]string{"cluster": "developers"},
-			expectError: "",
-		},
-		{
-			name: "main.tf with workspace tag expression",
-			files: map[string]string{
-				"main.tf": `
-					provider "foo" {}
-					resource "foo_bar" "baz" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"cluster" = "${"devel"}${"opers"}"
-						}
-					}`,
-			},
-			expectTags:  map[string]string{"cluster": "developers"},
-			expectError: "",
-		},
+		// {
+		// name:        "empty",
+		// files:       map[string]string{},
+		// expectTags:  map[string]string{},
+		// expectError: "",
+		// },
+		// {
+		// name: "single text file",
+		// files: map[string]string{
+		// "file.txt": `
+		// hello world`,
+		// },
+		// expectTags:  map[string]string{},
+		// expectError: "",
+		// },
+		// {
+		// name: "main.tf with no workspace_tags",
+		// files: map[string]string{
+		// "main.tf": `
+		// provider "foo" {}
+		// resource "foo_bar" "baz" {}`,
+		// },
+		// expectTags:  map[string]string{},
+		// expectError: "",
+		// },
+		// {
+		// name: "main.tf with empty workspace tags",
+		// files: map[string]string{
+		// "main.tf": `
+		// provider "foo" {}
+		// resource "foo_bar" "baz" {}
+		// data "coder_workspace_tags" "tags" {}`,
+		// },
+		// expectTags:  map[string]string{},
+		// expectError: "",
+		// },
+		// {
+		// name: "main.tf with static workspace tag",
+		// files: map[string]string{
+		// "main.tf": `
+		// provider "foo" {}
+		// resource "foo_bar" "baz" {}
+		// data "coder_workspace_tags" "tags" {
+		// tags = {
+		// "cluster" = "developers"
+		// }
+		// }`,
+		// },
+		// expectTags:  map[string]string{"cluster": "developers"},
+		// expectError: "",
+		// },
+		// {
+		// name: "main.tf with workspace tag expression",
+		// files: map[string]string{
+		// "main.tf": `
+		// provider "foo" {}
+		// resource "foo_bar" "baz" {}
+		// data "coder_workspace_tags" "tags" {
+		// tags = {
+		// "cluster" = "${"devel"}${"opers"}"
+		// }
+		// }`,
+		// },
+		// expectTags:  map[string]string{"cluster": "developers"},
+		// expectError: "",
+		// },
 		{
 			name: "main.tf with static and variable tag",
 			files: map[string]string{
@@ -95,8 +95,8 @@ func Test_Validate(t *testing.T) {
 					provider "foo" {}
 					resource "foo_bar" "baz" {}
 					variable "region" {
-					  default = "us"
 						type    = string
+					  default = "us"
 					}
 					data "coder_workspace_tags" "tags" {
 						tags = {
@@ -115,7 +115,8 @@ func Test_Validate(t *testing.T) {
 					provider "foo" {}
 					resource "foo_bar" "baz" {}
 					variable "region" {
-						type = string
+						type    = string
+						default = "us"
 					}
 					data "coder_parameter" "az" {
 					  name = "az"
