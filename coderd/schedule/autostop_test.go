@@ -561,7 +561,7 @@ func TestCalculateAutoStop(t *testing.T) {
 					Valid:  true,
 				}
 			}
-			workspace := dbgen.Workspace(t, db, database.Workspace{
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 				TemplateID:        template.ID,
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,

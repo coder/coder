@@ -449,7 +449,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
 		})
 
-		resp := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 			TemplateID:     template.ID,
@@ -1260,18 +1260,18 @@ func TestWorkspacesFiltering(t *testing.T) {
 			CreatedBy:      owner.UserID,
 		}).Do()
 
-		dormantWS1 := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		dormantWS1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        templateAdmin.ID,
 			OrganizationID: owner.OrganizationID,
 		}).Do().Workspace
 
-		dormantWS2 := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		dormantWS2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        templateAdmin.ID,
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     resp.Template.ID,
 		}).Do().Workspace
 
-		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+		_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        templateAdmin.ID,
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     resp.Template.ID,
@@ -1448,7 +1448,7 @@ func TestResolveAutostart(t *testing.T) {
 
 	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
-	workspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OwnerID:        member.ID,
 		OrganizationID: owner.OrganizationID,
 		TemplateID:     version1.Template.ID,
