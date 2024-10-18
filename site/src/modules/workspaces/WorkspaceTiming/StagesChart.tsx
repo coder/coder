@@ -5,7 +5,7 @@ import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
-import { BarBlocks } from "./Chart/BarBlocks";
+import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
@@ -211,7 +211,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 															}}
 														/>
 													)}
-													<BarBlocks count={t.resources} />
+													<Blocks count={t.resources} />
 												</ClickableBar>
 											) : (
 												<Bar scale={scale} value={value} offset={offset} />

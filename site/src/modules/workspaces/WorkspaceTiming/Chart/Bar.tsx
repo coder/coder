@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { type ButtonHTMLAttributes, type HTMLProps, forwardRef } from "react";
-import { CSSVars } from "./constants";
 
 export type BarColors = {
 	stroke: string;
@@ -62,10 +61,10 @@ export const barCSS = ({
 	return [
 		styles.bar,
 		{
-			width: `calc((var(${CSSVars.xAxisWidth}) * ${value}) / ${scale})`,
+			width: `calc((var(--x-axis-width) * ${value}) / ${scale})`,
 			backgroundColor: colors?.fill,
 			borderColor: colors?.stroke,
-			marginLeft: `calc((var(${CSSVars.xAxisWidth}) * ${offset}) / ${scale})`,
+			marginLeft: `calc((var(--x-axis-width) * ${offset}) / ${scale})`,
 		},
 	];
 };

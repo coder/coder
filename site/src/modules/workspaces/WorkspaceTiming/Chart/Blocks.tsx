@@ -6,11 +6,11 @@ const spaceBetweenBlocks = 4;
 const moreIconSize = 18;
 const blockSize = 20;
 
-type BarBlocksProps = {
+type BlocksProps = {
 	count: number;
 };
 
-export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
+export const Blocks: FC<BlocksProps> = ({ count }) => {
 	const [availableWidth, setAvailableWidth] = useState<number>(0);
 	const blocksRef = useRef<HTMLDivElement>(null);
 
@@ -36,7 +36,7 @@ export const BarBlocks: FC<BarBlocksProps> = ({ count }) => {
 				<div key={n} css={styles.block} style={{ minWidth: blockSize }} />
 			))}
 			{!hasSpacing && (
-				<div css={styles.extraBlock}>
+				<div css={styles.more}>
 					<MoreHorizOutlined />
 				</div>
 			)}
@@ -60,7 +60,7 @@ const styles = {
 		flexShrink: 0,
 		flex: 1,
 	},
-	extraBlock: {
+	more: {
 		color: "#38BDF8",
 		lineHeight: 0,
 		flexShrink: 0,
