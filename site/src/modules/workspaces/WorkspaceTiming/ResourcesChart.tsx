@@ -1,7 +1,6 @@
-import { css } from "@emotion/css";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
-import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
+import { Tooltip, TooltipLink, TooltipTitle } from "./Chart/Tooltip";
 import { type FC, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar } from "./Chart/Bar";
@@ -31,6 +30,7 @@ import {
 	mergeTimeRanges,
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
+import { css } from "@emotion/css";
 
 const legendsByAction: Record<string, ChartLegend> = {
 	"state refresh": {
@@ -135,14 +135,21 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 									key={t.name}
 									yAxisLabelId={encodeURIComponent(t.name)}
 								>
-									<ResourceTooltip timing={t}>
+									<Tooltip
+										title={
+											<>
+												<TooltipTitle>{t.name}</TooltipTitle>
+												<TooltipLink to="">view template</TooltipLink>
+											</>
+										}
+									>
 										<Bar
 											value={duration}
 											offset={calcOffset(t.range, generalTiming)}
 											scale={scale}
 											colors={legendsByAction[t.action].colors}
 										/>
-									</ResourceTooltip>
+									</Tooltip>
 									{formatTime(duration)}
 								</XAxisRow>
 							);
@@ -161,73 +168,3 @@ const isCoderResource = (resource: string) => {
 		resource.startsWith("coder_")
 	);
 };
-
-type ResourceTooltipProps = Omit<TooltipProps, "title"> & {
-	timing: ResourceTiming;
-};
-
-const ResourceTooltip: FC<ResourceTooltipProps> = ({ timing, ...props }) => {
-	const theme = useTheme();
-
-	return (
-		<Tooltip
-			{...props}
-			placement="top-start"
-			classes={{
-				tooltip: css({
-					backgroundColor: theme.palette.background.default,
-					border: `1px solid ${theme.palette.divider}`,
-					borderRadius: 8,
-					maxWidth: "unset",
-				}),
-			}}
-			title={
-				<div css={styles.tooltipTitle}>
-					<span>{timing.source}</span>
-					<span css={styles.tooltipResource}>{timing.name}</span>
-					<Link to="" css={styles.tooltipLink}>
-						<OpenInNewOutlined />
-						view template
-					</Link>
-				</div>
-			}
-		/>
-	);
-};
-
-const styles = {
-	tooltipTitle: (theme) => ({
-		display: "flex",
-		flexDirection: "column",
-		fontWeight: 500,
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-	}),
-	tooltipResource: (theme) => ({
-		color: theme.palette.text.primary,
-		fontWeight: 600,
-		marginTop: 4,
-		display: "block",
-		maxWidth: "100%",
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-		whiteSpace: "nowrap",
-	}),
-	tooltipLink: (theme) => ({
-		color: "inherit",
-		textDecoration: "none",
-		display: "flex",
-		alignItems: "center",
-		gap: 4,
-		marginTop: 8,
-
-		"&:hover": {
-			color: theme.palette.text.primary,
-		},
-
-		"& svg": {
-			width: 12,
-			height: 12,
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

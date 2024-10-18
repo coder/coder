@@ -36,6 +36,9 @@ export const Default: Story = {};
 const [first, ...others] = WorkspaceTimingsResponse.agent_script_timings;
 export const FailedScript: Story = {
 	args: {
-		agentScriptTimings: [{ ...first, status: "exit_failure" }, ...others],
+		agentScriptTimings: [
+			{ ...first, status: "exit_failure", exit_code: 1 },
+			...others,
+		],
 	},
 };

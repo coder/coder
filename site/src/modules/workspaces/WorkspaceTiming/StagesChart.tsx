@@ -1,8 +1,7 @@
-import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import ErrorSharp from "@mui/icons-material/ErrorSharp";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
+import { Tooltip, type TooltipProps, TooltipTitle } from "./Chart/Tooltip";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
@@ -43,7 +42,7 @@ const stageCategories: StageCategory[] = [
 export type Stage = {
 	name: string;
 	categoryID: StageCategory["id"];
-	tooltip: { title: string; description: string };
+	tooltip: Omit<TooltipProps, "children">;
 };
 
 export const stages: Stage[] = [
@@ -51,43 +50,68 @@ export const stages: Stage[] = [
 		name: "init",
 		categoryID: "provisioning",
 		tooltip: {
-			title: "Terraform initialization",
-			description: "Download providers & modules.",
+			title: (
+				<>
+					<TooltipTitle>Terraform initialization</TooltipTitle>
+					<span>Download providers & modules.</span>
+				</>
+			),
 		},
 	},
 	{
 		name: "plan",
 		categoryID: "provisioning",
 		tooltip: {
-			title: "Terraform plan",
-			description:
-				"Compare state of desired vs actual resources and compute changes to be made.",
+			title: (
+				<>
+					<TooltipTitle>Terraform plan</TooltipTitle>
+					<span>
+						Compare state of desired vs actual resources and compute changes to
+						be made.
+					</span>
+				</>
+			),
 		},
 	},
 	{
 		name: "graph",
 		categoryID: "provisioning",
 		tooltip: {
-			title: "Terraform graph",
-			description:
-				"List all resources in plan, used to update coderd database.",
+			title: (
+				<>
+					<TooltipTitle>Terraform graph</TooltipTitle>
+					<span>
+						List all resources in plan, used to update coderd database.
+					</span>
+				</>
+			),
 		},
 	},
 	{
 		name: "apply",
 		categoryID: "provisioning",
 		tooltip: {
-			title: "Terraform apply",
-			description:
-				"Execute terraform plan to create/modify/delete resources into desired states.",
+			title: (
+				<>
+					<TooltipTitle>Terraform apply</TooltipTitle>
+					<span>
+						Execute terraform plan to create/modify/delete resources into
+						desired states.
+					</span>
+				</>
+			),
 		},
 	},
 	{
 		name: "start",
 		categoryID: "workspaceBoot",
 		tooltip: {
-			title: "Start",
-			description: "Scripts executed when the agent is starting.",
+			title: (
+				<>
+					<TooltipTitle>Start</TooltipTitle>
+					<span>Scripts executed when the agent is starting.</span>
+				</>
+			),
 		},
 	},
 ];
@@ -154,9 +178,9 @@ export const StagesChart: FC<StagesChartProps> = ({
 										>
 											<span css={styles.stageLabel}>
 												{stage.name}
-												<StageInfoTooltip {...stage.tooltip}>
+												<Tooltip {...stage.tooltip}>
 													<InfoOutlined css={styles.info} />
-												</StageInfoTooltip>
+												</Tooltip>
 											</span>
 										</YAxisLabel>
 									))}
@@ -229,40 +253,6 @@ export const StagesChart: FC<StagesChartProps> = ({
 	);
 };
 
-type StageInfoTooltipProps = TooltipProps & {
-	title: string;
-	description: string;
-};
-
-const StageInfoTooltip: FC<StageInfoTooltipProps> = ({
-	title,
-	description,
-	children,
-}) => {
-	const theme = useTheme();
-
-	return (
-		<Tooltip
-			classes={{
-				tooltip: css({
-					backgroundColor: theme.palette.background.default,
-					border: `1px solid ${theme.palette.divider}`,
-					width: 220,
-					borderRadius: 8,
-				}),
-			}}
-			title={
-				<div css={styles.tooltipTitle}>
-					<span css={styles.infoStageName}>{title}</span>
-					<span>{description}</span>
-				</div>
-			}
-		>
-			{children}
-		</Tooltip>
-	);
-};
-
 const styles = {
 	stageLabel: {
 		display: "flex",
@@ -275,16 +265,5 @@ const styles = {
 		height: 12,
 		color: theme.palette.text.secondary,
 		cursor: "pointer",
-	}),
-	tooltipTitle: (theme) => ({
-		display: "flex",
-		flexDirection: "column",
-		fontWeight: 500,
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		gap: 4,
-	}),
-	infoStageName: (theme) => ({
-		color: theme.palette.text.primary,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

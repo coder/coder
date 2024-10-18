@@ -26,6 +26,7 @@ import {
 	mergeTimeRanges,
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
+import { Tooltip, TooltipTitle } from "./Chart/Tooltip";
 
 const legendsByStatus: Record<string, ChartLegend> = {
 	ok: {
@@ -54,6 +55,7 @@ const legendsByStatus: Record<string, ChartLegend> = {
 type ScriptTiming = {
 	name: string;
 	status: string;
+	exitCode: number;
 	range: TimeRange;
 };
 
@@ -124,12 +126,20 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 									key={t.name}
 									yAxisLabelId={encodeURIComponent(t.name)}
 								>
-									<Bar
-										value={duration}
-										offset={calcOffset(t.range, generalTiming)}
-										scale={scale}
-										colors={legendsByStatus[t.status].colors}
-									/>
+									<Tooltip
+										title={
+											<TooltipTitle>
+												Script exited with {t.exitCode} code
+											</TooltipTitle>
+										}
+									>
+										<Bar
+											value={duration}
+											offset={calcOffset(t.range, generalTiming)}
+											scale={scale}
+											colors={legendsByStatus[t.status].colors}
+										/>
+									</Tooltip>
 
 									{formatTime(duration)}
 								</XAxisRow>

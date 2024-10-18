@@ -82,6 +82,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 								range: extractRange(t),
 								name: t.display_name,
 								status: t.status,
+								exitCode: t.exit_code,
 							};
 						})}
 					category={view.category}
