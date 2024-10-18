@@ -708,6 +708,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 		name    string
 		id      uuid.UUID
 		payload types.MessagePayload
+
+		appName string
+		logoURL string
 	}{
 		{
 			name: "TemplateWorkspaceDeleted",
@@ -958,6 +961,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateWorkspaceDeleted_CustomAppearance",
+			id:   notifications.TemplateWorkspaceDeleted,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"name":      "bobby-workspace",
+					"reason":    "autodeleted due to dormancy",
+					"initiator": "autobuild",
+				},
+			},
+			appName: "Custom Application Name",
+			logoURL: "https://custom.application/logo.png",
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
@@ -1078,6 +1097,16 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					logger.Named("manager"),
 				)
 				require.NoError(t, err)
+
+				if tc.appName != "" {
+					err = (*db).UpsertApplicationName(ctx, "Custom Application")
+					require.NoError(t, err)
+				}
+
+				if tc.logoURL != "" {
+					err = (*db).UpsertLogoURL(ctx, "https://custom.application/logo.png")
+					require.NoError(t, err)
+				}
 
 				smtpManager.Run(ctx)
 
@@ -1414,12 +1443,12 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// GIVEN: a notification template which has a method explicitly set
 	var (
-		tmplate       = notifications.TemplateWorkspaceDormant
+		tmpl          = notifications.TemplateWorkspaceDormant
 		defaultMethod = database.NotificationMethodSmtp
 		customMethod  = database.NotificationMethodWebhook
 	)
 	out, err := api.Database.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
-		ID:     tmplate,
+		ID:     tmpl,
 		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
 	})
 	require.NoError(t, err)
@@ -1447,7 +1476,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
 	user := createSampleUser(t, api.Database)
-	msgID, err := enq.Enqueue(ctx, user.ID, tmplate, map[string]string{}, "test")
+	msgID, err := enq.Enqueue(ctx, user.ID, tmpl, map[string]string{}, "test")
 	require.NoError(t, err)
 
 	// THEN: the notification should be received by the custom dispatch method
