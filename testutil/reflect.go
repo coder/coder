@@ -1,9 +1,10 @@
 package testutil
 
 import (
-	"fmt"
 	"reflect"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 type Random struct {
@@ -35,12 +36,12 @@ func PopulateStruct(s interface{}, r *Random) error {
 
 	v := reflect.ValueOf(s)
 	if v.Kind() != reflect.Ptr || v.IsNil() {
-		return fmt.Errorf("s must be a non-nil pointer")
+		return xerrors.Errorf("s must be a non-nil pointer")
 	}
 
 	v = v.Elem()
 	if v.Kind() != reflect.Struct {
-		return fmt.Errorf("s must be a pointer to a struct")
+		return xerrors.Errorf("s must be a pointer to a struct")
 	}
 
 	t := v.Type()
@@ -55,7 +56,7 @@ func PopulateStruct(s interface{}, r *Random) error {
 
 		nv, err := populateValue(fieldValue, r)
 		if err != nil {
-			return fmt.Errorf("%s : %w", fieldName, err)
+			return xerrors.Errorf("%s : %w", fieldName, err)
 		}
 		v.Field(i).Set(nv)
 	}
@@ -96,7 +97,7 @@ func populateValue(v reflect.Value, r *Random) (reflect.Value, error) {
 		for i := 0; i < v.Len(); i++ {
 			nv, err := populateValue(v.Index(i), r)
 			if err != nil {
-				return v, fmt.Errorf("array index %d : %w", i, err)
+				return v, xerrors.Errorf("array index %d : %w", i, err)
 			}
 			v.Index(i).Set(nv)
 		}
@@ -108,11 +109,11 @@ func populateValue(v reflect.Value, r *Random) (reflect.Value, error) {
 		kv := reflect.New(v.Type().Elem())
 		k, err = populateValue(k, r)
 		if err != nil {
-			return v, fmt.Errorf("map key : %w", err)
+			return v, xerrors.Errorf("map key : %w", err)
 		}
 		kv, err = populateValue(kv, r)
 		if err != nil {
-			return v, fmt.Errorf("map value : %w", err)
+			return v, xerrors.Errorf("map value : %w", err)
 		}
 
 		m.SetMapIndex(k, kv)
@@ -123,7 +124,7 @@ func populateValue(v reflect.Value, r *Random) (reflect.Value, error) {
 		s := reflect.MakeSlice(v.Type(), 2, 2)
 		sv, err := populateValue(reflect.New(v.Type().Elem()), r)
 		if err != nil {
-			return v, fmt.Errorf("slice value : %w", err)
+			return v, xerrors.Errorf("slice value : %w", err)
 		}
 
 		s.Index(0).Set(sv)
@@ -133,9 +134,9 @@ func populateValue(v reflect.Value, r *Random) (reflect.Value, error) {
 		return s, nil
 	case reflect.Uintptr, reflect.UnsafePointer, reflect.Chan, reflect.Func, reflect.Interface:
 		// Unsupported
-		return v, fmt.Errorf("%s is not supported", v.Kind())
+		return v, xerrors.Errorf("%s is not supported", v.Kind())
 	default:
-		return v, fmt.Errorf("unsupported kind %s", v.Kind())
+		return v, xerrors.Errorf("unsupported kind %s", v.Kind())
 	}
 	return v, nil
 }
