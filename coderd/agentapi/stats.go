@@ -50,7 +50,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
 	}
-	workspace := getWorkspaceAgentByIDRow.Workspace
+	workspace := getWorkspaceAgentByIDRow
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
 		slog.F("workspace_id", workspace.ID),

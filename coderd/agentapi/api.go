@@ -106,7 +106,7 @@ func New(opts Options) *API {
 			if err != nil {
 				return uuid.Nil, err
 			}
-			return ws.Workspace.ID, nil
+			return ws.ID, nil
 		},
 	}
 
@@ -231,9 +231,9 @@ func (a *API) workspaceID(ctx context.Context, agent *database.WorkspaceAgent) (
 	}
 
 	a.mu.Lock()
-	a.cachedWorkspaceID = getWorkspaceAgentByIDRow.Workspace.ID
+	a.cachedWorkspaceID = getWorkspaceAgentByIDRow.ID
 	a.mu.Unlock()
-	return getWorkspaceAgentByIDRow.Workspace.ID, nil
+	return getWorkspaceAgentByIDRow.ID, nil
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent) error {

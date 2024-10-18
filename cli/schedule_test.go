@@ -38,7 +38,7 @@ func setupTestSchedule(t *testing.T, sched *cron.Schedule) (ownerClient, memberC
 	memberClient, memberUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 		r.Username = "testuser2" // ensure deterministic ordering
 	})
-	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		Name:              "a-owner",
 		OwnerID:           owner.UserID,
 		OrganizationID:    owner.OrganizationID,
@@ -46,19 +46,19 @@ func setupTestSchedule(t *testing.T, sched *cron.Schedule) (ownerClient, memberC
 		Ttl:               sql.NullInt64{Int64: 8 * time.Hour.Nanoseconds(), Valid: true},
 	}).WithAgent().Do()
 
-	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		Name:              "b-owner",
 		OwnerID:           owner.UserID,
 		OrganizationID:    owner.OrganizationID,
 		AutostartSchedule: sql.NullString{String: sched.String(), Valid: true},
 	}).WithAgent().Do()
-	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		Name:           "c-member",
 		OwnerID:        memberUser.ID,
 		OrganizationID: owner.OrganizationID,
 		Ttl:            sql.NullInt64{Int64: 8 * time.Hour.Nanoseconds(), Valid: true},
 	}).WithAgent().Do()
-	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		Name:           "d-member",
 		OwnerID:        memberUser.ID,
 		OrganizationID: owner.OrganizationID,

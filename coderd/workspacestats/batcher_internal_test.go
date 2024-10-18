@@ -162,7 +162,7 @@ type deps struct {
 	Agent     database.WorkspaceAgent
 	Template  database.Template
 	User      database.User
-	Workspace database.Workspace
+	Workspace database.WorkspaceTable
 }
 
 // setupDeps sets up a set of test dependencies.
@@ -189,7 +189,7 @@ func setupDeps(t *testing.T, store database.Store, ps pubsub.Pubsub) deps {
 		OrganizationID:  org.ID,
 		ActiveVersionID: tv.ID,
 	})
-	ws := dbgen.Workspace(t, store, database.Workspace{
+	ws := dbgen.Workspace(t, store, database.WorkspaceTable{
 		TemplateID:     tpl.ID,
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
