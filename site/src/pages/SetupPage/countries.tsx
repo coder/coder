@@ -964,7 +964,7 @@ export const countries = [
 		flag: "🇻🇪",
 	},
 	{
-		name: "Viet Nam",
+		name: "Vietnam",
 		flag: "🇻🇳",
 	},
 	{
