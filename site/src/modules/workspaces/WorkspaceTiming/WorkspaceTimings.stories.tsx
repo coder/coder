@@ -1,37 +1,58 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { WorkspaceTimings } from "./WorkspaceTimings";
 import { WorkspaceTimingsResponse } from "./storybookData";
+import { userEvent, within, expect, waitFor } from "@storybook/test";
 
 const meta: Meta<typeof WorkspaceTimings> = {
 	title: "modules/workspaces/WorkspaceTimings",
 	component: WorkspaceTimings,
 	args: {
+		defaultIsOpen: true,
 		provisionerTimings: WorkspaceTimingsResponse.provisioner_timings,
 		agentScriptTimings: WorkspaceTimingsResponse.agent_script_timings,
 	},
-	decorators: [
-		(Story) => {
-			return (
-				<div
-					css={(theme) => ({
-						borderRadius: 8,
-						border: `1px solid ${theme.palette.divider}`,
-						width: 1200,
-						height: 420,
-						overflow: "auto",
-					})}
-				>
-					<Story />
-				</div>
-			);
-		},
-	],
 };
 
 export default meta;
 type Story = StoryObj<typeof WorkspaceTimings>;
 
-export const Default: Story = {};
+export const Open: Story = {};
+
+export const Close: Story = {
+	args: {
+		defaultIsOpen: false,
+	},
+};
+
+export const ClickToOpen: Story = {
+	args: {
+		defaultIsOpen: false,
+	},
+	parameters: {
+		chromatic: { disableSnapshot: true },
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(canvas.getByRole("button"));
+		await canvas.findByText("provisioning");
+	},
+};
+
+export const ClickToClose: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await canvas.findByText("provisioning");
+		await user.click(canvas.getByText("Provisioning time", { exact: false }));
+		await waitFor(() =>
+			expect(canvas.getByText("workspace boot")).not.toBeVisible(),
+		);
+	},
+};
 
 const [first, ...others] = WorkspaceTimingsResponse.agent_script_timings;
 export const FailedScript: Story = {
