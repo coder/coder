@@ -71,6 +71,8 @@ func populateValue(v reflect.Value, r *Random) (reflect.Value, error) {
 	case reflect.TypeOf(time.Time{}):
 		v.Set(reflect.ValueOf(time.Date(2020, 5, 2, 5, 19, 21, 30, time.UTC)))
 		return v, nil
+	default:
+		// Go to Kind instead
 	}
 
 	switch v.Kind() {
