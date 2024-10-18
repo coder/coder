@@ -13,8 +13,6 @@ connecting with their workspace over SSH, a workspace app, port forwarding, etc.
 Dashboard connections and API calls (e.g. the workspaces list) are not served
 over workspace proxies.
 
-![ProxyDiagram](../../images/admin/networking/workspace-proxies/proxydiagram.png)
-
 # Deploy a workspace proxy
 
 Each workspace proxy should be a unique instance. At no point should 2 workspace
