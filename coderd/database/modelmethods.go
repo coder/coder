@@ -193,7 +193,7 @@ func (gm GroupMember) RBACObject() rbac.Object {
 }
 
 // WorkspaceTable converts a Workspace to it's reduced version.
-// A more generalized solution is to use json marshalling to
+// A more generalized solution is to use json marshaling to
 // consistently keep these two structs in sync.
 // That would be a lot of overhead, and a more costly unit test is
 // written to make sure these match up.
