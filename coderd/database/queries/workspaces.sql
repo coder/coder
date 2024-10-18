@@ -335,7 +335,7 @@ WHERE
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
 			latest_build_transition = 'start'::workspace_transition) DESC,
-		LOWER(username) ASC,
+		LOWER(owner_username) ASC,
 		LOWER(name) ASC
 	LIMIT
 		CASE
