@@ -123,7 +123,7 @@ func TestNew(t *testing.T) {
 
 	w, err := az.GetWorkspaceByID(ctx, exp.ID)
 	require.NoError(t, err, "must not error")
-	require.Equal(t, exp, w, "must be equal")
+	require.Equal(t, exp, w.WorkspaceTable(), "must be equal")
 
 	rec.AssertActor(t, subj, rec.Pair(policy.ActionRead, exp))
 	require.NoError(t, rec.AllAsserted(), "should only be 1 rbac call")
