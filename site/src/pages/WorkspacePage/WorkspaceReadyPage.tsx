@@ -10,6 +10,7 @@ import {
 	deleteWorkspace,
 	startWorkspace,
 	stopWorkspace,
+	timings,
 	toggleFavorite,
 	updateWorkspace,
 } from "api/queries/workspaces";
@@ -156,6 +157,9 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	// Cancel build
 	const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
+	// Build timings
+	const timingsQuery = useQuery(timings(workspace.id));
+
 	const runLastBuild = (
 		buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,
 		debug: boolean,
@@ -260,6 +264,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					)
 				}
 				isOwner={isOwner}
+				timings={timingsQuery.data}
 			/>
 
 			<WorkspaceDeleteDialog

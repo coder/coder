@@ -21,6 +21,7 @@ import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import type { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 
 export interface WorkspaceProps {
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -49,6 +50,7 @@ export interface WorkspaceProps {
 	latestVersion?: TypesGen.TemplateVersion;
 	permissions: WorkspacePermissions;
 	isOwner: boolean;
+	timings?: TypesGen.WorkspaceBuildTimings;
 }
 
 /**
@@ -81,6 +83,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 	isOwner,
+	timings,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -262,6 +265,11 @@ export const Workspace: FC<WorkspaceProps> = ({
 							)}
 						</section>
 					)}
+
+					<WorkspaceTimings
+						agentScriptTimings={timings?.agent_script_timings}
+						provisionerTimings={timings?.provisioner_timings}
+					/>
 				</div>
 			</div>
 		</div>

@@ -24,6 +24,13 @@ export const Close: Story = {
 	},
 };
 
+export const Loading: Story = {
+	args: {
+		provisionerTimings: undefined,
+		agentScriptTimings: undefined,
+	},
+};
+
 export const ClickToOpen: Story = {
 	args: {
 		defaultIsOpen: false,

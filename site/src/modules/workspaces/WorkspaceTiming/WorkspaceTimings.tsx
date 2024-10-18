@@ -9,6 +9,7 @@ import { KeyboardArrowDown } from "@mui/icons-material";
 import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
 import Collapse from "@mui/material/Collapse";
 import Button from "@mui/material/Button";
+import Skeleton from "@mui/material/Skeleton";
 
 type TimingView =
 	| { name: "default" }
@@ -21,24 +22,30 @@ type TimingView =
 
 type WorkspaceTimingsProps = {
 	defaultIsOpen?: boolean;
-	provisionerTimings: readonly ProvisionerTiming[];
-	agentScriptTimings: readonly AgentScriptTiming[];
+	provisionerTimings: readonly ProvisionerTiming[] | undefined;
+	agentScriptTimings: readonly AgentScriptTiming[] | undefined;
 };
 
 export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
-	provisionerTimings,
-	agentScriptTimings,
+	provisionerTimings = [],
+	agentScriptTimings = [],
 	defaultIsOpen = false,
 }) => {
 	const [view, setView] = useState<TimingView>({ name: "default" });
 	const timings = [...provisionerTimings, ...agentScriptTimings];
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
-	const totalRange = mergeTimeRanges(timings.map(extractRange));
-	const totalDuration = calcDuration(totalRange);
+	const isLoading = timings.length === 0;
+
+	const displayProvisioningTime = () => {
+		const totalRange = mergeTimeRanges(timings.map(extractRange));
+		const totalDuration = calcDuration(totalRange);
+		return humanizeDuration(totalDuration);
+	};
 
 	return (
 		<div css={styles.collapse}>
 			<Button
+				disabled={isLoading}
 				variant="text"
 				css={styles.collapseTrigger}
 				onClick={() => setIsOpen((o) => !o)}
@@ -55,81 +62,91 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 						color: theme.palette.text.secondary,
 					})}
 				>
-					{humanizeDuration(totalDuration)}
+					{isLoading ? (
+						<Skeleton variant="text" width={40} height={16} />
+					) : (
+						displayProvisioningTime()
+					)}
 				</span>
 			</Button>
-			<Collapse in={isOpen}>
-				<div css={styles.collapseBody}>
-					{view.name === "default" && (
-						<StagesChart
-							timings={stages.map((s) => {
-								const stageTimings = timings.filter((t) => t.stage === s.name);
-								const stageRange =
-									stageTimings.length === 0
-										? undefined
-										: mergeTimeRanges(stageTimings.map(extractRange));
-								return {
-									range: stageRange,
-									name: s.name,
-									categoryID: s.categoryID,
-									resources: stageTimings.length,
-									error: stageTimings.some(
-										(t) => "status" in t && t.status === "exit_failure",
-									),
-								};
-							})}
-							onSelectStage={(t, category) => {
-								setView({
-									name: "detailed",
-									stage: t.name,
-									category,
-									filter: "",
-								});
-							}}
-						/>
-					)}
-
-					{view.name === "detailed" && view.category.id === "provisioning" && (
-						<ResourcesChart
-							timings={provisionerTimings
-								.filter((t) => t.stage === view.stage)
-								.map((t) => {
+			{!isLoading && (
+				<Collapse in={isOpen}>
+					<div css={styles.collapseBody}>
+						{view.name === "default" && (
+							<StagesChart
+								timings={stages.map((s) => {
+									const stageTimings = timings.filter(
+										(t) => t.stage === s.name,
+									);
+									const stageRange =
+										stageTimings.length === 0
+											? undefined
+											: mergeTimeRanges(stageTimings.map(extractRange));
 									return {
-										range: extractRange(t),
-										name: t.resource,
-										source: t.source,
-										action: t.action,
+										range: stageRange,
+										name: s.name,
+										categoryID: s.categoryID,
+										resources: stageTimings.length,
+										error: stageTimings.some(
+											(t) => "status" in t && t.status === "exit_failure",
+										),
 									};
 								})}
-							category={view.category}
-							stage={view.stage}
-							onBack={() => {
-								setView({ name: "default" });
-							}}
-						/>
-					)}
+								onSelectStage={(t, category) => {
+									setView({
+										name: "detailed",
+										stage: t.name,
+										category,
+										filter: "",
+									});
+								}}
+							/>
+						)}
 
-					{view.name === "detailed" && view.category.id === "workspaceBoot" && (
-						<ScriptsChart
-							timings={agentScriptTimings
-								.filter((t) => t.stage === view.stage)
-								.map((t) => {
-									return {
-										range: extractRange(t),
-										name: t.display_name,
-										status: t.status,
-										exitCode: t.exit_code,
-									};
-								})}
-							category={view.category}
-							stage={view.stage}
-							onBack={() => {
-								setView({ name: "default" });
-							}}
-						/>
-					)}
-				</div>
-			</Collapse>
+						{view.name === "detailed" &&
+							view.category.id === "provisioning" && (
+								<ResourcesChart
+									timings={provisionerTimings
+										.filter((t) => t.stage === view.stage)
+										.map((t) => {
+											return {
+												range: extractRange(t),
+												name: t.resource,
+												source: t.source,
+												action: t.action,
+											};
+										})}
+									category={view.category}
+									stage={view.stage}
+									onBack={() => {
+										setView({ name: "default" });
+									}}
+								/>
+							)}
+
+						{view.name === "detailed" &&
+							view.category.id === "workspaceBoot" && (
+								<ScriptsChart
+									timings={agentScriptTimings
+										.filter((t) => t.stage === view.stage)
+										.map((t) => {
+											return {
+												range: extractRange(t),
+												name: t.display_name,
+												status: t.status,
+												exitCode: t.exit_code,
+											};
+										})}
+									category={view.category}
+									stage={view.stage}
+									onBack={() => {
+										setView({ name: "default" });
+									}}
+								/>
+							)}
+					</div>
+				</Collapse>
+			)}
 		</div>
 	);
 };
@@ -163,6 +180,7 @@ const styles = {
 	collapse: (theme) => ({
 		borderRadius: 8,
 		border: `1px solid ${theme.palette.divider}`,
+		backgroundColor: theme.palette.background.default,
 	}),
 	collapseTrigger: {
 		background: "none",

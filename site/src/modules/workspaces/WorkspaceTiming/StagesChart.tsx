@@ -5,7 +5,12 @@ import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
-import { Tooltip, type TooltipProps, TooltipTitle } from "./Chart/Tooltip";
+import {
+	Tooltip,
+	type TooltipProps,
+	TooltipShortDescription,
+	TooltipTitle,
+} from "./Chart/Tooltip";
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
@@ -53,7 +58,9 @@ export const stages: Stage[] = [
 			title: (
 				<>
 					<TooltipTitle>Terraform initialization</TooltipTitle>
-					<span>Download providers & modules.</span>
+					<TooltipShortDescription>
+						Download providers & modules.
+					</TooltipShortDescription>
 				</>
 			),
 		},
@@ -65,10 +72,10 @@ export const stages: Stage[] = [
 			title: (
 				<>
 					<TooltipTitle>Terraform plan</TooltipTitle>
-					<span>
+					<TooltipShortDescription>
 						Compare state of desired vs actual resources and compute changes to
 						be made.
-					</span>
+					</TooltipShortDescription>
 				</>
 			),
 		},
@@ -80,9 +87,9 @@ export const stages: Stage[] = [
 			title: (
 				<>
 					<TooltipTitle>Terraform graph</TooltipTitle>
-					<span>
+					<TooltipShortDescription>
 						List all resources in plan, used to update coderd database.
-					</span>
+					</TooltipShortDescription>
 				</>
 			),
 		},
@@ -94,10 +101,10 @@ export const stages: Stage[] = [
 			title: (
 				<>
 					<TooltipTitle>Terraform apply</TooltipTitle>
-					<span>
+					<TooltipShortDescription>
 						Execute terraform plan to create/modify/delete resources into
 						desired states.
-					</span>
+					</TooltipShortDescription>
 				</>
 			),
 		},
@@ -109,7 +116,9 @@ export const stages: Stage[] = [
 			title: (
 				<>
 					<TooltipTitle>Start</TooltipTitle>
-					<span>Scripts executed when the agent is starting.</span>
+					<TooltipShortDescription>
+						Scripts executed when the agent is starting.
+					</TooltipShortDescription>
 				</>
 			),
 		},
@@ -259,6 +268,9 @@ const styles = {
 		alignItems: "center",
 		gap: 2,
 		justifyContent: "flex-end",
+	},
+	stageDescription: {
+		maxWidth: 300,
 	},
 	info: (theme) => ({
 		width: 12,

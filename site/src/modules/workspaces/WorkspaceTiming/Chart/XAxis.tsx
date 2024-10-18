@@ -148,7 +148,7 @@ const styles = {
 		flexShrink: 0,
 		position: "sticky",
 		top: 0,
-		zIndex: 1,
+		zIndex: 2,
 		backgroundColor: theme.palette.background.default,
 	}),
 	label: (theme) => ({
@@ -163,6 +163,9 @@ const styles = {
 		flexDirection: "column",
 		gap: "var(--x-axis-rows-gap)",
 		padding: "var(--section-padding)",
+		// Elevate this section to make it more prominent than the column dashes.
+		position: "relative",
+		zIndex: 1,
 
 		"&:not(:first-of-type)": {
 			paddingTop: "calc(var(--section-padding) + var(--header-height))",
@@ -183,7 +186,6 @@ const styles = {
 		position: "absolute",
 		top: 0,
 		left: 0,
-		zIndex: -1,
 	},
 	column: (theme) => ({
 		flexShrink: 0,

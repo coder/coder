@@ -27,6 +27,12 @@ export const TooltipTitle: FC<HTMLProps<HTMLSpanElement>> = (props) => {
 	return <span css={styles.title} {...props} />;
 };
 
+export const TooltipShortDescription: FC<HTMLProps<HTMLSpanElement>> = (
+	props,
+) => {
+	return <span css={styles.shortDesc} {...props} />;
+};
+
 export const TooltipLink: FC<LinkProps> = (props) => {
 	return (
 		<Link {...props} css={styles.link}>
@@ -69,4 +75,7 @@ const styles = {
 			height: 12,
 		},
 	}),
+	shortDesc: {
+		maxWidth: 280,
+	},
 } satisfies Record<string, Interpolation<Theme>>;
