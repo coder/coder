@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
@@ -50,7 +51,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -154,7 +155,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -202,7 +203,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -295,7 +296,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				},
 				Database: dbM,
 				Log:      slogtest.Make(t, nil),
-				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 					publishWorkspaceUpdateCalled = true
 					return nil
 				},
@@ -339,7 +340,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				},
 				Database: dbM,
 				Log:      slogtest.Make(t, nil),
-				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 					publishWorkspaceUpdateCalled = true
 					return nil
 				},
@@ -386,7 +387,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
