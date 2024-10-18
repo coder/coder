@@ -97,7 +97,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	})
 }
 
-func setup(t testing.TB, db database.Store, authToken uuid.UUID, mw func(http.Handler) http.Handler) (*http.Request, http.Handler, database.Workspace, database.TemplateVersion) {
+func setup(t testing.TB, db database.Store, authToken uuid.UUID, mw func(http.Handler) http.Handler) (*http.Request, http.Handler, database.WorkspaceTable, database.TemplateVersion) {
 	t.Helper()
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{

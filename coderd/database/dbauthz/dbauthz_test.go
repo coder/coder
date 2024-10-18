@@ -1655,10 +1655,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(agt.ID).Asserts(ws, policy.ActionRead).Returns(database.Workspace{
-			Workspace:    ws,
-			TemplateName: tpl.Name,
-		})
+		check.Args(agt.ID).Asserts(ws, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsInLatestBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
@@ -1676,7 +1673,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			OwnerID: ws.OwnerID,
 			Deleted: ws.Deleted,
 			Name:    ws.Name,
-		}).Asserts(ws, policy.ActionRead).Returns(ws)
+		}).Asserts(ws, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceResourceByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
@@ -1881,7 +1878,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
-		check.Args(app.ID).Asserts(ws, policy.ActionRead).Returns(ws)
+		check.Args(app.ID).Asserts(ws, policy.ActionRead)
 	}))
 	s.Run("ActivityBumpWorkspace", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
@@ -2457,13 +2454,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(tpl, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
-		aWs := dbgen.Workspace(s.T(), db, database.Workspace{})
+		aWs := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		aBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: aWs.ID, JobID: uuid.New()})
 		aRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: aBuild.JobID})
 		aAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: aRes.ID})
 		a := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: aAgt.ID})
 
-		bWs := dbgen.Workspace(s.T(), db, database.Workspace{})
+		bWs := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		bBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: bWs.ID, JobID: uuid.New()})
 		bRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: bBuild.JobID})
 		bAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: bRes.ID})
@@ -2478,7 +2475,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
 		tJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
 
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		wJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		check.Args([]uuid.UUID{tJob.ID, wJob.ID}).
@@ -2486,7 +2483,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns([]database.WorkspaceResource{})
 	}))
 	s.Run("GetWorkspaceResourceMetadataByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		a := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
@@ -2495,7 +2492,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
@@ -2529,7 +2526,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
@@ -2772,7 +2769,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{})
 
 		err := db.UpsertJFrogXrayScanByWorkspaceAndAgentID(context.Background(), database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{

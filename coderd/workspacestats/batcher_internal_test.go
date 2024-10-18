@@ -162,7 +162,7 @@ type deps struct {
 	Agent     database.WorkspaceAgent
 	Template  database.Template
 	User      database.User
-	Workspace database.Workspace
+	Workspace database.WorkspaceTable
 }
 
 // setupDeps sets up a set of test dependencies.
