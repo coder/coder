@@ -91,7 +91,7 @@ func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Modu
 		if err != nil {
 			return nil, nil, xerrors.Errorf("can't convert variable default value to string: %v", err)
 		}
-		varsDefaults[v.Name] = sv
+		varsDefaults[v.Name] = strings.Trim(sv, `"`)
 	}
 
 	// iterate through module.DataResources to get the default values for all
@@ -125,7 +125,7 @@ func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Modu
 
 		// Iterate over blocks to locate the exact "coder_parameter" data resource.
 		for _, block := range content.Blocks {
-			if !slices.Equal(block.Labels, []string{"data", "coder_parameter", dataResource.Name}) {
+			if !slices.Equal(block.Labels, []string{"coder_parameter", dataResource.Name}) {
 				continue
 			}
 
@@ -145,7 +145,7 @@ func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Modu
 				return nil, nil, xerrors.Errorf("can't preview the resource file: %v", err)
 			}
 
-			paramsDefaults[dataResource.Name] = value
+			paramsDefaults[dataResource.Name] = strings.Trim(value, `"`)
 		}
 	}
 	return varsDefaults, paramsDefaults, nil
@@ -285,7 +285,7 @@ func evalProvisionerTags(evalCtx *hcl.EvalContext, workspaceTags map[string]stri
 		// Do not use "val.AsString()" as it can panic
 		str, err := ctyValueString(val)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to marshal workspace tag key %q value %q as string: %s", workspaceTagKey, workspaceTagValue, diags.Error())
+			return nil, xerrors.Errorf("failed to marshal workspace tag key %q value %q as string: %s", workspaceTagKey, workspaceTagValue, err)
 		}
 		tags[workspaceTagKey] = str
 	}
@@ -311,9 +311,7 @@ func buildEvalContext(varDefaults map[string]string, paramDefaults map[string]st
 		Variables: map[string]cty.Value{},
 	}
 	if len(varDefaultsM) != 0 {
-		evalCtx.Variables["var"] = cty.MapVal(map[string]cty.Value{
-			"coder_variable": cty.MapVal(varDefaultsM),
-		})
+		evalCtx.Variables["var"] = cty.MapVal(varDefaultsM)
 	}
 	if len(paramDefaultsM) != 0 {
 		evalCtx.Variables["data"] = cty.MapVal(map[string]cty.Value{
@@ -351,6 +349,13 @@ func ctyValueString(val cty.Value) (string, error) {
 		return val.AsBigFloat().String(), nil
 	case cty.String:
 		return val.AsString(), nil
+	// We may also have a map[string]interface{} with key "value".
+	case cty.Map(cty.String):
+		valval, ok := val.AsValueMap()["value"]
+		if !ok {
+			return "", xerrors.Errorf("map does not have key 'value'")
+		}
+		return ctyValueString(valval)
 	default:
 		return "", xerrors.Errorf("only primitive types are supported - bool, number, and string")
 	}
