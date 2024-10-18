@@ -1008,6 +1008,14 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					db := api.Database
 					firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
+					if tc.appName != "" || tc.logoURL != "" {
+						err = adminClient.UpdateAppearance(context.Background(), codersdk.UpdateAppearanceConfig{
+							ApplicationName: tc.appName,
+							LogoURL:         tc.logoURL,
+						})
+						require.NoError(t, err)
+					}
+
 					_, user := coderdtest.CreateAnotherUserMutators(
 						t,
 						adminClient,
@@ -1098,6 +1106,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				)
 				require.NoError(t, err)
 
+				// we apply ApplicationName and LogoURL changes directly in the db
+				// as appearance changes are enterprise features and we do not want to mix those
+				// can't use the api
 				if tc.appName != "" {
 					err = (*db).UpsertApplicationName(ctx, "Custom Application")
 					require.NoError(t, err)
