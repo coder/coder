@@ -162,6 +162,8 @@ type Options struct {
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
 
+	WorkspaceUpdatesProvider tailnet.WorkspaceUpdatesProvider
+
 	NotificationsEnqueuer notifications.Enqueuer
 }
 
@@ -252,6 +254,13 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.NotificationsEnqueuer == nil {
 		options.NotificationsEnqueuer = new(testutil.FakeNotificationsEnqueuer)
+	}
+
+	if options.WorkspaceUpdatesProvider == nil {
+		var err error
+		options.WorkspaceUpdatesProvider, err = coderd.NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Database, options.Pubsub)
+		require.NoError(t, err)
+		t.Cleanup(options.WorkspaceUpdatesProvider.Stop)
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -531,6 +540,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckTimeout:                 options.HealthcheckTimeout,
 			HealthcheckRefresh:                 options.HealthcheckRefresh,
 			StatsBatcher:                       options.StatsBatcher,
+			WorkspaceUpdatesProvider:           options.WorkspaceUpdatesProvider,
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,
