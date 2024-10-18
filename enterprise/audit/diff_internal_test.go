@@ -393,7 +393,7 @@ func Test_diff(t *testing.T) {
 		{
 			name: "NullSchedules",
 			left: audit.Empty[database.WorkspaceTable](),
-			right: database.Workspace{
+			right: database.WorkspaceTable{
 				ID:                uuid.UUID{1},
 				CreatedAt:         time.Now(),
 				UpdatedAt:         time.Now(),
