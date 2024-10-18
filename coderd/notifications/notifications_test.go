@@ -1008,14 +1008,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					db := api.Database
 					firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
-					if tc.appName != "" || tc.logoURL != "" {
-						err = adminClient.UpdateAppearance(context.Background(), codersdk.UpdateAppearanceConfig{
-							ApplicationName: tc.appName,
-							LogoURL:         tc.logoURL,
-						})
-						require.NoError(t, err)
-					}
-
 					_, user := coderdtest.CreateAnotherUserMutators(
 						t,
 						adminClient,
