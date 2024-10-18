@@ -80,7 +80,7 @@ const styles = {
 		height: "inherit",
 		display: "flex",
 		padding: 7,
-		minWidth: 8,
+		minWidth: 24,
 		// Increase hover area
 		position: "relative",
 		"&::after": {

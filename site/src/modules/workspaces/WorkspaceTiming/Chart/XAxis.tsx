@@ -165,12 +165,11 @@ const styles = {
 		display: "flex",
 		flexDirection: "column",
 		gap: XAxisRowsGap,
-		padding: `${XAxisSidePadding}px ${XAxisSidePadding}px 24px`,
+		padding: XAxisSidePadding,
 
 		// Keep spacing aligned with the Y axis.
 		"&:not(:first-of-type)": {
-			marginTop: 32 - 1,
-			paddingTop: YAxisSidePadding,
+			paddingTop: YAxisSidePadding + XAxisLabelsHeight,
 			borderTop: `1px solid ${theme.palette.divider}`,
 		},
 	}),

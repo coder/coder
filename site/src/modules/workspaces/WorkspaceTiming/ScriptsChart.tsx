@@ -38,8 +38,8 @@ const legendsByStatus: Record<string, ChartLegend> = {
 	exit_failure: {
 		label: "failure",
 		colors: {
-			fill: "#341B1D",
-			stroke: "#EF4547",
+			fill: "#450A0A",
+			stroke: "#F87171",
 		},
 	},
 	timeout: {

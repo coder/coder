@@ -10,7 +10,7 @@ export const YAxis: FC<HTMLProps<HTMLDivElement>> = (props) => {
 };
 
 export const YAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
-	return <section {...props} />;
+	return <section {...props} css={styles.section} />;
 };
 
 export const YAxisCaption: FC<HTMLProps<HTMLSpanElement>> = (props) => {
@@ -38,11 +38,15 @@ const styles = {
 		width: YAxisWidth,
 		flexShrink: 0,
 	},
+	section: (theme) => ({
+		"&:not(:first-child)": {
+			borderTop: `1px solid ${theme.palette.divider}`,
+		},
+	}),
 	caption: (theme) => ({
 		height: XAxisLabelsHeight,
 		display: "flex",
 		alignItems: "center",
-		justifyContent: "end",
 		borderBottom: `1px solid ${theme.palette.divider}`,
 		fontSize: 10,
 		fontWeight: 500,
