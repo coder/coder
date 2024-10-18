@@ -4,10 +4,10 @@ Users can generate tokens to make API requests on behalf of themselves.
 
 ## Short-Lived Tokens (Sessions)
 
-The [Coder CLI](../../install/cli.md) and [Backstage Plugin](#TODO) use
-short-lived token to authenticate. To generate a short-lived session token on
-behalf of your account, visit the following URL:
-`https://coder.example.com/cli-auth`
+The [Coder CLI](../../install/cli.md) and
+[Backstage Plugin](https://github.com/coder/backstage-plugins) use short-lived
+token to authenticate. To generate a short-lived session token on behalf of your
+account, visit the following URL: `https://coder.example.com/cli-auth`
 
 ### Session Durations
 

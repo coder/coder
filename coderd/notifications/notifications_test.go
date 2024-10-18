@@ -870,9 +870,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"name":         "bobby-template",
-					"display_name": "Bobby's Template",
-					"initiator":    "rob",
+					"name":      "Bobby's Template",
+					"initiator": "rob",
 				},
 			},
 		},
@@ -886,7 +885,6 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
-					"template_display_name":    "William's Template",
 					"template_version_name":    "bobby-template-version",
 					"initiator":                "joe",
 					"workspace_owner_username": "mrbobby",

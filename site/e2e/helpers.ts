@@ -16,9 +16,10 @@ import {
 	agentPProfPort,
 	coderMain,
 	coderPort,
-	enterpriseLicense,
+	defaultOrganizationName,
+	license,
+	premiumTestsRequired,
 	prometheusPort,
-	requireEnterpriseTests,
 	requireTerraformTests,
 } from "./constants";
 import { expectUrl } from "./expectUrl";
@@ -35,22 +36,28 @@ import {
 	type RichParameter,
 } from "./provisionerGenerated";
 
-// requiresEnterpriseLicense will skip the test if we're not running with an enterprise license
-export function requiresEnterpriseLicense() {
-	if (requireEnterpriseTests) {
+/**
+ * requiresLicense will skip the test if we're not running with a license added
+ */
+export function requiresLicense() {
+	if (premiumTestsRequired) {
 		return;
 	}
 
-	test.skip(!enterpriseLicense);
+	test.skip(!license);
 }
 
-// requireTerraformProvisioner by default is enabled.
+/**
+ * requireTerraformProvisioner by default is enabled.
+ */
 export function requireTerraformProvisioner() {
 	test.skip(!requireTerraformTests);
 }
 
-// createWorkspace creates a workspace for a template.
-// It does not wait for it to be running, but it does navigate to the page.
+/**
+ * createWorkspace creates a workspace for a template. It does not wait for it
+ * to be running, but it does navigate to the page.
+ */
 export const createWorkspace = async (
 	page: Page,
 	templateName: string,
@@ -90,7 +97,7 @@ export const createWorkspace = async (
 
 	await expectUrl(page).toHavePathName(`/@admin/${name}`);
 
-	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
+	await page.waitForSelector("[data-testid='build-status'] >> text=Running", {
 		state: "visible",
 	});
 	return name;
@@ -151,8 +158,10 @@ export const verifyParameters = async (
 	}
 };
 
-// StarterTemplates are ids of starter templates that can be used in place of
-// the responses payload. These starter templates will require real provisioners.
+/**
+ * StarterTemplates are ids of starter templates that can be used in place of
+ * the responses payload. These starter templates will require real provisioners.
+ */
 export enum StarterTemplates {
 	STARTER_DOCKER = "docker",
 }
@@ -166,11 +175,14 @@ function isStarterTemplate(
 	return typeof input === "string";
 }
 
-// createTemplate navigates to the /templates/new page and uploads a template
-// with the resources provided in the responses argument.
+/**
+ * createTemplate navigates to the /templates/new page and uploads a template
+ * with the resources provided in the responses argument.
+ */
 export const createTemplate = async (
 	page: Page,
 	responses?: EchoProvisionerResponses | StarterTemplates,
+	orgName = defaultOrganizationName,
 ): Promise<string> => {
 	let path = "/templates/new";
 	if (isStarterTemplate(responses)) {
@@ -191,17 +203,33 @@ export const createTemplate = async (
 		});
 	}
 
+	// If the organization picker is present on the page, select the default
+	// organization.
+	const orgPicker = page.getByLabel("Belongs to *");
+	const organizationsEnabled = await orgPicker.isVisible();
+	if (organizationsEnabled) {
+		await orgPicker.click();
+		await page.getByText(orgName, { exact: true }).click();
+	}
+
 	const name = randomName();
 	await page.getByLabel("Name *").fill(name);
 	await page.getByTestId("form-submit").click();
-	await expectUrl(page).toHavePathName(`/templates/${name}/files`, {
-		timeout: 30000,
-	});
+	await expectUrl(page).toHavePathName(
+		organizationsEnabled
+			? `/templates/${orgName}/${name}/files`
+			: `/templates/${name}/files`,
+		{
+			timeout: 30000,
+		},
+	);
 	return name;
 };
 
-// createGroup navigates to the /groups/create page and creates a group with a
-// random name.
+/**
+ * createGroup navigates to the /groups/create page and creates a group with a
+ * random name.
+ */
 export const createGroup = async (page: Page): Promise<string> => {
 	await page.goto("/groups/create", { waitUntil: "domcontentloaded" });
 	await expectUrl(page).toHavePathName("/groups/create");
@@ -209,13 +237,13 @@ export const createGroup = async (page: Page): Promise<string> => {
 	const name = randomName();
 	await page.getByLabel("Name", { exact: true }).fill(name);
 	await page.getByTestId("form-submit").click();
-	await expect(page).toHaveURL(
-		/\/groups\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-	);
+	await expectUrl(page).toHavePathName(`/groups/${name}`);
 	return name;
 };
 
-// sshIntoWorkspace spawns a Coder SSH process and a client connected to it.
+/**
+ * sshIntoWorkspace spawns a Coder SSH process and a client connected to it.
+ */
 export const sshIntoWorkspace = async (
 	page: Page,
 	workspace: string,
@@ -298,8 +326,10 @@ export const buildWorkspaceWithParameters = async (
 	});
 };
 
-// startAgent runs the coder agent with the provided token.
-// It awaits the agent to be ready before returning.
+/**
+ * startAgent runs the coder agent with the provided token. It waits for the
+ * agent to be ready before returning.
+ */
 export const startAgent = async (
 	page: Page,
 	token: string,
@@ -307,8 +337,10 @@ export const startAgent = async (
 	return startAgentWithCommand(page, token, "go", "run", coderMain);
 };
 
-// downloadCoderVersion downloads the version provided into a temporary dir and
-// caches it so subsequent calls are fast.
+/**
+ * downloadCoderVersion downloads the version provided into a temporary dir and
+ * caches it so subsequent calls are fast.
+ */
 export const downloadCoderVersion = async (
 	version: string,
 ): Promise<string> => {
@@ -448,8 +480,10 @@ interface EchoProvisionerResponses {
 	apply?: RecursivePartial<Response>[];
 }
 
-// createTemplateVersionTar consumes a series of echo provisioner protobufs and
-// converts it into an uploadable tar file.
+/**
+ * createTemplateVersionTar consumes a series of echo provisioner protobufs and
+ * converts it into an uploadable tar file.
+ */
 const createTemplateVersionTar = async (
 	responses?: EchoProvisionerResponses,
 ): Promise<Buffer> => {
@@ -619,8 +653,10 @@ export const randomName = () => {
 	return randomUUID().slice(0, 8);
 };
 
-// Awaiter is a helper that allows you to wait for a callback to be called.
-// It is useful for waiting for events to occur.
+/**
+ * Awaiter is a helper that allows you to wait for a callback to be called. It
+ * is useful for waiting for events to occur.
+ */
 export class Awaiter {
 	private promise: Promise<void>;
 	private callback?: () => void;
@@ -825,7 +861,6 @@ export const updateTemplateSettings = async (
 	await page.goto(`/templates/${templateName}/settings`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName(`/templates/${templateName}/settings`);
 
 	for (const [key, value] of Object.entries(templateSettingValues)) {
 		// Skip max_port_share_level for now since the frontend is not yet able to handle it
@@ -839,7 +874,7 @@ export const updateTemplateSettings = async (
 	await page.getByTestId("form-submit").click();
 
 	const name = templateSettingValues.name ?? templateName;
-	await expectUrl(page).toHavePathName(`/templates/${name}`);
+	await expectUrl(page).toHavePathNameEndingWith(`/${name}`);
 };
 
 export const updateWorkspace = async (

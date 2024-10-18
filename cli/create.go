@@ -370,8 +370,8 @@ type prepWorkspaceBuildArgs struct {
 	LastBuildParameters       []codersdk.WorkspaceBuildParameter
 	SourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 
-	PromptBuildOptions bool
-	BuildOptions       []codersdk.WorkspaceBuildParameter
+	PromptEphemeralParameters bool
+	EphemeralParameters       []codersdk.WorkspaceBuildParameter
 
 	PromptRichParameters  bool
 	RichParameters        []codersdk.WorkspaceBuildParameter
@@ -405,8 +405,8 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 	resolver := new(ParameterResolver).
 		WithLastBuildParameters(args.LastBuildParameters).
 		WithSourceWorkspaceParameters(args.SourceWorkspaceParameters).
-		WithPromptBuildOptions(args.PromptBuildOptions).
-		WithBuildOptions(args.BuildOptions).
+		WithPromptEphemeralParameters(args.PromptEphemeralParameters).
+		WithEphemeralParameters(args.EphemeralParameters).
 		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile).

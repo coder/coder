@@ -661,7 +661,7 @@ WITH
 			AND date_trunc('minute', was.created_at) = mb.minute_bucket
 			AND was.template_id = mb.template_id
 			AND was.user_id = mb.user_id
-			AND was.connection_median_latency_ms >= 0
+			AND was.connection_median_latency_ms > 0
 		GROUP BY
 			mb.start_time, mb.template_id, mb.user_id
 	)

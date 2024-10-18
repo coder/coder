@@ -15,8 +15,7 @@ Hi Bobby,
 A manual build of the workspace bobby-workspace using the template bobby-te=
 mplate failed (version: bobby-template-version).
 
-The template's display name was William's Template. The workspace build was=
- initiated by joe.
+The workspace build was initiated by joe.
 
 
 View build: http://test.com/@mrbobby/bobby-workspace/builds/3
@@ -55,8 +54,7 @@ argin: 8px 0 32px; line-height: 1.5;">
 he template <strong>bobby-template</strong> failed (version: <strong>bobby-=
 template-version</strong>).</p>
 
-<p>The template&rsquo;s display name was <strong>William&rsquo;s Template</=
-strong>. The workspace build was initiated by <strong>joe</strong>.</p>
+<p>The workspace build was initiated by <strong>joe</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20

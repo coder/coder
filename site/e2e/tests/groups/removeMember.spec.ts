@@ -6,13 +6,13 @@ import {
 	getCurrentOrgId,
 	setupApiCalls,
 } from "../../api";
-import { requiresEnterpriseLicense } from "../../helpers";
+import { requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 test("remove member", async ({ page, baseURL }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 	await setupApiCalls(page);
 	const orgId = await getCurrentOrgId();
 	const [group, member] = await Promise.all([

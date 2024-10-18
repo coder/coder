@@ -104,15 +104,17 @@ function withQuery(Story, { parameters }) {
 
 	if (parameters.queries) {
 		for (const query of parameters.queries) {
-			if (query.data instanceof Error) {
-				// This is copied from setQueryData() but sets the error.
+			if (query.isError) {
+				// Based on `setQueryData`, but modified to set the result as an error.
 				const cache = queryClient.getQueryCache();
 				const parsedOptions = parseQueryArgs(query.key);
 				const defaultedOptions = queryClient.defaultQueryOptions(parsedOptions);
+				// Adds an uninitialized response to the cache, which we can now mutate.
 				const cachedQuery = cache.build(queryClient, defaultedOptions);
-				// Set manual data so react-query will not try to refetch.
+				// Setting `manual` prevents retries.
 				cachedQuery.setData(undefined, { manual: true });
-				cachedQuery.setState({ error: query.data });
+				// Set the `error` value and the appropriate status.
+				cachedQuery.setState({ error: query.data, status: "error" });
 			} else {
 				queryClient.setQueryData(query.key, query.data);
 			}

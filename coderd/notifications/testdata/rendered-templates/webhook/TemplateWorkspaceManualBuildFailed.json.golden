@@ -18,7 +18,6 @@
     "labels": {
       "initiator": "joe",
       "name": "bobby-workspace",
-      "template_display_name": "William's Template",
       "template_name": "bobby-template",
       "template_version_name": "bobby-template-version",
       "workspace_build_number": "3",
@@ -28,6 +27,6 @@
   },
   "title": "Workspace \"bobby-workspace\" manual build failed",
   "title_markdown": "Workspace \"bobby-workspace\" manual build failed",
-  "body": "Hi Bobby,\n\nA manual build of the workspace bobby-workspace using the template bobby-template failed (version: bobby-template-version).\n\nThe template's display name was William's Template. The workspace build was initiated by joe.",
-  "body_markdown": "Hi Bobby,\n\nA manual build of the workspace **bobby-workspace** using the template **bobby-template** failed (version: **bobby-template-version**).\n\nThe template's display name was **William's Template**. The workspace build was initiated by **joe**."
+  "body": "Hi Bobby,\n\nA manual build of the workspace bobby-workspace using the template bobby-template failed (version: bobby-template-version).\n\nThe workspace build was initiated by joe.",
+  "body_markdown": "Hi Bobby,\n\nA manual build of the workspace **bobby-workspace** using the template **bobby-template** failed (version: **bobby-template-version**).\n\nThe workspace build was initiated by **joe**."
 }

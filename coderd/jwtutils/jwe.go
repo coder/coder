@@ -27,7 +27,7 @@ type DecryptKeyProvider interface {
 func Encrypt(ctx context.Context, e EncryptKeyProvider, claims Claims) (string, error) {
 	id, key, err := e.EncryptingKey(ctx)
 	if err != nil {
-		return "", xerrors.Errorf("get signing key: %w", err)
+		return "", xerrors.Errorf("encrypting key: %w", err)
 	}
 
 	encrypter, err := jose.NewEncrypter(
