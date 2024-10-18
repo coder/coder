@@ -65,6 +65,8 @@ type WorkspaceProxy struct {
 // owner client. If a token is provided, the proxy will become a replica of the
 // existing proxy region.
 func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Client, options *ProxyOptions) WorkspaceProxy {
+	t.Helper()
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 
@@ -142,8 +144,10 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 		statsCollectorOptions.Flush = options.FlushStats
 	}
 
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug).With(slog.F("server_url", serverURL.String()))
+
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
-		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug).With(slog.F("server_url", serverURL.String())),
+		Logger:            logger,
 		Experiments:       options.Experiments,
 		DashboardURL:      coderdAPI.AccessURL,
 		AccessURL:         accessURL,

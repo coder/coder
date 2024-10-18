@@ -17,6 +17,8 @@ import (
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -42,7 +44,10 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
 		var (
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			_          = dbgen.CryptoKey(t, db, database.CryptoKey{
+				Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
+			})
 			firstUser = coderdtest.CreateFirstUser(t, client)
 			authToken = uuid.NewString()
 			agentName = "agent"
