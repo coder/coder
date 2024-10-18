@@ -41,7 +41,7 @@ func TestVSCodeSSH(t *testing.T) {
 	admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 	first := coderdtest.CreateFirstUser(t, admin)
 	client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent().Do()
