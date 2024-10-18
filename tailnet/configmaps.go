@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,9 +15,11 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/dnstype"
 	"tailscale.com/types/ipproto"
 	"tailscale.com/types/key"
 	"tailscale.com/types/netmap"
+	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/filter"
 	"tailscale.com/wgengine/router"
@@ -27,6 +30,10 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
+
+// DefaultMagicDNSSuffix is the default DNS suffix that we append to Coder DNS
+// records. It does not have a trailing dot.
+const DefaultMagicDNSSuffix = ".coder"
 
 const lostTimeout = 15 * time.Minute
 
@@ -201,6 +208,8 @@ func (c *configMaps) netMapLocked() *netmap.NetworkMap {
 	nm := new(netmap.NetworkMap)
 	*nm = c.static
 
+	nm.DNS.Domains = []string{DefaultMagicDNSSuffix}
+
 	nm.Addresses = make([]netip.Prefix, len(c.addresses))
 	copy(nm.Addresses, c.addresses)
 
@@ -314,8 +323,64 @@ func (c *configMaps) reconfig(nm *netmap.NetworkMap) {
 		return
 	}
 
-	rc := &router.Config{LocalAddrs: nm.Addresses}
-	err = c.engine.Reconfig(cfg, rc, &dns.Config{}, &tailcfg.Debug{})
+	rc := &router.Config{
+		LocalAddrs: nm.Addresses,
+		// TODO: @deansheather Routes
+	}
+
+	routes := make(map[dnsname.FQDN][]*dnstype.Resolver, len(nm.DNS.Routes))
+	for d, r := range nm.DNS.Routes {
+		if d == "" {
+			continue
+		}
+		// TODO: @deansheather do trailing dot rules match???
+		if !strings.HasSuffix(d, ".") {
+			d += "."
+		}
+		routes[dnsname.FQDN(d)] = r
+	}
+	searchDomains := make([]dnsname.FQDN, len(nm.DNS.Domains))
+	for i, d := range nm.DNS.Domains {
+		if d == "" {
+			continue
+		}
+		// TODO: @deansheather do trailing dot rules match???
+		searchDomains[i] = dnsname.FQDN(d)
+	}
+	hosts := make(map[dnsname.FQDN][]netip.Addr, len(nm.Peers))
+	for _, p := range nm.Peers {
+		if p.Name != "" && len(p.Addresses) > 0 {
+			// We only want to return a single address for each IP version.
+			var (
+				addrs    = make([]netip.Addr, 0, 2)
+				haveIPv4 bool
+				haveIPv6 bool
+			)
+			for _, a := range p.Addresses {
+				if a.Addr().Is4() && !haveIPv4 {
+					addrs = append(addrs, a.Addr())
+					haveIPv4 = true
+				}
+				if a.Addr().Is6() && !haveIPv6 {
+					addrs = append(addrs, a.Addr())
+					haveIPv6 = true
+				}
+				if haveIPv4 && haveIPv6 {
+					break
+				}
+			}
+			hosts[dnsname.FQDN(p.Name)] = addrs
+		}
+	}
+	dc := &dns.Config{
+		DefaultResolvers: nm.DNS.Resolvers,
+		Routes:           routes,
+		SearchDomains:    searchDomains,
+		Hosts:            hosts,
+		OnlyIPv6:         true,
+	}
+
+	err = c.engine.Reconfig(cfg, rc, dc, &tailcfg.Debug{})
 	if err != nil {
 		if errors.Is(err, wgengine.ErrNoChanges) {
 			return
@@ -564,6 +629,7 @@ func (c *configMaps) protoNodeToTailcfg(p *proto.Node) (*tailcfg.Node, error) {
 	}
 	return &tailcfg.Node{
 		ID:         tailcfg.NodeID(p.GetId()),
+		Name:       node.Name,
 		Created:    c.clock.Now(),
 		Key:        node.Key,
 		DiscoKey:   node.DiscoKey,
