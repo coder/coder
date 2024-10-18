@@ -1594,7 +1594,7 @@ type fakeHandler struct {
 	succeeded, failed []string
 }
 
-func (f *fakeHandler) Dispatcher(_ template.FuncMap, payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string, _ template.FuncMap) (dispatch.DeliveryFunc, error) {
 	return func(_ context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()

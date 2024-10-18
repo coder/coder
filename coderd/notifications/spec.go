@@ -30,7 +30,7 @@ type Store interface {
 // Handler is responsible for preparing and delivering a notification by a given method.
 type Handler interface {
 	// Dispatcher constructs a DeliveryFunc to be used for delivering a notification via the chosen method.
-	Dispatcher(helpers template.FuncMap, payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error)
+	Dispatcher(payload types.MessagePayload, title, body string, helpers template.FuncMap) (dispatch.DeliveryFunc, error)
 }
 
 // Enqueuer enqueues a new notification message in the store and returns its ID, should it enqueue without failure.

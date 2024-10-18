@@ -480,7 +480,7 @@ func TestSMTP(t *testing.T) {
 				Labels:    make(map[string]string),
 			}
 
-			dispatchFn, err := handler.Dispatcher(helpers, payload, subject, body)
+			dispatchFn, err := handler.Dispatcher(payload, subject, body, helpers())
 			require.NoError(t, err)
 
 			msgID := uuid.New()

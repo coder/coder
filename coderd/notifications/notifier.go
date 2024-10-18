@@ -228,22 +228,10 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, xerrors.Errorf("failed to resolve handler %q", msg.Method)
 	}
 
-	helpers := make(template.FuncMap)
-	for k, v := range n.helpers {
-		helpers[k] = v
-	}
-
-	appName, err := n.fetchAppName(ctx)
+	helpers, err := n.fetchHelpers(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("fetch app name: %w", err)
+		return nil, xerrors.Errorf("fetch helpers: %w", err)
 	}
-	logoURL, err := n.fetchLogoURL(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("fetch logo URL: %w", err)
-	}
-
-	helpers["app_name"] = func() string { return appName }
-	helpers["logo_url"] = func() string { return logoURL }
 
 	var title, body string
 	if title, err = render.GoTemplate(msg.TitleTemplate, payload, helpers); err != nil {
@@ -253,7 +241,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return handler.Dispatcher(helpers, payload, title, body)
+	return handler.Dispatcher(payload, title, body, helpers)
 }
 
 // deliver sends a given notification message via its defined method.

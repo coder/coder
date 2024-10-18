@@ -206,7 +206,7 @@ type santaHandler struct {
 	nice    atomic.Int32
 }
 
-func (s *santaHandler) Dispatcher(_ template.FuncMap, payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (s *santaHandler) Dispatcher(payload types.MessagePayload, _, _ string, _ template.FuncMap) (dispatch.DeliveryFunc, error) {
 	return func(_ context.Context, _ uuid.UUID) (retryable bool, err error) {
 		if payload.Labels["nice"] != "true" {
 			s.naughty.Add(1)

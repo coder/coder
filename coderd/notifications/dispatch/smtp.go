@@ -61,7 +61,7 @@ func NewSMTPHandler(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *SMT
 	return &SMTPHandler{cfg: cfg, log: log}
 }
 
-func (s *SMTPHandler) Dispatcher(helpers template.FuncMap, payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
+func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string, helpers template.FuncMap) (DeliveryFunc, error) {
 	// First render the subject & body into their own discrete strings.
 	subject, err := markdown.PlaintextFromMarkdown(titleTmpl)
 	if err != nil {

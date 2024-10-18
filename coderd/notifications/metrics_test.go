@@ -516,8 +516,8 @@ func newBarrierHandler(total int, handler notifications.Handler) *barrierHandler
 	}
 }
 
-func (bh *barrierHandler) Dispatcher(helpers template.FuncMap, payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	deliverFn, err := bh.h.Dispatcher(helpers, payload, title, body)
+func (bh *barrierHandler) Dispatcher(payload types.MessagePayload, title, body string, helpers template.FuncMap) (dispatch.DeliveryFunc, error) {
+	deliverFn, err := bh.h.Dispatcher(payload, title, body, helpers)
 	if err != nil {
 		return nil, err
 	}

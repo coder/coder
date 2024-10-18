@@ -4,9 +4,31 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"text/template"
 
 	"golang.org/x/xerrors"
 )
+
+func (n *notifier) fetchHelpers(ctx context.Context) (map[string]any, error) {
+	appName, err := n.fetchAppName(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch app name: %w", err)
+	}
+	logoURL, err := n.fetchLogoURL(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch logo URL: %w", err)
+	}
+
+	helpers := make(template.FuncMap)
+	for k, v := range n.helpers {
+		helpers[k] = v
+	}
+
+	helpers["app_name"] = func() string { return appName }
+	helpers["logo_url"] = func() string { return logoURL }
+
+	return helpers, nil
+}
 
 func (n *notifier) fetchAppName(ctx context.Context) (string, error) {
 	appName, err := n.store.GetApplicationName(ctx)
@@ -14,7 +36,7 @@ func (n *notifier) fetchAppName(ctx context.Context) (string, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return notificationsDefaultAppName, nil
 		}
-		return "", xerrors.Errorf("get organization: %w", err)
+		return "", xerrors.Errorf("get application name: %w", err)
 	}
 	return appName, nil
 }
