@@ -1,15 +1,15 @@
 import type { Interpolation, Theme } from "@emotion/react";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
+import Button from "@mui/material/Button";
+import Collapse from "@mui/material/Collapse";
+import Skeleton from "@mui/material/Skeleton";
 import type { AgentScriptTiming, ProvisionerTiming } from "api/typesGenerated";
 import { type FC, useState } from "react";
 import { type TimeRange, calcDuration, mergeTimeRanges } from "./Chart/utils";
 import { ResourcesChart } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import { type StageCategory, StagesChart, stages } from "./StagesChart";
-import { KeyboardArrowDown } from "@mui/icons-material";
-import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
-import Collapse from "@mui/material/Collapse";
-import Button from "@mui/material/Button";
-import Skeleton from "@mui/material/Skeleton";
 
 type TimingView =
 	| { name: "default" }

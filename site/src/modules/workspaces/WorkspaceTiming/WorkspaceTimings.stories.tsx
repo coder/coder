@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { WorkspaceTimings } from "./WorkspaceTimings";
 import { WorkspaceTimingsResponse } from "./storybookData";
-import { userEvent, within, expect, waitFor } from "@storybook/test";
 
 const meta: Meta<typeof WorkspaceTimings> = {
 	title: "modules/workspaces/WorkspaceTimings",
