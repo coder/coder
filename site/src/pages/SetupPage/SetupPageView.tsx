@@ -57,9 +57,9 @@ const validationSchema = Yup.object({
 		.email(Language.emailInvalid)
 		.required(Language.emailRequired),
 	password: Yup.string()
-	.min(6, Language.passwordTooShort)
-	.max(64, Language.passwordTooLong)
-	.required(Language.passwordRequired),
+		.min(6, Language.passwordTooShort)
+		.max(64, Language.passwordTooLong)
+		.required(Language.passwordRequired),
 	username: nameValidator(Language.usernameLabel),
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {
