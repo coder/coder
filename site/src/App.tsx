@@ -1,4 +1,6 @@
 import "./theme/globalFonts";
+import createCache from "@emotion/cache";
+import { CacheProvider } from "@emotion/react";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
 	type FC,
@@ -38,6 +40,11 @@ declare global {
 	}
 }
 
+const cache = createCache({
+	key: "css",
+	prepend: true,
+});
+
 export const AppProviders: FC<AppProvidersProps> = ({
 	children,
 	queryClient = defaultQueryClient,
@@ -64,17 +71,19 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	}, []);
 
 	return (
-		<HelmetProvider>
-			<QueryClientProvider client={queryClient}>
-				<AuthProvider>
-					<ThemeProvider>
-						{children}
-						<GlobalSnackbar />
-					</ThemeProvider>
-				</AuthProvider>
-				{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
-			</QueryClientProvider>
-		</HelmetProvider>
+		<CacheProvider value={cache}>
+			<HelmetProvider>
+				<QueryClientProvider client={queryClient}>
+					<AuthProvider>
+						<ThemeProvider>
+							{children}
+							<GlobalSnackbar />
+						</ThemeProvider>
+					</AuthProvider>
+					{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
+				</QueryClientProvider>
+			</HelmetProvider>
+		</CacheProvider>
 	);
 };
 
