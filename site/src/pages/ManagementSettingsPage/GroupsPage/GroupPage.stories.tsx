@@ -53,7 +53,10 @@ export const LoadingGroup: Story = {
 
 export const GroupError: Story = {
 	parameters: {
-		queries: [groupQuery(new Error("test group error")), permissionsQuery({})],
+		queries: [
+			{ ...groupQuery(new Error("test group error")), isError: true },
+			permissionsQuery({}),
+		],
 	},
 };
 
@@ -90,7 +93,7 @@ export const MembersError: Story = {
 		queries: [
 			groupQuery(MockGroup),
 			permissionsQuery({ canUpdateGroup: true }),
-			membersQuery(new Error("test members error")),
+			{ ...membersQuery(new Error("test members error")), isError: true },
 		],
 	},
 	play: async ({ canvasElement }) => {
