@@ -3,7 +3,12 @@ package tailnet_test
 import (
 	"context"
 	"database/sql"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -18,16 +23,27 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/tailnet"
+	"github.com/coder/coder/v2/provisioner/echo"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 func TestMain(m *testing.M) {
@@ -82,11 +98,11 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
-	defer agent.Close(ctx)
-	agent.UpdateDERP(10)
+	agent1 := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent1.Close(ctx)
+	agent1.UpdateDERP(10)
 	require.Eventually(t, func() bool {
-		agents, err := store.GetTailnetPeers(ctx, agent.ID)
+		agents, err := store.GetTailnetPeers(ctx, agent1.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
 		}
@@ -99,8 +115,8 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 		assert.EqualValues(t, 10, node.PreferredDerp)
 		return true
 	}, testutil.WaitShort, testutil.IntervalFast)
-	agent.UngracefulDisconnect(ctx)
-	assertEventuallyLost(ctx, t, store, agent.ID)
+	agent1.UngracefulDisconnect(ctx)
+	assertEventuallyLost(ctx, t, store, agent1.ID)
 }
 
 func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
@@ -116,9 +132,9 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
-	defer agent.Close(ctx)
-	agent.UpdateNode(&proto.Node{
+	agent1 := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent1.Close(ctx)
+	agent1.UpdateNode(&proto.Node{
 		Addresses: []string{
 			agpl.TailscaleServicePrefix.RandomPrefix().String(),
 		},
@@ -126,8 +142,8 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 	})
 
 	// The agent connection should be closed immediately after sending an invalid addr
-	agent.AssertEventuallyResponsesClosed()
-	assertEventuallyLost(ctx, t, store, agent.ID)
+	agent1.AssertEventuallyResponsesClosed()
+	assertEventuallyLost(ctx, t, store, agent1.ID)
 }
 
 func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
@@ -143,18 +159,18 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
-	defer agent.Close(ctx)
-	agent.UpdateNode(&proto.Node{
+	agent1 := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent1.Close(ctx)
+	agent1.UpdateNode(&proto.Node{
 		Addresses: []string{
-			netip.PrefixFrom(agpl.TailscaleServicePrefix.AddrFromUUID(agent.ID), 64).String(),
+			netip.PrefixFrom(agpl.TailscaleServicePrefix.AddrFromUUID(agent1.ID), 64).String(),
 		},
 		PreferredDerp: 10,
 	})
 
 	// The agent connection should be closed immediately after sending an invalid addr
-	agent.AssertEventuallyResponsesClosed()
-	assertEventuallyLost(ctx, t, store, agent.ID)
+	agent1.AssertEventuallyResponsesClosed()
+	assertEventuallyLost(ctx, t, store, agent1.ID)
 }
 
 func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
@@ -170,16 +186,16 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
-	defer agent.Close(ctx)
-	agent.UpdateNode(&proto.Node{
+	agent1 := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent1.Close(ctx)
+	agent1.UpdateNode(&proto.Node{
 		Addresses: []string{
-			agpl.TailscaleServicePrefix.PrefixFromUUID(agent.ID).String(),
+			agpl.TailscaleServicePrefix.PrefixFromUUID(agent1.ID).String(),
 		},
 		PreferredDerp: 10,
 	})
 	require.Eventually(t, func() bool {
-		agents, err := store.GetTailnetPeers(ctx, agent.ID)
+		agents, err := store.GetTailnetPeers(ctx, agent1.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			t.Fatalf("database error: %v", err)
 		}
@@ -192,8 +208,8 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 		assert.EqualValues(t, 10, node.PreferredDerp)
 		return true
 	}, testutil.WaitShort, testutil.IntervalFast)
-	agent.UngracefulDisconnect(ctx)
-	assertEventuallyLost(ctx, t, store, agent.ID)
+	agent1.UngracefulDisconnect(ctx)
+	assertEventuallyLost(ctx, t, store, agent1.ID)
 }
 
 func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
@@ -209,39 +225,39 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "original")
-	defer agent.Close(ctx)
-	agent.UpdateDERP(10)
+	agent1 := agpltest.NewAgent(ctx, t, coordinator, "original")
+	defer agent1.Close(ctx)
+	agent1.UpdateDERP(10)
 
-	client := agpltest.NewClient(ctx, t, coordinator, "client", agent.ID)
+	client := agpltest.NewClient(ctx, t, coordinator, "client", agent1.ID)
 	defer client.Close(ctx)
 
-	client.AssertEventuallyHasDERP(agent.ID, 10)
+	client.AssertEventuallyHasDERP(agent1.ID, 10)
 	client.UpdateDERP(11)
-	agent.AssertEventuallyHasDERP(client.ID, 11)
+	agent1.AssertEventuallyHasDERP(client.ID, 11)
 
 	// Ensure an update to the agent node reaches the connIO!
-	agent.UpdateDERP(12)
-	client.AssertEventuallyHasDERP(agent.ID, 12)
+	agent1.UpdateDERP(12)
+	client.AssertEventuallyHasDERP(agent1.ID, 12)
 
 	// Close the agent channel so a new one can connect.
-	agent.Close(ctx)
+	agent1.Close(ctx)
 
 	// Create a new agent connection. This is to simulate a reconnect!
-	agent = agpltest.NewPeer(ctx, t, coordinator, "reconnection", agpltest.WithID(agent.ID))
+	agent1 = agpltest.NewPeer(ctx, t, coordinator, "reconnection", agpltest.WithID(agent1.ID))
 	// Ensure the coordinator sends its client node immediately!
-	agent.AssertEventuallyHasDERP(client.ID, 11)
+	agent1.AssertEventuallyHasDERP(client.ID, 11)
 
 	// Send a bunch of updates in rapid succession, and test that we eventually get the latest.  We don't want the
 	// coordinator accidentally reordering things.
 	for d := int32(13); d < 36; d++ {
-		agent.UpdateDERP(d)
+		agent1.UpdateDERP(d)
 	}
-	client.AssertEventuallyHasDERP(agent.ID, 35)
+	client.AssertEventuallyHasDERP(agent1.ID, 35)
 
-	agent.UngracefulDisconnect(ctx)
+	agent1.UngracefulDisconnect(ctx)
 	client.UngracefulDisconnect(ctx)
-	assertEventuallyLost(ctx, t, store, agent.ID)
+	assertEventuallyLost(ctx, t, store, agent1.ID)
 	assertEventuallyLost(ctx, t, store, client.ID)
 }
 
@@ -264,16 +280,16 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
-	defer agent.Close(ctx)
-	agent.UpdateDERP(10)
+	agent1 := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent1.Close(ctx)
+	agent1.UpdateDERP(10)
 
-	client := agpltest.NewClient(ctx, t, coordinator, "client", agent.ID)
+	client := agpltest.NewClient(ctx, t, coordinator, "client", agent1.ID)
 	defer client.Close(ctx)
 
-	client.AssertEventuallyHasDERP(agent.ID, 10)
+	client.AssertEventuallyHasDERP(agent1.ID, 10)
 	client.UpdateDERP(11)
-	agent.AssertEventuallyHasDERP(client.ID, 11)
+	agent1.AssertEventuallyHasDERP(client.ID, 11)
 
 	// simulate a second coordinator via DB calls only --- our goal is to test broken heart-beating, so we can't use a
 	// real coordinator
@@ -287,8 +303,8 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	fCoord2.heartbeat()
 	afTrap.MustWait(ctx).Release() // heartbeat timeout started
 
-	fCoord2.agentNode(agent.ID, &agpl.Node{PreferredDERP: 12})
-	client.AssertEventuallyHasDERP(agent.ID, 12)
+	fCoord2.agentNode(agent1.ID, &agpl.Node{PreferredDERP: 12})
+	client.AssertEventuallyHasDERP(agent1.ID, 12)
 
 	fCoord3 := &fakeCoordinator{
 		ctx:   ctx,
@@ -298,8 +314,8 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	}
 	fCoord3.heartbeat()
 	rstTrap.MustWait(ctx).Release() // timeout gets reset
-	fCoord3.agentNode(agent.ID, &agpl.Node{PreferredDERP: 13})
-	client.AssertEventuallyHasDERP(agent.ID, 13)
+	fCoord3.agentNode(agent1.ID, &agpl.Node{PreferredDERP: 13})
+	client.AssertEventuallyHasDERP(agent1.ID, 13)
 
 	// fCoord2 sends in a second heartbeat, one period later (on time)
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
@@ -312,20 +328,20 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	w := mClock.Advance(tailnet.HeartbeatPeriod)
 	rstTrap.MustWait(ctx).Release()
 	w.MustWait(ctx)
-	client.AssertEventuallyHasDERP(agent.ID, 12)
+	client.AssertEventuallyHasDERP(agent1.ID, 12)
 
 	// one more heartbeat period will result in fCoord2 being expired, which should cause us to
 	// revert to the original agent mapping
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
 	// note that the timeout doesn't get reset because both fCoord2 and fCoord3 are expired
-	client.AssertEventuallyHasDERP(agent.ID, 10)
+	client.AssertEventuallyHasDERP(agent1.ID, 10)
 
 	// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
 	fCoord3.heartbeat()
 	rstTrap.MustWait(ctx).Release() // timeout gets reset
-	client.AssertEventuallyHasDERP(agent.ID, 13)
+	client.AssertEventuallyHasDERP(agent1.ID, 13)
 
-	agent.UngracefulDisconnect(ctx)
+	agent1.UngracefulDisconnect(ctx)
 	client.UngracefulDisconnect(ctx)
 	assertEventuallyLost(ctx, t, store, client.ID)
 }
@@ -750,35 +766,35 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := agpltest.NewAgent(ctx, t, coordinator, "original")
-	defer agent.Close(ctx)
-	agent.UpdateDERP(10)
+	agent1 := agpltest.NewAgent(ctx, t, coordinator, "original")
+	defer agent1.Close(ctx)
+	agent1.UpdateDERP(10)
 
-	client := agpltest.NewClient(ctx, t, coordinator, "client", agent.ID)
+	client := agpltest.NewClient(ctx, t, coordinator, "client", agent1.ID)
 	defer client.Close(ctx)
 
 	// Simulate some traffic to generate
 	// a peer.
-	client.AssertEventuallyHasDERP(agent.ID, 10)
+	client.AssertEventuallyHasDERP(agent1.ID, 10)
 	client.UpdateDERP(11)
 
-	agent.AssertEventuallyHasDERP(client.ID, 11)
+	agent1.AssertEventuallyHasDERP(client.ID, 11)
 
-	anode := coordinator.Node(agent.ID)
+	anode := coordinator.Node(agent1.ID)
 	require.NotNil(t, anode)
 	cnode := coordinator.Node(client.ID)
 	require.NotNil(t, cnode)
 
 	err = coordinator.Close()
 	require.NoError(t, err)
-	assertEventuallyLost(ctx, t, store, agent.ID)
+	assertEventuallyLost(ctx, t, store, agent1.ID)
 	assertEventuallyLost(ctx, t, store, client.ID)
 
 	coordinator2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator2.Close()
 
-	anode = coordinator2.Node(agent.ID)
+	anode = coordinator2.Node(agent1.ID)
 	require.NotNil(t, anode)
 	assert.Equal(t, 10, anode.PreferredDERP)
 
@@ -913,6 +929,287 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
 }
 
+// restartableListener is a TCP listener that can have all of it's connections
+// severed on demand.
+type restartableListener struct {
+	net.Listener
+	mu    sync.Mutex
+	conns []net.Conn
+}
+
+func (l *restartableListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	l.mu.Lock()
+	l.conns = append(l.conns, conn)
+	l.mu.Unlock()
+	return conn, nil
+}
+
+func (l *restartableListener) CloseConnections() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, conn := range l.conns {
+		_ = conn.Close()
+	}
+	l.conns = nil
+}
+
+type restartableTestServer struct {
+	options *coderdenttest.Options
+	rl      *restartableListener
+
+	mu     sync.Mutex
+	api    *coderd.API
+	closer io.Closer
+}
+
+func newRestartableTestServer(t *testing.T, options *coderdenttest.Options) (*codersdk.Client, codersdk.CreateFirstUserResponse, *restartableTestServer) {
+	t.Helper()
+	if options == nil {
+		options = &coderdenttest.Options{}
+	}
+
+	s := &restartableTestServer{
+		options: options,
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		api := s.api
+		s.mu.Unlock()
+
+		if api == nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte("server is not started"))
+			return
+		}
+		api.AGPL.RootHandler.ServeHTTP(w, r)
+	}))
+	s.rl = &restartableListener{Listener: srv.Listener}
+	srv.Listener = s.rl
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	u, err := url.Parse(srv.URL)
+	require.NoError(t, err, "failed to parse server URL")
+	s.options.AccessURL = u
+
+	client, firstUser := s.startWithFirstUser(t)
+	client.URL = u
+	return client, firstUser, s
+}
+
+func (s *restartableTestServer) Stop(t *testing.T) {
+	t.Helper()
+
+	s.mu.Lock()
+	closer := s.closer
+	s.closer = nil
+	api := s.api
+	s.api = nil
+	s.mu.Unlock()
+
+	if closer != nil {
+		err := closer.Close()
+		require.NoError(t, err)
+	}
+	if api != nil {
+		err := api.Close()
+		require.NoError(t, err)
+	}
+
+	s.rl.CloseConnections()
+}
+
+func (s *restartableTestServer) Start(t *testing.T) {
+	t.Helper()
+	_, _ = s.startWithFirstUser(t)
+}
+
+func (s *restartableTestServer) startWithFirstUser(t *testing.T) (client *codersdk.Client, firstUser codersdk.CreateFirstUserResponse) {
+	t.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closer != nil || s.api != nil {
+		t.Fatal("server already started, close must be called first")
+	}
+	// This creates it's own TCP listener unfortunately, but it's not being
+	// used in this test.
+	client, s.closer, s.api, firstUser = coderdenttest.NewWithAPI(t, s.options)
+
+	// Never add the first user or license on subsequent restarts.
+	s.options.DontAddFirstUser = true
+	s.options.DontAddLicense = true
+
+	return client, firstUser
+}
+
+// Test_CoordinatorRollingRestart tests that two peers can maintain a connection
+// without forgetting about each other when a HA coordinator does a rolling
+// restart.
+//
+// We had a few issues with this in the past:
+//  1. We didn't allow clients to maintain their peer ID after a reconnect,
+//     which resulted in the other peer thinking the client was a new peer.
+//     (This is fixed and independently tested in AGPL code)
+//  2. HA coordinators would delete all peers (via FK constraints) when they
+//     were closed, which meant tunnels would be deleted and peers would be
+//     notified that the other peer was permanently gone.
+//     (This is fixed and independently tested above)
+//
+// This test uses a real server and real clients.
+func TestConn_CoordinatorRollingRestart(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	// Although DERP will have connection issues until the connection is
+	// reestablished, any open connections should be maintained.
+	//
+	// Direct connections should be able to transmit packets throughout the
+	// restart without issue.
+	for _, direct := range []bool{true, false} {
+		direct := direct
+		name := "DERP"
+		if direct {
+			name = "Direct"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			store, ps := dbtestutil.NewDB(t)
+			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+				dv.DERP.Config.BlockDirect = serpent.Bool(!direct)
+			})
+			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+			// Create two restartable test servers with the same database.
+			client1, user, s1 := newRestartableTestServer(t, &coderdenttest.Options{
+				DontAddFirstUser: false,
+				DontAddLicense:   false,
+				Options: &coderdtest.Options{
+					Logger:                   ptr.Ref(logger.Named("server1")),
+					Database:                 store,
+					Pubsub:                   ps,
+					DeploymentValues:         dv,
+					IncludeProvisionerDaemon: true,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureHighAvailability: 1,
+					},
+				},
+			})
+			client2, _, s2 := newRestartableTestServer(t, &coderdenttest.Options{
+				DontAddFirstUser: true,
+				DontAddLicense:   true,
+				Options: &coderdtest.Options{
+					Logger:           ptr.Ref(logger.Named("server2")),
+					Database:         store,
+					Pubsub:           ps,
+					DeploymentValues: dv,
+				},
+			})
+			client2.SetSessionToken(client1.SessionToken())
+
+			authToken := uuid.NewString()
+			version := coderdtest.CreateTemplateVersion(t, client1, user.OrganizationID, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionPlan:  echo.PlanComplete,
+				ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+			})
+			template := coderdtest.CreateTemplate(t, client1, user.OrganizationID, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client1, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client1, template.ID)
+			_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client1, workspace.LatestBuild.ID)
+
+			// Agent connects via the first coordinator.
+			_ = agenttest.New(t, client1.URL, authToken, func(o *agent.Options) {
+				o.Logger = logger.Named("agent1")
+			})
+			resources := coderdtest.NewWorkspaceAgentWaiter(t, client1, workspace.ID).Wait()
+
+			agentID := uuid.Nil
+			for _, r := range resources {
+				for _, a := range r.Agents {
+					agentID = a.ID
+					break
+				}
+			}
+			require.NotEqual(t, uuid.Nil, agentID)
+
+			// Client connects via the second coordinator.
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+			defer cancel()
+			workspaceClient2 := workspacesdk.New(client2)
+			conn, err := workspaceClient2.DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
+				Logger: logger.Named("client"),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			_, p2p, _, err := conn.Ping(ctx)
+			require.NoError(t, err)
+			require.Equal(t, direct, p2p, "mismatched p2p state")
+
+			// Open a TCP server and connection to it through the tunnel that
+			// should be maintained throughout the restart.
+			tcpServerAddr := tcpEchoServer(t)
+			tcpConn, err := conn.DialContext(ctx, "tcp", tcpServerAddr)
+			require.NoError(t, err)
+			defer tcpConn.Close()
+			writeReadEcho(t, ctx, tcpConn)
+
+			// Stop the first server.
+			logger.Info(ctx, "test: stopping server 1")
+			s1.Stop(t)
+
+			// Pings should fail on DERP but succeed on direct connections.
+			pingCtx, pingCancel := context.WithTimeout(ctx, 2*time.Second) //nolint:gocritic // it's going to hang and timeout for DERP, so this needs to be short
+			defer pingCancel()
+			_, p2p, _, err = conn.Ping(pingCtx)
+			if direct {
+				require.NoError(t, err)
+				require.True(t, p2p, "expected direct connection")
+			} else {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+			}
+
+			// The existing TCP connection should still be working if we're
+			// using direct connections.
+			if direct {
+				writeReadEcho(t, ctx, tcpConn)
+			}
+
+			// Start the first server again.
+			logger.Info(ctx, "test: starting server 1")
+			s1.Start(t)
+
+			// Restart the second server.
+			logger.Info(ctx, "test: stopping server 2")
+			s2.Stop(t)
+			logger.Info(ctx, "test: starting server 2")
+			s2.Start(t)
+
+			// Pings should eventually succeed on both DERP and direct
+			// connections.
+			require.True(t, conn.AwaitReachable(ctx))
+			_, p2p, _, err = conn.Ping(ctx)
+			require.NoError(t, err)
+			require.Equal(t, direct, p2p, "mismatched p2p state")
+
+			// The existing TCP connection should still be working.
+			writeReadEcho(t, ctx, tcpConn)
+		})
+	}
+}
+
 func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {
 	t.Helper()
 	assert.Eventually(t, func() bool {
@@ -977,4 +1274,55 @@ func (c *fakeCoordinator) agentNode(agentID uuid.UUID, node *agpl.Node) {
 		Status:        database.TailnetStatusOk,
 	})
 	require.NoError(c.t, err)
+}
+
+func tcpEchoServer(t *testing.T) string {
+	var listenerWg sync.WaitGroup
+	tcpListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = tcpListener.Close()
+		listenerWg.Wait()
+	})
+	listenerWg.Add(1)
+	go func() {
+		defer listenerWg.Done()
+		for {
+			conn, err := tcpListener.Accept()
+			if err != nil {
+				return
+			}
+			listenerWg.Add(1)
+			go func() {
+				defer listenerWg.Done()
+				defer conn.Close()
+				_, _ = io.Copy(conn, conn)
+			}()
+		}
+	}()
+
+	return tcpListener.Addr().String()
+}
+
+// nolint:revive // t takes precedence.
+func writeReadEcho(t *testing.T, ctx context.Context, conn net.Conn) {
+	const msg = "hello, world"
+
+	deadline, ok := ctx.Deadline()
+	if ok {
+		_ = conn.SetWriteDeadline(deadline)
+		defer conn.SetWriteDeadline(time.Time{})
+		_ = conn.SetReadDeadline(deadline)
+		defer conn.SetReadDeadline(time.Time{})
+	}
+
+	// Write a message
+	_, err := conn.Write([]byte(msg))
+	require.NoError(t, err)
+
+	// Read the message back
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, msg, string(buf[:n]))
 }
