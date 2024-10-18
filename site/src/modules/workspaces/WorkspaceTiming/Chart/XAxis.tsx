@@ -174,7 +174,6 @@ const styles = {
 		alignItems: "center",
 		width: "fit-content",
 		gap: 8,
-		cursor: "pointer",
 		height: 32,
 	},
 	grid: {
