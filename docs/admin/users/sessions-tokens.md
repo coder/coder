@@ -51,10 +51,15 @@ See the help docs for
 
 ### Generate a long-lived API token on behalf of another user
 
-Today, you must use the REST API to generate a token on behalf of another user.
-You must have the `Owner` role to do this. Use our API reference for more
-information:
-[Create token API key](https://coder.com/docs/reference/api/users#create-token-api-key)
+As of Coder v2.17+, you can create long-lived tokens on behalf of other users if
+your account is `Owner`. Use the following command:
+
+```sh
+coder tokens create my-token --user <username>
+```
+
+> See the full API reference for
+> [`coder tokens create`](../../reference/cli/tokens_create.md)
 
 ### Set max token length
 
