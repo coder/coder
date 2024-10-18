@@ -241,7 +241,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 								Valid: true,
 							},
 						})
-
 						if err != nil {
 							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 						}

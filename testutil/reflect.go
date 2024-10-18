@@ -128,7 +128,7 @@ func populateValue(v reflect.Value, r *Random) (reflect.Value, error) {
 
 		s.Index(0).Set(sv)
 		s.Index(1).Set(sv)
-		//reflect.AppendSlice(s, sv)
+		// reflect.AppendSlice(s, sv)
 
 		return s, nil
 	case reflect.Uintptr, reflect.UnsafePointer, reflect.Chan, reflect.Func, reflect.Interface:
