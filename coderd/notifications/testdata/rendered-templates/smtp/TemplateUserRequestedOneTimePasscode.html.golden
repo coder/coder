@@ -12,9 +12,9 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-A request to reset the password for your Coder account has been made.
+Use the link below to reset your password.
 
-If you did not request to reset your password, you can ignore this message.
+If you did not make this request, you can ignore this message.
 
 
 Reset password: http://test.com/reset-password/change?otp=3Dfad9020b-6562-4=
@@ -50,11 +50,9 @@ argin: 8px 0 32px; line-height: 1.5;">
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
 
-<p>A request to reset the password for your Coder account has been made.</p=
->
+<p>Use the link below to reset your password.</p>
 
-<p>If you did not request to reset your password, you can ignore this messa=
-ge.</p>
+<p>If you did not make this request, you can ignore this message.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
