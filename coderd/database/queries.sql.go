@@ -14960,7 +14960,7 @@ WHERE
 	-- Filter by owner_name
 	AND CASE
 		WHEN $8 :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower($8) AND deleted = false)
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(owner_username) = lower($8) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name

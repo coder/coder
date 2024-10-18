@@ -1780,7 +1780,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		return workspaceData{}, xerrors.Errorf("get workspace builds: %w", err)
 	}
 
-	data, err := api.workspaceBuildsData(ctx, workspaces, builds)
+	data, err := api.workspaceBuildsData(ctx, builds)
 	if err != nil {
 		return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
 	}
