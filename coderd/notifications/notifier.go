@@ -27,6 +27,10 @@ const (
 	notificationsDefaultAppName = "Coder"
 )
 
+var (
+	errFetchfailed = xerrors.New("failed to fetch helpers")
+)
+
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {
@@ -168,7 +172,11 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
 			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
-			failure <- n.newFailedDispatch(msg, err, false)
+			if xerrors.Is(err, errFetchfailed) {
+				failure <- n.newFailedDispatch(msg, err, true)
+			} else {
+				failure <- n.newFailedDispatch(msg, err, false)
+			}
 
 			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 			continue
@@ -230,7 +238,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 
 	helpers, err := n.fetchHelpers(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("fetch helpers: %w", err)
+		return nil, errFetchfailed
 	}
 
 	var title, body string
