@@ -30,6 +30,8 @@ export const Language = {
 	usernameLabel: "Username",
 	emailInvalid: "Please enter a valid email address.",
 	emailRequired: "Please enter an email address.",
+	passwordTooShort: "Password should be at least 6 characters.",
+	passwordTooLong: "Password should be no more than 64 characters.",
 	passwordRequired: "Please enter a password.",
 	create: "Create account",
 	welcomeMessage: <>Welcome to Coder</>,
@@ -54,7 +56,10 @@ const validationSchema = Yup.object({
 		.trim()
 		.email(Language.emailInvalid)
 		.required(Language.emailRequired),
-	password: Yup.string().required(Language.passwordRequired),
+	password: Yup.string()
+	.min(6, Language.passwordTooShort)
+	.max(64, Language.passwordTooLong)
+	.required(Language.passwordRequired),
 	username: nameValidator(Language.usernameLabel),
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {

@@ -5,6 +5,7 @@
 package userpassword_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,32 @@ import (
 
 func TestUserPassword(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Invalid - Too short password", func(t *testing.T) {
+		t.Parallel()
+		err := userpassword.Validate("pass")
+		require.Error(t, err)
+	})
+
+	t.Run("Invalid - Too long password", func(t *testing.T) {
+		t.Parallel()
+
+		var sb strings.Builder
+		for i := 0; i < 65; i++ {
+			sb.WriteString("a")
+		}
+
+		err := userpassword.Validate(sb.String())
+		require.Error(t, err)
+	})
+
+	t.Run("Ok", func(t *testing.T) {
+		t.Parallel()
+
+		err := userpassword.Validate("CorrectPassword")
+		require.NoError(t, err)
+	})
+
 	t.Run("Legacy", func(t *testing.T) {
 		t.Parallel()
 		// Ensures legacy v1 passwords function for v2.
