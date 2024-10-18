@@ -1656,6 +1656,13 @@ func (m metricsStore) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaces, err
 }
 
+func (m metricsStore) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspacesAndAgentsByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetWorkspacesAndAgentsByOwnerID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	start := time.Now()
 	workspaces, err := m.s.GetWorkspacesEligibleForTransition(ctx, now)
