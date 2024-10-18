@@ -1,6 +1,6 @@
+import { css } from "@emotion/css";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
-import { Tooltip, TooltipLink, TooltipTitle } from "./Chart/Tooltip";
 import { type FC, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar } from "./Chart/Bar";
@@ -13,6 +13,7 @@ import {
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
+import { Tooltip, TooltipLink, TooltipTitle } from "./Chart/Tooltip";
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
@@ -30,7 +31,6 @@ import {
 	mergeTimeRanges,
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
-import { css } from "@emotion/css";
 
 const legendsByAction: Record<string, ChartLegend> = {
 	"state refresh": {

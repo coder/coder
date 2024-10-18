@@ -9,6 +9,7 @@ import {
 	ChartSearch,
 	ChartToolbar,
 } from "./Chart/Chart";
+import { Tooltip, TooltipTitle } from "./Chart/Tooltip";
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
@@ -26,7 +27,6 @@ import {
 	mergeTimeRanges,
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
-import { Tooltip, TooltipTitle } from "./Chart/Tooltip";
 
 const legendsByStatus: Record<string, ChartLegend> = {
 	ok: {

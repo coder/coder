@@ -1,11 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import ErrorSharp from "@mui/icons-material/ErrorSharp";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import { Tooltip, type TooltipProps, TooltipTitle } from "./Chart/Tooltip";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
+import { Tooltip, type TooltipProps, TooltipTitle } from "./Chart/Tooltip";
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
