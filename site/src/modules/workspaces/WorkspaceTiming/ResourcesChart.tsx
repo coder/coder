@@ -17,7 +17,7 @@ import {
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
-	YAxisCaption,
+	YAxisHeader,
 	YAxisLabel,
 	YAxisLabels,
 	YAxisSection,
@@ -114,7 +114,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 			<ChartContent>
 				<YAxis>
 					<YAxisSection>
-						<YAxisCaption>{stage} stage</YAxisCaption>
+						<YAxisHeader>{stage} stage</YAxisHeader>
 						<YAxisLabels>
 							{visibleTimings.map((t) => (
 								<YAxisLabel key={t.name} id={encodeURIComponent(t.name)}>

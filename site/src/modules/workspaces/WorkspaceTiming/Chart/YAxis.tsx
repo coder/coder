@@ -1,9 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { FC, HTMLProps } from "react";
-import { XAxisLabelsHeight, XAxisRowsGap } from "./constants";
-
-export const YAxisWidth = 200;
-export const YAxisSidePadding = 16;
 
 export const YAxis: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return <div css={styles.root} {...props} />;
@@ -13,8 +9,8 @@ export const YAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return <section {...props} css={styles.section} />;
 };
 
-export const YAxisCaption: FC<HTMLProps<HTMLSpanElement>> = (props) => {
-	return <span css={styles.caption} {...props} />;
+export const YAxisHeader: FC<HTMLProps<HTMLSpanElement>> = (props) => {
+	return <header css={styles.header} {...props} />;
 };
 
 export const YAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
@@ -35,7 +31,7 @@ export const YAxisLabel: FC<YAxisLabelProps> = ({ id, ...props }) => {
 
 const styles = {
 	root: {
-		width: YAxisWidth,
+		width: "var(--y-axis-width)",
 		flexShrink: 0,
 	},
 	section: (theme) => ({
@@ -43,16 +39,16 @@ const styles = {
 			borderTop: `1px solid ${theme.palette.divider}`,
 		},
 	}),
-	caption: (theme) => ({
-		height: XAxisLabelsHeight,
+	header: (theme) => ({
+		height: "var(--header-height)",
 		display: "flex",
 		alignItems: "center",
 		borderBottom: `1px solid ${theme.palette.divider}`,
 		fontSize: 10,
 		fontWeight: 500,
 		color: theme.palette.text.secondary,
-		paddingLeft: YAxisSidePadding,
-		paddingRight: YAxisSidePadding,
+		paddingLeft: "var(--section-padding)",
+		paddingRight: "var(--section-padding)",
 		position: "sticky",
 		top: 0,
 		background: theme.palette.background.default,
@@ -62,9 +58,9 @@ const styles = {
 		listStyle: "none",
 		display: "flex",
 		flexDirection: "column",
-		gap: XAxisRowsGap,
+		gap: "var(--x-axis-rows-gap)",
 		textAlign: "right",
-		padding: YAxisSidePadding,
+		padding: "var(--section-padding)",
 	},
 	label: {
 		display: "flex",

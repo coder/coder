@@ -7,7 +7,6 @@ import {
 import type { FC, HTMLProps } from "react";
 import React, { useEffect, useRef } from "react";
 import type { BarColors } from "./Bar";
-import { YAxisSidePadding, YAxisWidth } from "./YAxis";
 
 export const Chart = (props: HTMLProps<HTMLDivElement>) => {
 	return <div css={styles.chart} {...props} />;
@@ -128,6 +127,11 @@ export const ChartLegends: FC<ChartLegendsProps> = ({ legends }) => {
 
 const styles = {
 	chart: {
+		"--header-height": "40px",
+		"--section-padding": "16px",
+		"--x-axis-rows-gap": "20px",
+		"--y-axis-width": "200px",
+
 		height: "100%",
 		display: "flex",
 		flexDirection: "column",
@@ -165,8 +169,8 @@ const styles = {
 	breadcrumbs: (theme) => ({
 		listStyle: "none",
 		margin: 0,
-		width: YAxisWidth,
-		padding: YAxisSidePadding,
+		width: "var(--y-axis-width)",
+		padding: "var(--section-padding)",
 		display: "flex",
 		alignItems: "center",
 		gap: 4,
@@ -227,7 +231,7 @@ const styles = {
 		display: "flex",
 		alignItems: "center",
 		gap: 24,
-		paddingRight: YAxisSidePadding,
+		paddingRight: "var(--section-padding)",
 	},
 	legend: {
 		fontWeight: 500,

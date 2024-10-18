@@ -10,7 +10,7 @@ import { Chart, ChartContent } from "./Chart/Chart";
 import { XAxis, XAxisRow, XAxisSection } from "./Chart/XAxis";
 import {
 	YAxis,
-	YAxisCaption,
+	YAxisHeader,
 	YAxisLabel,
 	YAxisLabels,
 	YAxisSection,
@@ -145,7 +145,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 
 						return (
 							<YAxisSection key={c.id}>
-								<YAxisCaption>{c.name}</YAxisCaption>
+								<YAxisHeader>{c.name}</YAxisHeader>
 								<YAxisLabels>
 									{stagesInCategory.map((stage) => (
 										<YAxisLabel

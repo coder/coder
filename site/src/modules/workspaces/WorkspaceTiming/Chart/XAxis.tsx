@@ -1,11 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { type FC, type HTMLProps, useLayoutEffect, useRef } from "react";
-import { YAxisSidePadding } from "./YAxis";
-import { CSSVars, XAxisLabelsHeight, XAxisRowsGap } from "./constants";
 import { formatTime } from "./utils";
 
-export const XAxisMinWidth = 130;
-export const XAxisSidePadding = 16;
+const XAxisMinWidth = 130;
 
 type XAxisProps = HTMLProps<HTMLDivElement> & {
 	ticks: number[];
@@ -27,7 +24,7 @@ export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 		// is fully visible.
 		const avgWidth = rootEl.clientWidth / (ticks.length + 1);
 		avgWidth > XAxisMinWidth ? avgWidth : XAxisMinWidth;
-		rootEl.style.setProperty(CSSVars.xAxisWidth, `${avgWidth}px`);
+		rootEl.style.setProperty("--x-axis-width", `${avgWidth}px`);
 	}, [ticks]);
 
 	return (
@@ -58,9 +55,9 @@ export const XAxisLabel: FC<HTMLProps<HTMLLIElement>> = (props) => {
 					// 2. Shift the label to the left by half of the column width.
 					// Note: This adjustment is not applied to the first element,
 					// as the 0 label/value is not displayed in the chart.
-					width: `calc(var(${CSSVars.xAxisWidth}) * 2)`,
+					width: "calc(var(--x-axis-width) * 2)",
 					"&:not(:first-child)": {
-						marginLeft: `calc(-1 * var(${CSSVars.xAxisWidth}))`,
+						marginLeft: "calc(-1 * var(--x-axis-width))",
 					},
 				},
 			]}
@@ -115,7 +112,7 @@ export const XGrid: FC<XGridProps> = ({ columns, ...htmlProps }) => {
 			{[...Array(columns).keys()].map((key) => (
 				<div
 					key={key}
-					css={[styles.column, { width: `var(${CSSVars.xAxisWidth})` }]}
+					css={[styles.column, { width: "var(--x-axis-width)" }]}
 				/>
 			))}
 		</div>
@@ -145,7 +142,7 @@ const styles = {
 		width: "fit-content",
 		alignItems: "center",
 		borderBottom: `1px solid ${theme.palette.divider}`,
-		height: XAxisLabelsHeight,
+		height: "var(--header-height)",
 		padding: 0,
 		minWidth: "100%",
 		flexShrink: 0,
@@ -164,12 +161,11 @@ const styles = {
 	section: (theme) => ({
 		display: "flex",
 		flexDirection: "column",
-		gap: XAxisRowsGap,
-		padding: XAxisSidePadding,
+		gap: "var(--x-axis-rows-gap)",
+		padding: "var(--section-padding)",
 
-		// Keep spacing aligned with the Y axis.
 		"&:not(:first-of-type)": {
-			paddingTop: YAxisSidePadding + XAxisLabelsHeight,
+			paddingTop: "calc(var(--section-padding) + var(--header-height))",
 			borderTop: `1px solid ${theme.palette.divider}`,
 		},
 	}),
