@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	passwordvalidator "github.com/wagslane/go-password-validator"
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -138,10 +137,8 @@ func hashWithSaltAndIter(password string, salt []byte, iter int) string {
 // It returns properly formatted errors for detailed form validation on the client.
 func Validate(password string) error {
 	// Ensure passwords are secure enough!
-	// See: https://github.com/wagslane/go-password-validator#what-entropy-value-should-i-use
-	err := passwordvalidator.Validate(password, 52)
-	if err != nil {
-		return err
+	if len(password) < 6 {
+		return xerrors.Errorf("password must be at least %d characters", 6)
 	}
 	if len(password) > 64 {
 		return xerrors.Errorf("password must be no more than %d characters", 64)
