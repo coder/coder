@@ -40,10 +40,11 @@ func TestUpdateStates(t *testing.T) {
 			Name: "tpl",
 		}
 		workspace = database.Workspace{
-			ID:         uuid.New(),
-			OwnerID:    user.ID,
-			TemplateID: template.ID,
-			Name:       "xyz",
+			ID:           uuid.New(),
+			OwnerID:      user.ID,
+			TemplateID:   template.ID,
+			Name:         "xyz",
+			TemplateName: template.Name,
 		}
 		agent = database.WorkspaceAgent{
 			ID:   uuid.New(),
@@ -127,10 +128,7 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
-			Workspace:    workspace,
-			TemplateName: template.Name,
-		}, nil)
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
@@ -225,10 +223,7 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
-			Workspace:    workspace,
-			TemplateName: template.Name,
-		}, nil)
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// Workspace last used at gets bumped.
 		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
@@ -350,10 +345,7 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
-			Workspace:    workspace,
-			TemplateName: template.Name,
-		}, nil)
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// We expect an activity bump because ConnectionCount > 0. However, the
 		// next autostart time will be set on the bump.
@@ -461,10 +453,7 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
-			Workspace:    workspace,
-			TemplateName: template.Name,
-		}, nil)
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{

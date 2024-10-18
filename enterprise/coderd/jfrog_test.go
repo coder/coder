@@ -29,7 +29,7 @@ func TestJFrogXrayScan(t *testing.T) {
 
 		tac, ta := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-		wsResp := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        ta.ID,
 		}).WithAgent().Do()
