@@ -39,7 +39,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch/smtptest"
@@ -63,11 +62,6 @@ func TestMain(m *testing.M) {
 // passes it off to a fake handler, and ensures the results are synchronized to the store.
 func TestBasicNotificationRoundtrip(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -130,8 +124,6 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 func TestSMTPDispatch(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
@@ -190,8 +182,6 @@ func TestSMTPDispatch(t *testing.T) {
 
 func TestWebhookDispatch(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -269,11 +259,6 @@ func TestWebhookDispatch(t *testing.T) {
 // As a side-effect, this also tests the graceful shutdown and flushing of the buffers.
 func TestBackpressure(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -359,11 +344,6 @@ func TestBackpressure(t *testing.T) {
 
 func TestRetries(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	const maxAttempts = 3
 	// nolint:gocritic // Unit test.
@@ -453,11 +433,6 @@ func TestRetries(t *testing.T) {
 // they have been processed.
 func TestExpiredLeaseIsRequeued(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -580,8 +555,6 @@ func TestInvalidConfig(t *testing.T) {
 func TestNotifierPaused(t *testing.T) {
 	t.Parallel()
 
-	// Setup.
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
@@ -689,10 +662,6 @@ func enumerateAllTemplates(t *testing.T) ([]string, error) {
 
 func TestNotificationTemplates_Golden(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on the notification templates added by migrations in the database")
-	}
 
 	const (
 		username = "bob"
@@ -1281,11 +1250,6 @@ func normalizeGoldenWebhook(content []byte) []byte {
 func TestDisabledBeforeEnqueue(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
-	}
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
@@ -1315,11 +1279,6 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 // sent, and will instead be marked as "inhibited".
 func TestDisabledAfterEnqueue(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
-	}
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -1372,18 +1331,12 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 func TestCustomNotificationMethod(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	_, _, api := coderdtest.NewWithAPI(t, nil)
 
 	received := make(chan uuid.UUID, 1)
 
-	// SETUP:
 	// Start mock server to simulate webhook endpoint.
 	mockWebhookSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload dispatch.WebhookPayload
@@ -1474,12 +1427,6 @@ func TestCustomNotificationMethod(t *testing.T) {
 func TestNotificationsTemplates(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		// Notification system templates are only served from the database and not dbmem at this time.
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	api := coderdtest.New(t, createOpts(t))
@@ -1511,11 +1458,6 @@ func createOpts(t *testing.T) *coderdtest.Options {
 // TestNotificationDuplicates validates that identical notifications cannot be sent on the same day.
 func TestNotificationDuplicates(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing the dedupe hash trigger in the database")
-	}
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))

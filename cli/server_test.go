@@ -1795,9 +1795,6 @@ func TestServerYAMLConfig(t *testing.T) {
 func TestConnectToPostgres(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test does not make sense without postgres")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	t.Cleanup(cancel)
 

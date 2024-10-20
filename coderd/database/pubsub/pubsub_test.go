@@ -19,9 +19,6 @@ import (
 
 func TestPGPubsub_Metrics(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	connectionURL, closePg, err := dbtestutil.Open()
@@ -123,9 +120,6 @@ func TestPGPubsub_Metrics(t *testing.T) {
 
 func TestPGPubsubDriver(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{

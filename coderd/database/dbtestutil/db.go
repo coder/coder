@@ -24,11 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
-// WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
-func WillUsePostgres() bool {
-	return os.Getenv("DB") != ""
-}
-
 type options struct {
 	fixedTimezone string
 	dumpOnFailure bool
@@ -73,10 +68,6 @@ func withReturnSQLDB(f func(*sql.DB)) Option {
 
 func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub, *sql.DB) {
 	t.Helper()
-
-	if !WillUsePostgres() {
-		t.Fatal("cannot use NewDBWithSQLDB without PostgreSQL, consider adding `if !dbtestutil.WillUsePostgres() { t.Skip() }` to this test")
-	}
 
 	var sqlDB *sql.DB
 	opts = append(opts, withReturnSQLDB(func(db *sql.DB) {

@@ -21,10 +21,6 @@ import (
 func TestGroupsAuth(t *testing.T) {
 	t.Parallel()
 
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("this test would take too long to run on postgres")
-	}
-
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
 
 	store, _ := dbtestutil.NewDB(t)

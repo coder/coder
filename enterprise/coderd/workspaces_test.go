@@ -499,10 +499,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 	t.Run("NoDeadlock", func(t *testing.T) {
 		t.Parallel()
 
-		if !dbtestutil.WillUsePostgres() {
-			t.Skipf("Skipping non-postgres run")
-		}
-
 		var (
 			ticker      = make(chan time.Time)
 			statCh      = make(chan autobuild.Stats)

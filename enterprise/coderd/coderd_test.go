@@ -62,10 +62,6 @@ func TestEntitlements(t *testing.T) {
 		require.Equal(t, fmt.Sprintf("%p", api.Entitlements), fmt.Sprintf("%p", api.AGPL.Entitlements))
 	})
 	t.Run("FullLicense", func(t *testing.T) {
-		// PGCoordinator requires a real postgres
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("test only with postgres")
-		}
 		t.Parallel()
 		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging:   true,
