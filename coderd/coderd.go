@@ -462,7 +462,9 @@ func New(options *Options) *API {
 			fetcher,
 			codersdk.CryptoKeyFeatureOIDCConvert,
 		)
-		options.Logger.Critical(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
+		if err != nil {
+			options.Logger.Critical(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
+		}
 	}
 
 	if options.AppSigningKeyCache == nil {
@@ -471,7 +473,9 @@ func New(options *Options) *API {
 			fetcher,
 			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
 		)
-		options.Logger.Critical(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
+		if err != nil {
+			options.Logger.Critical(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
+		}
 	}
 
 	if options.AppEncryptionKeyCache == nil {
@@ -480,7 +484,9 @@ func New(options *Options) *API {
 			fetcher,
 			codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		)
-		options.Logger.Critical(ctx, "failed to properly instantiate app encryption key cache", slog.Error(err))
+		if err != nil {
+			options.Logger.Critical(ctx, "failed to properly instantiate app encryption key cache", slog.Error(err))
+		}
 	}
 
 	// Start a background process that rotates keys. We intentionally start this after the caches
