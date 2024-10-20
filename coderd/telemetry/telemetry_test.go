@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/testutil"
@@ -36,7 +36,7 @@ func TestTelemetry(t *testing.T) {
 
 		var err error
 
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		_, _ = dbgen.APIKey(t, db, database.APIKey{})
@@ -111,7 +111,7 @@ func TestTelemetry(t *testing.T) {
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		_ = dbgen.User(t, db, database.User{
 			Email: "kyle@coder.com",
 		})
@@ -124,7 +124,7 @@ func TestTelemetry(t *testing.T) {
 // nolint:paralleltest
 func TestTelemetryInstallSource(t *testing.T) {
 	t.Setenv("CODER_TELEMETRY_INSTALL_SOURCE", "aws_marketplace")
-	db := dbmem.New()
+	db, _ := dbtestutil.NewDB(t)
 	deployment, _ := collectSnapshot(t, db, nil)
 	require.Equal(t, "aws_marketplace", deployment.InstallSource)
 }

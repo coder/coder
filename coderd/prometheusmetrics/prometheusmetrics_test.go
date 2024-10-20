@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -50,13 +49,14 @@ func TestActiveUsers(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func(t *testing.T) database.Store {
-			return dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
+			return db
 		},
 		Count: 0,
 	}, {
 		Name: "One",
 		Database: func(t *testing.T) database.Store {
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
 			})
@@ -66,7 +66,7 @@ func TestActiveUsers(t *testing.T) {
 	}, {
 		Name: "OneWithExpired",
 		Database: func(t *testing.T) database.Store {
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
@@ -83,7 +83,7 @@ func TestActiveUsers(t *testing.T) {
 	}, {
 		Name: "Multiple",
 		Database: func(t *testing.T) database.Store {
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
 			})
@@ -123,13 +123,14 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func() database.Store {
-			return dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
+			return db
 		},
 		Total: 0,
 	}, {
 		Name: "Multiple",
 		Database: func() database.Store {
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			insertCanceled(t, db)
 			insertFailed(t, db)
 			insertFailed(t, db)
@@ -196,13 +197,14 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func() database.Store {
-			return dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
+			return db
 		},
 		ExpectedWorkspaces: 0,
 	}, {
 		Name: "Multiple",
 		Database: func() database.Store {
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			insertTemplates(t, db)
 			insertCanceled(t, db)
 			insertFailed(t, db)

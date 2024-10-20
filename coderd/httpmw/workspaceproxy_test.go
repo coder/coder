@@ -13,7 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -33,9 +33,9 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 	t.Run("NoHeader", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 		)
 		httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
 			DB: db,
@@ -48,9 +48,9 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 	t.Run("InvalidFormat", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 		)
 		r.Header.Set(httpmw.WorkspaceProxyAuthTokenHeader, "test:wow-hello")
 
@@ -65,9 +65,9 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 	t.Run("InvalidID", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 		)
 		r.Header.Set(httpmw.WorkspaceProxyAuthTokenHeader, "test:wow")
 
@@ -82,9 +82,9 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 	t.Run("InvalidSecretLength", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 		)
 		r.Header.Set(httpmw.WorkspaceProxyAuthTokenHeader, fmt.Sprintf("%s:%s", uuid.NewString(), "wow"))
 
@@ -99,9 +99,9 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 		)
 
 		secret, err := cryptorand.HexString(64)
@@ -119,9 +119,9 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 	t.Run("InvalidSecret", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 
 			proxy, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 		)
@@ -142,9 +142,9 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 
 			proxy, secret = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 		)
@@ -165,9 +165,9 @@ func TestExtractWorkspaceProxy(t *testing.T) {
 	t.Run("Deleted", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 
 			proxy, secret = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 		)
@@ -201,9 +201,9 @@ func TestExtractWorkspaceProxyParam(t *testing.T) {
 	t.Run("OKName", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 
 			proxy, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 		)
@@ -225,9 +225,9 @@ func TestExtractWorkspaceProxyParam(t *testing.T) {
 	t.Run("OKID", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 
 			proxy, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 		)
@@ -249,9 +249,9 @@ func TestExtractWorkspaceProxyParam(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db = dbmem.New()
-			r  = httptest.NewRequest("GET", "/", nil)
-			rw = httptest.NewRecorder()
+			db, _ = dbtestutil.NewDB(t)
+			r     = httptest.NewRequest("GET", "/", nil)
+			rw    = httptest.NewRecorder()
 		)
 
 		routeContext := chi.NewRouteContext()
@@ -267,7 +267,7 @@ func TestExtractWorkspaceProxyParam(t *testing.T) {
 	t.Run("FetchPrimary", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db           = dbmem.New()
+			db, _        = dbtestutil.NewDB(t)
 			r            = httptest.NewRequest("GET", "/", nil)
 			rw           = httptest.NewRecorder()
 			deploymentID = uuid.New()

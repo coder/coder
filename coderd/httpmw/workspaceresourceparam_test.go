@@ -12,7 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
@@ -46,7 +46,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceResourceParam(db))
 		rtr.Get("/", nil)
@@ -61,7 +61,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),
@@ -80,7 +80,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("FoundBadJobType", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),
@@ -102,7 +102,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractWorkspaceResourceParam(db),

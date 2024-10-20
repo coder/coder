@@ -76,7 +76,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
 	"github.com/coder/coder/v2/coderd/database/dbpurge"
 	"github.com/coder/coder/v2/coderd/database/migrations"
@@ -585,7 +584,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				AppHostname:                 appHostname,
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
-				Database:                    dbmem.New(),
+				Database:                    nil,
 				BaseDERPMap:                 derpMap,
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
@@ -689,33 +688,28 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
 			var pubsubWatchdogTimeout <-chan struct{}
-			if vals.InMemoryDatabase {
-				// This is only used for testing.
-				options.Database = dbmem.New()
-				options.Pubsub = pubsub.NewInMemory()
-			} else {
-				sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
-				if err != nil {
-					return xerrors.Errorf("connect to postgres: %w", err)
-				}
-				defer func() {
-					_ = sqlDB.Close()
-				}()
 
-				options.Database = database.New(sqlDB)
-				ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
-				if err != nil {
-					return xerrors.Errorf("create pubsub: %w", err)
-				}
-				options.Pubsub = ps
-				if options.DeploymentValues.Prometheus.Enable {
-					options.PrometheusRegistry.MustRegister(ps)
-				}
-				defer options.Pubsub.Close()
-				psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
-				pubsubWatchdogTimeout = psWatchdog.Timeout()
-				defer psWatchdog.Close()
+			sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+			if err != nil {
+				return xerrors.Errorf("connect to postgres: %w", err)
 			}
+			defer func() {
+				_ = sqlDB.Close()
+			}()
+
+			options.Database = database.New(sqlDB)
+			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			if err != nil {
+				return xerrors.Errorf("create pubsub: %w", err)
+			}
+			options.Pubsub = ps
+			if options.DeploymentValues.Prometheus.Enable {
+				options.PrometheusRegistry.MustRegister(ps)
+			}
+			defer options.Pubsub.Close()
+			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
+			pubsubWatchdogTimeout = psWatchdog.Timeout()
+			defer psWatchdog.Close()
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
 				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
