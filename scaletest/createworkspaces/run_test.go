@@ -15,8 +15,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -57,11 +55,8 @@ func Test_Runner(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-		})
-		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -348,11 +343,8 @@ func Test_Runner(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-		})
-		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
