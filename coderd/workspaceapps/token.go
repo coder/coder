@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -17,7 +18,7 @@ import (
 // contains the details of the workspace app that the token is valid for to
 // avoid database queries.
 type SignedToken struct {
-	jwt.Claims
+	jwtutils.RegisteredClaims
 	// Request details.
 	Request `json:"request"`
 
@@ -49,8 +50,26 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 }
 
 type EncryptedAPIKeyPayload struct {
-	jwt.Claims
+	jwtutils.RegisteredClaims
 	APIKey string `json:"api_key"`
+}
+
+func (e *EncryptedAPIKeyPayload) Fill(now time.Time) {
+	e.Issuer = "coderd"
+	e.Audience = jwt.Audience{"wsproxy"}
+	e.Expiry = jwt.NewNumericDate(now.Add(time.Minute))
+	e.NotBefore = jwt.NewNumericDate(now.Add(-time.Minute))
+}
+
+func (e EncryptedAPIKeyPayload) Validate(ex jwt.Expected) error {
+	if e.NotBefore == nil {
+		return xerrors.Errorf("not before is required")
+	}
+
+	ex.Issuer = "coderd"
+	ex.AnyAudience = jwt.Audience{"wsproxy"}
+
+	return e.RegisteredClaims.Validate(ex)
 }
 
 // FromRequest returns the signed token from the request, if it exists and is

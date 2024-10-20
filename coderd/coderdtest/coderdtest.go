@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -88,6 +89,7 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 type Options struct {
@@ -158,6 +160,8 @@ type Options struct {
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
 	NotificationsEnqueuer              notifications.Enqueuer
+	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
+	Clock                              quartz.Clock
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -532,6 +536,8 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			WorkspaceUsageTracker:              wuTracker,
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
+			Clock:                              options.Clock,
+			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 		}
 }
 

@@ -287,7 +287,7 @@ func Test_ResolveRequest(t *testing.T) {
 					_ = w.Body.Close()
 
 					require.Equal(t, &workspaceapps.SignedToken{
-						Claims: jwt.Claims{
+						RegisteredClaims: jwtutils.RegisteredClaims{
 							Expiry: jwt.NewNumericDate(token.Expiry.Time()),
 						},
 						Request:     req,
@@ -554,7 +554,7 @@ func Test_ResolveRequest(t *testing.T) {
 				// App name differs
 				AppSlugOrPort: appNamePublic,
 			}).Normalize(),
-			Claims: jwt.Claims{
+			RegisteredClaims: jwtutils.RegisteredClaims{
 				Expiry: jwt.NewNumericDate(time.Now().Add(time.Minute)),
 			},
 			UserID:      me.ID,

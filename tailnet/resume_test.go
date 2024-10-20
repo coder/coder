@@ -93,7 +93,7 @@ func TestResumeTokenKeyProvider(t *testing.T) {
 
 func newKeySigner(key tailnet.ResumeTokenSigningKey) cryptokeys.StaticKey {
 	return cryptokeys.StaticKey{
-		ID:  uuid.New().String(),
+		ID:  "123",
 		Key: key[:],
 	}
 }

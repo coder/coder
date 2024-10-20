@@ -39,12 +39,20 @@ type DBTokenProvider struct {
 	DeploymentValues              *codersdk.DeploymentValues
 	OAuth2Configs                 *httpmw.OAuth2Configs
 	WorkspaceAgentInactiveTimeout time.Duration
-	TokenSigner                   cryptokeys.SigningKeycache
+	Keycache                      cryptokeys.SigningKeycache
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authorizer, db database.Store, cfg *codersdk.DeploymentValues, oauth2Cfgs *httpmw.OAuth2Configs, workspaceAgentInactiveTimeout time.Duration, signer cryptokeys.SigningKeycache) SignedTokenProvider {
+func NewDBTokenProvider(log slog.Logger,
+	accessURL *url.URL,
+	authz rbac.Authorizer,
+	db database.Store,
+	cfg *codersdk.DeploymentValues,
+	oauth2Cfgs *httpmw.OAuth2Configs,
+	workspaceAgentInactiveTimeout time.Duration,
+	signer cryptokeys.SigningKeycache,
+) SignedTokenProvider {
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
 	}
@@ -57,12 +65,12 @@ func NewDBTokenProvider(log slog.Logger, accessURL *url.URL, authz rbac.Authoriz
 		DeploymentValues:              cfg,
 		OAuth2Configs:                 oauth2Cfgs,
 		WorkspaceAgentInactiveTimeout: workspaceAgentInactiveTimeout,
-		TokenSigner:                   signer,
+		Keycache:                      signer,
 	}
 }
 
 func (p *DBTokenProvider) FromRequest(r *http.Request) (*SignedToken, bool) {
-	return FromRequest(r, p.TokenSigner)
+	return FromRequest(r, p.Keycache)
 }
 
 func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq IssueTokenRequest) (*SignedToken, string, bool) {
@@ -214,11 +222,11 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		return nil, "", false
 	}
 
-	// Sign the token.
-	token.Claims = jwt.Claims{
+	token.RegisteredClaims = jwtutils.RegisteredClaims{
 		Expiry: jwt.NewNumericDate(time.Now().Add(DefaultTokenExpiry)),
 	}
-	tokenStr, err := jwtutils.Sign(ctx, p.TokenSigner, token)
+	// Sign the token.
+	tokenStr, err := jwtutils.Sign(ctx, p.Keycache, token)
 	if err != nil {
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "generate token")
 		return nil, "", false

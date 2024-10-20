@@ -44,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -1590,44 +1589,6 @@ func TestServer(t *testing.T) {
 			w.Cancel()
 			w.RequireSuccess()
 		})
-	})
-
-	t.Run("CryptoKeysGenerated", func(t *testing.T) {
-		t.Parallel()
-		if testing.Short() {
-			t.SkipNow()
-		}
-
-		if runtime.GOOS != "linux" || testing.Short() {
-			// Skip on non-Linux because it spawns a PostgreSQL instance.
-			t.SkipNow()
-		}
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
-
-		inv, cfg := clitest.New(t,
-			"server",
-			"--http-address", ":0",
-			"--access-url", "http://example.com",
-			"--postgres-url", connectionURL,
-			"--cache-dir", t.TempDir(),
-		)
-
-		const superDuperLong = testutil.WaitSuperLong * 3
-		ctx := testutil.Context(t, superDuperLong)
-		clitest.Start(t, inv.WithContext(ctx))
-		_ = waitAccessURL(t, cfg)
-
-		logger := slogtest.Make(t, nil)
-		sqldb, err := cli.ConnectToPostgres(ctx, logger, "postgres", connectionURL)
-		require.NoError(t, err)
-		defer sqldb.Close()
-
-		db := database.New(sqldb)
-		keys, err := db.GetCryptoKeys(ctx)
-		require.NoError(t, err)
-		require.Len(t, keys, len(database.AllCryptoKeyFeatureValues()))
 	})
 }
 

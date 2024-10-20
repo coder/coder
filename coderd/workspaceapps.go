@@ -123,9 +123,11 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	encryptedAPIKey, err := jwtutils.Encrypt(ctx, api.AppEncryptionKeyCache, workspaceapps.EncryptedAPIKeyPayload{
+	payload := workspaceapps.EncryptedAPIKeyPayload{
 		APIKey: cookie.Value,
-	})
+	}
+	payload.Fill(api.Clock.Now())
+	encryptedAPIKey, err := jwtutils.Encrypt(ctx, api.AppEncryptionKeyCache, payload)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to encrypt API key.",

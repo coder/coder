@@ -70,7 +70,7 @@ func NewResumeTokenKeyProvider(key cryptokeys.SigningKeycache, clock quartz.Cloc
 
 func (p ResumeTokenKeyProvider) GenerateResumeToken(ctx context.Context, peerID uuid.UUID) (*proto.RefreshResumeTokenResponse, error) {
 	exp := p.clock.Now().Add(p.expiry)
-	payload := jwt.Claims{
+	payload := jwtutils.RegisteredClaims{
 		Subject: peerID.String(),
 		Expiry:  jwt.NewNumericDate(exp),
 	}

@@ -60,6 +60,10 @@ type OAuthConvertStateClaims struct {
 	ToLoginType   codersdk.LoginType `json:"to_login_type"`
 }
 
+func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
+	return o.Claims.Validate(e)
+}
+
 // postConvertLoginType replies with an oauth state token capable of converting
 // the user to an oauth user.
 //

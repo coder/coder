@@ -167,7 +167,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
 	require.NoError(t, err)
 	mgr := cryptokeys.StaticKey{
-		ID:  uuid.New().String(),
+		ID:  "123",
 		Key: resumeTokenSigningKey[:],
 	}
 	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour)

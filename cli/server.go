@@ -746,27 +746,24 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
 
-			// Start a background process that rotates keys.
-			err = cryptokeys.StartRotator(ctx, options.Logger.Named("keyrotator"), options.Database)
-			if err != nil {
-				return xerrors.Errorf("start key rotator: %w", err)
-			}
-
 			fetcher := &cryptokeys.DBFetcher{
 				DB: options.Database,
 			}
 
-			// TODO(JonA): The instantiation of this cache + coordinator seems like it should be done inside coderd so that it uses the correct context.
 			resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
 				logger,
 				fetcher,
 				codersdk.CryptoKeyFeatureTailnetResume,
 			)
 			if err != nil {
-				return xerrors.Errorf("create tailnet resume key cache: %w", err)
+				logger.Critical(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
 			}
 
-			options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(resumeKeycache, quartz.NewReal(), tailnet.DefaultResumeTokenExpiry)
+			options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
+				resumeKeycache,
+				quartz.NewReal(),
+				tailnet.DefaultResumeTokenExpiry,
+			)
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 

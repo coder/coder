@@ -59,7 +59,7 @@ func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, op
 	ctx = dbauthz.AsKeyRotator(ctx)
 	kr := &rotator{
 		db:          db,
-		logger:      logger,
+		logger:      logger.Named("keyrotator"),
 		clock:       quartz.NewReal(),
 		keyDuration: DefaultKeyDuration,
 		features:    database.AllCryptoKeyFeatureValues(),
