@@ -1,6 +1,6 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: Your One-Time Passcode for Coder.
+Subject: Reset your password for Coder
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -12,13 +12,13 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-A request to reset the password for your Coder account has been made. Your =
-one-time passcode is:
+Use the link below to reset your password.
 
-fad9020b-6562-4cdb-87f1-0486f1bea415
+If you did not make this request, you can ignore this message.
 
-If you did not request to reset your password, you can ignore this message.
 
+Reset password: http://test.com/reset-password/change?otp=3Dfad9020b-6562-4=
+cdb-87f1-0486f1bea415&email=3Dbobby@coder.com
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -30,7 +30,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Your One-Time Passcode for Coder.</title>
+    <title>Reset your password for Coder</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -45,20 +45,23 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Your One-Time Passcode for Coder.
+        Reset your password for Coder
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
 
-<p>A request to reset the password for your Coder account has been made. Yo=
-ur one-time passcode is:</p>
+<p>Use the link below to reset your password.</p>
 
-<p><strong>fad9020b-6562-4cdb-87f1-0486f1bea415</strong></p>
-
-<p>If you did not request to reset your password, you can ignore this messa=
-ge.</p>
+<p>If you did not make this request, you can ignore this message.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
+       =20
+        <a href=3D"http://test.com/reset-password/change?otp=3Dfad9020b-656=
+2-4cdb-87f1-0486f1bea415&email=3Dbobby@coder.com" style=3D"display: inline-=
+block; padding: 13px 24px; background-color: #020617; color: #f8fafc; text-=
+decoration: none; border-radius: 8px; margin: 0 4px;">
+          Reset password
+        </a>
        =20
       </div>
       <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=

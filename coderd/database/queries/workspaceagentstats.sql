@@ -188,8 +188,9 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
-	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 GROUP BY user_id, agent_id, workspace_id, template_id
+	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
 		a.agent_id,
@@ -332,9 +333,11 @@ WITH agent_stats AS (
 		agent_id,
 		workspace_id,
 		coalesce(SUM(rx_bytes), 0)::bigint AS rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes
+		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes,
+		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
 	FROM workspace_agent_stats
-	WHERE workspace_agent_stats.created_at > $1
+	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id
 ), latest_agent_stats AS (
 	SELECT
@@ -348,12 +351,6 @@ WITH agent_stats AS (
 	-- We only want the latest stats, but those stats might be
 	-- spread across multiple rows.
 	WHERE usage = true AND created_at > now() - '1 minute'::interval
-	GROUP BY user_id, agent_id, workspace_id
-), latest_agent_latencies AS (
-	SELECT
-		agent_id,
-		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
-	FROM workspace_agent_stats
 	GROUP BY user_id, agent_id, workspace_id
 )
 SELECT
@@ -370,10 +367,6 @@ LEFT JOIN
 	latest_agent_stats
 ON
 	agent_stats.agent_id = latest_agent_stats.agent_id
-JOIN
-	latest_agent_latencies
-ON
-	agent_stats.agent_id = latest_agent_latencies.agent_id
 JOIN
 	users
 ON

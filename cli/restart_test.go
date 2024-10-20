@@ -60,7 +60,115 @@ func TestRestart(t *testing.T) {
 		require.NoError(t, err, "execute failed")
 	})
 
-	t.Run("BuildOptions", func(t *testing.T) {
+	t.Run("PromptEphemeralParameters", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		inv, root := clitest.New(t, "restart", workspace.Name, "--prompt-ephemeral-parameters")
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			ephemeralParameterDescription, ephemeralParameterValue,
+			"Restart workspace?", "yes",
+			"Stopping workspace", "",
+			"Starting workspace", "",
+			"workspace has been restarted", "",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+
+			if value != "" {
+				pty.WriteLine(value)
+			}
+		}
+		<-doneChan
+
+		// Verify if build option is set
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, memberUser.ID.String(), workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+			Name:  ephemeralParameterName,
+			Value: ephemeralParameterValue,
+		})
+	})
+
+	t.Run("EphemeralParameterFlags", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		inv, root := clitest.New(t, "restart", workspace.Name,
+			"--ephemeral-parameter", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"Restart workspace?", "yes",
+			"Stopping workspace", "",
+			"Starting workspace", "",
+			"workspace has been restarted", "",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+
+			if value != "" {
+				pty.WriteLine(value)
+			}
+		}
+		<-doneChan
+
+		// Verify if build option is set
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, memberUser.ID.String(), workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+			Name:  ephemeralParameterName,
+			Value: ephemeralParameterValue,
+		})
+	})
+
+	t.Run("with deprecated build-options flag", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -114,7 +222,7 @@ func TestRestart(t *testing.T) {
 		})
 	})
 
-	t.Run("BuildOptionFlags", func(t *testing.T) {
+	t.Run("with deprecated build-option flag", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

@@ -40,6 +40,6 @@ export const ClearValue: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Clear field" }));
+		await userEvent.click(canvas.getByRole("button", { name: "Clear search" }));
 	},
 };

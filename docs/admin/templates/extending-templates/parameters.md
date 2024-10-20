@@ -204,10 +204,11 @@ operational issue, but it is not advised to overuse this opportunity.
 
 ## Ephemeral parameters
 
-Ephemeral parameters are introduced to users in the form of "build options." Use
-ephemeral parameters to model specific behaviors in a Coder workspace, such as
-reverting to a previous image, restoring from a volume snapshot, or building a
-project without using cache.
+Ephemeral parameters are introduced to users in order to model specific
+behaviors in a Coder workspace, such as reverting to a previous image, restoring
+from a volume snapshot, or building a project without using cache. These
+parameters are only settable when starting, updating, or restarting a workspace
+and do not persist after the workspace is stopped.
 
 Since these parameters are ephemeral in nature, subsequent builds proceed in the
 standard manner:
