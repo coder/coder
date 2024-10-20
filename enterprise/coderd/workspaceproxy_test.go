@@ -608,7 +608,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 func TestIssueSignedAppToken(t *testing.T) {
 	t.Parallel()
 
-	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+	client, user := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
@@ -617,10 +617,6 @@ func TestIssueSignedAppToken(t *testing.T) {
 				codersdk.FeatureWorkspaceProxy: 1,
 			},
 		},
-	})
-
-	_ = dbgen.CryptoKey(t, db, database.CryptoKey{
-		Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
 	})
 
 	// Create a workspace + apps
@@ -950,14 +946,18 @@ func TestGetCryptoKeys(t *testing.T) {
 		keys, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
-		require.Equal(t, 1, len(keys.CryptoKeys))
+		// 1 key is generated on startup, the other we manually generated.
+		require.Equal(t, 2, len(keys.CryptoKeys))
 		requireContainsKeys(t, keys.CryptoKeys, encryptionKey)
+		requireNotContainsKeys(t, keys.CryptoKeys, signingKey)
 
 		keys, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsToken)
 		require.NoError(t, err)
 		require.NotEmpty(t, keys)
-		require.Equal(t, 1, len(keys.CryptoKeys))
+		// 1 key is generated on startup, the other we manually generated.
+		require.Equal(t, 2, len(keys.CryptoKeys))
 		requireContainsKeys(t, keys.CryptoKeys, signingKey)
+		requireNotContainsKeys(t, keys.CryptoKeys, encryptionKey)
 	})
 
 	t.Run("InvalidFeature", func(t *testing.T) {
@@ -1028,6 +1028,18 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
+}
+
+func requireNotContainsKeys(t *testing.T, keys []codersdk.CryptoKey, unexpected ...codersdk.CryptoKey) {
+	t.Helper()
+
+	for _, unexpectedKey := range unexpected {
+		for _, key := range keys {
+			if key.Feature == unexpectedKey.Feature && key.Sequence == unexpectedKey.Sequence {
+				t.Fatalf("unexpected key %+v found", unexpectedKey)
+			}
+		}
+	}
 }
 
 func requireContainsKeys(t *testing.T, keys []codersdk.CryptoKey, expected ...codersdk.CryptoKey) {
