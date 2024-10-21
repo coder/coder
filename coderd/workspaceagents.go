@@ -253,7 +253,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		}
 
 		api.publishWorkspaceUpdate(ctx, workspace.Workspace.OwnerID, wspubsub.WorkspaceEvent{
-			Kind:        wspubsub.WorkspaceEventKindAgentLogsUpdate,
+			Kind:        wspubsub.WorkspaceEventKindAgentLogsOverflow,
 			WorkspaceID: workspace.Workspace.ID,
 			AgentID:     &workspaceAgent.ID,
 		})
@@ -285,7 +285,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		}
 
 		api.publishWorkspaceUpdate(ctx, workspace.Workspace.OwnerID, wspubsub.WorkspaceEvent{
-			Kind:        wspubsub.WorkspaceEventKindAgentLogsUpdate,
+			Kind:        wspubsub.WorkspaceEventKindAgentFirstLogs,
 			WorkspaceID: workspace.Workspace.ID,
 			AgentID:     &workspaceAgent.ID,
 		})

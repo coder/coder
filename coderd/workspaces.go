@@ -1698,9 +1698,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	defer cancelWorkspaceSubscribe()
 
 	// This is required to show whether the workspace is up-to-date.
-	cancelTemplateSubscribe, err := api.Pubsub.Subscribe(watchTemplateChannel(workspace.TemplateID), func(ctx context.Context, msg []byte) {
-		sendUpdate(ctx, nil)
-	})
+	cancelTemplateSubscribe, err := api.Pubsub.Subscribe(watchTemplateChannel(workspace.TemplateID), sendUpdate)
 	if err != nil {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
