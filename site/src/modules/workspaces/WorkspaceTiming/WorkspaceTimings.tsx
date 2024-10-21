@@ -7,7 +7,7 @@ import Skeleton from "@mui/material/Skeleton";
 import type { AgentScriptTiming, ProvisionerTiming } from "api/typesGenerated";
 import { type FC, useState } from "react";
 import { type TimeRange, calcDuration, mergeTimeRanges } from "./Chart/utils";
-import { ResourcesChart } from "./ResourcesChart";
+import { isCoderResource, ResourcesChart } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import { type StageCategory, StagesChart, stages } from "./StagesChart";
 
@@ -82,11 +82,17 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 										stageTimings.length === 0
 											? undefined
 											: mergeTimeRanges(stageTimings.map(extractRange));
+
+									// We don't want to allow users to inspect internal coder resources.
+									const visibleResources = stageTimings.filter(
+										(t) => "resource" in t && !isCoderResource(t.resource),
+									);
+
 									return {
 										range: stageRange,
 										name: s.name,
 										categoryID: s.categoryID,
-										resources: stageTimings.length,
+										visibleResources: visibleResources.length,
 										error: stageTimings.some(
 											(t) => "status" in t && t.status === "exit_failure",
 										),

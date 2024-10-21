@@ -128,11 +128,12 @@ export const stages: Stage[] = [
 type StageTiming = {
 	name: string;
 	/**
-	 * Represents the number of resources included in this stage. This value is
-	 * used to display individual blocks within the bar, indicating that the stage
-	 * consists of multiple resource time blocks.
+	/**
+	 * Represents the number of resources included in this stage that can be
+	 * inspected. This value is used to display individual blocks within the bar,
+	 * indicating that the stage consists of multiple resource time blocks.
 	 */
-	resources: number;
+	visibleResources: number;
 	/**
 	 * Represents the category of the stage. This value is used to group stages
 	 * together in the chart. For example, all provisioning stages are grouped
@@ -226,7 +227,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 											yAxisLabelId={encodeURIComponent(t.name)}
 										>
 											{/** We only want to expand stages with more than one resource */}
-											{t.resources > 1 ? (
+											{t.visibleResources > 1 ? (
 												<ClickableBar
 													scale={scale}
 													value={value}
@@ -244,7 +245,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 															}}
 														/>
 													)}
-													<Blocks count={t.resources} />
+													<Blocks count={t.visibleResources} />
 												</ClickableBar>
 											) : (
 												<Bar scale={scale} value={value} offset={offset} />

@@ -161,7 +161,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 	);
 };
 
-const isCoderResource = (resource: string) => {
+export const isCoderResource = (resource: string) => {
 	return (
 		resource.startsWith("data.coder") ||
 		resource.startsWith("module.coder") ||
