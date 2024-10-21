@@ -14,6 +14,21 @@ const (
 	keyIDHeaderKey = "kid"
 )
 
+// RegisteredClaims is a convenience type for embedding jwt.Claims. It should be
+// preferred over embedding jwt.Claims directly since it will ensure that certain fields are set.
+type RegisteredClaims jwt.Claims
+
+func (r RegisteredClaims) Validate(e jwt.Expected) error {
+	if r.Expiry == nil {
+		return xerrors.Errorf("expiry is required")
+	}
+	if e.Time.IsZero() {
+		return xerrors.Errorf("expected time is required")
+	}
+
+	return (jwt.Claims(r)).Validate(e)
+}
+
 // Claims defines the payload for a JWT. Most callers
 // should embed jwt.Claims
 type Claims interface {
@@ -73,6 +88,12 @@ func Sign(ctx context.Context, s SigningKeyProvider, claims Claims) (string, err
 type VerifyOptions struct {
 	RegisteredClaims   jwt.Expected
 	SignatureAlgorithm jose.SignatureAlgorithm
+}
+
+func WithVerifyExpected(expected jwt.Expected) func(*VerifyOptions) {
+	return func(opts *VerifyOptions) {
+		opts.RegisteredClaims = expected
+	}
 }
 
 // Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.
