@@ -309,6 +309,12 @@ func TestIsContainerized(t *testing.T) {
 			Expected: true,
 			Error:    "",
 		},
+		{
+			Name:     "Docker (Cgroupns=private)",
+			FS:       fsContainerCgroupV2PrivateCgroupns,
+			Expected: true,
+			Error:    "",
+		},
 	} {
 		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
@@ -373,6 +379,12 @@ proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
 		cgroupV2MemoryMaxBytes:   "max",
 		cgroupV2MemoryUsageBytes: "536870912",
 		cgroupV2MemoryStat:       "inactive_file 268435456",
+	}
+	fsContainerCgroupV2PrivateCgroupns = map[string]string{
+		procOneCgroup: "0::/",
+		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
+proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		sysCgroupType: "domain",
 	}
 	fsContainerCgroupV1 = map[string]string{
 		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",

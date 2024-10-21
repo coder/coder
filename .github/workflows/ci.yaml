@@ -466,7 +466,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-race:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
@@ -487,9 +487,13 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      # We run race tests with reduced parallelism because they use more CPU and we were finding
+      # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
+      # short timeouts are used.
+      # c.f. discussion on https://github.com/coder/coder/pull/15106
       - name: Run Tests
         run: |
-          gotestsum --junitfile="gotests.xml" -- -race ./...
+          gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1

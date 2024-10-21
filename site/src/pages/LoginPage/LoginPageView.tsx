@@ -1,11 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
-import { CoderIcon } from "components/Icons/CoderIcon";
+import { CustomLogo } from "components/CustomLogo/CustomLogo";
 import { Loader } from "components/Loader/Loader";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { getApplicationName, getLogoURL } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
@@ -32,29 +31,6 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	// This allows messages to be displayed at the top of the sign in form.
 	// Helpful for any redirects that want to inform the user of something.
 	const message = new URLSearchParams(location.search).get("message");
-	const applicationName = getApplicationName();
-	const logoURL = getLogoURL();
-	const applicationLogo = logoURL ? (
-		<img
-			alt={applicationName}
-			src={logoURL}
-			// This prevent browser to display the ugly error icon if the
-			// image path is wrong or user didn't finish typing the url
-			onError={(e) => {
-				e.currentTarget.style.display = "none";
-			}}
-			onLoad={(e) => {
-				e.currentTarget.style.display = "inline";
-			}}
-			css={{
-				maxWidth: "200px",
-			}}
-			className="application-logo"
-		/>
-	) : (
-		<CoderIcon fill="white" opacity={1} css={styles.icon} />
-	);
-
 	const [tosAccepted, setTosAccepted] = useState(false);
 	const tosAcceptanceRequired =
 		authMethods?.terms_of_service_url && !tosAccepted;
@@ -62,7 +38,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	return (
 		<div css={styles.root}>
 			<div css={styles.container}>
-				{applicationLogo}
+				<CustomLogo />
 				{isLoading ? (
 					<Loader />
 				) : tosAcceptanceRequired ? (
