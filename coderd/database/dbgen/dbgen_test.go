@@ -128,8 +128,8 @@ func TestGenerator(t *testing.T) {
 	t.Run("Workspace", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()
-		exp := dbgen.Workspace(t, db, database.Workspace{})
-		require.Equal(t, exp, must(db.GetWorkspaceByID(context.Background(), exp.ID)))
+		exp := dbgen.Workspace(t, db, database.WorkspaceTable{})
+		require.Equal(t, exp, must(db.GetWorkspaceByID(context.Background(), exp.ID)).WorkspaceTable())
 	})
 
 	t.Run("WorkspaceAgent", func(t *testing.T) {

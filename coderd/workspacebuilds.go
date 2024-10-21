@@ -46,7 +46,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 	workspaceBuild := httpmw.WorkspaceBuildParam(r)
 	workspace := httpmw.WorkspaceParam(r)
 
-	data, err := api.workspaceBuildsData(ctx, []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -72,21 +72,11 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	owner, ok := userByID(workspace.OwnerID, data.users)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace build.",
-			Detail:  "owner not found for workspace",
-		})
-		return
-	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		owner.Username,
-		owner.AvatarURL,
 		data.resources,
 		data.metadata,
 		data.agents,
@@ -189,7 +179,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, []database.Workspace{workspace}, workspaceBuilds)
+	data, err := api.workspaceBuildsData(ctx, workspaceBuilds)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
@@ -202,7 +192,6 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		workspaceBuilds,
 		[]database.Workspace{workspace},
 		data.jobs,
-		data.users,
 		data.resources,
 		data.metadata,
 		data.agents,
@@ -279,19 +268,11 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := api.workspaceBuildsData(ctx, []database.Workspace{workspace}, []database.WorkspaceBuild{workspaceBuild})
+	data, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{workspaceBuild})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting workspace build data.",
 			Detail:  err.Error(),
-		})
-		return
-	}
-	owner, ok := userByID(workspace.OwnerID, data.users)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace build.",
-			Detail:  "owner not found for workspace",
 		})
 		return
 	}
@@ -300,8 +281,6 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		owner.Username,
-		owner.AvatarURL,
 		data.resources,
 		data.metadata,
 		data.agents,
@@ -410,26 +389,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
 
-	users, err := api.Database.GetUsersByIDs(ctx, []uuid.UUID{
-		workspace.OwnerID,
-		workspaceBuild.InitiatorID,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	owner, exists := userByID(workspace.OwnerID, users)
-	if !exists {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspace build.",
-			Detail:  "owner not found for workspace",
-		})
-		return
-	}
-
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
@@ -437,8 +396,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		owner.Username,
-		owner.AvatarURL,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -674,7 +631,6 @@ func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
 }
 
 type workspaceBuildsData struct {
-	users            []database.User
 	jobs             []database.GetProvisionerJobsByIDsWithQueuePositionRow
 	templateVersions []database.TemplateVersion
 	resources        []database.WorkspaceResource
@@ -685,16 +641,7 @@ type workspaceBuildsData struct {
 	logSources       []database.WorkspaceAgentLogSource
 }
 
-func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
-	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
-	for _, workspace := range workspaces {
-		userIDs = append(userIDs, workspace.OwnerID)
-	}
-	users, err := api.Database.GetUsersByIDs(ctx, userIDs)
-	if err != nil {
-		return workspaceBuildsData{}, xerrors.Errorf("get users: %w", err)
-	}
-
+func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
 		jobIDs = append(jobIDs, build.JobID)
@@ -723,7 +670,6 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	if len(resources) == 0 {
 		return workspaceBuildsData{
-			users:            users,
 			jobs:             jobs,
 			templateVersions: templateVersions,
 		}, nil
@@ -748,7 +694,6 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 
 	if len(resources) == 0 {
 		return workspaceBuildsData{
-			users:            users,
 			jobs:             jobs,
 			templateVersions: templateVersions,
 			resources:        resources,
@@ -789,7 +734,6 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 	}
 
 	return workspaceBuildsData{
-		users:            users,
 		jobs:             jobs,
 		templateVersions: templateVersions,
 		resources:        resources,
@@ -805,7 +749,6 @@ func (api *API) convertWorkspaceBuilds(
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
 	jobs []database.GetProvisionerJobsByIDsWithQueuePositionRow,
-	users []database.User,
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
@@ -842,17 +785,11 @@ func (api *API) convertWorkspaceBuilds(
 		if !exists {
 			return nil, xerrors.New("template version not found")
 		}
-		owner, exists := userByID(workspace.OwnerID, users)
-		if !exists {
-			return nil, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
-		}
 
 		apiBuild, err := api.convertWorkspaceBuild(
 			build,
 			workspace,
 			job,
-			owner.Username,
-			owner.AvatarURL,
 			workspaceResources,
 			resourceMetadata,
 			resourceAgents,
@@ -875,7 +812,6 @@ func (api *API) convertWorkspaceBuild(
 	build database.WorkspaceBuild,
 	workspace database.Workspace,
 	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
-	username, avatarURL string,
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
@@ -931,7 +867,7 @@ func (api *API) convertWorkspaceBuild(
 			scripts := scriptsByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
 			apiAgent, err := db2sdk.WorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, agent, username, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, db2sdk.Apps(apps, agent, workspace.OwnerUsername, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
@@ -958,8 +894,8 @@ func (api *API) convertWorkspaceBuild(
 		CreatedAt:               build.CreatedAt,
 		UpdatedAt:               build.UpdatedAt,
 		WorkspaceOwnerID:        workspace.OwnerID,
-		WorkspaceOwnerName:      username,
-		WorkspaceOwnerAvatarURL: avatarURL,
+		WorkspaceOwnerName:      workspace.OwnerUsername,
+		WorkspaceOwnerAvatarURL: workspace.OwnerAvatarUrl,
 		WorkspaceID:             build.WorkspaceID,
 		WorkspaceName:           workspace.Name,
 		TemplateVersionID:       build.TemplateVersionID,

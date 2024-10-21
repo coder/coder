@@ -22,7 +22,7 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent().Do()
@@ -72,7 +72,7 @@ func TestAgentAPI_LargeManifest(t *testing.T) {
 	for i := range longScript {
 		longScript[i] = 'q'
 	}
-	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OrganizationID: adminUser.OrganizationID,
 		OwnerID:        adminUser.UserID,
 	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {

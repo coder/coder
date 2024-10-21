@@ -136,7 +136,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	var (
 		template          database.Template
-		markedForDeletion []database.Workspace
+		markedForDeletion []database.WorkspaceTable
 	)
 	err = db.InTx(func(tx database.Store) error {
 		ctx, span := tracing.StartSpanWithName(ctx, "(*schedule.EnterpriseTemplateScheduleStore).Set()-InTx()")
@@ -296,7 +296,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 		// Use the job completion time as the time we calculate autostop from.
 		Now:                job.CompletedAt.Time,
-		Workspace:          workspace,
+		Workspace:          workspace.WorkspaceTable(),
 		WorkspaceAutostart: workspace.AutostartSchedule.String,
 	})
 	if err != nil {

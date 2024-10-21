@@ -53,14 +53,14 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*proto.Agent) (*codersdk.Client, database.Workspace, string) {
+func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*proto.Agent) (*codersdk.Client, database.WorkspaceTable, string) {
 	t.Helper()
 
 	client, store := coderdtest.NewWithDatabase(t, nil)
 	client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent(mutations...).Do()
@@ -260,7 +260,7 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -763,7 +763,7 @@ func TestSSH(t *testing.T) {
 		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -1370,7 +1370,7 @@ func TestSSH(t *testing.T) {
 				admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 				first := coderdtest.CreateFirstUser(t, admin)
 				client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-				r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+				r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 					OrganizationID: first.OrganizationID,
 					OwnerID:        user.ID,
 				}).WithAgent().Do()

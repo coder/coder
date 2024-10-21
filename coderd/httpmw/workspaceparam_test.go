@@ -355,7 +355,7 @@ func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *h
 		_, token = dbgen.APIKey(t, db, database.APIKey{
 			UserID: user.ID,
 		})
-		workspace = dbgen.Workspace(t, db, database.Workspace{
+		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID: user.ID,
 			Name:    cfg.WorkspaceName,
 		})
