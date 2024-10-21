@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -62,6 +63,10 @@ func sshConfigFileRead(t *testing.T, name string) string {
 
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
 
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
