@@ -40,8 +40,8 @@ The provisioner daemon must authenticate with your Coder deployment.
 
 ## Scoped Key (Recommended)
 
-We recommend creating finely-scoped keys for provisioners.
-Keys are scoped to an organization, and optionally to a specific set of tags.
+We recommend creating finely-scoped keys for provisioners. Keys are scoped to an
+organization, and optionally to a specific set of tags.
 
 To create a key for an organization that will match untagged jobs:
 
@@ -102,10 +102,11 @@ tags.
 
 ## Global PSK (Not Recommended)
 
-> [!NOTE] We do not recommend this approach anymore, as it makes
-> key rotation or isolating provisioners far more difficult.
+> [!NOTE] We do not recommend this approach anymore, as it makes key rotation or
+> isolating provisioners far more difficult.
 
-A deployment-wide PSK can be used to authenticate any provisioner.  To use a global PSK, set a
+A deployment-wide PSK can be used to authenticate any provisioner. To use a
+global PSK, set a
 [provisioner daemon pre-shared key (PSK)](../reference/cli/server.md#--provisioner-daemon-psk)
 on the Coder server.
 
@@ -286,7 +287,8 @@ will use in concert with the Helm chart for deploying the Coder server.
    # coder provisioner keys create my-cool-key --org default --tags location=auh kind=k8s
    ```
 
-   Successfully created provisioner key kubernetes-key! Save this authentication token, it will not be shown again.
+   Successfully created provisioner key kubernetes-key! Save this authentication
+   token, it will not be shown again.
 
    <key omitted>
    ```
@@ -302,7 +304,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    ```yaml
    provisionerDaemon:
      keySecretName: "coder-provisioner-keys"
-     keySecretKey:  "key1"
+     keySecretKey: "key1"
    ```
 
 1. Redeploy Coder with the new `values.yaml` to roll out the PSK. You can omit
@@ -326,7 +328,7 @@ will use in concert with the Helm chart for deploying the Coder server.
      replicaCount: 10
    provisionerDaemon:
      keySecretName: "coder-provisioner-keys"
-     keySecretKey:  "key1"
+     keySecretKey: "key1"
    ```
 
    This example creates a deployment of 10 provisioner daemons (for 10
