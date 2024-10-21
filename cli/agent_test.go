@@ -261,10 +261,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		var (
 			admin              = coderdtest.CreateFirstUser(t, client)
 			member, memberUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			called             int64
+			derpCalled         int64
 		)
 
-		var called int64
-		var derpCalled int64
 		setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Ignore client requests
 			if r.Header.Get("X-Testing") == "agent" {
@@ -304,6 +304,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
 			MatchResources(matchAgentWithVersion).Wait()
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		clientInv, root := clitest.New(t,
 			"-v",
 			"--no-feature-warning",
@@ -312,11 +313,11 @@ func TestWorkspaceAgent(t *testing.T) {
 			"-n", "1",
 		)
 		clitest.SetupConfig(t, member, root)
-		clitest.Start(t, clientInv)
+		err := clientInv.WithContext(ctx).Run()
+		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
-			return atomic.LoadInt64(&called) > 0
-		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Greater(t, atomic.LoadInt64(&called), int64(0), "expected coderd to be reached with custom headers")
+		require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called with custom headers")
 	})
 }
 
