@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -555,73 +557,136 @@ func (r *resumeTokenRecordingProvider) VerifyResumeToken(ctx context.Context, to
 func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	clock := quartz.NewMock(t)
-	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
-	mgr := cryptokeys.StaticKey{
-		ID:  uuid.New().String(),
-		Key: resumeTokenSigningKey[:],
-	}
-	require.NoError(t, err)
-	resumeTokenProvider := newResumeTokenRecordingProvider(
-		t,
-		tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour),
-	)
-	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Coordinator:                    tailnet.NewCoordinator(logger),
-		CoordinatorResumeTokenProvider: resumeTokenProvider,
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		clock := quartz.NewMock(t)
+		resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
+		mgr := cryptokeys.StaticKey{
+			ID:  uuid.New().String(),
+			Key: resumeTokenSigningKey[:],
+		}
+		require.NoError(t, err)
+		resumeTokenProvider := newResumeTokenRecordingProvider(
+			t,
+			tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour),
+		)
+		client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Coordinator:                    tailnet.NewCoordinator(logger),
+			CoordinatorResumeTokenProvider: resumeTokenProvider,
+		})
+		defer closer.Close()
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a workspace with an agent. No need to connect it since clients can
+		// still connect to the coordinator while the agent isn't connected.
+		r := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		agentTokenUUID, err := uuid.Parse(r.AgentToken)
+		require.NoError(t, err)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
+		require.NoError(t, err)
+
+		// Connect with no resume token, and ensure that the peer ID is set to a
+		// random value.
+		originalResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "")
+		require.NoError(t, err)
+		originalPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
+		require.NotEqual(t, originalPeerID, uuid.Nil)
+
+		// Connect with a valid resume token, and ensure that the peer ID is set to
+		// the stored value.
+		clock.Advance(time.Second)
+		newResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, originalResumeToken)
+		require.NoError(t, err)
+		verifiedToken := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.verifyCalls)
+		require.Equal(t, originalResumeToken, verifiedToken)
+		newPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
+		require.Equal(t, originalPeerID, newPeerID)
+		require.NotEqual(t, originalResumeToken, newResumeToken)
+
+		// Connect with an invalid resume token, and ensure that the request is
+		// rejected.
+		clock.Advance(time.Second)
+		_, err = connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "invalid")
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "resume_token", sdkErr.Validations[0].Field)
+		verifiedToken = testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.verifyCalls)
+		require.Equal(t, "invalid", verifiedToken)
+
+		select {
+		case <-resumeTokenProvider.generateCalls:
+			t.Fatal("unexpected peer ID in channel")
+		default:
+		}
 	})
-	defer closer.Close()
-	user := coderdtest.CreateFirstUser(t, client)
 
-	// Create a workspace with an agent. No need to connect it since clients can
-	// still connect to the coordinator while the agent isn't connected.
-	r := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent().Do()
-	agentTokenUUID, err := uuid.Parse(r.AgentToken)
-	require.NoError(t, err)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
-	require.NoError(t, err)
+	t.Run("BadJWT", func(t *testing.T) {
+		t.Parallel()
 
-	// Connect with no resume token, and ensure that the peer ID is set to a
-	// random value.
-	originalResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "")
-	require.NoError(t, err)
-	originalPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
-	require.NotEqual(t, originalPeerID, uuid.Nil)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		clock := quartz.NewMock(t)
+		resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
+		mgr := cryptokeys.StaticKey{
+			ID:  uuid.New().String(),
+			Key: resumeTokenSigningKey[:],
+		}
+		require.NoError(t, err)
+		resumeTokenProvider := newResumeTokenRecordingProvider(
+			t,
+			tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour),
+		)
+		client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Coordinator:                    tailnet.NewCoordinator(logger),
+			CoordinatorResumeTokenProvider: resumeTokenProvider,
+		})
+		defer closer.Close()
+		user := coderdtest.CreateFirstUser(t, client)
 
-	// Connect with a valid resume token, and ensure that the peer ID is set to
-	// the stored value.
-	clock.Advance(time.Second)
-	newResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, originalResumeToken)
-	require.NoError(t, err)
-	verifiedToken := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.verifyCalls)
-	require.Equal(t, originalResumeToken, verifiedToken)
-	newPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
-	require.Equal(t, originalPeerID, newPeerID)
-	require.NotEqual(t, originalResumeToken, newResumeToken)
+		// Create a workspace with an agent. No need to connect it since clients can
+		// still connect to the coordinator while the agent isn't connected.
+		r := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		agentTokenUUID, err := uuid.Parse(r.AgentToken)
+		require.NoError(t, err)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		agentAndBuild, err := api.Database.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentTokenUUID) //nolint
+		require.NoError(t, err)
 
-	// Connect with an invalid resume token, and ensure that the request is
-	// rejected.
-	clock.Advance(time.Second)
-	_, err = connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "invalid")
-	require.Error(t, err)
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
-	require.Len(t, sdkErr.Validations, 1)
-	require.Equal(t, "resume_token", sdkErr.Validations[0].Field)
-	verifiedToken = testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.verifyCalls)
-	require.Equal(t, "invalid", verifiedToken)
+		// Connect with no resume token, and ensure that the peer ID is set to a
+		// random value.
+		originalResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, "")
+		require.NoError(t, err)
+		originalPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
+		require.NotEqual(t, originalPeerID, uuid.Nil)
 
-	select {
-	case <-resumeTokenProvider.generateCalls:
-		t.Fatal("unexpected peer ID in channel")
-	default:
-	}
+		// Connect with an outdated token, and ensure that the peer ID is set to a
+		// random value. We don't want to fail requests just because
+		// a user got unlucky during a deployment upgrade.
+		outdatedToken := generateBadJWT(t, jwtutils.RegisteredClaims{
+			Subject: originalPeerID.String(),
+			Expiry:  jwt.NewNumericDate(clock.Now().Add(time.Minute)),
+		})
+
+		clock.Advance(time.Second)
+		newResumeToken, err := connectToCoordinatorAndFetchResumeToken(ctx, logger, client, agentAndBuild.WorkspaceAgent.ID, outdatedToken)
+		require.NoError(t, err)
+		verifiedToken := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.verifyCalls)
+		require.Equal(t, outdatedToken, verifiedToken)
+		newPeerID := testutil.RequireRecvCtx(ctx, t, resumeTokenProvider.generateCalls)
+		require.NotEqual(t, originalPeerID, newPeerID)
+		require.NotEqual(t, originalResumeToken, newResumeToken)
+	})
 }
 
 // connectToCoordinatorAndFetchResumeToken connects to the tailnet coordinator
