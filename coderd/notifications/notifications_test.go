@@ -994,7 +994,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			id:   notifications.TemplateUserRequestedOneTimePasscode,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
-				UserEmail:    "bobby@coder.com",
+				UserEmail:    "bobby/drop-table+user@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"one_time_passcode": "fad9020b-6562-4cdb-87f1-0486f1bea415",

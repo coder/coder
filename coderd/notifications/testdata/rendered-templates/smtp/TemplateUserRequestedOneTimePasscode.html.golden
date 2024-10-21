@@ -1,5 +1,5 @@
 From: system@coder.com
-To: bobby@coder.com
+To: bobby/drop-table+user@coder.com
 Subject: Reset your password for Coder
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
@@ -18,7 +18,7 @@ If you did not make this request, you can ignore this message.
 
 
 Reset password: http://test.com/reset-password/change?otp=3Dfad9020b-6562-4=
-cdb-87f1-0486f1bea415&email=3Dbobby@coder.com
+cdb-87f1-0486f1bea415&email=3Dbobby%2Fdrop-table%2Buser%40coder.com
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -57,9 +57,10 @@ argin: 8px 0 32px; line-height: 1.5;">
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
         <a href=3D"http://test.com/reset-password/change?otp=3Dfad9020b-656=
-2-4cdb-87f1-0486f1bea415&email=3Dbobby@coder.com" style=3D"display: inline-=
-block; padding: 13px 24px; background-color: #020617; color: #f8fafc; text-=
-decoration: none; border-radius: 8px; margin: 0 4px;">
+2-4cdb-87f1-0486f1bea415&email=3Dbobby%2Fdrop-table%2Buser%40coder.com" sty=
+le=3D"display: inline-block; padding: 13px 24px; background-color: #020617;=
+ color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0 4px;"=
+>
           Reset password
         </a>
        =20
