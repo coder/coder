@@ -23,8 +23,8 @@ export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 		// We always add one extra column to the grid to ensure that the last column
 		// is fully visible.
 		const avgWidth = rootEl.clientWidth / (ticks.length + 1);
-		avgWidth > XAxisMinWidth ? avgWidth : XAxisMinWidth;
-		rootEl.style.setProperty("--x-axis-width", `${avgWidth}px`);
+		const width = avgWidth > XAxisMinWidth ? avgWidth : XAxisMinWidth;
+		rootEl.style.setProperty("--x-axis-width", `${width}px`);
 	}, [ticks]);
 
 	return (
