@@ -267,12 +267,59 @@ func (r *RootCmd) login() *serpent.Command {
 					trial = v == "yes" || v == "y"
 				}
 
+				var trialInfo codersdk.CreateFirstUserTrialInfo
+				if trial {
+					if trialInfo.FirstName == "" {
+						trialInfo.FirstName, err = promptTrialInfo(inv, "firstName")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.LastName == "" {
+						trialInfo.LastName, err = promptTrialInfo(inv, "lastName")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.PhoneNumber == "" {
+						trialInfo.PhoneNumber, err = promptTrialInfo(inv, "phoneNumber")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.JobTitle == "" {
+						trialInfo.JobTitle, err = promptTrialInfo(inv, "jobTitle")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.CompanyName == "" {
+						trialInfo.CompanyName, err = promptTrialInfo(inv, "companyName")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.Country == "" {
+						trialInfo.Country, err = promptCountry(inv)
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.Developers == "" {
+						trialInfo.Developers, err = promptDevelopers(inv)
+						if err != nil {
+							return err
+						}
+					}
+				}
+
 				_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-					Email:    email,
-					Username: username,
-					Name:     name,
-					Password: password,
-					Trial:    trial,
+					Email:     email,
+					Username:  username,
+					Name:      name,
+					Password:  password,
+					Trial:     trial,
+					TrialInfo: trialInfo,
 				})
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
@@ -448,4 +495,76 @@ func openURL(inv *serpent.Invocation, urlToOpen string) error {
 	}
 
 	return browser.OpenURL(urlToOpen)
+}
+
+func promptTrialInfo(inv *serpent.Invocation, fieldName string) (string, error) {
+	value, err := cliui.Prompt(inv, cliui.PromptOptions{
+		Text: fmt.Sprintf("Please enter %s:", pretty.Sprint(cliui.DefaultStyles.Field, fieldName)),
+		Validate: func(s string) error {
+			if strings.TrimSpace(s) == "" {
+				return xerrors.Errorf("%s is required", fieldName)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		if errors.Is(err, cliui.Canceled) {
+			return "", nil
+		}
+		return "", err
+	}
+	return value, nil
+}
+
+func promptDevelopers(inv *serpent.Invocation) (string, error) {
+	options := []string{"1-100", "101-500", "501-1000", "1001-2500", "2500+"}
+	selection, err := cliui.Select(inv, cliui.SelectOptions{
+		Options:    options,
+		HideSearch: false,
+		Message:    "Select the number of developers:",
+	})
+	if err != nil {
+		return "", xerrors.Errorf("select developers: %w", err)
+	}
+	return selection, nil
+}
+
+func promptCountry(inv *serpent.Invocation) (string, error) {
+	countries := []string{
+		"Afghanistan", "Åland Islands", "Albania", "Algeria", "American Samoa", "Andorra", "Angola", "Anguilla", "Antarctica", "Antigua and Barbuda",
+		"Argentina", "Armenia", "Aruba", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados",
+		"Belarus", "Belgium", "Belize", "Benin", "Bermuda", "Bhutan", "Bolivia, Plurinational State of", "Bonaire, Sint Eustatius and Saba", "Bosnia and Herzegovina", "Botswana",
+		"Bouvet Island", "Brazil", "British Indian Ocean Territory", "Brunei Darussalam", "Bulgaria", "Burkina Faso", "Burundi", "Cambodia", "Cameroon", "Canada",
+		"Cape Verde", "Cayman Islands", "Central African Republic", "Chad", "Chile", "China", "Christmas Island", "Cocos (Keeling) Islands", "Colombia", "Comoros",
+		"Congo", "Congo, the Democratic Republic of the", "Cook Islands", "Costa Rica", "Côte d'Ivoire", "Croatia", "Cuba", "Curaçao", "Cyprus", "Czech Republic",
+		"Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia",
+		"Ethiopia", "Falkland Islands (Malvinas)", "Faroe Islands", "Fiji", "Finland", "France", "French Guiana", "French Polynesia", "French Southern Territories", "Gabon",
+		"Gambia", "Georgia", "Germany", "Ghana", "Gibraltar", "Greece", "Greenland", "Grenada", "Guadeloupe", "Guam",
+		"Guatemala", "Guernsey", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Heard Island and McDonald Islands", "Holy See (Vatican City State)", "Honduras", "Hong Kong",
+		"Hungary", "Iceland", "India", "Indonesia", "Iran, Islamic Republic of", "Iraq", "Ireland", "Isle of Man", "Israel", "Italy",
+		"Jamaica", "Japan", "Jersey", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Korea, Democratic People's Republic of", "Korea, Republic of", "Kuwait",
+		"Kyrgyzstan", "Lao People's Democratic Republic", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg",
+		"Macao", "Macedonia, the Former Yugoslav Republic of", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Martinique",
+		"Mauritania", "Mauritius", "Mayotte", "Mexico", "Micronesia, Federated States of", "Moldova, Republic of", "Monaco", "Mongolia", "Montenegro", "Montserrat",
+		"Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Caledonia", "New Zealand", "Nicaragua",
+		"Niger", "Nigeria", "Niue", "Norfolk Island", "Northern Mariana Islands", "Norway", "Oman", "Pakistan", "Palau", "Palestine, State of",
+		"Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Pitcairn", "Poland", "Portugal", "Puerto Rico", "Qatar",
+		"Réunion", "Romania", "Russian Federation", "Rwanda", "Saint Barthélemy", "Saint Helena, Ascension and Tristan da Cunha", "Saint Kitts and Nevis", "Saint Lucia", "Saint Martin (French part)", "Saint Pierre and Miquelon",
+		"Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore",
+		"Sint Maarten (Dutch part)", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Georgia and the South Sandwich Islands", "South Sudan", "Spain", "Sri Lanka",
+		"Sudan", "Suriname", "Svalbard and Jan Mayen", "Swaziland", "Sweden", "Switzerland", "Syrian Arab Republic", "Taiwan, Province of China", "Tajikistan", "Tanzania, United Republic of",
+		"Thailand", "Timor-Leste", "Togo", "Tokelau", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Turks and Caicos Islands",
+		"Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "United States Minor Outlying Islands", "Uruguay", "Uzbekistan", "Vanuatu",
+		"Venezuela, Bolivarian Republic of", "Vietnam", "Virgin Islands, British", "Virgin Islands, U.S.", "Wallis and Futuna", "Western Sahara", "Yemen", "Zambia", "Zimbabwe",
+	}
+
+	selection, err := cliui.Select(inv, cliui.SelectOptions{
+		Options:    countries,
+		Message:    "Select the country:",
+		HideSearch: false,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("select country: %w", err)
+	}
+	return selection, nil
 }
