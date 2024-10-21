@@ -129,7 +129,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 									<Tooltip
 										title={
 											<TooltipTitle>
-												Script exited with {t.exitCode} code
+												Script exited with <strong>code {t.exitCode}</strong>
 											</TooltipTitle>
 										}
 									>
