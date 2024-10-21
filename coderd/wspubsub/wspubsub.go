@@ -49,8 +49,8 @@ const (
 	WorkspaceEventKindAppHealthUpdate WorkspaceEventKind = "app_health"
 
 	WorkspaceEventKindAgentLifecycleUpdate  WorkspaceEventKind = "agt_lifecycle_update"
-	WorkspaceEventKindAgentLogsUpdate       WorkspaceEventKind = "agt_logs_update"
 	WorkspaceEventKindAgentConnectionUpdate WorkspaceEventKind = "agt_connection_update"
+	WorkspaceEventKindAgentFirstLogs        WorkspaceEventKind = "agt_first_logs"
 	WorkspaceEventKindAgentLogsOverflow     WorkspaceEventKind = "agt_logs_overflow"
 	WorkspaceEventKindAgentTimeout          WorkspaceEventKind = "agt_timeout"
 )

@@ -144,7 +144,7 @@ func (a *LogsAPI) BatchCreateLogs(ctx context.Context, req *agentproto.BatchCrea
 	if workspaceAgent.LogsLength == 0 && a.PublishWorkspaceUpdateFn != nil {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLogsUpdate)
+		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentFirstLogs)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
