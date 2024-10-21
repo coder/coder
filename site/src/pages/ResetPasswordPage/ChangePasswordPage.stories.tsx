@@ -74,13 +74,14 @@ export const GeneralServerError: Story = {
 
 export const ValidationServerError: Story = {
 	play: async ({ canvasElement }) => {
+		const validationDetail =
+			"insecure password, try including more special characters, using uppercase letters, using numbers or using a longer password";
 		const error = mockApiError({
 			message: "Invalid password.",
 			validations: [
 				{
 					field: "password",
-					detail:
-						"insecure password, try including more special characters, using uppercase letters, using numbers or using a longer password",
+					detail: validationDetail,
 				},
 			],
 		});
@@ -93,6 +94,6 @@ export const ValidationServerError: Story = {
 			await canvas.findByLabelText("Confirm password *");
 		await user.type(confirmPasswordInput, "password");
 		await user.click(canvas.getByRole("button", { name: /reset password/i }));
-		await canvas.findByText(error.response.data.message);
+		await canvas.findByText(validationDetail);
 	},
 };
