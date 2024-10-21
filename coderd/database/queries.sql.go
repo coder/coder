@@ -15294,14 +15294,15 @@ LEFT JOIN LATERAL (
 	ORDER BY build_number DESC
 	LIMIT 1
 ) latest_build ON true
-LEFT JOIN (
+LEFT JOIN LATERAL (
 	SELECT
 		workspace_agents.id as agent_id,
 		workspace_agents.name as agent_name,
 		job_id
 	FROM workspace_resources
 	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
-) resources ON resources.job_id = latest_build.job_id
+	WHERE job_id = latest_build.job_id
+) resources ON true
 WHERE
 	-- Filter by owner_id
 	workspaces.owner_id = $1 :: uuid
