@@ -3,6 +3,7 @@ package apptest
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -463,7 +464,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					appClient.SetSessionToken("")
 
 					// Try to load the application without authentication.
-					u := c.appURL
+					u := *c.appURL
 					u.Path = path.Join(u.Path, "/test")
 					req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 					require.NoError(t, err)
@@ -500,7 +501,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 					// Copy the query parameters and then check equality.
 					u.RawQuery = gotLocation.RawQuery
-					require.Equal(t, u, gotLocation)
+					require.Equal(t, u, *gotLocation)
 
 					// Verify the API key is set.
 					encryptedAPIKey := gotLocation.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam)
@@ -579,6 +580,70 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					require.NoError(t, err)
 					resp.Body.Close()
 					require.Equal(t, http.StatusOK, resp.StatusCode)
+				})
+
+				t.Run("BadJWT", func(t *testing.T) {
+					t.Parallel()
+
+					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+					defer cancel()
+
+					currentKeyStr := appDetails.SDKClient.SessionToken()
+					appClient := appDetails.AppClient(t)
+					appClient.SetSessionToken("")
+					u := *c.appURL
+					u.Path = path.Join(u.Path, "/test")
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+					require.NoError(t, err)
+
+					var resp *http.Response
+					resp, err = doWithRetries(t, appClient, req)
+					require.NoError(t, err)
+
+					if !assert.Equal(t, http.StatusSeeOther, resp.StatusCode) {
+						dump, err := httputil.DumpResponse(resp, true)
+						require.NoError(t, err)
+						t.Log(string(dump))
+					}
+					resp.Body.Close()
+
+					// Check that the Location is correct.
+					gotLocation, err := resp.Location()
+					require.NoError(t, err)
+					// This should always redirect to the primary access URL.
+					require.Equal(t, appDetails.SDKClient.URL.Host, gotLocation.Host)
+					require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
+					require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
+
+					// Load the application auth-redirect endpoint.
+					resp, err = requestWithRetries(ctx, t, appDetails.SDKClient, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
+						"redirect_uri", u.String(),
+					))
+					require.NoError(t, err)
+					defer resp.Body.Close()
+
+					require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+					gotLocation, err = resp.Location()
+					require.NoError(t, err)
+
+					badToken := generateBadJWT(t, workspaceapps.EncryptedAPIKeyPayload{
+						APIKey: currentKeyStr,
+					})
+
+					gotLocation.RawQuery = (url.Values{
+						workspaceapps.SubdomainProxyAPIKeyParam: {badToken},
+					}).Encode()
+
+					req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
+					require.NoError(t, err)
+					resp, err = appClient.HTTPClient.Do(req)
+					require.NoError(t, err)
+					defer resp.Body.Close()
+					require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+					body, err := io.ReadAll(resp.Body)
+					require.NoError(t, err)
+					require.Contains(t, string(body), "Could not decrypt API key. Please remove the query parameter and try again.")
+
 				})
 			}
 		})
@@ -1788,4 +1853,25 @@ func assertWorkspaceLastUsedAtNotUpdated(t testing.TB, details *Details) {
 	after, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 	require.NoError(t, err)
 	require.Equal(t, before.LastUsedAt, after.LastUsedAt, "workspace LastUsedAt updated when it should not have been")
+}
+
+// generateBadJWT generates a JWT with a random key. It's intended to emulate the old-style JWT's we generated.
+func generateBadJWT(t *testing.T, claims interface{}) string {
+	t.Helper()
+
+	var buf [64]byte
+	_, err := rand.Read(buf[:])
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.HS512,
+		Key:       buf[:],
+	}, nil)
+	require.NoError(t, err)
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+	signed, err := signer.Sign(payload)
+	require.NoError(t, err)
+	compact, err := signed.CompactSerialize()
+	require.NoError(t, err)
+	return compact
 }
