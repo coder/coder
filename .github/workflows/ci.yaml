@@ -970,7 +970,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@f0990588f1e5b5af6827153b93673613abdc6ec7 # v2.1.1
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@9b3958825a314eb79495c6993ef397ddbf87f32f # v2.2.1
+        uses: fluxcd/flux2/action@5350425cdcd5fa015337e09fa502153c0275bd4b # v2.4.0
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.2.1"
