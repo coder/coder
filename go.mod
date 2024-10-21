@@ -197,7 +197,7 @@ require (
 	tailscale.com v1.46.1
 )
 
-require go.uber.org/mock v0.4.0
+require go.uber.org/mock v0.5.0
 
 require (
 	github.com/cespare/xxhash v1.1.0
