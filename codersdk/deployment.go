@@ -2899,6 +2899,7 @@ const (
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
+	ExperimentCoderVPN           Experiment = "coder-vpn"            // Enables the Coder VPN feature and all related functionality.
 )
 
 // ExperimentsAll should include all experiments that are safe for
