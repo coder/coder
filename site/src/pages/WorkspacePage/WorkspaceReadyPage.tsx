@@ -157,10 +157,11 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	// Cancel build
 	const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
-	// Build timings
-	const timingsQuery = useQuery(
-		workspaceBuildTimings(workspace.latest_build.id),
-	);
+	// Build Timings. Fetch build timings only when the build job is completed.
+	const timingsQuery = useQuery({
+		...workspaceBuildTimings(workspace.latest_build.id),
+		enabled: Boolean(workspace.latest_build.job.completed_at),
+	});
 
 	const runLastBuild = (
 		buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,
