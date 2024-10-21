@@ -402,3 +402,37 @@ func (c *Client) DeleteProvisionerKey(ctx context.Context, organizationID uuid.U
 	}
 	return nil
 }
+
+func ConvertWorkspaceStatus(jobStatus ProvisionerJobStatus, transition WorkspaceTransition) WorkspaceStatus {
+	switch jobStatus {
+	case ProvisionerJobPending:
+		return WorkspaceStatusPending
+	case ProvisionerJobRunning:
+		switch transition {
+		case WorkspaceTransitionStart:
+			return WorkspaceStatusStarting
+		case WorkspaceTransitionStop:
+			return WorkspaceStatusStopping
+		case WorkspaceTransitionDelete:
+			return WorkspaceStatusDeleting
+		}
+	case ProvisionerJobSucceeded:
+		switch transition {
+		case WorkspaceTransitionStart:
+			return WorkspaceStatusRunning
+		case WorkspaceTransitionStop:
+			return WorkspaceStatusStopped
+		case WorkspaceTransitionDelete:
+			return WorkspaceStatusDeleted
+		}
+	case ProvisionerJobCanceling:
+		return WorkspaceStatusCanceling
+	case ProvisionerJobCanceled:
+		return WorkspaceStatusCanceled
+	case ProvisionerJobFailed:
+		return WorkspaceStatusFailed
+	}
+
+	// return error status since we should never get here
+	return WorkspaceStatusFailed
+}
