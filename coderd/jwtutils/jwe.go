@@ -106,7 +106,7 @@ func Decrypt(ctx context.Context, d DecryptKeyProvider, token string, claims Cla
 
 	kid := object.Header.KeyID
 	if kid == "" {
-		return xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
+		return ErrMissingKeyID
 	}
 
 	key, err := d.DecryptingKey(ctx, kid)

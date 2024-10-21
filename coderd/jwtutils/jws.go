@@ -10,6 +10,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var ErrMissingKeyID = xerrors.New("missing key ID")
+
 const (
 	keyIDHeaderKey = "kid"
 )
@@ -126,7 +128,7 @@ func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claim
 
 	kid := signature.Header.KeyID
 	if kid == "" {
-		return xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
+		return ErrMissingKeyID
 	}
 
 	key, err := v.VerifyingKey(ctx, kid)

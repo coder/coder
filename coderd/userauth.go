@@ -52,7 +52,7 @@ const (
 )
 
 type OAuthConvertStateClaims struct {
-	jwt.Claims
+	jwtutils.RegisteredClaims
 
 	UserID        uuid.UUID          `json:"user_id"`
 	State         string             `json:"state"`
@@ -61,7 +61,7 @@ type OAuthConvertStateClaims struct {
 }
 
 func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
-	return o.Claims.Validate(e)
+	return o.RegisteredClaims.Validate(e)
 }
 
 // postConvertLoginType replies with an oauth state token capable of converting
@@ -156,7 +156,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	// Eg: Developers with more than 1 deployment.
 	now := time.Now()
 	claims := &OAuthConvertStateClaims{
-		Claims: jwt.Claims{
+		RegisteredClaims: jwtutils.RegisteredClaims{
 			Issuer:    api.DeploymentID,
 			Subject:   stateString,
 			Audience:  []string{user.ID.String()},
@@ -1682,7 +1682,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	var claims OAuthConvertStateClaims
 
 	err = jwtutils.Verify(ctx, api.OIDCConvertKeyCache, jwtCookie.Value, &claims)
-	if xerrors.Is(err, cryptokeys.ErrKeyNotFound) || xerrors.Is(err, cryptokeys.ErrKeyInvalid) || xerrors.Is(err, jose.ErrCryptoFailure) {
+	if xerrors.Is(err, cryptokeys.ErrKeyNotFound) || xerrors.Is(err, cryptokeys.ErrKeyInvalid) || xerrors.Is(err, jose.ErrCryptoFailure) || xerrors.Is(err, jwtutils.ErrMissingKeyID) {
 		// These errors are probably because the user is mixing 2 coder deployments.
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusBadRequest,

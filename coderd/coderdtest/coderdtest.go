@@ -161,6 +161,7 @@ type Options struct {
 	WorkspaceUsageTrackerTick          chan time.Time
 	NotificationsEnqueuer              notifications.Enqueuer
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
+	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 }
 
@@ -538,6 +539,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
 			Clock:                              options.Clock,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
+			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 		}
 }
 
