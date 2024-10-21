@@ -239,7 +239,7 @@ func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
 	maxUsageBytes, err := readInt64(s.fs, cgroupV2MemoryMaxBytes)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, nil // nolint: nilnil
 		}
 		if !xerrors.Is(err, strconv.ErrSyntax) {
 			return nil, xerrors.Errorf("read memory total: %w", err)
@@ -253,7 +253,7 @@ func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
 	currUsageBytes, err := readInt64(s.fs, cgroupV2MemoryUsageBytes)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, nil // nolint: nilnil
 		}
 		return nil, xerrors.Errorf("read memory usage: %w", err)
 	}
@@ -261,7 +261,7 @@ func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
 	inactiveFileBytes, err := readInt64Prefix(s.fs, cgroupV2MemoryStat, "inactive_file")
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, nil // nolint: nilnil
 		}
 		return nil, xerrors.Errorf("read memory stats: %w", err)
 	}
@@ -278,7 +278,7 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 	maxUsageBytes, err := readInt64(s.fs, cgroupV1MemoryMaxUsageBytes)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, nil // nolint: nilnil
 		}
 		if !xerrors.Is(err, strconv.ErrSyntax) {
 			return nil, xerrors.Errorf("read memory total: %w", err)
@@ -296,7 +296,7 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 	usageBytes, err := readInt64(s.fs, cgroupV1MemoryUsageBytes)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, nil // nolint: nilnil
 		}
 		return nil, xerrors.Errorf("read memory usage: %w", err)
 	}
@@ -304,7 +304,7 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 	totalInactiveFileBytes, err := readInt64Prefix(s.fs, cgroupV1MemoryStat, "total_inactive_file")
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, nil // nolint: nilnil
 		}
 		return nil, xerrors.Errorf("read memory stats: %w", err)
 	}
@@ -321,8 +321,8 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 }
 
 // read an int64 value from path
-func readInt64(fs afero.Fs, path string) (int64, error) {
-	data, err := afero.ReadFile(fs, path)
+func readInt64(afs afero.Fs, path string) (int64, error) {
+	data, err := afero.ReadFile(afs, path)
 	if err != nil {
 		return 0, xerrors.Errorf("read %s: %w", path, err)
 	}
@@ -336,8 +336,8 @@ func readInt64(fs afero.Fs, path string) (int64, error) {
 }
 
 // read an int64 value from path at field idx separated by sep
-func readInt64SepIdx(fs afero.Fs, path, sep string, idx int) (int64, error) {
-	data, err := afero.ReadFile(fs, path)
+func readInt64SepIdx(afs afero.Fs, path, sep string, idx int) (int64, error) {
+	data, err := afero.ReadFile(afs, path)
 	if err != nil {
 		return 0, xerrors.Errorf("read %s: %w", path, err)
 	}
@@ -356,8 +356,8 @@ func readInt64SepIdx(fs afero.Fs, path, sep string, idx int) (int64, error) {
 }
 
 // read the first int64 value from path prefixed with prefix
-func readInt64Prefix(fs afero.Fs, path, prefix string) (int64, error) {
-	data, err := afero.ReadFile(fs, path)
+func readInt64Prefix(afs afero.Fs, path, prefix string) (int64, error) {
+	data, err := afero.ReadFile(afs, path)
 	if err != nil {
 		return 0, xerrors.Errorf("read %s: %w", path, err)
 	}
