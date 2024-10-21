@@ -10,7 +10,6 @@ import {
 	deleteWorkspace,
 	startWorkspace,
 	stopWorkspace,
-	timings,
 	toggleFavorite,
 	updateWorkspace,
 } from "api/queries/workspaces";
@@ -38,6 +37,7 @@ import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "./permissions";
+import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
@@ -158,7 +158,9 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
 	// Build timings
-	const timingsQuery = useQuery(timings(workspace.id));
+	const timingsQuery = useQuery(
+		workspaceBuildTimings(workspace.latest_build.id),
+	);
 
 	const runLastBuild = (
 		buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,

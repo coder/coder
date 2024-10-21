@@ -56,3 +56,10 @@ export const infiniteWorkspaceBuilds = (
 		},
 	};
 };
+
+export const workspaceBuildTimings = (workspaceBuildId: string) => {
+	return {
+		queryKey: [...workspaceBuildsKey(workspaceBuildId), "timings"],
+		queryFn: () => API.workspaceBuildTimings(workspaceBuildId),
+	};
+};

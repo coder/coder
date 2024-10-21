@@ -2180,9 +2180,9 @@ class ApiMethods {
 		await this.axios.post<void>("/api/v2/users/otp/change-password", req);
 	};
 
-	workspaceTimings = async (workspaceId: string) => {
+	workspaceBuildTimings = async (workspaceBuildId: string) => {
 		const res = await this.axios.get<TypesGen.WorkspaceBuildTimings>(
-			`/api/v2/workspaces/${workspaceId}/timings`,
+			`/api/v2/workspacebuilds/${workspaceBuildId}/timings`,
 		);
 		return res.data;
 	};

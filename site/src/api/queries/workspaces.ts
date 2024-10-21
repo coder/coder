@@ -391,10 +391,3 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 		refetchIntervalInBackground: true,
 	};
 };
-
-export const timings = (workspaceId: string) => {
-	return {
-		queryKey: ["workspaces", workspaceId, "timings"],
-		queryFn: () => API.workspaceTimings(workspaceId),
-	};
-};
