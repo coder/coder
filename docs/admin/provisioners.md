@@ -40,8 +40,10 @@ The provisioner daemon must authenticate with your Coder deployment.
 
 ## Scoped Key (Recommended)
 
-We recommend creating finely-scoped keys for provisioners. Keys are scoped to an
-organization.
+We recommend creating finely-scoped keys for provisioners.
+Keys are scoped to an organization, and optionally to a specific set of tags.
+
+To create a key for an organization that will match untagged jobs:
 
 ```sh
 coder provisioner keys create my-key \
@@ -52,7 +54,7 @@ Successfully created provisioner key my-key! Save this authentication token, it 
 <key omitted>
 ```
 
-Or, restrict the provisioner to jobs with specific tags
+To restrict the provisioner to jobs with specific tags:
 
 ```sh
 coder provisioner keys create kubernetes-key \
@@ -64,7 +66,7 @@ Successfully created provisioner key kubernetes-key! Save this authentication to
 <key omitted>
 ```
 
-To start the provisioner:
+You can then start the provisioner with the specified key:
 
 ```sh
 export CODER_URL=https://<your-coder-url>
@@ -98,11 +100,12 @@ Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners),
 but this will also require a template on your deployment with the corresponding
 tags.
 
-## Global PSK
+## Global PSK (Not Recommended)
 
-A deployment-wide PSK can be used to authenticate any provisioner. We do not
-recommend this approach anymore, as it makes key rotation or isolating
-provisioners far more difficult. To use a global PSK, set a
+> [!NOTE] We do not recommend this approach anymore, as it makes
+> key rotation or isolating provisioners far more difficult.
+
+A deployment-wide PSK can be used to authenticate any provisioner.  To use a global PSK, set a
 [provisioner daemon pre-shared key (PSK)](../reference/cli/server.md#--provisioner-daemon-psk)
 on the Coder server.
 
@@ -275,18 +278,31 @@ coder templates push on-prem \
 Coder provides a Helm chart for running external provisioner daemons, which you
 will use in concert with the Helm chart for deploying the Coder server.
 
-1. Create a long, random pre-shared key (PSK) and store it in a Kubernetes
-   secret
+1. Create a provisioner key:
 
    ```sh
-   kubectl create secret generic coder-provisioner-psk --from-literal=psk=`head /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 26`
+   coder provisioner keys create my-cool-key --org default
+   # Optionally, you can specify tags for the provsioner key:
+   # coder provisioner keys create my-cool-key --org default --tags location=auh kind=k8s
+   ```
+
+   Successfully created provisioner key kubernetes-key! Save this authentication token, it will not be shown again.
+
+   <key omitted>
+   ```
+
+   Store the key in a kubernetes secret:
+
+   ```sh
+   kubectl create secret generic coder-provisioner-psk --from-literal=key1=`<key omitted>`
    ```
 
 1. Modify your Coder `values.yaml` to include
 
    ```yaml
    provisionerDaemon:
-     pskSecretName: "coder-provisioner-psk"
+     keySecretName: "coder-provisioner-keys"
+     keySecretKey:  "key1"
    ```
 
 1. Redeploy Coder with the new `values.yaml` to roll out the PSK. You can omit
@@ -300,7 +316,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    ```
 
 1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm
-   chart. For example
+   chart. For example:
 
    ```yaml
    coder:
@@ -309,10 +325,8 @@ will use in concert with the Helm chart for deploying the Coder server.
          value: "https://coder.example.com"
      replicaCount: 10
    provisionerDaemon:
-     pskSecretName: "coder-provisioner-psk"
-     tags:
-       location: auh
-       kind: k8s
+     keySecretName: "coder-provisioner-keys"
+     keySecretKey:  "key1"
    ```
 
    This example creates a deployment of 10 provisioner daemons (for 10
