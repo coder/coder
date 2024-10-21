@@ -1,27 +1,15 @@
-# A guided tour of a template
+# Write a template from scratch
 
-This guided tour introduces you to the different parts of a Coder template by
-showing you how to create a template from scratch.
+A template is a common configuration that you use to deploy workspaces.
 
-You'll write a simple template that provisions a workspace as a Docker container
-with Ubuntu.
+This tutorial teaches you how to create a template that provisions a workspace
+as a Docker container with Ubuntu.
 
 ## Before you start
 
-To follow this guide, you'll need:
-
-- A computer or cloud computing instance with both
-  [Docker](https://docs.docker.com/get-docker/) and [Coder](../install/index.md)
-  installed on it.
-
-  - When setting up your computer or computing instance, make sure to install
-    Docker first, then Coder. Otherwise, you'll need to add the `coder` user to
-    the `docker` group.
-
-- The URL for your Coder instance. If you're running Coder locally, the default
-  URL is [http://127.0.0.1:3000](http://127.0.0.1:3000).
-
-- A text editor. For this tour, we use [GNU nano](https://nano-editor.org/).
+You'll need a computer or cloud computing instance with both
+[Docker](https://docs.docker.com/get-docker/) and [Coder](../install/index.md)
+installed on it.
 
 ## What's in a template
 
@@ -37,22 +25,21 @@ started, or stopped.
 > [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 
 Here's a simplified diagram that shows the main parts of the template we'll
-create.
+create:
 
 ![Template architecture](../images/templates/template-architecture.png)
 
 ## 1. Create template files
 
 On your local computer, create a directory for your template and create the
-`Dockerfile`.
+`Dockerfile`. You will upload the files to your Coder instance later.
 
 ```sh
 mkdir -p template-tour/build && cd $_
-nano Dockerfile
 ```
 
-You'll enter a simple `Dockerfile` that starts with the
-[official Ubuntu image](https://hub.docker.com/_/ubuntu/). In the editor, enter
+Enter content into a `Dockerfile` that starts with the
+[official Ubuntu image](https://hub.docker.com/_/ubuntu/). In your editor, enter
 and save the following text in `Dockerfile` then exit the editor:
 
 ```dockerfile
@@ -72,22 +59,18 @@ USER ${USER}
 WORKDIR /home/${USER}
 ```
 
-Notice how `Dockerfile` adds a few things to the parent `ubuntu` image, which
-your template needs later:
+`Dockerfile` adds a few things to the parent `ubuntu` image, which your template
+needs later:
 
 - It installs the `sudo` and `curl` packages.
 - It adds a `coder` user, including a home directory.
 
 ## 2. Set up template providers
 
-Edit the Terraform file to provision the workspace's resources:
+Edit the Terraform `main.tf` file to provision the workspace's resources.
 
-```shell
-nano main.tf
-```
-
-We'll start by setting up our providers. At a minimum, we need the `coder`
-provider. For this template, we also need the `docker` provider:
+Start by setting up the providers. At a minimum, we need the `coder` provider.
+For this template, we also need the `docker` provider:
 
 ```tf
 terraform {
@@ -126,7 +109,7 @@ The
 [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace)
 data source provides details about the state of a workspace, such as its name,
 owner, and so on. The data source also lets us know when a workspace is being
-started or stopped. We'll take advantage of this information in later steps to:
+started or stopped. We'll use this information in later steps to:
 
 - Set some environment variables based on the workspace owner.
 - Manage ephemeral and persistent storage.
@@ -140,10 +123,9 @@ runs inside the compute aspect of your workspace, typically a VM or container.
 In our case, it will run in Docker.
 
 You do not need to have any open ports on the compute aspect, but the agent
-needs `curl` access to the Coder server. Remember that we installed `curl` in
-`Dockerfile`, earlier.
+needs `curl` access to the Coder server.
 
-Add this snippet below the last closing `}` in `main.tf` to create the agent:
+Add this snippet after the last closing `}` in `main.tf` to create the agent:
 
 ```tf
 resource "coder_agent" "main" {
@@ -184,29 +166,33 @@ resource "coder_agent" "main" {
 
 Because Docker is running locally in the Coder server, there is no need to
 authenticate `coder_agent`. But if your `coder_agent` is running on a remote
-host, your template would need
+host, your template will need
 [authentication credentials](../admin/external-auth.md).
 
 This template's agent also runs a startup script, sets environment variables,
 and provides metadata.
 
-The
-[`startup script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
-installs [code-server](https://coder.com/docs/code-server), a browser-based
-[VS Code](https://code.visualstudio.com/) app that runs in the workspace. We'll
-give users access to code-server through `coder_app`, later.
+- [`startup script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
 
-The
-[`env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#env)
-block sets environments variables for the workspace. We use the data source from
-`coder_workspace` to set the environment variables based on the workspace's
-owner. This way, the owner can make git commits immediately without any manual
-configuration.
+  - Installs [code-server](https://coder.com/docs/code-server), a browser-based
+    [VS Code](https://code.visualstudio.com/) app that runs in the workspace.
 
-Your template can use metadata to show information to the workspace owner. Coder
-displays this metadata in the Coder dashboard. Our template has
-[`metadata`](../admin/templates/extending-templates/agent-metadata.md) blocks
-for CPU and RAM usage.
+    We'll give users access to code-server through `coder_app`, later.
+
+- [`env` block](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#env)
+
+  - Sets environments variables for the workspace.
+
+    We use the data source from `coder_workspace` to set the environment
+    variables based on the workspace's owner. This way, the owner can make git
+    commits immediately without any manual configuration.
+
+- [`metadata`](../admin/templates/extending-templates/agent-metadata.md) blocks
+
+  - Your template can use metadata to show information to the workspace owner
+    Coder displays this metadata in the Coder dashboard.
+
+    Our template has `metadata` blocks for CPU and RAM usage.
 
 ## 4. coder_app
 
@@ -220,10 +206,9 @@ This is commonly used for
 [web IDEs](../user-guides/workspace-access/web-ides.md) such as
 [code-server](https://coder.com/docs/code-server), RStudio, and JupyterLab.
 
-To install code-server in the workspace, remember that we installed it in the
-`startup_script` argument in `coder_agent`. We make it available from a
-workspace with a `coder_app` resource. See
-[web IDEs](../user-guides/workspace-access/web-ides.md) for more examples.
+We installed code-server in the `startup_script` argument. To add code-server to
+the workspace, make it available in the workspace with a `coder_app` resource.
+See [web IDEs](../user-guides/workspace-access/web-ides.md) for more examples:
 
 ```tf
 resource "coder_app" "code-server" {
@@ -272,10 +257,9 @@ We do this in 2 parts:
   workspace name change, we use an immutable parameter, like
   `data.coder_workspace.me.id`.
 
-You'll see later that we make sure that our Docker container is ephemeral with
-the Terraform
+Later, we use the Terraform
 [count](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
-meta-argument.
+meta-argument to make sure that our Docker container is ephemeral.
 
 ```tf
 resource "docker_volume" "home_volume" {
@@ -345,57 +329,58 @@ Save `main.tf` and exit the editor.
 Now that we've created the files for our template, we can add them to our Coder
 deployment.
 
-We can do this with the Coder CLI or the Coder dashboard. For this tour, we'll
+We can do this with the Coder CLI or the Coder dashboard. In this example, we'll
 use the Coder CLI.
 
-First, you'll need to log in to your Coder deployment from the CLI. This is
-where you need the URL for your deployment:
+1. Log in to your Coder deployment from the CLI. This is where you need the URL
+   for your deployment:
 
-```sh
-$ coder login https://coder.example.com
-Your browser has been opened to visit:
+   ```console
+   $ coder login https://coder.example.com
+   Your browser has been opened to visit:
 
-        https://coder.example.com/cli-auth
+           https://coder.example.com/cli-auth
 
-> Paste your token here:
-```
+   > Paste your token here:
+   ```
 
-In your web browser, enter your credentials:
+1. In your web browser, enter your credentials:
 
-![Logging in to your Coder deployment](../images/templates/coder-login-web.png)
+   ![Logging in to your Coder deployment](../images/templates/coder-login-web.png)
 
-Copy the session token into the clipboard:
+1. Copy the session token into the clipboard:
 
-![Logging in to your Coder deployment](../images/templates/coder-session-token.png)
+   ![Logging in to your Coder deployment](../images/templates/coder-session-token.png)
 
-And paste it into the CLI:
+1. Paste it into the CLI:
 
-```sh
-> Welcome to Coder, marc! You're authenticated.
-$
-```
+   ```output
+   > Welcome to Coder, marc! You're authenticated.
+   $
+   ```
 
-Now you can add your template files to your Coder deployment:
+1. Add your template files to your Coder deployment:
 
-```sh
-$ pwd
-/home/marc/template-tour
-$ coder templates create
-> Upload "."? (yes/no) yes
-```
+   ```console
+   $ pwd
+   /home/docs/template-tour
+   $ coder templates create
+   > Upload "."? (yes/no) yes
+   ```
 
-The Coder CLI tool gives progress information then prompts you to confirm:
+1. The Coder CLI tool gives progress information then prompts you to confirm:
 
-```sh
-> Confirm create? (yes/no) yes
+   ```console
+   > Confirm create? (yes/no) yes
 
-The template-tour template has been created! Developers can provision a workspace with this template using:
+   The template-tour template has been created! Developers can provision a workspace with this template using:
 
-   coder create --template="template-tour" [workspace name]
-```
+      coder create --template="template-tour" [workspace name]
+   ```
 
-In your web browser, log in to your Coder dashboard, select **Templates**. Your
-template is ready to use for new workspaces.
+1. In your web browser, log in to your Coder dashboard, select **Templates**.
+
+Your template is ready to use for new workspaces.
 
 ![Your new template, ready to use](../images/templates/template-tour.png)
 
