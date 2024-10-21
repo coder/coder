@@ -12,9 +12,9 @@ type XAxisProps = HTMLProps<HTMLDivElement> & {
 export const XAxis: FC<XAxisProps> = ({ ticks, scale, ...htmlProps }) => {
 	const rootRef = useRef<HTMLDivElement>(null);
 
-	// 	The X axis should occupy all available space. If there is extra space,
-	// 	increase the column width accordingly. Use a CSS variable to propagate the
-	// 	value to the child components.
+	// The X axis should occupy all available space. If there is extra space,
+	// increase the column width accordingly. Use a CSS variable to propagate the
+	// value to the child components.
 	useLayoutEffect(() => {
 		const rootEl = rootRef.current;
 		if (!rootEl) {
