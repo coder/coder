@@ -28,16 +28,16 @@ test("setup deployment", async ({ page }) => {
 	await page.getByTestId("button-select-template").isVisible();
 
 	// Setup license
-	if (constants.requireEnterpriseTests || constants.enterpriseLicense) {
+	if (constants.premiumTestsRequired || constants.license) {
 		// Make sure that we have something that looks like a real license
-		expect(constants.enterpriseLicense).toBeTruthy();
-		expect(constants.enterpriseLicense.length).toBeGreaterThan(92); // the signature alone should be this long
-		expect(constants.enterpriseLicense.split(".").length).toBe(3); // otherwise it's invalid
+		expect(constants.license).toBeTruthy();
+		expect(constants.license.length).toBeGreaterThan(92); // the signature alone should be this long
+		expect(constants.license.split(".").length).toBe(3); // otherwise it's invalid
 
 		await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
 
 		await page.getByText("Add a license").click();
-		await page.getByRole("textbox").fill(constants.enterpriseLicense);
+		await page.getByRole("textbox").fill(constants.license);
 		await page.getByText("Upload License").click();
 
 		await expect(

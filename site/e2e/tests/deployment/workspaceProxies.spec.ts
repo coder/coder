@@ -2,11 +2,11 @@ import { type Page, expect, test } from "@playwright/test";
 import { API } from "api/api";
 import { setupApiCalls } from "../../api";
 import { coderPort, workspaceProxyPort } from "../../constants";
-import { randomName, requiresEnterpriseLicense } from "../../helpers";
+import { randomName, requiresLicense } from "../../helpers";
 import { startWorkspaceProxy, stopWorkspaceProxy } from "../../proxy";
 
 test("default proxy is online", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 	await setupApiCalls(page);
 
 	await page.goto("/deployment/workspace-proxies", {
@@ -28,7 +28,7 @@ test("default proxy is online", async ({ page }) => {
 });
 
 test("custom proxy is online", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 	await setupApiCalls(page);
 
 	const proxyName = randomName();

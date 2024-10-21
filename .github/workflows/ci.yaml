@@ -42,6 +42,11 @@ jobs:
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -157,6 +162,11 @@ jobs:
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -213,12 +223,23 @@ jobs:
           ./actionlint -color -shellcheck= -ignore "set-output"
         shell: bash
 
+      - name: Check for unstaged files
+        run: |
+          rm -f ./actionlint ./typos
+          ./scripts/check_unstaged.sh
+        shell: bash
+
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -268,6 +289,11 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     timeout-minutes: 7
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -304,6 +330,11 @@ jobs:
           - macos-latest
           - windows-2022
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -358,6 +389,11 @@ jobs:
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -398,6 +434,11 @@ jobs:
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -425,11 +466,16 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-race:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -441,9 +487,13 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      # We run race tests with reduced parallelism because they use more CPU and we were finding
+      # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
+      # short timeouts are used.
+      # c.f. discussion on https://github.com/coder/coder/pull/15106
       - name: Run Tests
         run: |
-          gotestsum --junitfile="gotests.xml" -- -race ./...
+          gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -466,6 +516,11 @@ jobs:
     if: needs.changes.outputs.tailnet-integration == 'true' || needs.changes.outputs.ci == 'true'
     timeout-minutes: 20
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -487,6 +542,11 @@ jobs:
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -499,8 +559,8 @@ jobs:
         working-directory: site
 
   test-e2e:
-    runs-on: ${{ github.repository_owner == 'coder' && (matrix.variant.enterprise && 'depot-ubuntu-22.04' || 'depot-ubuntu-22.04-4') || 'ubuntu-latest' }}
     # test-e2e fails on 2-core 8GB runners, so we use the 4-core 16GB runner
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -508,12 +568,17 @@ jobs:
       fail-fast: false
       matrix:
         variant:
-          - enterprise: false
+          - premium: false
             name: test-e2e
-          - enterprise: true
-            name: test-e2e-enterprise
+          - premium: true
+            name: test-e2e-premium
     name: ${{ matrix.variant.name }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -535,30 +600,27 @@ jobs:
       - run: pnpm playwright:install
         working-directory: site
 
-      # Run tests that don't require an enterprise license without an enterprise license
+      # Run tests that don't require a premium license without a premium license
       - run: pnpm playwright:test --forbid-only --workers 1
-        if: ${{ !matrix.variant.enterprise }}
+        if: ${{ !matrix.variant.premium }}
         env:
           DEBUG: pw:api
         working-directory: site
 
-      # Run all of the tests with an enterprise license
+      # Run all of the tests with a premium license
       - run: pnpm playwright:test --forbid-only --workers 1
-        if: ${{ matrix.variant.enterprise }}
+        if: ${{ matrix.variant.premium }}
         env:
           DEBUG: pw:api
-          CODER_E2E_ENTERPRISE_LICENSE: ${{ secrets.CODER_E2E_ENTERPRISE_LICENSE }}
-          CODER_E2E_REQUIRE_ENTERPRISE_TESTS: "1"
+          CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
+          CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
         working-directory: site
-        # Temporarily allow these to fail so that I can gather data about which
-        # tests are failing.
-        continue-on-error: true
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
         with:
-          name: failed-test-videos${{ matrix.variant.enterprise && '-enterprise' || '-agpl' }}
+          name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
@@ -566,7 +628,7 @@ jobs:
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
         with:
-          name: debug-pprof-dumps${{ matrix.variant.enterprise && '-enterprise' || '-agpl'  }}
+          name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
@@ -576,6 +638,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true'
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -648,6 +715,11 @@ jobs:
     if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true' || needs.changes.outputs.docs == 'true'
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -716,6 +788,11 @@ jobs:
     # cancelled.
     if: always()
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Ensure required checks
         run: |
           echo "Checking required checks"
@@ -749,6 +826,11 @@ jobs:
     outputs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -868,6 +950,11 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -925,6 +1012,11 @@ jobs:
     needs: build
     if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -955,6 +1047,11 @@ jobs:
     needs: changes
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:

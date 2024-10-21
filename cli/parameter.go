@@ -15,8 +15,9 @@ import (
 
 // workspaceParameterFlags are used by commands processing rich parameters and/or build options.
 type workspaceParameterFlags struct {
-	promptBuildOptions bool
-	buildOptions       []string
+	promptEphemeralParameters bool
+
+	ephemeralParameters []string
 
 	richParameterFile     string
 	richParameters        []string
@@ -26,23 +27,39 @@ type workspaceParameterFlags struct {
 }
 
 func (wpf *workspaceParameterFlags) allOptions() []serpent.Option {
-	options := append(wpf.cliBuildOptions(), wpf.cliParameters()...)
+	options := append(wpf.cliEphemeralParameters(), wpf.cliParameters()...)
 	options = append(options, wpf.cliParameterDefaults()...)
 	return append(options, wpf.alwaysPrompt())
 }
 
-func (wpf *workspaceParameterFlags) cliBuildOptions() []serpent.Option {
+func (wpf *workspaceParameterFlags) cliEphemeralParameters() []serpent.Option {
 	return serpent.OptionSet{
+		// Deprecated - replaced with ephemeral-parameter
 		{
 			Flag:        "build-option",
 			Env:         "CODER_BUILD_OPTION",
 			Description: `Build option value in the format "name=value".`,
-			Value:       serpent.StringArrayOf(&wpf.buildOptions),
+			UseInstead:  []serpent.Option{{Flag: "ephemeral-parameter"}},
+			Value:       serpent.StringArrayOf(&wpf.ephemeralParameters),
 		},
+		// Deprecated - replaced with prompt-ephemeral-parameters
 		{
 			Flag:        "build-options",
 			Description: "Prompt for one-time build options defined with ephemeral parameters.",
-			Value:       serpent.BoolOf(&wpf.promptBuildOptions),
+			UseInstead:  []serpent.Option{{Flag: "prompt-ephemeral-parameters"}},
+			Value:       serpent.BoolOf(&wpf.promptEphemeralParameters),
+		},
+		{
+			Flag:        "ephemeral-parameter",
+			Env:         "CODER_EPHEMERAL_PARAMETER",
+			Description: `Set the value of ephemeral parameters defined in the template. The format is "name=value".`,
+			Value:       serpent.StringArrayOf(&wpf.ephemeralParameters),
+		},
+		{
+			Flag:        "prompt-ephemeral-parameters",
+			Env:         "CODER_PROMPT_EPHEMERAL_PARAMETERS",
+			Description: "Prompt to set values of ephemeral parameters defined in the template. If a value has been set via --ephemeral-parameter, it will not be prompted for.",
+			Value:       serpent.BoolOf(&wpf.promptEphemeralParameters),
 		},
 	}
 }
