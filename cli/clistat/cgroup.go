@@ -3,10 +3,11 @@ package clistat
 import (
 	"bufio"
 	"bytes"
+	"errors"
+	"io/fs"
 	"strconv"
 	"strings"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 	"tailscale.com/types/ptr"
@@ -158,28 +159,26 @@ func (s *Statter) cGroupV2CPUTotal() (total float64, err error) {
 }
 
 func (s *Statter) cGroupV1CPUTotal() (float64, error) {
-	periodUs, err := readInt64(s.fs, cgroupV1CFSPeriodUs)
-	if err != nil {
-		// Try alternate path under /sys/fs/cpu
-		var merr error
-		merr = multierror.Append(merr, xerrors.Errorf("get cpu period: %w", err))
-		periodUs, err = readInt64(s.fs, strings.Replace(cgroupV1CFSPeriodUs, "cpu,cpuacct", "cpu", 1))
-		if err != nil {
-			merr = multierror.Append(merr, xerrors.Errorf("get cpu period: %w", err))
-			return 0, merr
-		}
+	var periodUs int64
+	if p, err := readInt64(s.fs, cgroupV1CFSPeriodUs); err == nil {
+		periodUs = p
+	} else if p2, err2 := readInt64(s.fs, strings.Replace(cgroupV1CFSPeriodUs, "cpu,cpuacct", "cpu", 1)); err2 == nil {
+		periodUs = p2
+	} else if errors.Is(err2, fs.ErrNotExist) {
+		return -1, nil
+	} else {
+		return 0, err2
 	}
 
-	quotaUs, err := readInt64(s.fs, cgroupV1CFSQuotaUs)
-	if err != nil {
-		// Try alternate path under /sys/fs/cpu
-		var merr error
-		merr = multierror.Append(merr, xerrors.Errorf("get cpu quota: %w", err))
-		quotaUs, err = readInt64(s.fs, strings.Replace(cgroupV1CFSQuotaUs, "cpu,cpuacct", "cpu", 1))
-		if err != nil {
-			merr = multierror.Append(merr, xerrors.Errorf("get cpu quota: %w", err))
-			return 0, merr
-		}
+	var quotaUs int64
+	if q, err := readInt64(s.fs, cgroupV1CFSQuotaUs); err == nil {
+		quotaUs = q
+	} else if q2, err2 := readInt64(s.fs, strings.Replace(cgroupV1CFSQuotaUs, "cpu,cpuacct", "cpu", 1)); err2 == nil {
+		quotaUs = q2
+	} else if errors.Is(err2, fs.ErrNotExist) {
+		return -1, nil
+	} else {
+		return 0, err2
 	}
 
 	if quotaUs < 0 {
@@ -190,30 +189,28 @@ func (s *Statter) cGroupV1CPUTotal() (float64, error) {
 }
 
 func (s *Statter) cGroupV1CPUUsed() (float64, error) {
-	usageNs, err := readInt64(s.fs, cgroupV1CPUAcctUsage)
-	if err != nil {
-		// Try alternate path under /sys/fs/cgroup/cpuacct
-		var merr error
-		merr = multierror.Append(merr, xerrors.Errorf("read cpu used: %w", err))
-		usageNs, err = readInt64(s.fs, strings.Replace(cgroupV1CPUAcctUsage, "cpu,cpuacct", "cpuacct", 1))
-		if err != nil {
-			merr = multierror.Append(merr, xerrors.Errorf("read cpu used: %w", err))
-			return 0, merr
-		}
+	var usageNs int64
+	if u, err := readInt64(s.fs, cgroupV1CPUAcctUsage); err == nil {
+		usageNs = u
+	} else if u2, err2 := readInt64(s.fs, strings.Replace(cgroupV1CPUAcctUsage, "cpu,cpuacct", "cpuacct", 1)); err2 == nil {
+		usageNs = u2
+	} else if errors.Is(err2, fs.ErrNotExist) {
+		return -1, nil
+	} else {
+		return 0, err2
 	}
 
 	// usage is in ns, convert to us
 	usageNs /= 1000
-	periodUs, err := readInt64(s.fs, cgroupV1CFSPeriodUs)
-	if err != nil {
-		// Try alternate path under /sys/fs/cpu
-		var merr error
-		merr = multierror.Append(merr, xerrors.Errorf("get cpu period: %w", err))
-		periodUs, err = readInt64(s.fs, strings.Replace(cgroupV1CFSPeriodUs, "cpu,cpuacct", "cpu", 1))
-		if err != nil {
-			merr = multierror.Append(merr, xerrors.Errorf("get cpu period: %w", err))
-			return 0, merr
-		}
+	var periodUs int64
+	if p, err := readInt64(s.fs, cgroupV1CFSPeriodUs); err == nil {
+		periodUs = p
+	} else if p2, err2 := readInt64(s.fs, strings.Replace(cgroupV1CFSPeriodUs, "cpu,cpuacct", "cpu", 1)); err2 == nil {
+		periodUs = p2
+	} else if errors.Is(err2, fs.ErrNotExist) {
+		return -1, nil
+	} else {
+		return 0, err2
 	}
 
 	return float64(usageNs) / float64(periodUs), nil
@@ -241,6 +238,9 @@ func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
 	}
 	maxUsageBytes, err := readInt64(s.fs, cgroupV2MemoryMaxBytes)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		if !xerrors.Is(err, strconv.ErrSyntax) {
 			return nil, xerrors.Errorf("read memory total: %w", err)
 		}
@@ -252,11 +252,17 @@ func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
 
 	currUsageBytes, err := readInt64(s.fs, cgroupV2MemoryUsageBytes)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("read memory usage: %w", err)
 	}
 
 	inactiveFileBytes, err := readInt64Prefix(s.fs, cgroupV2MemoryStat, "inactive_file")
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("read memory stats: %w", err)
 	}
 
@@ -271,6 +277,9 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 	}
 	maxUsageBytes, err := readInt64(s.fs, cgroupV1MemoryMaxUsageBytes)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		if !xerrors.Is(err, strconv.ErrSyntax) {
 			return nil, xerrors.Errorf("read memory total: %w", err)
 		}
@@ -286,11 +295,17 @@ func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
 	// need a space after total_rss so we don't hit something else
 	usageBytes, err := readInt64(s.fs, cgroupV1MemoryUsageBytes)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("read memory usage: %w", err)
 	}
 
 	totalInactiveFileBytes, err := readInt64Prefix(s.fs, cgroupV1MemoryStat, "total_inactive_file")
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("read memory stats: %w", err)
 	}
 
