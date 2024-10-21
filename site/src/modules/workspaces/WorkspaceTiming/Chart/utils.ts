@@ -29,16 +29,15 @@ export const calcDuration = (range: TimeRange): number => {
 // data in 200ms intervals. However, if the total time is 1 minute, we should
 // display the data in 5 seconds intervals. To achieve this, we define the
 // dimensions object that contains the time intervals for the chart.
-const scales = [100, 500, 5_000];
+const scales = [5_000, 500, 100];
 
 const pickScale = (totalTime: number): number => {
-	const reversedScales = scales.slice().reverse();
-	for (const s of reversedScales) {
+	for (const s of scales) {
 		if (totalTime > s) {
 			return s;
 		}
 	}
-	return reversedScales[0];
+	return scales[0];
 };
 
 export const makeTicks = (time: number) => {
