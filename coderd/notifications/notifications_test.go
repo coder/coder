@@ -21,7 +21,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -278,40 +277,22 @@ func TestBackpressure(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
-	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitShort))
 
-	// Mock server to simulate webhook endpoint.
-	var received atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var payload dispatch.WebhookPayload
-		err := json.NewDecoder(r.Body).Decode(&payload)
-		assert.NoError(t, err)
-
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write([]byte("noted."))
-		assert.NoError(t, err)
-
-		received.Add(1)
-	}))
-	defer server.Close()
-
-	endpoint, err := url.Parse(server.URL)
-	require.NoError(t, err)
-
-	method := database.NotificationMethodWebhook
+	const method = database.NotificationMethodWebhook
 	cfg := defaultNotificationsConfig(method)
-	cfg.Webhook = codersdk.NotificationsWebhookConfig{
-		Endpoint: *serpent.URLOf(endpoint),
-	}
 
 	// Tune the queue to fetch often.
 	const fetchInterval = time.Millisecond * 200
 	const batchSize = 10
 	cfg.FetchInterval = serpent.Duration(fetchInterval)
 	cfg.LeaseCount = serpent.Int64(batchSize)
+	// never time out for this test
+	cfg.LeasePeriod = serpent.Duration(time.Hour)
+	cfg.DispatchTimeout = serpent.Duration(time.Hour - time.Millisecond)
 
 	// Shrink buffers down and increase flush interval to provoke backpressure.
 	// Flush buffers every 5 fetch intervals.
@@ -319,45 +300,99 @@ func TestBackpressure(t *testing.T) {
 	cfg.StoreSyncInterval = serpent.Duration(syncInterval)
 	cfg.StoreSyncBufferSize = serpent.Int64(2)
 
-	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
+	handler := &chanHandler{calls: make(chan dispatchCall)}
 
 	// Intercept calls to submit the buffered updates to the store.
 	storeInterceptor := &syncInterceptor{Store: store}
 
+	mClock := quartz.NewMock(t)
+	syncTrap := mClock.Trap().NewTicker("Manager", "storeSync")
+	defer syncTrap.Close()
+	fetchTrap := mClock.Trap().TickerFunc("notifier", "fetchInterval")
+	defer fetchTrap.Close()
+
 	// GIVEN: a notification manager whose updates will be intercepted
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(),
+		logger.Named("manager"), notifications.WithTestClock(mClock))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
-	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
 	require.NoError(t, err)
 
 	user := createSampleUser(t, store)
 
 	// WHEN: a set of notifications are enqueued, which causes backpressure due to the batchSize which can be processed per fetch
 	const totalMessages = 30
-	for i := 0; i < totalMessages; i++ {
+	for i := range totalMessages {
 		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"i": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
 	}
 
 	// Start the notifier.
 	mgr.Run(ctx)
+	syncTrap.MustWait(ctx).Release()
+	fetchTrap.MustWait(ctx).Release()
 
 	// THEN:
 
-	// Wait for 3 fetch intervals, then check progress.
-	time.Sleep(fetchInterval * 3)
+	// Trigger a fetch
+	w := mClock.Advance(fetchInterval)
 
-	// We expect the notifier will have dispatched ONLY the initial batch of messages.
-	// In other words, the notifier should have dispatched 3 batches by now, but because the buffered updates have not
-	// been processed: there is backpressure.
-	require.EqualValues(t, batchSize, handler.sent.Load()+handler.err.Load())
+	// one batch of dispatches is sent
+	for range batchSize {
+		call := testutil.RequireRecvCtx(ctx, t, handler.calls)
+		testutil.RequireSendCtx(ctx, t, call.result, dispatchResult{
+			retryable: false,
+			err:       nil,
+		})
+	}
+
+	// The first fetch will not complete, because of the short sync buffer of 2. This is the
+	// backpressure.
+	select {
+	case <-time.After(testutil.IntervalMedium):
+		// success
+	case <-w.Done():
+		t.Fatal("fetch completed despite backpressure")
+	}
+
 	// We expect that the store will have received NO updates.
 	require.EqualValues(t, 0, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 
 	// However, when we Stop() the manager the backpressure will be relieved and the buffered updates will ALL be flushed,
 	// since all the goroutines that were blocked (on writing updates to the buffer) will be unblocked and will complete.
-	require.NoError(t, mgr.Stop(ctx))
+	// Stop() waits for the in-progress flush to complete, meaning we have to advance the time such that sync triggers
+	// a total of (batchSize/StoreSyncBufferSize)-1 times. The -1 is because once we run the penultimate sync, it
+	// clears space in the buffer for the last dispatches of the batch, which allows graceful shutdown to continue
+	// immediately, without waiting for the last trigger.
+	stopErr := make(chan error, 1)
+	go func() {
+		stopErr <- mgr.Stop(ctx)
+	}()
+	elapsed := fetchInterval
+	syncEnd := time.Duration(batchSize/cfg.StoreSyncBufferSize.Value()-1) * cfg.StoreSyncInterval.Value()
+	t.Logf("will advance until %dms have elapsed", syncEnd.Milliseconds())
+	for elapsed < syncEnd {
+		d, wt := mClock.AdvanceNext()
+		elapsed += d
+		t.Logf("elapsed: %dms", elapsed.Milliseconds())
+		// fetches complete immediately, since TickerFunc only allows one call to the callback in flight at at time.
+		wt.MustWait(ctx)
+		if elapsed%cfg.StoreSyncInterval.Value() == 0 {
+			numSent := cfg.StoreSyncBufferSize.Value() * int64(elapsed/cfg.StoreSyncInterval.Value())
+			t.Logf("waiting for %d messages", numSent)
+			require.Eventually(t, func() bool {
+				// need greater or equal because the last set of messages can come immediately due
+				// to graceful shut down
+				return int64(storeInterceptor.sent.Load()) >= numSent
+			}, testutil.WaitShort, testutil.IntervalFast)
+		}
+	}
+	t.Logf("done advancing")
+	// The batch completes
+	w.MustWait(ctx)
+
+	require.NoError(t, testutil.RequireRecvCtx(ctx, t, stopErr))
 	require.EqualValues(t, batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 }
 
