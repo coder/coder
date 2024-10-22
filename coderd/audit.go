@@ -315,6 +315,7 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	if alog.AuditLog.ResourceType == database.ResourceTypeConvertLogin {
 		_, _ = b.WriteString(" to")
 	}
+
 	_, _ = b.WriteString(" {target}")
 
 	return b.String()
