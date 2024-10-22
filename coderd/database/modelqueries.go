@@ -221,6 +221,7 @@ func (q *sqlQuerier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([
 
 type workspaceQuerier interface {
 	GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]GetWorkspacesRow, error)
+	GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)
 }
 
 // GetAuthorizedWorkspaces returns all workspaces that the user is authorized to access.
@@ -306,6 +307,49 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.LatestBuildTransition,
 			&i.LatestBuildStatus,
 			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (q *sqlQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWorkspaces())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	// In order to properly use ORDER BY, OFFSET, and LIMIT, we need to inject the
+	// authorizedFilter between the end of the where clause and those statements.
+	filtered, err := insertAuthorizedFilter(getWorkspacesAndAgentsByOwnerID, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedWorkspacesAndAgentsByOwnerID :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspacesAndAgentsByOwnerIDRow
+	for rows.Next() {
+		var i GetWorkspacesAndAgentsByOwnerIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.JobStatus,
+			&i.Transition,
+			pq.Array(&i.Agents),
 		); err != nil {
 			return nil, err
 		}

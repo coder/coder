@@ -2713,6 +2713,13 @@ func (m metricsStore) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	return workspaces, err
 }
 
+func (m metricsStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspacesAndAgentsByOwnerID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizedUsers(ctx, arg, prepared)
