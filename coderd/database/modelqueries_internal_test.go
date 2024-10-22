@@ -2,6 +2,7 @@ package database
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -29,6 +30,9 @@ func TestWorkspaceTableConvert(t *testing.T) {
 		Uint:    func() uint64 { return 126 },
 		Float:   func() float64 { return 3.14 },
 		Complex: func() complex128 { return 6.24 },
+		Time: func() time.Time {
+			return time.Date(2020, 5, 2, 5, 19, 21, 30, time.UTC)
+		},
 	}
 
 	// This feels a bit janky, but it works.
