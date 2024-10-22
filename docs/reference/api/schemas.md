@@ -513,16 +513,17 @@
 
 #### Enumerated Values
 
-| Value      |
-| ---------- |
-| `create`   |
-| `write`    |
-| `delete`   |
-| `start`    |
-| `stop`     |
-| `login`    |
-| `logout`   |
-| `register` |
+| Value                    |
+| ------------------------ |
+| `create`                 |
+| `write`                  |
+| `delete`                 |
+| `start`                  |
+| `stop`                   |
+| `login`                  |
+| `logout`                 |
+| `register`               |
+| `request_password_reset` |
 
 ## codersdk.AuditDiff
 
@@ -6393,6 +6394,34 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `active`    |
 | `dormant`   |
 | `suspended` |
+
+## codersdk.ValidateUserPasswordRequest
+
+```json
+{
+	"password": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `password` | string | true     |              |             |
+
+## codersdk.ValidateUserPasswordResponse
+
+```json
+{
+	"valid": true
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description |
+| ------- | ------- | -------- | ------------ | ----------- |
+| `valid` | boolean | false    |              |             |
 
 ## codersdk.ValidationError
 

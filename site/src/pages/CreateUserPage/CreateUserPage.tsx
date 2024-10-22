@@ -1,7 +1,8 @@
-import { authMethods, createUser } from "api/queries/users";
+import { authMethods, createUser, validatePassword } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
-import type { FC } from "react";
+import { useDebouncedFunction } from "hooks/debounce";
+import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +18,22 @@ export const CreateUserPage: FC = () => {
 	const queryClient = useQueryClient();
 	const createUserMutation = useMutation(createUser(queryClient));
 	const authMethodsQuery = useQuery(authMethods());
+	const validatePasswordMutation = useMutation(validatePassword());
+
+	const [passwordIsValid, setPasswordIsValid] = useState(false);
+
+	const validateUserPassword = async (password: string) => {
+		validatePasswordMutation.mutate(password, {
+			onSuccess: (data) => {
+				setPasswordIsValid(data);
+			},
+		});
+	};
+
+	const { debounced: debouncedValidateUserPassword } = useDebouncedFunction(
+		validateUserPassword,
+		500,
+	);
 
 	return (
 		<Margins>
@@ -35,6 +52,8 @@ export const CreateUserPage: FC = () => {
 				onCancel={() => {
 					navigate("..", { relative: "path" });
 				}}
+				onPasswordChange={debouncedValidateUserPassword}
+				passwordIsValid={passwordIsValid}
 				isLoading={createUserMutation.isLoading}
 			/>
 		</Margins>

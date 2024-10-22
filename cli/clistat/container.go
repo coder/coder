@@ -12,6 +12,7 @@ import (
 const (
 	procMounts                           = "/proc/mounts"
 	procOneCgroup                        = "/proc/1/cgroup"
+	sysCgroupType                        = "/sys/fs/cgroup/cgroup.type"
 	kubernetesDefaultServiceAccountToken = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint:gosec
 )
 
@@ -63,6 +64,17 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 		if bytes.Contains(line, []byte("sysboxfs")) {
 			return true, nil
 		}
+	}
+
+	// Adapted from https://github.com/systemd/systemd/blob/88bbf187a9b2ebe0732caa1e886616ae5f8186da/src/basic/virt.c#L603-L605
+	// The file `/sys/fs/cgroup/cgroup.type` does not exist on the root cgroup.
+	// If this file exists we can be sure we're in a container.
+	cgTypeExists, err := afero.Exists(fs, sysCgroupType)
+	if err != nil {
+		return false, xerrors.Errorf("check file exists %s: %w", sysCgroupType, err)
+	}
+	if cgTypeExists {
+		return true, nil
 	}
 
 	// If we get here, we are _probably_ not running in a container.

@@ -466,7 +466,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-race:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
@@ -487,9 +487,13 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      # We run race tests with reduced parallelism because they use more CPU and we were finding
+      # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
+      # short timeouts are used.
+      # c.f. discussion on https://github.com/coder/coder/pull/15106
       - name: Run Tests
         run: |
-          gotestsum --junitfile="gotests.xml" -- -race ./...
+          gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -966,7 +970,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@f0990588f1e5b5af6827153b93673613abdc6ec7 # v2.1.1
 
       - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@9b3958825a314eb79495c6993ef397ddbf87f32f # v2.2.1
+        uses: fluxcd/flux2/action@5350425cdcd5fa015337e09fa502153c0275bd4b # v2.4.0
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.2.1"

@@ -5,6 +5,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
+import { useEffect } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
 
@@ -29,11 +30,7 @@ export const Language = {
 
 const validationSchema = Yup.object({
 	old_password: Yup.string().trim().required(Language.oldPasswordRequired),
-	password: Yup.string()
-		.trim()
-		.min(8, Language.passwordMinLength)
-		.max(64, Language.passwordMaxLength)
-		.required(Language.newPasswordRequired),
+	password: Yup.string().trim().required(Language.newPasswordRequired),
 	confirm_password: Yup.string()
 		.trim()
 		.test("passwords-match", Language.confirmPasswordMatch, function (value) {
@@ -44,6 +41,8 @@ const validationSchema = Yup.object({
 export interface SecurityFormProps {
 	disabled: boolean;
 	isLoading: boolean;
+	onPasswordChange: (password: string) => void;
+	passwordIsValid: boolean;
 	onSubmit: (values: SecurityFormValues) => void;
 	error?: unknown;
 }
@@ -51,6 +50,8 @@ export interface SecurityFormProps {
 export const SecurityForm: FC<SecurityFormProps> = ({
 	disabled,
 	isLoading,
+	onPasswordChange,
+	passwordIsValid,
 	onSubmit,
 	error,
 }) => {
@@ -74,6 +75,10 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 		);
 	}
 
+	useEffect(() => {
+		onPasswordChange(form.values.password);
+	}, [form.values.password, onPasswordChange]);
+
 	return (
 		<>
 			<Form onSubmit={form.handleSubmit}>
@@ -91,6 +96,7 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 						autoComplete="password"
 						fullWidth
 						label={Language.newPasswordLabel}
+						helperText={!passwordIsValid ? "Password is not strong." : ""} // Provide feedback
 						type="password"
 					/>
 					<TextField

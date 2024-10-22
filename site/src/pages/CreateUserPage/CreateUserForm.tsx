@@ -8,7 +8,7 @@ import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
+import { type FC, useEffect } from "react";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -63,6 +63,8 @@ export const authMethodLanguage = {
 export interface CreateUserFormProps {
 	onSubmit: (user: TypesGen.CreateUserRequestWithOrgs) => void;
 	onCancel: () => void;
+	onPasswordChange: (password: string) => void;
+	passwordIsValid: boolean;
 	error?: unknown;
 	isLoading: boolean;
 	authMethods?: TypesGen.AuthMethods;
@@ -85,7 +87,15 @@ const validationSchema = Yup.object({
 
 export const CreateUserForm: FC<
 	React.PropsWithChildren<CreateUserFormProps>
-> = ({ onSubmit, onCancel, error, isLoading, authMethods }) => {
+> = ({
+	onSubmit,
+	onCancel,
+	onPasswordChange,
+	passwordIsValid,
+	error,
+	isLoading,
+	authMethods,
+}) => {
 	const form: FormikContextType<TypesGen.CreateUserRequestWithOrgs> =
 		useFormik<TypesGen.CreateUserRequestWithOrgs>({
 			initialValues: {
@@ -103,6 +113,10 @@ export const CreateUserForm: FC<
 		form,
 		error,
 	);
+
+	useEffect(() => {
+		onPasswordChange?.(form.values.password);
+	}, [form.values.password, onPasswordChange]); // Run effect when password changes
 
 	const methods = [
 		authMethods?.password.enabled && "password",
@@ -189,8 +203,9 @@ export const CreateUserForm: FC<
 					<TextField
 						{...getFieldHelpers("password", {
 							helperText:
-								form.values.login_type !== "password" &&
-								"No password required for this login type",
+								(form.values.login_type !== "password" &&
+									"No password required for this login type") ||
+								(!passwordIsValid && "password is not strong."),
 						})}
 						autoComplete="current-password"
 						fullWidth

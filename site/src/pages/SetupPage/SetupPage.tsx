@@ -1,7 +1,9 @@
 import { buildInfo } from "api/queries/buildInfo";
+import { validatePassword } from "api/queries/users";
 import { createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
+import { useDebouncedFunction } from "hooks/debounce";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -10,8 +12,6 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
-import { useDebouncedFunction } from "hooks/debounce";
-
 
 export const SetupPage: FC = () => {
 	const {
@@ -22,12 +22,14 @@ export const SetupPage: FC = () => {
 		isSigningIn,
 	} = useAuthContext();
 	const createFirstUserMutation = useMutation(createFirstUser());
+	const validatePasswordMutation = useMutation(validatePassword());
+
 	const setupIsComplete = !isConfiguringTheFirstUser;
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const navigate = useNavigate();
 
-	const [isPasswordValid, setIsPasswordValid] = useState<boolean | null>(null);
+	const [passwordIsValid, setPasswordIsValid] = useState(false);
 
 	useEffect(() => {
 		if (!buildInfoQuery.data) {
@@ -53,11 +55,17 @@ export const SetupPage: FC = () => {
 	}
 
 	const validateUserPassword = async (password: string) => {
-		const isValid = await validateUserPassword(password);
-		setIsPasswordValid(isValid);
+		validatePasswordMutation.mutate(password, {
+			onSuccess: (data) => {
+				setPasswordIsValid(data);
+			},
+		});
 	};
 
-	const { debounced: debouncedValidateUserPassword } = useDebouncedFunction(validateUserPassword, 500);
+	const { debounced: debouncedValidateUserPassword } = useDebouncedFunction(
+		validateUserPassword,
+		500,
+	);
 
 	return (
 		<>
@@ -65,7 +73,8 @@ export const SetupPage: FC = () => {
 				<title>{pageTitle("Set up your account")}</title>
 			</Helmet>
 			<SetupPageView
-				onPasswordChange={validateUserPassword}
+				onPasswordChange={debouncedValidateUserPassword}
+				passwordIsValid={passwordIsValid}
 				isLoading={isSigningIn || createFirstUserMutation.isLoading}
 				error={createFirstUserMutation.error}
 				onSubmit={async (firstUser) => {

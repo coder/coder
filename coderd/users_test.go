@@ -1936,7 +1936,7 @@ func TestUserAutofillParameters(t *testing.T) {
 			},
 		).Do()
 
-		dbfake.WorkspaceBuild(t, db, database.Workspace{
+		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        u2.ID,
 			TemplateID:     version.Template.ID,
 			OrganizationID: u1.OrganizationID,
@@ -1969,7 +1969,7 @@ func TestUserAutofillParameters(t *testing.T) {
 		require.Equal(t, "foo", params[0].Value)
 
 		// Verify that latest parameter value is returned.
-		dbfake.WorkspaceBuild(t, db, database.Workspace{
+		dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: u1.OrganizationID,
 			OwnerID:        u2.ID,
 			TemplateID:     version.Template.ID,

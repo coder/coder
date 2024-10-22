@@ -14,6 +14,7 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
+import { useEffect } from "react";
 import { docs } from "utils/docs";
 import {
 	getFormHelpers,
@@ -22,8 +23,6 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { countries } from "./countries";
-import { useEffect, useState } from "react";
-import { debounce } from "lodash";
 
 export const Language = {
 	emailLabel: "Email",
@@ -56,8 +55,7 @@ const validationSchema = Yup.object({
 		.trim()
 		.email(Language.emailInvalid)
 		.required(Language.emailRequired),
-	password: Yup.string()
-		.required(Language.passwordRequired),
+	password: Yup.string().required(Language.passwordRequired),
 	username: nameValidator(Language.usernameLabel),
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {
@@ -85,23 +83,19 @@ const numberOfDevelopersOptions = [
 
 export interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
+	onPasswordChange?: (password: string) => void;
+	passwordIsValid?: boolean;
 	error?: unknown;
 	isLoading?: boolean;
 }
 
 export const SetupPageView: FC<SetupPageViewProps> = ({
 	onSubmit,
+	onPasswordChange,
+	passwordIsValid = true,
 	error,
 	isLoading,
 }) => {
-	const [isPasswordValid, setIsPasswordValid] = useState<boolean | null>(null);
-
-	// Debounce function to validate password
-	const validatePassword = debounce(async (password: string) => {
-		const isValid = await validateUserPassword(password);
-		setIsPasswordValid(isValid); // Update state based on response
-	}, 500); // Adjust debounce time as needed
-
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
 		useFormik<TypesGen.CreateFirstUserRequest>({
 			initialValues: {
@@ -129,12 +123,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	);
 
 	useEffect(() => {
-		if (form.values.password) {
-			validatePassword(form.values.password); // Call the debounce function
-		} else {
-			setIsPasswordValid(null); // Reset validation state if password is empty
-		}
-	}, [form.values.password]); // Run effect when password changes
+		onPasswordChange?.(form.values.password);
+	}, [form.values.password, onPasswordChange]); // Run effect when password changes
 
 	return (
 		<SignInLayout>
@@ -193,8 +183,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						id="password"
 						label={Language.passwordLabel}
 						type="password"
-						error={isPasswordValid === false} // Show error if password is invalid
-						helperText={isPasswordValid === false ? "Password is not strong enough." : ""} // Provide feedback
+						helperText={!passwordIsValid ? "Password is not strong." : ""} // Provide feedback
 					/>
 					<label
 						htmlFor="trial"

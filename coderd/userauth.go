@@ -220,7 +220,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
-			Action:  database.AuditActionWrite,
+			Action:  database.AuditActionRequestPasswordReset,
 		})
 	)
 	defer commitAudit()
@@ -253,6 +253,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	}
 	// We continue if err == sql.ErrNoRows to help prevent a timing-based attack.
 	aReq.Old = user
+	aReq.UserID = user.ID
 
 	passcode := uuid.New()
 	passcodeExpiresAt := dbtime.Now().Add(api.OneTimePasscodeValidityPeriod)
@@ -365,6 +366,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		}
 		// We continue if err == sql.ErrNoRows to help prevent a timing-based attack.
 		aReq.Old = user
+		aReq.UserID = user.ID
 
 		equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
 		if err != nil {
@@ -444,9 +446,10 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 // @Param request body codersdk.ValidateUserPasswordRequest true "Validate user password request"
 // @Success 200 {object} codersdk.ValidateUserPasswordResponse
 // @Router /users/validate-password [post]
-func (api *API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
+func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx = r.Context()
+		ctx   = r.Context()
+		valid = true
 	)
 
 	var req codersdk.ValidateUserPasswordRequest
@@ -456,14 +459,11 @@ func (api *API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 	err := userpassword.Validate(req.Password)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.ValidateUserPasswordResponse{
-			Valid: false,
-		})
-		return
+		valid = false
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ValidateUserPasswordResponse{
-		Valid: true,
+		Valid: valid,
 	})
 }
 

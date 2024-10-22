@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,6 +40,8 @@ func defaultHelpers() map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return "http://test.com" },
 		"current_year": func() string { return "2024" },
+		"logo_url":     func() string { return "https://coder.com/coder-logo-horizontal.png" },
+		"app_name":     func() string { return "Coder" },
 	}
 }
 
@@ -67,9 +70,9 @@ func newDispatchInterceptor(h notifications.Handler) *dispatchInterceptor {
 	return &dispatchInterceptor{handler: h}
 }
 
-func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, body string, _ template.FuncMap) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		deliveryFn, err := i.handler.Dispatcher(payload, title, body)
+		deliveryFn, err := i.handler.Dispatcher(payload, title, body, defaultHelpers())
 		if err != nil {
 			return false, err
 		}
@@ -92,3 +95,43 @@ func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, bo
 		return retryable, err
 	}, nil
 }
+
+type dispatchCall struct {
+	payload     types.MessagePayload
+	title, body string
+	result      chan<- dispatchResult
+}
+
+type dispatchResult struct {
+	retryable bool
+	err       error
+}
+
+type chanHandler struct {
+	calls chan dispatchCall
+}
+
+func (c chanHandler) Dispatcher(payload types.MessagePayload, title, body string, _ template.FuncMap) (dispatch.DeliveryFunc, error) {
+	result := make(chan dispatchResult)
+	call := dispatchCall{
+		payload: payload,
+		title:   title,
+		body:    body,
+		result:  result,
+	}
+	return func(ctx context.Context, _ uuid.UUID) (bool, error) {
+		select {
+		case c.calls <- call:
+			select {
+			case r := <-result:
+				return r.retryable, r.err
+			case <-ctx.Done():
+				return false, ctx.Err()
+			}
+		case <-ctx.Done():
+			return false, ctx.Err()
+		}
+	}, nil
+}
+
+var _ notifications.Handler = &chanHandler{}

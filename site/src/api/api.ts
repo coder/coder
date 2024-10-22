@@ -1322,11 +1322,11 @@ class ApiMethods {
 		await this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 	};
 
-	validateUserPassword = async (
-		password: string,
-	): Promise<boolean> => {
-		const response = await this.axios.post("/api/v2/users/validate-password", { password });
-		return response.data.isValid;
+	validateUserPassword = async (password: string): Promise<boolean> => {
+		const response = await this.axios.post("/api/v2/users/validate-password", {
+			password,
+		});
+		return response.data.valid;
 	};
 
 	getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
@@ -2171,6 +2171,25 @@ class ApiMethods {
 		const res = await this.axios.put<void>(
 			`/api/v2/notifications/templates/${templateId}/method`,
 			req,
+		);
+		return res.data;
+	};
+
+	requestOneTimePassword = async (
+		req: TypesGen.RequestOneTimePasscodeRequest,
+	) => {
+		await this.axios.post<void>("/api/v2/users/otp/request", req);
+	};
+
+	changePasswordWithOTP = async (
+		req: TypesGen.ChangePasswordWithOneTimePasscodeRequest,
+	) => {
+		await this.axios.post<void>("/api/v2/users/otp/change-password", req);
+	};
+
+	workspaceBuildTimings = async (workspaceBuildId: string) => {
+		const res = await this.axios.get<TypesGen.WorkspaceBuildTimings>(
+			`/api/v2/workspacebuilds/${workspaceBuildId}/timings`,
 		);
 		return res.data;
 	};

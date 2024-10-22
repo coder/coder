@@ -419,6 +419,8 @@ func (s *Server) RegisterNow() error {
 }
 
 func (s *Server) Close() error {
+	s.Logger.Info(s.ctx, "closing workspace proxy server")
+	defer s.Logger.Debug(s.ctx, "finished closing workspace proxy server")
 	s.cancel()
 
 	var err error

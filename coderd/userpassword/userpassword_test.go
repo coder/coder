@@ -26,6 +26,7 @@ func TestUserPasswordValidate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			err := userpassword.Validate(tt.password)
@@ -39,6 +40,7 @@ func TestUserPasswordValidate(t *testing.T) {
 }
 
 func TestUserPasswordCompare(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		hash      string
@@ -54,6 +56,7 @@ func TestUserPasswordCompare(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if tt.hash == "" {
