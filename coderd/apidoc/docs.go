@@ -3770,6 +3770,25 @@ const docTemplate = `{
                 }
             }
         },
+        "/tailnet": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "User-scoped agent coordination",
+                "operationId": "user-scoped-agent-coordination",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/templates": {
             "get": {
                 "security": [
@@ -5228,25 +5247,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
                         }
-                    }
-                }
-            }
-        },
-        "/users/me/tailnet": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Coordinate multiple workspace agents",
-                "operationId": "coordinate-multiple-workspace-agents",
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
                     }
                 }
             }

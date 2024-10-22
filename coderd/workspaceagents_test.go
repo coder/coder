@@ -1943,13 +1943,13 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	})
 	defer closer.Close()
 	firstUser := coderdtest.CreateFirstUser(t, firstClient)
-	user, _ := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
+	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
 
 	// Create a workspace
 	token := uuid.NewString()
-	resources, _ := buildWorkspaceWithAgent(t, user, firstUser.OrganizationID, token)
+	resources, _ := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, token)
 
-	u, err := user.URL.Parse("/api/v2/users/me/tailnet")
+	u, err := member.URL.Parse("/api/v2/tailnet")
 	require.NoError(t, err)
 	q := u.Query()
 	q.Set("version", "2.0")
@@ -1958,7 +1958,7 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	//nolint:bodyclose // websocket package closes this for you
 	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 		HTTPHeader: http.Header{
-			"Coder-Session-Token": []string{user.SessionToken()},
+			"Coder-Session-Token": []string{member.SessionToken()},
 		},
 	})
 	if err != nil {
@@ -1975,7 +1975,9 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	stream, err := rpcClient.WorkspaceUpdates(ctx, &tailnetproto.WorkspaceUpdatesRequest{})
+	stream, err := rpcClient.WorkspaceUpdates(ctx, &tailnetproto.WorkspaceUpdatesRequest{
+		WorkspaceOwnerId: tailnet.UUIDToByteSlice(memberUser.ID),
+	})
 	require.NoError(t, err)
 
 	// Existing workspace
@@ -1995,7 +1997,7 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 
 	// Build a second workspace
 	secondToken := uuid.NewString()
-	secondResources, secondWorkspace := buildWorkspaceWithAgent(t, user, firstUser.OrganizationID, secondToken)
+	secondResources, secondWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, secondToken)
 
 	// Workspace starting
 	update, err = stream.Recv()
@@ -2020,7 +2022,7 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	require.Len(t, update.DeletedWorkspaces, 0)
 	require.Len(t, update.DeletedAgents, 0)
 
-	_, err = user.CreateWorkspaceBuild(ctx, secondWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
+	_, err = member.CreateWorkspaceBuild(ctx, secondWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	require.NoError(t, err)

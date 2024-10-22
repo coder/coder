@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -870,7 +871,10 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	go httpapi.Heartbeat(ctx, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, peerID, workspaceAgent.ID)
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.ServeClientOptions{
+		Peer:  peerID,
+		Agent: &workspaceAgent.ID,
+	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
@@ -1475,21 +1479,14 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 	}
 }
 
-// @Summary Coordinate multiple workspace agents
-// @ID coordinate-multiple-workspace-agents
+// @Summary User-scoped agent coordination
+// @ID user-scoped-agent-coordination
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
-// @Router /users/me/tailnet [get]
+// @Router /tailnet [get]
 func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey, ok := httpmw.APIKeyOptional(r)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Cannot use \"me\" without a valid session.",
-		})
-		return
-	}
 
 	version := "2.0"
 	qv := r.URL.Query().Get("version")
@@ -1512,6 +1509,16 @@ func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Used to authorize tunnel requests, and filter workspace update DB queries
+	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing sql filter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -1530,10 +1537,12 @@ func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
 	go httpapi.Heartbeat(ctx, conn)
-	err = api.TailnetClientService.ServeUserClient(ctx, version, wsNetConn, tailnet.ServeUserClientOptions{
-		PeerID:          peerID,
-		UserID:          apiKey.UserID,
-		UpdatesProvider: api.WorkspaceUpdatesProvider,
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.ServeClientOptions{
+		Peer: peerID,
+		Auth: &tunnelAuthorizer{
+			prep: prepared,
+			db:   api.Database,
+		},
 	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())

@@ -40,10 +40,13 @@ func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
 }
 
 type WorkspaceUpdatesProvider interface {
-	Subscribe(peerID uuid.UUID, userID uuid.UUID) (<-chan *proto.WorkspaceUpdate, error)
-	Unsubscribe(peerID uuid.UUID)
-	Stop()
-	OwnsAgent(userID uuid.UUID, agentID uuid.UUID) bool
+	io.Closer
+	Subscribe(ctx context.Context, userID uuid.UUID) (Subscription, error)
+}
+
+type Subscription interface {
+	io.Closer
+	Updates() <-chan *proto.WorkspaceUpdate
 }
 
 type ClientServiceOptions struct {
@@ -98,7 +101,37 @@ func NewClientService(options ClientServiceOptions) (
 	return s, nil
 }
 
-func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+type TunnelAuthorizer interface {
+	AuthorizeByID(ctx context.Context, workspaceID uuid.UUID) error
+}
+
+type ServeClientOptions struct {
+	Peer uuid.UUID
+	// Include for multi-workspace service
+	Auth TunnelAuthorizer
+	// Include for single workspace service
+	Agent *uuid.UUID
+}
+
+func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, opts ServeClientOptions) error {
+	var auth CoordinateeAuth
+	if opts.Auth != nil {
+		// Multi-agent service
+		auth = ClientUserCoordinateeAuth{
+			RBACAuth: opts.Auth,
+		}
+	} else if opts.Agent != nil {
+		// Single-agent service
+		auth = ClientCoordinateeAuth{AgentID: *opts.Agent}
+	} else {
+		panic("ServeClient called with neither auth nor agent")
+	}
+	streamID := StreamID{
+		Name: "client",
+		ID:   opts.Peer,
+		Auth: auth,
+	}
+
 	major, _, err := apiversion.Parse(version)
 	if err != nil {
 		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
@@ -106,42 +139,6 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 	}
 	switch major {
 	case 2:
-		auth := ClientCoordinateeAuth{AgentID: agent}
-		streamID := StreamID{
-			Name: "client",
-			ID:   id,
-			Auth: auth,
-		}
-		return s.ServeConnV2(ctx, conn, streamID)
-	default:
-		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
-		return ErrUnsupportedVersion
-	}
-}
-
-type ServeUserClientOptions struct {
-	PeerID          uuid.UUID
-	UserID          uuid.UUID
-	UpdatesProvider WorkspaceUpdatesProvider
-}
-
-func (s *ClientService) ServeUserClient(ctx context.Context, version string, conn net.Conn, opts ServeUserClientOptions) error {
-	major, _, err := apiversion.Parse(version)
-	if err != nil {
-		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
-		return err
-	}
-	switch major {
-	case 2:
-		auth := ClientUserCoordinateeAuth{
-			UserID:          opts.UserID,
-			UpdatesProvider: opts.UpdatesProvider,
-		}
-		streamID := StreamID{
-			Name: "client",
-			ID:   opts.PeerID,
-			Auth: auth,
-		}
 		return s.ServeConnV2(ctx, conn, streamID)
 	default:
 		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
@@ -245,28 +242,28 @@ func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) erro
 	return nil
 }
 
-func (s *DRPCService) WorkspaceUpdates(_ *proto.WorkspaceUpdatesRequest, stream proto.DRPCTailnet_WorkspaceUpdatesStream) error {
+func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, stream proto.DRPCTailnet_WorkspaceUpdatesStream) error {
 	defer stream.Close()
 
 	ctx := stream.Context()
 	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
 	if !ok {
-		_ = stream.Close()
 		return xerrors.New("no Stream ID")
 	}
 
-	var (
-		updatesCh <-chan *proto.WorkspaceUpdate
-		err       error
-	)
+	ownerID, err := uuid.FromBytes(req.WorkspaceOwnerId)
+	if err != nil {
+		return xerrors.Errorf("parse workspace owner ID: %w", err)
+	}
+
+	var sub Subscription
 	switch auth := streamID.Auth.(type) {
 	case ClientUserCoordinateeAuth:
-		// Stream ID is the peer ID
-		updatesCh, err = s.WorkspaceUpdatesProvider.Subscribe(streamID.ID, auth.UserID)
+		sub, err = s.WorkspaceUpdatesProvider.Subscribe(ctx, ownerID)
 		if err != nil {
 			err = xerrors.Errorf("subscribe to workspace updates: %w", err)
 		}
-		defer s.WorkspaceUpdatesProvider.Unsubscribe(streamID.ID)
+		defer sub.Close()
 	default:
 		err = xerrors.Errorf("workspace updates not supported by auth name %T", auth)
 	}
@@ -276,7 +273,7 @@ func (s *DRPCService) WorkspaceUpdates(_ *proto.WorkspaceUpdatesRequest, stream 
 
 	for {
 		select {
-		case updates := <-updatesCh:
+		case updates := <-sub.Updates():
 			if updates == nil {
 				return nil
 			}

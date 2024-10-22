@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -34,9 +35,11 @@ func (w ownedWorkspace) Equal(other ownedWorkspace) bool {
 }
 
 type sub struct {
+	ctx    context.Context
 	mu     sync.RWMutex
 	userID uuid.UUID
 	tx     chan<- *proto.WorkspaceUpdate
+	rx     <-chan *proto.WorkspaceUpdate
 	prev   workspacesByID
 
 	db     UpdateQuerier
@@ -46,21 +49,14 @@ type sub struct {
 	cancelFn func()
 }
 
-func (s *sub) ownsAgent(agentID uuid.UUID) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for _, workspace := range s.prev {
-		for _, a := range workspace.Agents {
-			if a.ID == agentID {
-				return true
-			}
-		}
+func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, err error) {
+	select {
+	case <-ctx.Done():
+		_ = s.Close()
+		return
+	default:
 	}
-	return false
-}
 
-func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -70,10 +66,15 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent) {
 	case wspubsub.WorkspaceEventKindAgentTimeout:
 	case wspubsub.WorkspaceEventKindAgentLifecycleUpdate:
 	default:
-		return
+		if err == nil {
+			return
+		} else {
+			// Always attempt an update if the pubsub lost connection
+			s.logger.Warn(ctx, "failed to handle workspace event", slog.Error(err))
+		}
 	}
 
-	row, err := s.db.GetWorkspacesAndAgentsByOwnerID(context.Background(), s.userID)
+	row, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get workspaces and agents by owner ID", slog.Error(err))
 	}
@@ -88,11 +89,11 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent) {
 	s.tx <- out
 }
 
-func (s *sub) start() (err error) {
+func (s *sub) start(ctx context.Context) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(context.Background(), s.userID)
+	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
 	if err != nil {
 		return xerrors.Errorf("get workspaces and agents by owner ID: %w", err)
 	}
@@ -102,7 +103,7 @@ func (s *sub) start() (err error) {
 	s.tx <- initUpdate
 	s.prev = latest
 
-	cancel, err := s.ps.Subscribe(wspubsub.WorkspaceEventChannel(s.userID), wspubsub.HandleWorkspaceEvent(s.logger, s.handleEvent))
+	cancel, err := s.ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(s.userID), wspubsub.HandleWorkspaceEvent(s.handleEvent))
 	if err != nil {
 		return xerrors.Errorf("subscribe to workspace event channel: %w", err)
 	}
@@ -111,7 +112,7 @@ func (s *sub) start() (err error) {
 	return nil
 }
 
-func (s *sub) stop() {
+func (s *sub) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -120,85 +121,66 @@ func (s *sub) stop() {
 	}
 
 	close(s.tx)
+	return nil
 }
+
+func (s *sub) Updates() <-chan *proto.WorkspaceUpdate {
+	return s.rx
+}
+
+var _ tailnet.Subscription = (*sub)(nil)
 
 type UpdateQuerier interface {
 	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
 }
 
 type updatesProvider struct {
-	mu sync.RWMutex
-	// Peer ID -> subscription
-	subs map[uuid.UUID]*sub
-
 	db     UpdateQuerier
 	ps     pubsub.Pubsub
 	logger slog.Logger
-}
 
-func (u *updatesProvider) OwnsAgent(userID uuid.UUID, agentID uuid.UUID) bool {
-	u.mu.RLock()
-	defer u.mu.RUnlock()
-
-	for _, sub := range u.subs {
-		if sub.userID == userID && sub.ownsAgent(agentID) {
-			return true
-		}
-	}
-	return false
+	ctx      context.Context
+	cancelFn func()
 }
 
 var _ tailnet.WorkspaceUpdatesProvider = (*updatesProvider)(nil)
 
 func NewUpdatesProvider(logger slog.Logger, db UpdateQuerier, ps pubsub.Pubsub) (tailnet.WorkspaceUpdatesProvider, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 	out := &updatesProvider{
-		db:     db,
-		ps:     ps,
-		logger: logger,
-		subs:   map[uuid.UUID]*sub{},
+		ctx:      ctx,
+		cancelFn: cancel,
+		db:       db,
+		ps:       ps,
+		logger:   logger,
 	}
 	return out, nil
 }
 
-func (u *updatesProvider) Stop() {
-	for _, sub := range u.subs {
-		sub.stop()
-	}
+func (u *updatesProvider) Close() error {
+	u.cancelFn()
+	return nil
 }
 
-func (u *updatesProvider) Subscribe(peerID uuid.UUID, userID uuid.UUID) (<-chan *proto.WorkspaceUpdate, error) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	tx := make(chan *proto.WorkspaceUpdate, 1)
+func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tailnet.Subscription, error) {
+	ch := make(chan *proto.WorkspaceUpdate, 1)
 	sub := &sub{
+		ctx:    u.ctx,
 		userID: userID,
-		tx:     tx,
+		tx:     ch,
+		rx:     ch,
 		db:     u.db,
 		ps:     u.ps,
-		logger: u.logger.Named(fmt.Sprintf("workspace_updates_subscriber_%s", peerID)),
+		logger: u.logger.Named(fmt.Sprintf("workspace_updates_subscriber_%s", userID)),
 		prev:   workspacesByID{},
 	}
-	err := sub.start()
+	err := sub.start(ctx)
 	if err != nil {
-		sub.stop()
+		_ = sub.Close()
 		return nil, err
 	}
 
-	u.subs[peerID] = sub
-	return tx, nil
-}
-
-func (u *updatesProvider) Unsubscribe(peerID uuid.UUID) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	sub, exists := u.subs[peerID]
-	if !exists {
-		return
-	}
-	sub.stop()
-	delete(u.subs, peerID)
+	return sub, nil
 }
 
 func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated bool) {
@@ -297,3 +279,18 @@ func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesB
 	}
 	return out
 }
+
+type tunnelAuthorizer struct {
+	prep rbac.PreparedAuthorized
+	db   database.Store
+}
+
+func (t *tunnelAuthorizer) AuthorizeByID(ctx context.Context, workspaceID uuid.UUID) error {
+	ws, err := t.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return xerrors.Errorf("get workspace by ID: %w", err)
+	}
+	return t.prep.Authorize(ctx, ws.RBACObject())
+}
+
+var _ tailnet.TunnelAuthorizer = (*tunnelAuthorizer)(nil)

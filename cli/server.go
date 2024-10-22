@@ -733,7 +733,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create workspace updates provider: %w", err)
 			}
 			options.WorkspaceUpdatesProvider = wsUpdates
-			defer wsUpdates.Stop()
+			defer wsUpdates.Close()
 
 			var deploymentID string
 			err = options.Database.InTx(func(tx database.Store) error {

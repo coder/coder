@@ -198,7 +198,9 @@ message TelemetryRequest {
 
 message TelemetryResponse {}
 
-message WorkspaceUpdatesRequest {}
+message WorkspaceUpdatesRequest {
+	bytes workspace_owner_id = 1; // UUID
+}
 
 message WorkspaceUpdate {
 	repeated Workspace upserted_workspaces = 1;

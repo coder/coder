@@ -24,8 +24,6 @@ func TestWorkspaceUpdates(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	peerID := uuid.New()
-
 	ws1ID := uuid.New()
 	ws1IDSlice := tailnet.UUIDToByteSlice(ws1ID)
 	agent1ID := uuid.New()
@@ -76,15 +74,18 @@ func TestWorkspaceUpdates(t *testing.T) {
 		}
 
 		ps := &mockPubsub{
-			cbs: map[string]pubsub.Listener{},
+			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
 		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), db, ps)
-		defer updateProvider.Stop()
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = updateProvider.Close()
+		})
 
-		ch, err := updateProvider.Subscribe(peerID, ownerID)
+		sub, err := updateProvider.Subscribe(ctx, ownerID)
 		require.NoError(t, err)
+		ch := sub.Updates()
 
 		update, ok := <-ch
 		require.True(t, ok)
@@ -215,15 +216,18 @@ func TestWorkspaceUpdates(t *testing.T) {
 		}
 
 		ps := &mockPubsub{
-			cbs: map[string]pubsub.Listener{},
+			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
 		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), db, ps)
-		defer updateProvider.Stop()
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = updateProvider.Close()
+		})
 
-		ch, err := updateProvider.Subscribe(peerID, ownerID)
+		sub, err := updateProvider.Subscribe(ctx, ownerID)
 		require.NoError(t, err)
+		ch := sub.Updates()
 
 		expected := &proto.WorkspaceUpdate{
 			UpsertedWorkspaces: []*proto.Workspace{
@@ -250,10 +254,10 @@ func TestWorkspaceUpdates(t *testing.T) {
 		})
 		require.Equal(t, expected, update)
 
-		updateProvider.Unsubscribe(ownerID)
 		require.NoError(t, err)
-		ch, err = updateProvider.Subscribe(peerID, ownerID)
+		sub, err = updateProvider.Subscribe(ctx, ownerID)
 		require.NoError(t, err)
+		ch = sub.Updates()
 
 		update = testutil.RequireRecvCtx(ctx, t, ch)
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
@@ -281,7 +285,7 @@ func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uu
 var _ coderd.UpdateQuerier = (*mockWorkspaceStore)(nil)
 
 type mockPubsub struct {
-	cbs map[string]pubsub.Listener
+	cbs map[string]pubsub.ListenerWithErr
 }
 
 // Close implements pubsub.Pubsub.
@@ -295,19 +299,17 @@ func (m *mockPubsub) Publish(event string, message []byte) error {
 	if !ok {
 		return nil
 	}
-	cb(context.Background(), message)
+	cb(context.Background(), message, nil)
 	return nil
 }
 
-// Subscribe implements pubsub.Pubsub.
-func (m *mockPubsub) Subscribe(event string, listener pubsub.Listener) (cancel func(), err error) {
-	m.cbs[event] = listener
-	return func() {}, nil
+func (*mockPubsub) Subscribe(string, pubsub.Listener) (cancel func(), err error) {
+	panic("unimplemented")
 }
 
-// SubscribeWithErr implements pubsub.Pubsub.
-func (*mockPubsub) SubscribeWithErr(string, pubsub.ListenerWithErr) (func(), error) {
-	panic("unimplemented")
+func (m *mockPubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (func(), error) {
+	m.cbs[event] = listener
+	return func() {}, nil
 }
 
 var _ pubsub.Pubsub = (*mockPubsub)(nil)

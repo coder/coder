@@ -260,7 +260,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		var err error
 		options.WorkspaceUpdatesProvider, err = coderd.NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Database, options.Pubsub)
 		require.NoError(t, err)
-		t.Cleanup(options.WorkspaceUpdatesProvider.Stop)
+		t.Cleanup(func() {
+			_ = options.WorkspaceUpdatesProvider.Close()
+		})
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}

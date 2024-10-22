@@ -20,17 +20,17 @@ curl -X GET http://coder-server:8080/api/v2/derp-map \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Coordinate multiple workspace agents
+## User-scoped agent coordination
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/me/tailnet \
+curl -X GET http://coder-server:8080/api/v2/tailnet \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/me/tailnet`
+`GET /tailnet`
 
 ### Responses
 
