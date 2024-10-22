@@ -50,7 +50,7 @@ func TestTelemetry(t *testing.T) {
 		})
 		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{})
 		user := dbgen.User(t, db, database.User{})
-		_ = dbgen.Workspace(t, db, database.Workspace{})
+		_ = dbgen.Workspace(t, db, database.WorkspaceTable{})
 		_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,

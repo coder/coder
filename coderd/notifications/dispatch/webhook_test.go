@@ -141,7 +141,7 @@ func TestWebhook(t *testing.T) {
 				Endpoint: *serpent.URLOf(endpoint),
 			}
 			handler := dispatch.NewWebhookHandler(cfg, logger.With(slog.F("test", tc.name)))
-			deliveryFn, err := handler.Dispatcher(msgPayload, titleMarkdown, bodyMarkdown)
+			deliveryFn, err := handler.Dispatcher(msgPayload, titleMarkdown, bodyMarkdown, helpers())
 			require.NoError(t, err)
 
 			retryable, err := deliveryFn(ctx, msgID)

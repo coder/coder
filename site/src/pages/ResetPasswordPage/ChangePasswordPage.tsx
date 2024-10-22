@@ -2,6 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
+import { isApiError, isApiValidationError } from "api/errors";
 import { changePasswordWithOTP } from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
@@ -64,7 +65,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 			}
 		},
 	});
-	const getFieldHelpers = getFormHelpers(form);
+	const getFieldHelpers = getFormHelpers(form, changePasswordMutation.error);
 
 	return (
 		<>
@@ -86,7 +87,8 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 					>
 						Choose a new password
 					</h1>
-					{changePasswordMutation.error ? (
+					{changePasswordMutation.error &&
+					!isApiValidationError(changePasswordMutation.error) ? (
 						<ErrorAlert
 							error={changePasswordMutation.error}
 							css={{ marginBottom: 24 }}

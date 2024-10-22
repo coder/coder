@@ -1461,15 +1461,6 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 	return member.OrganizationIDs, nil
 }
 
-func userByID(id uuid.UUID, users []database.User) (database.User, bool) {
-	for _, user := range users {
-		if id == user.ID {
-			return user, true
-		}
-	}
-	return database.User{}, false
-}
-
 func convertAPIKey(k database.APIKey) codersdk.APIKey {
 	return codersdk.APIKey{
 		ID:              k.ID,

@@ -513,16 +513,17 @@
 
 #### Enumerated Values
 
-| Value      |
-| ---------- |
-| `create`   |
-| `write`    |
-| `delete`   |
-| `start`    |
-| `stop`     |
-| `login`    |
-| `logout`   |
-| `register` |
+| Value                    |
+| ------------------------ |
+| `create`                 |
+| `write`                  |
+| `delete`                 |
+| `start`                  |
+| `stop`                   |
+| `login`                  |
+| `logout`                 |
+| `register`               |
+| `request_password_reset` |
 
 ## codersdk.AuditDiff
 

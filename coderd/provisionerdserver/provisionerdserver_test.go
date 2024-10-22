@@ -267,7 +267,7 @@ func TestAcquireJob(t *testing.T) {
 				Required:          true,
 				Sensitive:         false,
 			})
-			workspace := dbgen.Workspace(t, db, database.Workspace{
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 				TemplateID:     template.ID,
 				OwnerID:        user.ID,
 				OrganizationID: pd.OrganizationID,
@@ -1263,7 +1263,7 @@ func TestCompleteJob(t *testing.T) {
 						Valid: true,
 					}
 				}
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					Ttl:            workspaceTTL,
 					OwnerID:        user.ID,
@@ -1278,7 +1278,7 @@ func TestCompleteJob(t *testing.T) {
 					JobID: uuid.New(),
 				})
 				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					WorkspaceID:       workspace.ID,
+					WorkspaceID:       workspaceTable.ID,
 					TemplateVersionID: version.ID,
 					Transition:        c.transition,
 					Reason:            database.BuildReasonInitiator,
@@ -1331,7 +1331,7 @@ func TestCompleteJob(t *testing.T) {
 				<-publishedWorkspace
 				<-publishedLogs
 
-				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
+				workspace, err := db.GetWorkspaceByID(ctx, workspaceTable.ID)
 				require.NoError(t, err)
 				require.Equal(t, c.transition == database.WorkspaceTransitionDelete, workspace.Deleted)
 
@@ -1622,7 +1622,7 @@ func TestNotifications(t *testing.T) {
 				template, err := db.GetTemplateByID(ctx, template.ID)
 				require.NoError(t, err)
 				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
@@ -1636,7 +1636,7 @@ func TestNotifications(t *testing.T) {
 					JobID: uuid.New(),
 				})
 				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					WorkspaceID:       workspace.ID,
+					WorkspaceID:       workspaceTable.ID,
 					TemplateVersionID: version.ID,
 					InitiatorID:       initiator.ID,
 					Transition:        database.WorkspaceTransitionDelete,
@@ -1674,7 +1674,7 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
+				workspace, err := db.GetWorkspaceByID(ctx, workspaceTable.ID)
 				require.NoError(t, err)
 				require.True(t, workspace.Deleted)
 
@@ -1740,7 +1740,7 @@ func TestNotifications(t *testing.T) {
 					OrganizationID: pd.OrganizationID,
 				})
 				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
@@ -1822,7 +1822,7 @@ func TestNotifications(t *testing.T) {
 		template := dbgen.Template(t, db, database.Template{
 			Name: "template", DisplayName: "William's Template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
 		})
-		workspace := dbgen.Workspace(t, db, database.Workspace{
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 			TemplateID: template.ID, OwnerID: user.ID, OrganizationID: pd.OrganizationID,
 		})
 		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{

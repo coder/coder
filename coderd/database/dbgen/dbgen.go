@@ -232,7 +232,7 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 	return timing
 }
 
-func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
+func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
 	t.Helper()
 
 	workspace, err := db.InsertWorkspace(genCtx, database.InsertWorkspaceParams{

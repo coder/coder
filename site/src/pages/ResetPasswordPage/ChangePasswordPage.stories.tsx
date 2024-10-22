@@ -51,7 +51,7 @@ export const WrongConfirmationPassword: Story = {
 	},
 };
 
-export const ServerError: Story = {
+export const GeneralServerError: Story = {
 	play: async ({ canvasElement }) => {
 		const serverError =
 			"New password should be different from the old password";
@@ -69,5 +69,31 @@ export const ServerError: Story = {
 		await user.type(confirmPasswordInput, "password");
 		await user.click(canvas.getByRole("button", { name: /reset password/i }));
 		await canvas.findByText(serverError);
+	},
+};
+
+export const ValidationServerError: Story = {
+	play: async ({ canvasElement }) => {
+		const validationDetail =
+			"insecure password, try including more special characters, using uppercase letters, using numbers or using a longer password";
+		const error = mockApiError({
+			message: "Invalid password.",
+			validations: [
+				{
+					field: "password",
+					detail: validationDetail,
+				},
+			],
+		});
+		spyOn(API, "changePasswordWithOTP").mockRejectedValueOnce(error);
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const newPasswordInput = await canvas.findByLabelText("Password *");
+		await user.type(newPasswordInput, "password");
+		const confirmPasswordInput =
+			await canvas.findByLabelText("Confirm password *");
+		await user.type(confirmPasswordInput, "password");
+		await user.click(canvas.getByRole("button", { name: /reset password/i }));
+		await canvas.findByText(validationDetail);
 	},
 };

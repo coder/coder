@@ -225,7 +225,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
-			Action:  database.AuditActionWrite,
+			Action:  database.AuditActionRequestPasswordReset,
 		})
 	)
 	defer commitAudit()
@@ -258,6 +258,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 	}
 	// We continue if err == sql.ErrNoRows to help prevent a timing-based attack.
 	aReq.Old = user
+	aReq.UserID = user.ID
 
 	passcode := uuid.New()
 	passcodeExpiresAt := dbtime.Now().Add(api.OneTimePasscodeValidityPeriod)
@@ -370,6 +371,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		}
 		// We continue if err == sql.ErrNoRows to help prevent a timing-based attack.
 		aReq.Old = user
+		aReq.UserID = user.ID
 
 		equal, err := userpassword.Compare(string(user.HashedOneTimePasscode), req.OneTimePasscode)
 		if err != nil {
