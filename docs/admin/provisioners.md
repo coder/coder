@@ -43,36 +43,38 @@ The provisioner daemon must authenticate with your Coder deployment.
 We recommend creating finely-scoped keys for provisioners. Keys are scoped to an
 organization, and optionally to a specific set of tags.
 
-To create a key for an organization that will match untagged jobs:
+1. Use `coder provisioner` to create the key:
 
-```sh
-coder provisioner keys create my-key \
-  --org default
+   - To create a key for an organization that will match untagged jobs:
 
-Successfully created provisioner key my-key! Save this authentication token, it will not be shown again.
+     ```sh
+     coder provisioner keys create my-key \
+       --org default
 
-<key omitted>
-```
+     Successfully created provisioner key   my-key! Save this authentication token, it   will not be shown    again.
 
-To restrict the provisioner to jobs with specific tags:
+     <key omitted>
+     ```
 
-```sh
-coder provisioner keys create kubernetes-key \
-  --org default \
-  --tag environment=kubernetes
+   - To restrict the provisioner to jobs with specific tags:
 
-Successfully created provisioner key kubernetes-key! Save this authentication token, it will not be shown again.
+     ```sh
+     coder provisioner keys create kubernetes-key \
+       --org default \
+       --tag environment=kubernetes
 
-<key omitted>
-```
+     Successfully created provisioner key kubernetes-key! Save this    authentication token, it will not be    shown again.
 
-You can then start the provisioner with the specified key:
+     <key omitted>
+     ```
 
-```sh
-export CODER_URL=https://<your-coder-url>
-export CODER_PROVISIONER_DAEMON_KEY=<key>
-coder provisioner start
-```
+1. Start the provisioner with the specified key:
+
+   ```sh
+   export CODER_URL=https://<your-coder-url>
+   export CODER_PROVISIONER_DAEMON_KEY=<key>
+   coder provisioner start
+   ```
 
 Keep reading to see instructions for running provisioners on
 Kubernetes/Docker/etc.
