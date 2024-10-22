@@ -1406,7 +1406,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				TemplateScheduleStore:       *s.TemplateScheduleStore.Load(),
 				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 				Now:                         now,
-				Workspace:                   workspace,
+				Workspace:                   workspace.WorkspaceTable(),
 				// Allowed to be the empty string.
 				WorkspaceAutostart: workspace.AutostartSchedule.String,
 			})

@@ -2902,23 +2902,33 @@ type VisibleUser struct {
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
+// Joins in the display name information such as username, avatar, and organization name.
 type Workspace struct {
-	ID                uuid.UUID        `db:"id" json:"id"`
-	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
-	Deleted           bool             `db:"deleted" json:"deleted"`
-	Name              string           `db:"name" json:"name"`
-	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
-	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
-	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
-	// Favorite is true if the workspace owner has favorited the workspace.
-	Favorite bool `db:"favorite" json:"favorite"`
+	ID                      uuid.UUID        `db:"id" json:"id"`
+	CreatedAt               time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID                 uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID          uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID              uuid.UUID        `db:"template_id" json:"template_id"`
+	Deleted                 bool             `db:"deleted" json:"deleted"`
+	Name                    string           `db:"name" json:"name"`
+	AutostartSchedule       sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                     sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt              time.Time        `db:"last_used_at" json:"last_used_at"`
+	DormantAt               sql.NullTime     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt              sql.NullTime     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates        AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	Favorite                bool             `db:"favorite" json:"favorite"`
+	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
+	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
+	OrganizationName        string           `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string           `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string           `db:"organization_icon" json:"organization_icon"`
+	OrganizationDescription string           `db:"organization_description" json:"organization_description"`
+	TemplateName            string           `db:"template_name" json:"template_name"`
+	TemplateDisplayName     string           `db:"template_display_name" json:"template_display_name"`
+	TemplateIcon            string           `db:"template_icon" json:"template_icon"`
+	TemplateDescription     string           `db:"template_description" json:"template_description"`
 }
 
 type WorkspaceAgent struct {
@@ -3183,4 +3193,23 @@ type WorkspaceResourceMetadatum struct {
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
 	ID                  int64          `db:"id" json:"id"`
+}
+
+type WorkspaceTable struct {
+	ID                uuid.UUID        `db:"id" json:"id"`
+	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
+	Deleted           bool             `db:"deleted" json:"deleted"`
+	Name              string           `db:"name" json:"name"`
+	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
+	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	// Favorite is true if the workspace owner has favorited the workspace.
+	Favorite bool `db:"favorite" json:"favorite"`
 }

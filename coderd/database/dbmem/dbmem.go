@@ -81,7 +81,7 @@ func New() database.Store {
 			workspaceAgentLogs:        make([]database.WorkspaceAgentLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
-			workspaces:                make([]database.Workspace, 0),
+			workspaces:                make([]database.WorkspaceTable, 0),
 			licenses:                  make([]database.License, 0),
 			workspaceProxies:          make([]database.WorkspaceProxy, 0),
 			customRoles:               make([]database.CustomRole, 0),
@@ -232,7 +232,7 @@ type data struct {
 	workspaceBuildParameters        []database.WorkspaceBuildParameter
 	workspaceResourceMetadata       []database.WorkspaceResourceMetadatum
 	workspaceResources              []database.WorkspaceResource
-	workspaces                      []database.Workspace
+	workspaces                      []database.WorkspaceTable
 	workspaceProxies                []database.WorkspaceProxy
 	customRoles                     []database.CustomRole
 	provisionerJobTimings           []database.ProvisionerJobTiming
@@ -445,9 +445,11 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 	return status
 }
 
-func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64, withSummary bool) []database.GetWorkspacesRow { //nolint:revive // withSummary flag ensures the extra technical row
+func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.WorkspaceTable, count int64, withSummary bool) []database.GetWorkspacesRow { //nolint:revive // withSummary flag ensures the extra technical row
 	rows := make([]database.GetWorkspacesRow, 0, len(workspaces))
 	for _, w := range workspaces {
+		extended := q.extendWorkspace(w)
+
 		wr := database.GetWorkspacesRow{
 			ID:                w.ID,
 			CreatedAt:         w.CreatedAt,
@@ -462,16 +464,33 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			LastUsedAt:        w.LastUsedAt,
 			DormantAt:         w.DormantAt,
 			DeletingAt:        w.DeletingAt,
-			Count:             count,
 			AutomaticUpdates:  w.AutomaticUpdates,
 			Favorite:          w.Favorite,
-		}
 
-		for _, t := range q.templates {
-			if t.ID == w.TemplateID {
-				wr.TemplateName = t.Name
-				break
-			}
+			OwnerAvatarUrl: extended.OwnerAvatarUrl,
+			OwnerUsername:  extended.OwnerUsername,
+
+			OrganizationName:        extended.OrganizationName,
+			OrganizationDisplayName: extended.OrganizationDisplayName,
+			OrganizationIcon:        extended.OrganizationIcon,
+			OrganizationDescription: extended.OrganizationDescription,
+
+			TemplateName:        extended.TemplateName,
+			TemplateDisplayName: extended.TemplateDisplayName,
+			TemplateIcon:        extended.TemplateIcon,
+			TemplateDescription: extended.TemplateDescription,
+
+			Count: count,
+
+			// These fields are missing!
+			// Try to resolve them below
+			TemplateVersionID:      uuid.UUID{},
+			TemplateVersionName:    sql.NullString{},
+			LatestBuildCompletedAt: sql.NullTime{},
+			LatestBuildCanceledAt:  sql.NullTime{},
+			LatestBuildError:       sql.NullString{},
+			LatestBuildTransition:  "",
+			LatestBuildStatus:      "",
 		}
 
 		if build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, w.ID); err == nil {
@@ -488,13 +507,12 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 
 			if pj, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID); err == nil {
 				wr.LatestBuildStatus = pj.JobStatus
+				wr.LatestBuildCanceledAt = pj.CanceledAt
+				wr.LatestBuildCompletedAt = pj.CompletedAt
+				wr.LatestBuildError = pj.Error
 			}
 
 			wr.LatestBuildTransition = build.Transition
-		}
-
-		if u, err := q.getUserByIDNoLock(w.OwnerID); err == nil {
-			wr.Username = u.Username
 		}
 
 		rows = append(rows, wr)
@@ -509,12 +527,48 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 }
 
 func (q *FakeQuerier) getWorkspaceByIDNoLock(_ context.Context, id uuid.UUID) (database.Workspace, error) {
-	for _, workspace := range q.workspaces {
-		if workspace.ID == id {
-			return workspace, nil
-		}
+	return q.getWorkspaceNoLock(func(w database.WorkspaceTable) bool {
+		return w.ID == id
+	})
+}
+
+func (q *FakeQuerier) getWorkspaceNoLock(find func(w database.WorkspaceTable) bool) (database.Workspace, error) {
+	w, found := slice.Find(q.workspaces, find)
+	if found {
+		return q.extendWorkspace(w), nil
 	}
 	return database.Workspace{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) extendWorkspace(w database.WorkspaceTable) database.Workspace {
+	var extended database.Workspace
+	// This is a cheeky way to copy the fields over without explicitly listing them all.
+	d, _ := json.Marshal(w)
+	_ = json.Unmarshal(d, &extended)
+
+	org, _ := slice.Find(q.organizations, func(o database.Organization) bool {
+		return o.ID == w.OrganizationID
+	})
+	extended.OrganizationName = org.Name
+	extended.OrganizationDescription = org.Description
+	extended.OrganizationDisplayName = org.DisplayName
+	extended.OrganizationIcon = org.Icon
+
+	tpl, _ := slice.Find(q.templates, func(t database.TemplateTable) bool {
+		return t.ID == w.TemplateID
+	})
+	extended.TemplateName = tpl.Name
+	extended.TemplateDisplayName = tpl.DisplayName
+	extended.TemplateDescription = tpl.Description
+	extended.TemplateIcon = tpl.Icon
+
+	owner, _ := slice.Find(q.users, func(u database.User) bool {
+		return u.ID == w.OwnerID
+	})
+	extended.OwnerUsername = owner.Username
+	extended.OwnerAvatarUrl = owner.AvatarURL
+
+	return extended
 }
 
 func (q *FakeQuerier) getWorkspaceByAgentIDNoLock(_ context.Context, agentID uuid.UUID) (database.Workspace, error) {
@@ -551,13 +605,9 @@ func (q *FakeQuerier) getWorkspaceByAgentIDNoLock(_ context.Context, agentID uui
 		return database.Workspace{}, sql.ErrNoRows
 	}
 
-	for _, workspace := range q.workspaces {
-		if workspace.ID == build.WorkspaceID {
-			return workspace, nil
-		}
-	}
-
-	return database.Workspace{}, sql.ErrNoRows
+	return q.getWorkspaceNoLock(func(w database.WorkspaceTable) bool {
+		return w.ID == build.WorkspaceID
+	})
 }
 
 func (q *FakeQuerier) getWorkspaceBuildByIDNoLock(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
@@ -986,14 +1036,14 @@ func (q *FakeQuerier) getLatestWorkspaceAppByTemplateIDUserIDSlugNoLock(ctx cont
 		LIMIT 1
 	*/
 
-	var workspaces []database.Workspace
+	var workspaces []database.WorkspaceTable
 	for _, w := range q.workspaces {
 		if w.TemplateID != templateID || w.OwnerID != userID {
 			continue
 		}
 		workspaces = append(workspaces, w)
 	}
-	slices.SortFunc(workspaces, func(a, b database.Workspace) int {
+	slices.SortFunc(workspaces, func(a, b database.WorkspaceTable) int {
 		if a.CreatedAt.Before(b.CreatedAt) {
 			return 1
 		} else if a.CreatedAt.Equal(b.CreatedAt) {
@@ -5644,7 +5694,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 						continue
 					}
 					row := database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{
-						Workspace: database.Workspace{
+						WorkspaceTable: database.WorkspaceTable{
 							ID:         ws.ID,
 							TemplateID: ws.TemplateID,
 						},
@@ -5655,7 +5705,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 					if err != nil {
 						return database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow{}, sql.ErrNoRows
 					}
-					row.Workspace.OwnerID = usr.ID
+					row.WorkspaceTable.OwnerID = usr.ID
 
 					// Keep track of the latest build number
 					rows = append(rows, row)
@@ -5672,7 +5722,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Conte
 			continue
 		}
 
-		if rows[i].WorkspaceBuild.BuildNumber != latestBuildNumber[rows[i].Workspace.ID] {
+		if rows[i].WorkspaceBuild.BuildNumber != latestBuildNumber[rows[i].WorkspaceTable.ID] {
 			continue
 		}
 
@@ -6514,24 +6564,16 @@ func (q *FakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after ti
 	return workspaceBuilds, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
+func (q *FakeQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	w, err := q.getWorkspaceByAgentIDNoLock(ctx, agentID)
 	if err != nil {
-		return database.GetWorkspaceByAgentIDRow{}, err
+		return database.Workspace{}, err
 	}
 
-	tpl, err := q.getTemplateByIDNoLock(ctx, w.TemplateID)
-	if err != nil {
-		return database.GetWorkspaceByAgentIDRow{}, err
-	}
-
-	return database.GetWorkspaceByAgentIDRow{
-		Workspace:    w,
-		TemplateName: tpl.Name,
-	}, nil
+	return w, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
@@ -6549,7 +6591,7 @@ func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var found *database.Workspace
+	var found *database.WorkspaceTable
 	for _, workspace := range q.workspaces {
 		workspace := workspace
 		if workspace.OwnerID != arg.OwnerID {
@@ -6568,7 +6610,7 @@ func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 		}
 	}
 	if found != nil {
-		return *found, nil
+		return q.extendWorkspace(*found), nil
 	}
 	return database.Workspace{}, sql.ErrNoRows
 }
@@ -6794,11 +6836,11 @@ func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaceRows, err
 }
 
-func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.WorkspaceTable, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	workspaces := []database.Workspace{}
+	workspaces := []database.WorkspaceTable{}
 	for _, workspace := range q.workspaces {
 		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
 		if err != nil {
@@ -7759,16 +7801,16 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	return link, nil
 }
 
-func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
+func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Workspace{}, err
+		return database.WorkspaceTable{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	workspace := database.Workspace{
+	workspace := database.WorkspaceTable{
 		ID:                arg.ID,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
@@ -9408,9 +9450,9 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
+func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Workspace{}, err
+		return database.WorkspaceTable{}, err
 	}
 
 	q.mutex.Lock()
@@ -9425,7 +9467,7 @@ func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWork
 				continue
 			}
 			if other.Name == arg.Name {
-				return database.Workspace{}, errUniqueConstraint
+				return database.WorkspaceTable{}, errUniqueConstraint
 			}
 		}
 
@@ -9435,7 +9477,7 @@ func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWork
 		return workspace, nil
 	}
 
-	return database.Workspace{}, sql.ErrNoRows
+	return database.WorkspaceTable{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
@@ -9700,9 +9742,9 @@ func (q *FakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceDormantDeletingAt(_ context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+func (q *FakeQuerier) UpdateWorkspaceDormantDeletingAt(_ context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.WorkspaceTable, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Workspace{}, err
+		return database.WorkspaceTable{}, err
 	}
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -9724,7 +9766,7 @@ func (q *FakeQuerier) UpdateWorkspaceDormantDeletingAt(_ context.Context, arg da
 				}
 			}
 			if template.ID == uuid.Nil {
-				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
+				return database.WorkspaceTable{}, xerrors.Errorf("unable to find workspace template")
 			}
 			if template.TimeTilDormantAutoDelete > 0 {
 				workspace.DeletingAt = sql.NullTime{
@@ -9736,7 +9778,7 @@ func (q *FakeQuerier) UpdateWorkspaceDormantDeletingAt(_ context.Context, arg da
 		q.workspaces[index] = workspace
 		return workspace, nil
 	}
-	return database.Workspace{}, sql.ErrNoRows
+	return database.WorkspaceTable{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
@@ -9819,7 +9861,7 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.Workspace, error) {
+func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.WorkspaceTable, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -9828,7 +9870,7 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 		return nil, err
 	}
 
-	affectedRows := []database.Workspace{}
+	affectedRows := []database.WorkspaceTable{}
 	for i, ws := range q.workspaces {
 		if ws.TemplateID != arg.TemplateID {
 			continue
@@ -10863,7 +10905,7 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 	}
 
-	workspaces := make([]database.Workspace, 0)
+	workspaces := make([]database.WorkspaceTable, 0)
 	for _, workspace := range q.workspaces {
 		if arg.OwnerID != uuid.Nil && workspace.OwnerID != arg.OwnerID {
 			continue
@@ -11159,7 +11201,7 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 	if arg.Offset > 0 {
 		if int(arg.Offset) > len(workspaces) {
-			return q.convertToWorkspaceRowsNoLock(ctx, []database.Workspace{}, int64(beforePageCount), arg.WithSummary), nil
+			return q.convertToWorkspaceRowsNoLock(ctx, []database.WorkspaceTable{}, int64(beforePageCount), arg.WithSummary), nil
 		}
 		workspaces = workspaces[arg.Offset:]
 	}
