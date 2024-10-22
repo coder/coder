@@ -138,14 +138,15 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 type AuditAction string
 
 const (
-	AuditActionCreate   AuditAction = "create"
-	AuditActionWrite    AuditAction = "write"
-	AuditActionDelete   AuditAction = "delete"
-	AuditActionStart    AuditAction = "start"
-	AuditActionStop     AuditAction = "stop"
-	AuditActionLogin    AuditAction = "login"
-	AuditActionLogout   AuditAction = "logout"
-	AuditActionRegister AuditAction = "register"
+	AuditActionCreate               AuditAction = "create"
+	AuditActionWrite                AuditAction = "write"
+	AuditActionDelete               AuditAction = "delete"
+	AuditActionStart                AuditAction = "start"
+	AuditActionStop                 AuditAction = "stop"
+	AuditActionLogin                AuditAction = "login"
+	AuditActionLogout               AuditAction = "logout"
+	AuditActionRegister             AuditAction = "register"
+	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -192,7 +193,8 @@ func (e AuditAction) Valid() bool {
 		AuditActionStop,
 		AuditActionLogin,
 		AuditActionLogout,
-		AuditActionRegister:
+		AuditActionRegister,
+		AuditActionRequestPasswordReset:
 		return true
 	}
 	return false
@@ -208,6 +210,7 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionLogin,
 		AuditActionLogout,
 		AuditActionRegister,
+		AuditActionRequestPasswordReset,
 	}
 }
 

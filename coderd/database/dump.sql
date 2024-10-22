@@ -19,7 +19,8 @@ CREATE TYPE audit_action AS ENUM (
     'stop',
     'login',
     'logout',
-    'register'
+    'register',
+    'request_password_reset'
 );
 
 CREATE TYPE automatic_updates AS ENUM (

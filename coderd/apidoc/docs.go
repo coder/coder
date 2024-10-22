@@ -9116,7 +9116,8 @@ const docTemplate = `{
                 "stop",
                 "login",
                 "logout",
-                "register"
+                "register",
+                "request_password_reset"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -9126,7 +9127,8 @@ const docTemplate = `{
                 "AuditActionStop",
                 "AuditActionLogin",
                 "AuditActionLogout",
-                "AuditActionRegister"
+                "AuditActionRegister",
+                "AuditActionRequestPasswordReset"
             ]
         },
         "codersdk.AuditDiff": {
