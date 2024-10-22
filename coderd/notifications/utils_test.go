@@ -111,7 +111,7 @@ type chanHandler struct {
 	calls chan dispatchCall
 }
 
-func (c chanHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+func (c chanHandler) Dispatcher(payload types.MessagePayload, title, body string, _ template.FuncMap) (dispatch.DeliveryFunc, error) {
 	result := make(chan dispatchResult)
 	call := dispatchCall{
 		payload: payload,
