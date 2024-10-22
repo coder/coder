@@ -220,7 +220,7 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
-			Action:  database.AuditActionRequestOneTimePasscode,
+			Action:  database.AuditActionRequestPasswordReset,
 		})
 	)
 	defer commitAudit()

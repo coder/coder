@@ -20,7 +20,7 @@ CREATE TYPE audit_action AS ENUM (
     'login',
     'logout',
     'register',
-    'request_one_time_passcode'
+    'request_password_reset'
 );
 
 CREATE TYPE automatic_updates AS ENUM (

@@ -2604,8 +2604,8 @@ export const MockAuditLogRequestOneTimePasscode: TypesGen.AuditLog = {
 	...MockAuditLog,
 	resource_type: "user",
 	resource_target: "member",
-	action: "request_one_time_passcode",
-	description: "one time passcode requested for {target}",
+	action: "request_password_reset",
+	description: "password reset requested for {target}",
 	diff: {
 		hashed_password: {
 			old: "",

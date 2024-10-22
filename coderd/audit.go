@@ -277,9 +277,9 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 
 	// NOTE: WriteString always returns a nil error, so we never check it
 
-	// Requesting a one-time passcode can be performed by anyone that knows the email
+	// Requesting a password reset can be performed by anyone that knows the email
 	// of a user so saying the user performed this action might be slightly misleading.
-	if alog.AuditLog.Action != database.AuditActionRequestOneTimePasscode {
+	if alog.AuditLog.Action != database.AuditActionRequestPasswordReset {
 		_, _ = b.WriteString("{user} ")
 	}
 
@@ -305,7 +305,7 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		return b.String()
 	}
 
-	if alog.AuditLog.Action == database.AuditActionRequestOneTimePasscode {
+	if alog.AuditLog.Action == database.AuditActionRequestPasswordReset {
 		_, _ = b.WriteString(" for")
 	} else {
 		_, _ = b.WriteString(" ")
