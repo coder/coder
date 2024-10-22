@@ -104,8 +104,10 @@ tags.
 
 ## Global PSK (Not Recommended)
 
-> [!NOTE] We do not recommend this approach anymore, as it makes key rotation or
-> isolating provisioners far more difficult.
+> Global pre-shared keys (PSK) make it difficult to rotate keys or isolate
+> provisioners.
+>
+> We do not recommend using global PSK.
 
 A deployment-wide PSK can be used to authenticate any provisioner. To use a
 global PSK, set a
@@ -285,7 +287,7 @@ will use in concert with the Helm chart for deploying the Coder server.
 
    ```sh
    coder provisioner keys create my-cool-key --org default
-   # Optionally, you can specify tags for the provsioner key:
+   # Optionally, you can specify tags for the provisioner key:
    # coder provisioner keys create my-cool-key --org default --tags location=auh kind=k8s
    ```
 
@@ -295,7 +297,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    <key omitted>
    ```
 
-   Store the key in a kubernetes secret:
+1. Store the key in a kubernetes secret:
 
    ```sh
    kubectl create secret generic coder-provisioner-psk --from-literal=key1=`<key omitted>`
