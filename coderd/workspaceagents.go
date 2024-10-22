@@ -251,9 +251,9 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		api.publishWorkspaceUpdate(ctx, workspace.Workspace.OwnerID, wspubsub.WorkspaceEvent{
+		api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindAgentLogsOverflow,
-			WorkspaceID: workspace.Workspace.ID,
+			WorkspaceID: workspace.ID,
 			AgentID:     &workspaceAgent.ID,
 		})
 
@@ -283,9 +283,9 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		api.publishWorkspaceUpdate(ctx, workspace.Workspace.OwnerID, wspubsub.WorkspaceEvent{
+		api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindAgentFirstLogs,
-			WorkspaceID: workspace.Workspace.ID,
+			WorkspaceID: workspace.ID,
 			AgentID:     &workspaceAgent.ID,
 		})
 	}
@@ -416,10 +416,12 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	notifyCh <- struct{}{}
 
 	// Subscribe to workspace to detect new builds.
-	closeSubscribeWorkspace, err := api.Pubsub.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+	closeSubscribeWorkspace, err := api.Pubsub.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 		wspubsub.HandleWorkspaceEvent(
-			logger,
-			func(_ context.Context, e wspubsub.WorkspaceEvent) {
+			func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+				if err != nil {
+					return
+				}
 				if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
 					select {
 					case workspaceNotifyCh <- struct{}{}:

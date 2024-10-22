@@ -296,10 +296,12 @@ func TestAcquireJob(t *testing.T) {
 
 			startPublished := make(chan struct{})
 			var closed bool
-			closeStartSubscribe, err := ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+			closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 				wspubsub.HandleWorkspaceEvent(
-					slogtest.Make(t, nil),
-					func(_ context.Context, e wspubsub.WorkspaceEvent) {
+					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+						if err != nil {
+							return
+						}
 						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
 							if !closed {
 								close(startPublished)
@@ -404,10 +406,12 @@ func TestAcquireJob(t *testing.T) {
 			})
 
 			stopPublished := make(chan struct{})
-			closeStopSubscribe, err := ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+			closeStopSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 				wspubsub.HandleWorkspaceEvent(
-					slogtest.Make(t, nil),
-					func(_ context.Context, e wspubsub.WorkspaceEvent) {
+					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+						if err != nil {
+							return
+						}
 						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
 							close(stopPublished)
 						}
@@ -885,7 +889,7 @@ func TestFailJob(t *testing.T) {
 			auditor: auditor,
 		})
 		org := dbgen.Organization(t, db, database.Organization{})
-		workspace := dbgen.Workspace(t, db, database.Workspace{
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 			ID:               uuid.New(),
 			AutomaticUpdates: database.AutomaticUpdatesNever,
 			OrganizationID:   org.ID,
@@ -925,10 +929,12 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 
 		publishedWorkspace := make(chan struct{})
-		closeWorkspaceSubscribe, err := ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+		closeWorkspaceSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 			wspubsub.HandleWorkspaceEvent(
-				slogtest.Make(t, nil),
-				func(_ context.Context, e wspubsub.WorkspaceEvent) {
+				func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+					if err != nil {
+						return
+					}
 					if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
 						close(publishedWorkspace)
 					}
@@ -1321,11 +1327,13 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 
 				publishedWorkspace := make(chan struct{})
-				closeWorkspaceSubscribe, err := ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+				closeWorkspaceSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspaceTable.OwnerID),
 					wspubsub.HandleWorkspaceEvent(
-						slogtest.Make(t, nil),
-						func(_ context.Context, e wspubsub.WorkspaceEvent) {
-							if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+						func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+							if err != nil {
+								return
+							}
+							if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspaceTable.ID {
 								close(publishedWorkspace)
 							}
 						}))
