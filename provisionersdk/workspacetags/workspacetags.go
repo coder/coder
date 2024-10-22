@@ -29,13 +29,6 @@ import (
 // Any other data types are not allowed, as their values cannot be known at
 // the time of template import.
 func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype string) (tags map[string]string, err error) {
-	// TODO(cian): logic already exists in provisioner/terraform/parse.go for
-	// this. Can we reuse it?
-
-	// TODO(cian): we need to detect if there are missing UserVariableValues.
-	// This is normally done by the provisioner, but we need to do it here.
-	// EDIT: maybe hclsyntax.ParseExpression does this for us?
-
 	// Create a temporary directory
 	tmpDir, err := os.MkdirTemp("", "workspacetags-validate")
 	if err != nil {
@@ -66,7 +59,7 @@ func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype str
 
 	// TODO: this only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
-	tags, err = loadWorkspaceTags(ctx, logger, module)
+	tags, err = LoadWorkspaceTags(ctx, logger, module)
 
 	varsDefaults, paramsDefaults, err := loadDefaults(ctx, logger, module)
 	if err != nil {
@@ -169,12 +162,11 @@ func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Modu
 	return varsDefaults, paramsDefaults, nil
 }
 
-// --- BEGIN COPYPASTA FROM provisioner/terraform/parse.go --- //
-func loadWorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig.Module) (map[string]string, error) {
+// LoadWorkspaceTags inspects the given module and returns all coder_workspace_tags
+// data sources referenced there.
+func LoadWorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig.Module) (map[string]string, error) {
 	workspaceTags := map[string]string{}
 
-	// Now we have all the default values for variables and coder_parameters.
-	// We can use them to evaluate the workspace tags.
 	for _, dataResource := range module.DataResources {
 		if dataResource.Type != "coder_workspace_tags" {
 			logger.Debug(ctx, "skip resource as it is not a coder_workspace_tags", "resource_name", dataResource.Name, "resource_type", dataResource.Type)
@@ -286,7 +278,8 @@ var coderParameterSchema = &hcl.BodySchema{
 	},
 }
 
-// -- BEGIN COPYPASTA FROM coderd/wsbuilder/wsbuilder.go -- //
+// evalProvisionerTags evaluates the given workspaceTags in evalCtx and returns
+// the evaluated values.
 func evalProvisionerTags(evalCtx *hcl.EvalContext, workspaceTags map[string]string) (map[string]string, error) {
 	tags := make(map[string]string)
 	for workspaceTagKey, workspaceTagValue := range workspaceTags {
@@ -340,21 +333,6 @@ func buildEvalContext(varDefaults map[string]string, paramDefaults map[string]st
 	return evalCtx
 }
 
-type BuildError struct {
-	// Status is a suitable HTTP status code
-	Status  int
-	Message string
-	Wrapped error
-}
-
-func (e BuildError) Error() string {
-	return e.Wrapped.Error()
-}
-
-func (e BuildError) Unwrap() error {
-	return e.Wrapped
-}
-
 func ctyValueString(val cty.Value) (string, error) {
 	switch val.Type() {
 	case cty.Bool:
@@ -378,8 +356,6 @@ func ctyValueString(val cty.Value) (string, error) {
 		return "", xerrors.Errorf("only primitive types are supported - bool, number, and string")
 	}
 }
-
-// -- END COPYPASTA FROM coderd/wsbuilder/wsbuilder.go -- //
 
 func interfaceToString(i interface{}) (string, error) {
 	switch v := i.(type) {
