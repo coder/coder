@@ -28,7 +28,7 @@ const (
 )
 
 var (
-	errFetchfailed = xerrors.New("failed to fetch helpers")
+	errDecorateHelpersFailed = xerrors.New("failed to decorate helpers")
 )
 
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
@@ -167,12 +167,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
 			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
-			if xerrors.Is(err, errFetchfailed) {
-				failure <- n.newFailedDispatch(msg, err, true)
-			} else {
-				failure <- n.newFailedDispatch(msg, err, false)
-			}
-
+			failure <- n.newFailedDispatch(msg, err, xerrors.Is(err, errDecorateHelpersFailed))
 			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 			continue
 		}
@@ -233,7 +228,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 
 	helpers, err := n.fetchHelpers(ctx)
 	if err != nil {
-		return nil, errFetchfailed
+		return nil, errDecorateHelpersFailed
 	}
 
 	var title, body string
