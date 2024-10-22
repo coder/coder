@@ -14,6 +14,7 @@ type Random struct {
 	Uint    func() uint64
 	Float   func() float64
 	Complex func() complex128
+	Time    func() time.Time
 }
 
 func NewRandom() *Random {
@@ -25,6 +26,7 @@ func NewRandom() *Random {
 		Uint:    func() uint64 { return 126 },
 		Float:   func() float64 { return 3.14 },
 		Complex: func() complex128 { return 6.24 },
+		Time:    func() time.Time { return time.Date(2020, 5, 2, 5, 19, 21, 30, time.UTC) },
 	}
 }
 
@@ -70,7 +72,7 @@ func populateValue(v reflect.Value, r *Random) (reflect.Value, error) {
 	// Handle some special cases
 	switch v.Type() {
 	case reflect.TypeOf(time.Time{}):
-		v.Set(reflect.ValueOf(time.Date(2020, 5, 2, 5, 19, 21, 30, time.UTC)))
+		v.Set(reflect.ValueOf(r.Time()))
 		return v, nil
 	default:
 		// Go to Kind instead
