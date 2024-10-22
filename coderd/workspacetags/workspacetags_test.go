@@ -59,57 +59,7 @@ func Test_Validate(t *testing.T) {
 			expectError: "",
 		},
 		{
-			name: "main.tf with static workspace tag",
-			files: map[string]string{
-				"main.tf": `
-		provider "foo" {}
-		resource "foo_bar" "baz" {}
-		data "coder_workspace_tags" "tags" {
-		tags = {
-		"cluster" = "developers"
-		}
-		}`,
-			},
-			expectTags:  map[string]string{"cluster": "developers"},
-			expectError: "",
-		},
-		{
-			name: "main.tf with workspace tag expression",
-			files: map[string]string{
-				"main.tf": `
-		provider "foo" {}
-		resource "foo_bar" "baz" {}
-		data "coder_workspace_tags" "tags" {
-		tags = {
-		"cluster" = "${"devel"}${"opers"}"
-		}
-		}`,
-			},
-			expectTags:  map[string]string{"cluster": "developers"},
-			expectError: "",
-		},
-		{
-			name: "main.tf with static and variable tag",
-			files: map[string]string{
-				"main.tf": `
-					provider "foo" {}
-					resource "foo_bar" "baz" {}
-					variable "region" {
-						type    = string
-					  default = "us"
-					}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"cluster" = "developers"
-							"region"  = var.region
-						}
-					}`,
-			},
-			expectTags:  map[string]string{"cluster": "developers", "region": "us"},
-			expectError: "",
-		},
-		{
-			name: "main.tf with static, variable, and coder_parameter tag",
+			name: "main.tf with valid workspace tags",
 			files: map[string]string{
 				"main.tf": `
 					provider "foo" {}
@@ -125,14 +75,71 @@ func Test_Validate(t *testing.T) {
 					}
 					data "coder_workspace_tags" "tags" {
 						tags = {
-							"cluster" = "developers"
-							"region"  = var.region
-							"az"      = data.coder_parameter.az.value
+							"platform" = "kubernetes",
+							"cluster"  = "${"devel"}${"opers"}"
+							"region"   = var.region
+							"az"       = data.coder_parameter.az.value
 						}
 					}`,
 			},
-			expectTags:  map[string]string{"cluster": "developers", "region": "us", "az": "a"},
+			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
 			expectError: "",
+		},
+		{
+			name: "main.tf with missing parameter default value for workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "coder_parameter" "az" {
+					  name = "az"
+						type = "string"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform" = "kubernetes",
+							"cluster"  = "${"devel"}${"opers"}"
+							"region"   = var.region
+							"az"       = data.coder_parameter.az.value
+						}
+					}`,
+			},
+			expectError: `"default" attribute is required by coder_parameter`,
+		},
+		{
+			name: "main.tf with disallowed data source for workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "coder_parameter" "az" {
+					  name = "az"
+						type = "string"
+						default = "a"
+					}
+					data "local_file" "hostname" {
+						filename = "/etc/hostname"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform" = "kubernetes",
+							"cluster"  = "${"devel"}${"opers"}"
+							"region"   = var.region
+							"az"       = data.coder_parameter.az.value
+							"hostname" = data.local_file.hostname.content
+						}
+					}`,
+			},
+			expectTags:  nil,
+			expectError: "only the \"coder_parameter\" data source is supported in workspace tags",
 		},
 	} {
 		t.Run(tc.name+"/tar", func(t *testing.T) {
