@@ -15307,6 +15307,8 @@ WHERE
 	-- Filter by owner_id
 	workspaces.owner_id = $1 :: uuid
 	AND workspaces.deleted = false
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
+	-- @authorize_filter
 GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition
 `
 
