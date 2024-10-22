@@ -136,7 +136,7 @@ func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Modu
 			}
 
 			if _, ok := resContent.Attributes["default"]; !ok {
-				return nil, nil, xerrors.Errorf(`"default" attribute is required by coder_parameter`)
+				return nil, nil, xerrors.Errorf(`"default" attribute is required by coder_parameter %q`, dataResource.Name)
 			}
 
 			expr := resContent.Attributes["default"].Expr

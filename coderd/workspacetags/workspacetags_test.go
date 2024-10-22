@@ -108,7 +108,7 @@ func Test_Validate(t *testing.T) {
 						}
 					}`,
 			},
-			expectError: `"default" attribute is required by coder_parameter`,
+			expectError: `"default" attribute is required by coder_parameter "az"`,
 		},
 		{
 			name: "main.tf with disallowed data source for workspace tags",
@@ -121,7 +121,7 @@ func Test_Validate(t *testing.T) {
 						default = "us"
 					}
 					data "coder_parameter" "az" {
-					  name = "az"
+						name = "az"
 						type = "string"
 						default = "a"
 					}
