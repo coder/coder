@@ -2600,7 +2600,7 @@ export const MockAuditLogUnsuccessfulLoginKnownUser: TypesGen.AuditLog = {
 	status_code: 401,
 };
 
-export const MockAuditLogRequestOneTimePasscode: TypesGen.AuditLog = {
+export const MockAuditLogRequestPasswordReset: TypesGen.AuditLog = {
 	...MockAuditLog,
 	resource_type: "user",
 	resource_target: "member",

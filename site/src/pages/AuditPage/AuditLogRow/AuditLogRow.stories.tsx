@@ -10,7 +10,7 @@ import {
 	MockAuditLog,
 	MockAuditLog2,
 	MockAuditLogGitSSH,
-	MockAuditLogRequestOneTimePasscode,
+	MockAuditLogRequestPasswordReset,
 	MockAuditLogWithDeletedResource,
 	MockAuditLogWithWorkspaceBuild,
 	MockUser,
@@ -125,7 +125,7 @@ export const WithOrganization: Story = {
 
 export const WithDateDiffValue: Story = {
 	args: {
-		auditLog: MockAuditLogRequestOneTimePasscode,
+		auditLog: MockAuditLogRequestPasswordReset,
 	},
 };
 
