@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import { InputBaseComponentProps } from "@mui/material";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
@@ -18,7 +19,6 @@ import type {
 	AutofillSource,
 } from "utils/richParameters";
 import { MultiTextField } from "./MultiTextField";
-import {InputBaseComponentProps} from "@mui/material";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
 	return parameter.type === "bool";
