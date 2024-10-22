@@ -7,7 +7,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/workspacetags"
+	"github.com/coder/coder/v2/provisionersdk/workspacetags"
 	"github.com/coder/coder/v2/testutil"
 
 	"github.com/stretchr/testify/require"
