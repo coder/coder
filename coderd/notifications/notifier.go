@@ -27,9 +27,7 @@ const (
 	notificationsDefaultAppName = "Coder"
 )
 
-var (
-	errDecorateHelpersFailed = xerrors.New("failed to decorate helpers")
-)
+var errDecorateHelpersFailed = xerrors.New("failed to decorate helpers")
 
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
