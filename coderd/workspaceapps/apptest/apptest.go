@@ -704,7 +704,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					body, err := io.ReadAll(resp.Body)
 					require.NoError(t, err)
 					require.Contains(t, string(body), "Could not decrypt API key. Please remove the query parameter and try again.")
-
 				})
 			}
 		})
