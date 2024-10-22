@@ -1676,10 +1676,12 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+	cancelWorkspaceSubscribe, err := api.Pubsub.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 		wspubsub.HandleWorkspaceEvent(
-			api.Logger,
-			func(ctx context.Context, payload wspubsub.WorkspaceEvent) {
+			func(ctx context.Context, payload wspubsub.WorkspaceEvent, err error) {
+				if err != nil {
+					return
+				}
 				if payload.WorkspaceID != workspace.ID {
 					return
 				}

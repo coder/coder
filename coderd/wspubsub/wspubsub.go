@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"cdr.dev/slog"
-
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
@@ -17,18 +15,22 @@ func WorkspaceEventChannel(ownerID uuid.UUID) string {
 	return fmt.Sprintf("workspace_owner:%s", ownerID)
 }
 
-func HandleWorkspaceEvent(logger slog.Logger, cb func(ctx context.Context, payload WorkspaceEvent)) func(ctx context.Context, message []byte) {
-	return func(ctx context.Context, message []byte) {
+func HandleWorkspaceEvent(cb func(ctx context.Context, payload WorkspaceEvent, err error)) func(ctx context.Context, message []byte, err error) {
+	return func(ctx context.Context, message []byte, err error) {
+		if err != nil {
+			cb(ctx, WorkspaceEvent{}, xerrors.Errorf("workspace event pubsub: %w", err))
+			return
+		}
 		var payload WorkspaceEvent
 		if err := json.Unmarshal(message, &payload); err != nil {
-			logger.Warn(ctx, "failed to unmarshal workspace event", slog.Error(err))
+			cb(ctx, WorkspaceEvent{}, xerrors.Errorf("unmarshal workspace event"))
 			return
 		}
 		if err := payload.Validate(); err != nil {
-			logger.Warn(ctx, "invalid workspace event", slog.Error(err))
+			cb(ctx, payload, xerrors.Errorf("validate workspace event"))
 			return
 		}
-		cb(ctx, payload)
+		cb(ctx, payload, err)
 	}
 }
 

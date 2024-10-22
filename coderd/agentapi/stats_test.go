@@ -13,8 +13,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
@@ -157,10 +155,12 @@ func TestUpdateStates(t *testing.T) {
 
 		// Ensure that pubsub notifications are sent.
 		notifyDescription := make(chan struct{})
-		ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+		ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 			wspubsub.HandleWorkspaceEvent(
-				slogtest.Make(t, nil),
-				func(_ context.Context, e wspubsub.WorkspaceEvent) {
+				func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+					if err != nil {
+						return
+					}
 					if e.Kind == wspubsub.WorkspaceEventKindStatsUpdate && e.WorkspaceID == workspace.ID {
 						go func() {
 							notifyDescription <- struct{}{}
@@ -503,10 +503,12 @@ func TestUpdateStates(t *testing.T) {
 
 		// Ensure that pubsub notifications are sent.
 		notifyDescription := make(chan struct{})
-		ps.Subscribe(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+		ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
 			wspubsub.HandleWorkspaceEvent(
-				slogtest.Make(t, nil),
-				func(_ context.Context, e wspubsub.WorkspaceEvent) {
+				func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+					if err != nil {
+						return
+					}
 					if e.Kind == wspubsub.WorkspaceEventKindStatsUpdate && e.WorkspaceID == workspace.ID {
 						go func() {
 							notifyDescription <- struct{}{}
