@@ -108,7 +108,38 @@ func Test_Validate(t *testing.T) {
 						}
 					}`,
 			},
-			expectError: `"default" attribute is required by coder_parameter "az"`,
+			expectError: `provisioner tag "az" evaluated to an empty value, please set a default value`,
+		},
+		{
+			name: "main.tf with missing parameter default value outside workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = "a"
+					}
+					data "coder_parameter" "notaz" {
+						name = "notaz"
+						type = "string"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform" = "kubernetes",
+							"cluster"  = "${"devel"}${"opers"}"
+							"region"   = var.region
+							"az"       = data.coder_parameter.az.value
+						}
+					}`,
+			},
+			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
+			expectError: ``,
 		},
 		{
 			name: "main.tf with disallowed data source for workspace tags",
@@ -182,6 +213,7 @@ func Test_Validate(t *testing.T) {
 			logger := slogtest.Make(t, nil)
 			tags, err := workspacetags.Validate(ctx, logger, tar, "application/x-tar")
 			if tc.expectError != "" {
+				require.NotNil(t, err)
 				require.Contains(t, err.Error(), tc.expectError)
 			} else {
 				require.NoError(t, err)

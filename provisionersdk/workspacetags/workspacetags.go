@@ -57,29 +57,50 @@ func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype str
 		return nil, xerrors.Errorf("load module: %s", diags.Error())
 	}
 
-	// TODO: this only gets us the expressions. We need to evaluate them.
+	// This only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
 	tags, err = LoadWorkspaceTags(ctx, logger, module)
 
+	// To evalute the expressions, we need to load the default values for
+	// variables and parameters.
 	varsDefaults, paramsDefaults, err := loadDefaults(ctx, logger, module)
 	if err != nil {
 		return nil, xerrors.Errorf("load defaults: %w", err)
 	}
 
+	// Build a context for evaluating the parameters. We are only adding
+	// variables and coder_parameter data sources. Anything else will be
+	// undefined and will raise a Terraform error.
 	evalContext := buildEvalContext(varsDefaults, paramsDefaults)
 
 	// Filter only allowed data sources for preflight check.
+	// This is not strictly required but provides a friendlier error.
 	if err := validWorkspaceTagValues(tags); err != nil {
 		return nil, err
 	}
 
+	// Evaluate the tags expressions given the inputs.
+	// This will resolve any variables or parameters to their default
+	// values.
 	evalTags, err := evalProvisionerTags(evalContext, tags)
 	if err != nil {
 		return nil, xerrors.Errorf("eval provisioner tags: %w", err)
 	}
-	return evalTags, err
+
+	// Ensure that none of the tag values are empty after evaluation.
+	for k, v := range evalTags {
+		if len(strings.TrimSpace(v)) > 0 {
+			continue
+		}
+		return nil, xerrors.Errorf("provisioner tag %q evaluated to an empty value, please set a default value", k)
+	}
+	return evalTags, nil
 }
 
+// validWorkspaceTagValues returns an error if any value of the given tags map
+// evaluates to a datasource other than "coder_parameter".
+// This only serves to provide a friendly error if a user attempts to reference
+// a data source other than "coder_parameter" in "coder_workspace_tags".
 func validWorkspaceTagValues(tags map[string]string) error {
 	for _, v := range tags {
 		parts := strings.SplitN(v, ".", 3)
@@ -143,20 +164,19 @@ func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Modu
 			// Parse "coder_parameter" to find the default value.
 			resContent, _, diags := block.Body.PartialContent(coderParameterSchema)
 			if diags.HasErrors() {
-				return nil, nil, xerrors.Errorf(`can't parse the resource coder_parameter: %s`, diags.Error())
+				return nil, nil, xerrors.Errorf(`can't parse the coder_parameter: %s`, diags.Error())
 			}
 
 			if _, ok := resContent.Attributes["default"]; !ok {
-				return nil, nil, xerrors.Errorf(`"default" attribute is required by coder_parameter %q`, dataResource.Name)
+				paramsDefaults[dataResource.Name] = ""
+			} else {
+				expr := resContent.Attributes["default"].Expr
+				value, err := previewFileContent(expr.Range())
+				if err != nil {
+					return nil, nil, xerrors.Errorf("can't preview the resource file: %v", err)
+				}
+				paramsDefaults[dataResource.Name] = strings.Trim(value, `"`)
 			}
-
-			expr := resContent.Attributes["default"].Expr
-			value, err := previewFileContent(expr.Range())
-			if err != nil {
-				return nil, nil, xerrors.Errorf("can't preview the resource file: %v", err)
-			}
-
-			paramsDefaults[dataResource.Name] = strings.Trim(value, `"`)
 		}
 	}
 	return varsDefaults, paramsDefaults, nil
