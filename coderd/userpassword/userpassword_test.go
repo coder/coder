@@ -13,72 +13,61 @@ import (
 	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
-func TestUserPassword(t *testing.T) {
+func TestUserPasswordValidate(t *testing.T) {
 	t.Parallel()
+	tests := []struct {
+		name     string
+		password string
+		wantErr  bool
+	}{
+		{"Invalid - Too short password", "pass", true},
+		{"Invalid - Too long password", strings.Repeat("a", 65), true},
+		{"Ok", "CorrectPassword", false},
+	}
 
-	t.Run("Invalid - Too short password", func(t *testing.T) {
-		t.Parallel()
-		err := userpassword.Validate("pass")
-		require.Error(t, err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := userpassword.Validate(tt.password)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
-	t.Run("Invalid - Too long password", func(t *testing.T) {
-		t.Parallel()
+func TestUserPasswordCompare(t *testing.T) {
+	tests := []struct {
+		name      string
+		hash      string
+		password  string
+		wantErr   bool
+		wantEqual bool
+	}{
+		{"Legacy", "$pbkdf2-sha256$65535$z8c1p1C2ru9EImBP1I+ZNA$pNjE3Yk0oG0PmJ0Je+y7ENOVlSkn/b0BEqqdKsq6Y97wQBq0xT+lD5bWJpyIKJqQICuPZcEaGDKrXJn8+SIHRg", "tomato", false, true},
+		{"Same", "", "password", false, true},
+		{"Different", "", "password", false, false},
+		{"Invalid", "invalidhash", "password", true, false},
+		{"InvalidParts", "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", "test", true, false},
+	}
 
-		var sb strings.Builder
-		for i := 0; i < 65; i++ {
-			sb.WriteString("a")
-		}
-
-		err := userpassword.Validate(sb.String())
-		require.Error(t, err)
-	})
-
-	t.Run("Ok", func(t *testing.T) {
-		t.Parallel()
-
-		err := userpassword.Validate("CorrectPassword")
-		require.NoError(t, err)
-	})
-
-	t.Run("Legacy", func(t *testing.T) {
-		t.Parallel()
-		// Ensures legacy v1 passwords function for v2.
-		// This has is manually generated using a print statement from v1 code.
-		equal, err := userpassword.Compare("$pbkdf2-sha256$65535$z8c1p1C2ru9EImBP1I+ZNA$pNjE3Yk0oG0PmJ0Je+y7ENOVlSkn/b0BEqqdKsq6Y97wQBq0xT+lD5bWJpyIKJqQICuPZcEaGDKrXJn8+SIHRg", "tomato")
-		require.NoError(t, err)
-		require.True(t, equal)
-	})
-
-	t.Run("Same", func(t *testing.T) {
-		t.Parallel()
-		hash, err := userpassword.Hash("password")
-		require.NoError(t, err)
-		equal, err := userpassword.Compare(hash, "password")
-		require.NoError(t, err)
-		require.True(t, equal)
-	})
-
-	t.Run("Different", func(t *testing.T) {
-		t.Parallel()
-		hash, err := userpassword.Hash("password")
-		require.NoError(t, err)
-		equal, err := userpassword.Compare(hash, "notpassword")
-		require.NoError(t, err)
-		require.False(t, equal)
-	})
-
-	t.Run("Invalid", func(t *testing.T) {
-		t.Parallel()
-		equal, err := userpassword.Compare("invalidhash", "password")
-		require.False(t, equal)
-		require.Error(t, err)
-	})
-
-	t.Run("InvalidParts", func(t *testing.T) {
-		t.Parallel()
-		equal, err := userpassword.Compare("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", "test")
-		require.False(t, equal)
-		require.Error(t, err)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.hash == "" {
+				hash, err := userpassword.Hash(tt.password)
+				require.NoError(t, err)
+				tt.hash = hash
+			}
+			equal, err := userpassword.Compare(tt.hash, tt.password)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantEqual, equal)
+		})
+	}
 }

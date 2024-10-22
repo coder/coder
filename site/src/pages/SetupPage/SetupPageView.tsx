@@ -22,6 +22,8 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { countries } from "./countries";
+import { useEffect, useState } from "react";
+import { debounce } from "lodash";
 
 export const Language = {
 	emailLabel: "Email",
@@ -30,8 +32,6 @@ export const Language = {
 	usernameLabel: "Username",
 	emailInvalid: "Please enter a valid email address.",
 	emailRequired: "Please enter an email address.",
-	passwordTooShort: "Password should be at least 6 characters.",
-	passwordTooLong: "Password should be no more than 64 characters.",
 	passwordRequired: "Please enter a password.",
 	create: "Create account",
 	welcomeMessage: <>Welcome to Coder</>,
@@ -57,8 +57,6 @@ const validationSchema = Yup.object({
 		.email(Language.emailInvalid)
 		.required(Language.emailRequired),
 	password: Yup.string()
-		.min(6, Language.passwordTooShort)
-		.max(64, Language.passwordTooLong)
 		.required(Language.passwordRequired),
 	username: nameValidator(Language.usernameLabel),
 	trial: Yup.bool(),
@@ -96,6 +94,14 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	error,
 	isLoading,
 }) => {
+	const [isPasswordValid, setIsPasswordValid] = useState<boolean | null>(null);
+
+	// Debounce function to validate password
+	const validatePassword = debounce(async (password: string) => {
+		const isValid = await validateUserPassword(password);
+		setIsPasswordValid(isValid); // Update state based on response
+	}, 500); // Adjust debounce time as needed
+
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
 		useFormik<TypesGen.CreateFirstUserRequest>({
 			initialValues: {
@@ -121,6 +127,14 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 		form,
 		error,
 	);
+
+	useEffect(() => {
+		if (form.values.password) {
+			validatePassword(form.values.password); // Call the debounce function
+		} else {
+			setIsPasswordValid(null); // Reset validation state if password is empty
+		}
+	}, [form.values.password]); // Run effect when password changes
 
 	return (
 		<SignInLayout>
@@ -179,6 +193,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						id="password"
 						label={Language.passwordLabel}
 						type="password"
+						error={isPasswordValid === false} // Show error if password is invalid
+						helperText={isPasswordValid === false ? "Password is not strong enough." : ""} // Provide feedback
 					/>
 					<label
 						htmlFor="trial"
