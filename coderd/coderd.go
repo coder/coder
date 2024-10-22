@@ -1021,7 +1021,6 @@ func New(options *Options) *API {
 				r.Route("/roles", func(r chi.Router) {
 					r.Get("/", api.AssignableSiteRoles)
 				})
-				r.Get("/me/tailnet", api.tailnet)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Post("/convert-login", api.postConvertLoginType)
@@ -1278,6 +1277,10 @@ func New(options *Options) *API {
 				r.Get("/system", api.systemNotificationTemplates)
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
+		})
+		r.Route("/tailnet", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.tailnet)
 		})
 	})
 

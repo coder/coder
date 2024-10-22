@@ -52,7 +52,10 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	agentID := uuid.MustParse("20000001-0000-0000-0000-000000000000")
 	errCh := make(chan error, 1)
 	go func() {
-		err := uut.ServeClient(ctx, "2.0", s, clientID, agentID)
+		err := uut.ServeClient(ctx, "2.0", s, tailnet.ServeClientOptions{
+			Peer:  clientID,
+			Agent: &agentID,
+		})
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
 	}()
@@ -74,7 +77,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	require.NotNil(t, call)
 	require.Equal(t, call.ID, clientID)
 	require.Equal(t, call.Name, "client")
-	require.NoError(t, call.Auth.Authorize(&proto.CoordinateRequest{
+	require.NoError(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
 		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 	}))
 	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
@@ -157,7 +160,10 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	agentID := uuid.MustParse("20000001-0000-0000-0000-000000000000")
 	errCh := make(chan error, 1)
 	go func() {
-		err := uut.ServeClient(ctx, "1.0", s, clientID, agentID)
+		err := uut.ServeClient(ctx, "1.0", s, tailnet.ServeClientOptions{
+			Peer:  clientID,
+			Agent: &agentID,
+		})
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
 	}()
