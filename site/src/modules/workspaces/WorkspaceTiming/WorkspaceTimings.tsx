@@ -7,7 +7,7 @@ import Skeleton from "@mui/material/Skeleton";
 import type { AgentScriptTiming, ProvisionerTiming } from "api/typesGenerated";
 import { type FC, useState } from "react";
 import { type TimeRange, calcDuration, mergeTimeRanges } from "./Chart/utils";
-import { isCoderResource, ResourcesChart } from "./ResourcesChart";
+import { ResourcesChart, isCoderResource } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import { type StageCategory, StagesChart, stages } from "./StagesChart";
 

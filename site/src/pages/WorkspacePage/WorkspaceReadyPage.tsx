@@ -3,6 +3,7 @@ import { getErrorMessage } from "api/errors";
 import { buildInfo } from "api/queries/buildInfo";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { templateVersion, templateVersions } from "api/queries/templates";
+import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
 	activate,
 	cancelBuild,
@@ -37,7 +38,6 @@ import { Workspace } from "./Workspace";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "./permissions";
-import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
