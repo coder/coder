@@ -142,6 +142,36 @@ func Test_Validate(t *testing.T) {
 			expectError: ``,
 		},
 		{
+			name: "main.tf with missing variable default value outside workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					variable "notregion" {
+						type = string
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = "a"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform"  = "kubernetes",
+							"cluster"   = "${"devel"}${"opers"}"
+							"region"    = var.region
+							"az"        = data.coder_parameter.az.value
+						}
+					}`,
+			},
+			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
+			expectError: ``,
+		},
+		{
 			name: "main.tf with disallowed data source for workspace tags",
 			files: map[string]string{
 				"main.tf": `
