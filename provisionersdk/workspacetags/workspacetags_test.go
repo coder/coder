@@ -41,8 +41,17 @@ func Test_Validate(t *testing.T) {
 			name: "main.tf with no workspace_tags",
 			files: map[string]string{
 				"main.tf": `
-		provider "foo" {}
-		resource "foo_bar" "baz" {}`,
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = "a"
+					}`,
 			},
 			expectTags:  map[string]string{},
 			expectError: "",
@@ -51,9 +60,18 @@ func Test_Validate(t *testing.T) {
 			name: "main.tf with empty workspace tags",
 			files: map[string]string{
 				"main.tf": `
-		provider "foo" {}
-		resource "foo_bar" "baz" {}
-		data "coder_workspace_tags" "tags" {}`,
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = "a"
+					}
+					data "coder_workspace_tags" "tags" {}`,
 			},
 			expectTags:  map[string]string{},
 			expectError: "",
@@ -96,7 +114,7 @@ func Test_Validate(t *testing.T) {
 						default = "us"
 					}
 					data "coder_parameter" "az" {
-					  name = "az"
+						name = "az"
 						type = "string"
 					}
 					data "coder_workspace_tags" "tags" {
