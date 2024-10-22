@@ -32,6 +32,7 @@ func (r *RootCmd) templateVersions() *serpent.Command {
 			r.templateVersionsList(),
 			r.archiveTemplateVersion(),
 			r.unarchiveTemplateVersion(),
+			r.templateVersionsPromote(),
 		},
 	}
 
@@ -168,4 +169,67 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 	}
 
 	return rows
+}
+
+func (r *RootCmd) templateVersionsPromote() *serpent.Command {
+	var (
+		templateName        string
+		templateVersionName string
+		orgContext          = NewOrganizationContext()
+	)
+	client := new(codersdk.Client)
+	cmd := &serpent.Command{
+		Use:   "promote --template=<template_name> --template-version=<template_version_name>",
+		Short: "Promote a template version to active.",
+		Long:  "Promote an existing template version to be the active version for the specified template.",
+		Middleware: serpent.Chain(
+			r.InitClient(client),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			organization, err := orgContext.Selected(inv, client)
+			if err != nil {
+				return err
+			}
+
+			template, err := client.TemplateByName(inv.Context(), organization.ID, templateName)
+			if err != nil {
+				return xerrors.Errorf("get template by name: %w", err)
+			}
+
+			version, err := client.TemplateVersionByName(inv.Context(), template.ID, templateVersionName)
+			if err != nil {
+				return xerrors.Errorf("get template version by name: %w", err)
+			}
+
+			err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+				ID: version.ID,
+			})
+			if err != nil {
+				return xerrors.Errorf("update active template version: %w", err)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully promoted version %q to active for template %q\n", templateVersionName, templateName)
+			return nil
+		},
+	}
+
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_TEMPLATE_NAME",
+			Description:   "Specify the template name.",
+			Required:      true,
+			Value:         serpent.StringOf(&templateName),
+		},
+		{
+			Flag:        "template-version",
+			Description: "Specify the template version name to promote.",
+			Env:         "CODER_TEMPLATE_VERSION_NAME",
+			Required:    true,
+			Value:       serpent.StringOf(&templateVersionName),
+		},
+	}
+	orgContext.AttachOptions(cmd)
+	return cmd
 }

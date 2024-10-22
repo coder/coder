@@ -96,7 +96,7 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 		return codersdk.CreateWorkspaceBuildRequest{}, err
 	}
 
-	buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
+	ephemeralParameters, err := asWorkspaceBuildParameters(parameterFlags.ephemeralParameters)
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, xerrors.Errorf("unable to parse build options: %w", err)
 	}
@@ -117,12 +117,12 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 		NewWorkspaceName:    workspace.Name,
 		LastBuildParameters: lastBuildParameters,
 
-		PromptBuildOptions:    parameterFlags.promptBuildOptions,
-		BuildOptions:          buildOptions,
-		PromptRichParameters:  parameterFlags.promptRichParameters,
-		RichParameters:        cliRichParameters,
-		RichParameterFile:     parameterFlags.richParameterFile,
-		RichParameterDefaults: cliRichParameterDefaults,
+		PromptEphemeralParameters: parameterFlags.promptEphemeralParameters,
+		EphemeralParameters:       ephemeralParameters,
+		PromptRichParameters:      parameterFlags.promptRichParameters,
+		RichParameters:            cliRichParameters,
+		RichParameterFile:         parameterFlags.richParameterFile,
+		RichParameterDefaults:     cliRichParameterDefaults,
 	})
 	if err != nil {
 		return codersdk.CreateWorkspaceBuildRequest{}, err

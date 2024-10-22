@@ -51,7 +51,7 @@ type CalculateAutostopParams struct {
 	WorkspaceAutostart string
 
 	Now       time.Time
-	Workspace database.Workspace
+	Workspace database.WorkspaceTable
 }
 
 type AutostopTime struct {

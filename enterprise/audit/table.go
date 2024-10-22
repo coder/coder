@@ -145,11 +145,11 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"theme_preference":             ActionIgnore,
 		"name":                         ActionTrack,
 		"github_com_user_id":           ActionIgnore,
-		"hashed_one_time_passcode":     ActionSecret, // Do not expose a user's one time passcode.
+		"hashed_one_time_passcode":     ActionIgnore,
 		"one_time_passcode_expires_at": ActionTrack,
 		"must_reset_password":          ActionTrack,
 	},
-	&database.Workspace{}: {
+	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,
 		"created_at":         ActionIgnore, // Never changes.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.

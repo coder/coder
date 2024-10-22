@@ -211,7 +211,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 					ActiveVersionID: templateVersion.ID,
 					CreatedBy:       user.ID,
 				})
-				ws = dbgen.Workspace(t, db, database.Workspace{
+				ws = dbgen.Workspace(t, db, database.WorkspaceTable{
 					OrganizationID: organizationID,
 					OwnerID:        user.ID,
 					TemplateID:     template.ID,
@@ -357,7 +357,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 	)
 
 	// Create a workspace that will be shared by two builds.
-	ws := dbgen.Workspace(t, db, database.Workspace{
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
 		TemplateID:     template.ID,
 		OrganizationID: templateJob.OrganizationID,
@@ -474,7 +474,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 	for i, b := range builds {
 		wsID := b.workspaceID
 		if wsID == uuid.Nil {
-			ws := dbgen.Workspace(t, db, database.Workspace{
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
 				TemplateID:     b.templateID,
 				OrganizationID: templateJob.OrganizationID,
@@ -642,21 +642,21 @@ func TestNotifications(t *testing.T) {
 		)
 
 		// Add two dormant workspaces and one active workspace.
-		dormantWorkspaces := []database.Workspace{
-			dbgen.Workspace(t, db, database.Workspace{
+		dormantWorkspaces := []database.WorkspaceTable{
+			dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
 				TemplateID:     template.ID,
 				OrganizationID: templateJob.OrganizationID,
 				LastUsedAt:     time.Now().Add(-time.Hour),
 			}),
-			dbgen.Workspace(t, db, database.Workspace{
+			dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
 				TemplateID:     template.ID,
 				OrganizationID: templateJob.OrganizationID,
 				LastUsedAt:     time.Now().Add(-time.Hour),
 			}),
 		}
-		dbgen.Workspace(t, db, database.Workspace{
+		dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			TemplateID:     template.ID,
 			OrganizationID: templateJob.OrganizationID,

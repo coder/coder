@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { requiresEnterpriseLicense } from "../../helpers";
+import { requiresLicense } from "../../helpers";
 
 test("license was added successfully", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
 	const firstLicense = page.locator(".licenses > .license-card", {
@@ -12,11 +12,7 @@ test("license was added successfully", async ({ page }) => {
 
 	// Trial vs. Enterprise?
 	const accountType = firstLicense.locator(".account-type");
-	await expect(accountType).toHaveText("Enterprise");
-
-	// User limit 1/1
-	const userLimit = firstLicense.locator(".user-limit");
-	await expect(userLimit).toHaveText("1 / 1");
+	await expect(accountType).toHaveText("Premium");
 
 	// License should not be expired yet
 	const licenseExpires = firstLicense.locator(".license-expires");

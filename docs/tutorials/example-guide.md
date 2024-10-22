@@ -1,9 +1,9 @@
 # Guide Title (Only Visible in Github)
 
 <div>
-  <a href="https://github.com/<your_github_handle>" style="text-decoration: none; color: inherit;">
+  <a href="https://github.com/coder" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Your Name</span>
-    <img src="https://github.com/ericpaulsen.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://github.com/coder.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 December 13, 2023
@@ -11,15 +11,14 @@ December 13, 2023
 ---
 
 This is a guide on how to make Coder guides, it is not listed on our
-[official guides page](https://coder.com/docs/guides) in the docs. Intended for
-those who don't frequently contribute documentation changes to the `coder/coder`
+[official tutorials page](../tutorials/index.md) in the docs. Intended for those
+who don't frequently contribute documentation changes to the `coder/coder`
 repository.
 
 ## Content
 
-Defer to our
-[Contributing/Documentation](https://coder.com/docs/contributing/documentation)
-page for rules on technical writing.
+Defer to our [Contributing/Documentation](../contributing/documentation.md) page
+for rules on technical writing.
 
 ### Adding Photos
 

@@ -1116,7 +1116,16 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 //nolint:errorlint
 func traceError(err error) string {
 	if uw, ok := err.(interface{ Unwrap() error }); ok {
-		a, b := err.Error(), uw.Unwrap().Error()
+		var a, b string
+		if err != nil {
+			a = err.Error()
+		}
+		if uw != nil {
+			uwerr := uw.Unwrap()
+			if uwerr != nil {
+				b = uwerr.Error()
+			}
+		}
 		c := strings.TrimSuffix(a, b)
 		return c
 	}

@@ -14,6 +14,7 @@ USAGE:
 SUBCOMMANDS:
     archive      Archive a template version(s).
     list         List all the versions of the specified template
+    promote      Promote a template version to active.
     unarchive    Unarchive a template version(s).
 
 ———

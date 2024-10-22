@@ -2,7 +2,7 @@
 SELECT
 	*
 FROM
-	workspaces
+	workspaces_expanded
 WHERE
 	id = $1
 LIMIT
@@ -12,7 +12,7 @@ LIMIT
 SELECT
 	*
 FROM
-	workspaces
+	workspaces_expanded as workspaces
 WHERE
 		workspaces.id = (
 		SELECT
@@ -46,12 +46,9 @@ WHERE
 
 -- name: GetWorkspaceByAgentID :one
 SELECT
-	sqlc.embed(workspaces),
-	templates.name as template_name
+	*
 FROM
-	workspaces
-INNER JOIN
-	templates ON workspaces.template_id = templates.id
+	workspaces_expanded as workspaces
 WHERE
 	workspaces.id = (
 		SELECT
@@ -89,17 +86,15 @@ SELECT
 filtered_workspaces AS (
 SELECT
 	workspaces.*,
-	COALESCE(template.name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
-	users.username as username,
 	latest_build.completed_at as latest_build_completed_at,
 	latest_build.canceled_at as latest_build_canceled_at,
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
 	latest_build.job_status as latest_build_status
 FROM
-    workspaces
+	workspaces_expanded as workspaces
 JOIN
     users
 ON
@@ -238,7 +233,7 @@ WHERE
 	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username) AND deleted = false)
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(owner_username) = lower(@owner_username) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
@@ -340,7 +335,7 @@ WHERE
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
 			latest_build_transition = 'start'::workspace_transition) DESC,
-		LOWER(username) ASC,
+		LOWER(owner_username) ASC,
 		LOWER(name) ASC
 	LIMIT
 		CASE
@@ -373,11 +368,19 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- deleting_at
 		'never'::automatic_updates, -- automatic_updates
 		false, -- favorite
-		-- Extra columns added to `filtered_workspaces`
+		'', -- owner_avatar_url
+		'', -- owner_username
+		'', -- organization_name
+		'', -- organization_display_name
+		'', -- organization_icon
+		'', -- organization_description
 		'', -- template_name
+		'', -- template_display_name
+		'', -- template_icon
+		'', -- template_description
+		-- Extra columns added to `filtered_workspaces`
 		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
 		'', -- template_version_name
-		'', -- username
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_completed_at,
 		'0001-01-01 00:00:00+00'::timestamptz, -- latest_build_canceled_at,
 		'', -- latest_build_error
@@ -403,7 +406,7 @@ CROSS JOIN
 SELECT
 	*
 FROM
-	workspaces
+	workspaces_expanded as workspaces
 WHERE
 	owner_id = @owner_id
 	AND deleted = @deleted

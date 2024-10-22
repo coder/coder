@@ -2600,6 +2600,32 @@ export const MockAuditLogUnsuccessfulLoginKnownUser: TypesGen.AuditLog = {
 	status_code: 401,
 };
 
+export const MockAuditLogRequestPasswordReset: TypesGen.AuditLog = {
+	...MockAuditLog,
+	resource_type: "user",
+	resource_target: "member",
+	action: "request_password_reset",
+	description: "password reset requested for {target}",
+	diff: {
+		hashed_password: {
+			old: "",
+			new: "",
+			secret: true,
+		},
+		one_time_passcode_expires_at: {
+			old: {
+				Time: "0001-01-01T00:00:00Z",
+				Valid: false,
+			},
+			new: {
+				Time: "2024-10-22T09:03:23.961702Z",
+				Valid: true,
+			},
+			secret: false,
+		},
+	},
+};
+
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 	credits_consumed: 0,
 	budget: 100,

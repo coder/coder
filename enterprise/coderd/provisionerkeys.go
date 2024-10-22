@@ -212,5 +212,10 @@ func convertProvisionerKeys(dbKeys []database.ProvisionerKey) []codersdk.Provisi
 			// HashedSecret - never include the access token in the API response
 		})
 	}
+
+	slices.SortFunc(keys, func(key1, key2 codersdk.ProvisionerKey) int {
+		return key1.CreatedAt.Compare(key2.CreatedAt)
+	})
+
 	return keys
 }

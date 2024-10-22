@@ -1,15 +1,11 @@
 import { expect, test } from "@playwright/test";
-import {
-	createTemplate,
-	createWorkspace,
-	requiresEnterpriseLicense,
-} from "../helpers";
+import { createTemplate, createWorkspace, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("inspecting and filtering audit logs", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	const userName = "admin";
 	// Do some stuff that should show up in the audit logs
@@ -48,20 +44,24 @@ test("inspecting and filtering audit logs", async ({ page }) => {
 
 	// Filter by resource type
 	await page.getByText("All resource types").click();
-	await page.getByRole("menu").getByText("Workspace Build").click();
+	const workspaceBuildsOption = page.getByText("Workspace Build");
+	await workspaceBuildsOption.scrollIntoViewIfNeeded({ timeout: 5000 });
+	await workspaceBuildsOption.click();
 	// Our workspace build should be visible
 	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
 	// Logins should no longer be visible
 	await expect(page.getByText(loginMessage)).not.toBeVisible();
 
 	// Clear filters, everything should be visible again
-	await page.getByLabel("Clear filter").click();
+	await page.getByLabel("Clear search").click();
 	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
 	await expect(page.getByText(loginMessage)).toBeVisible();
 
 	// Filter by action type
 	await page.getByText("All actions").click();
-	await page.getByRole("menu").getByText("Login").click();
+	const loginOption = page.getByText("Login");
+	await loginOption.scrollIntoViewIfNeeded({ timeout: 5000 });
+	await loginOption.click();
 	// Logins should be visible
 	await expect(page.getByText(loginMessage)).toBeVisible();
 	// Our workspace build should no longer be visible

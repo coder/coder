@@ -2098,8 +2098,8 @@ export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
 export const AgentSubsystems: AgentSubsystem[] = ["envbox", "envbuilder", "exectrace"]
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "login" | "logout" | "register" | "start" | "stop" | "write"
-export const AuditActions: AuditAction[] = ["create", "delete", "login", "logout", "register", "start", "stop", "write"]
+export type AuditAction = "create" | "delete" | "login" | "logout" | "register" | "request_password_reset" | "start" | "stop" | "write"
+export const AuditActions: AuditAction[] = ["create", "delete", "login", "logout", "register", "request_password_reset", "start", "stop", "write"]
 
 // From codersdk/workspaces.go
 export type AutomaticUpdates = "always" | "never"

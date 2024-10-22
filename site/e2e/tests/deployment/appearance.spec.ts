@@ -1,9 +1,9 @@
 import { chromium, expect, test } from "@playwright/test";
 import { expectUrl } from "../../expectUrl";
-import { randomName, requiresEnterpriseLicense } from "../../helpers";
+import { randomName, requiresLicense } from "../../helpers";
 
 test("set application name", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	await page.goto("/deployment/appearance", { waitUntil: "domcontentloaded" });
 
@@ -33,7 +33,7 @@ test("set application name", async ({ page }) => {
 });
 
 test("set application logo", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	await page.goto("/deployment/appearance", { waitUntil: "domcontentloaded" });
 
@@ -61,17 +61,17 @@ test("set application logo", async ({ page }) => {
 });
 
 test("set service banner", async ({ page }) => {
-	requiresEnterpriseLicense();
+	requiresLicense();
 
 	await page.goto("/deployment/appearance", { waitUntil: "domcontentloaded" });
 
 	const message = "Mary has a little lamb.";
 
 	// Fill out the form
-	const form = page.locator("form", { hasText: "Service Banner" });
-	await form.getByLabel("Enabled", { exact: true }).check();
+	await page.getByRole("button", { name: "New" }).click();
+	const form = page.getByRole("presentation");
 	await form.getByLabel("Message", { exact: true }).fill(message);
-	await form.getByRole("button", { name: "Submit" }).click();
+	await form.getByRole("button", { name: "Update" }).click();
 
 	// Verify service banner
 	await page.goto("/workspaces", { waitUntil: "domcontentloaded" });

@@ -1,0 +1,23 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder templates versions promote [flags] --template=<template_name>
+  --template-version=<template_version_name>
+
+  Promote a template version to active.
+
+  Promote an existing template version to be the active version for the
+  specified template.
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+  -t, --template string, $CODER_TEMPLATE_NAME
+          Specify the template name.
+
+      --template-version string, $CODER_TEMPLATE_VERSION_NAME
+          Specify the template version name to promote.
+
+———
+Run `coder --help` for a list of global options.

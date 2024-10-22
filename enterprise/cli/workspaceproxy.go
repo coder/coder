@@ -102,7 +102,7 @@ func (r *RootCmd) patchProxy() *serpent.Command {
 			}),
 			cliui.JSONFormat(),
 			// Table formatter expects a slice, make a slice of one.
-			cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"proxy name", "proxy url"}),
+			cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "url"}),
 				func(data any) (any, error) {
 					response, ok := data.(codersdk.WorkspaceProxy)
 					if !ok {

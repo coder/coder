@@ -1,20 +1,27 @@
-package wsproxy_test
+package cryptokeys_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/wsproxy"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestCryptoKeyCache(t *testing.T) {
 	t.Parallel()
@@ -32,8 +39,8 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			now := clock.Now().UTC()
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-				Secret:   "key2",
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+				Secret:   generateKey(t, 64),
 				Sequence: 2,
 				StartsAt: now,
 			}
@@ -42,12 +49,13 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{expected},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
-			got, err := cache.Signing(ctx)
+			id, got, err := cache.SigningKey(ctx)
 			require.NoError(t, err)
-			require.Equal(t, expected, got)
+			require.Equal(t, keyID(expected), id)
+			require.Equal(t, decodedSecret(t, expected), got)
 			require.Equal(t, 1, ff.called)
 		})
 
@@ -63,27 +71,29 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-				Secret:   "key1",
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+				Secret:   generateKey(t, 64),
 				Sequence: 12,
 				StartsAt: clock.Now().UTC(),
 			}
 			ff.keys = []codersdk.CryptoKey{expected}
 
-			got, err := cache.Signing(ctx)
+			id, got, err := cache.SigningKey(ctx)
 			require.NoError(t, err)
-			require.Equal(t, expected, got)
+			require.Equal(t, decodedSecret(t, expected), got)
+			require.Equal(t, keyID(expected), id)
 			// 1 on startup + missing cache.
 			require.Equal(t, 2, ff.called)
 
 			// Ensure the cache gets hit this time.
-			got, err = cache.Signing(ctx)
+			id, got, err = cache.SigningKey(ctx)
 			require.NoError(t, err)
-			require.Equal(t, expected, got)
+			require.Equal(t, decodedSecret(t, expected), got)
+			require.Equal(t, keyID(expected), id)
 			// 1 on startup + missing cache.
 			require.Equal(t, 2, ff.called)
 		})
@@ -97,9 +107,10 @@ func TestCryptoKeyCache(t *testing.T) {
 				clock  = quartz.NewMock(t)
 			)
 			now := clock.Now().UTC()
+
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-				Secret:   "key1",
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+				Secret:   generateKey(t, 64),
 				Sequence: 1,
 				StartsAt: clock.Now().UTC(),
 			}
@@ -108,8 +119,8 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{
 					expected,
 					{
-						Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
-						Secret:    "key2",
+						Feature:   codersdk.CryptoKeyFeatureTailnetResume,
+						Secret:    generateKey(t, 64),
 						Sequence:  2,
 						StartsAt:  now.Add(-time.Second),
 						DeletesAt: now,
@@ -117,12 +128,13 @@ func TestCryptoKeyCache(t *testing.T) {
 				},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
-			got, err := cache.Signing(ctx)
+			id, got, err := cache.SigningKey(ctx)
 			require.NoError(t, err)
-			require.Equal(t, expected, got)
+			require.Equal(t, decodedSecret(t, expected), got)
+			require.Equal(t, keyID(expected), id)
 			require.Equal(t, 1, ff.called)
 		})
 
@@ -132,17 +144,16 @@ func TestCryptoKeyCache(t *testing.T) {
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
 				logger = slogtest.Make(t, nil)
-				clock  = quartz.NewMock(t)
 			)
 
 			ff := &fakeFetcher{
 				keys: []codersdk.CryptoKey{},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume)
 			require.NoError(t, err)
 
-			_, err = cache.Signing(ctx)
+			_, _, err = cache.SigningKey(ctx)
 			require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
 		})
 	})
@@ -161,8 +172,8 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			now := clock.Now().UTC()
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-				Secret:   "key1",
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+				Secret:   generateKey(t, 64),
 				Sequence: 12,
 				StartsAt: now,
 			}
@@ -170,20 +181,20 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{
 					expected,
 					{
-						Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-						Secret:   "key2",
+						Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+						Secret:   generateKey(t, 64),
 						Sequence: 13,
 						StartsAt: now,
 					},
 				},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
-			got, err := cache.Verifying(ctx, expected.Sequence)
+			got, err := cache.VerifyingKey(ctx, keyID(expected))
 			require.NoError(t, err)
-			require.Equal(t, expected, got)
+			require.Equal(t, decodedSecret(t, expected), got)
 			require.Equal(t, 1, ff.called)
 		})
 
@@ -199,26 +210,26 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-				Secret:   "key1",
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+				Secret:   generateKey(t, 64),
 				Sequence: 12,
 				StartsAt: clock.Now().UTC(),
 			}
 			ff.keys = []codersdk.CryptoKey{expected}
 
-			got, err := cache.Verifying(ctx, expected.Sequence)
+			got, err := cache.VerifyingKey(ctx, keyID(expected))
 			require.NoError(t, err)
-			require.Equal(t, expected, got)
+			require.Equal(t, decodedSecret(t, expected), got)
 			require.Equal(t, 2, ff.called)
 
 			// Ensure the cache gets hit this time.
-			got, err = cache.Verifying(ctx, expected.Sequence)
+			got, err = cache.VerifyingKey(ctx, keyID(expected))
 			require.NoError(t, err)
-			require.Equal(t, expected, got)
+			require.Equal(t, decodedSecret(t, expected), got)
 			require.Equal(t, 2, ff.called)
 		})
 
@@ -233,8 +244,8 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			now := clock.Now().UTC()
 			expected := codersdk.CryptoKey{
-				Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-				Secret:   "key1",
+				Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+				Secret:   generateKey(t, 64),
 				Sequence: 12,
 				StartsAt: now.Add(-time.Second),
 			}
@@ -245,16 +256,16 @@ func TestCryptoKeyCache(t *testing.T) {
 				},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
-			got, err := cache.Verifying(ctx, expected.Sequence)
+			got, err := cache.VerifyingKey(ctx, keyID(expected))
 			require.NoError(t, err)
-			require.Equal(t, expected, got)
+			require.Equal(t, decodedSecret(t, expected), got)
 			require.Equal(t, 1, ff.called)
 		})
 
-		t.Run("KeyInvalid", func(t *testing.T) {
+		t.Run("KeyPastDeletesAt", func(t *testing.T) {
 			t.Parallel()
 
 			var (
@@ -265,8 +276,8 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			now := clock.Now().UTC()
 			expected := codersdk.CryptoKey{
-				Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
-				Secret:    "key1",
+				Feature:   codersdk.CryptoKeyFeatureTailnetResume,
+				Secret:    generateKey(t, 64),
 				Sequence:  12,
 				StartsAt:  now.Add(-time.Second),
 				DeletesAt: now,
@@ -278,10 +289,10 @@ func TestCryptoKeyCache(t *testing.T) {
 				},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
-			_, err = cache.Verifying(ctx, expected.Sequence)
+			_, err = cache.VerifyingKey(ctx, keyID(expected))
 			require.ErrorIs(t, err, cryptokeys.ErrKeyInvalid)
 			require.Equal(t, 1, ff.called)
 		})
@@ -299,10 +310,10 @@ func TestCryptoKeyCache(t *testing.T) {
 				keys: []codersdk.CryptoKey{},
 			}
 
-			cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+			cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 			require.NoError(t, err)
 
-			_, err = cache.Verifying(ctx, 1)
+			_, err = cache.VerifyingKey(ctx, "1")
 			require.ErrorIs(t, err, cryptokeys.ErrKeyNotFound)
 		})
 	})
@@ -318,8 +329,8 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		now := clock.Now().UTC()
 		expected := codersdk.CryptoKey{
-			Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
-			Secret:    "key1",
+			Feature:   codersdk.CryptoKeyFeatureTailnetResume,
+			Secret:    generateKey(t, 64),
 			Sequence:  12,
 			StartsAt:  now,
 			DeletesAt: now.Add(time.Minute * 10),
@@ -330,17 +341,18 @@ func TestCryptoKeyCache(t *testing.T) {
 			},
 		}
 
-		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 		require.NoError(t, err)
 
-		got, err := cache.Signing(ctx)
+		id, got, err := cache.SigningKey(ctx)
 		require.NoError(t, err)
-		require.Equal(t, expected, got)
+		require.Equal(t, decodedSecret(t, expected), got)
+		require.Equal(t, keyID(expected), id)
 		require.Equal(t, 1, ff.called)
 
 		newKey := codersdk.CryptoKey{
-			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-			Secret:   "key2",
+			Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+			Secret:   generateKey(t, 64),
 			Sequence: 13,
 			StartsAt: now,
 		}
@@ -353,9 +365,10 @@ func TestCryptoKeyCache(t *testing.T) {
 		require.Equal(t, time.Minute*10, dur)
 
 		// Assert hits cache.
-		got, err = cache.Signing(ctx)
+		id, got, err = cache.SigningKey(ctx)
 		require.NoError(t, err)
-		require.Equal(t, newKey, got)
+		require.Equal(t, keyID(newKey), id)
+		require.Equal(t, decodedSecret(t, newKey), got)
 		require.Equal(t, 2, ff.called)
 
 		// We check again to ensure the timer has been reset.
@@ -379,8 +392,8 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		now := clock.Now().UTC()
 		expected := codersdk.CryptoKey{
-			Feature:   codersdk.CryptoKeyFeatureWorkspaceApp,
-			Secret:    "key1",
+			Feature:   codersdk.CryptoKeyFeatureTailnetResume,
+			Secret:    generateKey(t, 64),
 			Sequence:  12,
 			StartsAt:  now,
 			DeletesAt: now.Add(time.Minute * 10),
@@ -393,23 +406,24 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		// Create a trap that blocks when the refresh timer fires.
 		trap := clock.Trap().Now("refresh")
-		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 		require.NoError(t, err)
 
 		_, wait := clock.AdvanceNext()
 		trapped := trap.MustWait(ctx)
 
 		newKey := codersdk.CryptoKey{
-			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-			Secret:   "key2",
+			Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+			Secret:   generateKey(t, 64),
 			Sequence: 13,
 			StartsAt: now,
 		}
 		ff.keys = []codersdk.CryptoKey{newKey}
 
-		_, err = cache.Verifying(ctx, newKey.Sequence)
+		key, err := cache.VerifyingKey(ctx, keyID(newKey))
 		require.NoError(t, err)
 		require.Equal(t, 2, ff.called)
+		require.Equal(t, decodedSecret(t, newKey), key)
 
 		trapped.Release()
 		wait.MustWait(ctx)
@@ -434,8 +448,8 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		now := clock.Now()
 		expected := codersdk.CryptoKey{
-			Feature:  codersdk.CryptoKeyFeatureWorkspaceApp,
-			Secret:   "key1",
+			Feature:  codersdk.CryptoKeyFeatureTailnetResume,
+			Secret:   generateKey(t, 64),
 			Sequence: 12,
 			StartsAt: now,
 		}
@@ -445,25 +459,26 @@ func TestCryptoKeyCache(t *testing.T) {
 			},
 		}
 
-		cache, err := wsproxy.NewCryptoKeyCache(ctx, logger, ff, withClock(clock))
+		cache, err := cryptokeys.NewSigningCache(ctx, logger, ff, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
 		require.NoError(t, err)
 
-		got, err := cache.Signing(ctx)
+		id, got, err := cache.SigningKey(ctx)
 		require.NoError(t, err)
-		require.Equal(t, expected, got)
+		require.Equal(t, keyID(expected), id)
+		require.Equal(t, decodedSecret(t, expected), got)
 		require.Equal(t, 1, ff.called)
 
-		got, err = cache.Verifying(ctx, expected.Sequence)
+		key, err := cache.VerifyingKey(ctx, keyID(expected))
 		require.NoError(t, err)
-		require.Equal(t, expected, got)
+		require.Equal(t, decodedSecret(t, expected), key)
 		require.Equal(t, 1, ff.called)
 
 		cache.Close()
 
-		_, err = cache.Signing(ctx)
+		_, _, err = cache.SigningKey(ctx)
 		require.ErrorIs(t, err, cryptokeys.ErrClosed)
 
-		_, err = cache.Verifying(ctx, expected.Sequence)
+		_, err = cache.VerifyingKey(ctx, keyID(expected))
 		require.ErrorIs(t, err, cryptokeys.ErrClosed)
 	})
 }
@@ -478,8 +493,25 @@ func (f *fakeFetcher) Fetch(_ context.Context) ([]codersdk.CryptoKey, error) {
 	return f.keys, nil
 }
 
-func withClock(clock quartz.Clock) func(*wsproxy.CryptoKeyCache) {
-	return func(cache *wsproxy.CryptoKeyCache) {
-		cache.Clock = clock
-	}
+func keyID(key codersdk.CryptoKey) string {
+	return strconv.FormatInt(int64(key.Sequence), 10)
+}
+
+func decodedSecret(t *testing.T, key codersdk.CryptoKey) []byte {
+	t.Helper()
+
+	secret, err := hex.DecodeString(key.Secret)
+	require.NoError(t, err)
+
+	return secret
+}
+
+func generateKey(t *testing.T, size int) string {
+	t.Helper()
+
+	key := make([]byte, size)
+	_, err := rand.Read(key)
+	require.NoError(t, err)
+
+	return hex.EncodeToString(key)
 }

@@ -40,7 +40,7 @@ export const SearchField: FC<SearchFieldProps> = ({
 				),
 				endAdornment: value !== "" && (
 					<InputAdornment position="end">
-						<Tooltip title="Clear field">
+						<Tooltip title="Clear search">
 							<IconButton
 								size="small"
 								onClick={() => {
@@ -48,7 +48,7 @@ export const SearchField: FC<SearchFieldProps> = ({
 								}}
 							>
 								<CloseIcon css={{ fontSize: 14 }} />
-								<span css={{ ...visuallyHidden }}>Clear field</span>
+								<span css={{ ...visuallyHidden }}>Clear search</span>
 							</IconButton>
 						</Tooltip>
 					</InputAdornment>

@@ -13,6 +13,9 @@ export const workspaceProxyPort = 3112;
 export const agentPProfPort = 6061;
 export const coderdPProfPort = 6062;
 
+// The name of the organization that should be used by default when needed.
+export const defaultOrganizationName = "coder";
+
 // Credentials for the first user
 export const username = "admin";
 export const password = "SomeSecurePassword!";
@@ -34,10 +37,22 @@ export const gitAuth = {
 	installationsPath: "/installations",
 };
 
-export const requireEnterpriseTests = Boolean(
-	process.env.CODER_E2E_REQUIRE_ENTERPRISE_TESTS,
+/**
+ * Will make the tests fail if set to `true` and a license was not provided.
+ */
+export const premiumTestsRequired = Boolean(
+	process.env.CODER_E2E_REQUIRE_PREMIUM_TESTS,
 );
-export const enterpriseLicense = process.env.CODER_E2E_ENTERPRISE_LICENSE ?? "";
+
+export const license = process.env.CODER_E2E_LICENSE ?? "";
+
+/**
+ * Certain parts of the UI change when organizations are enabled. Organizations
+ * are enabled by a license entitlement, and license configuration is guaranteed
+ * to run before any other tests, so having this as a bit of "global state" is
+ * fine.
+ */
+export const organizationsEnabled = Boolean(license);
 
 // Disabling terraform tests is optional for environments without Docker + Terraform.
 // By default, we opt into these tests.
