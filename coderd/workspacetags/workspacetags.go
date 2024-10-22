@@ -75,11 +75,29 @@ func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype str
 
 	evalContext := buildEvalContext(varsDefaults, paramsDefaults)
 
+	// Filter only allowed data sources for preflight check.
+	if err := validWorkspaceTagValues(tags); err != nil {
+		return nil, err
+	}
+
 	evalTags, err := evalProvisionerTags(evalContext, tags)
 	if err != nil {
 		return nil, xerrors.Errorf("eval provisioner tags: %w", err)
 	}
 	return evalTags, err
+}
+
+func validWorkspaceTagValues(tags map[string]string) error {
+	for _, v := range tags {
+		parts := strings.SplitN(v, ".", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		if parts[0] == "data" && parts[1] != "coder_parameter" {
+			return xerrors.Errorf("invalid workspace tag value %q: only the \"coder_parameter\" data source is supported here", v)
+		}
+	}
+	return nil
 }
 
 func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Module) (varsDefaults map[string]string, paramsDefaults map[string]string, err error) {

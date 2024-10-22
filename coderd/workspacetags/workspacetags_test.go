@@ -115,7 +115,9 @@ func Test_Validate(t *testing.T) {
 			files: map[string]string{
 				"main.tf": `
 					provider "foo" {}
-					resource "foo_bar" "baz" {}
+					resource "foo_bar" "baz" {
+						name = "foobar"
+					}
 					variable "region" {
 						type    = string
 						default = "us"
@@ -130,16 +132,47 @@ func Test_Validate(t *testing.T) {
 					}
 					data "coder_workspace_tags" "tags" {
 						tags = {
-							"platform" = "kubernetes",
-							"cluster"  = "${"devel"}${"opers"}"
-							"region"   = var.region
-							"az"       = data.coder_parameter.az.value
-							"hostname" = data.local_file.hostname.content
+							"platform"  = "kubernetes",
+							"cluster"   = "${"devel"}${"opers"}"
+							"region"    = var.region
+							"az"        = data.coder_parameter.az.value
+							"hostname"  = data.local_file.hostname.content
 						}
 					}`,
 			},
 			expectTags:  nil,
-			expectError: "only the \"coder_parameter\" data source is supported in workspace tags",
+			expectError: `invalid workspace tag value "data.local_file.hostname.content": only the "coder_parameter" data source is supported here`,
+		},
+		{
+			name: "main.tf with disallowed resource for workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {
+						name = "foobar"
+					}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = "a"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform"  = "kubernetes",
+							"cluster"   = "${"devel"}${"opers"}"
+							"region"    = var.region
+							"az"        = data.coder_parameter.az.value
+							"foobarbaz" = foo_bar.baz.name
+						}
+					}`,
+			},
+			expectTags: nil,
+			// TODO: this error isn't great, but it has the desired effect.
+			expectError: `There is no variable named "foo_bar"`,
 		},
 	} {
 		t.Run(tc.name+"/tar", func(t *testing.T) {
