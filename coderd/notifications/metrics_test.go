@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ func TestMetrics(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
-	template := notifications.TemplateWorkspaceDeleted
+	tmpl := notifications.TemplateWorkspaceDeleted
 
 	const (
 		method      = database.NotificationMethodSmtp
@@ -76,7 +77,7 @@ func TestMetrics(t *testing.T) {
 	user := createSampleUser(t, store)
 
 	// Build fingerprints for the two different series we expect.
-	methodTemplateFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, template.String())
+	methodTemplateFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, tmpl.String())
 	methodFP := fingerprintLabels(notifications.LabelMethod, string(method))
 
 	expected := map[string]func(metric *dto.Metric, series string) bool{
@@ -90,7 +91,7 @@ func TestMetrics(t *testing.T) {
 
 			var match string
 			for result, val := range results {
-				seriesFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, template.String(), notifications.LabelResult, result)
+				seriesFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, tmpl.String(), notifications.LabelResult, result)
 				if !hasMatchingFingerprint(metric, seriesFP) {
 					continue
 				}
@@ -165,9 +166,9 @@ func TestMetrics(t *testing.T) {
 	}
 
 	// WHEN: 2 notifications are enqueued, 1 of which will fail until its retries are exhausted, and another which will succeed
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test") // this will succeed
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success"}, "test") // this will succeed
 	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
@@ -218,7 +219,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
-	template := notifications.TemplateWorkspaceDeleted
+	tmpl := notifications.TemplateWorkspaceDeleted
 
 	const method = database.NotificationMethodSmtp
 
@@ -252,9 +253,9 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	user := createSampleUser(t, store)
 
 	// WHEN: 2 notifications are enqueued, one of which will fail and one which will succeed
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test") // this will succeed
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success"}, "test") // this will succeed
 	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
@@ -309,7 +310,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
-	template := notifications.TemplateWorkspaceDeleted
+	tmpl := notifications.TemplateWorkspaceDeleted
 
 	const method = database.NotificationMethodSmtp
 
@@ -342,7 +343,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 
 	// WHEN: notifications are enqueued which will succeed (and be delayed during dispatch)
 	for i := 0; i < msgCount; i++ {
-		_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success", "i": strconv.Itoa(i)}, "test")
+		_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success", "i": strconv.Itoa(i)}, "test")
 		require.NoError(t, err)
 	}
 
@@ -351,7 +352,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	// THEN:
 	// Ensure we see the dispatches of the messages inflight.
 	require.Eventually(t, func() bool {
-		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), template.String())) == msgCount
+		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), tmpl.String())) == msgCount
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	for i := 0; i < msgCount; i++ {
@@ -389,7 +390,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 	var (
 		reg             = prometheus.NewRegistry()
 		metrics         = notifications.NewMetrics(reg)
-		template        = notifications.TemplateWorkspaceDeleted
+		tmpl            = notifications.TemplateWorkspaceDeleted
 		anotherTemplate = notifications.TemplateWorkspaceDormant
 	)
 
@@ -400,7 +401,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 
 	// GIVEN: a template whose notification method differs from the default.
 	out, err := store.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
-		ID:     template,
+		ID:     tmpl,
 		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
 	})
 	require.NoError(t, err)
@@ -426,7 +427,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 
 	user := createSampleUser(t, store)
 
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test")
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success"}, "test")
 	require.NoError(t, err)
 	_, err = enq.Enqueue(ctx, user.ID, anotherTemplate, map[string]string{"type": "success"}, "test")
 	require.NoError(t, err)
@@ -447,7 +448,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 	// THEN: we should have metric series for both the default and custom notification methods.
 	require.Eventually(t, func() bool {
 		return promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(defaultMethod), anotherTemplate.String(), notifications.ResultSuccess)) > 0 &&
-			promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(customMethod), template.String(), notifications.ResultSuccess)) > 0
+			promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(customMethod), tmpl.String(), notifications.ResultSuccess)) > 0
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
@@ -525,8 +526,8 @@ func newBarrierHandler(total int, handler notifications.Handler) *barrierHandler
 	}
 }
 
-func (bh *barrierHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	deliverFn, err := bh.h.Dispatcher(payload, title, body)
+func (bh *barrierHandler) Dispatcher(payload types.MessagePayload, title, body string, helpers template.FuncMap) (dispatch.DeliveryFunc, error) {
+	deliverFn, err := bh.h.Dispatcher(payload, title, body, helpers)
 	if err != nil {
 		return nil, err
 	}
