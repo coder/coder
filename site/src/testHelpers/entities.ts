@@ -2623,7 +2623,7 @@ export const MockAuditLogRequestOneTimePasscode: TypesGen.AuditLog = {
 			},
 			secret: false,
 		},
-	}
+	},
 };
 
 export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {

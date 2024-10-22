@@ -32,8 +32,6 @@ const getDiffValue = (value: unknown): string => {
 const isTimeObject = (
 	value: unknown,
 ): value is { Time: string; Valid: boolean } => {
-	console.log(JSON.stringify(value));
-
 	return (
 		value !== null &&
 		typeof value === "object" &&
