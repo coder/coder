@@ -34,8 +34,7 @@ func TestRotator(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, dbkeys, 0)
 
-		err = cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
-		require.NoError(t, err)
+		cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
 
 		// Fetch the keys from the database and ensure they
 		// are as expected.
@@ -66,8 +65,7 @@ func TestRotator(t *testing.T) {
 		trap := clock.Trap().TickerFunc()
 		t.Cleanup(trap.Close)
 
-		err := cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
-		require.NoError(t, err)
+		cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
 
 		initialKeyLen := len(database.AllCryptoKeyFeatureValues())
 		// Fetch the keys from the database and ensure they

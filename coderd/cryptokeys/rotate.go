@@ -54,7 +54,7 @@ func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 // StartRotator starts a background process that rotates keys in the database.
 // It ensures there's at least one valid key per feature prior to returning.
 // Canceling the provided context will stop the background process.
-func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) error {
+func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) {
 	//nolint:gocritic // KeyRotator can only rotate crypto keys.
 	ctx = dbauthz.AsKeyRotator(ctx)
 	kr := &rotator{
@@ -71,12 +71,10 @@ func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, op
 
 	err := kr.rotateKeys(ctx)
 	if err != nil {
-		return xerrors.Errorf("rotate keys: %w", err)
+		kr.logger.Critical(ctx, "failed to rotate keys", slog.Error(err))
 	}
 
 	go kr.start(ctx)
-
-	return nil
 }
 
 // start begins the process of rotating keys.

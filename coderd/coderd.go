@@ -492,10 +492,7 @@ func New(options *Options) *API {
 	// Start a background process that rotates keys. We intentionally start this after the caches
 	// are created to force initial requests for a key to populate the caches. This helps catch
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
-	err = cryptokeys.StartRotator(ctx, options.Logger, options.Database)
-	if err != nil {
-		must(options.Logger, "failed to start key rotator", err)
-	}
+	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
 
 	api := &API{
 		ctx:          ctx,
@@ -659,7 +656,7 @@ func New(options *Options) *API {
 		ResumeTokenProvider:     api.Options.CoordinatorResumeTokenProvider,
 	})
 	if err != nil {
-		must(api.Logger, "failed to initialize tailnet client service", err)
+		api.Logger.Fatal(context.Background(), "failed to initialize tailnet client service", slog.Error(err))
 	}
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -1656,10 +1653,4 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 		}
 	}
 	return exps
-}
-
-func must(logger slog.Logger, msg string, err error) {
-	if err != nil {
-		logger.Fatal(context.Background(), msg, slog.Error(err))
-	}
 }

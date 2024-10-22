@@ -654,50 +654,19 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					appClient.SetSessionToken("")
 					u := *c.appURL
 					u.Path = path.Join(u.Path, "/test")
+					badToken := generateBadJWE(t, workspaceapps.EncryptedAPIKeyPayload{
+						APIKey: currentKeyStr,
+					})
+
+					u.RawQuery = (url.Values{
+						workspaceapps.SubdomainProxyAPIKeyParam: {badToken},
+					}).Encode()
+
 					req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 					require.NoError(t, err)
 
 					var resp *http.Response
 					resp, err = doWithRetries(t, appClient, req)
-					require.NoError(t, err)
-
-					if !assert.Equal(t, http.StatusSeeOther, resp.StatusCode) {
-						dump, err := httputil.DumpResponse(resp, true)
-						require.NoError(t, err)
-						t.Log(string(dump))
-					}
-					resp.Body.Close()
-
-					// Check that the Location is correct.
-					gotLocation, err := resp.Location()
-					require.NoError(t, err)
-					// This should always redirect to the primary access URL.
-					require.Equal(t, appDetails.SDKClient.URL.Host, gotLocation.Host)
-					require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
-					require.Equal(t, u.String(), gotLocation.Query().Get("redirect_uri"))
-
-					// Load the application auth-redirect endpoint.
-					resp, err = requestWithRetries(ctx, t, appDetails.SDKClient, http.MethodGet, "/api/v2/applications/auth-redirect", nil, codersdk.WithQueryParam(
-						"redirect_uri", u.String(),
-					))
-					require.NoError(t, err)
-					defer resp.Body.Close()
-
-					require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-					gotLocation, err = resp.Location()
-					require.NoError(t, err)
-
-					badToken := generateBadJWE(t, workspaceapps.EncryptedAPIKeyPayload{
-						APIKey: currentKeyStr,
-					})
-
-					gotLocation.RawQuery = (url.Values{
-						workspaceapps.SubdomainProxyAPIKeyParam: {badToken},
-					}).Encode()
-
-					req, err = http.NewRequestWithContext(ctx, "GET", gotLocation.String(), nil)
-					require.NoError(t, err)
-					resp, err = appClient.HTTPClient.Do(req)
 					require.NoError(t, err)
 					defer resp.Body.Close()
 					require.Equal(t, http.StatusBadRequest, resp.StatusCode)

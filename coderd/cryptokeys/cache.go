@@ -110,7 +110,7 @@ func NewSigningCache(ctx context.Context, logger slog.Logger, fetcher Fetcher,
 		return nil, xerrors.Errorf("invalid feature: %s", feature)
 	}
 	logger = logger.Named(fmt.Sprintf("%s_signing_keycache", feature))
-	return newCache(ctx, logger, fetcher, feature, opts...)
+	return newCache(ctx, logger, fetcher, feature, opts...), nil
 }
 
 func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher,
@@ -120,10 +120,10 @@ func NewEncryptionCache(ctx context.Context, logger slog.Logger, fetcher Fetcher
 		return nil, xerrors.Errorf("invalid feature: %s", feature)
 	}
 	logger = logger.Named(fmt.Sprintf("%s_encryption_keycache", feature))
-	return newCache(ctx, logger, fetcher, feature, opts...)
+	return newCache(ctx, logger, fetcher, feature, opts...), nil
 }
 
-func newCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature codersdk.CryptoKeyFeature, opts ...func(*cache)) (*cache, error) {
+func newCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature codersdk.CryptoKeyFeature, opts ...func(*cache)) *cache {
 	cache := &cache{
 		clock:   quartz.NewReal(),
 		logger:  logger,
@@ -142,11 +142,10 @@ func newCache(ctx context.Context, logger slog.Logger, fetcher Fetcher, feature 
 
 	keys, err := cache.cryptoKeys(cache.ctx)
 	if err != nil {
-		cache.cancel()
-		return nil, xerrors.Errorf("initial fetch: %w", err)
+		cache.logger.Critical(cache.ctx, "failed initial fetch", slog.Error(err))
 	}
 	cache.keys = keys
-	return cache, nil
+	return cache
 }
 
 func (c *cache) EncryptingKey(ctx context.Context) (string, interface{}, error) {
