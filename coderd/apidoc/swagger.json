@@ -8090,7 +8090,8 @@
 				"stop",
 				"login",
 				"logout",
-				"register"
+				"register",
+				"request_one_time_passcode"
 			],
 			"x-enum-varnames": [
 				"AuditActionCreate",
@@ -8100,7 +8101,8 @@
 				"AuditActionStop",
 				"AuditActionLogin",
 				"AuditActionLogout",
-				"AuditActionRegister"
+				"AuditActionRegister",
+				"AuditActionRequestOneTimePasscode"
 			]
 		},
 		"codersdk.AuditDiff": {

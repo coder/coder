@@ -86,14 +86,15 @@ func (r ResourceType) FriendlyString() string {
 type AuditAction string
 
 const (
-	AuditActionCreate   AuditAction = "create"
-	AuditActionWrite    AuditAction = "write"
-	AuditActionDelete   AuditAction = "delete"
-	AuditActionStart    AuditAction = "start"
-	AuditActionStop     AuditAction = "stop"
-	AuditActionLogin    AuditAction = "login"
-	AuditActionLogout   AuditAction = "logout"
-	AuditActionRegister AuditAction = "register"
+	AuditActionCreate                 AuditAction = "create"
+	AuditActionWrite                  AuditAction = "write"
+	AuditActionDelete                 AuditAction = "delete"
+	AuditActionStart                  AuditAction = "start"
+	AuditActionStop                   AuditAction = "stop"
+	AuditActionLogin                  AuditAction = "login"
+	AuditActionLogout                 AuditAction = "logout"
+	AuditActionRegister               AuditAction = "register"
+	AuditActionRequestOneTimePasscode AuditAction = "request_one_time_passcode"
 )
 
 func (a AuditAction) Friendly() string {
@@ -114,6 +115,8 @@ func (a AuditAction) Friendly() string {
 		return "logged out"
 	case AuditActionRegister:
 		return "registered"
+	case AuditActionRequestOneTimePasscode:
+		return "one time passcode requested"
 	default:
 		return "unknown"
 	}

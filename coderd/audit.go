@@ -274,8 +274,15 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	b := strings.Builder{}
+
 	// NOTE: WriteString always returns a nil error, so we never check it
-	_, _ = b.WriteString("{user} ")
+
+	// Requesting a one-time passcode can be performed by anyone that knows the email
+	// of a user so saying the user performed this action might be slightly misleading.
+	if alog.AuditLog.Action != database.AuditActionRequestOneTimePasscode {
+		_, _ = b.WriteString("{user} ")
+	}
+
 	if alog.AuditLog.StatusCode >= 400 {
 		_, _ = b.WriteString("unsuccessfully attempted to ")
 		_, _ = b.WriteString(string(alog.AuditLog.Action))
@@ -298,13 +305,16 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		return b.String()
 	}
 
-	_, _ = b.WriteString(" ")
-	_, _ = b.WriteString(codersdk.ResourceType(alog.AuditLog.ResourceType).FriendlyString())
+	if alog.AuditLog.Action == database.AuditActionRequestOneTimePasscode {
+		_, _ = b.WriteString(" for")
+	} else {
+		_, _ = b.WriteString(" ")
+		_, _ = b.WriteString(codersdk.ResourceType(alog.AuditLog.ResourceType).FriendlyString())
+	}
 
 	if alog.AuditLog.ResourceType == database.ResourceTypeConvertLogin {
 		_, _ = b.WriteString(" to")
 	}
-
 	_, _ = b.WriteString(" {target}")
 
 	return b.String()

@@ -12,8 +12,9 @@ package psmock
 import (
 	reflect "reflect"
 
-	pubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	gomock "go.uber.org/mock/gomock"
+
+	pubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 // MockPubsub is a mock of Pubsub interface.
