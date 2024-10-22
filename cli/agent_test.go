@@ -279,7 +279,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			}
 			coderAPI.RootHandler.ServeHTTP(w, r)
 		}))
-		r := dbfake.WorkspaceBuild(t, coderAPI.Database, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, coderAPI.Database, database.WorkspaceTable{
 			OrganizationID: memberUser.OrganizationIDs[0],
 			OwnerID:        memberUser.ID,
 		}).WithAgent().Do()
