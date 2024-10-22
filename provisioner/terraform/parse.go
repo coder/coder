@@ -1,18 +1,12 @@
 package terraform
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclparse"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
@@ -20,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/workspacetags"
 )
 
 // Parse extracts Terraform variables from source-code.
@@ -36,7 +31,7 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 
 	// NOTE: we load workspace tags before loading terraform variables.
 	// We do not need to know the actual values here, just the expressions.
-	workspaceTags, err := s.loadWorkspaceTags(ctx, module)
+	workspaceTags, err := workspacetags.LoadWorkspaceTags(ctx, s.logger, module)
 	if err != nil {
 		return provisionersdk.ParseErrorf("can't load workspace tags: %v", err)
 	}
@@ -50,112 +45,6 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 		TemplateVariables: templateVariables,
 		WorkspaceTags:     workspaceTags,
 	}
-}
-
-var rootTemplateSchema = &hcl.BodySchema{
-	Blocks: []hcl.BlockHeaderSchema{
-		{
-			Type:       "data",
-			LabelNames: []string{"type", "name"},
-		},
-	},
-}
-
-var coderWorkspaceTagsSchema = &hcl.BodySchema{
-	Attributes: []hcl.AttributeSchema{
-		{
-			Name: "tags",
-		},
-	},
-}
-
-func (s *server) loadWorkspaceTags(ctx context.Context, module *tfconfig.Module) (map[string]string, error) {
-	workspaceTags := map[string]string{}
-
-	for _, dataResource := range module.DataResources {
-		if dataResource.Type != "coder_workspace_tags" {
-			s.logger.Debug(ctx, "skip resource as it is not a coder_workspace_tags", "resource_name", dataResource.Name, "resource_type", dataResource.Type)
-			continue
-		}
-
-		var file *hcl.File
-		var diags hcl.Diagnostics
-		parser := hclparse.NewParser()
-
-		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
-			s.logger.Debug(ctx, "only .tf files can be parsed", "filename", dataResource.Pos.Filename)
-			continue
-		}
-		// We know in which HCL file is the data resource defined.
-		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
-
-		if diags.HasErrors() {
-			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
-		}
-
-		// Parse root to find "coder_workspace_tags".
-		content, _, diags := file.Body.PartialContent(rootTemplateSchema)
-		if diags.HasErrors() {
-			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
-		}
-
-		// Iterate over blocks to locate the exact "coder_workspace_tags" data resource.
-		for _, block := range content.Blocks {
-			if !slices.Equal(block.Labels, []string{"coder_workspace_tags", dataResource.Name}) {
-				continue
-			}
-
-			// Parse "coder_workspace_tags" to find all key-value tags.
-			resContent, _, diags := block.Body.PartialContent(coderWorkspaceTagsSchema)
-			if diags.HasErrors() {
-				return nil, xerrors.Errorf(`can't parse the resource coder_workspace_tags: %s`, diags.Error())
-			}
-
-			if resContent == nil {
-				continue // workspace tags are not present
-			}
-
-			if _, ok := resContent.Attributes["tags"]; !ok {
-				return nil, xerrors.Errorf(`"tags" attribute is required by coder_workspace_tags`)
-			}
-
-			expr := resContent.Attributes["tags"].Expr
-			tagsExpr, ok := expr.(*hclsyntax.ObjectConsExpr)
-			if !ok {
-				return nil, xerrors.Errorf(`"tags" attribute is expected to be a key-value map`)
-			}
-
-			// Parse key-value entries in "coder_workspace_tags"
-			for _, tagItem := range tagsExpr.Items {
-				key, err := previewFileContent(tagItem.KeyExpr.Range())
-				if err != nil {
-					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
-				}
-				key = strings.Trim(key, `"`)
-
-				value, err := previewFileContent(tagItem.ValueExpr.Range())
-				if err != nil {
-					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
-				}
-
-				s.logger.Info(ctx, "workspace tag found", "key", key, "value", value)
-
-				if _, ok := workspaceTags[key]; ok {
-					return nil, xerrors.Errorf(`workspace tag "%s" is defined multiple times`, key)
-				}
-				workspaceTags[key] = value
-			}
-		}
-	}
-	return workspaceTags, nil
-}
-
-func previewFileContent(fileRange hcl.Range) (string, error) {
-	body, err := os.ReadFile(fileRange.Filename)
-	if err != nil {
-		return "", err
-	}
-	return string(fileRange.SliceBytes(body)), nil
 }
 
 func loadTerraformVariables(module *tfconfig.Module) ([]*proto.TemplateVariable, error) {
