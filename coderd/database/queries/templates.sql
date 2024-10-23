@@ -199,3 +199,18 @@ SET
 WHERE
 	id = $1
 ;
+
+-- name: GetUsersWithAccessToTemplateByID :many
+SELECT
+	user_id
+FROM
+	organization_members
+WHERE
+	organization_members.organization_id::text IN (
+		SELECT
+			jsonb_object_keys(group_acl)
+		FROM
+			templates
+		WHERE templates.id = $1
+	)
+;

@@ -8557,6 +8557,44 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 	return items, nil
 }
 
+const getUsersWithAccessToTemplateByID = `-- name: GetUsersWithAccessToTemplateByID :many
+SELECT
+	user_id
+FROM
+	organization_members
+WHERE
+	organization_members.organization_id::text IN (
+		SELECT
+			jsonb_object_keys(group_acl)
+		FROM
+			templates
+		WHERE templates.id = $1
+	)
+`
+
+func (q *sqlQuerier) GetUsersWithAccessToTemplateByID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getUsersWithAccessToTemplateByID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertTemplate = `-- name: InsertTemplate :exec
 INSERT INTO
 	templates (

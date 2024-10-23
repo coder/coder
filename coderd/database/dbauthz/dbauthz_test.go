@@ -1131,6 +1131,10 @@ func (s *MethodTestSuite) TestUser() {
 			Asserts(a, policy.ActionRead, b, policy.ActionRead).
 			Returns(slice.New(a, b))
 	}))
+	s.Run("GetUsersWithAccessToTemplateByID", s.Subtest(func(db database.Store, check *expects) {
+		a := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(a.ID).Asserts(a, policy.ActionRead)
+	}))
 	s.Run("GetUsers", s.Subtest(func(db database.Store, check *expects) {
 		dbgen.User(s.T(), db, database.User{Username: "GetUsers-a-user"})
 		dbgen.User(s.T(), db, database.User{Username: "GetUsers-b-user"})
