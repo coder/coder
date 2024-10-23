@@ -134,7 +134,6 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 			AgentName:     workspaceAgent.Name,
 			TemplateName:  templateName,
 		}, stats.Metrics)
-		return nil
 	}
 
 	// if no active connections we do not bump activity
