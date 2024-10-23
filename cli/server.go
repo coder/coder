@@ -721,7 +721,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 			}
 
-			wsUpdates, err := coderd.NewUpdatesProvider(logger.Named("workspace_updates"), options.Database, options.Pubsub)
+			wsUpdates, err := coderd.NewUpdatesProvider(logger.Named("workspace_updates"), options.Pubsub)
 			if err != nil {
 				return xerrors.Errorf("create workspace updates provider: %w", err)
 			}

@@ -1868,21 +1868,15 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	firstClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+	firstClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		Coordinator:              tailnet.NewCoordinator(logger),
 		IncludeProvisionerDaemon: true,
-	})
-	t.Cleanup(func() {
-		_ = closer.Close()
 	})
 	firstUser := coderdtest.CreateFirstUser(t, firstClient)
 	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
 
 	// Create a workspace with an agent
-	dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
-		OrganizationID: firstUser.OrganizationID,
-		OwnerID:        memberUser.ID,
-	}).WithAgent().Do()
+	_ = buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, db)
 
 	u, err := member.URL.Parse("/api/v2/tailnet")
 	require.NoError(t, err)
@@ -1930,14 +1924,11 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	require.Len(t, update.DeletedAgents, 0)
 
 	// Build a second workspace
-	secondWorkspace := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
-		OrganizationID: firstUser.OrganizationID,
-		OwnerID:        memberUser.ID,
-	}).WithAgent().Pubsub(api.Pubsub).Do()
+	secondWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, db)
 
 	// Wait for the second workspace to be running with an agent
 	expectedState := map[uuid.UUID]workspace{
-		secondWorkspace.Workspace.ID: {
+		secondWorkspace.ID: {
 			Status:    tailnetproto.Workspace_RUNNING,
 			NumAgents: 1,
 		},
@@ -1945,20 +1936,29 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	waitForUpdates(t, ctx, stream, map[uuid.UUID]workspace{}, expectedState)
 
 	// Wait for the workspace and agent to be deleted
-	secondWorkspace.Workspace.Deleted = true
-	dbfake.WorkspaceBuild(t, api.Database, secondWorkspace.Workspace).
+	secondWorkspace.Deleted = true
+	dbfake.WorkspaceBuild(t, db, secondWorkspace).
 		Seed(database.WorkspaceBuild{
 			Transition:  database.WorkspaceTransitionDelete,
 			BuildNumber: 2,
-		}).Pubsub(api.Pubsub).Do()
+		}).Do()
 
-	priorState := expectedState
-	waitForUpdates(t, ctx, stream, priorState, map[uuid.UUID]workspace{
-		secondWorkspace.Workspace.ID: {
+	waitForUpdates(t, ctx, stream, expectedState, map[uuid.UUID]workspace{
+		secondWorkspace.ID: {
 			Status:    tailnetproto.Workspace_DELETED,
 			NumAgents: 0,
 		},
 	})
+}
+
+func buildWorkspaceWithAgent(t *testing.T, client *codersdk.Client, orgID uuid.UUID, owner uuid.UUID, db database.Store) database.WorkspaceTable {
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: orgID,
+		OwnerID:        owner,
+	}).WithAgent().Do()
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+	return r.Workspace
 }
 
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
@@ -2065,6 +2065,6 @@ func waitForUpdates(
 			t.Fatal(err)
 		}
 	case <-ctx.Done():
-		t.Fatal("Timeout waiting for desired state")
+		t.Fatal("Timeout waiting for desired state", currentState)
 	}
 }

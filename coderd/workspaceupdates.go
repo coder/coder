@@ -11,6 +11,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -25,7 +26,7 @@ type workspacesByID = map[uuid.UUID]ownedWorkspace
 type ownedWorkspace struct {
 	WorkspaceName string
 	Status        proto.Workspace_Status
-	Agents        []database.AgentIDNamePair
+	Agents        []tailnet.AgentIDNamePair
 }
 
 // Equal does not compare agents
@@ -43,7 +44,7 @@ type sub struct {
 	ch     chan *proto.WorkspaceUpdate
 	prev   workspacesByID
 
-	db     UpdateQuerier
+	db     tailnet.UpdateQuerier
 	ps     pubsub.Pubsub
 	logger slog.Logger
 
@@ -68,9 +69,10 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 		}
 	}
 
-	row, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
+	row, err := s.db.GetWorkspacesAndAgents(ctx, s.userID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get workspaces and agents by owner ID", slog.Error(err))
+		return
 	}
 	latest := convertRows(row)
 
@@ -88,7 +90,7 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 }
 
 func (s *sub) start(ctx context.Context) (err error) {
-	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
+	rows, err := s.db.GetWorkspacesAndAgents(ctx, s.userID)
 	if err != nil {
 		return xerrors.Errorf("get workspaces and agents by owner ID: %w", err)
 	}
@@ -124,12 +126,7 @@ func (s *sub) Updates() <-chan *proto.WorkspaceUpdate {
 
 var _ tailnet.Subscription = (*sub)(nil)
 
-type UpdateQuerier interface {
-	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
-}
-
 type updatesProvider struct {
-	db     UpdateQuerier
 	ps     pubsub.Pubsub
 	logger slog.Logger
 
@@ -139,12 +136,11 @@ type updatesProvider struct {
 
 var _ tailnet.WorkspaceUpdatesProvider = (*updatesProvider)(nil)
 
-func NewUpdatesProvider(logger slog.Logger, db UpdateQuerier, ps pubsub.Pubsub) (tailnet.WorkspaceUpdatesProvider, error) {
+func NewUpdatesProvider(logger slog.Logger, ps pubsub.Pubsub) (tailnet.WorkspaceUpdatesProvider, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &updatesProvider{
 		ctx:      ctx,
 		cancelFn: cancel,
-		db:       db,
 		ps:       ps,
 		logger:   logger,
 	}
@@ -156,15 +152,15 @@ func (u *updatesProvider) Close() error {
 	return nil
 }
 
-func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tailnet.Subscription, error) {
+func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID, db tailnet.UpdateQuerier) (tailnet.Subscription, error) {
 	ch := make(chan *proto.WorkspaceUpdate, 1)
 	ctx, cancel := context.WithCancel(ctx)
 	sub := &sub{
-		ctx:      u.ctx,
+		ctx:      ctx,
 		cancelFn: cancel,
 		userID:   userID,
 		ch:       ch,
-		db:       u.db,
+		db:       db,
 		ps:       u.ps,
 		logger:   u.logger.Named(fmt.Sprintf("workspace_updates_subscriber_%s", userID)),
 		prev:     workspacesByID{},
@@ -256,37 +252,67 @@ func produceUpdate(old, new workspacesByID) (out *proto.WorkspaceUpdate, updated
 	return out, updated
 }
 
-func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesByID {
+func convertRows(rows []tailnet.WorkspacesAndAgents) workspacesByID {
 	out := workspacesByID{}
 	for _, row := range rows {
-		agents := []database.AgentIDNamePair{}
+		agents := []tailnet.AgentIDNamePair{}
 		for _, agent := range row.Agents {
-			agents = append(agents, database.AgentIDNamePair{
+			agents = append(agents, tailnet.AgentIDNamePair{
 				ID:   agent.ID,
 				Name: agent.Name,
 			})
 		}
 		out[row.ID] = ownedWorkspace{
 			WorkspaceName: row.Name,
-			Status:        tailnet.WorkspaceStatusToProto(codersdk.ConvertWorkspaceStatus(codersdk.ProvisionerJobStatus(row.JobStatus), codersdk.WorkspaceTransition(row.Transition))),
+			Status:        tailnet.WorkspaceStatusToProto(codersdk.ConvertWorkspaceStatus(row.JobStatus, row.Transition)),
 			Agents:        agents,
 		}
 	}
 	return out
 }
 
-type tunnelAuthorizer struct {
-	prep rbac.PreparedAuthorized
-	db   database.Store
+type rbacQuerier struct {
+	readPrep rbac.PreparedAuthorized
+	sshPrep  rbac.PreparedAuthorized
+	subject  rbac.Subject
+	db       database.Store
 }
 
-func (t *tunnelAuthorizer) AuthorizeByID(ctx context.Context, agentID uuid.UUID) error {
+func (t *rbacQuerier) GetWorkspacesAndAgents(ctx context.Context, ownerID uuid.UUID) ([]tailnet.WorkspacesAndAgents, error) {
+	ctx = dbauthz.As(ctx, t.subject)
+	// Authorizes against `ActionRead`
+	rows, err := t.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, t.readPrep)
+	if err != nil {
+		return nil, xerrors.Errorf("get workspaces and agents by owner ID: %w", err)
+	}
+
+	out := make([]tailnet.WorkspacesAndAgents, len(rows))
+	for i, row := range rows {
+		agents := make([]tailnet.AgentIDNamePair, len(row.Agents))
+		for j, agent := range row.Agents {
+			agents[j] = tailnet.AgentIDNamePair{
+				ID:   agent.ID,
+				Name: agent.Name,
+			}
+		}
+		out[i] = tailnet.WorkspacesAndAgents{
+			ID:         row.ID,
+			Name:       row.Name,
+			JobStatus:  codersdk.ProvisionerJobStatus(row.JobStatus),
+			Transition: codersdk.WorkspaceTransition(row.Transition),
+			Agents:     agents,
+		}
+	}
+	return out, nil
+}
+
+func (t *rbacQuerier) AuthorizeTunnel(ctx context.Context, agentID uuid.UUID) error {
 	ws, err := t.db.GetWorkspaceByAgentID(ctx, agentID)
 	if err != nil {
 		return xerrors.Errorf("get workspace by agent ID: %w", err)
 	}
 	// Authorizes against `ActionSSH`
-	return t.prep.Authorize(ctx, ws.RBACObject())
+	return t.sshPrep.Authorize(ctx, ws.RBACObject())
 }
 
-var _ tailnet.TunnelAuthorizer = (*tunnelAuthorizer)(nil)
+var _ tailnet.UpdateQuerier = (*rbacQuerier)(nil)

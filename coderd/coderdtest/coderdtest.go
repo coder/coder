@@ -258,7 +258,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.WorkspaceUpdatesProvider == nil {
 		var err error
-		options.WorkspaceUpdatesProvider, err = coderd.NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Database, options.Pubsub)
+		options.WorkspaceUpdatesProvider, err = coderd.NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = options.WorkspaceUpdatesProvider.Close()

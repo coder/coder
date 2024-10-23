@@ -248,8 +248,8 @@ func TestWorkspaceUpdates(t *testing.T) {
 	errCh := make(chan error, 1)
 	go func() {
 		err := uut.ServeClient(ctx, "2.0", s, tailnet.ServeClientOptions{
-			Peer: clientID,
-			Auth: &fakeTunnelAuth{},
+			Peer:     clientID,
+			Database: &fakeTunnelAuth{},
 		})
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
@@ -329,7 +329,7 @@ func (*fakeUpdatesProvider) Close() error {
 	return nil
 }
 
-func (f *fakeUpdatesProvider) Subscribe(context.Context, uuid.UUID) (tailnet.Subscription, error) {
+func (f *fakeUpdatesProvider) Subscribe(context.Context, uuid.UUID, tailnet.UpdateQuerier) (tailnet.Subscription, error) {
 	return &fakeSubscription{ch: f.ch}, nil
 }
 
@@ -351,11 +351,15 @@ var _ tailnet.WorkspaceUpdatesProvider = (*fakeUpdatesProvider)(nil)
 
 type fakeTunnelAuth struct{}
 
-func (*fakeTunnelAuth) AuthorizeByID(_ context.Context, workspaceID uuid.UUID) error {
-	if workspaceID[0] != 1 {
+func (*fakeTunnelAuth) GetWorkspacesAndAgents(context.Context, uuid.UUID) ([]tailnet.WorkspacesAndAgents, error) {
+	return nil, nil
+}
+
+func (*fakeTunnelAuth) AuthorizeTunnel(_ context.Context, agentID uuid.UUID) error {
+	if agentID[0] != 1 {
 		return xerrors.New("policy disallows request")
 	}
 	return nil
 }
 
-var _ tailnet.TunnelAuthorizer = (*fakeTunnelAuth)(nil)
+var _ tailnet.UpdateQuerier = (*fakeTunnelAuth)(nil)

@@ -1481,6 +1481,13 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 // @Router /tailnet [get]
 func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to authenticate user.",
+		})
+		return
+	}
 
 	version := "2.0"
 	qv := r.URL.Query().Get("version")
@@ -1503,8 +1510,18 @@ func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Used to authorize tunnel requests, and filter workspace update DB queries
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	// Used to authorize tunnel request
+	sshPrep, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionSSH, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing sql filter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Used to filter workspace DB queries
+	readPrep, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error preparing sql filter.",
@@ -1533,9 +1550,11 @@ func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
 	go httpapi.Heartbeat(ctx, conn)
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.ServeClientOptions{
 		Peer: peerID,
-		Auth: &tunnelAuthorizer{
-			prep: prepared,
-			db:   api.Database,
+		Database: &rbacQuerier{
+			readPrep: readPrep,
+			sshPrep:  sshPrep,
+			subject:  actor,
+			db:       api.Database,
 		},
 	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {

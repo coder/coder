@@ -12,9 +12,9 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -42,14 +42,14 @@ func TestWorkspaceUpdates(t *testing.T) {
 		t.Parallel()
 
 		db := &mockWorkspaceStore{
-			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
+			orderedRows: []tailnet.WorkspacesAndAgents{
 				// Gains a new agent
 				{
 					ID:         ws1ID,
 					Name:       "ws1",
-					JobStatus:  database.ProvisionerJobStatusRunning,
-					Transition: database.WorkspaceTransitionStart,
-					Agents: []database.AgentIDNamePair{
+					JobStatus:  codersdk.ProvisionerJobRunning,
+					Transition: codersdk.WorkspaceTransitionStart,
+					Agents: []tailnet.AgentIDNamePair{
 						{
 							ID:   agent1ID,
 							Name: "agent1",
@@ -60,15 +60,15 @@ func TestWorkspaceUpdates(t *testing.T) {
 				{
 					ID:         ws2ID,
 					Name:       "ws2",
-					JobStatus:  database.ProvisionerJobStatusRunning,
-					Transition: database.WorkspaceTransitionStart,
+					JobStatus:  codersdk.ProvisionerJobRunning,
+					Transition: codersdk.WorkspaceTransitionStart,
 				},
 				// Is deleted
 				{
 					ID:         ws3ID,
 					Name:       "ws3",
-					JobStatus:  database.ProvisionerJobStatusSucceeded,
-					Transition: database.WorkspaceTransitionStop,
+					JobStatus:  codersdk.ProvisionerJobSucceeded,
+					Transition: codersdk.WorkspaceTransitionStop,
 				},
 			},
 		}
@@ -77,13 +77,13 @@ func TestWorkspaceUpdates(t *testing.T) {
 			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
-		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), db, ps)
+		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = updateProvider.Close()
 		})
 
-		sub, err := updateProvider.Subscribe(ctx, ownerID)
+		sub, err := updateProvider.Subscribe(ctx, ownerID, db)
 		require.NoError(t, err)
 		ch := sub.Updates()
 
@@ -122,13 +122,13 @@ func TestWorkspaceUpdates(t *testing.T) {
 		}, update)
 
 		// Update the database
-		db.orderedRows = []database.GetWorkspacesAndAgentsByOwnerIDRow{
+		db.orderedRows = []tailnet.WorkspacesAndAgents{
 			{
 				ID:         ws1ID,
 				Name:       "ws1",
-				JobStatus:  database.ProvisionerJobStatusRunning,
-				Transition: database.WorkspaceTransitionStart,
-				Agents: []database.AgentIDNamePair{
+				JobStatus:  codersdk.ProvisionerJobRunning,
+				Transition: codersdk.WorkspaceTransitionStart,
+				Agents: []tailnet.AgentIDNamePair{
 					{
 						ID:   agent1ID,
 						Name: "agent1",
@@ -142,14 +142,14 @@ func TestWorkspaceUpdates(t *testing.T) {
 			{
 				ID:         ws2ID,
 				Name:       "ws2",
-				JobStatus:  database.ProvisionerJobStatusRunning,
-				Transition: database.WorkspaceTransitionStop,
+				JobStatus:  codersdk.ProvisionerJobRunning,
+				Transition: codersdk.WorkspaceTransitionStop,
 			},
 			{
 				ID:         ws4ID,
 				Name:       "ws4",
-				JobStatus:  database.ProvisionerJobStatusRunning,
-				Transition: database.WorkspaceTransitionStart,
+				JobStatus:  codersdk.ProvisionerJobRunning,
+				Transition: codersdk.WorkspaceTransitionStart,
 			},
 		}
 		publishWorkspaceEvent(t, ps, ownerID, &wspubsub.WorkspaceEvent{
@@ -199,13 +199,13 @@ func TestWorkspaceUpdates(t *testing.T) {
 		t.Parallel()
 
 		db := &mockWorkspaceStore{
-			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
+			orderedRows: []tailnet.WorkspacesAndAgents{
 				{
 					ID:         ws1ID,
 					Name:       "ws1",
-					JobStatus:  database.ProvisionerJobStatusRunning,
-					Transition: database.WorkspaceTransitionStart,
-					Agents: []database.AgentIDNamePair{
+					JobStatus:  codersdk.ProvisionerJobRunning,
+					Transition: codersdk.WorkspaceTransitionStart,
+					Agents: []tailnet.AgentIDNamePair{
 						{
 							ID:   agent1ID,
 							Name: "agent1",
@@ -219,13 +219,13 @@ func TestWorkspaceUpdates(t *testing.T) {
 			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
-		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), db, ps)
+		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = updateProvider.Close()
 		})
 
-		sub, err := updateProvider.Subscribe(ctx, ownerID)
+		sub, err := updateProvider.Subscribe(ctx, ownerID, db)
 		require.NoError(t, err)
 		ch := sub.Updates()
 
@@ -255,7 +255,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 		require.Equal(t, expected, update)
 
 		require.NoError(t, err)
-		sub, err = updateProvider.Subscribe(ctx, ownerID)
+		sub, err = updateProvider.Subscribe(ctx, ownerID, db)
 		require.NoError(t, err)
 		ch = sub.Updates()
 
@@ -274,15 +274,18 @@ func publishWorkspaceEvent(t *testing.T, ps pubsub.Pubsub, ownerID uuid.UUID, ev
 }
 
 type mockWorkspaceStore struct {
-	orderedRows []database.GetWorkspacesAndAgentsByOwnerIDRow
+	orderedRows []tailnet.WorkspacesAndAgents
 }
 
-// GetWorkspacesAndAgents implements tailnet.UpdateQuerier.
-func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+func (*mockWorkspaceStore) AuthorizeTunnel(context.Context, uuid.UUID) error {
+	return nil
+}
+
+func (m *mockWorkspaceStore) GetWorkspacesAndAgents(context.Context, uuid.UUID) ([]tailnet.WorkspacesAndAgents, error) {
 	return m.orderedRows, nil
 }
 
-var _ coderd.UpdateQuerier = (*mockWorkspaceStore)(nil)
+var _ tailnet.UpdateQuerier = (*mockWorkspaceStore)(nil)
 
 type mockPubsub struct {
 	cbs map[string]pubsub.ListenerWithErr

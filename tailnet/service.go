@@ -39,16 +39,6 @@ func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
 	return context.WithValue(ctx, streamIDContextKey{}, streamID)
 }
 
-type WorkspaceUpdatesProvider interface {
-	io.Closer
-	Subscribe(ctx context.Context, userID uuid.UUID) (Subscription, error)
-}
-
-type Subscription interface {
-	io.Closer
-	Updates() <-chan *proto.WorkspaceUpdate
-}
-
 type ClientServiceOptions struct {
 	Logger                   slog.Logger
 	CoordPtr                 *atomic.Pointer[Coordinator]
@@ -101,24 +91,20 @@ func NewClientService(options ClientServiceOptions) (
 	return s, nil
 }
 
-type TunnelAuthorizer interface {
-	AuthorizeByID(ctx context.Context, workspaceID uuid.UUID) error
-}
-
 type ServeClientOptions struct {
 	Peer uuid.UUID
 	// Include for multi-workspace service
-	Auth TunnelAuthorizer
+	Database UpdateQuerier
 	// Include for single workspace service
 	Agent *uuid.UUID
 }
 
 func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, opts ServeClientOptions) error {
 	var auth CoordinateeAuth
-	if opts.Auth != nil {
+	if opts.Database != nil {
 		// Multi-agent service
 		auth = ClientUserCoordinateeAuth{
-			RBACAuth: opts.Auth,
+			Database: opts.Database,
 		}
 	} else if opts.Agent != nil {
 		// Single-agent service
@@ -259,17 +245,17 @@ func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, strea
 	var sub Subscription
 	switch auth := streamID.Auth.(type) {
 	case ClientUserCoordinateeAuth:
-		sub, err = s.WorkspaceUpdatesProvider.Subscribe(ctx, ownerID)
+		sub, err = s.WorkspaceUpdatesProvider.Subscribe(ctx, ownerID, auth.Database)
 		if err != nil {
 			err = xerrors.Errorf("subscribe to workspace updates: %w", err)
 		}
-		defer sub.Close()
 	default:
 		err = xerrors.Errorf("workspace updates not supported by auth name %T", auth)
 	}
 	if err != nil {
 		return err
 	}
+	defer sub.Close()
 
 	for {
 		select {

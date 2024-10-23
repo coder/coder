@@ -93,7 +93,7 @@ func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinate
 }
 
 type ClientUserCoordinateeAuth struct {
-	RBACAuth TunnelAuthorizer
+	Database UpdateQuerier
 }
 
 func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
@@ -102,7 +102,7 @@ func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.Coo
 		if err != nil {
 			return xerrors.Errorf("parse add tunnel id: %w", err)
 		}
-		err = a.RBACAuth.AuthorizeByID(ctx, uid)
+		err = a.Database.AuthorizeTunnel(ctx, uid)
 		if err != nil {
 			return xerrors.Errorf("workspace agent not found or you do not have permission")
 		}
