@@ -36,10 +36,6 @@ export const LoginPage: FC = () => {
 	}
 
 	const isApiRouteRedirect = redirectTo.startsWith("/api/v2");
-	const isReactRedirect =
-		(!redirectUrl ||
-			(redirectUrl && redirectUrl.host === window.location.host)) &&
-		!isApiRouteRedirect;
 
 	useEffect(() => {
 		if (!buildInfoQuery.data || isSignedIn) {
@@ -53,12 +49,12 @@ export const LoginPage: FC = () => {
 		});
 	}, [isSignedIn, buildInfoQuery.data, user?.id]);
 
-	if (isSignedIn && !isReactRedirect) {
+	if (isSignedIn && isApiRouteRedirect) {
 		const sanitizedUrl = new URL(redirectTo, window.location.origin);
 		window.location.href = sanitizedUrl.pathname + sanitizedUrl.search;
 		return null;
 	}
-	if (isSignedIn && isReactRedirect) {
+	if (isSignedIn && !isApiRouteRedirect) {
 		return (
 			<Navigate to={redirectUrl ? redirectUrl.pathname : redirectTo} replace />
 		);
