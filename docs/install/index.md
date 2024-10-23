@@ -64,5 +64,5 @@ coder login https://coder.example.com
 
 ## Next steps
 
-- [Set up your first deployment](../tutorials/quickstart.md)
+- [Set up your first deployment](../start/coder-tour.md)
 - [Expose your control plane to other users](../admin/setup/index.md)

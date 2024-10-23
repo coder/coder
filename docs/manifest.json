@@ -10,7 +10,7 @@
 				{
 					"title": "Coder quickstart",
 					"description": "Try it out for yourself",
-					"path": "./tutorials/quickstart.md"
+					"path": "./start/coder-tour.md"
 				},
 				{
 					"title": "Screenshots",
@@ -637,7 +637,7 @@
 				{
 					"title": "Get started with Coder",
 					"description": "Learn how to install and run Coder quickly",
-					"path": "./tutorials/quickstart.md"
+					"path": "./start/coder-tour.md"
 				},
 				{
 					"title": "Write a Template from Scratch",
