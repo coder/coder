@@ -2,7 +2,6 @@ package tailnet
 
 import (
 	"context"
-	"database/sql"
 	"net/netip"
 
 	"github.com/google/uuid"
@@ -105,7 +104,7 @@ func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.Coo
 		}
 		err = a.RBACAuth.AuthorizeByID(ctx, uid)
 		if err != nil {
-			return xerrors.Errorf("workspace agent not found or you do not have permission: %w", sql.ErrNoRows)
+			return xerrors.Errorf("workspace agent not found or you do not have permission")
 		}
 	}
 
