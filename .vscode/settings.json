@@ -256,8 +256,5 @@
 
 	"[css][html][markdown][yaml]": {
 		"editor.defaultFormatter": "esbenp.prettier-vscode"
-	},
-	"[typescriptreact]": {
-		"editor.defaultFormatter": "biomejs.biome"
 	}
 }

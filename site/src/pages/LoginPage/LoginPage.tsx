@@ -1,9 +1,8 @@
 import { buildInfo } from "api/queries/buildInfo";
-// import { regions } from "api/queries/regions";
 import { authMethods } from "api/queries/users";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
