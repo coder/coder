@@ -19,5 +19,5 @@ export const retrieveRedirect = (search: string): string => {
 	const defaultRedirect = "/";
 	const searchParams = new URLSearchParams(search);
 	const redirect = searchParams.get("redirect");
-	return redirect ? redirect : defaultRedirect;
+	return redirect ?? defaultRedirect;
 };
