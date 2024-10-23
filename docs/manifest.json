@@ -8,9 +8,9 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Tour Coder",
-					"description": "Tour Coder by creating a deployment with Docker",
-					"path": "./start/coder-tour.md"
+					"title": "Coder quickstart",
+					"description": "Try it out for yourself",
+					"path": "./tutorials/quickstart.md"
 				},
 				{
 					"title": "Screenshots",
@@ -634,6 +634,11 @@
 			"path": "./tutorials/index.md",
 			"icon_path": "./images/icons/generic.svg",
 			"children": [
+				{
+					"title": "Get started with Coder",
+					"description": "Learn how to install and run Coder quickly",
+					"path": "./tutorials/quickstart.md"
+				},
 				{
 					"title": "Write a Template from Scratch",
 					"description": "Learn how to author Coder templates",

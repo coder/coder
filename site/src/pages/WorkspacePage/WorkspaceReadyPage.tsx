@@ -3,6 +3,7 @@ import { getErrorMessage } from "api/errors";
 import { buildInfo } from "api/queries/buildInfo";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { templateVersion, templateVersions } from "api/queries/templates";
+import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
 	activate,
 	cancelBuild,
@@ -156,6 +157,12 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	// Cancel build
 	const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
+	// Build Timings. Fetch build timings only when the build job is completed.
+	const timingsQuery = useQuery({
+		...workspaceBuildTimings(workspace.latest_build.id),
+		enabled: Boolean(workspace.latest_build.job.completed_at),
+	});
+
 	const runLastBuild = (
 		buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,
 		debug: boolean,
@@ -260,6 +267,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					)
 				}
 				isOwner={isOwner}
+				timings={timingsQuery.data}
 			/>
 
 			<WorkspaceDeleteDialog

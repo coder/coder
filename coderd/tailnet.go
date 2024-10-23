@@ -91,13 +91,15 @@ func NewServerTailnet(
 		})
 	}
 
-	derpMapUpdaterClosed := make(chan struct{})
+	bgRoutines := &sync.WaitGroup{}
 	originalDerpMap := derpMapFn()
 	// it's important to set the DERPRegionDialer above _before_ we set the DERP map so that if
 	// there is an embedded relay, we use the local in-memory dialer.
 	conn.SetDERPMap(originalDerpMap)
+	bgRoutines.Add(1)
 	go func() {
-		defer close(derpMapUpdaterClosed)
+		defer bgRoutines.Done()
+		defer logger.Debug(ctx, "polling DERPMap exited")
 
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -120,7 +122,7 @@ func NewServerTailnet(
 	tn := &ServerTailnet{
 		ctx:                  serverCtx,
 		cancel:               cancel,
-		derpMapUpdaterClosed: derpMapUpdaterClosed,
+		bgRoutines:           bgRoutines,
 		logger:               logger,
 		tracer:               traceProvider.Tracer(tracing.TracerName),
 		conn:                 conn,
@@ -170,8 +172,15 @@ func NewServerTailnet(
 	// registering the callback also triggers send of the initial node
 	tn.coordinatee.SetNodeCallback(tn.nodeCallback)
 
-	go tn.watchAgentUpdates()
-	go tn.expireOldAgents()
+	tn.bgRoutines.Add(2)
+	go func() {
+		defer tn.bgRoutines.Done()
+		tn.watchAgentUpdates()
+	}()
+	go func() {
+		defer tn.bgRoutines.Done()
+		tn.expireOldAgents()
+	}()
 	return tn, nil
 }
 
@@ -204,6 +213,7 @@ func (s *ServerTailnet) Collect(metrics chan<- prometheus.Metric) {
 }
 
 func (s *ServerTailnet) expireOldAgents() {
+	defer s.logger.Debug(s.ctx, "stopped expiring old agents")
 	const (
 		tick   = 5 * time.Minute
 		cutoff = 30 * time.Minute
@@ -255,6 +265,7 @@ func (s *ServerTailnet) doExpireOldAgents(cutoff time.Duration) {
 }
 
 func (s *ServerTailnet) watchAgentUpdates() {
+	defer s.logger.Debug(s.ctx, "stopped watching agent updates")
 	for {
 		conn := s.getAgentConn()
 		resp, ok := conn.NextUpdate(s.ctx)
@@ -317,9 +328,9 @@ func (s *ServerTailnet) reinitCoordinator() {
 }
 
 type ServerTailnet struct {
-	ctx                  context.Context
-	cancel               func()
-	derpMapUpdaterClosed chan struct{}
+	ctx        context.Context
+	cancel     func()
+	bgRoutines *sync.WaitGroup
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -532,10 +543,12 @@ func (c *netConnCloser) Close() error {
 }
 
 func (s *ServerTailnet) Close() error {
+	s.logger.Info(s.ctx, "closing server tailnet")
+	defer s.logger.Debug(s.ctx, "server tailnet close complete")
 	s.cancel()
 	_ = s.conn.Close()
 	s.transport.CloseIdleConnections()
-	<-s.derpMapUpdaterClosed
+	s.bgRoutines.Wait()
 	return nil
 }
 
