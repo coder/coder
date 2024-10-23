@@ -88,6 +88,10 @@ var testCases = []testCase{
 		name:          "sa_extra_rules",
 		expectedError: "",
 	},
+	{
+		name:          "sa_disabled",
+		expectedError: "",
+	},
 }
 
 type testCase struct {
