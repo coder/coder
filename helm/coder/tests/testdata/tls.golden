@@ -1,18 +1,4 @@
 ---
-# Source: coder/templates/coder.yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  annotations: {}
-  labels:
-    app.kubernetes.io/instance: release-name
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: coder
-    app.kubernetes.io/part-of: coder
-    app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: coder-0.1.0
-  name: coder
----
 # Source: coder/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -102,6 +88,7 @@ spec:
     app.kubernetes.io/instance: release-name
 ---
 # Source: coder/templates/coder.yaml
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
