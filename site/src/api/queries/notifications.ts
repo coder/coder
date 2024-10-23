@@ -65,27 +65,21 @@ export const systemNotificationTemplates = () => {
 export function selectTemplatesByGroup(
 	data: NotificationTemplate[],
 ): Record<string, NotificationTemplate[]> {
-	const grouped = data.reduce(
-		(acc, tpl) => {
-			if (!acc[tpl.group]) {
-				acc[tpl.group] = [];
-			}
-			acc[tpl.group].push(tpl);
-			return acc;
-		},
-		{} as Record<string, NotificationTemplate[]>,
-	);
-
-	// Sort templates within each group
-	for (const group in grouped) {
-		grouped[group].sort((a, b) => a.name.localeCompare(b.name));
+	const grouped: Record<string, NotificationTemplate[]> = {};
+	for (const template of data) {
+		if (!grouped[template.group]) {
+			grouped[template.group] = [];
+		}
+		grouped[template.group].push(template);
 	}
 
-	// Sort groups by name
+	// Sort groups by name, and sort templates within each group
 	const sortedGroups = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 	const sortedGrouped: Record<string, NotificationTemplate[]> = {};
 	for (const group of sortedGroups) {
-		sortedGrouped[group] = grouped[group];
+		sortedGrouped[group] = grouped[group].sort((a, b) =>
+			a.name.localeCompare(b.name),
+		);
 	}
 
 	return sortedGrouped;

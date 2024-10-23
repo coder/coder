@@ -41,36 +41,40 @@ The provisioner daemon must authenticate with your Coder deployment.
 ## Scoped Key (Recommended)
 
 We recommend creating finely-scoped keys for provisioners. Keys are scoped to an
-organization.
+organization, and optionally to a specific set of tags.
 
-```sh
-coder provisioner keys create my-key \
-  --org default
+1. Use `coder provisioner` to create the key:
 
-Successfully created provisioner key my-key! Save this authentication token, it will not be shown again.
+   - To create a key for an organization that will match untagged jobs:
 
-<key omitted>
-```
+     ```sh
+     coder provisioner keys create my-key \
+       --org default
 
-Or, restrict the provisioner to jobs with specific tags
+     Successfully created provisioner key   my-key! Save this authentication token, it   will not be shown    again.
 
-```sh
-coder provisioner keys create kubernetes-key \
-  --org default \
-  --tag environment=kubernetes
+     <key omitted>
+     ```
 
-Successfully created provisioner key kubernetes-key! Save this authentication token, it will not be shown again.
+   - To restrict the provisioner to jobs with specific tags:
 
-<key omitted>
-```
+     ```sh
+     coder provisioner keys create kubernetes-key \
+       --org default \
+       --tag environment=kubernetes
 
-To start the provisioner:
+     Successfully created provisioner key kubernetes-key! Save this    authentication token, it will not be    shown again.
 
-```sh
-export CODER_URL=https://<your-coder-url>
-export CODER_PROVISIONER_DAEMON_KEY=<key>
-coder provisioner start
-```
+     <key omitted>
+     ```
+
+1. Start the provisioner with the specified key:
+
+   ```sh
+   export CODER_URL=https://<your-coder-url>
+   export CODER_PROVISIONER_DAEMON_KEY=<key>
+   coder provisioner start
+   ```
 
 Keep reading to see instructions for running provisioners on
 Kubernetes/Docker/etc.
@@ -94,15 +98,19 @@ coder provisioner start \
   --tag environment=kubernetes
 ```
 
-Note: Any user can start [user-scoped provisioners](#User-scoped-Provisioners),
+Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners),
 but this will also require a template on your deployment with the corresponding
 tags.
 
-## Global PSK
+## Global PSK (Not Recommended)
 
-A deployment-wide PSK can be used to authenticate any provisioner. We do not
-recommend this approach anymore, as it makes key rotation or isolating
-provisioners far more difficult. To use a global PSK, set a
+> Global pre-shared keys (PSK) make it difficult to rotate keys or isolate
+> provisioners.
+>
+> We do not recommend using global PSK.
+
+A deployment-wide PSK can be used to authenticate any provisioner. To use a
+global PSK, set a
 [provisioner daemon pre-shared key (PSK)](../reference/cli/server.md#--provisioner-daemon-psk)
 on the Coder server.
 
@@ -148,9 +156,19 @@ coder templates push on-prem-chicago \
   --provisioner-tag datacenter=chicago
 ```
 
+This can also be done in the UI when building a template:
+
+> ![template tags](../images/admin/provisioner-tags.png)
+
 Alternatively, a template can target a provisioner via
 [workspace tags](https://github.com/coder/coder/tree/main/examples/workspace-tags)
-inside the Terraform.
+inside the Terraform. See the
+[workspace tags documentation](../admin/templates/extending-templates/workspace-tags.md)
+for more information.
+
+> [!NOTE] Workspace tags defined with the `coder_workspace_tags` data source
+> template **do not** automatically apply to the template import job! You may
+> need to specify the desired tags when importing the template.
 
 A provisioner can run a given build job if one of the below is true:
 
@@ -169,6 +187,14 @@ The external provisioner in the above example can run build jobs with tags:
 However, it will not pick up any build jobs that do not have either of the
 `environment` or `datacenter` tags set. It will also not pick up any build jobs
 from templates with the tag `scope=user` set.
+
+> [!NOTE] If you only run tagged provisioners, you will need to specify a set of
+> tags that matches at least one provisioner for _all_ template import jobs and
+> workspace build jobs.
+>
+> You may wish to run at least one additional provisioner with no additional
+> tags so that provisioner jobs with no additional tags defined will be picked
+> up instead of potentially remaining in the Pending state indefinitely.
 
 This is illustrated in the below table:
 
@@ -257,18 +283,32 @@ coder templates push on-prem \
 Coder provides a Helm chart for running external provisioner daemons, which you
 will use in concert with the Helm chart for deploying the Coder server.
 
-1. Create a long, random pre-shared key (PSK) and store it in a Kubernetes
-   secret
+1. Create a provisioner key:
 
    ```sh
-   kubectl create secret generic coder-provisioner-psk --from-literal=psk=`head /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 26`
+   coder provisioner keys create my-cool-key --org default
+   # Optionally, you can specify tags for the provisioner key:
+   # coder provisioner keys create my-cool-key --org default --tags location=auh kind=k8s
+   ```
+
+   Successfully created provisioner key kubernetes-key! Save this authentication
+   token, it will not be shown again.
+
+   <key omitted>
+   ```
+
+1. Store the key in a kubernetes secret:
+
+   ```sh
+   kubectl create secret generic coder-provisioner-psk --from-literal=key1=`<key omitted>`
    ```
 
 1. Modify your Coder `values.yaml` to include
 
    ```yaml
    provisionerDaemon:
-     pskSecretName: "coder-provisioner-psk"
+     keySecretName: "coder-provisioner-keys"
+     keySecretKey: "key1"
    ```
 
 1. Redeploy Coder with the new `values.yaml` to roll out the PSK. You can omit
@@ -282,7 +322,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    ```
 
 1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm
-   chart. For example
+   chart. For example:
 
    ```yaml
    coder:
@@ -291,10 +331,8 @@ will use in concert with the Helm chart for deploying the Coder server.
          value: "https://coder.example.com"
      replicaCount: 10
    provisionerDaemon:
-     pskSecretName: "coder-provisioner-psk"
-     tags:
-       location: auh
-       kind: k8s
+     keySecretName: "coder-provisioner-keys"
+     keySecretKey: "key1"
    ```
 
    This example creates a deployment of 10 provisioner daemons (for 10

@@ -507,7 +507,8 @@ gen: \
 	examples/examples.gen.json \
 	tailnet/tailnettest/coordinatormock.go \
 	tailnet/tailnettest/coordinateemock.go \
-	tailnet/tailnettest/multiagentmock.go
+	tailnet/tailnettest/multiagentmock.go \
+	coderd/database/pubsub/psmock/psmock.go
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
@@ -537,6 +538,7 @@ gen/mark-fresh:
 		tailnet/tailnettest/coordinatormock.go \
 		tailnet/tailnettest/coordinateemock.go \
 		tailnet/tailnettest/multiagentmock.go \
+		coderd/database/pubsub/psmock/psmock.go \
 		"
 
 	for file in $$files; do
@@ -815,7 +817,7 @@ test-postgres-docker:
 
 # Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
 test-race:
-	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
+	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 -parallel 4 -p 4 ./...
 .PHONY: test-race
 
 test-tailnet-integration:

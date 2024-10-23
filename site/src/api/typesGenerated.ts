@@ -32,6 +32,16 @@ export interface AddLicenseRequest {
 	readonly license: string;
 }
 
+// From codersdk/workspacebuilds.go
+export interface AgentScriptTiming {
+	readonly started_at: string;
+	readonly ended_at: string;
+	readonly exit_code: number;
+	readonly stage: string;
+	readonly status: string;
+	readonly display_name: string;
+}
+
 // From codersdk/templates.go
 export interface AgentStatsReportResponse {
 	readonly num_comms: number;
@@ -1088,7 +1098,7 @@ export interface ProvisionerKeyDaemons {
 // From codersdk/provisionerdaemons.go
 export type ProvisionerKeyTags = Record<string, string>
 
-// From codersdk/workspaces.go
+// From codersdk/workspacebuilds.go
 export interface ProvisionerTiming {
 	readonly job_id: string;
 	readonly started_at: string;
@@ -1971,6 +1981,12 @@ export interface WorkspaceBuildParameter {
 	readonly value: string;
 }
 
+// From codersdk/workspacebuilds.go
+export interface WorkspaceBuildTimings {
+	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
+	readonly agent_script_timings: Readonly<Array<AgentScriptTiming>>;
+}
+
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {
 	readonly since?: string;
@@ -2063,11 +2079,6 @@ export interface WorkspaceResourceMetadata {
 }
 
 // From codersdk/workspaces.go
-export interface WorkspaceTimings {
-	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
-}
-
-// From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
 	readonly q?: string;
 }
@@ -2087,8 +2098,8 @@ export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
 export const AgentSubsystems: AgentSubsystem[] = ["envbox", "envbuilder", "exectrace"]
 
 // From codersdk/audit.go
-export type AuditAction = "create" | "delete" | "login" | "logout" | "register" | "start" | "stop" | "write"
-export const AuditActions: AuditAction[] = ["create", "delete", "login", "logout", "register", "start", "stop", "write"]
+export type AuditAction = "create" | "delete" | "login" | "logout" | "register" | "request_password_reset" | "start" | "stop" | "write"
+export const AuditActions: AuditAction[] = ["create", "delete", "login", "logout", "register", "request_password_reset", "start", "stop", "write"]
 
 // From codersdk/workspaces.go
 export type AutomaticUpdates = "always" | "never"

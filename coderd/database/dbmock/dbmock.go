@@ -2933,6 +2933,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentPortShare(arg0, arg1 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPortShare), arg0, arg1)
 }
 
+// GetWorkspaceAgentScriptTimingsByBuildID mocks base method.
+func (m *MockStore) GetWorkspaceAgentScriptTimingsByBuildID(arg0 context.Context, arg1 uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentScriptTimingsByBuildID", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentScriptTimingsByBuildID indicates an expected call of GetWorkspaceAgentScriptTimingsByBuildID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptTimingsByBuildID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentScriptTimingsByBuildID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentScriptTimingsByBuildID), arg0, arg1)
+}
+
 // GetWorkspaceAgentScriptsByAgentIDs mocks base method.
 func (m *MockStore) GetWorkspaceAgentScriptsByAgentIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	m.ctrl.T.Helper()
@@ -3219,10 +3234,10 @@ func (mr *MockStoreMockRecorder) GetWorkspaceBuildsCreatedAfter(arg0, arg1 any) 
 }
 
 // GetWorkspaceByAgentID mocks base method.
-func (m *MockStore) GetWorkspaceByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
+func (m *MockStore) GetWorkspaceByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.Workspace, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspaceByAgentID", arg0, arg1)
-	ret0, _ := ret[0].(database.GetWorkspaceByAgentIDRow)
+	ret0, _ := ret[0].(database.Workspace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3459,10 +3474,10 @@ func (mr *MockStoreMockRecorder) GetWorkspaces(arg0, arg1 any) *gomock.Call {
 }
 
 // GetWorkspacesEligibleForTransition mocks base method.
-func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
+func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", arg0, arg1)
-	ret0, _ := ret[0].([]database.Workspace)
+	ret0, _ := ret[0].([]database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -4006,10 +4021,10 @@ func (mr *MockStoreMockRecorder) InsertUserLink(arg0, arg1 any) *gomock.Call {
 }
 
 // InsertWorkspace mocks base method.
-func (m *MockStore) InsertWorkspace(arg0 context.Context, arg1 database.InsertWorkspaceParams) (database.Workspace, error) {
+func (m *MockStore) InsertWorkspace(arg0 context.Context, arg1 database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspace", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -4080,11 +4095,12 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(arg0, arg1 any) *g
 }
 
 // InsertWorkspaceAgentScriptTimings mocks base method.
-func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) error {
+func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspaceAgentScriptTimings", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.WorkspaceAgentScriptTiming)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // InsertWorkspaceAgentScriptTimings indicates an expected call of InsertWorkspaceAgentScriptTimings.
@@ -5025,10 +5041,10 @@ func (mr *MockStoreMockRecorder) UpdateUserStatus(arg0, arg1 any) *gomock.Call {
 }
 
 // UpdateWorkspace mocks base method.
-func (m *MockStore) UpdateWorkspace(arg0 context.Context, arg1 database.UpdateWorkspaceParams) (database.Workspace, error) {
+func (m *MockStore) UpdateWorkspace(arg0 context.Context, arg1 database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspace", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5208,10 +5224,10 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceDeletedByID(arg0, arg1 any) *gom
 }
 
 // UpdateWorkspaceDormantDeletingAt mocks base method.
-func (m *MockStore) UpdateWorkspaceDormantDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+func (m *MockStore) UpdateWorkspaceDormantDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceDormantDeletingAtParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspaceDormantDeletingAt", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5280,10 +5296,10 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceTTL(arg0, arg1 any) *gomock.Call
 }
 
 // UpdateWorkspacesDormantDeletingAtByTemplateID mocks base method.
-func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.Workspace, error) {
+func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspacesDormantDeletingAtByTemplateID", arg0, arg1)
-	ret0, _ := ret[0].([]database.Workspace)
+	ret0, _ := ret[0].([]database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

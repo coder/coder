@@ -3,6 +3,7 @@ package reconnectingpty_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -42,14 +43,16 @@ func Test_Runner(t *testing.T) {
 
 		logs := bytes.NewBuffer(nil)
 		err := runner.Run(ctx, "1", logs)
-		logStr := logs.String()
-		t.Log("Runner logs:\n\n" + logStr)
 		require.NoError(t, err)
 
-		require.Contains(t, logStr, "Output:")
+		tr := testutil.NewTerminalReader(t, logs)
+		err = tr.ReadUntilString(ctx, "Output:")
+		require.NoError(t, err)
+
 		// OSX: Output:\n\thello world\n
 		// Win: Output:\n\t\x1b[2J\x1b[m\x1b[H\x1b]0;Administrator: C:\\Program Files\\PowerShell\\7\\pwsh.exe\a\x1b[?25hhello world\n
-		require.Contains(t, logStr, "hello world\n")
+		err = tr.ReadUntilString(ctx, "hello world")
+		require.NoError(t, err)
 	})
 
 	t.Run("NoLogOutput", func(t *testing.T) {
@@ -70,11 +73,12 @@ func Test_Runner(t *testing.T) {
 
 		logs := bytes.NewBuffer(nil)
 		err := runner.Run(ctx, "1", logs)
-		logStr := logs.String()
-		t.Log("Runner logs:\n\n" + logStr)
 		require.NoError(t, err)
 
-		require.NotContains(t, logStr, "Output:")
+		tr := testutil.NewTerminalReader(t, logs)
+		err = tr.ReadUntilString(ctx, "Output:")
+		require.Error(t, err)
+		require.ErrorIs(t, err, io.EOF)
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
@@ -198,8 +202,7 @@ func Test_Runner(t *testing.T) {
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
-				ExpectOutput: "hello world",
-				LogOutput:    false,
+				LogOutput: true,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -207,8 +210,10 @@ func Test_Runner(t *testing.T) {
 
 			logs := bytes.NewBuffer(nil)
 			err := runner.Run(ctx, "1", logs)
-			logStr := logs.String()
-			t.Log("Runner logs:\n\n" + logStr)
+			require.NoError(t, err)
+
+			tr := testutil.NewTerminalReader(t, logs)
+			err = tr.ReadUntilString(ctx, "hello world")
 			require.NoError(t, err)
 		})
 
@@ -222,8 +227,7 @@ func Test_Runner(t *testing.T) {
 				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
-				ExpectOutput: "bello borld",
-				LogOutput:    false,
+				LogOutput: true,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -231,10 +235,12 @@ func Test_Runner(t *testing.T) {
 
 			logs := bytes.NewBuffer(nil)
 			err := runner.Run(ctx, "1", logs)
-			logStr := logs.String()
-			t.Log("Runner logs:\n\n" + logStr)
+			require.NoError(t, err)
+
+			tr := testutil.NewTerminalReader(t, logs)
+			err = tr.ReadUntilString(ctx, "bello borld")
 			require.Error(t, err)
-			require.ErrorContains(t, err, `expected string "bello borld" not found`)
+			require.ErrorIs(t, err, io.EOF)
 		})
 	})
 }

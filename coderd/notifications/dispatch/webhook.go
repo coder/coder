@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"text/template"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -41,7 +42,7 @@ func NewWebhookHandler(cfg codersdk.NotificationsWebhookConfig, log slog.Logger)
 	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{}}
 }
 
-func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleMarkdown, bodyMarkdown string) (DeliveryFunc, error) {
+func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleMarkdown, bodyMarkdown string, _ template.FuncMap) (DeliveryFunc, error) {
 	if w.cfg.Endpoint.String() == "" {
 		return nil, xerrors.New("webhook endpoint not defined")
 	}

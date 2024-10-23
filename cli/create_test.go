@@ -133,6 +133,70 @@ func TestCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("CreateWithSpecificTemplateVersion", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// Create a new version
+		version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent(), func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+
+		args := []string{
+			"create",
+			"my-workspace",
+			"--template", template.Name,
+			"--template-version", version2.Name,
+			"--start-at", "9:30AM Mon-Fri US/Central",
+			"--stop-after", "8h",
+			"--automatic-updates", "always",
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, member, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "compute.main"},
+			{match: "smith (linux, i386)"},
+			{match: "Confirm create", write: "yes"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
+		}
+		<-doneChan
+
+		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		if assert.NoError(t, err, "expected workspace to be created") {
+			assert.Equal(t, ws.TemplateName, template.Name)
+			// Check if the workspace is using the new template version
+			assert.Equal(t, ws.LatestBuild.TemplateVersionID, version2.ID, "expected workspace to use the specified template version")
+			if assert.NotNil(t, ws.AutostartSchedule) {
+				assert.Equal(t, *ws.AutostartSchedule, "CRON_TZ=US/Central 30 9 * * Mon-Fri")
+			}
+			if assert.NotNil(t, ws.TTLMillis) {
+				assert.Equal(t, *ws.TTLMillis, 8*time.Hour.Milliseconds())
+			}
+			assert.Equal(t, codersdk.AutomaticUpdatesAlways, ws.AutomaticUpdates)
+		}
+	})
+
 	t.Run("InheritStopAfterFromTemplate", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

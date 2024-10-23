@@ -24,7 +24,7 @@ func TestPostWorkspaceAgentPortShare(t *testing.T) {
 	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	tmpDir := t.TempDir()
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: owner.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -141,7 +141,7 @@ func TestGetWorkspaceAgentPortShares(t *testing.T) {
 	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	tmpDir := t.TempDir()
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: owner.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -177,7 +177,7 @@ func TestDeleteWorkspaceAgentPortShare(t *testing.T) {
 	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	tmpDir := t.TempDir()
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: owner.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
