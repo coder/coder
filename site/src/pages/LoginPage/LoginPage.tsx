@@ -34,7 +34,7 @@ export const LoginPage: FC = () => {
 	let redirectUrl: URL | null = null;
 	try {
 		redirectUrl = new URL(redirectTo);
-	} catch (err) {
+	} catch {
 		// Do nothing
 	}
 
@@ -62,6 +62,7 @@ export const LoginPage: FC = () => {
 		}
 
 		const regions = regionsQuery.data.regions;
+		// Process path app urls. They're in the form of https://dev.coder.com/test
 		const pathUrls = regions
 			? regions
 					.map((region) => {
@@ -73,6 +74,7 @@ export const LoginPage: FC = () => {
 					})
 					.filter((url) => url !== null)
 			: [];
+		// Process wildcard hostnames. They're in the form of `*.apps.dev.coder.com`.
 		const wildcardHostnames = regions
 			? regions
 					.map((region) => region.wildcard_hostname)
@@ -81,12 +83,14 @@ export const LoginPage: FC = () => {
 					.map((hostname) => hostname.slice(1))
 			: [];
 
+		// Ensure the redirect url matches one of the allowed options.
 		const allowed =
+			// For path URLs ensure just the hosts match.
 			pathUrls.some((url) => url.host === window.location.host) ||
-			wildcardHostnames.some((wildcard) =>
-				window.location.host.endsWith(wildcard),
-			) ||
-			// api routes need to be manually set with href
+			// For wildcards, ensure just the suffixes match.
+			wildcardHostnames.some((wildcard) => redirectTo.endsWith(wildcard)) ||
+			// API routes need to be manually set with href, since react's
+			// navigate will keep us within the SPA.
 			isApiRoute;
 
 		if (allowed) {
