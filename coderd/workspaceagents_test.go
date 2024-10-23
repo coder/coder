@@ -1,10 +1,10 @@
 package coderd_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"runtime"
@@ -1937,17 +1937,21 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	firstClient, closer, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+	firstClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Coordinator:              tailnet.NewCoordinator(logger),
 		IncludeProvisionerDaemon: true,
 	})
-	defer closer.Close()
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
 	firstUser := coderdtest.CreateFirstUser(t, firstClient)
 	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
 
-	// Create a workspace
-	token := uuid.NewString()
-	resources, _ := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, token)
+	// Create a workspace with an agent
+	dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
+		OrganizationID: firstUser.OrganizationID,
+		OwnerID:        memberUser.ID,
+	}).WithAgent().Do()
 
 	u, err := member.URL.Parse("/api/v2/tailnet")
 	require.NoError(t, err)
@@ -1990,69 +1994,40 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	// Existing agent
 	require.Len(t, update.UpsertedAgents, 1)
 	require.Equal(t, update.UpsertedAgents[0].WorkspaceId, wsID)
-	require.EqualValues(t, update.UpsertedAgents[0].Id, resources[0].Agents[0].ID)
 
 	require.Len(t, update.DeletedWorkspaces, 0)
 	require.Len(t, update.DeletedAgents, 0)
 
 	// Build a second workspace
-	secondToken := uuid.NewString()
-	secondResources, secondWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, secondToken)
+	secondWorkspace := dbfake.WorkspaceBuild(t, api.Database, database.Workspace{
+		OrganizationID: firstUser.OrganizationID,
+		OwnerID:        memberUser.ID,
+	}).WithAgent().Pubsub(api.Pubsub).Do()
 
-	// Workspace starting
-	update, err = stream.Recv()
-	require.NoError(t, err)
-	require.Len(t, update.UpsertedWorkspaces, 1)
-	require.Equal(t, update.UpsertedWorkspaces[0].Status, tailnetproto.Workspace_STARTING)
-
-	require.Len(t, update.DeletedWorkspaces, 0)
-	require.Len(t, update.DeletedAgents, 0)
-	require.Len(t, update.UpsertedAgents, 0)
-
-	// Workspace running, agent created
-	update, err = stream.Recv()
-	require.NoError(t, err)
-	require.Len(t, update.UpsertedWorkspaces, 1)
-	require.Equal(t, update.UpsertedWorkspaces[0].Status, tailnetproto.Workspace_RUNNING)
-	wsID = update.UpsertedWorkspaces[0].Id
-	require.Len(t, update.UpsertedAgents, 1)
-	require.Equal(t, update.UpsertedAgents[0].WorkspaceId, wsID)
-	require.EqualValues(t, update.UpsertedAgents[0].Id, secondResources[0].Agents[0].ID)
-
-	require.Len(t, update.DeletedWorkspaces, 0)
-	require.Len(t, update.DeletedAgents, 0)
-
-	_, err = member.CreateWorkspaceBuild(ctx, secondWorkspace.ID, codersdk.CreateWorkspaceBuildRequest{
-		Transition: codersdk.WorkspaceTransitionDelete,
-	})
-	require.NoError(t, err)
-
-	// Wait for the workspace to be deleted
-	deletedAgents := make([]*tailnetproto.Agent, 0)
-	workspaceUpdates := make([]*tailnetproto.Workspace, 0)
-	require.Eventually(t, func() bool {
-		update, err = stream.Recv()
-		if err != nil {
-			return false
-		}
-		deletedAgents = append(deletedAgents, update.DeletedAgents...)
-		workspaceUpdates = append(workspaceUpdates, update.UpsertedWorkspaces...)
-		return len(update.DeletedWorkspaces) == 1 &&
-			bytes.Equal(update.DeletedWorkspaces[0].Id, wsID)
-	}, testutil.WaitMedium, testutil.IntervalSlow)
-
-	// We should have seen an update for the agent being deleted
-	require.Len(t, deletedAgents, 1)
-	require.EqualValues(t, deletedAgents[0].Id, secondResources[0].Agents[0].ID)
-
-	// But we may also see a 'pending' state transition before 'deleting'
-	deletingFound := false
-	for _, ws := range workspaceUpdates {
-		if bytes.Equal(ws.Id, wsID) && ws.Status == tailnetproto.Workspace_DELETING {
-			deletingFound = true
-		}
+	// Wait for the second workspace to be running with an agent
+	expectedState := map[uuid.UUID]workspace{
+		secondWorkspace.Workspace.ID: {
+			Status:    tailnetproto.Workspace_RUNNING,
+			NumAgents: 1,
+		},
 	}
-	require.True(t, deletingFound)
+	waitForUpdates(t, ctx, stream, map[uuid.UUID]workspace{}, expectedState)
+
+	// Wait for the workspace and agent to be deleted
+	secondWorkspace.Workspace.Deleted = true
+	dbfake.WorkspaceBuild(t, api.Database, secondWorkspace.Workspace).
+		Seed(database.WorkspaceBuild{
+			Transition:  database.WorkspaceTransitionDelete,
+			BuildNumber: 2,
+		}).Pubsub(api.Pubsub).Do()
+
+	priorState := expectedState
+	waitForUpdates(t, ctx, stream, priorState, map[uuid.UUID]workspace{
+		secondWorkspace.Workspace.ID: {
+			Status:    tailnetproto.Workspace_DELETED,
+			NumAgents: 0,
+		},
+	})
 }
 
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
@@ -2075,17 +2050,90 @@ func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup
 	return err
 }
 
-func buildWorkspaceWithAgent(t *testing.T, client *codersdk.Client, orgID uuid.UUID, agentToken string) ([]codersdk.WorkspaceResource, codersdk.Workspace) {
-	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	_ = agenttest.New(t, client.URL, agentToken)
-	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
-	return resources, workspace
+type workspace struct {
+	Status    tailnetproto.Workspace_Status
+	NumAgents int
+}
+
+func waitForUpdates(
+	t *testing.T,
+	//nolint:revive // t takes precedence
+	ctx context.Context,
+	stream tailnetproto.DRPCTailnet_WorkspaceUpdatesClient,
+	currentState map[uuid.UUID]workspace,
+	expectedState map[uuid.UUID]workspace,
+) {
+	t.Helper()
+	errCh := make(chan error, 1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				errCh <- ctx.Err()
+				return
+			default:
+			}
+			update, err := stream.Recv()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			for _, ws := range update.UpsertedWorkspaces {
+				id, err := uuid.FromBytes(ws.Id)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				currentState[id] = workspace{
+					Status:    ws.Status,
+					NumAgents: currentState[id].NumAgents,
+				}
+			}
+			for _, ws := range update.DeletedWorkspaces {
+				id, err := uuid.FromBytes(ws.Id)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				currentState[id] = workspace{
+					Status:    tailnetproto.Workspace_DELETED,
+					NumAgents: currentState[id].NumAgents,
+				}
+			}
+			for _, a := range update.UpsertedAgents {
+				id, err := uuid.FromBytes(a.WorkspaceId)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				currentState[id] = workspace{
+					Status:    currentState[id].Status,
+					NumAgents: currentState[id].NumAgents + 1,
+				}
+			}
+			for _, a := range update.DeletedAgents {
+				id, err := uuid.FromBytes(a.WorkspaceId)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				currentState[id] = workspace{
+					Status:    currentState[id].Status,
+					NumAgents: currentState[id].NumAgents - 1,
+				}
+			}
+			if maps.Equal(currentState, expectedState) {
+				errCh <- nil
+				return
+			}
+		}
+	}()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Timeout waiting for desired state")
+	}
 }
