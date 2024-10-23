@@ -876,8 +876,9 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 			userID,
 			notifications.TemplateTemplateDeprecated,
 			map[string]string{
-				"template": template.Name,
-				"message":  template.Deprecated,
+				"template":     template.Name,
+				"message":      template.Deprecated,
+				"organization": template.OrganizationName,
 			},
 			"notify-users-of-template-deprecation",
 		)
