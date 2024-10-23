@@ -5669,7 +5669,7 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *FakeQuerier) GetUsersWithAccessToTemplateByID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+func (q *FakeQuerier) GetUsersWithAccessToTemplateByID(_ context.Context, id uuid.UUID) ([]uuid.UUID, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
