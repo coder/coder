@@ -33,8 +33,8 @@ func Heartbeat(ctx context.Context, conn *websocket.Conn) {
 // Heartbeat loops to ping a WebSocket to keep it alive. It calls `exit` on ping
 // failure.
 func HeartbeatClose(ctx context.Context, logger slog.Logger, exit func(), conn *websocket.Conn) {
-	inverval := 15 * time.Second
-	ticker := time.NewTicker(inverval)
+	interval := 15 * time.Second
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -43,7 +43,7 @@ func HeartbeatClose(ctx context.Context, logger slog.Logger, exit func(), conn *
 			return
 		case <-ticker.C:
 		}
-		err := pingWithTimeout(ctx, conn, inverval)
+		err := pingWithTimeout(ctx, conn, interval)
 		if err != nil {
 			// context.DeadlineExceeded is expected when the client disconnects without sending a close frame
 			if !errors.Is(err, context.DeadlineExceeded) {
