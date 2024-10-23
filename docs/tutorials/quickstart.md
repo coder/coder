@@ -104,7 +104,7 @@ persistent environment from your main device, a tablet, or your phone.
    begins to stream logs immediately and you might have to scroll up to find it.
 
 1. On the **Welcome to Coder** page, enter the information to create an admin
-   user, then select **Create account**.
+   user, then select **Create account**:
 
    ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)_Welcome
    to Coder - Create admin user_
