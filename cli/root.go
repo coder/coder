@@ -122,6 +122,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.whoami(),
 
 		// Hidden
+		r.agentExec(),
 		r.expCmd(),
 		r.gitssh(),
 		r.support(),
