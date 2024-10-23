@@ -593,7 +593,6 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
 	report := newStatsReportFromSignedToken(appToken)
-	s.collectStats(report)
 	defer func() {
 		// We must use defer here because ServeHTTP may panic.
 		report.SessionEndedAt = dbtime.Now()
@@ -614,7 +613,8 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 // @Success 101
 // @Router /workspaceagents/{workspaceagent}/pty [get]
 func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	s.websocketWaitMutex.Lock()
 	s.websocketWaitGroup.Add(1)
@@ -670,11 +670,10 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	go httpapi.HeartbeatClose(ctx, s.Logger, cancel, conn)
 
 	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
-
-	go httpapi.Heartbeat(ctx, conn)
 
 	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
 	if err != nil {
