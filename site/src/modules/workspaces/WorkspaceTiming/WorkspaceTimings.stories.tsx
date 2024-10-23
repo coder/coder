@@ -70,3 +70,31 @@ export const FailedScript: Story = {
 		],
 	},
 };
+
+// Navigate into a provisioning stage
+export const NavigateToPlanStage: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const detailsButton = canvas.getByRole("button", {
+			name: "View plan details",
+		});
+		await user.click(detailsButton);
+		await canvas.findByText(
+			"module.dotfiles.data.coder_parameter.dotfiles_uri[0]",
+		);
+	},
+};
+
+// Navigating into a workspace boot stage
+export const NavigateToStartStage: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const detailsButton = canvas.getByRole("button", {
+			name: "View start details",
+		});
+		await user.click(detailsButton);
+		await canvas.findByText("Startup Script");
+	},
+};

@@ -83,10 +83,14 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 											? undefined
 											: mergeTimeRanges(stageTimings.map(extractRange));
 
-									// We don't want to allow users to inspect internal coder resources.
-									const visibleResources = stageTimings.filter(
-										(t) => "resource" in t && !isCoderResource(t.resource),
-									);
+									// Prevent users from inspecting internal coder resources in
+									// provisioner timings.
+									const visibleResources = stageTimings.filter((t) => {
+										const isProvisionerTiming = "resource" in t;
+										return isProvisionerTiming
+											? !isCoderResource(t.resource)
+											: true;
+									});
 
 									return {
 										range: stageRange,

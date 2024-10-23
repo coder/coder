@@ -229,6 +229,7 @@ export const StagesChart: FC<StagesChartProps> = ({
 											{/** We only want to expand stages with more than one resource */}
 											{t.visibleResources > 1 ? (
 												<ClickableBar
+													aria-label={`View ${t.name} details`}
 													scale={scale}
 													value={value}
 													offset={offset}
