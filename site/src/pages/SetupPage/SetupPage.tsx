@@ -40,7 +40,6 @@ export const SetupPage: FC = () => {
 		});
 	}, [buildInfoQuery.data]);
 
-
 	const validateUserPassword = async (password: string) => {
 		validatePasswordMutation.mutate(password, {
 			onSuccess: (data) => {
@@ -53,7 +52,7 @@ export const SetupPage: FC = () => {
 		validateUserPassword,
 		500,
 	);
-	
+
 	if (isLoading) {
 		return <Loader fullscreen />;
 	}
