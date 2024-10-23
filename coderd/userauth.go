@@ -439,8 +439,10 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 // ValidateUserPassword validates the complexity of a user password and that it is secured enough.
 //
-// @Summary Validate the complexity of a user password
+// @Summary Validate user password
 // @ID validate-user-password
+// @Security CoderSessionToken
+// @Produce json
 // @Accept json
 // @Tags Authorization
 // @Param request body codersdk.ValidateUserPasswordRequest true "Validate user password request"
