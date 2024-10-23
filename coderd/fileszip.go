@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// TODO: move this to its own package
 func CreateTarFromZip(zipReader *zip.Reader) ([]byte, error) {
 	var tarBuffer bytes.Buffer
 	err := writeTarArchive(&tarBuffer, zipReader)

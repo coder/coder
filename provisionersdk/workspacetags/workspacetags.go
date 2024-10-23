@@ -1,9 +1,13 @@
 package workspacetags
 
 import (
+	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"log"
 	"os"
 	"slices"
 	"strconv"
@@ -42,8 +46,15 @@ func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype str
 	case "application/x-tar":
 		rdr = bytes.NewReader(file)
 	case "application/zip":
-		// TODO: convert to tar
-		return nil, xerrors.Errorf("todo: convert zip to tar")
+		zr, err := zip.NewReader(bytes.NewReader(file), int64(len(file)))
+		if err != nil {
+			return nil, xerrors.Errorf("read zip file: %w", err)
+		}
+		tarBytes, err := CreateTarFromZip(zr)
+		if err != nil {
+			return nil, xerrors.Errorf("convert zip to tar: %w", err)
+		}
+		rdr = bytes.NewReader(tarBytes)
 	default:
 		return nil, xerrors.Errorf("unsupported mimetype: %s", mimetype)
 	}
@@ -394,4 +405,58 @@ func interfaceToString(i interface{}) (string, error) {
 	default:
 		return "", xerrors.Errorf("unsupported type %T", v)
 	}
+}
+
+// --- BEGIN COPY PASTA FROM coderd/filezip.go ---
+
+func CreateTarFromZip(zipReader *zip.Reader) ([]byte, error) {
+	var tarBuffer bytes.Buffer
+	err := writeTarArchive(&tarBuffer, zipReader)
+	if err != nil {
+		return nil, err
+	}
+	return tarBuffer.Bytes(), nil
+}
+
+func writeTarArchive(w io.Writer, zipReader *zip.Reader) error {
+	tarWriter := tar.NewWriter(w)
+	defer tarWriter.Close()
+
+	for _, file := range zipReader.File {
+		err := processFileInZipArchive(file, tarWriter)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+const httpFileMaxBytes = 10 * (10 << 20)
+
+func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
+	fileReader, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer fileReader.Close()
+
+	err = tarWriter.WriteHeader(&tar.Header{
+		Name:    file.Name,
+		Size:    file.FileInfo().Size(),
+		Mode:    int64(file.Mode()),
+		ModTime: file.Modified,
+		// Note: Zip archives do not store ownership information.
+		Uid: 1000,
+		Gid: 1000,
+	})
+	if err != nil {
+		return err
+	}
+
+	n, err := io.CopyN(tarWriter, fileReader, httpFileMaxBytes)
+	log.Println(file.Name, n, err)
+	if errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return err
 }

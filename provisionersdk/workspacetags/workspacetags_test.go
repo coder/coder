@@ -270,7 +270,6 @@ func Test_Validate(t *testing.T) {
 		})
 		t.Run(tc.name+"/zip", func(t *testing.T) {
 			t.Parallel()
-			t.Skip("TODO: convert zip to tar")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			zip := createZip(t, tc.files)
 			logger := slogtest.Make(t, nil)
