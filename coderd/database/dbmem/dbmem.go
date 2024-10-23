@@ -5673,14 +5673,14 @@ func (q *FakeQuerier) GetUsersWithAccessToTemplateByID(ctx context.Context, id u
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	groups := make(map[string]bool, 0)
+	groups := make(map[string]struct{}, 0)
 	for _, template := range q.templates {
 		if template.ID != id {
 			continue
 		}
 
 		for group := range template.GroupACL {
-			groups[group] = true
+			groups[group] = struct{}{}
 		}
 	}
 

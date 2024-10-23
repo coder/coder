@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -38,9 +39,11 @@ func TestTemplates(t *testing.T) {
 	t.Run("Deprecated", func(t *testing.T) {
 		t.Parallel()
 
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
+				NotificationsEnqueuer:    notifyEnq,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -48,7 +51,7 @@ func TestTemplates(t *testing.T) {
 				},
 			},
 		})
-		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		client, anotherUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -64,6 +67,25 @@ func TestTemplates(t *testing.T) {
 		// AGPL cannot deprecate, expect no change
 		assert.True(t, updated.Deprecated)
 		assert.NotEmpty(t, updated.DeprecationMessage)
+
+		notifs := []*testutil.Notification{}
+		for _, notif := range notifyEnq.Sent {
+			if notif.TemplateID == notifications.TemplateTemplateDeprecated {
+				notifs = append(notifs, notif)
+			}
+		}
+		require.Equal(t, 2, len(notifs))
+
+		expectedSentTo := []string{user.UserID.String(), anotherUser.ID.String()}
+		slices.Sort(expectedSentTo)
+
+		sentTo := []string{}
+		for _, notif := range notifs {
+			sentTo = append(sentTo, notif.UserID.String())
+		}
+		slices.Sort(sentTo)
+
+		assert.Equal(t, expectedSentTo, sentTo)
 
 		_, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
