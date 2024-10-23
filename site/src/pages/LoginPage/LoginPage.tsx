@@ -1,5 +1,5 @@
 import { buildInfo } from "api/queries/buildInfo";
-import { regions } from "api/queries/regions";
+// import { regions } from "api/queries/regions";
 import { authMethods } from "api/queries/users";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
@@ -29,8 +29,6 @@ export const LoginPage: FC = () => {
 	const navigate = useNavigate();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const regionsQuery = useQuery(regions(metadata.regions));
-	const [redirectError, setRedirectError] = useState<Error | null>(null);
 	let redirectUrl: URL | null = null;
 	try {
 		redirectUrl = new URL(redirectTo);
@@ -38,11 +36,11 @@ export const LoginPage: FC = () => {
 		// Do nothing
 	}
 
-	const isApiRoute = redirectTo.startsWith("/api/v2");
-	const isLocalRedirect =
+	const isApiRouteRedirect = redirectTo.startsWith("/api/v2");
+	const isReactRedirect =
 		(!redirectUrl ||
 			(redirectUrl && redirectUrl.host === window.location.host)) &&
-		!isApiRoute;
+		!isApiRouteRedirect;
 
 	useEffect(() => {
 		if (!buildInfoQuery.data || isSignedIn) {
@@ -56,51 +54,12 @@ export const LoginPage: FC = () => {
 		});
 	}, [isSignedIn, buildInfoQuery.data, user?.id]);
 
-	useEffect(() => {
-		if (!isSignedIn || !regionsQuery.data || isLocalRedirect) {
-			return;
-		}
-
-		const regions = regionsQuery.data.regions;
-		// Process path app urls. They're in the form of https://dev.coder.com/test
-		const pathUrls = regions
-			? regions
-					.map((region) => {
-						try {
-							return new URL(region.path_app_url);
-						} catch {
-							return null;
-						}
-					})
-					.filter((url) => url !== null)
-			: [];
-		// Process wildcard hostnames. They're in the form of `*.apps.dev.coder.com`.
-		const wildcardHostnames = regions
-			? regions
-					.map((region) => region.wildcard_hostname)
-					.filter((hostname) => hostname !== "")
-					// remove the leading '*' from the hostname
-					.map((hostname) => hostname.slice(1))
-			: [];
-
-		// Ensure the redirect url matches one of the allowed options.
-		const allowed =
-			// For path URLs ensure just the hosts match.
-			pathUrls.some((url) => url.host === window.location.host) ||
-			// For wildcards, ensure just the suffixes match.
-			wildcardHostnames.some((wildcard) => redirectTo.endsWith(wildcard)) ||
-			// API routes need to be manually set with href, since react's
-			// navigate will keep us within the SPA.
-			isApiRoute;
-
-		if (allowed) {
-			window.location.href = redirectTo;
-		} else {
-			setRedirectError(new Error("invalid redirect url"));
-		}
-	}, [isSignedIn, regionsQuery.data, redirectTo, isLocalRedirect, isApiRoute]);
-
-	if (isSignedIn && isLocalRedirect) {
+	if (isSignedIn && !isReactRedirect) {
+		const sanitizedUrl = new URL(redirectTo, window.location.origin);
+		window.location.href = sanitizedUrl.pathname + sanitizedUrl.search;
+		return null;
+	}
+	if (isSignedIn && isReactRedirect) {
 		return (
 			<Navigate to={redirectUrl ? redirectUrl.pathname : redirectTo} replace />
 		);
@@ -117,10 +76,8 @@ export const LoginPage: FC = () => {
 			</Helmet>
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
-				error={redirectError ?? signInError}
-				isLoading={
-					isLoading || authMethodsQuery.isLoading || regionsQuery.isLoading
-				}
+				error={signInError}
+				isLoading={isLoading || authMethodsQuery.isLoading}
 				buildInfo={buildInfoQuery.data}
 				isSigningIn={isSigningIn}
 				onSignIn={async ({ email, password }) => {
