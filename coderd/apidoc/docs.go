@@ -5339,13 +5339,21 @@ const docTemplate = `{
         },
         "/users/validate-password": {
             "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
                 "consumes": [
+                    "application/json"
+                ],
+                "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Authorization"
                 ],
-                "summary": "Validate the complexity of a user password",
+                "summary": "Validate user password",
                 "operationId": "validate-user-password",
                 "parameters": [
                     {

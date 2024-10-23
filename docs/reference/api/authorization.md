@@ -178,7 +178,7 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/request \
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
-## Validate the complexity of a user password
+## Validate user password
 
 ### Code samples
 
@@ -186,7 +186,8 @@ curl -X POST http://coder-server:8080/api/v2/users/otp/request \
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/users/validate-password \
   -H 'Content-Type: application/json' \
-  -H 'Accept: */*'
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
 ```
 
 `POST /users/validate-password`
@@ -209,11 +210,19 @@ curl -X POST http://coder-server:8080/api/v2/users/validate-password \
 
 > 200 Response
 
+```json
+{
+	"valid": true
+}
+```
+
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                                   |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ValidateUserPasswordResponse](schemas.md#codersdkvalidateuserpasswordresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Convert user from password to oauth authentication
 
