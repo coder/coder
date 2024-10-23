@@ -1494,6 +1494,10 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
+		// Group adds complexity to the /available endpoint
+		// Intentionally omit user2
+		coderdtest.CreateGroup(t, client, user.OrganizationID, "some-group", user3)
+
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client1.UpdateTemplateACL(ctx, template.ID, req)
