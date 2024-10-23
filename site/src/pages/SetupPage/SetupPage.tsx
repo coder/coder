@@ -40,19 +40,6 @@ export const SetupPage: FC = () => {
 		});
 	}, [buildInfoQuery.data]);
 
-	if (isLoading) {
-		return <Loader fullscreen />;
-	}
-
-	// If the user is logged in, navigate to the app
-	if (isSignedIn) {
-		return <Navigate to="/" state={{ isRedirect: true }} replace />;
-	}
-
-	// If we've already completed setup, navigate to the login page
-	if (setupIsComplete) {
-		return <Navigate to="/login" state={{ isRedirect: true }} replace />;
-	}
 
 	const validateUserPassword = async (password: string) => {
 		validatePasswordMutation.mutate(password, {
@@ -66,6 +53,20 @@ export const SetupPage: FC = () => {
 		validateUserPassword,
 		500,
 	);
+	
+	if (isLoading) {
+		return <Loader fullscreen />;
+	}
+
+	// If the user is logged in, navigate to the app
+	if (isSignedIn) {
+		return <Navigate to="/" state={{ isRedirect: true }} replace />;
+	}
+
+	// If we've already completed setup, navigate to the login page
+	if (setupIsComplete) {
+		return <Navigate to="/login" state={{ isRedirect: true }} replace />;
+	}
 
 	return (
 		<>
