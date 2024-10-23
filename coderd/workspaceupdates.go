@@ -35,28 +35,22 @@ func (w ownedWorkspace) Equal(other ownedWorkspace) bool {
 }
 
 type sub struct {
-	ctx    context.Context
+	ctx      context.Context
+	cancelFn context.CancelFunc
+
 	mu     sync.RWMutex
 	userID uuid.UUID
-	tx     chan<- *proto.WorkspaceUpdate
-	rx     <-chan *proto.WorkspaceUpdate
+	ch     chan *proto.WorkspaceUpdate
 	prev   workspacesByID
 
 	db     UpdateQuerier
 	ps     pubsub.Pubsub
 	logger slog.Logger
 
-	cancelFn func()
+	psCancelFn func()
 }
 
 func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, err error) {
-	select {
-	case <-ctx.Done():
-		_ = s.Close()
-		return
-	default:
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -86,13 +80,14 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 	}
 
 	s.prev = latest
-	s.tx <- out
+	select {
+	case <-s.ctx.Done():
+		return
+	case s.ch <- out:
+	}
 }
 
 func (s *sub) start(ctx context.Context) (err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
 	if err != nil {
 		return xerrors.Errorf("get workspaces and agents by owner ID: %w", err)
@@ -100,7 +95,7 @@ func (s *sub) start(ctx context.Context) (err error) {
 
 	latest := convertRows(rows)
 	initUpdate, _ := produceUpdate(workspacesByID{}, latest)
-	s.tx <- initUpdate
+	s.ch <- initUpdate
 	s.prev = latest
 
 	cancel, err := s.ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(s.userID), wspubsub.HandleWorkspaceEvent(s.handleEvent))
@@ -108,24 +103,25 @@ func (s *sub) start(ctx context.Context) (err error) {
 		return xerrors.Errorf("subscribe to workspace event channel: %w", err)
 	}
 
-	s.cancelFn = cancel
+	s.psCancelFn = cancel
 	return nil
 }
 
 func (s *sub) Close() error {
+	s.cancelFn()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if s.cancelFn != nil {
-		s.cancelFn()
+	if s.psCancelFn != nil {
+		s.psCancelFn()
 	}
 
-	close(s.tx)
+	close(s.ch)
 	return nil
 }
 
 func (s *sub) Updates() <-chan *proto.WorkspaceUpdate {
-	return s.rx
+	return s.ch
 }
 
 var _ tailnet.Subscription = (*sub)(nil)
@@ -164,15 +160,16 @@ func (u *updatesProvider) Close() error {
 
 func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tailnet.Subscription, error) {
 	ch := make(chan *proto.WorkspaceUpdate, 1)
+	ctx, cancel := context.WithCancel(ctx)
 	sub := &sub{
-		ctx:    u.ctx,
-		userID: userID,
-		tx:     ch,
-		rx:     ch,
-		db:     u.db,
-		ps:     u.ps,
-		logger: u.logger.Named(fmt.Sprintf("workspace_updates_subscriber_%s", userID)),
-		prev:   workspacesByID{},
+		ctx:      u.ctx,
+		cancelFn: cancel,
+		userID:   userID,
+		ch:       ch,
+		db:       u.db,
+		ps:       u.ps,
+		logger:   u.logger.Named(fmt.Sprintf("workspace_updates_subscriber_%s", userID)),
+		prev:     workspacesByID{},
 	}
 	err := sub.start(ctx)
 	if err != nil {
@@ -285,11 +282,12 @@ type tunnelAuthorizer struct {
 	db   database.Store
 }
 
-func (t *tunnelAuthorizer) AuthorizeByID(ctx context.Context, workspaceID uuid.UUID) error {
-	ws, err := t.db.GetWorkspaceByID(ctx, workspaceID)
+func (t *tunnelAuthorizer) AuthorizeByID(ctx context.Context, agentID uuid.UUID) error {
+	ws, err := t.db.GetWorkspaceByAgentID(ctx, agentID)
 	if err != nil {
-		return xerrors.Errorf("get workspace by ID: %w", err)
+		return xerrors.Errorf("get workspace by agent ID: %w", err)
 	}
+	// Authorizes against `ActionSSH`
 	return t.prep.Authorize(ctx, ws.RBACObject())
 }
 

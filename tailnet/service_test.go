@@ -1,6 +1,7 @@
 package tailnet_test
 
 import (
+	"context"
 	"io"
 	"net"
 	"sync/atomic"
@@ -219,3 +220,142 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 	require.Equal(t, "5", string(batch[0].Id))
 	require.Equal(t, "6", string(batch[1].Id))
 }
+
+func TestWorkspaceUpdates(t *testing.T) {
+	t.Parallel()
+
+	fCoord := tailnettest.NewFakeCoordinator()
+	var coord tailnet.Coordinator = fCoord
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	updatesCh := make(chan *proto.WorkspaceUpdate, 1)
+	updatesProvider := &fakeUpdatesProvider{ch: updatesCh}
+
+	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                   logger,
+		CoordPtr:                 &coordPtr,
+		WorkspaceUpdatesProvider: updatesProvider,
+	})
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	c, s := net.Pipe()
+	defer c.Close()
+	defer s.Close()
+	clientID := uuid.New()
+	errCh := make(chan error, 1)
+	go func() {
+		err := uut.ServeClient(ctx, "2.0", s, tailnet.ServeClientOptions{
+			Peer: clientID,
+			Auth: &fakeTunnelAuth{},
+		})
+		t.Logf("ServeClient returned; err=%v", err)
+		errCh <- err
+	}()
+
+	client, err := tailnet.NewDRPCClient(c, logger)
+	require.NoError(t, err)
+
+	// Coordinate
+	stream, err := client.Coordinate(ctx)
+	require.NoError(t, err)
+	defer stream.Close()
+
+	err = stream.Send(&proto.CoordinateRequest{
+		UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{PreferredDerp: 11}},
+	})
+	require.NoError(t, err)
+
+	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
+	require.NotNil(t, call)
+	require.Equal(t, call.ID, clientID)
+	require.Equal(t, call.Name, "client")
+	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
+	require.Equal(t, int32(11), req.GetUpdateSelf().GetNode().GetPreferredDerp())
+
+	// Authorize uses `ClientUserCoordinateeAuth`
+	agentID := uuid.New()
+	agentID[0] = 1
+	require.NoError(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)},
+	}))
+	agentID2 := uuid.New()
+	agentID2[0] = 2
+	require.Error(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID2)},
+	}))
+
+	// Workspace updates
+	expected := &proto.WorkspaceUpdate{
+		UpsertedWorkspaces: []*proto.Workspace{
+			{
+				Id:     tailnet.UUIDToByteSlice(uuid.New()),
+				Name:   "ws1",
+				Status: proto.Workspace_RUNNING,
+			},
+		},
+		UpsertedAgents:    []*proto.Agent{},
+		DeletedWorkspaces: []*proto.Workspace{},
+		DeletedAgents:     []*proto.Agent{},
+	}
+	updatesCh <- expected
+
+	updatesStream, err := client.WorkspaceUpdates(ctx, &proto.WorkspaceUpdatesRequest{
+		WorkspaceOwnerId: tailnet.UUIDToByteSlice(clientID),
+	})
+	require.NoError(t, err)
+	defer updatesStream.Close()
+
+	updates, err := updatesStream.Recv()
+	require.NoError(t, err)
+	require.Len(t, updates.GetUpsertedWorkspaces(), 1)
+	require.Equal(t, expected.GetUpsertedWorkspaces()[0].GetName(), updates.GetUpsertedWorkspaces()[0].GetName())
+	require.Equal(t, expected.GetUpsertedWorkspaces()[0].GetStatus(), updates.GetUpsertedWorkspaces()[0].GetStatus())
+	require.Equal(t, expected.GetUpsertedWorkspaces()[0].GetId(), updates.GetUpsertedWorkspaces()[0].GetId())
+
+	err = c.Close()
+	require.NoError(t, err)
+	err = testutil.RequireRecvCtx(ctx, t, errCh)
+	require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
+}
+
+type fakeUpdatesProvider struct {
+	ch chan *proto.WorkspaceUpdate
+}
+
+func (*fakeUpdatesProvider) Close() error {
+	return nil
+}
+
+func (f *fakeUpdatesProvider) Subscribe(context.Context, uuid.UUID) (tailnet.Subscription, error) {
+	return &fakeSubscription{ch: f.ch}, nil
+}
+
+type fakeSubscription struct {
+	ch chan *proto.WorkspaceUpdate
+}
+
+func (*fakeSubscription) Close() error {
+	return nil
+}
+
+func (f *fakeSubscription) Updates() <-chan *proto.WorkspaceUpdate {
+	return f.ch
+}
+
+var _ tailnet.Subscription = (*fakeSubscription)(nil)
+
+var _ tailnet.WorkspaceUpdatesProvider = (*fakeUpdatesProvider)(nil)
+
+type fakeTunnelAuth struct{}
+
+func (*fakeTunnelAuth) AuthorizeByID(_ context.Context, workspaceID uuid.UUID) error {
+	if workspaceID[0] != 1 {
+		return xerrors.New("policy disallows request")
+	}
+	return nil
+}
+
+var _ tailnet.TunnelAuthorizer = (*fakeTunnelAuth)(nil)

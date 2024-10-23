@@ -273,8 +273,8 @@ func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, strea
 
 	for {
 		select {
-		case updates := <-sub.Updates():
-			if updates == nil {
+		case updates, ok := <-sub.Updates():
+			if !ok {
 				return nil
 			}
 			err := stream.Send(updates)

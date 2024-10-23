@@ -105,6 +105,20 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 		Type:   "aws_instance",
 		Agents: agents,
 	})
+	if b.ps != nil {
+		for _, agent := range agents {
+			uid, err := uuid.Parse(agent.Id)
+			require.NoError(b.t, err)
+			msg, err := json.Marshal(wspubsub.WorkspaceEvent{
+				Kind:        wspubsub.WorkspaceEventKindAgentConnectionUpdate,
+				WorkspaceID: b.ws.ID,
+				AgentID:     &uid,
+			})
+			require.NoError(b.t, err)
+			err = b.ps.Publish(wspubsub.WorkspaceEventChannel(b.ws.OwnerID), msg)
+			require.NoError(b.t, err)
+		}
+	}
 	return b
 }
 
@@ -223,6 +237,14 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		b.params[i].WorkspaceBuildID = resp.Build.ID
 	}
 	_ = dbgen.WorkspaceBuildParameters(b.t, b.db, b.params)
+
+	if b.ws.Deleted {
+		err = b.db.UpdateWorkspaceDeletedByID(ownerCtx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      b.ws.ID,
+			Deleted: true,
+		})
+		require.NoError(b.t, err)
+	}
 
 	if b.ps != nil {
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
