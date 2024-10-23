@@ -17,7 +17,7 @@ coder:
   #
   # We will additionally set CODER_ACCESS_URL if unset to the cluster service
   # URL, unless coder.envUseClusterAccessURL is set to false.
-  env: []
+  env: ["CIAN_TESTING_REMOVE_ME"]
   # - name: "CODER_ACCESS_URL"
   #   value: "https://coder.example.com"
 
