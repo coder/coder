@@ -328,9 +328,12 @@ func TestRemoteCoordination(t *testing.T) {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, tailnet.ServeClientOptions{
-			Peer:  clientID,
-			Agent: &agentID,
+		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientCoordinateeAuth{
+				AgentID: agentID,
+			},
 		})
 		serveErr <- err
 	}()
@@ -380,9 +383,12 @@ func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, tailnet.ServeClientOptions{
-			Peer:  clientID,
-			Agent: &agentID,
+		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientCoordinateeAuth{
+				AgentID: agentID,
+			},
 		})
 		serveErr <- err
 	}()

@@ -53,9 +53,12 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	agentID := uuid.MustParse("20000001-0000-0000-0000-000000000000")
 	errCh := make(chan error, 1)
 	go func() {
-		err := uut.ServeClient(ctx, "2.0", s, tailnet.ServeClientOptions{
-			Peer:  clientID,
-			Agent: &agentID,
+		err := uut.ServeClient(ctx, "2.0", s, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientCoordinateeAuth{
+				AgentID: agentID,
+			},
 		})
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
@@ -161,9 +164,12 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	agentID := uuid.MustParse("20000001-0000-0000-0000-000000000000")
 	errCh := make(chan error, 1)
 	go func() {
-		err := uut.ServeClient(ctx, "1.0", s, tailnet.ServeClientOptions{
-			Peer:  clientID,
-			Agent: &agentID,
+		err := uut.ServeClient(ctx, "1.0", s, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientCoordinateeAuth{
+				AgentID: agentID,
+			},
 		})
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
@@ -247,9 +253,12 @@ func TestWorkspaceUpdates(t *testing.T) {
 	clientID := uuid.New()
 	errCh := make(chan error, 1)
 	go func() {
-		err := uut.ServeClient(ctx, "2.0", s, tailnet.ServeClientOptions{
-			Peer: clientID,
-			Auth: &fakeTunnelAuth{},
+		err := uut.ServeClient(ctx, "2.0", s, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientUserCoordinateeAuth{
+				Auth: &fakeTunnelAuth{},
+			},
 		})
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
@@ -351,8 +360,9 @@ var _ tailnet.WorkspaceUpdatesProvider = (*fakeUpdatesProvider)(nil)
 
 type fakeTunnelAuth struct{}
 
-func (*fakeTunnelAuth) AuthorizeByID(_ context.Context, workspaceID uuid.UUID) error {
-	if workspaceID[0] != 1 {
+// AuthorizeTunnel implements tailnet.TunnelAuthorizer.
+func (*fakeTunnelAuth) AuthorizeTunnel(_ context.Context, agentID uuid.UUID) error {
+	if agentID[0] != 1 {
 		return xerrors.New("policy disallows request")
 	}
 	return nil

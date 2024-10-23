@@ -13,7 +13,10 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -32,11 +35,20 @@ func TestWorkspaceUpdates(t *testing.T) {
 	ws2IDSlice := tailnet.UUIDToByteSlice(ws2ID)
 	ws3ID := uuid.New()
 	ws3IDSlice := tailnet.UUIDToByteSlice(ws3ID)
-	ownerID := uuid.New()
 	agent2ID := uuid.New()
 	agent2IDSlice := tailnet.UUIDToByteSlice(agent2ID)
 	ws4ID := uuid.New()
 	ws4IDSlice := tailnet.UUIDToByteSlice(ws4ID)
+
+	ownerID := uuid.New()
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	require.NoError(t, err)
+	ownerSubject := rbac.Subject{
+		FriendlyName: "member",
+		ID:           ownerID.String(),
+		Roles:        rbac.Roles{memberRole},
+		Scope:        rbac.ScopeAll,
+	}
 
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
@@ -77,13 +89,13 @@ func TestWorkspaceUpdates(t *testing.T) {
 			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
-		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), db, ps)
+		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps, db, &mockAuthorizer{})
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = updateProvider.Close()
 		})
 
-		sub, err := updateProvider.Subscribe(ctx, ownerID)
+		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
 		require.NoError(t, err)
 		ch := sub.Updates()
 
@@ -219,13 +231,13 @@ func TestWorkspaceUpdates(t *testing.T) {
 			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
-		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), db, ps)
+		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps, db, &mockAuthorizer{})
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = updateProvider.Close()
 		})
 
-		sub, err := updateProvider.Subscribe(ctx, ownerID)
+		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
 		require.NoError(t, err)
 		ch := sub.Updates()
 
@@ -255,7 +267,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 		require.Equal(t, expected, update)
 
 		require.NoError(t, err)
-		sub, err = updateProvider.Subscribe(ctx, ownerID)
+		sub, err = updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
 		require.NoError(t, err)
 		ch = sub.Updates()
 
@@ -277,12 +289,17 @@ type mockWorkspaceStore struct {
 	orderedRows []database.GetWorkspacesAndAgentsByOwnerIDRow
 }
 
-// GetWorkspacesAndAgents implements tailnet.UpdateQuerier.
-func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+// GetAuthorizedWorkspacesAndAgentsByOwnerID implements coderd.UpdatesQuerier.
+func (m *mockWorkspaceStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID, rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	return m.orderedRows, nil
 }
 
-var _ coderd.UpdateQuerier = (*mockWorkspaceStore)(nil)
+// GetWorkspaceByAgentID implements coderd.UpdatesQuerier.
+func (*mockWorkspaceStore) GetWorkspaceByAgentID(context.Context, uuid.UUID) (database.Workspace, error) {
+	return database.Workspace{}, nil
+}
+
+var _ coderd.UpdatesQuerier = (*mockWorkspaceStore)(nil)
 
 type mockPubsub struct {
 	cbs map[string]pubsub.ListenerWithErr
@@ -313,3 +330,16 @@ func (m *mockPubsub) SubscribeWithErr(event string, listener pubsub.ListenerWith
 }
 
 var _ pubsub.Pubsub = (*mockPubsub)(nil)
+
+type mockAuthorizer struct{}
+
+func (*mockAuthorizer) Authorize(context.Context, rbac.Subject, policy.Action, rbac.Object) error {
+	return nil
+}
+
+// Prepare implements rbac.Authorizer.
+func (*mockAuthorizer) Prepare(context.Context, rbac.Subject, policy.Action, string) (rbac.PreparedAuthorized, error) {
+	return nil, nil
+}
+
+var _ rbac.Authorizer = (*mockAuthorizer)(nil)

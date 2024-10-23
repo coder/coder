@@ -3780,8 +3780,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "User-scoped agent coordination",
-                "operationId": "user-scoped-agent-coordination",
+                "summary": "User-scoped tailnet RPC connection",
+                "operationId": "user-scoped-tailnet-rpc-connection",
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"

@@ -1332,7 +1332,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/tailnet", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			r.Get("/", api.tailnet)
+			r.Get("/", api.tailnetRPCConn)
 		})
 	})
 

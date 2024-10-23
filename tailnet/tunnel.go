@@ -40,24 +40,7 @@ func (c ClientCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinat
 		}
 	}
 
-	if upd := req.GetUpdateSelf(); upd != nil {
-		for _, addrStr := range upd.Node.Addresses {
-			pre, err := netip.ParsePrefix(addrStr)
-			if err != nil {
-				return xerrors.Errorf("parse node address: %w", err)
-			}
-
-			if pre.Bits() != 128 {
-				return xerrors.Errorf("invalid address bits, expected 128, got %d", pre.Bits())
-			}
-		}
-	}
-
-	if rfh := req.GetReadyForHandshake(); rfh != nil {
-		return xerrors.Errorf("clients may not send ready_for_handshake")
-	}
-
-	return nil
+	return handleClientNodeRequests(req)
 }
 
 // AgentCoordinateeAuth disallows all tunnels, since agents are not allowed to initiate their own tunnels
@@ -93,7 +76,7 @@ func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinate
 }
 
 type ClientUserCoordinateeAuth struct {
-	RBACAuth TunnelAuthorizer
+	Auth TunnelAuthorizer
 }
 
 func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
@@ -102,12 +85,17 @@ func (a ClientUserCoordinateeAuth) Authorize(ctx context.Context, req *proto.Coo
 		if err != nil {
 			return xerrors.Errorf("parse add tunnel id: %w", err)
 		}
-		err = a.RBACAuth.AuthorizeByID(ctx, uid)
+		err = a.Auth.AuthorizeTunnel(ctx, uid)
 		if err != nil {
 			return xerrors.Errorf("workspace agent not found or you do not have permission")
 		}
 	}
 
+	return handleClientNodeRequests(req)
+}
+
+// handleClientNodeRequests validates GetUpdateSelf requests and declines ReadyForHandshake requests
+func handleClientNodeRequests(req *proto.CoordinateRequest) error {
 	if upd := req.GetUpdateSelf(); upd != nil {
 		for _, addrStr := range upd.Node.Addresses {
 			pre, err := netip.ParsePrefix(addrStr)

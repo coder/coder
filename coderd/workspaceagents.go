@@ -871,9 +871,12 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	go httpapi.Heartbeat(ctx, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.ServeClientOptions{
-		Peer:  peerID,
-		Agent: &workspaceAgent.ID,
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
+		Name: "client",
+		ID:   peerID,
+		Auth: tailnet.ClientCoordinateeAuth{
+			AgentID: workspaceAgent.ID,
+		},
 	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
@@ -891,6 +894,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 		// case we just want to generate a new peer ID.
 		if xerrors.Is(err, jwtutils.ErrMissingKeyID) {
 			peerID = uuid.New()
+			err = nil
 		} else if err != nil {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
@@ -899,7 +903,7 @@ func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r
 					{Field: "resume_token", Detail: workspacesdk.CoordinateAPIInvalidResumeToken},
 				},
 			})
-			return
+			return peerID, err
 		} else {
 			api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
 				slog.F("peer_id", peerID.String()))
@@ -1479,13 +1483,13 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 	}
 }
 
-// @Summary User-scoped agent coordination
-// @ID user-scoped-agent-coordination
+// @Summary User-scoped tailnet RPC connection
+// @ID user-scoped-tailnet-rpc-connection
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
 // @Router /tailnet [get]
-func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
+func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	version := "2.0"
@@ -1509,8 +1513,8 @@ func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Used to authorize tunnel requests, and filter workspace update DB queries
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	// Used to authorize tunnel request
+	sshPrep, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionSSH, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error preparing sql filter.",
@@ -1537,11 +1541,14 @@ func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
 	go httpapi.Heartbeat(ctx, conn)
-	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.ServeClientOptions{
-		Peer: peerID,
-		Auth: &tunnelAuthorizer{
-			prep: prepared,
-			db:   api.Database,
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
+		Name: "client",
+		ID:   peerID,
+		Auth: tailnet.ClientUserCoordinateeAuth{
+			Auth: &rbacAuthorizer{
+				sshPrep: sshPrep,
+				db:      api.Database,
+			},
 		},
 	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {

@@ -49,6 +49,10 @@ type Subscription interface {
 	Updates() <-chan *proto.WorkspaceUpdate
 }
 
+type TunnelAuthorizer interface {
+	AuthorizeTunnel(ctx context.Context, agentID uuid.UUID) error
+}
+
 type ClientServiceOptions struct {
 	Logger                   slog.Logger
 	CoordPtr                 *atomic.Pointer[Coordinator]
@@ -101,37 +105,7 @@ func NewClientService(options ClientServiceOptions) (
 	return s, nil
 }
 
-type TunnelAuthorizer interface {
-	AuthorizeByID(ctx context.Context, workspaceID uuid.UUID) error
-}
-
-type ServeClientOptions struct {
-	Peer uuid.UUID
-	// Include for multi-workspace service
-	Auth TunnelAuthorizer
-	// Include for single workspace service
-	Agent *uuid.UUID
-}
-
-func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, opts ServeClientOptions) error {
-	var auth CoordinateeAuth
-	if opts.Auth != nil {
-		// Multi-agent service
-		auth = ClientUserCoordinateeAuth{
-			RBACAuth: opts.Auth,
-		}
-	} else if opts.Agent != nil {
-		// Single-agent service
-		auth = ClientCoordinateeAuth{AgentID: *opts.Agent}
-	} else {
-		panic("ServeClient called with neither auth nor agent")
-	}
-	streamID := StreamID{
-		Name: "client",
-		ID:   opts.Peer,
-		Auth: auth,
-	}
-
+func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, streamID StreamID) error {
 	major, _, err := apiversion.Parse(version)
 	if err != nil {
 		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
@@ -263,13 +237,13 @@ func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, strea
 		if err != nil {
 			err = xerrors.Errorf("subscribe to workspace updates: %w", err)
 		}
-		defer sub.Close()
 	default:
 		err = xerrors.Errorf("workspace updates not supported by auth name %T", auth)
 	}
 	if err != nil {
 		return err
 	}
+	defer sub.Close()
 
 	for {
 		select {

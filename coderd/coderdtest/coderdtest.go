@@ -159,10 +159,10 @@ type Options struct {
 	DatabaseRolluper                   *dbrollup.Rolluper
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
+	NotificationsEnqueuer              notifications.Enqueuer
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
-	NotificationsEnqueuer              notifications.Enqueuer
 
 	WorkspaceUpdatesProvider tailnet.WorkspaceUpdatesProvider
 }
@@ -258,7 +258,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.WorkspaceUpdatesProvider == nil {
 		var err error
-		options.WorkspaceUpdatesProvider, err = coderd.NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Database, options.Pubsub)
+		options.WorkspaceUpdatesProvider, err = coderd.NewUpdatesProvider(
+			options.Logger.Named("workspace_updates"),
+			options.Pubsub,
+			options.Database,
+			options.Authorizer,
+		)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = options.WorkspaceUpdatesProvider.Close()

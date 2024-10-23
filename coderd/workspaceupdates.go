@@ -11,14 +11,21 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
+
+type UpdatesQuerier interface {
+	GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prep rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
+	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error)
+}
 
 type workspacesByID = map[uuid.UUID]ownedWorkspace
 
@@ -38,12 +45,13 @@ type sub struct {
 	ctx      context.Context
 	cancelFn context.CancelFunc
 
-	mu     sync.RWMutex
-	userID uuid.UUID
-	ch     chan *proto.WorkspaceUpdate
-	prev   workspacesByID
+	mu       sync.RWMutex
+	userID   uuid.UUID
+	ch       chan *proto.WorkspaceUpdate
+	prev     workspacesByID
+	readPrep rbac.PreparedAuthorized
 
-	db     UpdateQuerier
+	db     UpdatesQuerier
 	ps     pubsub.Pubsub
 	logger slog.Logger
 
@@ -68,11 +76,12 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 		}
 	}
 
-	row, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
+	rows, err := s.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, s.userID, s.readPrep)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get workspaces and agents by owner ID", slog.Error(err))
+		return
 	}
-	latest := convertRows(row)
+	latest := convertRows(rows)
 
 	out, updated := produceUpdate(s.prev, latest)
 	if !updated {
@@ -88,7 +97,7 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 }
 
 func (s *sub) start(ctx context.Context) (err error) {
-	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
+	rows, err := s.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, s.userID, s.readPrep)
 	if err != nil {
 		return xerrors.Errorf("get workspaces and agents by owner ID: %w", err)
 	}
@@ -124,14 +133,11 @@ func (s *sub) Updates() <-chan *proto.WorkspaceUpdate {
 
 var _ tailnet.Subscription = (*sub)(nil)
 
-type UpdateQuerier interface {
-	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
-}
-
 type updatesProvider struct {
-	db     UpdateQuerier
 	ps     pubsub.Pubsub
 	logger slog.Logger
+	db     UpdatesQuerier
+	auth   rbac.Authorizer
 
 	ctx      context.Context
 	cancelFn func()
@@ -139,14 +145,20 @@ type updatesProvider struct {
 
 var _ tailnet.WorkspaceUpdatesProvider = (*updatesProvider)(nil)
 
-func NewUpdatesProvider(logger slog.Logger, db UpdateQuerier, ps pubsub.Pubsub) (tailnet.WorkspaceUpdatesProvider, error) {
+func NewUpdatesProvider(
+	logger slog.Logger,
+	ps pubsub.Pubsub,
+	db UpdatesQuerier,
+	auth rbac.Authorizer,
+) (tailnet.WorkspaceUpdatesProvider, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &updatesProvider{
-		ctx:      ctx,
-		cancelFn: cancel,
+		auth:     auth,
 		db:       db,
 		ps:       ps,
 		logger:   logger,
+		ctx:      ctx,
+		cancelFn: cancel,
 	}
 	return out, nil
 }
@@ -157,10 +169,18 @@ func (u *updatesProvider) Close() error {
 }
 
 func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tailnet.Subscription, error) {
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		return nil, xerrors.Errorf("actor not found in context")
+	}
+	readPrep, err := u.auth.Prepare(ctx, actor, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare read action: %w", err)
+	}
 	ch := make(chan *proto.WorkspaceUpdate, 1)
 	ctx, cancel := context.WithCancel(ctx)
 	sub := &sub{
-		ctx:      u.ctx,
+		ctx:      ctx,
 		cancelFn: cancel,
 		userID:   userID,
 		ch:       ch,
@@ -168,8 +188,9 @@ func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tail
 		ps:       u.ps,
 		logger:   u.logger.Named(fmt.Sprintf("workspace_updates_subscriber_%s", userID)),
 		prev:     workspacesByID{},
+		readPrep: readPrep,
 	}
-	err := sub.start(ctx)
+	err = sub.start(ctx)
 	if err != nil {
 		_ = sub.Close()
 		return nil, err
@@ -275,18 +296,18 @@ func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesB
 	return out
 }
 
-type tunnelAuthorizer struct {
-	prep rbac.PreparedAuthorized
-	db   database.Store
+type rbacAuthorizer struct {
+	sshPrep rbac.PreparedAuthorized
+	db      UpdatesQuerier
 }
 
-func (t *tunnelAuthorizer) AuthorizeByID(ctx context.Context, agentID uuid.UUID) error {
-	ws, err := t.db.GetWorkspaceByAgentID(ctx, agentID)
+func (r *rbacAuthorizer) AuthorizeTunnel(ctx context.Context, agentID uuid.UUID) error {
+	ws, err := r.db.GetWorkspaceByAgentID(ctx, agentID)
 	if err != nil {
 		return xerrors.Errorf("get workspace by agent ID: %w", err)
 	}
 	// Authorizes against `ActionSSH`
-	return t.prep.Authorize(ctx, ws.RBACObject())
+	return r.sshPrep.Authorize(ctx, ws.RBACObject())
 }
 
-var _ tailnet.TunnelAuthorizer = (*tunnelAuthorizer)(nil)
+var _ tailnet.TunnelAuthorizer = (*rbacAuthorizer)(nil)
