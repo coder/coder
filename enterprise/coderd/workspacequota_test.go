@@ -458,9 +458,14 @@ func TestWorkspaceSerialization(t *testing.T) {
 		two.UpdateWorkspaceBuildCostByID(ctx, t, 10)
 
 		// End commit
-		require.NoError(t, one.Done())
-		require.NoError(t, two.Done())
+		err := one.Done()
+		err2 := two.Done()
+		require.NoError(t, err)
+		require.NoError(t, err2)
 	})
+
+	// TODO: Try to fail a non-repeatable read only transaction
+	// Autobuild, then quota, then autobuild read agin in the same tx
 }
 
 func deprecatedQuotaEndpoint(ctx context.Context, client *codersdk.Client, userID string) (codersdk.WorkspaceQuota, error) {
