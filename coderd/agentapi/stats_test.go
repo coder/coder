@@ -208,6 +208,7 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
+				UsageTracker:          workspacestats.NewTracker(dbM),
 				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				// Ignored when nil.
@@ -319,6 +320,7 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
+				UsageTracker:          workspacestats.NewTracker(dbM),
 				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
@@ -428,6 +430,7 @@ func TestUpdateStates(t *testing.T) {
 				Database:              dbM,
 				Pubsub:                ps,
 				StatsBatcher:          batcher,
+				UsageTracker:          workspacestats.NewTracker(dbM),
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 					updateAgentMetricsFnCalled = true
