@@ -137,8 +137,8 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		return nil
 	}
 
-	// if no active sessions we do not bump activity
-	if stats.SessionCountJetbrains == 0 && stats.SessionCountReconnectingPty == 0 && stats.SessionCountSsh == 0 && stats.SessionCountVscode == 0 {
+	// if no active connections we do not bump activity
+	if stats.ConnectionCount == 0 {
 		return nil
 	}
 
