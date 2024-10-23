@@ -37,7 +37,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@c36620d31ac7c881962c3d9dd939c40ec9434f2b # v3.26.12
+        uses: github/codeql-action/init@f779452ac5af1c261dce0346a8f964149f49322b # v3.26.13
         with:
           languages: go, javascript
 
@@ -47,7 +47,7 @@ jobs:
           rm Makefile
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@c36620d31ac7c881962c3d9dd939c40ec9434f2b # v3.26.12
+        uses: github/codeql-action/analyze@f779452ac5af1c261dce0346a8f964149f49322b # v3.26.13
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
@@ -124,7 +124,7 @@ jobs:
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@5681af892cd0f4997658e2bacc62bd0a894cf564
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif
@@ -132,7 +132,7 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@c36620d31ac7c881962c3d9dd939c40ec9434f2b # v3.26.12
+        uses: github/codeql-action/upload-sarif@f779452ac5af1c261dce0346a8f964149f49322b # v3.26.13
         with:
           sarif_file: trivy-results.sarif
           category: "Trivy"
@@ -147,7 +147,7 @@ jobs:
       # Prisma cloud scan runs last because it fails the entire job if it
       # detects vulnerabilities. :|
       - name: Run Prisma Cloud image scan
-        uses: PaloAltoNetworks/prisma-cloud-scan@1f38c94d789ff9b01a4e80070b442294ebd3e362 # v1.4.0
+        uses: PaloAltoNetworks/prisma-cloud-scan@124b48d8325c23f58a35da0f1b4d9a6b54301d05 # v1.6.7
         with:
           pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
           pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
