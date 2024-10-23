@@ -1610,10 +1610,6 @@ export interface UpdateUserPasswordRequest {
 	readonly password: string;
 }
 
-export interface ValidateUserPasswordRequest { 
-	readonly password: string;
-}
-
 // From codersdk/users.go
 export interface UpdateUserProfileRequest {
 	readonly username: string;
@@ -1775,12 +1771,12 @@ export interface UsersRequest extends Pagination {
 export interface ValidateUserPasswordRequest {
 	readonly password: string;
 }
-	
+
 // From codersdk/users.go
 export interface ValidateUserPasswordResponse {
 	readonly valid: boolean;
 }
-	
+
 // From codersdk/client.go
 export interface ValidationError {
 	readonly field: string;
