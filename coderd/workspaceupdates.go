@@ -110,8 +110,6 @@ func (s *sub) start(ctx context.Context) (err error) {
 func (s *sub) Close() error {
 	s.cancelFn()
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.psCancelFn != nil {
 		s.psCancelFn()
 	}
