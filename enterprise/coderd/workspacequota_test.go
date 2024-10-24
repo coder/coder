@@ -319,7 +319,31 @@ func TestWorkspaceSerialization(t *testing.T) {
 	var _ = ps
 
 	org := dbgen.Organization(t, db, database.Organization{})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	group, err := db.InsertAllUsersGroup(ctx, org.ID)
+	require.NoError(t, err)
+
+	group, err = db.UpdateGroupByID(ctx, database.UpdateGroupByIDParams{
+		Name:           group.Name,
+		DisplayName:    group.DisplayName,
+		AvatarURL:      group.AvatarURL,
+		QuotaAllowance: 100,
+		ID:             group.ID,
+	})
+	require.NoError(t, err)
+
 	user := dbgen.User(t, db, database.User{})
+
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		Roles:          []string{},
+	})
+
 	tpl := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
@@ -448,24 +472,130 @@ func TestWorkspaceSerialization(t *testing.T) {
 
 		var _, _ = one, two
 		// Run order
-		two.GetQuota(ctx, t)
-		two.GetAllowance(ctx, t)
-
 		one.GetQuota(ctx, t)
 		one.GetAllowance(ctx, t)
 
 		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
 		two.UpdateWorkspaceBuildCostByID(ctx, t, 10)
 
+		two.GetQuota(ctx, t)
+		two.GetAllowance(ctx, t)
+
 		// End commit
-		err := one.Done()
-		err2 := two.Done()
-		require.NoError(t, err)
-		require.NoError(t, err2)
+		require.NoError(t, one.Done())
+		require.NoError(t, two.Done())
+	})
+
+	t.Run("BumpLastUsedAt", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx = dbauthz.AsSystemRestricted(ctx)
+
+		two := dbtestutil.StartTx(t, db, &sql.TxOptions{
+			Isolation: sql.LevelSerializable,
+			ReadOnly:  false,
+		})
+		one := newCommitter(t, db, workspace, workspaceResp.Build)
+
+		//two := newCommitter(t, db, workspaceTwo, workspaceResp.Build)
+
+		// Run order
+		one.GetQuota(ctx, t)
+		one.GetAllowance(ctx, t)
+
+		//two.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+
+		//err := two.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
+		//	ID:        workspaceResp.Build.ID,
+		//	DailyCost: 30,
+		//})
+		//require.NoError(t, err)
+
+		//q, err := two.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
+		//	OwnerID:        user.ID,
+		//	OrganizationID: workspace.OrganizationID,
+		//})
+		//require.NoError(t, err)
+		//fmt.Println(q)
+
+		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err = two.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				Deadline:    dbtime.Now(),
+				MaxDeadline: dbtime.Now(),
+				UpdatedAt:   dbtime.Now(),
+				ID:          workspaceResp.Build.ID,
+			})
+			require.NoError(t, err)
+		}()
+		time.Sleep(time.Millisecond * 800)
+
+		//err = db.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+		//	ID:         workspace.ID,
+		//	LastUsedAt: dbtime.Now(),
+		//})
+		//require.NoError(t, err)
+		//
+		//err = db.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
+		//	ID:        workspaceResp.Build.ID,
+		//	DailyCost: 20,
+		//})
+		//require.NoError(t, err)
+
+		//two.GetQuota(ctx, t)
+		//two.GetAllowance(ctx, t)
+
+		// End commit
+		require.NoError(t, one.Done())
+		wg.Wait()
+		require.NoError(t, two.Done())
 	})
 
 	// TODO: Try to fail a non-repeatable read only transaction
+	t.Run("ReadStale", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx = dbauthz.AsSystemRestricted(ctx)
+
+		three := newCommitter(t, db, workspace, workspaceTwoResp.Build)
+		two := newCommitter(t, db, workspaceTwo, workspaceResp.Build)
+		one := newCommitter(t, db, workspace, workspaceResp.Build)
+		three.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+
+		// Run order
+
+		fmt.Println("1", one.GetQuota(ctx, t))
+		one.GetAllowance(ctx, t)
+
+		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+
+		fmt.Println("1a", one.GetQuota(ctx, t))
+
+		fmt.Println("2a", two.GetQuota(ctx, t))
+		two.GetAllowance(ctx, t)
+
+		// End commit
+		require.NoError(t, one.Done())
+
+		fmt.Println("2a", two.GetQuota(ctx, t))
+		two.GetAllowance(ctx, t)
+
+		require.NoError(t, two.Done())
+		require.NoError(t, three.Done())
+
+		//allow, err = db.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
+		//	OwnerID:        user.ID,
+		//	OrganizationID: org.ID,
+		//})
+		//require.NoError(t, err)
+		//fmt.Println(allow)
+	})
+
 	// Autobuild, then quota, then autobuild read agin in the same tx
+	// https://www.richardstrnad.ch/posts/go-sql-how-to-get-detailed-error/
+	// https://blog.danslimmon.com/2024/01/10/why-transaction-order-matters-even-if-youre-only-reading/
 }
 
 func deprecatedQuotaEndpoint(ctx context.Context, client *codersdk.Client, userID string) (codersdk.WorkspaceQuota, error) {
