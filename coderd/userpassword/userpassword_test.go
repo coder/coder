@@ -20,9 +20,10 @@ func TestUserPasswordValidate(t *testing.T) {
 		password string
 		wantErr  bool
 	}{
-		{"Invalid - Too short password", "pass", true},
-		{"Invalid - Too long password", strings.Repeat("a", 65), true},
-		{"Ok", "CorrectPassword", false},
+		{name: "Invalid - Too short password", password: "pass", wantErr: true},
+		{name: "Invalid - Too long password", password: strings.Repeat("a", 65), wantErr: true},
+		{name: "Invalid - easy password", password: "password", wantErr: true},
+		{name: "Ok", password: "PasswordSecured123!", wantErr: false},
 	}
 
 	for _, tt := range tests {
@@ -49,11 +50,46 @@ func TestUserPasswordCompare(t *testing.T) {
 		wantErr            bool
 		wantEqual          bool
 	}{
-		{"Legacy", "$pbkdf2-sha256$65535$z8c1p1C2ru9EImBP1I+ZNA$pNjE3Yk0oG0PmJ0Je+y7ENOVlSkn/b0BEqqdKsq6Y97wQBq0xT+lD5bWJpyIKJqQICuPZcEaGDKrXJn8+SIHRg", "tomato", false, false, true},
-		{"Same", "password", "password", true, false, true},
-		{"Different", "password", "notpassword", true, false, false},
-		{"Invalid", "invalidhash", "password", false, true, false},
-		{"InvalidParts", "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz", "test", false, true, false},
+		{
+			name:               "Legacy",
+			passwordToValidate: "$pbkdf2-sha256$65535$z8c1p1C2ru9EImBP1I+ZNA$pNjE3Yk0oG0PmJ0Je+y7ENOVlSkn/b0BEqqdKsq6Y97wQBq0xT+lD5bWJpyIKJqQICuPZcEaGDKrXJn8+SIHRg",
+			password:           "tomato",
+			shouldHash:         false,
+			wantErr:            false,
+			wantEqual:          true,
+		},
+		{
+			name:               "Same",
+			passwordToValidate: "password",
+			password:           "password",
+			shouldHash:         true,
+			wantErr:            false,
+			wantEqual:          true,
+		},
+		{
+			name:               "Different",
+			passwordToValidate: "password",
+			password:           "notpassword",
+			shouldHash:         true,
+			wantErr:            false,
+			wantEqual:          false,
+		},
+		{
+			name:               "Invalid",
+			passwordToValidate: "invalidhash",
+			password:           "password",
+			shouldHash:         false,
+			wantErr:            true,
+			wantEqual:          false,
+		},
+		{
+			name:               "InvalidParts",
+			passwordToValidate: "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
+			password:           "test",
+			shouldHash:         false,
+			wantErr:            true,
+			wantEqual:          false,
+		},
 	}
 
 	for _, tt := range tests {

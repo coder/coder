@@ -205,13 +205,16 @@ export const CreateUserForm: FC<
 							helperText:
 								(form.values.login_type !== "password" &&
 									"No password required for this login type") ||
-								(form.values.password !== "" && !passwordIsValid && "password is not strong."),
+								(form.values.password !== "" &&
+									!passwordIsValid &&
+									"password is not strong enough."),
 						})}
 						autoComplete="current-password"
 						fullWidth
 						id="password"
 						data-testid="password-input"
 						disabled={form.values.login_type !== "password"}
+						error={!!(form.values.password !== "" && !passwordIsValid)}
 						label={Language.passwordLabel}
 						type="password"
 					/>

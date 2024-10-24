@@ -96,7 +96,12 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 						autoComplete="password"
 						fullWidth
 						label={Language.newPasswordLabel}
-						helperText={form.values.password !== "" && !passwordIsValid ? "Password is not strong." : ""}
+						error={!!(form.values.password !== "" && !passwordIsValid)}
+						helperText={
+							form.values.password !== "" && !passwordIsValid
+								? "Password is not strong enough."
+								: ""
+						}
 						type="password"
 					/>
 					<TextField

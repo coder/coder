@@ -1880,6 +1880,39 @@ func TestUserForgotPassword(t *testing.T) {
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
 	})
 
+	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
+
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        "notstrong",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Invalid password.")
+		require.Equal(t, 1, len(apiErr.Validations))
+		require.Equal(t, "password", apiErr.Validations[0].Field)
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, "notstrong")
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
+	})
+
 	t.Run("CannotChangePasswordOfAnotherUser", func(t *testing.T) {
 		t.Parallel()
 
