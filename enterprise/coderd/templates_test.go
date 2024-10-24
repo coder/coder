@@ -47,7 +47,8 @@ func TestTemplates(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAccessControl: 1,
+					codersdk.FeatureAccessControl:         1,
+					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
 		})
@@ -55,6 +56,9 @@ func TestTemplates(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		org := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
+		_, thirdUser := coderdtest.CreateAnotherUser(t, owner, org.ID, rbac.RoleTemplateAdmin())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -85,7 +89,14 @@ func TestTemplates(t *testing.T) {
 		}
 		slices.Sort(sentTo)
 
+		// Require the notification to have only been sent to the expected users
 		assert.Equal(t, expectedSentTo, sentTo)
+
+		// The previous check should verify this but we're double checking that
+		// the notification wasn't sent to a user in another org.
+		for _, notif := range notifs {
+			assert.NotEqual(t, thirdUser.ID, notif.UserID)
+		}
 
 		_, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
