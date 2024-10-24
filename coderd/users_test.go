@@ -1044,7 +1044,6 @@ func TestUpdateUserPassword(t *testing.T) {
 			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
 		})
 		require.NoError(t, err, "create member")
-
 		err = client.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
 			Password: "SomeNewStrongPassword!",
 		})
