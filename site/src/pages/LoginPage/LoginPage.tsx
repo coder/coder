@@ -28,6 +28,7 @@ export const LoginPage: FC = () => {
 	const navigate = useNavigate();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
+	let redirectError: Error | null = null;
 	let redirectUrl: URL | null = null;
 	try {
 		redirectUrl = new URL(redirectTo);
@@ -49,19 +50,25 @@ export const LoginPage: FC = () => {
 		});
 	}, [isSignedIn, buildInfoQuery.data, user?.id]);
 
-	// The reason we need `window.location.href` for api redirects is that we
-	// need the page to reload and make a request to the backend. If we use
-	// `<Navigate>` react would handle the redirect itself and never request the
-	// page from the backend.
-	if (isSignedIn && isApiRouteRedirect) {
-		const sanitizedUrl = new URL(redirectTo, window.location.origin);
-		window.location.href = sanitizedUrl.pathname + sanitizedUrl.search;
-		return null;
-	}
-	if (isSignedIn && !isApiRouteRedirect) {
-		return (
-			<Navigate to={redirectUrl ? redirectUrl.pathname : redirectTo} replace />
-		);
+	if (isSignedIn) {
+		// The reason we need `window.location.href` for api redirects is that
+		// we need the page to reload and make a request to the backend. If we
+		// use `<Navigate>`, react would handle the redirect itself and never
+		// request the page from the backend.
+		if (isApiRouteRedirect) {
+			const sanitizedUrl = new URL(redirectTo, window.location.origin);
+			window.location.href = sanitizedUrl.pathname + sanitizedUrl.search;
+			// Setting the href should immediately request a new page. Show an
+			// error state if it doesn't.
+			redirectError = new Error("unable to redirect")
+		} else {
+			return (
+				<Navigate
+					to={redirectUrl ? redirectUrl.pathname : redirectTo}
+					replace
+				/>
+			);
+		}
 	}
 
 	if (isConfiguringTheFirstUser) {
@@ -75,7 +82,7 @@ export const LoginPage: FC = () => {
 			</Helmet>
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
-				error={signInError}
+				error={signInError ?? redirectError}
 				isLoading={isLoading || authMethodsQuery.isLoading}
 				buildInfo={buildInfoQuery.data}
 				isSigningIn={isSigningIn}
@@ -83,6 +90,7 @@ export const LoginPage: FC = () => {
 					await signIn(email, password);
 					navigate("/");
 				}}
+				redirectTo={redirectTo}
 			/>
 		</>
 	);
