@@ -109,6 +109,7 @@ func TestUpdateStates(t *testing.T) {
 				Database:              dbM,
 				Pubsub:                ps,
 				StatsBatcher:          batcher,
+				UsageTracker:          workspacestats.NewTracker(dbM),
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 					updateAgentMetricsFnCalled = true
@@ -130,20 +131,14 @@ func TestUpdateStates(t *testing.T) {
 		// Workspace gets fetched.
 		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
+		// User gets fetched to hit the UpdateAgentMetricsFn.
+		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
 			WorkspaceID:   workspace.ID,
 			NextAutostart: time.Time{}.UTC(),
 		}).Return(nil)
-
-		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
-		}).Return(nil)
-
-		// User gets fetched to hit the UpdateAgentMetricsFn.
-		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
 		// Ensure that pubsub notifications are sent.
 		notifyDescription := make(chan []byte)
@@ -211,6 +206,7 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
+				UsageTracker:          workspacestats.NewTracker(dbM),
 				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				// Ignored when nil.
@@ -224,12 +220,6 @@ func TestUpdateStates(t *testing.T) {
 
 		// Workspace gets fetched.
 		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
-
-		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
-		}).Return(nil)
 
 		_, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
@@ -325,6 +315,7 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
+				UsageTracker:          workspacestats.NewTracker(dbM),
 				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
@@ -431,6 +422,7 @@ func TestUpdateStates(t *testing.T) {
 				Database:              dbM,
 				Pubsub:                ps,
 				StatsBatcher:          batcher,
+				UsageTracker:          workspacestats.NewTracker(dbM),
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 					updateAgentMetricsFnCalled = true
