@@ -427,6 +427,15 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/deployment" element={<ManagementSettingsLayout />}>
+						{/*
+						  None of the UI elements link directly to the base
+						  /deployment route, but if you navigate there directly,
+						  you would just see a mostly empty screen. Redirect to
+						  the general page for better UX. */}
+						<Route
+							path=""
+							element={<Navigate to="/deployment/general" replace />}
+						/>
 						<Route path="general" element={<GeneralSettingsPage />} />
 						<Route path="licenses" element={<LicensesSettingsPage />} />
 						<Route path="licenses/add" element={<AddNewLicensePage />} />
