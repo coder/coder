@@ -379,38 +379,6 @@ func (c *cache) Close() error {
 	return nil
 }
 
-// StaticKey fulfills the SigningKeycache and EncryptionKeycache interfaces. Useful for testing.
-type StaticKey struct {
-	ID  string
-	Key interface{}
-}
-
-func (s StaticKey) SigningKey(_ context.Context) (string, interface{}, error) {
-	return s.ID, s.Key, nil
-}
-
-func (s StaticKey) VerifyingKey(_ context.Context, id string) (interface{}, error) {
-	if id != s.ID {
-		return nil, xerrors.Errorf("invalid id %q", id)
-	}
-	return s.Key, nil
-}
-
-func (s StaticKey) EncryptingKey(_ context.Context) (string, interface{}, error) {
-	return s.ID, s.Key, nil
-}
-
-func (s StaticKey) DecryptingKey(_ context.Context, id string) (interface{}, error) {
-	if id != s.ID {
-		return nil, xerrors.Errorf("invalid id %q", id)
-	}
-	return s.Key, nil
-}
-
-func (StaticKey) Close() error {
-	return nil
-}
-
 // We have to do this to avoid a circular dependency on db2sdk (cryptokeys -> db2sdk -> tailnet -> cryptokeys)
 func toSDKKeys(keys []database.CryptoKey) []codersdk.CryptoKey {
 	into := make([]codersdk.CryptoKey, 0, len(keys))

@@ -41,6 +41,11 @@ const (
 	signingAlgo = jose.HS512
 )
 
+type SigningKeyManager interface {
+	SigningKeyProvider
+	VerifyKeyProvider
+}
+
 type SigningKeyProvider interface {
 	SigningKey(ctx context.Context) (id string, key interface{}, err error)
 }
@@ -147,4 +152,36 @@ func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claim
 	}
 
 	return claims.Validate(options.RegisteredClaims)
+}
+
+// StaticKey fulfills the SigningKeycache and EncryptionKeycache interfaces. Useful for testing.
+type StaticKey struct {
+	ID  string
+	Key interface{}
+}
+
+func (s StaticKey) SigningKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKey) VerifyingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
+}
+
+func (s StaticKey) EncryptingKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKey) DecryptingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
+}
+
+func (StaticKey) Close() error {
+	return nil
 }
