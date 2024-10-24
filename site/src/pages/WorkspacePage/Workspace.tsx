@@ -8,6 +8,7 @@ import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { AgentRow } from "modules/resources/AgentRow";
+import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 import { HistorySidebar } from "./HistorySidebar";
@@ -49,6 +50,7 @@ export interface WorkspaceProps {
 	latestVersion?: TypesGen.TemplateVersion;
 	permissions: WorkspacePermissions;
 	isOwner: boolean;
+	timings?: TypesGen.WorkspaceBuildTimings;
 }
 
 /**
@@ -81,6 +83,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 	isOwner,
+	timings,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -262,6 +265,11 @@ export const Workspace: FC<WorkspaceProps> = ({
 							)}
 						</section>
 					)}
+
+					<WorkspaceTimings
+						agentScriptTimings={timings?.agent_script_timings}
+						provisionerTimings={timings?.provisioner_timings}
+					/>
 				</div>
 			</div>
 		</div>

@@ -66,7 +66,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.Group.ID)
+
+		// nolint:gocritic
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), group.Group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return

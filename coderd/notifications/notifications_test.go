@@ -1021,6 +1021,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			appName: "Custom Application Name",
 			logoURL: "https://custom.application/logo.png",
 		},
+		{
+			name: "TemplateTemplateDeprecated",
+			id:   notifications.TemplateTemplateDeprecated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"template":     "alpha",
+					"message":      "This template has been replaced by beta",
+					"organization": "coder",
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:

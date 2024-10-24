@@ -1,0 +1,98 @@
+From: system@coder.com
+To: bobby@coder.com
+Subject: Template 'alpha' has been deprecated
+Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
+Date: Fri, 11 Oct 2024 09:03:06 +0000
+Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
+MIME-Version: 1.0
+
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset=UTF-8
+
+Hello Bobby,
+
+The template alpha has been deprecated with the following message:
+
+This template has been replaced by beta
+
+New workspaces may not be created from this template. Existing workspaces w=
+ill continue to function normally.
+
+
+See affected workspaces: http://test.com/workspaces?filter=3Downer%3Ame+tem=
+plate%3Aalpha
+
+View template: http://test.com/templates/coder/alpha
+
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=UTF-8
+
+<!doctype html>
+<html lang=3D"en">
+  <head>
+    <meta charset=3D"UTF-8" />
+    <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
+=3D1.0" />
+    <title>Template 'alpha' has been deprecated</title>
+  </head>
+  <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
+ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
+l', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; color: #020617=
+; background: #f8fafc;">
+    <div style=3D"max-width: 600px; margin: 20px auto; padding: 60px; borde=
+r: 1px solid #e2e8f0; border-radius: 8px; background-color: #fff; text-alig=
+n: left; font-size: 14px; line-height: 1.5;">
+      <div style=3D"text-align: center;">
+        <img src=3D"https://coder.com/coder-logo-horizontal.png" alt=3D"Cod=
+er Logo" style=3D"height: 40px;" />
+      </div>
+      <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
+argin: 8px 0 32px; line-height: 1.5;">
+        Template 'alpha' has been deprecated
+      </h1>
+      <div style=3D"line-height: 1.5;">
+        <p>Hello Bobby,</p>
+
+<p>The template <strong>alpha</strong> has been deprecated with the followi=
+ng message:</p>
+
+<p><strong>This template has been replaced by beta</strong></p>
+
+<p>New workspaces may not be created from this template. Existing workspace=
+s will continue to function normally.</p>
+      </div>
+      <div style=3D"text-align: center; margin-top: 32px;">
+       =20
+        <a href=3D"http://test.com/workspaces?filter=3Downer%3Ame+template%=
+3Aalpha" style=3D"display: inline-block; padding: 13px 24px; background-col=
+or: #020617; color: #f8fafc; text-decoration: none; border-radius: 8px; mar=
+gin: 0 4px;">
+          See affected workspaces
+        </a>
+       =20
+        <a href=3D"http://test.com/templates/coder/alpha" style=3D"display:=
+ inline-block; padding: 13px 24px; background-color: #020617; color: #f8faf=
+c; text-decoration: none; border-radius: 8px; margin: 0 4px;">
+          View template
+        </a>
+       =20
+      </div>
+      <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=
+e: 12px; margin-top: 64px; padding-top: 24px; line-height: 1.6;">
+        <p>&copy;&nbsp;2024&nbsp;Coder. All rights reserved&nbsp;-&nbsp;<a =
+href=3D"http://test.com" style=3D"color: #2563eb; text-decoration: none;">h=
+ttp://test.com</a></p>
+        <p><a href=3D"http://test.com/settings/notifications" style=3D"colo=
+r: #2563eb; text-decoration: none;">Click here to manage your notification =
+settings</a></p>
+        <p><a href=3D"http://test.com/settings/notifications?disabled=3Df40=
+fae84-55a2-42cd-99fa-b41c1ca64894" style=3D"color: #2563eb; text-decoration=
+: none;">Stop receiving emails like this</a></p>
+      </div>
+    </div>
+  </body>
+</html>
+
+--bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4--
