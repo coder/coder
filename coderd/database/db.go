@@ -89,6 +89,11 @@ func (o TxOptions) ExecutionCount() int {
 	return o.executionCount
 }
 
+func (o *TxOptions) WithID(id string) *TxOptions {
+	o.TxIdentifier = id
+	return o
+}
+
 // queries encompasses both are sqlc generated
 // queries and our custom queries.
 type querier interface {
