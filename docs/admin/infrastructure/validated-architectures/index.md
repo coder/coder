@@ -340,7 +340,7 @@ could affect workspace users experience once the platform is live.
 1. Maintain Coder templates using
    [version control](../../templates/managing-templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template
-   versions into Coder from git. For example, on Github, you can use the
+   versions into Coder from git. For example, on GitHub, you can use the
    [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
 1. Evaluate enabling
    [automatic template updates](../../templates/managing-templates/index.md#template-update-policies-enterprise-premium)

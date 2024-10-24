@@ -5,7 +5,7 @@ come from our community and enterprise customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
 
 For other community resources, see our
-[Github discussions](https://github.com/coder/coder/discussions), or join our
+[GitHub discussions](https://github.com/coder/coder/discussions), or join our
 [Discord server](https://discord.gg/coder).
 
 ### How do I add a Premium trial license?
@@ -291,8 +291,8 @@ tar -cvh -C ./template_1 | coder templates <push|create> -d - <name>
 
 References:
 
-- [Public Github Issue 6117](https://github.com/coder/coder/issues/6117)
-- [Public Github Issue 5677](https://github.com/coder/coder/issues/5677)
+- [Public GitHub Issue 6117](https://github.com/coder/coder/issues/6117)
+- [Public GitHub Issue 5677](https://github.com/coder/coder/issues/5677)
 - [Coder docs: Templates/Change Management](../admin/templates/managing-templates/change-management.md)
 
 ### Can I run Coder in an air-gapped or offline mode? (no Internet)?

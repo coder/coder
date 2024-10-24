@@ -99,7 +99,7 @@ Web or using the workspace's terminal.
    ```tf
    resource "coder_agent" "main" {
      ...
-     startup_script = "code-server --install-extension /vsix/Github.copilot.vsix"
+     startup_script = "code-server --install-extension /vsix/GitHub.copilot.vsix"
    }
    ```
 
@@ -130,7 +130,7 @@ Using the workspace's terminal or the terminal available inside `code-server`,
 you can install an extension whose files you've downloaded from a marketplace:
 
 ```console
-/path/to/code-server --install-extension /vsix/Github.copilot.vsix
+/path/to/code-server --install-extension /vsix/GitHub.copilot.vsix
 ```
 
 ### Installing from a marketplace at the command line
