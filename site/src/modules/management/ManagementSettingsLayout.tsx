@@ -10,7 +10,7 @@ import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet, useParams } from "react-router-dom";
+import { Navigate, Outlet, useParams } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 
 type ManagementSettingsValue = Readonly<{
@@ -67,6 +67,13 @@ export const ManagementSettingsLayout: FC = () => {
 		...deploymentConfig(),
 		enabled: canViewDeploymentSettingsPage,
 	});
+
+	// Need to make sure that we redirect basic users. If the enabled value for
+	// deploymentConfigQuery is false, the query object will be stuck in a
+	// loading state forever
+	if (!canViewDeploymentSettingsPage) {
+		return <Navigate to="/workspaces" replace />;
+	}
 
 	if (deploymentConfigQuery.isLoading) {
 		return <Loader />;
