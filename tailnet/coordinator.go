@@ -566,7 +566,7 @@ func (c *core) node(id uuid.UUID) *Node {
 	return v1Node
 }
 
-func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
+func (c *core) handleRequest(ctx context.Context, p *peer, req *proto.CoordinateRequest) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if c.closed {
@@ -577,7 +577,7 @@ func (c *core) handleRequest(p *peer, req *proto.CoordinateRequest) error {
 		return ErrAlreadyRemoved
 	}
 
-	if err := pr.auth.Authorize(req); err != nil {
+	if err := pr.auth.Authorize(ctx, req); err != nil {
 		return xerrors.Errorf("authorize request: %w", err)
 	}
 

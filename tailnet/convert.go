@@ -9,6 +9,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
@@ -268,5 +269,32 @@ func DERPNodeFromProto(node *proto.DERPMap_Region_Node) *tailcfg.DERPNode {
 		ForceHTTP:        node.ForceHttp,
 		STUNTestIP:       node.StunTestIp,
 		CanPort80:        node.CanPort_80,
+	}
+}
+
+func WorkspaceStatusToProto(status codersdk.WorkspaceStatus) proto.Workspace_Status {
+	switch status {
+	case codersdk.WorkspaceStatusCanceled:
+		return proto.Workspace_CANCELED
+	case codersdk.WorkspaceStatusCanceling:
+		return proto.Workspace_CANCELING
+	case codersdk.WorkspaceStatusDeleted:
+		return proto.Workspace_DELETED
+	case codersdk.WorkspaceStatusDeleting:
+		return proto.Workspace_DELETING
+	case codersdk.WorkspaceStatusFailed:
+		return proto.Workspace_FAILED
+	case codersdk.WorkspaceStatusPending:
+		return proto.Workspace_PENDING
+	case codersdk.WorkspaceStatusRunning:
+		return proto.Workspace_RUNNING
+	case codersdk.WorkspaceStatusStarting:
+		return proto.Workspace_STARTING
+	case codersdk.WorkspaceStatusStopped:
+		return proto.Workspace_STOPPED
+	case codersdk.WorkspaceStatusStopping:
+		return proto.Workspace_STOPPING
+	default:
+		return proto.Workspace_UNKNOWN
 	}
 }

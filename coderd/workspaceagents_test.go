@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net"
 	"net/http"
 	"runtime"
@@ -36,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -1861,6 +1863,104 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 	})
 }
 
+func TestOwnedWorkspacesCoordinate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	firstClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		Coordinator:              tailnet.NewCoordinator(logger),
+		IncludeProvisionerDaemon: true,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, firstClient)
+	member, memberUser := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
+
+	// Create a workspace with an agent
+	_ = buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, db)
+
+	u, err := member.URL.Parse("/api/v2/tailnet")
+	require.NoError(t, err)
+	q := u.Query()
+	q.Set("version", "2.0")
+	u.RawQuery = q.Encode()
+
+	//nolint:bodyclose // websocket package closes this for you
+	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Coder-Session-Token": []string{member.SessionToken()},
+		},
+	})
+	if err != nil {
+		if resp.StatusCode != http.StatusSwitchingProtocols {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		require.NoError(t, err)
+	}
+	defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+	rpcClient, err := tailnet.NewDRPCClient(
+		websocket.NetConn(ctx, wsConn, websocket.MessageBinary),
+		logger,
+	)
+	require.NoError(t, err)
+
+	stream, err := rpcClient.WorkspaceUpdates(ctx, &tailnetproto.WorkspaceUpdatesRequest{
+		WorkspaceOwnerId: tailnet.UUIDToByteSlice(memberUser.ID),
+	})
+	require.NoError(t, err)
+
+	// Existing workspace
+	update, err := stream.Recv()
+	require.NoError(t, err)
+	require.Len(t, update.UpsertedWorkspaces, 1)
+	require.Equal(t, update.UpsertedWorkspaces[0].Status, tailnetproto.Workspace_RUNNING)
+	wsID := update.UpsertedWorkspaces[0].Id
+
+	// Existing agent
+	require.Len(t, update.UpsertedAgents, 1)
+	require.Equal(t, update.UpsertedAgents[0].WorkspaceId, wsID)
+
+	require.Len(t, update.DeletedWorkspaces, 0)
+	require.Len(t, update.DeletedAgents, 0)
+
+	// Build a second workspace
+	secondWorkspace := buildWorkspaceWithAgent(t, member, firstUser.OrganizationID, memberUser.ID, db)
+
+	// Wait for the second workspace to be running with an agent
+	expectedState := map[uuid.UUID]workspace{
+		secondWorkspace.ID: {
+			Status:    tailnetproto.Workspace_RUNNING,
+			NumAgents: 1,
+		},
+	}
+	waitForUpdates(t, ctx, stream, map[uuid.UUID]workspace{}, expectedState)
+
+	// Wait for the workspace and agent to be deleted
+	secondWorkspace.Deleted = true
+	dbfake.WorkspaceBuild(t, db, secondWorkspace).
+		Seed(database.WorkspaceBuild{
+			Transition:  database.WorkspaceTransitionDelete,
+			BuildNumber: 2,
+		}).Do()
+
+	waitForUpdates(t, ctx, stream, expectedState, map[uuid.UUID]workspace{
+		secondWorkspace.ID: {
+			Status:    tailnetproto.Workspace_DELETED,
+			NumAgents: 0,
+		},
+	})
+}
+
+func buildWorkspaceWithAgent(t *testing.T, client *codersdk.Client, orgID uuid.UUID, owner uuid.UUID, db database.Store) database.WorkspaceTable {
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: orgID,
+		OwnerID:        owner,
+	}).WithAgent().Do()
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+	return r.Workspace
+}
+
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
 	mp, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	require.NoError(t, err)
@@ -1879,4 +1979,92 @@ func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup
 	aAPI := agentproto.NewDRPCAgentClient(conn)
 	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
 	return err
+}
+
+type workspace struct {
+	Status    tailnetproto.Workspace_Status
+	NumAgents int
+}
+
+func waitForUpdates(
+	t *testing.T,
+	//nolint:revive // t takes precedence
+	ctx context.Context,
+	stream tailnetproto.DRPCTailnet_WorkspaceUpdatesClient,
+	currentState map[uuid.UUID]workspace,
+	expectedState map[uuid.UUID]workspace,
+) {
+	t.Helper()
+	errCh := make(chan error, 1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				errCh <- ctx.Err()
+				return
+			default:
+			}
+			update, err := stream.Recv()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			for _, ws := range update.UpsertedWorkspaces {
+				id, err := uuid.FromBytes(ws.Id)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				currentState[id] = workspace{
+					Status:    ws.Status,
+					NumAgents: currentState[id].NumAgents,
+				}
+			}
+			for _, ws := range update.DeletedWorkspaces {
+				id, err := uuid.FromBytes(ws.Id)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				currentState[id] = workspace{
+					Status:    tailnetproto.Workspace_DELETED,
+					NumAgents: currentState[id].NumAgents,
+				}
+			}
+			for _, a := range update.UpsertedAgents {
+				id, err := uuid.FromBytes(a.WorkspaceId)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				currentState[id] = workspace{
+					Status:    currentState[id].Status,
+					NumAgents: currentState[id].NumAgents + 1,
+				}
+			}
+			for _, a := range update.DeletedAgents {
+				id, err := uuid.FromBytes(a.WorkspaceId)
+				if err != nil {
+					errCh <- err
+					return
+				}
+				currentState[id] = workspace{
+					Status:    currentState[id].Status,
+					NumAgents: currentState[id].NumAgents - 1,
+				}
+			}
+			if maps.Equal(currentState, expectedState) {
+				errCh <- nil
+				return
+			}
+		}
+	}()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("Timeout waiting for desired state", currentState)
+	}
 }

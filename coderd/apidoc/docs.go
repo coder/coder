@@ -3753,6 +3753,25 @@ const docTemplate = `{
                 }
             }
         },
+        "/tailnet": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "User-scoped agent coordination",
+                "operationId": "user-scoped-agent-coordination",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/templates": {
             "get": {
                 "security": [

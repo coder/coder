@@ -571,6 +571,11 @@ func (f *fakeDRPCClient) RefreshResumeToken(_ context.Context, _ *proto.RefreshR
 	}, nil
 }
 
+// WorkspaceUpdates implements proto.DRPCTailnetClient.
+func (*fakeDRPCClient) WorkspaceUpdates(context.Context, *proto.WorkspaceUpdatesRequest) (proto.DRPCTailnet_WorkspaceUpdatesClient, error) {
+	panic("unimplemented")
+}
+
 type fakeDRPCConn struct{}
 
 var _ drpc.Conn = &fakeDRPCConn{}

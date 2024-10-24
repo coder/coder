@@ -40,12 +40,13 @@ func WithStreamID(ctx context.Context, streamID StreamID) context.Context {
 }
 
 type ClientServiceOptions struct {
-	Logger                  slog.Logger
-	CoordPtr                *atomic.Pointer[Coordinator]
-	DERPMapUpdateFrequency  time.Duration
-	DERPMapFn               func() *tailcfg.DERPMap
-	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
-	ResumeTokenProvider     ResumeTokenProvider
+	Logger                   slog.Logger
+	CoordPtr                 *atomic.Pointer[Coordinator]
+	DERPMapUpdateFrequency   time.Duration
+	DERPMapFn                func() *tailcfg.DERPMap
+	NetworkTelemetryHandler  func(batch []*proto.TelemetryEvent)
+	ResumeTokenProvider      ResumeTokenProvider
+	WorkspaceUpdatesProvider WorkspaceUpdatesProvider
 }
 
 // ClientService is a tailnet coordination service that accepts a connection and version from a
@@ -64,12 +65,13 @@ func NewClientService(options ClientServiceOptions) (
 	s := &ClientService{Logger: options.Logger, CoordPtr: options.CoordPtr}
 	mux := drpcmux.New()
 	drpcService := &DRPCService{
-		CoordPtr:                options.CoordPtr,
-		Logger:                  options.Logger,
-		DerpMapUpdateFrequency:  options.DERPMapUpdateFrequency,
-		DerpMapFn:               options.DERPMapFn,
-		NetworkTelemetryHandler: options.NetworkTelemetryHandler,
-		ResumeTokenProvider:     options.ResumeTokenProvider,
+		CoordPtr:                 options.CoordPtr,
+		Logger:                   options.Logger,
+		DerpMapUpdateFrequency:   options.DERPMapUpdateFrequency,
+		DerpMapFn:                options.DERPMapFn,
+		NetworkTelemetryHandler:  options.NetworkTelemetryHandler,
+		ResumeTokenProvider:      options.ResumeTokenProvider,
+		WorkspaceUpdatesProvider: options.WorkspaceUpdatesProvider,
 	}
 	err := proto.DRPCRegisterTailnet(mux, drpcService)
 	if err != nil {
@@ -89,7 +91,33 @@ func NewClientService(options ClientServiceOptions) (
 	return s, nil
 }
 
-func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+type ServeClientOptions struct {
+	Peer uuid.UUID
+	// Include for multi-workspace service
+	Database UpdateQuerier
+	// Include for single workspace service
+	Agent *uuid.UUID
+}
+
+func (s *ClientService) ServeClient(ctx context.Context, version string, conn net.Conn, opts ServeClientOptions) error {
+	var auth CoordinateeAuth
+	if opts.Database != nil {
+		// Multi-agent service
+		auth = ClientUserCoordinateeAuth{
+			Database: opts.Database,
+		}
+	} else if opts.Agent != nil {
+		// Single-agent service
+		auth = ClientCoordinateeAuth{AgentID: *opts.Agent}
+	} else {
+		panic("ServeClient called with neither auth nor agent")
+	}
+	streamID := StreamID{
+		Name: "client",
+		ID:   opts.Peer,
+		Auth: auth,
+	}
+
 	major, _, err := apiversion.Parse(version)
 	if err != nil {
 		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
@@ -97,12 +125,6 @@ func (s *ClientService) ServeClient(ctx context.Context, version string, conn ne
 	}
 	switch major {
 	case 2:
-		auth := ClientCoordinateeAuth{AgentID: agent}
-		streamID := StreamID{
-			Name: "client",
-			ID:   id,
-			Auth: auth,
-		}
 		return s.ServeConnV2(ctx, conn, streamID)
 	default:
 		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))
@@ -125,12 +147,13 @@ func (s ClientService) ServeConnV2(ctx context.Context, conn net.Conn, streamID 
 
 // DRPCService is the dRPC-based, version 2.x of the tailnet API and implements proto.DRPCClientServer
 type DRPCService struct {
-	CoordPtr                *atomic.Pointer[Coordinator]
-	Logger                  slog.Logger
-	DerpMapUpdateFrequency  time.Duration
-	DerpMapFn               func() *tailcfg.DERPMap
-	NetworkTelemetryHandler func(batch []*proto.TelemetryEvent)
-	ResumeTokenProvider     ResumeTokenProvider
+	CoordPtr                 *atomic.Pointer[Coordinator]
+	Logger                   slog.Logger
+	DerpMapUpdateFrequency   time.Duration
+	DerpMapFn                func() *tailcfg.DERPMap
+	NetworkTelemetryHandler  func(batch []*proto.TelemetryEvent)
+	ResumeTokenProvider      ResumeTokenProvider
+	WorkspaceUpdatesProvider WorkspaceUpdatesProvider
 }
 
 func (s *DRPCService) PostTelemetry(_ context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
@@ -203,6 +226,51 @@ func (s *DRPCService) Coordinate(stream proto.DRPCTailnet_CoordinateStream) erro
 	}
 	c.communicate()
 	return nil
+}
+
+func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, stream proto.DRPCTailnet_WorkspaceUpdatesStream) error {
+	defer stream.Close()
+
+	ctx := stream.Context()
+	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
+	if !ok {
+		return xerrors.New("no Stream ID")
+	}
+
+	ownerID, err := uuid.FromBytes(req.WorkspaceOwnerId)
+	if err != nil {
+		return xerrors.Errorf("parse workspace owner ID: %w", err)
+	}
+
+	var sub Subscription
+	switch auth := streamID.Auth.(type) {
+	case ClientUserCoordinateeAuth:
+		sub, err = s.WorkspaceUpdatesProvider.Subscribe(ctx, ownerID, auth.Database)
+		if err != nil {
+			err = xerrors.Errorf("subscribe to workspace updates: %w", err)
+		}
+	default:
+		err = xerrors.Errorf("workspace updates not supported by auth name %T", auth)
+	}
+	if err != nil {
+		return err
+	}
+	defer sub.Close()
+
+	for {
+		select {
+		case updates, ok := <-sub.Updates():
+			if !ok {
+				return nil
+			}
+			err := stream.Send(updates)
+			if err != nil {
+				return xerrors.Errorf("send workspace update: %w", err)
+			}
+		case <-stream.Context().Done():
+			return nil
+		}
+	}
 }
 
 type communicator struct {

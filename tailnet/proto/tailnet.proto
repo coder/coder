@@ -198,9 +198,47 @@ message TelemetryRequest {
 
 message TelemetryResponse {}
 
+message WorkspaceUpdatesRequest {
+	bytes workspace_owner_id = 1; // UUID
+}
+
+message WorkspaceUpdate {
+	repeated Workspace upserted_workspaces = 1;
+	repeated Agent upserted_agents = 2;
+	repeated Workspace deleted_workspaces = 3;
+	repeated Agent deleted_agents = 4;
+}
+
+message Workspace {
+	bytes id = 1; // UUID
+	string name = 2;
+
+	enum Status {
+		UNKNOWN = 0;
+		PENDING = 1;
+		STARTING = 2;
+		RUNNING = 3;
+		STOPPING = 4;
+		STOPPED = 5;
+		FAILED = 6;
+		CANCELING = 7;
+		CANCELED = 8;
+		DELETING = 9;
+		DELETED = 10;
+	}
+	Status status = 3;
+}
+
+message Agent {
+	bytes id = 1; // UUID
+	string name = 2;
+	bytes workspace_id = 3; // UUID
+}
+
 service Tailnet {
 	rpc PostTelemetry(TelemetryRequest) returns (TelemetryResponse);
 	rpc StreamDERPMaps(StreamDERPMapsRequest) returns (stream DERPMap);
 	rpc RefreshResumeToken(RefreshResumeTokenRequest) returns (RefreshResumeTokenResponse);
 	rpc Coordinate(stream CoordinateRequest) returns (stream CoordinateResponse);
+	rpc WorkspaceUpdates(WorkspaceUpdatesRequest) returns (stream WorkspaceUpdate);
 }

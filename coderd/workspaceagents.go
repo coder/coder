@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -843,26 +844,10 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Accept a resume_token query parameter to use the same peer ID.
-	var (
-		peerID      = uuid.New()
-		resumeToken = r.URL.Query().Get("resume_token")
-	)
-	if resumeToken != "" {
-		var err error
-		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(resumeToken)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
-				Detail:  err.Error(),
-				Validations: []codersdk.ValidationError{
-					{Field: "resume_token", Detail: workspacesdk.CoordinateAPIInvalidResumeToken},
-				},
-			})
-			return
-		}
-		api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
-			slog.F("peer_id", peerID.String()))
+	peerID, err := api.handleResumeToken(ctx, rw, r)
+	if err != nil {
+		// handleResumeToken has already written the response.
+		return
 	}
 
 	api.WebsocketWaitMutex.Lock()
@@ -885,11 +870,36 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	go httpapi.Heartbeat(ctx, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, peerID, workspaceAgent.ID)
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.ServeClientOptions{
+		Peer:  peerID,
+		Agent: &workspaceAgent.ID,
+	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
+}
+
+// handleResumeToken accepts a resume_token query parameter to use the same peer ID
+func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r *http.Request) (peerID uuid.UUID, err error) {
+	peerID = uuid.New()
+	resumeToken := r.URL.Query().Get("resume_token")
+	if resumeToken != "" {
+		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(resumeToken)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
+				Detail:  err.Error(),
+				Validations: []codersdk.ValidationError{
+					{Field: "resume_token", Detail: workspacesdk.CoordinateAPIInvalidResumeToken},
+				},
+			})
+			return peerID, err
+		}
+		api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
+			slog.F("peer_id", peerID.String()))
+	}
+	return peerID, err
 }
 
 // @Summary Post workspace agent log source
@@ -1459,6 +1469,96 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
+		return
+	}
+}
+
+// @Summary User-scoped agent coordination
+// @ID user-scoped-agent-coordination
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 101
+// @Router /tailnet [get]
+func (api *API) tailnet(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to authenticate user.",
+		})
+		return
+	}
+
+	version := "2.0"
+	qv := r.URL.Query().Get("version")
+	if qv != "" {
+		version = qv
+	}
+	if err := proto.CurrentVersion.Validate(version); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unknown or unsupported API version",
+			Validations: []codersdk.ValidationError{
+				{Field: "version", Detail: err.Error()},
+			},
+		})
+		return
+	}
+
+	peerID, err := api.handleResumeToken(ctx, rw, r)
+	if err != nil {
+		// handleResumeToken has already written the response.
+		return
+	}
+
+	// Used to authorize tunnel request
+	sshPrep, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionSSH, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing sql filter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Used to filter workspace DB queries
+	readPrep, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing sql filter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	go httpapi.Heartbeat(ctx, conn)
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.ServeClientOptions{
+		Peer: peerID,
+		Database: &rbacQuerier{
+			readPrep: readPrep,
+			sshPrep:  sshPrep,
+			subject:  actor,
+			db:       api.Database,
+		},
+	})
+	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
 }
