@@ -1044,6 +1044,7 @@ func TestUpdateUserPassword(t *testing.T) {
 			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
 		})
 		require.NoError(t, err, "create member")
+
 		err = client.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
 			Password: "SomeNewStrongPassword!",
 		})
@@ -1097,6 +1098,7 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password: "newpassword",
 		})
 		require.Error(t, err, "member should not be able to update own password without providing old password")
+		require.ErrorContains(t, err, "Old password is required for non-admin users.")
 	})
 
 	t.Run("AuditorCantTellIfPasswordIncorrect", func(t *testing.T) {

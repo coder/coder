@@ -1018,6 +1018,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
 		params            codersdk.UpdateUserPasswordRequest
+		apiKey            = httpmw.APIKey(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
 			Audit:   auditor,
@@ -1045,7 +1046,25 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := userpassword.Validate(params.Password)
+	admin, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// only admins or owners can change passwords without sending old_password
+	if params.OldPassword == "" && (!slice.Contains(admin.RBACRoles, codersdk.RoleUserAdmin) &&
+		!slice.Contains(admin.RBACRoles, codersdk.RoleOwner)) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Old password is required for non-admin users.",
+		})
+		return
+	}
+
+	err = userpassword.Validate(params.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid password.",
@@ -1059,7 +1078,6 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// admins can change passwords without sending old_password
 	if params.OldPassword != "" {
 		// if they send something let's validate it
 		ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
