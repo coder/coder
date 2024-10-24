@@ -425,7 +425,7 @@ jobs:
             --first-user-username coder \
             --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
-            --first-user-trial \
+            --first-user-trial=false \
             --use-token-as-session \
             https://${{ env.PR_HOSTNAME }}
 
