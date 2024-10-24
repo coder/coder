@@ -5,13 +5,13 @@ package dbmetrics
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -27,7 +27,7 @@ var (
 const wrapname = "dbmetrics.metricsStore"
 
 // NewQueryMetrics returns a database.Store that registers metrics for all queries to reg.
-func NewQueryMetrics(s database.Store, reg prometheus.Registerer) database.Store {
+func NewQueryMetrics(s database.Store, logger slog.Logger, reg prometheus.Registerer) database.Store {
 	// Don't double-wrap.
 	if slices.Contains(s.Wrappers(), wrapname) {
 		return s
@@ -43,7 +43,7 @@ func NewQueryMetrics(s database.Store, reg prometheus.Registerer) database.Store
 	return &queryMetricsStore{
 		s:              s,
 		queryLatencies: queryLatencies,
-		dbMetrics:      NewDBMetrics(s, reg).(*metricsStore),
+		dbMetrics:      NewDBMetrics(s, logger, reg).(*metricsStore),
 	}
 }
 
@@ -66,7 +66,7 @@ func (m queryMetricsStore) Ping(ctx context.Context) (time.Duration, error) {
 	return duration, err
 }
 
-func (m queryMetricsStore) InTx(f func(database.Store) error, options *sql.TxOptions) error {
+func (m queryMetricsStore) InTx(f func(database.Store) error, options *database.TxOptions) error {
 	return m.dbMetrics.InTx(f, options)
 }
 
