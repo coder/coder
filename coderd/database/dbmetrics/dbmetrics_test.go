@@ -2,7 +2,6 @@ package dbmetrics_test
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,11 +21,11 @@ func TestInTxMetrics(t *testing.T) {
 	t.Parallel()
 
 	successLabels := prometheus.Labels{
-		"success":    "true",
-		"executions": "1",
-		"id":         "",
+		"success": "true",
+		"id":      "",
 	}
-	const inTxMetricName = "coderd_db_tx_duration_seconds"
+	const inTxHistMetricName = "coderd_db_tx_duration_seconds"
+	const inTxCountMetricName = "coderd_db_tx_executions_count"
 	t.Run("QueryMetrics", func(t *testing.T) {
 		t.Parallel()
 
@@ -40,7 +39,7 @@ func TestInTxMetrics(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check that the metrics are registered
-		inTxMetric := promhelp.HistogramValue(t, reg, inTxMetricName, successLabels)
+		inTxMetric := promhelp.HistogramValue(t, reg, inTxHistMetricName, successLabels)
 		require.NotNil(t, inTxMetric)
 		require.Equal(t, uint64(1), inTxMetric.GetSampleCount())
 	})
@@ -58,7 +57,7 @@ func TestInTxMetrics(t *testing.T) {
 		require.NoError(t, err)
 
 		// Check that the metrics are registered
-		inTxMetric := promhelp.HistogramValue(t, reg, inTxMetricName, successLabels)
+		inTxMetric := promhelp.HistogramValue(t, reg, inTxHistMetricName, successLabels)
 		require.NotNil(t, inTxMetric)
 		require.Equal(t, uint64(1), inTxMetric.GetSampleCount())
 	})
@@ -85,13 +84,20 @@ func TestInTxMetrics(t *testing.T) {
 		require.Error(t, err)
 
 		// Check that the metrics are registered
-		inTxMetric := promhelp.HistogramValue(t, reg, inTxMetricName, prometheus.Labels{
-			"success":    "false",
-			"executions": "2",
-			"id":         id,
+		inTxHistMetric := promhelp.HistogramValue(t, reg, inTxHistMetricName, prometheus.Labels{
+			"success": "false",
+			"id":      id,
 		})
-		require.NotNil(t, inTxMetric)
-		require.Equal(t, uint64(1), inTxMetric.GetSampleCount())
+		require.NotNil(t, inTxHistMetric)
+		require.Equal(t, uint64(1), inTxHistMetric.GetSampleCount())
+
+		inTxCountMetric := promhelp.CounterValue(t, reg, inTxCountMetricName, prometheus.Labels{
+			"success": "false",
+			"retries": "1",
+			"id":      id,
+		})
+		require.NotNil(t, inTxCountMetric)
+		require.Equal(t, 1, inTxCountMetric)
 
 		// Also check the logs
 		require.Contains(t, output.String(), "some dumb error")
@@ -99,7 +105,5 @@ func TestInTxMetrics(t *testing.T) {
 		require.Contains(t, output.String(), "success=false")
 		require.Contains(t, output.String(), "executions=2")
 		require.Contains(t, output.String(), "id="+id)
-
-		fmt.Println(promhelp.RegistryDump(reg))
 	})
 }

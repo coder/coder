@@ -39,6 +39,8 @@ func Compare(reg prometheus.Gatherer, compare string, metricNames ...string) err
 
 // HistogramValue returns the value of a histogram metric with the given name and labels.
 func HistogramValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) *io_prometheus_client.Histogram {
+	t.Helper()
+
 	labeled := MetricValue(t, reg, metricName, labels)
 	require.NotNilf(t, labeled, "metric %q with labels %v not found", metricName, labels)
 	return labeled.GetHistogram()
@@ -46,6 +48,8 @@ func HistogramValue(t testing.TB, reg prometheus.Gatherer, metricName string, la
 
 // GaugeValue returns the value of a gauge metric with the given name and labels.
 func GaugeValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) int {
+	t.Helper()
+
 	labeled := MetricValue(t, reg, metricName, labels)
 	require.NotNilf(t, labeled, "metric %q with labels %v not found", metricName, labels)
 	return int(labeled.GetGauge().GetValue())
@@ -53,12 +57,16 @@ func GaugeValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels
 
 // CounterValue returns the value of a counter metric with the given name and labels.
 func CounterValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) int {
+	t.Helper()
+
 	labeled := MetricValue(t, reg, metricName, labels)
 	require.NotNilf(t, labeled, "metric %q with labels %v not found", metricName, labels)
 	return int(labeled.GetCounter().GetValue())
 }
 
 func MetricValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) *io_prometheus_client.Metric {
+	t.Helper()
+
 	metrics, err := reg.Gather()
 	require.NoError(t, err)
 

@@ -14,8 +14,11 @@ import (
 
 type metricsStore struct {
 	database.Store
-	logger     slog.Logger
+	logger slog.Logger
+	// txDuration is how long transactions take to execute.
 	txDuration *prometheus.HistogramVec
+	// txRetries is how many retries we are seeing for a given tx.
+	txRetries *prometheus.CounterVec
 }
 
 // NewDBMetrics returns a database.Store that registers metrics for the database
@@ -27,6 +30,21 @@ func NewDBMetrics(s database.Store, logger slog.Logger, reg prometheus.Registere
 	if slices.Contains(s.Wrappers(), wrapname) {
 		return s
 	}
+	txRetries := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "db",
+		Name:      "tx_executions_count",
+		Help:      "Total count of transactions executed. 'retries' is expected to be 0 for a successful transaction.",
+	}, []string{
+		"success", // Did the InTx function return an error?
+		// Number of executions, since we have retry logic on serialization errors.
+		// retries = Executions - 1 (as 1 execute is expected)
+		"retries",
+		// Uniquely naming some transactions can help debug reoccurring errors.
+		"id",
+	})
+	reg.MustRegister(txRetries)
+
 	txDuration := prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "coderd",
 		Subsystem: "db",
@@ -35,8 +53,6 @@ func NewDBMetrics(s database.Store, logger slog.Logger, reg prometheus.Registere
 		Buckets:   prometheus.DefBuckets,
 	}, []string{
 		"success", // Did the InTx function return an error?
-		// Number of executions, since we have retry logic on serialization errors.
-		"executions",
 		// Uniquely naming some transactions can help debug reoccurring errors.
 		"id",
 	})
@@ -44,6 +60,7 @@ func NewDBMetrics(s database.Store, logger slog.Logger, reg prometheus.Registere
 	return &metricsStore{
 		Store:      s,
 		txDuration: txDuration,
+		txRetries:  txRetries,
 		logger:     logger,
 	}
 }
@@ -61,13 +78,18 @@ func (m metricsStore) InTx(f func(database.Store) error, options *database.TxOpt
 	err := m.Store.InTx(f, options)
 	dur := time.Since(start)
 	// The number of unique label combinations is
-	// 2 x 3 (retry count) x #IDs
+	// 2 x #IDs x #of buckets
 	// So IDs should be used sparingly to prevent too much bloat.
 	m.txDuration.With(prometheus.Labels{
-		"success":    strconv.FormatBool(err == nil),
-		"executions": strconv.FormatInt(int64(options.ExecutionCount()), 10),
-		"id":         options.TxIdentifier, // Can be empty string for unlabeled
+		"success": strconv.FormatBool(err == nil),
+		"id":      options.TxIdentifier, // Can be empty string for unlabeled
 	}).Observe(dur.Seconds())
+
+	m.txRetries.With(prometheus.Labels{
+		"success": strconv.FormatBool(err == nil),
+		"retries": strconv.FormatInt(int64(options.ExecutionCount()-1), 10),
+		"id":      options.TxIdentifier, // Can be empty string for unlabeled
+	}).Inc()
 
 	// Log all serializable transactions that are retried.
 	// This is expected to happen in production, but should be kept
