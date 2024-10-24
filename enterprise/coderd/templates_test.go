@@ -52,13 +52,22 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		client, secondUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
-		_, thirdUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		otherClient, otherUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		_ = coderdtest.CreateWorkspace(t, owner, template.ID)
 		_ = coderdtest.CreateWorkspace(t, client, template.ID)
+
+		// Create another template for testing that users of another template do not
+		// get a notification.
+		secondVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		secondTemplate := coderdtest.CreateTemplate(t, client, user.OrganizationID, secondVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, secondVersion.ID)
+
+		_ = coderdtest.CreateWorkspace(t, otherClient, secondTemplate.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -95,7 +104,7 @@ func TestTemplates(t *testing.T) {
 		// The previous check should verify this but we're double checking that
 		// the notification wasn't sent to users not using the template.
 		for _, notif := range notifs {
-			assert.NotEqual(t, thirdUser.ID, notif.UserID)
+			assert.NotEqual(t, otherUser.ID, notif.UserID)
 		}
 
 		_, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
