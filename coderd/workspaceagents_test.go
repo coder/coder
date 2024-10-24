@@ -29,7 +29,6 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -563,7 +562,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		clock := quartz.NewMock(t)
 		resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
-		mgr := cryptokeys.StaticKey{
+		mgr := jwtutils.StaticKey{
 			ID:  uuid.New().String(),
 			Key: resumeTokenSigningKey[:],
 		}
@@ -635,7 +634,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		clock := quartz.NewMock(t)
 		resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
-		mgr := cryptokeys.StaticKey{
+		mgr := jwtutils.StaticKey{
 			ID:  uuid.New().String(),
 			Key: resumeTokenSigningKey[:],
 		}

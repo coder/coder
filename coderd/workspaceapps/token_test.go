@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 )
@@ -344,10 +343,10 @@ func Test_FromRequest(t *testing.T) {
 	})
 }
 
-func newSigner(t *testing.T) cryptokeys.StaticKey {
+func newSigner(t *testing.T) jwtutils.StaticKey {
 	t.Helper()
 
-	return cryptokeys.StaticKey{
+	return jwtutils.StaticKey{
 		ID:  "test",
 		Key: generateSecret(t, 64),
 	}

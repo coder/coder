@@ -24,8 +24,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/apiversion"
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -166,7 +166,7 @@ func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
 	clock := quartz.NewMock(t)
 	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
 	require.NoError(t, err)
-	mgr := cryptokeys.StaticKey{
+	mgr := jwtutils.StaticKey{
 		ID:  "123",
 		Key: resumeTokenSigningKey[:],
 	}
@@ -285,7 +285,7 @@ func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
 	clock := quartz.NewMock(t)
 	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
 	require.NoError(t, err)
-	mgr := cryptokeys.StaticKey{
+	mgr := jwtutils.StaticKey{
 		ID:  uuid.New().String(),
 		Key: resumeTokenSigningKey[:],
 	}
