@@ -10,6 +10,7 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -19,7 +20,6 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {

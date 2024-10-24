@@ -13,8 +13,8 @@ import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, type PropsWithChildren, createContext } from "react";
 import { useQuery } from "react-query";
-import { selectFeatureVisibility } from "./entitlements";
 import { useParams } from "react-router-dom";
+import { selectFeatureVisibility } from "./entitlements";
 
 export interface DashboardValue {
 	entitlements: Entitlements;

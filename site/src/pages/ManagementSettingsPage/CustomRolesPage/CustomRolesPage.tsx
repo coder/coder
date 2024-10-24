@@ -7,6 +7,7 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -14,7 +15,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import CustomRolesPageView from "./CustomRolesPageView";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const CustomRolesPage: FC = () => {
 	const queryClient = useQueryClient();

@@ -9,6 +9,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
@@ -16,7 +17,6 @@ import { useQuery } from "react-query";
 import { Navigate, Link as RouterLink, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const GroupsPage: FC = () => {
 	const feats = useFeatureVisibility();

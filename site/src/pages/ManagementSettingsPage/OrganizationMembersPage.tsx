@@ -15,11 +15,11 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 const OrganizationMembersPage: FC = () => {
 	const queryClient = useQueryClient();
