@@ -12,6 +12,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"flag"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -80,6 +81,16 @@ func (q *sqlQuerier) Ping(ctx context.Context) (time.Duration, error) {
 	return time.Since(start), err
 }
 
+// retryAmount is an arbitrary number.
+// Unit tests should disable retries.
+var retryAmount = 3
+
+func init() {
+	if flag.Lookup("test.v") != nil {
+		retryAmount = 1
+	}
+}
+
 func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) error {
 	_, inTx := q.db.(*sqlx.Tx)
 	isolation := sql.LevelDefault
@@ -93,8 +104,6 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) err
 	// If we are in a transaction already, the parent InTx call will handle the retry.
 	// We do not want to duplicate those retries.
 	if !inTx && isolation == sql.LevelSerializable {
-		// This is an arbitrarily chosen number.
-		const retryAmount = 3
 		var err error
 		attempts := 0
 		for attempts = 0; attempts < retryAmount; attempts++ {
