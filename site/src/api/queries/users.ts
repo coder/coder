@@ -9,6 +9,7 @@ import type {
 	UpdateUserProfileRequest,
 	User,
 	UsersRequest,
+	ValidateUserPasswordRequest,
 } from "api/typesGenerated";
 import {
 	type MetadataState,
@@ -61,6 +62,12 @@ export const updatePassword = () => {
 			...request
 		}: UpdateUserPasswordRequest & { userId: string }) =>
 			API.updateUserPassword(userId, request),
+	};
+};
+
+export const validatePassword = () => {
+	return {
+		mutationFn: API.validateUserPassword,
 	};
 };
 

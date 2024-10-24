@@ -14,6 +14,7 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
+import { useEffect } from "react";
 import { docs } from "utils/docs";
 import {
 	getFormHelpers,
@@ -82,12 +83,16 @@ const numberOfDevelopersOptions = [
 
 export interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
+	onPasswordChange?: (password: string) => void;
+	passwordIsValid?: boolean;
 	error?: unknown;
 	isLoading?: boolean;
 }
 
 export const SetupPageView: FC<SetupPageViewProps> = ({
 	onSubmit,
+	onPasswordChange,
+	passwordIsValid = true,
 	error,
 	isLoading,
 }) => {
@@ -116,6 +121,10 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 		form,
 		error,
 	);
+
+	useEffect(() => {
+		onPasswordChange?.(form.values.password);
+	}, [form.values.password, onPasswordChange]); // Run effect when password changes
 
 	return (
 		<SignInLayout>
@@ -174,6 +183,10 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						id="password"
 						label={Language.passwordLabel}
 						type="password"
+						error={!!(form.values.password !== "" && !passwordIsValid)}
+						helperText={
+							!passwordIsValid ? "Password is not strong enough." : ""
+						}
 					/>
 					<label
 						htmlFor="trial"
