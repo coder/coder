@@ -28,6 +28,15 @@ export const LoginPage: FC = () => {
 	const navigate = useNavigate();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
+	let redirectError: Error | null = null;
+	let redirectUrl: URL | null = null;
+	try {
+		redirectUrl = new URL(redirectTo);
+	} catch {
+		// Do nothing
+	}
+
+	const isApiRouteRedirect = redirectTo.startsWith("/api/v2");
 
 	useEffect(() => {
 		if (!buildInfoQuery.data || isSignedIn) {
@@ -42,41 +51,24 @@ export const LoginPage: FC = () => {
 	}, [isSignedIn, buildInfoQuery.data, user?.id]);
 
 	if (isSignedIn) {
-		if (buildInfoQuery.data) {
-			// This uses `navigator.sendBeacon`, so window.href
-			// will not stop the request from being sent!
-			sendDeploymentEvent(buildInfoQuery.data, {
-				type: "deployment_login",
-				user_id: user?.id,
-			});
+		// The reason we need `window.location.href` for api redirects is that
+		// we need the page to reload and make a request to the backend. If we
+		// use `<Navigate>`, react would handle the redirect itself and never
+		// request the page from the backend.
+		if (isApiRouteRedirect) {
+			const sanitizedUrl = new URL(redirectTo, window.location.origin);
+			window.location.href = sanitizedUrl.pathname + sanitizedUrl.search;
+			// Setting the href should immediately request a new page. Show an
+			// error state if it doesn't.
+			redirectError = new Error("unable to redirect");
+		} else {
+			return (
+				<Navigate
+					to={redirectUrl ? redirectUrl.pathname : redirectTo}
+					replace
+				/>
+			);
 		}
-
-		// If the redirect is going to a workspace application, and we
-		// are missing authentication, then we need to change the href location
-		// to trigger a HTTP request. This allows the BE to generate the auth
-		// cookie required.  Similarly for the OAuth2 exchange as the authorization
-		// page is served by the backend.
-		// If no redirect is present, then ignore this branched logic.
-		if (redirectTo !== "" && redirectTo !== "/") {
-			try {
-				// This catches any absolute redirects. Relative redirects
-				// will fail the try/catch. Subdomain apps are absolute redirects.
-				const redirectURL = new URL(redirectTo);
-				if (redirectURL.host !== window.location.host) {
-					window.location.href = redirectTo;
-					return null;
-				}
-			} catch {
-				// Do nothing
-			}
-			// Path based apps and OAuth2.
-			if (redirectTo.includes("/apps/") || redirectTo.includes("/oauth2/")) {
-				window.location.href = redirectTo;
-				return null;
-			}
-		}
-
-		return <Navigate to={redirectTo} replace />;
 	}
 
 	if (isConfiguringTheFirstUser) {
@@ -90,7 +82,7 @@ export const LoginPage: FC = () => {
 			</Helmet>
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
-				error={signInError}
+				error={signInError ?? redirectError}
 				isLoading={isLoading || authMethodsQuery.isLoading}
 				buildInfo={buildInfoQuery.data}
 				isSigningIn={isSigningIn}
@@ -98,6 +90,7 @@ export const LoginPage: FC = () => {
 					await signIn(email, password);
 					navigate("/");
 				}}
+				redirectTo={redirectTo}
 			/>
 		</>
 	);
