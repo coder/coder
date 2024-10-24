@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Validate(t *testing.T) {
+func Test_DefaultsFromFile(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -259,7 +259,7 @@ func Test_Validate(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			tar := createTar(t, tc.files)
 			logger := slogtest.Make(t, nil)
-			tags, err := workspacetags.Validate(ctx, logger, tar, "application/x-tar")
+			tags, err := workspacetags.DefaultsFromFile(ctx, logger, tar, "application/x-tar")
 			if tc.expectError != "" {
 				require.NotNil(t, err)
 				require.Contains(t, err.Error(), tc.expectError)
@@ -273,7 +273,7 @@ func Test_Validate(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			zip := createZip(t, tc.files)
 			logger := slogtest.Make(t, nil)
-			tags, err := workspacetags.Validate(ctx, logger, zip, "application/zip")
+			tags, err := workspacetags.DefaultsFromFile(ctx, logger, zip, "application/zip")
 			if tc.expectError != "" {
 				require.Contains(t, err.Error(), tc.expectError)
 			} else {

@@ -25,14 +25,15 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
-// Validate ensures that any uses of the `coder_workspace_tags` data source only
+// DefaultsFromFile extracts the default values for a `coder_workspace_tags` resource from the given
+// file. It also ensures that any uses of the `coder_workspace_tags` data source only
 // reference the following data types:
 // 1. Static variables
 // 2. Template variables
 // 3. Coder parameters
 // Any other data types are not allowed, as their values cannot be known at
 // the time of template import.
-func Validate(ctx context.Context, logger slog.Logger, file []byte, mimetype string) (tags map[string]string, err error) {
+func DefaultsFromFile(ctx context.Context, logger slog.Logger, file []byte, mimetype string) (tags map[string]string, err error) {
 	// Create a temporary directory
 	tmpDir, err := os.MkdirTemp("", "workspacetags-validate")
 	if err != nil {
