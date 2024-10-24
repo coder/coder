@@ -773,7 +773,7 @@ func TestEncryptDecryptField(t *testing.T) {
 
 func expectInTx(mdb *dbmock.MockStore) *gomock.Call {
 	return mdb.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(f func(store database.Store) error, _ *sql.TxOptions) error {
+		func(f func(store database.Store) error, _ *database.TxOptions) error {
 			return f(mdb)
 		},
 	)
