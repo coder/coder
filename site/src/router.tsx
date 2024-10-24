@@ -426,16 +426,24 @@ export const router = createBrowserRouter(
 						</Route>
 					</Route>
 
+					{/**
+					 * @todo 2024-10-24 - MES - The current deployment page is
+					 * almost empty, which isn't great for two reasons:
+					 *
+					 * 1. Even though none of our links lead to the page, the
+					 *    user is still able to navigate straight there by
+					 *    accident.
+					 * 2. If the user has access to some deployment pages, but
+					 *    tries accessing one that they shouldn't be able to
+					 *    access, we have to reroute them somewhere. The base
+					 *    deployment route is the only safe option, because not
+					 *    even the general page is accessible by everyone.
+					 *
+					 * Should update the base /deployment page so that there's
+					 * something there, but that will require coordination with
+					 * the design team.
+					 */}
 					<Route path="/deployment" element={<ManagementSettingsLayout />}>
-						{/*
-						  None of the UI elements link directly to the base
-						  /deployment route, but if you navigate there directly,
-						  you would just see a mostly empty screen. Redirect to
-						  the general page for better UX. */}
-						<Route
-							path=""
-							element={<Navigate to="/deployment/general" replace />}
-						/>
 						<Route path="general" element={<GeneralSettingsPage />} />
 						<Route path="licenses" element={<LicensesSettingsPage />} />
 						<Route path="licenses/add" element={<AddNewLicensePage />} />

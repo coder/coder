@@ -12,6 +12,7 @@ import { useQuery } from "react-query";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import type { Permissions } from "contexts/auth/permissions";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 type ManagementSettingsValue = Readonly<{
 	deploymentValues: DeploymentConfig | undefined;
@@ -47,14 +48,25 @@ export const canEditOrganization = (
 };
 
 const isManagementRoutePermitted = (
-	href: string,
+	locationPath: string,
 	permissions: Permissions,
+	showOrganizations: boolean,
 ): boolean => {
-	console.log(href);
+	if (locationPath.startsWith("/organizations")) {
+		return showOrganizations;
+	}
 
-	// Switch logic should mirror the conditions used to display the sidebar
-	// tabs from SidebarView.tsx
+	if (!locationPath.startsWith("/deployment")) {
+		return false;
+	}
+
+	// Switch logic for deployment routes should mirror the conditions used to
+	// display the sidebar tabs from SidebarView.tsx
+	const href = locationPath.replace(/^\/deployment/, "");
 	switch (href) {
+		case "/": {
+			return true;
+		}
 		case "/general": {
 			return permissions.viewDeploymentValues;
 		}
@@ -102,6 +114,7 @@ const isManagementRoutePermitted = (
  */
 export const ManagementSettingsLayout: FC = () => {
 	const location = useLocation();
+	const { showOrganizations } = useDashboard();
 	const { permissions } = useAuthenticated();
 	const deploymentConfigQuery = useQuery({
 		...deploymentConfig(),
@@ -115,7 +128,6 @@ export const ManagementSettingsLayout: FC = () => {
 		return <Loader />;
 	}
 
-	const href = location.pathname.replace(/^\/?deployment/, "");
 	const canViewAtLeastOneTab =
 		permissions.viewDeploymentValues ||
 		permissions.viewAllUsers ||
@@ -125,23 +137,16 @@ export const ManagementSettingsLayout: FC = () => {
 	return (
 		<RequirePermission
 			permitted={
-				canViewAtLeastOneTab && isManagementRoutePermitted(href, permissions)
+				canViewAtLeastOneTab &&
+				isManagementRoutePermitted(
+					location.pathname,
+					permissions,
+					showOrganizations,
+				)
 			}
 			unpermittedRedirect={
-				/**
-				 * @todo 2024-10-14 - MES - The router logic is set up so that
-				 * if the user goes to the /deployment page, they get redirected
-				 * to the general page, purely for UX reasons (the /deployment
-				 * page is empty). But it's not guaranteed that the user can see
-				 * that page.
-				 *
-				 * Might be good to remove that router logic, and add a basic
-				 * "landing" page to the /deployment route so that we can safely
-				 * redirect the user there. But that will require coordination
-				 * with the design team.
-				 */
-				canViewAtLeastOneTab && href !== "/general"
-					? "/deployment/general"
+				canViewAtLeastOneTab && !location.pathname.startsWith("/deployment")
+					? "/deployment"
 					: "/workspaces"
 			}
 		>
