@@ -6,7 +6,6 @@ import { Loader } from "components/Loader/Loader";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { getApplicationName, getLogoURL } from "utils/appearance";
-import { retrieveRedirect } from "utils/redirect";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
@@ -17,6 +16,7 @@ export interface LoginPageViewProps {
 	buildInfo?: BuildInfoResponse;
 	isSigningIn: boolean;
 	onSignIn: (credentials: { email: string; password: string }) => void;
+	redirectTo: string;
 }
 
 export const LoginPageView: FC<LoginPageViewProps> = ({
@@ -26,9 +26,9 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	buildInfo,
 	isSigningIn,
 	onSignIn,
+	redirectTo,
 }) => {
 	const location = useLocation();
-	const redirectTo = retrieveRedirect(location.search);
 	// This allows messages to be displayed at the top of the sign in form.
 	// Helpful for any redirects that want to inform the user of something.
 	const message = new URLSearchParams(location.search).get("message");
