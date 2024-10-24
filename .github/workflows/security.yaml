@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
   # Uncomment when testing.
-  pull_request:
+  # pull_request:
 
   schedule:
     # Run every 6 hours Monday-Friday!
