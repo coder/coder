@@ -13,12 +13,11 @@ import (
 var _ cryptokeys.Fetcher = &ProxyFetcher{}
 
 type ProxyFetcher struct {
-	Client  *wsproxysdk.Client
-	Feature codersdk.CryptoKeyFeature
+	Client *wsproxysdk.Client
 }
 
-func (p *ProxyFetcher) Fetch(ctx context.Context) ([]codersdk.CryptoKey, error) {
-	keys, err := p.Client.CryptoKeys(ctx)
+func (p *ProxyFetcher) Fetch(ctx context.Context, feature codersdk.CryptoKeyFeature) ([]codersdk.CryptoKey, error) {
+	keys, err := p.Client.CryptoKeys(ctx, feature)
 	if err != nil {
 		return nil, xerrors.Errorf("crypto keys: %w", err)
 	}

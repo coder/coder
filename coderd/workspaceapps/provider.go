@@ -38,7 +38,7 @@ type ResolveRequestOptions struct {
 
 func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequestOptions) (*SignedToken, bool) {
 	appReq := opts.AppRequest.Normalize()
-	err := appReq.Validate()
+	err := appReq.Check()
 	if err != nil {
 		// This is a 500 since it's a coder server or proxy that's making this
 		// request struct based on details from the request. The values should
@@ -79,7 +79,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		Name:    codersdk.SignedAppTokenCookie,
 		Value:   tokenStr,
 		Path:    appReq.BasePath,
-		Expires: token.Expiry,
+		Expires: token.Expiry.Time(),
 	})
 
 	return token, true

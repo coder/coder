@@ -205,7 +205,6 @@ type RegisterWorkspaceProxyRequest struct {
 }
 
 type RegisterWorkspaceProxyResponse struct {
-	AppSecurityKey      string           `json:"app_security_key"`
 	DERPMeshKey         string           `json:"derp_mesh_key"`
 	DERPRegionID        int32            `json:"derp_region_id"`
 	DERPMap             *tailcfg.DERPMap `json:"derp_map"`
@@ -371,12 +370,6 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 				continue
 			}
 			failedAttempts = 0
-
-			// Check for consistency.
-			if originalRes.AppSecurityKey != resp.AppSecurityKey {
-				l.failureFn(xerrors.New("app security key has changed, proxy must be restarted"))
-				return
-			}
 
 			if originalRes.DERPMeshKey != resp.DERPMeshKey {
 				l.failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
@@ -586,10 +579,10 @@ type CryptoKeysResponse struct {
 	CryptoKeys []codersdk.CryptoKey `json:"crypto_keys"`
 }
 
-func (c *Client) CryptoKeys(ctx context.Context) (CryptoKeysResponse, error) {
+func (c *Client) CryptoKeys(ctx context.Context, feature codersdk.CryptoKeyFeature) (CryptoKeysResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		"/api/v2/workspaceproxies/me/crypto-keys",
-		nil,
+		"/api/v2/workspaceproxies/me/crypto-keys", nil,
+		codersdk.WithQueryParam("feature", string(feature)),
 	)
 	if err != nil {
 		return CryptoKeysResponse{}, xerrors.Errorf("make request: %w", err)

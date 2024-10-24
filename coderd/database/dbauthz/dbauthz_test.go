@@ -2243,13 +2243,13 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("InsertCryptoKey", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertCryptoKeyParams{
-			Feature: database.CryptoKeyFeatureWorkspaceApps,
+			Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		}).
 			Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
 	}))
 	s.Run("DeleteCryptoKey", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.DeleteCryptoKeyParams{
@@ -2259,7 +2259,7 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("GetCryptoKeyByFeatureAndSequence", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.GetCryptoKeyByFeatureAndSequenceParams{
@@ -2269,14 +2269,14 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("GetLatestCryptoKeyByFeature", s.Subtest(func(db database.Store, check *expects) {
 		dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
-		check.Args(database.CryptoKeyFeatureWorkspaceApps).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
 	s.Run("UpdateCryptoKeyDeletesAt", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.UpdateCryptoKeyDeletesAtParams{
@@ -2286,7 +2286,7 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
 	}))
 	s.Run("GetCryptoKeysByFeature", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.CryptoKeyFeatureWorkspaceApps).
+		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).
 			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
 }
