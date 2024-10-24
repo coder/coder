@@ -60,7 +60,7 @@ type dbCrypt struct {
 	database.Store
 }
 
-func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *sql.TxOptions) error {
+func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return db.Store.InTx(func(s database.Store) error {
 		return function(&dbCrypt{
 			primaryCipherDigest: db.primaryCipherDigest,
@@ -445,5 +445,5 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 			ActiveKeyDigest: db.primaryCipherDigest,
 			Test:            testValue,
 		})
-	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
 }
