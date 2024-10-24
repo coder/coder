@@ -1348,13 +1348,6 @@ func (m metricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return users, err
 }
 
-func (m metricsStore) GetUsersWithAccessToTemplateByID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUsersWithAccessToTemplateByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetUsersWithAccessToTemplateByID").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentAndLatestBuildByAuthToken(ctx, authToken)

@@ -2339,16 +2339,6 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
-func (q *querier) GetUsersWithAccessToTemplateByID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
-	// Ensure we have permission to access this template.
-	_, err := q.GetTemplateByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return q.db.GetUsersWithAccessToTemplateByID(ctx, id)
-}
-
 func (q *querier) GetWorkspaceAgentAndLatestBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	// This is a system function
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {

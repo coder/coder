@@ -47,18 +47,18 @@ func TestTemplates(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAccessControl:         1,
-					codersdk.FeatureMultipleOrganizations: 1,
+					codersdk.FeatureAccessControl: 1,
 				},
 			},
 		})
-		client, anotherUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		client, secondUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		_, thirdUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		org := coderdenttest.CreateOrganization(t, owner, coderdenttest.CreateOrganizationOptions{})
-		_, thirdUser := coderdtest.CreateAnotherUser(t, owner, org.ID, rbac.RoleTemplateAdmin())
+		_ = coderdtest.CreateWorkspace(t, owner, template.ID)
+		_ = coderdtest.CreateWorkspace(t, client, template.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -80,7 +80,7 @@ func TestTemplates(t *testing.T) {
 		}
 		require.Equal(t, 2, len(notifs))
 
-		expectedSentTo := []string{user.UserID.String(), anotherUser.ID.String()}
+		expectedSentTo := []string{user.UserID.String(), secondUser.ID.String()}
 		slices.Sort(expectedSentTo)
 
 		sentTo := []string{}
@@ -93,7 +93,7 @@ func TestTemplates(t *testing.T) {
 		assert.Equal(t, expectedSentTo, sentTo)
 
 		// The previous check should verify this but we're double checking that
-		// the notification wasn't sent to a user in another org.
+		// the notification wasn't sent to users not using the template.
 		for _, notif := range notifs {
 			assert.NotEqual(t, thirdUser.ID, notif.UserID)
 		}

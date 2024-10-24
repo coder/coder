@@ -5669,33 +5669,6 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *FakeQuerier) GetUsersWithAccessToTemplateByID(_ context.Context, id uuid.UUID) ([]uuid.UUID, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	groups := make(map[string]struct{}, 0)
-	for _, template := range q.templates {
-		if template.ID != id {
-			continue
-		}
-
-		for group := range template.GroupACL {
-			groups[group] = struct{}{}
-		}
-	}
-
-	users := make([]uuid.UUID, 0)
-	for _, member := range q.organizationMembers {
-		if _, ok := groups[member.OrganizationID.String()]; !ok {
-			continue
-		}
-
-		users = append(users, member.UserID)
-	}
-
-	return users, nil
-}
-
 func (q *FakeQuerier) GetWorkspaceAgentAndLatestBuildByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndLatestBuildByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
