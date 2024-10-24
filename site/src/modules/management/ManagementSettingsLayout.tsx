@@ -116,7 +116,7 @@ export const ManagementSettingsLayout: FC = () => {
 	}
 
 	const href = location.pathname.replace(/^\/?deployment/, "");
-	const canViewSomePageContent =
+	const canViewAtLeastOneTab =
 		permissions.viewDeploymentValues ||
 		permissions.viewAllUsers ||
 		permissions.editAnyOrganization ||
@@ -125,10 +125,22 @@ export const ManagementSettingsLayout: FC = () => {
 	return (
 		<RequirePermission
 			permitted={
-				canViewSomePageContent && isManagementRoutePermitted(href, permissions)
+				canViewAtLeastOneTab && isManagementRoutePermitted(href, permissions)
 			}
 			unpermittedRedirect={
-				canViewSomePageContent && href !== "/general"
+				/**
+				 * @todo 2024-10-14 - MES - The router logic is set up so that
+				 * if the user goes to the /deployment page, they get redirected
+				 * to the general page, purely for UX reasons (the /deployment
+				 * page is empty). But it's not guaranteed that the user can see
+				 * that page.
+				 *
+				 * Might be good to remove that router logic, and add a basic
+				 * "landing" page to the /deployment route so that we can safely
+				 * redirect the user there. But that will require coordination
+				 * with the design team.
+				 */
+				canViewAtLeastOneTab && href !== "/general"
 					? "/deployment/general"
 					: "/workspaces"
 			}
