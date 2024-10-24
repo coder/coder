@@ -7,12 +7,12 @@ import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
+import type { Permissions } from "contexts/auth/permissions";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
-import type { Permissions } from "contexts/auth/permissions";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 type ManagementSettingsValue = Readonly<{
 	deploymentValues: DeploymentConfig | undefined;
