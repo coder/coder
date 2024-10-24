@@ -9,7 +9,6 @@
 		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "1.9.4",
 		"prettier": "3.3.3"
 	}
 }
