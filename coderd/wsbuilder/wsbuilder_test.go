@@ -737,7 +737,7 @@ func expectDB(t *testing.T, opts ...txExpect) *dbmock.MockStore {
 	mDB.EXPECT().InTx(
 		gomock.Any(), gomock.Eq(&database.TxOptions{Isolation: sql.LevelRepeatableRead}),
 	).
-		DoAndReturn(func(f func(database.Store) error, _ *sql.TxOptions) error {
+		DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 			err := f(mTx)
 			return err
 		})
@@ -763,7 +763,7 @@ func withTemplate(mTx *dbmock.MockStore) {
 // withInTx runs the given functions on the same db mock.
 func withInTx(mTx *dbmock.MockStore) {
 	mTx.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(f func(store database.Store) error, _ *sql.TxOptions) error {
+		func(f func(store database.Store) error, _ *database.TxOptions) error {
 			return f(mTx)
 		},
 	)
