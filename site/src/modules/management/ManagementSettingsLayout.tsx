@@ -9,8 +9,9 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
+import type { Permissions } from "contexts/auth/permissions";
 
 type ManagementSettingsValue = Readonly<{
 	deploymentValues: DeploymentConfig | undefined;
@@ -45,6 +46,54 @@ export const canEditOrganization = (
 	);
 };
 
+const isManagementRoutePermitted = (
+	href: string,
+	permissions: Permissions,
+): boolean => {
+	console.log(href);
+
+	// Switch logic should mirror the conditions used to display the sidebar
+	// tabs from SidebarView.tsx
+	switch (href) {
+		case "/general": {
+			return permissions.viewDeploymentValues;
+		}
+		case "/licenses": {
+			return permissions.viewAllLicenses;
+		}
+		case "/appearance": {
+			return permissions.editDeploymentValues;
+		}
+		case "/userauth": {
+			return permissions.viewDeploymentValues;
+		}
+		case "/external-auth": {
+			return permissions.viewDeploymentValues;
+		}
+		case "/network": {
+			return permissions.viewDeploymentValues;
+		}
+		case "/workspace-proxies": {
+			return permissions.readWorkspaceProxies;
+		}
+		case "/security": {
+			return permissions.viewDeploymentValues;
+		}
+		case "/observability": {
+			return permissions.viewDeploymentValues;
+		}
+		case "/users": {
+			return permissions.viewAllUsers;
+		}
+		case "/notifications": {
+			return permissions.viewNotificationTemplate;
+		}
+		default: {
+			return false;
+		}
+	}
+};
+
 /**
  * A multi-org capable settings page layout.
  *
@@ -52,6 +101,7 @@ export const canEditOrganization = (
  * See DeploySettingsLayoutInner instead.
  */
 export const ManagementSettingsLayout: FC = () => {
+	const location = useLocation();
 	const { permissions } = useAuthenticated();
 	const deploymentConfigQuery = useQuery({
 		...deploymentConfig(),
@@ -65,16 +115,22 @@ export const ManagementSettingsLayout: FC = () => {
 		return <Loader />;
 	}
 
+	const href = location.pathname.replace(/^\/?deployment/, "");
+	const canViewSomePageContent =
+		permissions.viewDeploymentValues ||
+		permissions.viewAllUsers ||
+		permissions.editAnyOrganization ||
+		permissions.viewAnyAuditLog;
+
 	return (
 		<RequirePermission
-			isFeatureVisible={
-				// The deployment settings page also contains users, audit logs,
-				// groups and organizations, so this page must be visible if you
-				// can see any of these.
-				permissions.viewDeploymentValues ||
-				permissions.viewAllUsers ||
-				permissions.editAnyOrganization ||
-				permissions.viewAnyAuditLog
+			permitted={
+				canViewSomePageContent && isManagementRoutePermitted(href, permissions)
+			}
+			unpermittedRedirect={
+				canViewSomePageContent && href !== "/general"
+					? "/deployment/general"
+					: "/workspaces"
 			}
 		>
 			<Margins>
