@@ -1046,25 +1046,14 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	admin, err := api.Database.GetUserByID(ctx, apiKey.UserID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// only admins or owners can change passwords without sending old_password
-	if params.OldPassword == "" && (!slice.Contains(admin.RBACRoles, codersdk.RoleUserAdmin) &&
-		!slice.Contains(admin.RBACRoles, codersdk.RoleOwner)) {
+	// A user need to put its own password to update it
+	if apiKey.UserID == user.ID && params.OldPassword == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Old password is required for non-admin users.",
+			Message: "Old password is required.",
 		})
-		return
 	}
 
-	err = userpassword.Validate(params.Password)
+	err := userpassword.Validate(params.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid password.",

@@ -1057,6 +1057,31 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.NoError(t, err, "member should login successfully with the new password")
 	})
 
+	t.Run("AuditorCantUpdateOtherUserPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		auditor, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleAuditor())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		member, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "coder@coder.com",
+			Username:        "coder",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+		})
+		require.NoError(t, err, "create member")
+
+		err = auditor.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.Error(t, err, "auditor should not be able to update member password")
+		require.ErrorContains(t, err, "unexpected status code 404: Resource not found or you do not have access to this resource")
+	})
+
 	t.Run("MemberCanUpdateOwnPassword", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
