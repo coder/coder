@@ -60,7 +60,7 @@ export const LoginPage: FC = () => {
 			window.location.href = sanitizedUrl.pathname + sanitizedUrl.search;
 			// Setting the href should immediately request a new page. Show an
 			// error state if it doesn't.
-			redirectError = new Error("unable to redirect")
+			redirectError = new Error("unable to redirect");
 		} else {
 			return (
 				<Navigate
