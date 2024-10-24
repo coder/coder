@@ -1357,14 +1357,18 @@ when required by your organization's security policy.`,
 			Default: strings.Join(agentmetrics.LabelAll, ","),
 		},
 		{
-			Name:        "Prometheus Collect Database Metrics",
-			Description: "Collect database metrics (may increase charges for metrics storage).",
-			Flag:        "prometheus-collect-db-metrics",
-			Env:         "CODER_PROMETHEUS_COLLECT_DB_METRICS",
-			Value:       &c.Prometheus.CollectDBMetrics,
-			Group:       &deploymentGroupIntrospectionPrometheus,
-			YAML:        "collect_db_metrics",
-			Default:     "false",
+			Name: "Prometheus Collect Database Metrics",
+			// Some db metrics like transaction information will still be collected.
+			// Query metrics blow up the number of unique time series with labels
+			// and can be very expensive. So default to not capturing query metrics.
+			Description: "Collect database query metrics (may increase charges for metrics storage). " +
+				"If set to false, a reduced set of database metrics are still collected.",
+			Flag:    "prometheus-collect-db-metrics",
+			Env:     "CODER_PROMETHEUS_COLLECT_DB_METRICS",
+			Value:   &c.Prometheus.CollectDBMetrics,
+			Group:   &deploymentGroupIntrospectionPrometheus,
+			YAML:    "collect_db_metrics",
+			Default: "false",
 		},
 		// Pprof settings
 		{

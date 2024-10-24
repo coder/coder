@@ -28,7 +28,7 @@ type Store interface {
 	wrapper
 
 	Ping(ctx context.Context) (time.Duration, error)
-	InTx(func(Store) error, *sql.TxOptions) error
+	InTx(func(Store) error, *TxOptions) error
 }
 
 type wrapper interface {
@@ -57,6 +57,43 @@ func New(sdb *sql.DB) Store {
 	}
 }
 
+// TxOptions is used to pass some execution metadata to the callers.
+// Ideally we could throw this into a context, but no context is used for
+// transactions. So instead, the return context is attached to the options
+// passed in.
+// This metadata should not be returned in the method signature, because it
+// is only used for metric tracking. It should never be used by business logic.
+type TxOptions struct {
+	// Isolation is the transaction isolation level.
+	// If zero, the driver or database's default level is used.
+	Isolation sql.IsolationLevel
+	ReadOnly  bool
+
+	// -- Coder specific metadata --
+	// TxIdentifier is a unique identifier for the transaction to be used
+	// in metrics. Can be any string.
+	TxIdentifier string
+
+	// Set by InTx
+	executionCount int
+}
+
+// IncrementExecutionCount is a helper function for external packages
+// to increment the unexported count.
+// Mainly for `dbmem`.
+func IncrementExecutionCount(opts *TxOptions) {
+	opts.executionCount++
+}
+
+func (o TxOptions) ExecutionCount() int {
+	return o.executionCount
+}
+
+func (o *TxOptions) WithID(id string) *TxOptions {
+	o.TxIdentifier = id
+	return o
+}
+
 // queries encompasses both are sqlc generated
 // queries and our custom queries.
 type querier interface {
@@ -80,11 +117,24 @@ func (q *sqlQuerier) Ping(ctx context.Context) (time.Duration, error) {
 	return time.Since(start), err
 }
 
-func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) error {
+func DefaultTXOptions() *TxOptions {
+	return &TxOptions{
+		Isolation: sql.LevelDefault,
+		ReadOnly:  false,
+	}
+}
+
+func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 	_, inTx := q.db.(*sqlx.Tx)
-	isolation := sql.LevelDefault
-	if txOpts != nil {
-		isolation = txOpts.Isolation
+
+	if txOpts == nil {
+		// create a default txOpts if left to nil
+		txOpts = DefaultTXOptions()
+	}
+
+	sqlOpts := &sql.TxOptions{
+		Isolation: txOpts.Isolation,
+		ReadOnly:  txOpts.ReadOnly,
 	}
 
 	// If we are not already in a transaction, and we are running in serializable
@@ -92,13 +142,14 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) err
 	// prepared to allow retries if using serializable mode.
 	// If we are in a transaction already, the parent InTx call will handle the retry.
 	// We do not want to duplicate those retries.
-	if !inTx && isolation == sql.LevelSerializable {
+	if !inTx && sqlOpts.Isolation == sql.LevelSerializable {
 		// This is an arbitrarily chosen number.
 		const retryAmount = 3
 		var err error
 		attempts := 0
 		for attempts = 0; attempts < retryAmount; attempts++ {
-			err = q.runTx(function, txOpts)
+			txOpts.executionCount++
+			err = q.runTx(function, sqlOpts)
 			if err == nil {
 				// Transaction succeeded.
 				return nil
@@ -111,7 +162,9 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *sql.TxOptions) err
 		// Transaction kept failing in serializable mode.
 		return xerrors.Errorf("transaction failed after %d attempts: %w", attempts, err)
 	}
-	return q.runTx(function, txOpts)
+
+	txOpts.executionCount++
+	return q.runTx(function, sqlOpts)
 }
 
 // InTx performs database operations inside a transaction.

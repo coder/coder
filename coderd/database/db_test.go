@@ -27,7 +27,7 @@ func TestSerializedRetry(t *testing.T) {
 	db := database.New(sqlDB)
 
 	called := 0
-	txOpts := &sql.TxOptions{Isolation: sql.LevelSerializable}
+	txOpts := &database.TxOptions{Isolation: sql.LevelSerializable}
 	err := db.InTx(func(tx database.Store) error {
 		// Test nested error
 		return tx.InTx(func(tx database.Store) error {

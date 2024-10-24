@@ -38,7 +38,7 @@ type wrapUpsertDB struct {
 	resume <-chan struct{}
 }
 
-func (w *wrapUpsertDB) InTx(fn func(database.Store) error, opts *sql.TxOptions) error {
+func (w *wrapUpsertDB) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return w.Store.InTx(func(tx database.Store) error {
 		return fn(&wrapUpsertDB{Store: tx, resume: w.resume})
 	}, opts)

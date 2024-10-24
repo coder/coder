@@ -146,7 +146,9 @@ INTROSPECTION / PROMETHEUS OPTIONS:
           Collect agent stats (may increase charges for metrics storage).
 
       --prometheus-collect-db-metrics bool, $CODER_PROMETHEUS_COLLECT_DB_METRICS (default: false)
-          Collect database metrics (may increase charges for metrics storage).
+          Collect database query metrics (may increase charges for metrics
+          storage). If set to false, a reduced set of database metrics are still
+          collected.
 
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.

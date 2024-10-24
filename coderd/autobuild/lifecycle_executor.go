@@ -285,7 +285,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					// Run with RepeatableRead isolation so that the build process sees the same data
 					// as our calculation that determines whether an autobuild is necessary.
-				}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+				}, &database.TxOptions{
+					Isolation:    sql.LevelRepeatableRead,
+					TxIdentifier: "lifecycle",
+				})
 				if auditLog != nil {
 					// If the transition didn't succeed then updating the workspace
 					// to indicate dormant didn't either.

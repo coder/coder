@@ -2,7 +2,6 @@ package idpsync_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"testing"
 
@@ -324,7 +323,7 @@ func TestNoopNoDiff(t *testing.T) {
 	// and 'UpdateMemberRoles'.
 	mDB.EXPECT().InTx(
 		gomock.Any(), gomock.Any(),
-	).DoAndReturn(func(f func(database.Store) error, _ *sql.TxOptions) error {
+	).DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 		err := f(mDB)
 		return err
 	})

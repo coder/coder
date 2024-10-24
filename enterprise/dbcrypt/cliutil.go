@@ -73,7 +73,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				}
 			}
 			return nil
-		}, &sql.TxOptions{
+		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
 		})
 		if err != nil {
@@ -163,7 +163,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				}
 			}
 			return nil
-		}, &sql.TxOptions{
+		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
 		})
 		if err != nil {

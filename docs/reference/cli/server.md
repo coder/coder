@@ -321,7 +321,7 @@ When collecting agent stats, aggregate metrics by a given set of comma-separated
 | YAML        | <code>introspection.prometheus.collect_db_metrics</code> |
 | Default     | <code>false</code>                                       |
 
-Collect database metrics (may increase charges for metrics storage).
+Collect database query metrics (may increase charges for metrics storage). If set to false, a reduced set of database metrics are still collected.
 
 ### --pprof-enable
 
