@@ -73,11 +73,11 @@ func MetricValue(t testing.TB, reg prometheus.Gatherer, metricName string, label
 	for _, m := range metrics {
 		if m.GetName() == metricName {
 			for _, labeled := range m.GetMetric() {
-				mLables := make(prometheus.Labels)
+				mLabels := make(prometheus.Labels)
 				for _, v := range labeled.GetLabel() {
-					mLables[v.GetName()] = v.GetValue()
+					mLabels[v.GetName()] = v.GetValue()
 				}
-				if maps.Equal(mLables, labels) {
+				if maps.Equal(mLabels, labels) {
 					return labeled
 				}
 			}

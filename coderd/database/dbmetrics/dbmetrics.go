@@ -97,7 +97,7 @@ func (m metricsStore) InTx(f func(database.Store) error, options *database.TxOpt
 	if options.ExecutionCount() > 1 {
 		l := m.logger.Warn
 		if err != nil {
-			// Error leve if retries were not enough
+			// Error level if retries were not enough
 			l = m.logger.Error
 		}
 		// No context is present in this function :(
