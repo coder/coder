@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"text/template"
 
@@ -27,7 +28,22 @@ const (
 	notificationsDefaultAppName = "Coder"
 )
 
-var errDecorateHelpersFailed = xerrors.New("failed to decorate helpers")
+type decorateHelpersError struct {
+	inner error
+}
+
+func (e decorateHelpersError) Error() string {
+	return fmt.Sprintf("failed to decorate helpers: %s", e.inner.Error())
+}
+
+func (e decorateHelpersError) Unwrap() error {
+	return e.inner
+}
+
+func (decorateHelpersError) Is(other error) bool {
+	_, ok := other.(decorateHelpersError)
+	return ok
+}
 
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
@@ -164,8 +180,12 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		// A message failing to be prepared correctly should not affect other messages.
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
-			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
-			failure <- n.newFailedDispatch(msg, err, xerrors.Is(err, errDecorateHelpersFailed))
+			if database.IsQueryCanceledError(err) {
+				n.log.Debug(ctx, "dispatcher construction canceled", slog.F("msg_id", msg.ID), slog.Error(err))
+			} else {
+				n.log.Error(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
+			}
+			failure <- n.newFailedDispatch(msg, err, xerrors.Is(err, decorateHelpersError{}))
 			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 			continue
 		}
@@ -226,7 +246,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 
 	helpers, err := n.fetchHelpers(ctx)
 	if err != nil {
-		return nil, errDecorateHelpersFailed
+		return nil, decorateHelpersError{err}
 	}
 
 	var title, body string
