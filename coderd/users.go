@@ -1051,6 +1051,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Old password is required.",
 		})
+		return
 	}
 
 	err := userpassword.Validate(params.Password)
