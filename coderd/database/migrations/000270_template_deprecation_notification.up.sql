@@ -11,7 +11,7 @@ VALUES (
     'Template Events',
 	'[
 		{
-			"label": "See workspaces",
+			"label": "See affected workspaces",
 			"url": "{{base_url}}/workspaces?filter=owner%3Ame+template%3A{{.Labels.template}}"
 		},
 		{
