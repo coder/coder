@@ -104,6 +104,47 @@ func Test_DefaultsFromFile(t *testing.T) {
 			expectError: "",
 		},
 		{
+			name: "main.tf with multiple valid workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					variable "region2" {
+						type    = string
+						default = "eu"
+					}
+					data "coder_parameter" "az" {
+					  name = "az"
+						type = "string"
+						default = "a"
+					}
+					data "coder_parameter" "az2" {
+					  name = "az2"
+						type = "string"
+						default = "b"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform" = "kubernetes",
+							"cluster"  = "${"devel"}${"opers"}"
+							"region"   = var.region
+							"az"       = data.coder_parameter.az.value
+						}
+					}
+					data "coder_workspace_tags" "more_tags" {
+						tags = {
+							"foo" = "bar"
+						}
+					}`,
+			},
+			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a", "foo": "bar"},
+			expectError: "",
+		},
+		{
 			name: "main.tf with missing parameter default value for workspace tags",
 			files: map[string]string{
 				"main.tf": `
