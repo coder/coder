@@ -13,12 +13,14 @@ export const checks = {
 	viewUpdateCheck: "viewUpdateCheck",
 	viewExternalAuthConfig: "viewExternalAuthConfig",
 	viewDeploymentStats: "viewDeploymentStats",
+	readWorkspaceProxies: "readWorkspaceProxies",
 	editWorkspaceProxies: "editWorkspaceProxies",
 	createOrganization: "createOrganization",
 	editAnyOrganization: "editAnyOrganization",
 	viewAnyGroup: "viewAnyGroup",
 	createGroup: "createGroup",
 	viewAllLicenses: "viewAllLicenses",
+	viewNotificationTemplate: "viewNotificationTemplate",
 } as const satisfies Record<string, string>;
 
 export const permissionsToCheck = {
@@ -96,6 +98,12 @@ export const permissionsToCheck = {
 		},
 		action: "read",
 	},
+	[checks.readWorkspaceProxies]: {
+		object: {
+			resource_type: "workspace_proxy",
+		},
+		action: "read",
+	},
 	[checks.editWorkspaceProxies]: {
 		object: {
 			resource_type: "workspace_proxy",
@@ -130,6 +138,12 @@ export const permissionsToCheck = {
 	[checks.viewAllLicenses]: {
 		object: {
 			resource_type: "license",
+		},
+		action: "read",
+	},
+	[checks.viewNotificationTemplate]: {
+		object: {
+			resource_type: "notification_template",
 		},
 		action: "read",
 	},

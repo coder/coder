@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
+	MockNoPermissions,
 	MockOrganization,
 	MockOrganization2,
 	MockPermissions,
@@ -95,9 +96,7 @@ export const NoDeploymentValues: Story = {
 };
 
 export const NoPermissions: Story = {
-	args: {
-		permissions: {},
-	},
+	args: { permissions: MockNoPermissions },
 };
 
 export const NoSelected: Story = {
