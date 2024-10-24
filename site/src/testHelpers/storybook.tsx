@@ -26,6 +26,7 @@ export const withDashboardProvider = (
 		experiments = [],
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
+		activeOrganization = organizations[0] ?? MockDefaultOrganization,
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -48,6 +49,7 @@ export const withDashboardProvider = (
 				experiments,
 				organizations,
 				showOrganizations,
+				activeOrganization,
 				appearance: MockAppearanceConfig,
 			}}
 		>
@@ -130,11 +132,7 @@ export const withGlobalSnackbar = (Story: FC) => (
 export const withManagementSettingsProvider = (Story: FC) => {
 	return (
 		<ManagementSettingsContext.Provider
-			value={{
-				deploymentValues: MockDeploymentConfig,
-				organizations: [MockDefaultOrganization],
-				organization: MockDefaultOrganization,
-			}}
+			value={{ deploymentValues: MockDeploymentConfig }}
 		>
 			<Story />
 		</ManagementSettingsContext.Provider>

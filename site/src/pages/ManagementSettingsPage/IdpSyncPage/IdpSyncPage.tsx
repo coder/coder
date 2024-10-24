@@ -11,7 +11,6 @@ import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
@@ -20,6 +19,7 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
@@ -27,8 +27,7 @@ export const IdpSyncPage: FC = () => {
 	};
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
-	const { organizations } = useManagementSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
+	const { activeOrganization } = useDashboard();
 
 	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery] =
 		useQueries({
@@ -39,7 +38,7 @@ export const IdpSyncPage: FC = () => {
 			],
 		});
 
-	if (!organization) {
+	if (!activeOrganization) {
 		return <EmptyState message="Organization not found" />;
 	}
 
@@ -94,7 +93,7 @@ export const IdpSyncPage: FC = () => {
 						roleSyncSettings={roleIdpSyncSettingsQuery.data}
 						groups={groupsQuery.data}
 						groupsMap={groupsMap}
-						organization={organization}
+						organization={activeOrganization}
 						error={error}
 					/>
 				</Cond>

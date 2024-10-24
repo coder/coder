@@ -14,12 +14,14 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, type PropsWithChildren, createContext } from "react";
 import { useQuery } from "react-query";
 import { selectFeatureVisibility } from "./entitlements";
+import { useParams } from "react-router-dom";
 
 export interface DashboardValue {
 	entitlements: Entitlements;
 	experiments: Experiments;
 	appearance: AppearanceConfig;
 	organizations: readonly Organization[];
+	activeOrganization: Organization | undefined;
 	showOrganizations: boolean;
 }
 
@@ -33,6 +35,9 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const experimentsQuery = useQuery(experiments(metadata.experiments));
 	const appearanceQuery = useQuery(appearance(metadata.appearance));
 	const organizationsQuery = useQuery(organizations());
+	const { organization: organizationName } = useParams() as {
+		organization?: string;
+	};
 
 	const error =
 		entitlementsQuery.error ||
@@ -67,6 +72,9 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 				appearance: appearanceQuery.data,
 				organizations: organizationsQuery.data,
 				showOrganizations: hasMultipleOrganizations || organizationsEnabled,
+				activeOrganization: organizationsQuery.data?.find(
+					(org) => org.name === organizationName,
+				),
 			}}
 		>
 			{children}

@@ -13,15 +13,13 @@ import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 
+type ManagementSettingsValue = Readonly<{
+	deploymentValues: DeploymentConfig;
+}>;
+
 export const ManagementSettingsContext = createContext<
 	ManagementSettingsValue | undefined
 >(undefined);
-
-type ManagementSettingsValue = Readonly<{
-	deploymentValues: DeploymentConfig;
-	organizations: readonly Organization[];
-	organization?: Organization;
-}>;
 
 export const useManagementSettings = (): ManagementSettingsValue => {
 	const context = useContext(ManagementSettingsContext);
@@ -56,11 +54,6 @@ export const canEditOrganization = (
  */
 export const ManagementSettingsLayout: FC = () => {
 	const { permissions } = useAuthenticated();
-	const deploymentConfigQuery = useQuery(deploymentConfig());
-	const { organizations } = useDashboard();
-	const { organization: orgName } = useParams() as {
-		organization?: string;
-	};
 
 	// The deployment settings page also contains users, audit logs, groups and
 	// organizations, so this page must be visible if you can see any of these.
@@ -70,39 +63,38 @@ export const ManagementSettingsLayout: FC = () => {
 		permissions.editAnyOrganization ||
 		permissions.viewAnyAuditLog;
 
-	if (deploymentConfigQuery.error) {
-		return <ErrorAlert error={deploymentConfigQuery.error} />;
-	}
+	const deploymentConfigQuery = useQuery({
+		...deploymentConfig(),
+		enabled: canViewDeploymentSettingsPage,
+	});
 
-	if (!deploymentConfigQuery.data) {
+	if (deploymentConfigQuery.isLoading) {
 		return <Loader />;
 	}
 
-	const organization =
-		organizations && orgName
-			? organizations.find((org) => org.name === orgName)
-			: undefined;
-
 	return (
 		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
-			<ManagementSettingsContext.Provider
-				value={{
-					deploymentValues: deploymentConfigQuery.data,
-					organizations,
-					organization,
-				}}
-			>
-				<Margins>
-					<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
-						<Sidebar />
-						<main css={{ width: "100%" }}>
-							<Suspense fallback={<Loader />}>
-								<Outlet />
-							</Suspense>
-						</main>
-					</Stack>
-				</Margins>
-			</ManagementSettingsContext.Provider>
+			<Margins>
+				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
+					<Sidebar />
+
+					<main css={{ flexGrow: 1 }}>
+						{deploymentConfigQuery.isError ? (
+							<ErrorAlert error={deploymentConfigQuery.error} />
+						) : (
+							<ManagementSettingsContext.Provider
+								value={{
+									deploymentValues: deploymentConfigQuery.data,
+								}}
+							>
+								<Suspense fallback={<Loader />}>
+									<Outlet />
+								</Suspense>
+							</ManagementSettingsContext.Provider>
+						)}
+					</main>
+				</Stack>
+			</Margins>
 		</RequirePermission>
 	);
 };

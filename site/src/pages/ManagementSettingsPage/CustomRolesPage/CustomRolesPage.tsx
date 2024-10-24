@@ -8,13 +8,13 @@ import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import CustomRolesPageView from "./CustomRolesPageView";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 export const CustomRolesPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -22,9 +22,10 @@ export const CustomRolesPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { organizations } = useManagementSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+	const { activeOrganization } = useDashboard();
+	const permissionsQuery = useQuery(
+		organizationPermissions(activeOrganization?.id),
+	);
 	const deleteRoleMutation = useMutation(
 		deleteOrganizationRole(queryClient, organizationName),
 	);

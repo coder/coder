@@ -9,21 +9,16 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import {
-	canEditOrganization,
-	useManagementSettings,
-} from "modules/management/ManagementSettingsLayout";
+import { canEditOrganization } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 const OrganizationSettingsPage: FC = () => {
-	const { organization: organizationName } = useParams() as {
-		organization?: string;
-	};
-	const { organizations } = useManagementSettings();
+	const { organizations, activeOrganization } = useDashboard();
 	const feats = useFeatureVisibility();
 
 	const navigate = useNavigate();
@@ -36,8 +31,8 @@ const OrganizationSettingsPage: FC = () => {
 	);
 
 	const organization =
-		organizations && organizationName
-			? getOrganizationByName(organizations, organizationName)
+		organizations && activeOrganization
+			? getOrganizationByName(organizations, activeOrganization.name)
 			: undefined;
 	const permissionsQuery = useQuery(
 		organizationsPermissions(organizations?.map((o) => o.id)),
@@ -54,7 +49,7 @@ const OrganizationSettingsPage: FC = () => {
 
 	// Redirect /organizations => /organizations/default-org, or if they cannot edit
 	// the default org, then the first org they can edit, if any.
-	if (!organizationName) {
+	if (!activeOrganization?.name) {
 		const editableOrg = [...organizations]
 			.sort((a, b) => {
 				// Prefer default org (it may not be first).

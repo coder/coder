@@ -1,3 +1,5 @@
+import type { AuthorizationCheck } from "api/typesGenerated";
+
 export const checks = {
 	viewAllUsers: "viewAllUsers",
 	updateUsers: "updateUsers",
@@ -17,7 +19,7 @@ export const checks = {
 	viewAnyGroup: "viewAnyGroup",
 	createGroup: "createGroup",
 	viewAllLicenses: "viewAllLicenses",
-} as const;
+} as const satisfies Record<string, string>;
 
 export const permissionsToCheck = {
 	[checks.viewAllUsers]: {
@@ -116,7 +118,6 @@ export const permissionsToCheck = {
 	[checks.viewAnyGroup]: {
 		object: {
 			resource_type: "group",
-			org_id: "any",
 		},
 		action: "read",
 	},
@@ -132,6 +133,6 @@ export const permissionsToCheck = {
 		},
 		action: "read",
 	},
-} as const;
+} as const satisfies Record<string, AuthorizationCheck>;
 
 export type Permissions = Record<keyof typeof permissionsToCheck, boolean>;
