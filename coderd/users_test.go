@@ -1056,6 +1056,31 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.NoError(t, err, "member should login successfully with the new password")
 	})
 
+	t.Run("AuditorCantUpdateOtherUserPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		auditor, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleAuditor())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		member, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "coder@coder.com",
+			Username:        "coder",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+		})
+		require.NoError(t, err, "create member")
+
+		err = auditor.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.Error(t, err, "auditor should not be able to update member password")
+		require.ErrorContains(t, err, "unexpected status code 404: Resource not found or you do not have access to this resource")
+	})
+
 	t.Run("MemberCanUpdateOwnPassword", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -1097,6 +1122,7 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password: "newpassword",
 		})
 		require.Error(t, err, "member should not be able to update own password without providing old password")
+		require.ErrorContains(t, err, "Old password is required.")
 	})
 
 	t.Run("AuditorCantTellIfPasswordIncorrect", func(t *testing.T) {
@@ -1133,7 +1159,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Equal(t, int32(http.StatusNotFound), auditor.AuditLogs()[numLogs-1].StatusCode)
 	})
 
-	t.Run("AdminCanUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
+	t.Run("AdminCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
@@ -1150,7 +1176,8 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		numLogs++ // add an audit log for user update
 
-		require.NoError(t, err, "admin should be able to update own password without providing old password")
+		require.Error(t, err, "admin should not be able to update own password without providing old password")
+		require.ErrorContains(t, err, "Old password is required.")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
@@ -1170,7 +1197,8 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.NoError(t, err)
 
 		err = client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
-			Password: "MyNewSecurePassword!",
+			OldPassword: "SomeSecurePassword!",
+			Password:    "MyNewSecurePassword!",
 		})
 		require.NoError(t, err)
 
