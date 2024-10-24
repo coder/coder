@@ -205,7 +205,7 @@ export const CreateUserForm: FC<
 							helperText:
 								(form.values.login_type !== "password" &&
 									"No password required for this login type") ||
-								(!passwordIsValid && "password is not strong."),
+								(form.values.password !== "" && !passwordIsValid && "password is not strong."),
 						})}
 						autoComplete="current-password"
 						fullWidth

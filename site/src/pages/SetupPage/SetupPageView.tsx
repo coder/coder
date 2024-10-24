@@ -183,7 +183,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						id="password"
 						label={Language.passwordLabel}
 						type="password"
-						helperText={!passwordIsValid ? "Password is not strong." : ""} // Provide feedback
+						helperText={form.values.password !== "" && !passwordIsValid ? "Password is not strong." : ""}
 					/>
 					<label
 						htmlFor="trial"
