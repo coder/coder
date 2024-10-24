@@ -19,7 +19,7 @@ func TestReadModifyUpdate_OK(t *testing.T) {
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 
 	mDB.EXPECT().
-		InTx(gomock.Any(), &sql.TxOptions{Isolation: sql.LevelRepeatableRead}).
+		InTx(gomock.Any(), &database.TxOptions{Isolation: sql.LevelRepeatableRead}).
 		Times(1).
 		Return(nil)
 	err := database.ReadModifyUpdate(mDB, func(tx database.Store) error {
@@ -34,11 +34,11 @@ func TestReadModifyUpdate_RetryOK(t *testing.T) {
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 
 	firstUpdate := mDB.EXPECT().
-		InTx(gomock.Any(), &sql.TxOptions{Isolation: sql.LevelRepeatableRead}).
+		InTx(gomock.Any(), &database.TxOptions{Isolation: sql.LevelRepeatableRead}).
 		Times(1).
 		Return(&pq.Error{Code: pq.ErrorCode("40001")})
 	mDB.EXPECT().
-		InTx(gomock.Any(), &sql.TxOptions{Isolation: sql.LevelRepeatableRead}).
+		InTx(gomock.Any(), &database.TxOptions{Isolation: sql.LevelRepeatableRead}).
 		After(firstUpdate).
 		Times(1).
 		Return(nil)
@@ -55,7 +55,7 @@ func TestReadModifyUpdate_HardError(t *testing.T) {
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 
 	mDB.EXPECT().
-		InTx(gomock.Any(), &sql.TxOptions{Isolation: sql.LevelRepeatableRead}).
+		InTx(gomock.Any(), &database.TxOptions{Isolation: sql.LevelRepeatableRead}).
 		Times(1).
 		Return(xerrors.New("a bad thing happened"))
 
@@ -71,7 +71,7 @@ func TestReadModifyUpdate_TooManyRetries(t *testing.T) {
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
 
 	mDB.EXPECT().
-		InTx(gomock.Any(), &sql.TxOptions{Isolation: sql.LevelRepeatableRead}).
+		InTx(gomock.Any(), &database.TxOptions{Isolation: sql.LevelRepeatableRead}).
 		Times(5).
 		Return(&pq.Error{Code: pq.ErrorCode("40001")})
 	err := database.ReadModifyUpdate(mDB, func(tx database.Store) error {
