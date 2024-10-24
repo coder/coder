@@ -20,8 +20,8 @@ New workspaces may not be created from this template. Existing workspaces w=
 ill continue to function normally.
 
 
-See workspaces: http://test.com/workspaces?filter=3Downer%3Ame+template%3Aa=
-lpha
+See affected workspaces: http://test.com/workspaces?filter=3Downer%3Ame+tem=
+plate%3Aalpha
 
 View template: http://test.com/templates/coder/alpha
 
@@ -69,7 +69,7 @@ s will continue to function normally.</p>
 3Aalpha" style=3D"display: inline-block; padding: 13px 24px; background-col=
 or: #020617; color: #f8fafc; text-decoration: none; border-radius: 8px; mar=
 gin: 0 4px;">
-          See workspaces
+          See affected workspaces
         </a>
        =20
         <a href=3D"http://test.com/templates/coder/alpha" style=3D"display:=

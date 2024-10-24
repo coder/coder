@@ -11,7 +11,7 @@
     "user_username": "bobby",
     "actions": [
       {
-        "label": "See workspaces",
+        "label": "See affected workspaces",
         "url": "http://test.com/workspaces?filter=owner%3Ame+template%3Aalpha"
       },
       {
