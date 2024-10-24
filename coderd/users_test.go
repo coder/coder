@@ -1122,7 +1122,7 @@ func TestUpdateUserPassword(t *testing.T) {
 			Password: "newpassword",
 		})
 		require.Error(t, err, "member should not be able to update own password without providing old password")
-		require.ErrorContains(t, err, "Old password is required for non-admin users.")
+		require.ErrorContains(t, err, "Old password is required.")
 	})
 
 	t.Run("AuditorCantTellIfPasswordIncorrect", func(t *testing.T) {
@@ -1159,7 +1159,7 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Equal(t, int32(http.StatusNotFound), auditor.AuditLogs()[numLogs-1].StatusCode)
 	})
 
-	t.Run("AdminCanUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
+	t.Run("AdminCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
@@ -1176,7 +1176,8 @@ func TestUpdateUserPassword(t *testing.T) {
 		})
 		numLogs++ // add an audit log for user update
 
-		require.NoError(t, err, "admin should be able to update own password without providing old password")
+		require.Error(t, err, "admin should not be able to update own password without providing old password")
+		require.ErrorContains(t, err, "Old password is required.")
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
@@ -1196,7 +1197,8 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.NoError(t, err)
 
 		err = client.UpdateUserPassword(ctx, "me", codersdk.UpdateUserPasswordRequest{
-			Password: "MyNewSecurePassword!",
+			OldPassword: "SomeSecurePassword!",
+			Password:    "MyNewSecurePassword!",
 		})
 		require.NoError(t, err)
 
