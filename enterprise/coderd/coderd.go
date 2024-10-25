@@ -465,6 +465,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/{id}", api.scimPatchUser)
 			})
 		})
+	} else {
+		// Show a helpful 404 error. Because this is not under the /api/v2 routes,
+		// the frontend is the fallback. A html page is not a helpful error for
+		// a SCIM provider. This JSON has a call to action that __may__ resolve
+		// the issue.
+		// Using Mount to cover all subroute possibilities.
+		api.AGPL.RootHandler.Mount("/scim/v2", http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
+				Message: "SCIM is disabled, please contact your administrator if you believe this is an error",
+				Detail:  "SCIM endpoints are disabled if no SCIM is configured. Configure 'CODER_SCIM_AUTH_HEADER' to enable.",
+			})
+		})))
 	}
 
 	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
