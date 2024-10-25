@@ -50,7 +50,7 @@ func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
 // @Tags Enterprise
 // @Success 200
 // @Router /scim/v2/ServiceProviderConfig [get]
-func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, r *http.Request) {
+func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Request) {
 	// No auth needed to query this endpoint.
 
 	rw.Header().Set("Content-Type", spec.ApplicationScimJson)
