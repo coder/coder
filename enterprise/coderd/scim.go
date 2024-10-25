@@ -35,7 +35,12 @@ func (api *API) scimEnabledMW(next http.Handler) http.Handler {
 }
 
 func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
+	bearer := []byte("Bearer ")
 	hdr := []byte(r.Header.Get("Authorization"))
+
+	if len(hdr) >= len(bearer) && subtle.ConstantTimeCompare(hdr[:len(bearer)], bearer) == 1 {
+		hdr = hdr[len(bearer):]
+	}
 
 	return len(api.SCIMAPIKey) != 0 && subtle.ConstantTimeCompare(hdr, api.SCIMAPIKey) == 1
 }
