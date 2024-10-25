@@ -39,7 +39,6 @@ func WorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig.Mod
 		}
 		// We know in which HCL file is the data resource defined.
 		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
-
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
