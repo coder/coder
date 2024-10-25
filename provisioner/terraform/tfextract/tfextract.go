@@ -92,7 +92,7 @@ func WorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig.Mod
 				logger.Info(ctx, "workspace tag found", "key", key, "value", value)
 
 				if _, ok := workspaceTags[key]; ok {
-					return nil, xerrors.Errorf(`workspace tag "%s" is defined multiple times`, key)
+					return nil, xerrors.Errorf(`workspace tag %q is defined multiple times`, key)
 				}
 				workspaceTags[key] = value
 			}
@@ -149,7 +149,7 @@ func LoadTerraformVariables(module *tfconfig.Module) ([]*proto.TemplateVariable,
 	return templateVariables, nil
 }
 
-// /convertTerraformVariable converts a Terraform variable to a template-wide variable, processed by Coder.
+// convertTerraformVariable converts a Terraform variable to a template-wide variable, processed by Coder.
 func convertTerraformVariable(variable *tfconfig.Variable) (*proto.TemplateVariable, error) {
 	var defaultData string
 	if variable.Default != nil {
