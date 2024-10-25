@@ -58,7 +58,7 @@ func setScimAuth(key []byte) func(*http.Request) {
 
 func setScimAuthBearer(key []byte) func(*http.Request) {
 	return func(r *http.Request) {
-		r.Header.Set("Authorization", "Bearer"+string(key))
+		r.Header.Set("Authorization", "Bearer "+string(key))
 	}
 }
 
