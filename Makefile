@@ -769,9 +769,7 @@ test-postgres: test-postgres-docker
 		--jsonfile="gotests.json" \
 		--jsonfile-timing-events="result/$(shell date +%Y-%m-%d)/$(shell date +%Y-%m-%d-%H-%M-%S)-timings.json" \
 		--packages="./..." -- \
-		-timeout=3m \
-		-failfast \
-		-count=1
+		-timeout=3m
 .PHONY: test-postgres
 
 test-migrations: test-postgres-docker
