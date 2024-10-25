@@ -28,7 +28,7 @@ const (
 	tarMimeType = "application/x-tar"
 	zipMimeType = "application/zip"
 
-	httpFileMaxBytes = 10 * (10 << 20)
+	HTTPFileMaxBytes = 10 * (10 << 20)
 )
 
 // @Summary Upload file
@@ -56,7 +56,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(rw, r.Body, httpFileMaxBytes)
+	r.Body = http.MaxBytesReader(rw, r.Body, HTTPFileMaxBytes)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -76,7 +76,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data, err = archive.CreateTarFromZip(zipReader, httpFileMaxBytes)
+		data, err = archive.CreateTarFromZip(zipReader, HTTPFileMaxBytes)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error processing .zip archive.",
@@ -182,7 +182,7 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 
 		rw.Header().Set("Content-Type", codersdk.ContentTypeZip)
 		rw.WriteHeader(http.StatusOK)
-		err = archive.WriteZip(rw, tar.NewReader(bytes.NewReader(file.Data)), httpFileMaxBytes)
+		err = archive.WriteZip(rw, tar.NewReader(bytes.NewReader(file.Data)), HTTPFileMaxBytes)
 		if err != nil {
 			api.Logger.Error(ctx, "invalid .zip archive", slog.F("file_id", fileID), slog.F("mimetype", file.Mimetype), slog.Error(err))
 		}
